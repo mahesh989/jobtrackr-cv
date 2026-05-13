@@ -18,15 +18,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.config import get_settings
 from app.core.request_id import RequestIdLogFilter, RequestIdMiddleware, get_request_id
-from app.routes import (
-    analysis_runs,
-    billing,
-    companies,
-    cv_versions,
-    health,
-    users,
-    webhooks,
-)
+from app.routes import health
 
 # ---------------------------------------------------------------------------
 # Settings + Logging
@@ -111,8 +103,8 @@ if settings.SENTRY_DSN:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="CV Magic API",
-    version="1.0.0",
+    title="JobTrackr CV Pipeline",
+    version="0.1.0",
     docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
 )
@@ -191,9 +183,4 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 # ---------------------------------------------------------------------------
 
 app.include_router(health.router)
-app.include_router(webhooks.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(companies.router, prefix="/api/v1")
-app.include_router(cv_versions.router, prefix="/api/v1")
-app.include_router(analysis_runs.router, prefix="/api/v1")
-app.include_router(billing.router, prefix="/api/v1")
+# Internal HMAC-signed routes are mounted in commit 2c.

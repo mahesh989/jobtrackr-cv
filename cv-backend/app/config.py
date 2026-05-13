@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
-    # Supabase
+    # Supabase (shared project with JobTrackr)
     # -------------------------------------------------------------------------
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
@@ -28,30 +28,22 @@ class Settings(BaseSettings):
     SUPABASE_DB_URL: str  # postgresql+asyncpg://...
 
     # -------------------------------------------------------------------------
-    # Clerk
+    # Supabase Storage buckets
     # -------------------------------------------------------------------------
-    CLERK_SECRET_KEY: str
-    CLERK_WEBHOOK_SIGNING_SECRET: str
-    CLERK_WEBHOOK_SECRET: str = ""  # alias — populated from CLERK_WEBHOOK_SIGNING_SECRET if blank
-    CLERK_JWKS_URL: str
-
-    # -------------------------------------------------------------------------
-    # Supabase Storage
-    # -------------------------------------------------------------------------
-    SUPABASE_CV_BUCKET: str = "cv-files"
+    SUPABASE_CV_BUCKET: str = "cvs"
     SUPABASE_TAILORED_CV_BUCKET: str = "tailored-cvs"
 
     # -------------------------------------------------------------------------
-    # AI Providers
+    # AI defaults — actual key is BYOK, supplied by JobTrackr per-request in 2d.
     # -------------------------------------------------------------------------
-    ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
-    DEEPSEEK_API_KEY: str = ""
-    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
-
-    # Default model used when a user has no preference set
     DEFAULT_AI_PROVIDER: str = "anthropic"
     DEFAULT_AI_MODEL: str = "claude-3-5-sonnet-20241022"
+
+    # -------------------------------------------------------------------------
+    # HMAC shared secret with JobTrackr (set in commit 2c, deployed in 2f).
+    # cv-backend rejects requests whose signature does not verify with this.
+    # -------------------------------------------------------------------------
+    JOBTRACKR_HMAC_SECRET: str = ""
 
     # -------------------------------------------------------------------------
     # Sentry
@@ -59,26 +51,9 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
 
     # -------------------------------------------------------------------------
-    # Resend
+    # CORS — cv-backend is internal; only JobTrackr's domain needs allowance
+    # if any browser request ever lands here (currently none do).
     # -------------------------------------------------------------------------
-    RESEND_API_KEY: str = ""
-    RESEND_FROM_EMAIL: str = "CV Magic <noreply@cvmagic.app>"
-    APP_URL: str = "http://localhost:3000"
-
-    # -------------------------------------------------------------------------
-    # Stripe
-    # -------------------------------------------------------------------------
-    STRIPE_SECRET_KEY: str = ""
-    STRIPE_PUBLISHABLE_KEY: str = ""
-    STRIPE_WEBHOOK_SIGNING_SECRET: str = ""
-    STRIPE_PRO_PRICE_ID: str = ""
-    STRIPE_BILLING_SUCCESS_PATH: str = "/billing/success"
-    STRIPE_BILLING_CANCEL_PATH: str = "/billing/cancel"
-
-    # -------------------------------------------------------------------------
-    # CORS
-    # -------------------------------------------------------------------------
-    # Accepts a JSON array string: '["http://localhost:3000"]'
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
@@ -90,7 +65,6 @@ class Settings(BaseSettings):
                 if isinstance(parsed, list):
                     return parsed
             except json.JSONDecodeError:
-                # Treat as a single origin
                 return [v]
         return v  # type: ignore[return-value]
 
@@ -103,11 +77,6 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
-
-    @property
-    def webhook_secret(self) -> str:
-        """Return whichever webhook secret env var is set."""
-        return self.CLERK_WEBHOOK_SECRET or self.CLERK_WEBHOOK_SIGNING_SECRET
 
 
 @lru_cache(maxsize=1)

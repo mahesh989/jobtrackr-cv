@@ -68,6 +68,5 @@ class AnalysisRun(Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="analysis_runs")  # noqa: F821
-    company: Mapped["Company"] = relationship("Company", back_populates="analysis_runs")  # noqa: F821
-    cv_version: Mapped["CVVersion"] = relationship("CVVersion", back_populates="analysis_runs")  # noqa: F821
+    # Relationships removed during strip — cv-backend accesses these tables
+    # via Supabase service-role REST (no SQLAlchemy joins).
