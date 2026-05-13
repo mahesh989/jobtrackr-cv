@@ -1,20 +1,23 @@
 """
-Helpers for updating analysis-run state during pipeline execution.
+Pipeline state writers — update the analysis_runs row via Supabase service-role.
 
-Each call commits the session so that Supabase Realtime broadcasts the change
-to subscribed frontend clients in near-real-time.
+Each update commits, which causes Supabase Realtime to broadcast the change
+to subscribed browser clients in near-real-time. The browser uses this to
+animate step cards on /jobs/[id]/analyze/[run_id].
+
+These functions are intentionally thin REST calls — no SQLAlchemy session,
+no models, no in-memory row caching. The orchestrator keeps the step_status
+dict locally and passes it to mark_step.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
-
-from app.models.analysis_run import AnalysisRun
+from app.database import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -29,71 +32,76 @@ StepName = Literal[
 ]
 StepState = Literal["pending", "running", "completed", "failed"]
 
-
-async def get_run(db: AsyncSession, run_id) -> AnalysisRun:  # type: ignore[no-untyped-def]
-    result = await db.execute(select(AnalysisRun).where(AnalysisRun.id == run_id))
-    run = result.scalar_one()
-    return run
-
-
-async def mark_step(
-    db: AsyncSession,
-    run: AnalysisRun,
-    step: StepName,
-    state: StepState,
-) -> None:
-    """Update step_status[step] and commit so Realtime fires."""
-    status = dict(run.step_status or {})
-    status[step] = state
-    run.step_status = status
-    flag_modified(run, "step_status")
-    await db.commit()
-    logger.info("Run %s: step %s → %s", run.id, step, state)
+DEFAULT_STEP_STATUS: Dict[str, str] = {
+    "jd_analysis":           "pending",
+    "cv_jd_matching":        "pending",
+    "ats_scoring":           "pending",
+    "input_recommendations": "pending",
+    "keyword_feasibility":   "pending",
+    "ai_recommendations":    "pending",
+    "tailored_cv":           "pending",
+}
 
 
-async def mark_run_running(db: AsyncSession, run: AnalysisRun) -> None:
-    run.status = "running"
-    run.started_at = datetime.now(timezone.utc)
-    await db.commit()
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-async def mark_run_completed(db: AsyncSession, run: AnalysisRun) -> None:
-    run.status = "completed"
-    run.completed_at = datetime.now(timezone.utc)
-    await db.commit()
+async def _update(run_id: uuid.UUID, patch: Dict[str, Any]) -> None:
+    """Run a Supabase UPDATE in a worker thread (supabase-py is sync)."""
+    def _do() -> None:
+        get_supabase().table("analysis_runs").update(patch).eq("id", str(run_id)).execute()
+    await asyncio.to_thread(_do)
+
+
+async def mark_run_running(run_id: uuid.UUID) -> None:
+    await _update(run_id, {"status": "running", "started_at": _now_iso()})
+    logger.info("run %s → running", run_id)
+
+
+async def mark_run_completed(run_id: uuid.UUID) -> None:
+    await _update(run_id, {"status": "completed", "completed_at": _now_iso()})
+    logger.info("run %s → completed", run_id)
 
 
 async def mark_run_failed(
-    db: AsyncSession, run: AnalysisRun, error: str, failed_step: Optional[StepName] = None
+    run_id:      uuid.UUID,
+    error:       str,
+    step_status: Dict[str, str],
+    failed_step: Optional[StepName] = None,
 ) -> None:
-    run.status = "failed"
-    run.error_message = error[:2000]  # cap length
-    run.completed_at = datetime.now(timezone.utc)
-
-    # Always reconcile step_status so the frontend doesn't render a step
-    # spinner for a step that will never complete. If the caller named the
-    # failed step, mark it as failed; otherwise auto-detect any step in
-    # "running" or "pending" state and mark them as failed.
-    status = dict(run.step_status or {})
+    """Set status=failed + reconcile step_status (failed steps stay 'failed')."""
     if failed_step:
-        status[failed_step] = "failed"
+        step_status[failed_step] = "failed"
     else:
-        for step_name, step_state in list(status.items()):
-            if step_state == "running":
-                status[step_name] = "failed"
-    run.step_status = status
-    flag_modified(run, "step_status")
-    await db.commit()
+        for k, v in list(step_status.items()):
+            if v == "running":
+                step_status[k] = "failed"
+    await _update(run_id, {
+        "status":        "failed",
+        "error_message": error[:2000],
+        "completed_at":  _now_iso(),
+        "step_status":   step_status,
+    })
+    logger.info("run %s → failed (%s)", run_id, error[:120])
+
+
+async def mark_step(
+    run_id:      uuid.UUID,
+    step_status: Dict[str, str],
+    step:        StepName,
+    state:       StepState,
+) -> None:
+    """Mutate the local step_status dict and persist it. Realtime fires."""
+    step_status[step] = state
+    await _update(run_id, {"step_status": step_status})
+    logger.info("run %s: %s → %s", run_id, step, state)
 
 
 async def save_step_result(
-    db: AsyncSession,
-    run: AnalysisRun,
+    run_id: uuid.UUID,
     column: str,
-    value: Any,
+    value:  Any,
 ) -> None:
-    """Set a result column (e.g. jd_analysis_result) and commit."""
-    setattr(run, column, value)
-    if isinstance(value, (dict, list)):
-        flag_modified(run, column)
-    await db.commit()
+    """Persist a step's output to its dedicated column on analysis_runs."""
+    await _update(run_id, {column: value})

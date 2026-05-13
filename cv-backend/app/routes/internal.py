@@ -2,23 +2,24 @@
 Internal API consumed exclusively by JobTrackr's Next.js routes.
 
 All endpoints require an HMAC-SHA256 signature in X-Signature, computed with
-the shared JOBTRACKR_HMAC_SECRET. There is no other auth surface — these
-routes are not exposed to browsers and cv-backend is not on a public domain.
+the shared JOBTRACKR_HMAC_SECRET. cv-backend has no other auth surface and
+is not exposed to browsers.
 
-Three endpoints:
-  - POST /internal/analyze         → kicks off the 7-step pipeline (Phase 5)
-  - POST /internal/extract-cv-text → returns pypdf text for a Storage object
-  - POST /internal/scrape-jd       → returns scraped JD text for a URL
-
-At this commit (2c) the endpoints validate input + HMAC and return placeholder
-responses. Real wiring lands in 2d (AI client) + 2e (pipeline + scraper).
+Endpoints:
+  - POST /internal/analyze         — kicks off the pipeline (BackgroundTask)
+  - POST /internal/extract-cv-text — pypdf extraction for a Storage object
+  - POST /internal/scrape-jd       — JD scraping helper
 """
 from __future__ import annotations
 
+import asyncio
+import io
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
+from app.config import get_settings
+from app.database import get_supabase
 from app.schemas.internal import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -28,6 +29,8 @@ from app.schemas.internal import (
     ScrapeJdResponse,
 )
 from app.security.hmac import verify_hmac
+from app.services.pipeline.orchestrator import run_analysis_pipeline
+from app.services.scraping.jd_scraper import JDScrapeError, scrape_jd
 
 logger = logging.getLogger(__name__)
 
@@ -50,39 +53,87 @@ async def analyze(
     background_tasks: BackgroundTasks,
 ) -> AnalyzeResponse:
     """
-    Accept a pipeline run trigger. Returns immediately; the pipeline executes
-    as a FastAPI BackgroundTask. cv-backend writes step results to the
-    analysis_runs row identified by body.run_id via Supabase service-role.
+    Accept a pipeline trigger. Returns 202 immediately; the pipeline runs as a
+    FastAPI BackgroundTask and writes step results to analysis_runs.{run_id}
+    via Supabase service-role.
     """
     logger.info(
         "received run %s (user=%s provider=%s jd_len=%d cv_len=%d)",
         body.run_id, body.user_id, body.ai_provider,
         len(body.jd_text), len(body.cv_text),
     )
-    # 2d/2e: schedule background pipeline task here.
-    # background_tasks.add_task(run_analysis_pipeline, ...payload...)
+    background_tasks.add_task(run_analysis_pipeline, body)
     return AnalyzeResponse(run_id=body.run_id)
 
 
 # ── /internal/extract-cv-text ────────────────────────────────────────────────
 
+def _extract_pdf_text_sync(pdf_bytes: bytes) -> str:
+    """
+    Sync pypdf extraction — must run in a worker thread so the event loop
+    doesn't block on large PDFs.
+
+    Fixes the original cv-magic bug: synchronous pypdf inside `async def`.
+    """
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    pages = []
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        pages.append(text)
+    return "\n\n".join(pages).strip()
+
+
 @router.post("/extract-cv-text", response_model=ExtractCvTextResponse)
 async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     """Download a PDF from Supabase Storage and return its plain-text extraction."""
-    logger.info("extract-cv-text stub: %s", body.storage_path)
-    # 2e: real pypdf extraction (wrapped in asyncio.to_thread).
-    return ExtractCvTextResponse(cv_text="", word_count=0)
+    settings = get_settings()
+    bucket = settings.SUPABASE_CV_BUCKET
+
+    # Path arrives in the form 'cvs/<user_id>/<cv_id>.pdf' — strip the bucket
+    # prefix if it's been included by mistake.
+    storage_key = body.storage_path
+    prefix = f"{bucket}/"
+    if storage_key.startswith(prefix):
+        storage_key = storage_key[len(prefix):]
+
+    # supabase-py is synchronous — wrap the download in a worker thread.
+    def _download() -> bytes:
+        return get_supabase().storage.from_(bucket).download(storage_key)
+
+    try:
+        pdf_bytes = await asyncio.to_thread(_download)
+    except Exception as exc:
+        logger.warning("extract-cv-text: download failed for %s: %s", storage_key, exc)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not fetch CV PDF: {exc}",
+        ) from exc
+
+    cv_text = await asyncio.to_thread(_extract_pdf_text_sync, pdf_bytes)
+    word_count = len(cv_text.split())
+    logger.info(
+        "extract-cv-text: %s → %d chars, %d words",
+        storage_key, len(cv_text), word_count,
+    )
+    return ExtractCvTextResponse(cv_text=cv_text, word_count=word_count)
 
 
 # ── /internal/scrape-jd ──────────────────────────────────────────────────────
 
 @router.post("/scrape-jd", response_model=ScrapeJdResponse)
-async def scrape_jd(body: ScrapeJdRequest) -> ScrapeJdResponse:
+async def scrape_jd_endpoint(body: ScrapeJdRequest) -> ScrapeJdResponse:
     """Scrape a job-posting URL for the cleaned JD text."""
-    logger.info("scrape-jd stub: %s", body.url)
-    # 2e: call services/scraping/jd_scraper.scrape_jd.
+    try:
+        result = await scrape_jd(str(body.url))
+    except JDScrapeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     return ScrapeJdResponse(
-        jd_text="",
-        job_title=None,
-        source_url=str(body.url),
+        jd_text=result.jd_text,
+        job_title=result.job_title,
+        source_url=result.source_url,
     )
