@@ -112,6 +112,7 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
         <div className="px-2 pt-4 pb-1">
           <p className="text-[10px] font-semibold text-[#484F58] uppercase tracking-widest mb-1">Tools</p>
         </div>
+        <NavItem href="/dashboard/cv">CV library</NavItem>
         <NavItem href="/dashboard/integrations">Integrations</NavItem>
         <NavItem href="/privacy">Privacy policy</NavItem>
 
