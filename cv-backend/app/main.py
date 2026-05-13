@@ -18,7 +18,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.config import get_settings
 from app.core.request_id import RequestIdLogFilter, RequestIdMiddleware, get_request_id
-from app.routes import health
+from app.routes import health, internal
 
 # ---------------------------------------------------------------------------
 # Settings + Logging
@@ -183,4 +183,4 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 # ---------------------------------------------------------------------------
 
 app.include_router(health.router)
-# Internal HMAC-signed routes are mounted in commit 2c.
+app.include_router(internal.router)
