@@ -22,6 +22,10 @@ import { extractCvText, CvBackendError } from "@/lib/cvBackend";
 // inside. The browser pre-checks; the server enforces.
 export const runtime = "nodejs";
 
+// Default Hobby plan timeout is 10s. With one cv-backend machine kept warm,
+// extraction usually completes in <3s; 25s gives generous headroom.
+export const maxDuration = 25;
+
 const MAX_BYTES = 4 * 1024 * 1024;       // 4 MB (Vercel Hobby body limit is 4.5 MB)
 const ALLOWED_MIME = new Set([
   "application/pdf",
