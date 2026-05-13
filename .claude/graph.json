@@ -98,10 +98,12 @@
 
   "build_state": {
     "current_phase": 2,
-    "next_action": "Create cv-backend/ folder by copying cv-magic/backend/, strip Clerk/Stripe/quota/Resend, add HMAC middleware, adapt AI client to BYOK, expose /internal/analyze /internal/extract-cv-text /internal/scrape-jd, deploy to Fly.io as jobtrackr-cv-api.",
+    "next_action": "Phase 2 commit 2c — add HMAC middleware in app/security/hmac.py and /internal/* route stubs (analyze, extract-cv-text, scrape-jd) that verify signature and return 202.",
     "completed": [
       "Phase 0 — preview env verified",
-      "Phase 1 — migrations 010/011/012 applied; cv_versions + analysis_runs tables live; Realtime publication active"
+      "Phase 1 — migrations 010/011/012 applied; cv_versions + analysis_runs tables live; Realtime publication active",
+      "Phase 2 commit 2a — copy cv-magic/backend/ verbatim into cv-backend/",
+      "Phase 2 commit 2b — strip Clerk/Stripe/quota/Resend/Alembic (79→42 files)"
     ],
     "in_progress": [],
     "blocked": []
@@ -145,12 +147,20 @@
       "phase": 2,
       "name": "cv-backend skeleton",
       "status": "in_progress",
+      "sub_commits": {
+        "2a": "completed — verbatim copy of cv-magic/backend/ into cv-backend/",
+        "2b": "completed — stripped Clerk/Stripe/quota/Resend/Alembic (79→42 files, -3286 lines)",
+        "2c": "next — HMAC middleware + /internal/* skeleton",
+        "2d": "pending — adapt AI client to per-request BYOK",
+        "2e": "pending — Supabase REST writes + pypdf asyncio.to_thread fix",
+        "2f": "pending — Dockerfile + fly.toml, deploy to Fly.io"
+      },
       "tasks": [
-        { "id": "2.1", "desc": "Copy cv-magic/backend/ → cv-backend/", "status": "planned" },
-        { "id": "2.2", "desc": "Strip Clerk auth + utils/clerk.py", "status": "planned" },
-        { "id": "2.3", "desc": "Strip Stripe billing + routes/billing.py", "status": "planned" },
-        { "id": "2.4", "desc": "Strip core/quota.py + remove increment_quota calls", "status": "planned" },
-        { "id": "2.5", "desc": "Strip Resend / services/notifications/", "status": "planned" },
+        { "id": "2.1", "desc": "Copy cv-magic/backend/ → cv-backend/", "status": "completed" },
+        { "id": "2.2", "desc": "Strip Clerk auth + utils/clerk.py", "status": "completed" },
+        { "id": "2.3", "desc": "Strip Stripe billing + routes/billing.py", "status": "completed" },
+        { "id": "2.4", "desc": "Strip core/quota.py + remove increment_quota calls", "status": "completed" },
+        { "id": "2.5", "desc": "Strip Resend / services/notifications/", "status": "completed" },
         { "id": "2.6", "desc": "Replace cv-magic routes with /internal/* skeleton", "status": "planned" },
         { "id": "2.7", "desc": "Add app/security/hmac.py middleware", "status": "planned" },
         { "id": "2.8", "desc": "Adapt AI client to receive (provider, key) per-request", "status": "planned" },
