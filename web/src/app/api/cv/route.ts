@@ -1,15 +1,16 @@
 /**
  * /api/cv
  *
- * POST  — accepts a PDF or DOCX upload, stores it in Supabase Storage,
- *         calls cv-backend to extract plain text, then INSERTs a
- *         cv_versions row owned by the current user. If the user has no
- *         active CV yet, the new one is marked is_active=true.
+ * Direct-upload flow (Vercel never sees the file bytes):
+ *   1. Browser uploads PDF/DOCX directly to Supabase Storage at
+ *      cvs/{user_id}/{cv_id}.{ext} using its user-context Supabase client.
+ *      RLS policy (migration 013) requires auth.uid() == first path segment.
+ *   2. Browser POSTs JSON {cv_id, label, storage_path, mime_type} here.
+ *   3. We call cv-backend /internal/extract-cv-text to get the plain text,
+ *      then INSERT a cv_versions row with all fields populated.
  *
- * GET   — list the current user's CV versions (no file bytes, just metadata).
- *
- * The PDF/DOCX bytes never live in the JS process longer than necessary —
- * we stream them through to Storage and discard.
+ * This means JSON bodies are kilobytes regardless of file size, so we sidestep
+ * Vercel's serverless function body limit entirely.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,24 +18,12 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { extractCvText, CvBackendError } from "@/lib/cvBackend";
 
-// Vercel Hobby tier hard-caps function bodies at 4.5 MB and there is no way
-// to raise that via Next.js App Router. So our cap is 4 MB to stay safely
-// inside. The browser pre-checks; the server enforces.
 export const runtime = "nodejs";
-
-// Default Hobby plan timeout is 10s. With one cv-backend machine kept warm,
-// extraction usually completes in <3s; 25s gives generous headroom.
+// Extraction is normally <3s; allow headroom for cold-edge cases.
 export const maxDuration = 25;
 
-const MAX_BYTES = 4 * 1024 * 1024;       // 4 MB (Vercel Hobby body limit is 4.5 MB)
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
-const MIME_EXT: Record<string, string> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-};
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALLOWED_EXT = new Set(["pdf", "docx"]);
 
 // ── GET — list ───────────────────────────────────────────────────────────────
 
@@ -54,88 +43,74 @@ export async function GET() {
   return NextResponse.json({ cvs: data ?? [] });
 }
 
-// ── POST — upload + extract + insert ─────────────────────────────────────────
+// ── POST — finalise a direct-upload ──────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let form: FormData;
+  let body: { cv_id?: string; label?: string; storage_path?: string };
   try {
-    form = await req.formData();
+    body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const file  = form.get("file");
-  const label = (form.get("label") ?? "").toString().trim();
+  const cv_id        = (body.cv_id ?? "").trim();
+  const label        = (body.label ?? "").trim();
+  const storagePath  = (body.storage_path ?? "").trim();
 
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Missing 'file' field" }, { status: 400 });
-  }
-  if (!ALLOWED_MIME.has(file.type)) {
-    return NextResponse.json(
-      { error: `Unsupported file type: ${file.type || "unknown"}. Upload a PDF or DOCX.` },
-      { status: 415 },
-    );
-  }
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json(
-      { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Cap is 4 MB.` },
-      { status: 413 },
-    );
+  if (!UUID_RE.test(cv_id)) {
+    return NextResponse.json({ error: "Invalid cv_id (must be a UUID)" }, { status: 400 });
   }
   if (!label) {
-    return NextResponse.json({ error: "Missing 'label' field" }, { status: 400 });
+    return NextResponse.json({ error: "Missing label" }, { status: 400 });
+  }
+  // Path must be exactly `${user.id}/${cv_id}.{pdf|docx}` — otherwise the
+  // caller is trying to claim someone else's upload or a malformed path.
+  const expectedPrefix = `${user.id}/${cv_id}.`;
+  if (!storagePath.startsWith(expectedPrefix)) {
+    return NextResponse.json(
+      { error: "storage_path does not match the authenticated user and cv_id" },
+      { status: 400 },
+    );
+  }
+  const ext = storagePath.slice(expectedPrefix.length).toLowerCase();
+  if (!ALLOWED_EXT.has(ext)) {
+    return NextResponse.json({ error: `Unsupported extension .${ext}` }, { status: 415 });
   }
 
   const admin = createAdminClient();
 
-  // ── 1. Insert a draft row so we have an id for the storage path
-  const { data: draft, error: insertErr } = await admin
-    .from("cv_versions")
-    .insert({
-      user_id:          user.id,
-      label,
-      pdf_storage_path: "pending",   // overwritten below
-      cv_text:          "",          // populated after extraction
-      is_active:        false,       // promoted to true at the end if it's their first
-    })
-    .select("id")
-    .single();
-
-  if (insertErr || !draft) {
-    console.error("[/api/cv POST] insert draft failed:", insertErr?.message);
-    return NextResponse.json({ error: "Failed to create CV record" }, { status: 500 });
+  // Reject duplicate POSTs for the same cv_id (e.g. user double-clicks Upload).
+  const { data: dup } = await admin
+    .from("cv_versions").select("id").eq("id", cv_id).maybeSingle();
+  if (dup) {
+    return NextResponse.json({ error: "This CV is already saved" }, { status: 409 });
   }
 
-  const ext         = MIME_EXT[file.type];
-  const storagePath = `${user.id}/${draft.id}.${ext}`;
-
-  // ── 2. Upload to Storage
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { error: uploadErr } = await admin
-    .storage
-    .from("cvs")
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-
-  if (uploadErr) {
-    console.error("[/api/cv POST] storage upload failed:", uploadErr.message);
-    await admin.from("cv_versions").delete().eq("id", draft.id);
-    return NextResponse.json({ error: `Storage upload failed: ${uploadErr.message}` }, { status: 500 });
+  // ── 1. Verify the Storage object actually exists at the claimed path.
+  //      Avoid the race where a malicious client POSTs without uploading.
+  const { data: head } = await admin
+    .storage.from("cvs")
+    .list(`${user.id}`, { limit: 1000, search: `${cv_id}.` });
+  const exists = (head ?? []).some((o) => o.name === `${cv_id}.${ext}`);
+  if (!exists) {
+    return NextResponse.json(
+      { error: "No file at storage_path. Upload to Storage first, then call this endpoint." },
+      { status: 404 },
+    );
   }
 
-  // ── 3. Ask cv-backend to extract text
+  // ── 2. Extract text via cv-backend.
   let cvText = "";
   try {
     const result = await extractCvText(storagePath);
     cvText = result.cv_text;
   } catch (err) {
     console.error("[/api/cv POST] extract failed:", err);
-    // Clean up — Storage object + DB row — so the user can retry.
     await admin.storage.from("cvs").remove([storagePath]);
-    await admin.from("cv_versions").delete().eq("id", draft.id);
     const message = err instanceof CvBackendError
       ? `CV text extraction failed (${err.status})`
       : "CV text extraction unavailable — try again";
@@ -144,41 +119,42 @@ export async function POST(req: NextRequest) {
 
   if (!cvText.trim()) {
     await admin.storage.from("cvs").remove([storagePath]);
-    await admin.from("cv_versions").delete().eq("id", draft.id);
     return NextResponse.json(
       { error: "Could not extract any text from this file. Is it a scanned image PDF?" },
       { status: 422 },
     );
   }
 
-  // ── 4. Decide is_active — first upload by this user becomes active
-  const { count: existingCount } = await admin
+  // ── 3. Decide is_active — first upload becomes active automatically.
+  const { count: activeCount } = await admin
     .from("cv_versions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .eq("is_active", true);
-  const shouldActivate = (existingCount ?? 0) === 0;
+  const shouldActivate = (activeCount ?? 0) === 0;
 
-  // ── 5. Finalise the row
-  const { error: updateErr } = await admin
+  // ── 4. INSERT the row.
+  const { data: row, error: insertErr } = await admin
     .from("cv_versions")
-    .update({
+    .insert({
+      id:               cv_id,
+      user_id:          user.id,
+      label,
       pdf_storage_path: storagePath,
       cv_text:          cvText,
       is_active:        shouldActivate,
     })
-    .eq("id", draft.id);
+    .select("id, label, pdf_storage_path, is_active")
+    .single();
 
-  if (updateErr) {
-    console.error("[/api/cv POST] finalise failed:", updateErr.message);
-    return NextResponse.json({ error: "Failed to finalise CV record" }, { status: 500 });
+  if (insertErr || !row) {
+    console.error("[/api/cv POST] insert failed:", insertErr?.message);
+    await admin.storage.from("cvs").remove([storagePath]);
+    return NextResponse.json(
+      { error: "Failed to save CV record" },
+      { status: 500 },
+    );
   }
 
-  return NextResponse.json({
-    id:               draft.id,
-    label,
-    pdf_storage_path: storagePath,
-    is_active:        shouldActivate,
-    word_count:       cvText.split(/\s+/).length,
-  });
+  return NextResponse.json({ ...row, word_count: cvText.split(/\s+/).length });
 }

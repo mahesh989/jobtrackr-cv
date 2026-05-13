@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface CvRow {
   id:                string;
@@ -16,12 +17,19 @@ interface Props {
   initial: CvRow[];
 }
 
-const MAX_BYTES   = 4 * 1024 * 1024;
+// 5 MB — matches the bucket limit set in migration 013. We're no longer
+// constrained by Vercel's 4.5 MB function body cap because the file goes
+// straight from the browser to Supabase Storage.
+const MAX_BYTES   = 5 * 1024 * 1024;
 const ALLOWED_EXT = /\.(pdf|docx)$/i;
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+const EXT_FROM_MIME: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+};
 
 // Extract a useful error string from a fetch response, even when the body
 // isn't JSON (e.g. Vercel's edge-level rejection for over-limit bodies).
@@ -63,7 +71,7 @@ export function CvLibraryClient({ initial }: Props) {
     }
     if (file.size > MAX_BYTES) {
       const mb = (file.size / 1024 / 1024).toFixed(1);
-      setError(`This file is ${mb} MB — the limit is 4 MB. Try compressing it or splitting sections.`);
+      setError(`This file is ${mb} MB — the limit is 5 MB. Try compressing it or splitting sections.`);
       return;
     }
     const label = (data.get("label") ?? "").toString().trim();
@@ -73,9 +81,50 @@ export function CvLibraryClient({ initial }: Props) {
     }
 
     setUploading(true);
+
+    // ── Step 1 — direct browser upload to Supabase Storage.
+    // RLS allows this because the path's first segment is the user's auth.uid().
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setUploading(false);
+      setError("Your session has expired — refresh and sign in again.");
+      return;
+    }
+
+    const ext = EXT_FROM_MIME[file.type] ?? (file.name.toLowerCase().endsWith(".docx") ? "docx" : "pdf");
+    const cvId = crypto.randomUUID();
+    const storagePath = `${user.id}/${cvId}.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from("cvs")
+      .upload(storagePath, file, {
+        contentType: file.type || (ext === "docx"
+          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : "application/pdf"),
+        upsert: false,
+      });
+
+    if (uploadErr) {
+      setUploading(false);
+      setError(`Upload failed: ${uploadErr.message}`);
+      return;
+    }
+
+    // ── Step 2 — tell the API to finalise (extract text + INSERT row).
     try {
-      const res = await fetch("/api/cv", { method: "POST", body: data });
+      const res = await fetch("/api/cv", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          cv_id:        cvId,
+          label,
+          storage_path: storagePath,
+        }),
+      });
       if (!res.ok) {
+        // Best-effort cleanup of the orphan Storage object.
+        await supabase.storage.from("cvs").remove([storagePath]);
         setError(await readError(res));
         return;
       }
@@ -95,10 +144,11 @@ export function CvLibraryClient({ initial }: Props) {
       });
       form.reset();
     } catch (err) {
+      await supabase.storage.from("cvs").remove([storagePath]);
       setError(
         err instanceof Error
           ? `Network error: ${err.message}`
-          : "Network error — check your connection and try again.",
+          : "Network error — try again.",
       );
     } finally {
       setUploading(false);
@@ -148,7 +198,7 @@ export function CvLibraryClient({ initial }: Props) {
         <div className="px-5 py-4 border-b border-border bg-surface-2">
           <h2 className="text-[14px] font-semibold text-text">Upload a CV</h2>
           <p className="text-[12px] text-text-3 mt-0.5">
-            PDF or DOCX. Max 4 MB. The first CV you upload becomes active automatically.
+            PDF or DOCX. Max 5 MB. The first CV you upload becomes active automatically.
           </p>
         </div>
         <form onSubmit={handleUpload} className="px-5 py-5 space-y-4">
