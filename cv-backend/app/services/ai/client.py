@@ -1,28 +1,24 @@
 """
 Unified AI client supporting Anthropic + OpenAI.
 
-The user's preference (provider/model) is stored in `user_preferences`.
-API keys are server-side env vars — users do not supply their own.
+cv-backend is **BYOK** — JobTrackr supplies the user's API key with each
+/internal/analyze request, and the key is held only in memory for the
+duration of the pipeline run. cv-backend never persists user keys.
 
 Usage:
-    client = await get_ai_client_for_user(user_id, db)
-    text = await client.complete(system="...", user="...")
-    data = await client.complete_json(system="...", user="...", schema_hint=...)
+    client = make_ai_client(provider="anthropic", api_key="sk-ant-...")
+    text  = await client.complete(system="...", user="...")
+    data  = await client.complete_json(system="...", user="...")
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
-import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.config import get_settings
-from app.models.user_preference import UserPreference
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +27,7 @@ class AIClientError(Exception):
     """Raised when the AI client fails (auth, network, parsing)."""
 
 
-Provider = Literal["anthropic", "openai", "deepseek"]
+Provider = Literal["anthropic", "openai"]
 
 
 @dataclass
@@ -56,11 +52,6 @@ class AIClient:
         if self.provider == "anthropic":
             return await self._anthropic_complete(
                 system=system, user=user, max_tokens=max_tokens, temperature=temperature
-            )
-        if self.provider == "deepseek":
-            return await self._openai_complete(
-                system=system, user=user, max_tokens=max_tokens, temperature=temperature,
-                base_url=get_settings().DEEPSEEK_BASE_URL,
             )
         return await self._openai_complete(
             system=system, user=user, max_tokens=max_tokens, temperature=temperature
@@ -123,17 +114,13 @@ class AIClient:
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
-        base_url: Optional[str] = None,
     ) -> str:
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:
             raise AIClientError("openai package not installed") from exc
 
-        kwargs: Dict[str, Any] = {"api_key": self.api_key}
-        if base_url:
-            kwargs["base_url"] = base_url
-        client = AsyncOpenAI(**kwargs)
+        client = AsyncOpenAI(api_key=self.api_key)
 
         # o-series reasoning models (o1, o3, o4-mini, o3-mini, …) do not
         # support `temperature`; all modern OpenAI models (gpt-4.1+, o-series)
@@ -171,49 +158,35 @@ class AIClient:
 
 
 # ---------------------------------------------------------------------------
-# Factory
+# Factory — BYOK
 # ---------------------------------------------------------------------------
 
 
-async def get_ai_client_for_user(user_id: uuid.UUID, db: AsyncSession) -> AIClient:
+# Sensible default model per provider when JobTrackr does not specify one.
+_DEFAULT_MODELS: Dict[Provider, str] = {
+    "anthropic": "claude-3-5-sonnet-20241022",
+    "openai":    "gpt-4o",
+}
+
+
+def make_ai_client(
+    provider: Provider,
+    api_key: str,
+    model: Optional[str] = None,
+) -> AIClient:
     """
-    Build an AIClient for the given user, using their saved preference.
-    Falls back to system defaults if no preference row exists.
+    Build an AIClient from values the request carries. No DB lookup, no env keys.
+    JobTrackr decrypted the user's BYOK key and passed it in /internal/analyze.
+
+    The key stays only in memory for the lifetime of the pipeline run.
     """
-    settings = get_settings()
+    if not api_key:
+        raise AIClientError(f"BYOK api_key is empty for provider={provider}")
+    if provider not in ("anthropic", "openai"):
+        raise AIClientError(f"Unsupported AI provider: {provider}")
 
-    result = await db.execute(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
-    pref = result.scalar_one_or_none()
-
-    provider: Provider = (
-        pref.ai_provider if pref else settings.DEFAULT_AI_PROVIDER
-    )  # type: ignore[assignment]
-    model = pref.ai_model if pref else settings.DEFAULT_AI_MODEL
-
-    if provider == "anthropic":
-        if not settings.ANTHROPIC_API_KEY:
-            raise AIClientError(
-                "ANTHROPIC_API_KEY is not configured on the server."
-            )
-        return AIClient(provider="anthropic", model=model, api_key=settings.ANTHROPIC_API_KEY)
-
-    if provider == "openai":
-        if not settings.OPENAI_API_KEY:
-            raise AIClientError(
-                "OPENAI_API_KEY is not configured on the server."
-            )
-        return AIClient(provider="openai", model=model, api_key=settings.OPENAI_API_KEY)
-
-    if provider == "deepseek":
-        if not settings.DEEPSEEK_API_KEY:
-            raise AIClientError(
-                "DEEPSEEK_API_KEY is not configured on the server."
-            )
-        return AIClient(provider="deepseek", model=model, api_key=settings.DEEPSEEK_API_KEY)
-
-    raise AIClientError(f"Unknown AI provider: {provider}")
+    chosen_model = model or _DEFAULT_MODELS[provider]
+    return AIClient(provider=provider, model=chosen_model, api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
