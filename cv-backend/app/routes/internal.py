@@ -84,6 +84,20 @@ def _extract_pdf_text_sync(pdf_bytes: bytes) -> str:
     return "\n\n".join(pages).strip()
 
 
+def _extract_docx_text_sync(docx_bytes: bytes) -> str:
+    """Sync python-docx extraction. Run in a worker thread (see above)."""
+    from docx import Document
+    doc = Document(io.BytesIO(docx_bytes))
+    paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+    # Tables in CVs often hold contact lines + experience blocks — include them.
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            for cell in row.cells:
+                if cell.text and cell.text.strip():
+                    paragraphs.append(cell.text.strip())
+    return "\n\n".join(paragraphs).strip()
+
+
 @router.post("/extract-cv-text", response_model=ExtractCvTextResponse)
 async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     """Download a PDF from Supabase Storage and return its plain-text extraction."""
@@ -102,15 +116,28 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
         return get_supabase().storage.from_(bucket).download(storage_key)
 
     try:
-        pdf_bytes = await asyncio.to_thread(_download)
+        file_bytes = await asyncio.to_thread(_download)
     except Exception as exc:
         logger.warning("extract-cv-text: download failed for %s: %s", storage_key, exc)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Could not fetch CV PDF: {exc}",
+            detail=f"Could not fetch CV file: {exc}",
         ) from exc
 
-    cv_text = await asyncio.to_thread(_extract_pdf_text_sync, pdf_bytes)
+    # Dispatch by extension. The Storage bucket only allows PDF + DOCX
+    # (enforced at migration 013), so a stray .doc/.txt would be rejected
+    # at upload time — but we still defensively check here.
+    lower = storage_key.lower()
+    if lower.endswith(".pdf"):
+        cv_text = await asyncio.to_thread(_extract_pdf_text_sync, file_bytes)
+    elif lower.endswith(".docx"):
+        cv_text = await asyncio.to_thread(_extract_docx_text_sync, file_bytes)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file extension for {storage_key} (expected .pdf or .docx)",
+        )
+
     word_count = len(cv_text.split())
     logger.info(
         "extract-cv-text: %s → %d chars, %d words",
