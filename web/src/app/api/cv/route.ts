@@ -17,7 +17,12 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { extractCvText, CvBackendError } from "@/lib/cvBackend";
 
-const MAX_BYTES = 5 * 1024 * 1024;       // 5 MB
+// Vercel Hobby tier hard-caps function bodies at 4.5 MB and there is no way
+// to raise that via Next.js App Router. So our cap is 4 MB to stay safely
+// inside. The browser pre-checks; the server enforces.
+export const runtime = "nodejs";
+
+const MAX_BYTES = 4 * 1024 * 1024;       // 4 MB (Vercel Hobby body limit is 4.5 MB)
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -73,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Cap is 5 MB.` },
+      { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Cap is 4 MB.` },
       { status: 413 },
     );
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 interface CvRow {
@@ -15,12 +16,35 @@ interface Props {
   initial: CvRow[];
 }
 
+const MAX_BYTES   = 4 * 1024 * 1024;
+const ALLOWED_EXT = /\.(pdf|docx)$/i;
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+// Extract a useful error string from a fetch response, even when the body
+// isn't JSON (e.g. Vercel's edge-level rejection for over-limit bodies).
+async function readError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const j = JSON.parse(text) as { error?: string };
+    if (j.error) return j.error;
+  } catch { /* not JSON */ }
+  if (res.status === 413) return "File too large for the server.";
+  return text.slice(0, 200) || `Upload failed (HTTP ${res.status})`;
+}
+
 export function CvLibraryClient({ initial }: Props) {
   const router = useRouter();
-  const [cvs, setCvs]               = useState<CvRow[]>(initial);
-  const [uploading, setUploading]   = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [pendingId, setPendingId]   = useState<string | null>(null);
+  const [cvs, setCvs]             = useState<CvRow[]>(initial);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<CvRow | null>(null);
+  const [deleting, setDeleting]         = useState(false);
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,6 +57,15 @@ export function CvLibraryClient({ initial }: Props) {
       setError("Pick a PDF or DOCX file first.");
       return;
     }
+    if (!ALLOWED_EXT.test(file.name) && !ALLOWED_MIME.has(file.type)) {
+      setError(`Unsupported file. Pick a .pdf or .docx (got "${file.name}").`);
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setError(`This file is ${mb} MB — the limit is 4 MB. Try compressing it or splitting sections.`);
+      return;
+    }
     const label = (data.get("label") ?? "").toString().trim();
     if (!label) {
       setError("Give the CV a label (e.g. 'Master CV 2026').");
@@ -42,12 +75,11 @@ export function CvLibraryClient({ initial }: Props) {
     setUploading(true);
     try {
       const res = await fetch("/api/cv", { method: "POST", body: data });
-      const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? `Upload failed (${res.status})`);
+        setError(await readError(res));
         return;
       }
-      // Optimistic insert — keep the server as truth on refresh
+      const json = await res.json();
       const newRow: CvRow = {
         id:               json.id,
         label:            json.label,
@@ -56,15 +88,18 @@ export function CvLibraryClient({ initial }: Props) {
         created_at:       new Date().toISOString(),
       };
       setCvs((prev) => {
-        // If the new one is active, demote any other active row locally
         const demoted = newRow.is_active
           ? prev.map((c) => ({ ...c, is_active: false }))
           : prev;
         return [newRow, ...demoted];
       });
       form.reset();
-    } catch {
-      setError("Upload failed — check your connection and try again.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `Network error: ${err.message}`
+          : "Network error — check your connection and try again.",
+      );
     } finally {
       setUploading(false);
     }
@@ -79,8 +114,7 @@ export function CvLibraryClient({ initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ is_active: true }),
       });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Failed to set active"); return; }
+      if (!res.ok) { setError(await readError(res)); return; }
       setCvs((prev) => prev.map((c) => ({ ...c, is_active: c.id === id })));
       router.refresh();
     } catch {
@@ -90,20 +124,20 @@ export function CvLibraryClient({ initial }: Props) {
     }
   }
 
-  async function handleDelete(id: string, label: string) {
-    if (!confirm(`Delete "${label}"? This removes the file from storage.`)) return;
+  async function confirmDelete() {
+    if (!deleteTarget) return;
     setError(null);
-    setPendingId(id);
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/cv/${id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Failed to delete"); return; }
-      setCvs((prev) => prev.filter((c) => c.id !== id));
+      const res = await fetch(`/api/cv/${deleteTarget.id}`, { method: "DELETE" });
+      if (!res.ok) { setError(await readError(res)); return; }
+      setCvs((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
       router.refresh();
     } catch {
       setError("Network error deleting CV.");
     } finally {
-      setPendingId(null);
+      setDeleting(false);
     }
   }
 
@@ -114,7 +148,7 @@ export function CvLibraryClient({ initial }: Props) {
         <div className="px-5 py-4 border-b border-border bg-surface-2">
           <h2 className="text-[14px] font-semibold text-text">Upload a CV</h2>
           <p className="text-[12px] text-text-3 mt-0.5">
-            PDF or DOCX. Max 5 MB. The first CV you upload becomes active automatically.
+            PDF or DOCX. Max 4 MB. The first CV you upload becomes active automatically.
           </p>
         </div>
         <form onSubmit={handleUpload} className="px-5 py-5 space-y-4">
@@ -206,7 +240,7 @@ export function CvLibraryClient({ initial }: Props) {
                       </button>
                     )}
                     <button
-                      onClick={() => handleDelete(cv.id, cv.label)}
+                      onClick={() => setDeleteTarget(cv)}
                       disabled={pendingId === cv.id}
                       className="gh-btn gh-btn-danger text-[12px]"
                     >
@@ -219,6 +253,46 @@ export function CvLibraryClient({ initial }: Props) {
           </ul>
         )}
       </div>
+
+      {/* Delete confirm modal — same pattern as DeleteProfileButton */}
+      {deleteTarget && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-[#1F2328]/40 backdrop-blur-sm"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          />
+          <div className="relative bg-white rounded-lg border border-[#D0D7DE] shadow-xl max-w-md w-full p-6">
+            <h2 className="text-[16px] font-semibold text-[#1F2328] mb-2">Delete this CV?</h2>
+            <p className="text-[13px] text-[#656D76] leading-relaxed mb-2">
+              This removes <strong className="text-[#1F2328]">{deleteTarget.label}</strong>{" "}
+              from your library and deletes the file from storage.
+              {deleteTarget.is_active && (
+                <> It is currently your <strong>active</strong> CV — after deletion you will need to set another active before running an analysis.</>
+              )}
+            </p>
+            <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="gh-btn text-[13px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="gh-btn gh-btn-danger text-[13px]"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
