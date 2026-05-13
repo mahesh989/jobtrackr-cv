@@ -98,12 +98,11 @@
 
   "build_state": {
     "current_phase": 2,
-    "next_action": "Phase 2 commit 2c — add HMAC middleware in app/security/hmac.py and /internal/* route stubs (analyze, extract-cv-text, scrape-jd) that verify signature and return 202.",
+    "next_action": "User runs the manual Phase 2 deploy: create Fly app jobtrackr-cv-api, set secrets (SUPABASE_*, JOBTRACKR_HMAC_SECRET), flyctl deploy. Then signed curl gate.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; cv_versions + analysis_runs tables live; Realtime publication active",
-      "Phase 2 commit 2a — copy cv-magic/backend/ verbatim into cv-backend/",
-      "Phase 2 commit 2b — strip Clerk/Stripe/quota/Resend/Alembic (79→42 files)"
+      "Phase 2 commits 2a–2f — cv-backend stripped, BYOK, Supabase REST, HMAC, Dockerfile, fly.toml all on GitHub"
     ],
     "in_progress": [],
     "blocked": []
@@ -150,10 +149,10 @@
       "sub_commits": {
         "2a": "completed — verbatim copy of cv-magic/backend/ into cv-backend/",
         "2b": "completed — stripped Clerk/Stripe/quota/Resend/Alembic (79→42 files, -3286 lines)",
-        "2c": "next — HMAC middleware + /internal/* skeleton",
-        "2d": "pending — adapt AI client to per-request BYOK",
-        "2e": "pending — Supabase REST writes + pypdf asyncio.to_thread fix",
-        "2f": "pending — Dockerfile + fly.toml, deploy to Fly.io"
+        "2c": "completed — HMAC middleware + /internal/* skeleton (analyze/extract-cv-text/scrape-jd)",
+        "2d": "completed — AI client adapted to BYOK make_ai_client(provider, key)",
+        "2e": "completed — progress.py rewritten on Supabase REST; orchestrator scaffold; pypdf fixed",
+        "2f": "completed — Dockerfile + fly.toml; pending manual flyctl deploy"
       },
       "tasks": [
         { "id": "2.1", "desc": "Copy cv-magic/backend/ → cv-backend/", "status": "completed" },
@@ -161,13 +160,13 @@
         { "id": "2.3", "desc": "Strip Stripe billing + routes/billing.py", "status": "completed" },
         { "id": "2.4", "desc": "Strip core/quota.py + remove increment_quota calls", "status": "completed" },
         { "id": "2.5", "desc": "Strip Resend / services/notifications/", "status": "completed" },
-        { "id": "2.6", "desc": "Replace cv-magic routes with /internal/* skeleton", "status": "planned" },
-        { "id": "2.7", "desc": "Add app/security/hmac.py middleware", "status": "planned" },
-        { "id": "2.8", "desc": "Adapt AI client to receive (provider, key) per-request", "status": "planned" },
-        { "id": "2.9", "desc": "Replace SQLAlchemy session writes with Supabase service-role REST writes", "status": "planned" },
-        { "id": "2.10", "desc": "Fix pypdf sync-in-async (asyncio.to_thread)", "status": "planned" },
-        { "id": "2.11", "desc": "Dockerfile + fly.toml for jobtrackr-cv-api", "status": "planned" },
-        { "id": "2.12", "desc": "Deploy to Fly.io", "status": "planned" }
+        { "id": "2.6", "desc": "Replace cv-magic routes with /internal/* skeleton", "status": "completed" },
+        { "id": "2.7", "desc": "Add app/security/hmac.py middleware", "status": "completed" },
+        { "id": "2.8", "desc": "Adapt AI client to receive (provider, key) per-request", "status": "completed" },
+        { "id": "2.9", "desc": "Replace SQLAlchemy session writes with Supabase service-role REST writes", "status": "completed" },
+        { "id": "2.10", "desc": "Fix pypdf sync-in-async (asyncio.to_thread)", "status": "completed" },
+        { "id": "2.11", "desc": "Dockerfile + fly.toml for jobtrackr-cv-api", "status": "completed" },
+        { "id": "2.12", "desc": "Deploy to Fly.io", "status": "pending_manual" }
       ],
       "gate": "Signed curl to /internal/analyze with a fake payload returns 202; Fly logs print 'received run <id>'."
     },
