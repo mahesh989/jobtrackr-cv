@@ -1,0 +1,5 @@
+node_modules
+dist
+storage
+input.json
+.git

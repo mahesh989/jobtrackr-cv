@@ -1,0 +1,7 @@
+{
+    "actorSpecification": 1,
+    "name": "seek-au-scraper",
+    "title": "SEEK AU Job Scraper",
+    "description": "Hits SEEK Australia internal JSON API to fetch job listings by keyword, location and date range.",
+    "version": "0.1"
+}

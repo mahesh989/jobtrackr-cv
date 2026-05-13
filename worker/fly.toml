@@ -1,0 +1,15 @@
+app = 'jobtrackr-worker'
+primary_region = 'syd'
+
+[build]
+
+[deploy]
+  release_command = 'node --version'
+
+[processes]
+  worker = 'node dist/index.js'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+  processes = ['worker']

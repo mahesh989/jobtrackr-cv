@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "seek-au-scraper",
+  "title": "SEEK AU Scraper (Playwright) — JobTrackr",
+  "description": "Renders SEEK's React SPA with Playwright/Chromium and extracts job cards. Built for JobTrackr.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}

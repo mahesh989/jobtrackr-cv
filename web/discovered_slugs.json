@@ -1,0 +1,49 @@
+{
+  "greenhouse": [
+    {
+      "slug": "cloudflare",
+      "count": 196,
+      "locations": [
+        "In-Office",
+        "Hybrid"
+      ]
+    },
+    {
+      "slug": "stripe",
+      "count": 494,
+      "locations": [
+        "Tokyo",
+        "London",
+        "Germany "
+      ]
+    },
+    {
+      "slug": "twilio",
+      "count": 153,
+      "locations": [
+        "Remote - Singapore",
+        "Remote - United Kingdom",
+        "Remote - US"
+      ]
+    }
+  ],
+  "lever": [
+    {
+      "slug": "enable",
+      "count": 6,
+      "locations": [
+        "Auckland",
+        "Toronto, ON",
+        "London"
+      ]
+    },
+    {
+      "slug": "kogan",
+      "count": 20,
+      "locations": [
+        "South Melbourne, Victoria"
+      ]
+    }
+  ],
+  "ashby": []
+}

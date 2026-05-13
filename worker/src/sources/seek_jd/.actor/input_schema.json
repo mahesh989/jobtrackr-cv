@@ -1,0 +1,44 @@
+{
+  "title": "SEEK JD Fetcher Input",
+  "description": "Fetch full job descriptions from a list of SEEK job detail URLs.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Job URLs",
+      "type": "array",
+      "description": "List of SEEK job detail URLs (https://www.seek.com.au/job/{id}).",
+      "editor": "stringList",
+      "example": ["https://www.seek.com.au/job/92086499"]
+    },
+    "maxUrls": {
+      "title": "Max URLs",
+      "type": "integer",
+      "description": "Hard cap on URLs to fetch per run. Defaults to 25.",
+      "editor": "number",
+      "default": 25
+    },
+    "minDelayMs": {
+      "title": "Min delay between pages (ms)",
+      "type": "integer",
+      "description": "Lower bound of random pause between fetches.",
+      "editor": "number",
+      "default": 6000
+    },
+    "maxDelayMs": {
+      "title": "Max delay between pages (ms)",
+      "type": "integer",
+      "description": "Upper bound of random pause between fetches.",
+      "editor": "number",
+      "default": 12000
+    },
+    "includeHtml": {
+      "title": "Include HTML",
+      "type": "boolean",
+      "description": "If true, also include descriptionHtml in output. Text-only by default.",
+      "editor": "checkbox",
+      "default": false
+    }
+  },
+  "required": ["urls"]
+}

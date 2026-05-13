@@ -1,0 +1,21 @@
+{
+  "name": "seek-au-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "node --import tsx/esm src/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "apify": "^3.7.2",
+    "cheerio": "^1.0.0-rc.12",
+    "crawlee": "^3.16.0",
+    "playwright": "^1.60.0",
+    "tsx": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

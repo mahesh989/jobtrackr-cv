@@ -1,0 +1,20 @@
+{
+  "name": "seek-au-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsc && node dist/main.js"
+  },
+  "dependencies": {
+    "apify": "^3.3.0",
+    "got-scraping": "^4.0.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^22.0.0"
+  }
+}

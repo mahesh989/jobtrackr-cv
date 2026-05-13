@@ -1,0 +1,22 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Job Descriptions",
+      "description": "Full JD text fetched from SEEK detail pages",
+      "transformation": {
+        "fields": ["jobId", "url", "description", "fetchedAt"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "jobId":       { "label": "SEEK ID",     "format": "text" },
+          "url":         { "label": "URL",         "format": "link" },
+          "description": { "label": "Description", "format": "text" },
+          "fetchedAt":   { "label": "Fetched At",  "format": "text" }
+        }
+      }
+    }
+  }
+}

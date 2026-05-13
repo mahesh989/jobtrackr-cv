@@ -1,0 +1,40 @@
+// Run log lifecycle — written at start AND end of every pipeline run
+import { db } from "../db/client.js";
+
+export async function startRunLog(profileId: string): Promise<string> {
+  const { data, error } = await db
+    .from("run_logs")
+    .insert({ profile_id: profileId, status: "running" })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to create run_log: ${error?.message}`);
+  }
+  return data.id as string;
+}
+
+export async function finishRunLog(
+  runLogId: string,
+  outcome: {
+    status: "completed" | "failed";
+    jobs_fetched: number;
+    jobs_after_dedup: number;
+    jobs_saved: number;
+    sources_run: string[];
+    error_message?: string;
+  }
+): Promise<void> {
+  await db
+    .from("run_logs")
+    .update({
+      finished_at: new Date().toISOString(),
+      status: outcome.status,
+      jobs_fetched: outcome.jobs_fetched,
+      jobs_after_dedup: outcome.jobs_after_dedup,
+      jobs_saved: outcome.jobs_saved,
+      sources_run: outcome.sources_run,
+      error_message: outcome.error_message ?? null,
+    })
+    .eq("id", runLogId);
+}

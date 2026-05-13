@@ -1,0 +1,41 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Jobs",
+      "description": "All scraped SEEK job listings",
+      "transformation": {
+        "fields": [
+          "title",
+          "company",
+          "location",
+          "area",
+          "salary",
+          "workType",
+          "listingDate",
+          "url",
+          "teaser",
+          "keyword",
+          "id"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title":       { "label": "Title",        "format": "text" },
+          "company":     { "label": "Company",      "format": "text" },
+          "location":    { "label": "Location",     "format": "text" },
+          "area":        { "label": "Area",         "format": "text" },
+          "salary":      { "label": "Salary",       "format": "text" },
+          "workType":    { "label": "Type",         "format": "text" },
+          "listingDate": { "label": "Listed",       "format": "text" },
+          "url":         { "label": "URL",          "format": "link" },
+          "teaser":      { "label": "Teaser",       "format": "text" },
+          "keyword":     { "label": "Keyword",      "format": "text" },
+          "id":          { "label": "SEEK ID",      "format": "text" }
+        }
+      }
+    }
+  }
+}

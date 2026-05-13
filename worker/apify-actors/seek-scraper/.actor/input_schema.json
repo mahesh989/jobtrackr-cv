@@ -1,0 +1,33 @@
+{
+    "title": "SEEK AU Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "keywords": {
+            "title": "Keywords",
+            "type": "array",
+            "description": "List of search keywords. Each is searched separately and results combined.",
+            "editor": "stringList"
+        },
+        "location": {
+            "title": "Location",
+            "type": "string",
+            "description": "Location for the search. Use 'All Australia' for nationwide, or e.g. 'Sydney NSW'.",
+            "editor": "textfield",
+            "default": "All Australia"
+        },
+        "dateRange": {
+            "title": "Date Range (days)",
+            "type": "integer",
+            "description": "Only return jobs posted within this many days. Max 30.",
+            "default": 14
+        },
+        "maxResults": {
+            "title": "Max Results per keyword",
+            "type": "integer",
+            "description": "Maximum number of non-featured results to collect per keyword. Max 550.",
+            "default": 200
+        }
+    },
+    "required": ["keywords"]
+}

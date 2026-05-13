@@ -1,0 +1,8 @@
+{
+  "urls": [
+    "https://www.seek.com.au/job/92086499",
+    "https://www.seek.com.au/job/92083891"
+  ],
+  "minDelayMs": 2000,
+  "maxDelayMs": 4000
+}

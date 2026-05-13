@@ -1,0 +1,546 @@
+// Pipeline orchestrator — runs all stages in order for a given profile.
+//
+// Stage  0: profile loaded
+// Stage  1: run log created (status=running)
+// Stage  2: source layer — parallel adapter calls
+// Stage  3: normalise
+// Stage  4: keyword pre-filter
+// Stage  5: dedup L1 (url hash)
+// Stage  6: dedup L2 (content fingerprint)
+// Stage  7: dedup L3 FLAGGED OFF (DEDUP_L3_ENABLED=false)
+// Stage  8: dedup L4 repost — placeholder
+// Stage  9: expiry check (inside save)
+// Stage 10: visa extraction — regex-first, AI fallback for ambiguous (gpt-4o-mini or claude-haiku)
+// Stage 11: active link validation — HEAD requests top 50
+// Stage 12: idempotent upsert
+// Stage 13: notify — Phase 6
+
+import { createHash } from "crypto";
+import { db } from "../db/client.js";
+import { adapters } from "../sources/index.js";
+import type { RawJob, SearchProfile } from "../sources/types.js";
+import { normalise } from "./normalise.js";
+import { keywordFilter } from "./keywordFilter.js";
+import { dedup } from "./dedup.js";
+import { saveJobs } from "./save.js";
+import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
+import { startRunLog, finishRunLog } from "./runLog.js";
+import { extractVisaInfo } from "../ai/visaExtractor.js";
+import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
+import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
+import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
+import { decryptApiKey } from "../lib/crypto.js";
+
+interface FullProfile extends SearchProfile {
+  user_id: string;
+}
+
+// ── Integration types ──────────────────────────────────────────────────────────
+interface UserIntegration {
+  id:                  string;
+  encrypted_api_key:   string;
+  status:              string;
+  quota_used_usd:      number;
+  quota_used_requests: number;
+  quota_period_start:  string;  // date as ISO string "YYYY-MM-DD"
+  is_enabled:          boolean;
+  config:              Record<string, unknown>;
+}
+
+const SEEK_MONTHLY_BUDGET_USD = 5.0;   // Apify free tier
+
+/** Load the user's Apify integration row. Returns null if not connected. */
+async function loadApifyIntegration(userId: string): Promise<UserIntegration | null> {
+  const { data } = await db
+    .from("user_integrations")
+    .select("id, encrypted_api_key, status, quota_used_usd, quota_used_requests, quota_period_start, is_enabled, config")
+    .eq("user_id", userId)
+    .eq("provider", "apify")
+    .maybeSingle();
+  return data as UserIntegration | null;
+}
+
+/** Reset quota counters when we've rolled into a new calendar month. */
+async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegration> {
+  const currentPeriod = new Date().toISOString().slice(0, 7);      // "YYYY-MM"
+  const storedPeriod  = integration.quota_period_start.slice(0, 7);
+
+  if (storedPeriod >= currentPeriod) return integration;  // still in same month
+
+  // New month — reset spend
+  const newPeriodStart = `${currentPeriod}-01`;
+  await db
+    .from("user_integrations")
+    .update({
+      quota_used_usd:      0,
+      quota_used_requests: 0,
+      quota_period_start:  newPeriodStart,
+      updated_at:          new Date().toISOString(),
+    })
+    .eq("id", integration.id);
+
+  return { ...integration, quota_used_usd: 0, quota_used_requests: 0, quota_period_start: newPeriodStart };
+}
+
+async function loadProfile(profileId: string): Promise<FullProfile | null> {
+  const { data } = await db
+    .from("search_profiles")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords")
+    .eq("id", profileId)
+    .single();
+  return data as FullProfile | null;
+}
+
+async function checkCancellation(runLogId: string): Promise<void> {
+  const { data } = await db.from("run_logs").select("status").eq("id", runLogId).maybeSingle();
+  if (data?.status === "failed") {
+    throw new Error("Cancelled by user");
+  }
+}
+
+
+export async function runPipeline(profileId: string, trigger: "manual" | "auto" = "auto"): Promise<void> {
+  console.log(`\n[pipeline] ─── starting run for profile ${profileId} (trigger=${trigger}) ───`);
+
+  // Stage 0: load profile
+  const profile = await loadProfile(profileId);
+  if (!profile) {
+    console.error(`[pipeline] profile ${profileId} not found — aborting`);
+    return;
+  }
+
+  profile.is_manual_run = trigger === "manual";
+
+  // Concurrency guard — two SQL operations, both done by Postgres so timezone
+  // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")
+  // never affect the comparison.
+  //
+  // Normal pipeline ceiling: ~5 min (SEEK actor is the slow one at 300s).
+  // Stale threshold: 15 min — if a run is still "running" after that, the worker
+  // crashed or was OOM-killed and finishRunLog never ran.
+  const STALE_MINUTES = 15;
+  const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
+
+  // Step 1: expire anything that's been "running" for > STALE_MINUTES.
+  // Postgres does the timestamp comparison — no JS string-vs-timezone issues.
+  const { data: expired, error: expireErr } = await db
+    .from("run_logs")
+    .update({
+      status:        "failed",
+      finished_at:   new Date().toISOString(),
+      error_message: `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
+    })
+    .eq("profile_id", profileId)
+    .eq("status", "running")
+    .lt("started_at", staleThreshold)   // Postgres TIMESTAMPTZ < — correct always
+    .select("id");
+
+  if (expireErr) {
+    console.warn(`[pipeline] stale-expire failed: ${expireErr.message}`);
+  } else if (expired && expired.length > 0) {
+    console.log(`[pipeline] expired ${expired.length} stale lock(s): ${expired.map((r) => r.id).join(", ")}`);
+  }
+
+  // Step 2: check for a genuinely active run (started within the last STALE_MINUTES).
+  const { data: activeRuns } = await db
+    .from("run_logs")
+    .select("id, started_at")
+    .eq("profile_id", profileId)
+    .eq("status", "running")
+    .gte("started_at", staleThreshold);  // only recent ones — Postgres comparison
+
+  if (activeRuns && activeRuns.length > 0) {
+    console.log(`[pipeline] profile ${profileId} already running (run_log ${activeRuns[0].id}, started ${activeRuns[0].started_at}) — skipping`);
+    return;
+  }
+
+  // Compute optimal Adzuna lookback window from the last completed run.
+  // This avoids re-fetching jobs the dedup would throw away anyway.
+  //   - First run: default 14 days (reasonable cold-start window)
+  //   - Subsequent runs: days since last success + 1 day buffer for timing jitter
+  //   - Capped at 30 days to prevent massive fetches after a long outage
+  const { data: lastRun } = await db
+    .from("run_logs")
+    .select("started_at")
+    .eq("profile_id", profileId)
+    .eq("status", "completed")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastRun) {
+    // Subsequent runs: fetch only what's new since last success + 1 day buffer
+    const daysSince = Math.ceil(
+      (Date.now() - new Date(lastRun.started_at).getTime()) / 86_400_000
+    );
+    profile.adzuna_max_days_old = Math.min(daysSince + 1, 30);
+    console.log(`[pipeline] Adzuna lookback: ${profile.adzuna_max_days_old}d (last run ${daysSince}d ago)`);
+  } else {
+    // First run: use the user's configured initial fetch window (default 14 if not set)
+    const initialWindow = profile.adzuna_max_days_old ?? 14;
+    profile.adzuna_max_days_old = initialWindow;
+    console.log(`[pipeline] Adzuna lookback: ${initialWindow}d (first run — user-configured cold-start window)`);
+  }
+
+  // ── Load SEEK integration (per-user Apify token) ──────────────────────────
+  // Each user brings their own $5/month Apify free tier — costs nothing to the app.
+  // If not connected, not valid, or quota exhausted → seekAdapter stays null,
+  // the pipeline runs without SEEK (Adzuna + Greenhouse + Jora still run).
+  let seekIntegration: UserIntegration | null = null;
+  let seekAdapter: ReturnType<typeof createSeekAdapter> | null = null;
+  let seekToken: string | null = null;  // kept for post-dedup JD enrichment
+
+  try {
+    const raw = await loadApifyIntegration(profile.user_id);
+    if (raw && raw.is_enabled && raw.status === "valid") {
+      seekIntegration = await maybeResetQuota(raw);
+      const remaining = SEEK_MONTHLY_BUDGET_USD - seekIntegration.quota_used_usd;
+      if (remaining > 0.01) {
+        seekToken    = decryptApiKey(seekIntegration.encrypted_api_key);
+        seekAdapter  = createSeekAdapter(seekToken);
+        console.log(`[pipeline] SEEK adapter ready — $${remaining.toFixed(2)} remaining this month`);
+      } else {
+        console.log(`[pipeline] SEEK skipped — Apify monthly budget exhausted ($${SEEK_MONTHLY_BUDGET_USD})`);
+        // Mark quota_exceeded so the UI can show the right state
+        await db.from("user_integrations")
+          .update({ status: "quota_exceeded", status_reason: `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`, updated_at: new Date().toISOString() })
+          .eq("id", seekIntegration.id);
+      }
+    } else if (raw) {
+      console.log(`[pipeline] SEEK skipped — integration status: ${raw.status}`);
+    } else {
+      console.log(`[pipeline] SEEK skipped — no Apify integration configured`);
+    }
+  } catch (err) {
+    // Never let integration loading crash the whole pipeline
+    console.warn(`[pipeline] SEEK integration load failed: ${err instanceof Error ? err.message : err}`);
+  }
+
+  // Stage 1: start run log
+  let runLogId: string;
+  try {
+    runLogId = await startRunLog(profileId);
+  } catch (err) {
+    console.error("[pipeline] failed to create run log:", err);
+    return;
+  }
+
+  const sourcesRun: string[] = [];
+  let jobsFetched = 0;
+  let jobsAfterDedup = 0;
+  let jobsSaved = 0;
+
+  try {
+    // Stage 2: source layer
+    const rawJobs: RawJob[] = [];
+    for (const adapter of adapters) {
+      await checkCancellation(runLogId);
+
+      // Apply vertical filter (default to all if not set)
+      if (profile.target_verticals && profile.target_verticals.length > 0) {
+        if (!profile.target_verticals.includes(adapter.vertical)) {
+          console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
+          continue;
+        }
+      }
+
+      if (await isBlocked(adapter.name)) {
+        console.log(`[pipeline] stage 2 — ${adapter.name}: blocked (3+ consecutive failures) — skipping`);
+        continue;
+      }
+      try {
+        console.log(`[pipeline] stage 2 — fetching: ${adapter.name}`);
+        const results = await adapter.fetchJobs(profile);
+        rawJobs.push(...results);
+        sourcesRun.push(adapter.name);
+        await recordSuccess(adapter.name);
+        console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
+      } catch (err) {
+        console.error(`[pipeline] ${adapter.name} failed:`, err);
+        const failures = await recordFailure(adapter.name);
+        if (failures >= 3) {
+          console.warn(`[pipeline] ${adapter.name}: ${failures} consecutive failures — will be skipped next run`);
+        }
+      }
+    }
+    // ── SEEK (per-user Apify adapter) ─────────────────────────────────────────
+    // Runs after the shared adapters so cost is tracked separately.
+    if (seekAdapter && seekIntegration) {
+      await checkCancellation(runLogId);
+      try {
+        const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
+        rawJobs.push(...seekJobs);
+        sourcesRun.push("seek");
+        console.log(`[pipeline]   seek: ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
+
+        // Persist updated spend immediately — even if rest of pipeline fails
+        const newSpend = seekIntegration.quota_used_usd + costUsd;
+        const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
+        await db.from("user_integrations")
+          .update({
+            quota_used_usd:  newSpend,
+            quota_used_requests: seekIntegration.quota_used_requests + seekJobs.length,
+            last_used_at:    new Date().toISOString(),
+            status:          newStatus,
+            status_reason:   newStatus === "quota_exceeded"
+              ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
+              : null,
+            updated_at:      new Date().toISOString(),
+          })
+          .eq("id", seekIntegration.id);
+      } catch (err) {
+        console.error(`[pipeline] seek failed: ${err instanceof Error ? err.message : err}`);
+        // Mark as invalid so next run doesn't retry a broken token
+        await db.from("user_integrations")
+          .update({ status: "invalid", status_reason: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
+          .eq("id", seekIntegration.id);
+      }
+    }
+
+    jobsFetched = rawJobs.length;
+    console.log(`[pipeline] stage 2 done — total raw: ${jobsFetched}`);
+
+    // Stage 3: L1 early URL dedup
+    const rawHashes = new Set<string>();
+    const uniqueRawJobs: RawJob[] = [];
+    const hashedRawJobs = rawJobs.map(job => {
+      return { job, hash: createHash("sha256").update(job.url).digest("hex") };
+    });
+    
+    // Batch query DB for these hashes
+    const urlHashesToQuery = hashedRawJobs.map(h => h.hash);
+    const { data: existingJobs } = await db
+      .from("jobs")
+      .select("url_hash")
+      .eq("profile_id", profileId)
+      .in("url_hash", urlHashesToQuery);
+
+    const existingHashSet = new Set((existingJobs || []).map(j => j.url_hash));
+
+    let earlyL1Dropped = 0;
+    for (const { job, hash } of hashedRawJobs) {
+      if (existingHashSet.has(hash) || rawHashes.has(hash)) {
+        earlyL1Dropped++;
+      } else {
+        rawHashes.add(hash);
+        uniqueRawJobs.push(job);
+      }
+    }
+    
+    console.log(`[pipeline] stage 3 — L1 early drop: ${earlyL1Dropped} duplicates removed, ${uniqueRawJobs.length} remaining`);
+
+    // Stage 3b — cross-profile dedup (skip)
+    // If a URL already exists in ANY other profile of the same user, drop it
+    // entirely from this profile's feed. Profiles act as filter views: a job
+    // a user has already seen elsewhere should not reappear in another profile.
+    const newRawJobs: RawJob[] = [];
+
+    const { data: siblingProfiles } = await db
+      .from("search_profiles")
+      .select("id")
+      .eq("user_id", profile.user_id)
+      .neq("id", profileId);
+
+    const siblingIds = (siblingProfiles ?? []).map((p) => p.id);
+
+    if (siblingIds.length > 0 && uniqueRawJobs.length > 0) {
+      const hashByJob = uniqueRawJobs.map((j) => ({
+        job:  j,
+        hash: createHash("sha256").update(j.url).digest("hex"),
+      }));
+
+      const { data: existingRows } = await db
+        .from("jobs")
+        .select("url_hash")
+        .in("profile_id", siblingIds)
+        .in("url_hash", hashByJob.map((x) => x.hash));
+
+      const seenInSiblings = new Set(
+        (existingRows ?? []).map((r) => r.url_hash as string)
+      );
+
+      let droppedCrossProfile = 0;
+      for (const { job, hash } of hashByJob) {
+        if (seenInSiblings.has(hash)) {
+          droppedCrossProfile++;
+        } else {
+          newRawJobs.push(job);
+        }
+      }
+
+      console.log(
+        `[pipeline] stage 3b — cross-profile dedup: ${droppedCrossProfile} dropped ` +
+        `(already in sibling profile), ${newRawJobs.length} remain`
+      );
+    } else {
+      newRawJobs.push(...uniqueRawJobs);
+      if (siblingIds.length === 0) {
+        console.log(`[pipeline] stage 3b — first profile for user, no cross-profile dedup`);
+      }
+    }
+
+    // Stage 4a: normalise — only truly new URLs from here on
+    const normalised = newRawJobs.map(normalise);
+
+    // Stage 4b: keyword filter — keep only jobs matching at least one profile keyword
+    const filtered = keywordFilter(normalised, profile.keywords);
+    console.log(`[pipeline] stage 4b — keyword filter: ${filtered.length} kept, ${normalised.length - filtered.length} dropped`);
+
+    // Stage 4c: post-fetch smart filter — applies user's title/description rules
+    // universally across ALL sources (not just Adzuna).
+    // This is where "title must contain", "exclude from title",
+    // and "exclude from description" rules are enforced.
+    const { kept: smartFiltered, droppedTitleMissing, droppedTitleExcluded, droppedDescExcluded } =
+      postFetchFilter(filtered, profile);
+    console.log(
+      `[pipeline] stage 4c — smart filter: ${smartFiltered.length} kept` +
+      ` (title missing required: ${droppedTitleMissing}` +
+      `, title excluded: ${droppedTitleExcluded}` +
+      `, desc excluded: ${droppedDescExcluded})`
+    );
+
+    // Stages 5+6: dedup L1 + L2 (strong drop + weak flag)
+    const { kept: dedupKept, l1Dropped, l2Dropped, l2WeakMarked } = await dedup(smartFiltered, profileId);
+    jobsAfterDedup = dedupKept.length;
+    console.log(
+      `[pipeline] stage 5+6 — dedup: ${dedupKept.length} kept ` +
+      `(L1 ${l1Dropped} + L2-strong ${l2Dropped} dropped, ${l2WeakMarked} marked possible_duplicate)`
+    );
+
+    // ── Stage 7: SEEK JD enrichment ────────────────────────────────────────────
+    // Fetch full job descriptions for SEEK survivors only — i.e. jobs that have
+    // already passed keyword + smart + dedup filters. Every JD we pay for goes
+    // on to be saved (modulo the desc-exclusion re-check below). Non-SEEK
+    // sources pass through unchanged.
+    let kept = dedupKept;
+    if (seekAdapter && seekToken && seekIntegration && dedupKept.some((j) => j.source === "seek")) {
+      const { jobs: enriched, costUsd: jdCost, merged, fetched } =
+        await enrichWithFullJDs(dedupKept, seekToken);
+      kept = enriched;
+      console.log(`[pipeline] stage 7 — SEEK JD enrichment: ${merged}/${fetched} full descriptions merged (cost $${jdCost.toFixed(4)})`);
+
+      if (jdCost > 0) {
+        const newSpend  = seekIntegration.quota_used_usd + jdCost;
+        const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
+        await db.from("user_integrations")
+          .update({
+            quota_used_usd: newSpend,
+            last_used_at:   new Date().toISOString(),
+            status:         newStatus,
+            status_reason:  newStatus === "quota_exceeded"
+              ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
+              : null,
+            updated_at:     new Date().toISOString(),
+          })
+          .eq("id", seekIntegration.id);
+        // Keep local copy fresh so any later updates stack correctly
+        seekIntegration.quota_used_usd = newSpend;
+      }
+
+      // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
+      // The first pass at stage 4c could only see teasers for SEEK. Now that we
+      // have full JDs, dropped phrases that lived deep in the description are
+      // catchable.
+      const { kept: afterDesc, dropped: droppedNow } = excludeByDescription(kept, profile);
+      if (droppedNow > 0) {
+        console.log(`[pipeline] stage 7b — desc-exclusion against full JD: ${droppedNow} dropped, ${afterDesc.length} remain`);
+        kept = afterDesc;
+        jobsAfterDedup = kept.length;
+      }
+    }
+
+    // Stage 10a: visa extraction — regex-first, AI only for ambiguous cases
+    // Runs on the full description of each new job (no truncation).
+    // Sets sponsorship_status, citizen_pr_only, visa_extracted_text on each job.
+    let visaReady = kept;
+    if (kept.length > 0) {
+      console.log(`[pipeline] stage 10a — extracting visa info for ${kept.length} jobs`);
+      const visaMap = await extractVisaInfo(kept);
+      visaReady = kept.map((job) => {
+        const info = visaMap.get(job.url_hash);
+        if (!info) return job;
+        return {
+          ...job,
+          sponsorship_status: info.sponsorship_status,
+          citizen_pr_only: info.citizen_pr_only,
+          visa_extracted_text: info.visa_extracted_text,
+          // Keep visa_likelihood for sort compat — derived from binary result
+          // (saved separately below via update, as it lives on the jobs table)
+        };
+      });
+    }
+
+    // Stage 10b: working rights filter
+    // Drop jobs that conflict with the user's working rights situation.
+    // "needs_sponsorship" → drop jobs that explicitly say no sponsorship or citizens/PR only.
+    // "pr_citizen" and "any" → no filtering, all jobs saved (just different labels shown).
+    let toSave = visaReady;
+    if (profile.working_rights === "needs_sponsorship") {
+      const beforeWR = toSave.length;
+      toSave = toSave.filter((j) =>
+        j.sponsorship_status !== "no" && j.citizen_pr_only !== true
+      );
+      const droppedWR = beforeWR - toSave.length;
+      console.log(`[pipeline] stage 10b — working rights filter: ${droppedWR} dropped (explicit no-sponsorship / PR-citizen-only), ${toSave.length} remaining`);
+    } else {
+      console.log(`[pipeline] stage 10b — working rights: "${profile.working_rights ?? "any"}" — no filter applied`);
+    }
+
+    // Stage 12: save with visa info included
+    const { saved } = await saveJobs(toSave, profileId);
+    jobsSaved = saved;
+    console.log(`[pipeline] stage 12 — saved: ${saved}`);
+
+    // Update visa_likelihood float on saved jobs (for sort compatibility)
+    // Derived: sponsored=1.0, not_mentioned=0.5, no/citizen_pr_only=0.0
+    if (toSave.length > 0) {
+      const visaUpdates = toSave.map((j) => ({
+        url_hash: j.url_hash,
+        visa_likelihood:
+          j.sponsorship_status === "yes" ? 1.0
+          : j.sponsorship_status === "no" || j.citizen_pr_only === true ? 0.0
+          : 0.5,
+      }));
+      for (let i = 0; i < visaUpdates.length; i += 100) {
+        const batch = visaUpdates.slice(i, i + 100);
+        await Promise.all(
+          batch.map((u) =>
+            db.from("jobs")
+              .update({ visa_likelihood: u.visa_likelihood })
+              .eq("profile_id", profileId)
+              .eq("url_hash", u.url_hash)
+          )
+        );
+      }
+    }
+
+    await finishRunLog(runLogId, {
+      status: "completed",
+      jobs_fetched: jobsFetched,
+      jobs_after_dedup: jobsAfterDedup,
+      jobs_saved: jobsSaved,
+      sources_run: sourcesRun,
+    });
+
+    console.log(`[pipeline] ─── run complete ───\n`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[pipeline] fatal error:", msg);
+    
+    // Only update to failed if it wasn't a manual cancellation 
+    // (since manual cancellation already sets it to failed)
+    if (msg !== "Cancelled by user") {
+      await finishRunLog(runLogId, {
+        status: "failed",
+        jobs_fetched: jobsFetched,
+        jobs_after_dedup: jobsAfterDedup,
+        jobs_saved: jobsSaved,
+        sources_run: sourcesRun,
+        error_message: msg,
+      });
+      await sendPipelineFailureAlert(profileId, msg);
+    } else {
+      console.log(`[pipeline] Run gracefully stopped due to user cancellation.`);
+    }
+  }
+}

@@ -1,0 +1,223 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { cancelRun } from "@/lib/actions";
+import { RunJobsTable } from "@/components/RunJobsTable";
+
+export default async function RunHistoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
+
+  const { data: profile } = await supabase
+    .from("search_profiles")
+    .select("id, name")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (!profile) redirect("/dashboard");
+  const p = profile as { id: string; name: string };
+
+  const { data: runs } = await supabase
+    .from("run_logs")
+    .select("id, started_at, finished_at, status, jobs_fetched, jobs_after_dedup, jobs_saved, sources_run, error_message, ai_tokens_input, ai_tokens_output, ai_cost_cents")
+    .eq("profile_id", id)
+    .order("started_at", { ascending: false })
+    .limit(50);
+
+  type RunRow = {
+    id: string; started_at: string; finished_at: string | null; status: string;
+    jobs_fetched: number; jobs_after_dedup: number; jobs_saved: number;
+    sources_run: string[]; error_message: string | null;
+    ai_tokens_input: number; ai_tokens_output: number; ai_cost_cents: number;
+  };
+  const runList = (runs ?? []) as RunRow[];
+
+  function duration(start: string, end: string | null) {
+    if (!end) return "running…";
+    const s = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  }
+
+  function costLabel(millicents: number) {
+    if (!millicents) return null;
+    const cents = millicents / 1000;
+    return cents < 100 ? `<$0.01` : `$${(cents / 100).toFixed(2)}`;
+  }
+
+  return (
+    <div className="min-h-full">
+      {/* Page header */}
+      <div className="border-b border-border bg-surface px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
+              <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+              <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-[#1F2328] transition-colors truncate max-w-[200px]">
+                {p.name}
+              </Link>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+              <span className="text-[#656D76]">Run history</span>
+            </div>
+            <h1 className="text-[16px] font-semibold text-[#1F2328]">Run history</h1>
+          </div>
+          <Link href={`/dashboard/profiles/${id}/jobs`} className="gh-btn text-[12px] px-2.5 py-1">
+            ← Back to jobs
+          </Link>
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        {runList.length === 0 ? (
+          <div className="bg-surface border border-border rounded-md flex flex-col items-center justify-center py-16 text-center anim-in">
+            <div className="w-10 h-10 rounded-md bg-[#F6F8FA] border border-border flex items-center justify-center mb-3">
+              <svg className="w-5 h-5 text-[#9198A1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <p className="text-[14px] font-semibold text-[#1F2328] mb-1">No runs yet</p>
+            <p className="text-[12px] text-[#656D76]">Trigger a run from the dashboard to see history here.</p>
+          </div>
+        ) : (
+          <div className="bg-surface border border-border rounded-md overflow-hidden anim-in">
+            {/* Table header */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[#F6F8FA] border-b border-border text-[11px] font-semibold text-[#656D76] uppercase tracking-wider">
+              <div className="col-span-3">Started</div>
+              <div className="col-span-1">Duration</div>
+              <div className="col-span-1 text-center">Status</div>
+              <div className="col-span-1 text-center">Fetched</div>
+              <div className="col-span-1 text-center">Deduped</div>
+              <div className="col-span-1 text-center">Saved</div>
+              <div className="col-span-2">Sources</div>
+              <div className="col-span-1 text-right">AI cost</div>
+              <div className="col-span-1 text-right">Actions</div>
+            </div>
+
+            {runList.map((run, i) => {
+              const isRunning = run.status === "running";
+              const isFailed  = run.status === "failed";
+              const isDone    = run.status === "completed";
+
+              return (
+                <div key={run.id} className={`border-b border-border last:border-0 anim-in anim-delay-${Math.min(i, 5)}`}>
+                  <div className={`grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#F6F8FA] transition-colors ${
+                    isRunning ? "border-l-2 border-l-[#0969DA]" : ""
+                  }`}>
+                    {/* Started */}
+                    <div className="col-span-3 flex items-center gap-2">
+                      {isRunning && (
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[#0969DA] opacity-75"/>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0969DA]"/>
+                        </span>
+                      )}
+                      <span className="text-[12px] font-medium text-[#1F2328]">
+                        {new Date(run.started_at).toLocaleString("en-AU", {
+                          day: "numeric", month: "short",
+                          hour: "numeric", minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Duration */}
+                    <div className="col-span-1 flex items-center">
+                      <span className={`text-[12px] ${isRunning ? "text-[#0969DA] font-medium" : "text-[#656D76]"}`}>
+                        {duration(run.started_at, run.finished_at)}
+                      </span>
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      {isRunning ? (
+                        <span className="badge badge-blue text-[10px]">Running</span>
+                      ) : isFailed ? (
+                        <span className="badge badge-red text-[10px]">Failed</span>
+                      ) : isDone ? (
+                        <span className="badge badge-green text-[10px]">Done</span>
+                      ) : (
+                        <span className="badge badge-gray text-[10px]">{run.status}</span>
+                      )}
+                    </div>
+
+                    {/* Fetched */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      <span className="text-[12px] text-[#656D76]">{run.jobs_fetched ?? "—"}</span>
+                    </div>
+
+                    {/* Deduped */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      <span className="text-[12px] text-[#656D76]">{run.jobs_after_dedup ?? "—"}</span>
+                    </div>
+
+                    {/* Saved */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      {run.jobs_saved > 0 ? (
+                        <span className="text-[12px] font-semibold text-[#1A7F37]">+{run.jobs_saved}</span>
+                      ) : (
+                        <span className="text-[12px] text-[#9198A1]">—</span>
+                      )}
+                    </div>
+
+                    {/* Sources */}
+                    <div className="col-span-2 flex items-center">
+                      <span className="text-[11px] text-[#656D76] truncate">
+                        {run.sources_run?.length > 0
+                          ? `${run.sources_run.length} source${run.sources_run.length !== 1 ? "s" : ""}`
+                          : "—"}
+                      </span>
+                    </div>
+
+                    {/* AI cost */}
+                    <div className="col-span-1 flex items-center justify-end">
+                      <span className="text-[11px] text-[#9198A1]">
+                        {costLabel(run.ai_cost_cents) ?? "—"}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-1 flex items-center justify-end">
+                      {isRunning && (
+                        <form action={cancelRun.bind(null, run.id, id)}>
+                          <button type="submit" className="gh-btn text-[11px] px-2 py-1 text-[#CF222E] hover:bg-[#FFEBE9] hover:border-[#CF222E]/30">
+                            Cancel
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Error message */}
+                  {run.error_message && (
+                    <div className="px-4 pb-3">
+                      <p className="text-[11px] text-[#CF222E] bg-[#FFEBE9] border border-[#CF222E]/20 rounded px-3 py-2">
+                        {run.error_message}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Expandable saved jobs */}
+                  {run.jobs_saved > 0 && (
+                    <div className="px-4 pb-3">
+                      <RunJobsTable
+                        profileId={id}
+                        startedAt={run.started_at}
+                        finishedAt={run.finished_at}
+                        jobsSaved={run.jobs_saved}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+/* ─── Design tokens ─────────────────────────────────────────── */
+:root {
+  /* Sidebar */
+  --sidebar-bg:        #0D1117;
+  --sidebar-border:    #21262D;
+  --sidebar-text:      #8B949E;
+  --sidebar-text-hover:#C9D1D9;
+  --sidebar-active-bg: #161B22;
+  --sidebar-active:    #F0F6FF;
+
+  /* Content */
+  --bg:         #F6F8FA;
+  --surface:    #FFFFFF;
+  --surface-2:  #F6F8FA;
+
+  /* Borders */
+  --border:       #D0D7DE;
+  --border-muted: #E1E4E8;
+
+  /* Text */
+  --text:   #1F2328;
+  --text-2: #656D76;
+  --text-3: #9198A1;
+
+  /* Brand */
+  --blue:       #0969DA;
+  --blue-dark:  #0550AE;
+  --blue-light: #DDF4FF;
+  --blue-muted: #54AEFF;
+
+  /* Status */
+  --green:       #1A7F37;
+  --green-light: #DAFBE1;
+  --red:         #CF222E;
+  --red-light:   #FFEBE9;
+  --amber:       #9A6700;
+  --amber-light: #FFF8C5;
+  --purple:      #8250DF;
+  --purple-light:#FBEFFF;
+  --teal:        #1B7C83;
+  --teal-light:  #D1ECF1;
+
+  /* Pipeline running gradient */
+  --pipeline-grad: linear-gradient(90deg,
+    #0969DA 0%, #8250DF 33%, #0EA5E9 66%, #0969DA 100%);
+}
+
+@theme inline {
+  --color-sidebar-bg:     var(--sidebar-bg);
+  --color-sidebar-text:   var(--sidebar-text);
+  --color-sidebar-active: var(--sidebar-active);
+
+  --color-bg:       var(--bg);
+  --color-surface:  var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border:   var(--border);
+
+  --color-text:     var(--text);
+  --color-text-2:   var(--text-2);
+  --color-text-3:   var(--text-3);
+
+  --color-blue:        var(--blue);
+  --color-blue-dark:   var(--blue-dark);
+  --color-blue-light:  var(--blue-light);
+  --color-green:       var(--green);
+  --color-green-light: var(--green-light);
+  --color-red:         var(--red);
+  --color-red-light:   var(--red-light);
+  --color-amber:       var(--amber);
+  --color-amber-light: var(--amber-light);
+  --color-purple:      var(--purple);
+  --color-purple-light:var(--purple-light);
+}
+
+/* ─── Reset / base ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ─── Focus ─────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Animations ────────────────────────────────────────────── */
+
+/* Entry */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-in {
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-delay-1 { animation-delay: 40ms; }
+.anim-delay-2 { animation-delay: 80ms; }
+.anim-delay-3 { animation-delay: 120ms; }
+.anim-delay-4 { animation-delay: 160ms; }
+.anim-delay-5 { animation-delay: 200ms; }
+.anim-delay-6 { animation-delay: 240ms; }
+
+/* Pipeline running — animated gradient bar */
+@keyframes pipelineFlow {
+  0%   { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+.pipeline-bar {
+  background: var(--pipeline-grad);
+  background-size: 200% 100%;
+  animation: pipelineFlow 2s linear infinite;
+}
+
+/* Stage progress dot pulse */
+@keyframes stagePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+.stage-pulse { animation: stagePulse 1.2s ease-in-out infinite; }
+
+/* Status dot ping */
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+.dot-ping { animation: ping 1.5s cubic-bezier(0,0,0.2,1) infinite; }
+
+/* Toast slide in */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(120%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast-in { animation: toastIn 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, .anim-in, .pipeline-bar, .stage-pulse, .dot-ping, .toast-in {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Component classes ─────────────────────────────────────── */
+
+/* GitHub-style button */
+.gh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.gh-btn:hover  { background: var(--surface-2); border-color: var(--border); }
+.gh-btn:active { background: #EAEEF2; }
+.gh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.gh-btn-primary {
+  background: #1F883D;
+  border-color: rgba(31,136,61,0.4);
+  color: #fff;
+  font-weight: 600;
+}
+.gh-btn-primary:hover  { background: #1a7f37; }
+.gh-btn-primary:active { background: #166b2d; }
+
+.gh-btn-blue {
+  background: var(--blue);
+  border-color: rgba(9,105,218,0.4);
+  color: #fff;
+  font-weight: 600;
+}
+.gh-btn-blue:hover  { background: var(--blue-dark); }
+
+.gh-btn-danger {
+  background: var(--red);
+  border-color: rgba(207,34,46,0.4);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+.data-table thead th:first-child { border-radius: 6px 0 0 0; }
+.data-table thead th:last-child  { border-radius: 0 6px 0 0; }
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-muted);
+  transition: background 0.1s;
+}
+.data-table tbody tr:hover { background: #F3F4F6; }
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  height: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.badge-blue    { background: var(--blue-light);   color: var(--blue);   border-color: rgba(9,105,218,0.3); }
+.badge-green   { background: var(--green-light);  color: var(--green);  border-color: rgba(26,127,55,0.3); }
+.badge-red     { background: var(--red-light);    color: var(--red);    border-color: rgba(207,34,46,0.3); }
+.badge-amber   { background: var(--amber-light);  color: var(--amber);  border-color: rgba(154,103,0,0.3); }
+.badge-purple  { background: var(--purple-light); color: var(--purple); border-color: rgba(130,80,223,0.3); }
+.badge-gray    { background: var(--surface-2);    color: var(--text-2); border-color: var(--border); }
+.badge-teal    { background: var(--teal-light);   color: var(--teal);   border-color: rgba(27,124,131,0.3); }
+
+/* Input */
+.field {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder { color: var(--text-3); }
+.field:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(9,105,218,0.1);
+}
+
+/* KPI card */
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--text);
+}
+.kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Divider */
+.divider { height: 1px; background: var(--border-muted); }
+
+/* Visa bar */
+.visa-track {
+  width: 56px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  display: inline-block;
+}
+.visa-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}

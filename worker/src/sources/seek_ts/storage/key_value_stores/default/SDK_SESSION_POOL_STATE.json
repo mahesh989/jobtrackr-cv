@@ -1,0 +1,341 @@
+{
+  "usableSessionsCount": 2,
+  "retiredSessionsCount": 0,
+  "sessions": [
+    {
+      "id": "session_4lknTrnWgp",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.1",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": []
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2026-05-13T05:18:05.761Z",
+      "createdAt": "2026-05-13T05:13:05.761Z",
+      "usageCount": 0,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    },
+    {
+      "id": "session_xjogHrZpQo",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.1",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": [
+          {
+            "key": "JobseekerSessionId",
+            "value": "7c385ce8-bd5f-49fd-89a2-35db4526a131",
+            "expires": "2027-05-08T05:13:08.121Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.481Z",
+            "lastAccessed": "2026-05-13T05:13:16.481Z"
+          },
+          {
+            "key": "JobseekerVisitorId",
+            "value": "7c385ce8-bd5f-49fd-89a2-35db4526a131",
+            "expires": "2027-06-17T05:13:08.121Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.502Z",
+            "lastAccessed": "2026-05-13T05:13:16.502Z"
+          },
+          {
+            "key": "__cf_bm",
+            "value": "3FOqQDShZK3uLSzRivdN3j.udxAVcpQTy3XIwrwVPpM-1778649188.1508844-1.0.1.1-6O1YMnnk6kRfRo3Ia2Piv.QrVOGF9ba.P1NiXutFwlqDrsDId7pl0lg_GVwJZRnN0RKmH8ev26yKGOQERAgIpx1w8FrRPailmPDNFR52NQx5AEX_xksgQse6uEvkdL05",
+            "expires": "2026-05-13T05:43:08.121Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "_cfuvid",
+            "value": "Pzjzmzt_1Jc3PzKTPshw6s2AawSK6xxHE9sitfnZ8lg-1778649188.1508844-1.0.1.1-R7r8KRvM6Eow.Nf2a5EOkzSYp_iT1gZYXlNS1hGIlwU",
+            "expires": "2026-05-13T05:18:16.470Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "sol_id",
+            "value": "0c15d83f-c3dc-4459-ac7b-ad96435ea429",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "_dd_s",
+            "value": "rum=0&expire=1778650090045&logs=1&id=53db423d-60a6-4a97-ad88-772b5e769632&created=1778649190045",
+            "expires": "2026-05-13T05:28:10.000Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "main",
+            "value": "V%7C2~P%7Cjobsearch~K%7CData%20Analyst~WH%7CSydney%20NSW~WID%7C16351~SORT%7CListedDate~D%7C14~OSF%7Cquick&set=1778649190429",
+            "expires": "2027-05-13T05:13:10.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "da_cdt",
+            "value": "visid_019e1fc0d73c001564d33594b98200075005406d00998-sesid_1778649192255-hbvid_0c15d83f_c3dc_4459_ac7b_ad96435ea429-tempAcqSessionId_1778649190363-tempAcqVisitorId_0c15d83fc3dc4459ac7bad96435ea429",
+            "expires": "2026-05-13T05:18:16.471Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "da_anz_candi_sid",
+            "value": "1778649192255",
+            "expires": "2026-05-13T05:43:13.434Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "da_searchTerm",
+            "value": "undefined",
+            "expires": "2026-05-13T05:18:16.471Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.505Z",
+            "lastAccessed": "2026-05-13T05:13:16.505Z"
+          },
+          {
+            "key": "hubble_temp_acq_session",
+            "value": "id%3A1778649190363_end%3A1778650993006_sent%3A3",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "da_csq_profile",
+            "value": "%7B%22jobViewEventsCompressed%22%3A%22%22%2C%22jobApplyEventsCompressed%22%3A%22%22%2C%22lastUpdateDate%22%3A%222026-05-13T05%3A13%3A13.436Z%22%2C%22jobViewCount_30d%22%3A0%2C%22jobApplyCount_30d%22%3A0%2C%22isFirstTimeVisitor%22%3A%22true%22%7D",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": true,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "utag_main",
+            "value": "v_id:019e1fc0d73c001564d33594b98200075005406d00998$_sn:1$_se:3%3Bexp-session$_ss:0%3Bexp-session$_st:1778650993429%3Bexp-session$ses_id:1778649192255%3Bexp-session$_pn:1%3Bexp-session$_prevpage:search%20results%3Bexp-1778652793440$dc_visit:1$dc_event:1%3Bexp-session$dc_region:ap-southeast-2%3Bexp-session",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "__rtbh.uid",
+            "value": "%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22NULL%22%2C%22expiryDate%22%3A%222027-05-13T05%3A13%3A13.571Z%22%7D",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": true,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "__rtbh.lid",
+            "value": "%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22PKnCCAlxBrVb8MSbObJj%22%2C%22expiryDate%22%3A%222027-05-13T05%3A13%3A13.572Z%22%7D",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": true,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "_uetsid",
+            "value": "714357504e8a11f1bbb1352b7fa4c655",
+            "expires": "2026-05-14T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "_uetvid",
+            "value": "7143aa704e8a11f1a3fa8b40f63472ec",
+            "expires": "2027-06-07T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "_hjSessionUser_162402",
+            "value": "eyJpZCI6IjNlNWE3OTRmLTg2ODItNTUyOS04NTM2LWJlNGU0YjQ5YjIyMiIsImNyZWF0ZWQiOjE3Nzg2NDkxOTM5NjUsImV4aXN0aW5nIjpmYWxzZX0=",
+            "expires": "2027-05-13T05:13:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "_hjSession_162402",
+            "value": "eyJpZCI6IjFiNWE3MTYxLWFkYTYtNGNlZi1hODBjLTU0YzE1MjZiOWE0NSIsImMiOjE3Nzg2NDkxOTM5NjcsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjoxLCJzcCI6MH0=",
+            "expires": "2026-05-13T05:43:13.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.506Z",
+            "lastAccessed": "2026-05-13T05:13:16.506Z"
+          },
+          {
+            "key": "_hjHasCachedUserAttributes",
+            "value": "true",
+            "expires": "2026-05-13T05:18:16.471Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": true,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_fbp",
+            "value": "fb.1.1778649194048.443824650354589610",
+            "expires": "2026-08-11T05:13:14.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "ajs_anonymous_id",
+            "value": "484024ddc1dfaeec090992342edda586",
+            "expires": "2027-05-13T05:13:14.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_pin_unauth",
+            "value": "dWlkPU1ERTVNRFl3TmpFdFlUQTNZUzAwWXpCa0xUbGpNbVl0WkRVNFpXRTJZemswT1Raaw",
+            "expires": "2027-05-13T05:13:14.000Z",
+            "domain": "au.seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_ga",
+            "value": "GA1.1.449487953.1778649194",
+            "expires": "2027-06-17T05:13:14.462Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_ga_JYC9JXRYWC",
+            "value": "GS2.1.s1778649194$o1$g0$t1778649194$j60$l0$h0",
+            "expires": "2027-06-17T05:13:14.482Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_clck",
+            "value": "10wtiiz%5E2%5Eg60%5E0%5E2324",
+            "expires": "2027-05-13T05:13:14.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_gcl_au",
+            "value": "1.1.1908970747.1778649195",
+            "expires": "2026-08-11T05:13:15.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          },
+          {
+            "key": "_clsk",
+            "value": "1lvpjal%5E1778649195874%5E1%5E0%5Et.clarity.ms%2Fcollect",
+            "expires": "2026-05-14T05:13:15.000Z",
+            "domain": "seek.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2026-05-13T05:13:16.507Z",
+            "lastAccessed": "2026-05-13T05:13:16.507Z"
+          }
+        ]
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2026-05-13T05:18:05.772Z",
+      "createdAt": "2026-05-13T05:13:05.772Z",
+      "usageCount": 1,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    }
+  ]
+}

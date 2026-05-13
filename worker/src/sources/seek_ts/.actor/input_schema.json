@@ -1,0 +1,42 @@
+{
+  "title": "Seek Scraper Input",
+  "description": "Input schema for seek-personal-jobtrackr.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "keywords": {
+      "title": "Keywords",
+      "type": "array",
+      "description": "List of search keywords. Each is searched separately and results are merged.",
+      "editor": "stringList",
+      "example": [
+        "software engineer",
+        "data analyst"
+      ]
+    },
+    "location": {
+      "title": "Location",
+      "type": "string",
+      "description": "Location passed to SEEK's where param.",
+      "editor": "textfield",
+      "default": "All Australia"
+    },
+    "dateRange": {
+      "title": "Date Range (days)",
+      "type": "integer",
+      "description": "Only return jobs listed within this many days. 999 = all time.",
+      "editor": "number",
+      "default": 14
+    },
+    "maxResults": {
+      "title": "Max Results",
+      "type": "integer",
+      "description": "Maximum total results across all keywords. SEEK hard cap is 550.",
+      "editor": "number",
+      "default": 200
+    }
+  },
+  "required": [
+    "keywords"
+  ]
+}

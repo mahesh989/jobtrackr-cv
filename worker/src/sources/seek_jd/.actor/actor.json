@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "seek-jd-fetcher",
+  "title": "SEEK JD Fetcher — JobTrackr",
+  "description": "Fetches full job descriptions from SEEK detail pages using a single humanized Playwright session. Designed to be called by the worker with only the dedup'd new URLs (≤20).",
+  "version": "0.1",
+  "buildTag": "latest",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}

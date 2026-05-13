@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/check_graph_updated.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

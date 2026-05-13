@@ -1,0 +1,34 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#12B5CB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10D18F;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <rect width="100%" height="100%" fill="white"/>
+
+  <!-- Icon -->
+  <circle cx="110" cy="120" r="62" fill="none" stroke="#0B2C6B" stroke-width="14"/>
+  <line x1="155" y1="165" x2="205" y2="215" stroke="#0B2C6B" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Briefcase -->
+  <rect x="75" y="92" width="70" height="48" rx="8" fill="#0B2C6B"/>
+  <rect x="93" y="76" width="34" height="14" rx="4" fill="#0B2C6B"/>
+  <line x1="75" y1="114" x2="145" y2="114" stroke="white" stroke-width="4"/>
+  <rect x="104" y="109" width="12" height="10" rx="2" fill="white"/>
+
+  <!-- Check -->
+  <path d="M135 145 L155 165 L190 125" fill="none" stroke="#10D18F" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Text -->
+  <text x="260" y="135" font-size="86" font-family="Arial, Helvetica, sans-serif" font-weight="700">
+    <tspan fill="#0B2C6B">Job</tspan>
+    <tspan fill="url(#grad)">Trackr</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="265" y="200" font-size="36" font-family="Arial, Helvetica, sans-serif" fill="#2C3E50">
+    Stop Hunting, Start Tracking
+  </text>
+</svg>
