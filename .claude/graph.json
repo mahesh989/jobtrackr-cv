@@ -98,11 +98,12 @@
 
   "build_state": {
     "current_phase": 3,
-    "next_action": "Build /cv page in web/ (upload, list, set-active, delete). Add API routes: POST /api/cv (Storage upload + /internal/extract-cv-text), PATCH /api/cv/[id] (set active), DELETE /api/cv/[id].",
+    "next_action": "User actions: (1) apply supabase/migrations/013_storage_buckets.sql in Supabase SQL editor, (2) redeploy cv-backend on Fly so python-docx is installed. Then test the /dashboard/cv page on the Vercel preview.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
-      "Phase 2 — cv-backend deployed to Fly.io (jobtrackr-cv-api); /health 200, signed /internal/analyze returns 202"
+      "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
+      "Phase 3 commits 3a–3c — bucket SQL, DOCX support, /api/cv routes, /dashboard/cv page on GitHub"
     ],
     "in_progress": [],
     "blocked": []
@@ -174,13 +175,32 @@
       "phase": 3,
       "name": "CV upload UI + flow",
       "status": "in_progress",
+      "sub_commits": {
+        "3a": "completed — bucket SQL (013) + cv-backend client + DOCX support",
+        "3b": "completed — /api/cv POST/GET + /api/cv/[id] PATCH/DELETE",
+        "3c": "completed — /dashboard/cv page + CvLibraryClient + sidebar link"
+      },
+      "decisions_locked": {
+        "input_types":          "PDF + DOCX (output always PDF)",
+        "size_cap":             "5 MB",
+        "versioning":           "all uploads kept",
+        "delete_active_policy": "Option B — allow delete; user is left with zero active CVs"
+      },
       "tasks": [
-        { "id": "3.1", "desc": "Build /cv page (upload, list, set-active, delete)", "status": "planned" },
-        { "id": "3.2", "desc": "API: POST /api/cv (upload to Storage + call /internal/extract-cv-text)", "status": "planned" },
-        { "id": "3.3", "desc": "API: PATCH /api/cv/[id] (set-active toggle, txn enforces single-active)", "status": "planned" },
-        { "id": "3.4", "desc": "API: DELETE /api/cv/[id]", "status": "planned" }
+        { "id": "3.1", "desc": "Storage migration 013 + bucket RLS", "status": "completed" },
+        { "id": "3.2", "desc": "DOCX support in /internal/extract-cv-text", "status": "completed" },
+        { "id": "3.3", "desc": "web/src/lib/cvBackend.ts — HMAC client", "status": "completed" },
+        { "id": "3.4", "desc": "POST /api/cv (upload + extract + insert)", "status": "completed" },
+        { "id": "3.5", "desc": "GET /api/cv (list metadata)", "status": "completed" },
+        { "id": "3.6", "desc": "PATCH /api/cv/[id] (set-active)", "status": "completed" },
+        { "id": "3.7", "desc": "DELETE /api/cv/[id] (row + Storage)", "status": "completed" },
+        { "id": "3.8", "desc": "/dashboard/cv page (Server Component)", "status": "completed" },
+        { "id": "3.9", "desc": "CvLibraryClient (upload form + list)", "status": "completed" },
+        { "id": "3.10", "desc": "Sidebar nav link", "status": "completed" },
+        { "id": "3.11", "desc": "Apply migration 013 in Supabase (manual)", "status": "pending_manual" },
+        { "id": "3.12", "desc": "Redeploy cv-backend with python-docx (manual flyctl deploy)", "status": "pending_manual" }
       ],
-      "gate": "Upload a PDF on preview URL, see extracted text, switch active between two CVs."
+      "gate": "Upload a PDF on preview URL, see extracted-text path complete (status=ACTIVE on first upload), upload a DOCX, switch active between them, delete one and confirm it disappears from list + Storage."
     },
     {
       "phase": 4,
