@@ -97,12 +97,12 @@
   },
 
   "build_state": {
-    "current_phase": 2,
-    "next_action": "User runs the manual Phase 2 deploy: create Fly app jobtrackr-cv-api, set secrets (SUPABASE_*, JOBTRACKR_HMAC_SECRET), flyctl deploy. Then signed curl gate.",
+    "current_phase": 3,
+    "next_action": "Build /cv page in web/ (upload, list, set-active, delete). Add API routes: POST /api/cv (Storage upload + /internal/extract-cv-text), PATCH /api/cv/[id] (set active), DELETE /api/cv/[id].",
     "completed": [
       "Phase 0 — preview env verified",
-      "Phase 1 — migrations 010/011/012 applied; cv_versions + analysis_runs tables live; Realtime publication active",
-      "Phase 2 commits 2a–2f — cv-backend stripped, BYOK, Supabase REST, HMAC, Dockerfile, fly.toml all on GitHub"
+      "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
+      "Phase 2 — cv-backend deployed to Fly.io (jobtrackr-cv-api); /health 200, signed /internal/analyze returns 202"
     ],
     "in_progress": [],
     "blocked": []
@@ -168,12 +168,12 @@
         { "id": "2.11", "desc": "Dockerfile + fly.toml for jobtrackr-cv-api", "status": "completed" },
         { "id": "2.12", "desc": "Deploy to Fly.io", "status": "pending_manual" }
       ],
-      "gate": "Signed curl to /internal/analyze with a fake payload returns 202; Fly logs print 'received run <id>'."
+      "gate": "PASSED 2026-05-14 — signed POST returns 202 with {run_id, status: accepted}; deployed at https://jobtrackr-cv-api.fly.dev"
     },
     {
       "phase": 3,
       "name": "CV upload UI + flow",
-      "status": "planned",
+      "status": "in_progress",
       "tasks": [
         { "id": "3.1", "desc": "Build /cv page (upload, list, set-active, delete)", "status": "planned" },
         { "id": "3.2", "desc": "API: POST /api/cv (upload to Storage + call /internal/extract-cv-text)", "status": "planned" },
