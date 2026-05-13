@@ -8,12 +8,15 @@
 
   "project": {
     "name": "JobTrackr-CV",
-    "summary": "JobTrackr + cv-magic's CV-tailoring pipeline, deployed as a separate project. Production JobTrackr untouched.",
+    "summary": "JobTrackr v2 — absorbs cv-magic's CV-tailoring pipeline as an internal feature module. ONE domain (Vercel auto URL), ONE user identity (Supabase), ONE database. The Python pipeline service is invisible plumbing on Fly.io.",
+    "framing": "cv-magic is no longer a separate product. It is a block of functionality inside JobTrackr. Users only ever see jobtrackr-cv-*.vercel.app. The Fly.io Python service has no public domain.",
+    "navigation": "Same-tab (no new tabs). Analysis pages are JobTrackr routes: /jobs/[id]/analyze, /jobs/[id]/analyze/[run_id].",
     "source_projects": {
       "jobtrackr": "/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr",
       "cv_magic":  "/Users/mahesh/Documents/Github/cv-magic"
     },
-    "this_repo": "/Users/mahesh/Documents/Github/jobtrackr-cv"
+    "this_repo": "/Users/mahesh/Documents/Github/jobtrackr-cv",
+    "domain": "Vercel auto URL (deferred custom domain). Production JobTrackr at its own URL is untouched."
   },
 
   "entities": {

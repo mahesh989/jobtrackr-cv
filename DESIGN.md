@@ -4,11 +4,16 @@
 
 ## 1. Summary
 
-Add CV tailoring to JobTrackr by running the cv-magic FastAPI pipeline as a **second service** (`cv-backend`) on Fly.io alongside the existing JobTrackr worker. JobTrackr stays as-is for job discovery; a new "Analyze" button on each job triggers the cv-backend pipeline via a thin HTTP bridge.
+JobTrackr v2 absorbs the cv-magic CV-tailoring pipeline as an **internal feature module**. Users only ever see one domain, one product, one sign-in. The Python pipeline service is invisible plumbing on Fly.io with no public-facing URL.
 
-Frontend additions live in this repo's `web/`. Production JobTrackr is untouched until we explicitly promote.
+- **One domain** — Vercel auto URL for the new project (custom domain deferred). Production JobTrackr stays at its own URL, untouched.
+- **One identity** — Supabase auth for everything. cv-magic's Clerk is stripped.
+- **One database** — shared Supabase project, additive tables only.
+- **Same-tab navigation** — analysis is a JobTrackr route (`/jobs/[id]/analyze/[run_id]`), not a separate site.
+- **Private Python service** — `cv-backend` runs on Fly.io and is only ever called by JobTrackr's Next.js API routes. Users never hit it directly.
+- **BYOK** — Anthropic / OpenAI keys live in JobTrackr settings, encrypted with the same AES helper used for Apify.
 
-**Architecture choice:** two services, one Supabase database, BYOK API keys, Supabase Realtime for step progress, HMAC-signed internal API.
+cv-magic, as a separate product, ceases to exist in this project. It is folded in.
 
 ## 2. Architecture
 
