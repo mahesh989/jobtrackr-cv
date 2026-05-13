@@ -97,12 +97,16 @@
   },
 
   "build_state": {
-    "current_phase": 0,
-    "next_action": "Create GitHub repo, push initial commit, connect Vercel and Fly.io, verify preview deploy loads JobTrackr unchanged.",
+    "current_phase": 1,
+    "next_action": "Write supabase/migrations/010_cv_versions.sql, 011_analysis_runs.sql, 012_extend_user_integrations.sql. Apply via Supabase SQL editor. Verify Realtime fires for analysis_runs.",
     "completed": [
       "Copy web/, worker/, supabase/ from JobTrackr",
       "Author CLAUDE.md, DESIGN.md, README.md, this graph",
-      "Strip .gitignore"
+      "Push to GitHub at https://github.com/mahesh989/jobtrackr-cv",
+      "Vercel project created at jobtrackr-cv.vercel.app",
+      "Env vars set (Supabase URL/keys, encryption key, Redis)",
+      "Supabase redirect URL whitelisted for preview domain",
+      "Phase 0 gate PASSED — sign-in works, jobs visible, Run Now functional"
     ],
     "in_progress": [],
     "blocked": []
@@ -112,23 +116,25 @@
     {
       "phase": 0,
       "name": "Setup & infra",
-      "status": "in_progress",
+      "status": "completed",
+      "verified": "2026-05-14",
       "tasks": [
-        { "id": "0.1", "desc": "git init + initial commit on main", "status": "planned" },
-        { "id": "0.2", "desc": "Create GitHub repo 'jobtrackr-cv' (private)", "status": "planned" },
-        { "id": "0.3", "desc": "Push initial commit", "status": "planned" },
-        { "id": "0.4", "desc": "Create Vercel project pointing at repo, root = web/", "status": "planned" },
-        { "id": "0.5", "desc": "Configure Vercel preview env vars (Preview scope only)", "status": "planned" },
-        { "id": "0.6", "desc": "Create Fly.io 'jobtrackr-cv-worker' app + deploy", "status": "planned" },
-        { "id": "0.7", "desc": "Create empty Fly.io 'jobtrackr-cv-api' app (hello-world FastAPI)", "status": "planned" },
-        { "id": "0.8", "desc": "Generate JOBTRACKR_HMAC_SECRET and set on both Vercel + Fly", "status": "planned" }
+        { "id": "0.1", "desc": "git init + initial commit on main", "status": "completed" },
+        { "id": "0.2", "desc": "Create GitHub repo 'jobtrackr-cv' (private)", "status": "completed" },
+        { "id": "0.3", "desc": "Push initial commit", "status": "completed" },
+        { "id": "0.4", "desc": "Create Vercel project pointing at repo, root = web/", "status": "completed" },
+        { "id": "0.5", "desc": "Configure Vercel env vars (all scopes)", "status": "completed" },
+        { "id": "0.6", "desc": "Create Fly.io 'jobtrackr-cv-worker' app + deploy", "status": "deferred", "note": "Sharing production worker via shared Redis works fine for now" },
+        { "id": "0.7", "desc": "Create empty Fly.io 'jobtrackr-cv-api' app", "status": "deferred", "note": "Will create in Phase 2 when cv-backend code is ready" },
+        { "id": "0.8", "desc": "Generate JOBTRACKR_HMAC_SECRET", "status": "deferred", "note": "Phase 2" },
+        { "id": "0.9", "desc": "Whitelist jobtrackr-cv.vercel.app in Supabase redirect URLs", "status": "completed" }
       ],
-      "gate": "Vercel preview URL loads JobTrackr unchanged (same UI, can sign in, can see jobs). cv-backend /health returns 200 from Fly."
+      "gate": "PASSED 2026-05-14 — sign-in works, jobs visible on jobtrackr-cv.vercel.app, Run Now functional."
     },
     {
       "phase": 1,
       "name": "Data model",
-      "status": "planned",
+      "status": "in_progress",
       "tasks": [
         { "id": "1.1", "desc": "Write supabase/migrations/010_cv_versions.sql", "status": "planned" },
         { "id": "1.2", "desc": "Write supabase/migrations/011_analysis_runs.sql", "status": "planned" },
