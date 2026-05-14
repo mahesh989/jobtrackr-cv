@@ -132,13 +132,16 @@ class AIClient:
             kwargs["base_url"] = base_url
         client = AsyncOpenAI(**kwargs)
 
-        # o-series reasoning models (o1, o3, o4-mini, o3-mini, …) do not
-        # support `temperature`; all modern OpenAI models (gpt-4.1+, o-series)
-        # require `max_completion_tokens` instead of the deprecated `max_tokens`.
-        is_reasoning = (
+        # Models that reject non-default `temperature` (OpenAI 400 with
+        # `unsupported_value`): o-series reasoning models (o1, o3, o4)
+        # AND the gpt-5 family (gpt-5, gpt-5.x, gpt-5-mini, gpt-5-pro, ...).
+        # All modern OpenAI models also require `max_completion_tokens`
+        # instead of the deprecated `max_tokens`.
+        skip_temperature = (
             self.model.startswith("o1")
             or self.model.startswith("o3")
             or self.model.startswith("o4")
+            or self.model.startswith("gpt-5")
         )
 
         request_kwargs: Dict[str, Any] = {
@@ -147,13 +150,9 @@ class AIClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            # Use max_completion_tokens — accepted by all modern OpenAI models
-            # (gpt-4.1, gpt-4o, o-series, gpt-5.x, …). The legacy `max_tokens`
-            # alias is unsupported on newer models and causes a 400 error.
             "max_completion_tokens": max_tokens,
         }
-        if not is_reasoning:
-            # Reasoning models ignore / reject the temperature parameter.
+        if not skip_temperature:
             request_kwargs["temperature"] = temperature
 
         try:
