@@ -48,7 +48,7 @@ export async function POST(
   // ── 1a. Verify the job belongs to a profile owned by this user ───────────
   const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, profile_id, title, company, location, source, url, description")
+    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -119,20 +119,30 @@ export async function POST(
   }
 
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
-  let jdText        = (job.description ?? "").trim();
-  let jdSourceUrl   = job.url as string | null;
-  const needsScrape = jdText.length < JD_FULL_THRESHOLD;
+  // Priority order:
+  //   1. manual_jd_text   (user-curated, used as-is if ≥ JD_MIN_USABLE)
+  //   2. description       (raw scrape, used if ≥ JD_FULL_THRESHOLD)
+  //   3. scrape via cv-backend (when raw is too thin)
+  const manualJd     = (job.manual_jd_text ?? "").trim();
+  const description  = (job.description ?? "").trim();
+  let jdText         = "";
+  let jdSourceUrl    = job.url as string | null;
 
-  if (needsScrape && job.url) {
-    try {
-      const scraped = await scrapeJd(job.url);
-      if (scraped.jd_text && scraped.jd_text.length > jdText.length) {
-        jdText      = scraped.jd_text;
-        jdSourceUrl = scraped.source_url;
+  if (manualJd.length >= JD_MIN_USABLE) {
+    jdText = manualJd;
+  } else {
+    jdText = description;
+    if (jdText.length < JD_FULL_THRESHOLD && job.url) {
+      try {
+        const scraped = await scrapeJd(job.url);
+        if (scraped.jd_text && scraped.jd_text.length > jdText.length) {
+          jdText      = scraped.jd_text;
+          jdSourceUrl = scraped.source_url;
+        }
+      } catch (err) {
+        // Scrape failures aren't fatal if we have *some* description already.
+        console.warn("[/api/jobs/:id/analyze] scrape failed:", err);
       }
-    } catch (err) {
-      // Scrape failures aren't fatal if we have *some* description already.
-      console.warn("[/api/jobs/:id/analyze] scrape failed:", err);
     }
   }
 
