@@ -123,6 +123,23 @@ export async function POST(
   }
   const aiModel = chosenEntry.model;
 
+  // ── 1d. Load saved contact details + portfolio projects (optional) ──────
+  const { data: prefRow } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  interface Project { name?: string; url?: string; description?: string }
+  interface ContactDetails {
+    name?: string; phone?: string; email?: string; address?: string;
+    linkedin?: string; github?: string; website?: string; portfolio?: string;
+    other_label?: string; other_url?: string;
+    projects?: Project[];
+  }
+  const contactDetails =
+    (prefRow?.contact_details as ContactDetails | null) ?? null;
+  const portfolioProjects = contactDetails?.projects ?? [];
+
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
   // Priority order:
   //   1. manual_jd_text   (user-curated, used as-is if ≥ JD_MIN_USABLE)
@@ -186,6 +203,28 @@ export async function POST(
     return NextResponse.json({ error: "Failed to create analysis run" }, { status: 500 });
   }
 
+  // Augment the CV text with the user's saved portfolio projects so the
+  // tailoring AI considers them even if they're not already in the CV PDF.
+  // Appended as a markdown section the AI naturally recognises.
+  let cvTextForAnalysis = cv.cv_text;
+  if (portfolioProjects.length > 0) {
+    const lines = ["", "## Projects"];
+    for (const p of portfolioProjects) {
+      const titleParts: string[] = [];
+      if (p.name) titleParts.push(`**${p.name}**`);
+      if (p.url)  titleParts.push(`[${p.url}](${p.url})`);
+      if (titleParts.length > 0) lines.push(`- ${titleParts.join(" · ")}`);
+      if (p.description) lines.push(`  ${p.description}`);
+    }
+    cvTextForAnalysis = `${cv.cv_text.trimEnd()}\n${lines.join("\n")}\n`;
+  }
+
+  // Drop the bulky 'projects' sub-array before sending — cv-backend only
+  // uses contact_details for the contact-line stamp.
+  const contactForBackend = contactDetails
+    ? Object.fromEntries(Object.entries(contactDetails).filter(([k]) => k !== "projects"))
+    : null;
+
   // ── 5–6. Hand off to cv-backend (HMAC-signed) ────────────────────────────
   try {
     await startAnalysis({
@@ -200,10 +239,11 @@ export async function POST(
         location: job.location,
         source:   job.source,
       },
-      cv_text:        cv.cv_text,
+      cv_text:        cvTextForAnalysis,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
       ai_model:       aiModel,
+      contact_details: contactForBackend,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);

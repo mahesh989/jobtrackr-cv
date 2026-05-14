@@ -35,6 +35,12 @@ class AnalyzeRequest(BaseModel):
     # cv-backend falls back to _DEFAULT_MODELS[provider].
     ai_model:       Optional[str] = None
 
+    # Optional contact details (name, phone, email, urls, projects). When
+    # present, stamp_contact_line() overwrites the contact line under the H1
+    # on the tailored CV markdown so the output always shows the user's
+    # canonical contact info.
+    contact_details: Optional[Dict[str, Any]] = None
+
 
 class AnalyzeResponse(BaseModel):
     run_id: uuid.UUID

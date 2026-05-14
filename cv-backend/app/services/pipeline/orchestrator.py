@@ -120,14 +120,15 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "ai_recommendations", "completed")
 
         # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
-        # cv-magic also fetched a contact_details preference from user_preferences;
-        # we don't have that table here, so contact_details=None and the AI's own
-        # contact line is preserved.
+        # contact_details (when present) stamps the user's canonical contact
+        # info onto the H1's contact line — name, phone, email, profile links,
+        # portfolio URL. The 'projects' sub-array is already merged into
+        # cv_text upstream by JobTrackr's analyze route.
         await mark_step(run_id, step_status, "tailored_cv", "running")
         tailored_md, tailored_storage_path = await run_tailored_cv(
             ai_client, payload.user_id, run_id, payload.cv_text,
             jd_analysis, recs_md, feasibility,
-            contact_details=None,
+            contact_details=payload.contact_details,
         )
         await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
 
