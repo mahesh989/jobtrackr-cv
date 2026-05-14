@@ -21,6 +21,7 @@ interface AnalysisRunRow {
   keyword_feasibility:         Record<string, unknown> | null;
   ai_recommendations:          string | null;
   tailored_cv_storage_path:    string | null;
+  tailored_pdf_storage_path:   string | null;
   tailored_ats_scoring_result: Record<string, unknown> | null;
   injected_keywords:           {
     injected?:         string[];
@@ -93,7 +94,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
       if (statusRef.current === "completed" || statusRef.current === "failed") return;
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, status, step_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
+        .select("id, status, step_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
@@ -252,7 +253,11 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
         <RecommendationsCard markdown={run.ai_recommendations} />
       )}
       {run.tailored_cv_storage_path && (
-        <TailoredCvCard storagePath={run.tailored_cv_storage_path} />
+        <TailoredCvCard
+          storagePath={run.tailored_cv_storage_path}
+          pdfStoragePath={run.tailored_pdf_storage_path}
+          runId={runId}
+        />
       )}
       {(run.match_score != null || run.tailored_match_score != null) && (
         <TailoredScoreCard

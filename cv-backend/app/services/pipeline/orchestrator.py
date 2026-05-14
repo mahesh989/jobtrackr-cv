@@ -15,8 +15,13 @@ from __future__ import annotations
 
 import logging
 
+import asyncio
+
+from app.config import get_settings
+from app.database import get_supabase
 from app.schemas.internal import AnalyzeRequest
 from app.services.ai.client import AIClientError, make_ai_client
+from app.services.cv.pdf_generator import generate_pdf_from_markdown
 from app.services.pipeline.jd_expiry import detect_jd_expiry
 from app.services.pipeline.progress import (
     DEFAULT_STEP_STATUS,
@@ -114,7 +119,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await save_step_result(run_id, "ai_recommendations", recs_md)
         await mark_step(run_id, step_status, "ai_recommendations", "completed")
 
-        # ── Step 6 — Tailored CV (markdown only — PDF lands in Phase 7) ────────
+        # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
         # cv-magic also fetched a contact_details preference from user_preferences;
         # we don't have that table here, so contact_details=None and the AI's own
         # contact line is preserved.
@@ -125,6 +130,39 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             contact_details=None,
         )
         await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
+
+        # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
+        # ReportLab is CPU-bound, so wrap in asyncio.to_thread to keep the event
+        # loop free. Non-fatal — if PDF render fails we keep the markdown only;
+        # user can still copy the markdown out of the UI.
+        try:
+            settings = get_settings()
+            supabase = get_supabase()
+            pdf_path = f"{payload.user_id}/{run_id}.pdf"
+
+            def _render_and_upload() -> None:
+                pdf_bytes = generate_pdf_from_markdown(tailored_md)
+                bucket = settings.SUPABASE_TAILORED_CV_BUCKET
+                try:
+                    supabase.storage.from_(bucket).upload(
+                        path=pdf_path,
+                        file=pdf_bytes,
+                        file_options={"content-type": "application/pdf", "upsert": "true"},
+                    )
+                except Exception as exc:
+                    # Object may exist from a previous run id collision — retry as update.
+                    logger.warning("Tailored PDF upload failed (%s) — retrying via update()", exc)
+                    supabase.storage.from_(bucket).update(
+                        path=pdf_path,
+                        file=pdf_bytes,
+                        file_options={"content-type": "application/pdf"},
+                    )
+
+            await asyncio.to_thread(_render_and_upload)
+            await save_step_result(run_id, "tailored_pdf_storage_path", pdf_path)
+            logger.info("run %s: tailored PDF rendered → %s", run_id, pdf_path)
+        except Exception as exc:
+            logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
         # ── Step 6.5 — Deterministic re-score of the tailored CV ───────────────
         rescore = run_tailored_rescoring(
