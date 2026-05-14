@@ -114,6 +114,7 @@ export interface AnalyzePayload {
   cv_text:       string;
   ai_provider:   "anthropic" | "openai" | "deepseek";
   ai_api_key:    string;
+  ai_model?:     string | null;
 }
 
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {

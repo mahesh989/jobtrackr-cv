@@ -53,10 +53,11 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             return
 
         # Construct the BYOK AI client. Raises AIClientError on invalid input.
-        ai_client = make_ai_client(payload.ai_provider, payload.ai_api_key)
+        ai_client = make_ai_client(payload.ai_provider, payload.ai_api_key, payload.ai_model)
         logger.info(
-            "run %s: starting pipeline (provider=%s jd_len=%d cv_len=%d)",
-            run_id, payload.ai_provider, len(payload.jd_text), len(payload.cv_text),
+            "run %s: starting pipeline (provider=%s model=%s jd_len=%d cv_len=%d)",
+            run_id, payload.ai_provider, ai_client.model,
+            len(payload.jd_text), len(payload.cv_text),
         )
 
         # ── Step 1 — JD analysis ───────────────────────────────────────────────

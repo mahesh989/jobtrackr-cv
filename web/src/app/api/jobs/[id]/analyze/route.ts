@@ -89,15 +89,18 @@ export async function POST(
   // ── 1c. User must have at least one AI key ───────────────────────────────
   const { data: keys } = await admin
     .from("user_integrations")
-    .select("provider, encrypted_api_key, status")
+    .select("provider, encrypted_api_key, status, config")
     .eq("user_id", user.id)
     .eq("status", "valid")
     .eq("is_enabled", true)
     .in("provider", PROVIDER_PRIORITY as unknown as string[]);
 
-  const keyByProvider = new Map<Provider, string>();
-  for (const row of (keys ?? []) as Array<{ provider: Provider; encrypted_api_key: string }>) {
-    keyByProvider.set(row.provider, row.encrypted_api_key);
+  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
+  for (const row of (keys ?? []) as Array<{ provider: Provider; encrypted_api_key: string; config: { model?: string } | null }>) {
+    keyByProvider.set(row.provider, {
+      encrypted: row.encrypted_api_key,
+      model:     row.config?.model ?? null,
+    });
   }
   const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
   if (!chosen) {
@@ -107,9 +110,10 @@ export async function POST(
     );
   }
 
+  const chosenEntry = keyByProvider.get(chosen)!;
   let aiApiKey: string;
   try {
-    aiApiKey = decryptApiKey(keyByProvider.get(chosen)!);
+    aiApiKey = decryptApiKey(chosenEntry.encrypted);
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] decrypt failed:", err);
     return NextResponse.json(
@@ -117,6 +121,7 @@ export async function POST(
       { status: 500 },
     );
   }
+  const aiModel = chosenEntry.model;
 
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
   // Priority order:
@@ -196,6 +201,7 @@ export async function POST(
       cv_text:        cv.cv_text,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
+      ai_model:       aiModel,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);

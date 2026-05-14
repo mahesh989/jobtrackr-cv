@@ -31,6 +31,9 @@ class AnalyzeRequest(BaseModel):
     # BYOK — per-request key, never persisted in cv-backend.
     ai_provider:    Literal["anthropic", "openai", "deepseek"]
     ai_api_key:     str = Field(min_length=1)
+    # Optional model override (e.g. "claude-sonnet-4-6", "gpt-4o"). When null
+    # cv-backend falls back to _DEFAULT_MODELS[provider].
+    ai_model:       Optional[str] = None
 
 
 class AnalyzeResponse(BaseModel):

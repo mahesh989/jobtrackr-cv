@@ -15,7 +15,7 @@ export default async function AiKeysPage() {
   const admin = createAdminClient();
   const { data: rows } = await admin
     .from("user_integrations")
-    .select("provider, status, status_reason, last_validated_at, is_enabled")
+    .select("provider, status, status_reason, last_validated_at, is_enabled, config")
     .eq("user_id", user.id)
     .in("provider", PROVIDERS);
 
@@ -25,6 +25,7 @@ export default async function AiKeysPage() {
     status_reason:     string | null;
     last_validated_at: string | null;
     is_enabled:        boolean;
+    config:            { model?: string } | null;
   }
 
   const byProvider = new Map<AiKeyProvider, AiKeyState>();
@@ -35,6 +36,7 @@ export default async function AiKeysPage() {
       status_reason:     r.status_reason,
       last_validated_at: r.last_validated_at,
       is_enabled:        r.is_enabled,
+      model:             r.config?.model ?? null,
     });
   }
 

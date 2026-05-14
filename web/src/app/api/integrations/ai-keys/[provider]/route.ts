@@ -90,7 +90,7 @@ async function authedUser() {
   return user;
 }
 
-// ── GET — status only, never the key ─────────────────────────────────────────
+// ── GET — status + selected model, never the key ────────────────────────────
 
 export async function GET(
   _req: NextRequest,
@@ -106,16 +106,17 @@ export async function GET(
   const admin = createAdminClient();
   const { data } = await admin
     .from("user_integrations")
-    .select("status, status_reason, last_validated_at, is_enabled")
+    .select("status, status_reason, last_validated_at, is_enabled, config")
     .eq("user_id", user.id)
     .eq("provider", provider)
     .maybeSingle();
 
   if (!data) return NextResponse.json({ connected: false });
-  return NextResponse.json({ connected: true, ...data });
+  const model = (data.config as { model?: string } | null)?.model ?? null;
+  return NextResponse.json({ connected: true, ...data, model });
 }
 
-// ── POST — validate + encrypt + upsert ───────────────────────────────────────
+// ── POST — connect (validate + encrypt + upsert), optionally also set model ─
 
 export async function POST(
   req: NextRequest,
@@ -129,9 +130,13 @@ export async function POST(
   if (!provider) return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
 
   let key: string;
+  let model: string | null = null;
   try {
     const body = await req.json();
-    key = (body.key ?? "").trim();
+    key   = (body.key ?? "").trim();
+    model = body.model != null && String(body.model).trim() !== ""
+      ? String(body.model).trim()
+      : null;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -156,6 +161,7 @@ export async function POST(
         status_reason:     null,
         last_validated_at: new Date().toISOString(),
         is_enabled:        true,
+        config:            model ? { model } : {},
         updated_at:        new Date().toISOString(),
       },
       { onConflict: "user_id,provider" },
@@ -166,7 +172,58 @@ export async function POST(
     return NextResponse.json({ error: "Failed to save key" }, { status: 500 });
   }
 
-  return NextResponse.json({ valid: true });
+  return NextResponse.json({ valid: true, model });
+}
+
+// ── PATCH — change just the model without re-validating the key ─────────────
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ provider: string }> },
+) {
+  const user = await authedUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { provider: raw } = await params;
+  const provider = parseProvider(raw);
+  if (!provider) return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
+
+  let model: string | null;
+  try {
+    const body = await req.json();
+    if (body.model === null || body.model === "") {
+      model = null;            // clear selection → fall back to backend default
+    } else if (typeof body.model === "string") {
+      model = body.model.trim() || null;
+    } else {
+      return NextResponse.json({ error: "model must be a string or null" }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  // Read current config so we preserve any other keys (forward-compat).
+  const { data: existing } = await admin
+    .from("user_integrations")
+    .select("config")
+    .eq("user_id", user.id)
+    .eq("provider", provider)
+    .maybeSingle();
+  if (!existing) {
+    return NextResponse.json({ error: "Connect a key first" }, { status: 404 });
+  }
+  const cfg = (existing.config as Record<string, unknown> | null) ?? {};
+  if (model === null) delete cfg.model; else cfg.model = model;
+
+  const { error } = await admin
+    .from("user_integrations")
+    .update({ config: cfg, updated_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .eq("provider", provider);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ model });
 }
 
 // ── DELETE — disconnect ──────────────────────────────────────────────────────
