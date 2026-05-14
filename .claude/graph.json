@@ -97,13 +97,13 @@
   },
 
   "build_state": {
-    "current_phase": 3,
-    "next_action": "User actions: (1) apply supabase/migrations/013_storage_buckets.sql in Supabase SQL editor, (2) redeploy cv-backend on Fly so python-docx is installed. Then test the /dashboard/cv page on the Vercel preview.",
+    "current_phase": 4,
+    "next_action": "Build /dashboard/settings/ai-keys page + API routes for Anthropic + OpenAI BYOK. Mirror the existing /dashboard/integrations Apify pattern.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
       "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
-      "Phase 3 commits 3a–3c — bucket SQL, DOCX support, /api/cv routes, /dashboard/cv page on GitHub"
+      "Phase 3 — CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)"
     ],
     "in_progress": [],
     "blocked": []
@@ -200,7 +200,7 @@
         { "id": "3.11", "desc": "Apply migration 013 in Supabase (manual)", "status": "pending_manual" },
         { "id": "3.12", "desc": "Redeploy cv-backend with python-docx (manual flyctl deploy)", "status": "pending_manual" }
       ],
-      "gate": "Upload a PDF on preview URL, see extracted-text path complete (status=ACTIVE on first upload), upload a DOCX, switch active between them, delete one and confirm it disappears from list + Storage."
+      "gate": "PARTIAL PASS 2026-05-14 — PDF upload works end-to-end (upload, active toggle, delete modal, RLS-scoped storage). DOCX upload fails at the browser→Supabase Storage layer with ERR_TIMED_OUT (BUG-1, parked). PDF-only workflow is sufficient to unblock subsequent phases."
     },
     {
       "phase": 4,
@@ -283,5 +283,23 @@
     { "id": "Q1", "question": "Provider support v1 — both Anthropic and OpenAI, or just Anthropic?", "revisit_in": "Phase 4" },
     { "id": "Q2", "question": "Tailored PDF viewer — inline iframe or download-only?", "revisit_in": "Phase 7" },
     { "id": "Q3", "question": "JD-scrape fallback UX — fail-and-retry or modal-paste?", "revisit_in": "Phase 8" }
+  ],
+
+  "known_issues": [
+    {
+      "id":          "BUG-1",
+      "title":       "DOCX upload fails with ERR_TIMED_OUT to Supabase Storage",
+      "severity":    "low",
+      "blocks":      "DOCX-only — PDF uploads work fine",
+      "symptoms":    "Browser POST/PUT to ltcqqlfsomqxuwfcxxbe.supabase.co/storage/v1/object/cvs/... aborts at 186ms-2s with net::ERR_TIMED_OUT. Other Supabase requests to the same host (auth, REST) work normally.",
+      "tried":       [
+        "Direct supabase.storage.upload() — fails",
+        "Signed upload URL + uploadToSignedUrl — fails",
+        "Raw fetch PUT to signed URL — fails (assumed, user stopped testing)"
+      ],
+      "next_steps":  "Try a tiny <50KB DOCX to rule out size; inspect Supabase project's storage CORS config; try same upload from a different network/country; consider supabase-js TUS resumable upload as last resort.",
+      "workaround":  "Users can convert DOCX to PDF before uploading. PDF path is fully functional.",
+      "logged":      "2026-05-14"
+    }
   ]
 }
