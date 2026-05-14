@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from "react";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 
 interface Job {
   id: string;
@@ -308,9 +309,10 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 
           {/* Actions */}
           <div
-            className={`${showVisa ? "col-span-2" : "col-span-3"} flex items-center justify-end gap-1.5`}
+            className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
+            <AnalyzeJobButton jobId={job.id} />
             <button
               disabled={pending || localApplied}
               onClick={handleApply}

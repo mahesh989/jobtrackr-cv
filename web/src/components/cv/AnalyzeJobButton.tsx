@@ -1,0 +1,84 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+interface Props {
+  jobId: string;
+}
+
+interface AnalyzeError {
+  message:   string;
+  cta?:      { label: string; href: string };
+}
+
+/**
+ * Click → POST /api/jobs/[id]/analyze. On success, navigate to the live
+ * analysis page. On 422 (missing CV or AI key), show an inline error
+ * with a link to the relevant settings page.
+ */
+export function AnalyzeJobButton({ jobId }: Props) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [err, setErr]              = useState<AnalyzeError | null>(null);
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setErr(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/jobs/${jobId}/analyze`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = (json.error as string) ?? `Failed (${res.status})`;
+        // Map common 422 prereq errors to a helpful CTA.
+        if (/active CV/i.test(message)) {
+          setErr({ message, cta: { label: "Upload CV", href: "/dashboard/cv" } });
+        } else if (/AI key/i.test(message)) {
+          setErr({ message, cta: { label: "Add AI key", href: "/dashboard/settings/ai-keys" } });
+        } else {
+          setErr({ message });
+        }
+        return;
+      }
+      router.push(`/dashboard/jobs/${jobId}/analyze/${json.run_id}`);
+    });
+  }
+
+  return (
+    <>
+      <button
+        disabled={pending}
+        onClick={handleClick}
+        className="gh-btn text-[11px] px-2.5 py-1 hover:border-[#0969DA]/40 hover:text-[#0969DA]"
+        title="Run a CV-tailoring analysis against this job"
+      >
+        {pending ? "Starting…" : "Analyze"}
+      </button>
+
+      {err && (
+        <div
+          className="absolute z-50 top-full right-0 mt-1 max-w-xs rounded-md bg-white border border-[#CF222E]/40 shadow-lg px-3 py-2.5 text-[12px] text-[#CF222E]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="leading-snug">{err.message}</p>
+          {err.cta && (
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => router.push(err.cta!.href)}
+                className="gh-btn gh-btn-primary text-[11px] px-2 py-0.5"
+              >
+                {err.cta.label}
+              </button>
+              <button
+                onClick={() => setErr(null)}
+                className="gh-btn text-[11px] px-2 py-0.5"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

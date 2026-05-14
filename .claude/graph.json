@@ -227,13 +227,25 @@
       "phase": 5,
       "name": "End-to-end with only step 1 wired",
       "status": "in_progress",
+      "sub_commits": {
+        "5a": "completed — orchestrator wires run_jd_analysis; step_status + jd_analysis_result persisted",
+        "5b": "completed — POST /api/jobs/[id]/analyze; JD-source decision; HMAC handoff to cv-backend",
+        "5c": "completed — /dashboard/jobs/[id]/analyze/[run_id] page + AnalysisRunClient Realtime sub",
+        "5d": "completed — AnalyzeJobButton on JobTable rows + inline-CTA error for missing prereqs"
+      },
       "tasks": [
-        { "id": "5.1", "desc": "Analyze button + state machine on job card", "status": "planned" },
-        { "id": "5.2", "desc": "API: POST /api/jobs/[id]/analyze (JD-source decision + HMAC call)", "status": "planned" },
-        { "id": "5.3", "desc": "Page: /jobs/[id]/analysis/[run_id] with Realtime subscription", "status": "planned" },
-        { "id": "5.4", "desc": "cv-backend orchestrator wired through step 1 only", "status": "planned" }
+        { "id": "5.1", "desc": "Analyze button + state machine on job card", "status": "completed" },
+        { "id": "5.2", "desc": "API: POST /api/jobs/[id]/analyze (JD-source decision + HMAC call)", "status": "completed" },
+        { "id": "5.3", "desc": "Page: /jobs/[id]/analyze/[run_id] with Realtime subscription", "status": "completed" },
+        { "id": "5.4", "desc": "cv-backend orchestrator wired through step 1 only", "status": "completed" },
+        { "id": "5.5", "desc": "Redeploy cv-backend so step 1 is live (manual flyctl deploy)", "status": "pending_manual" }
       ],
-      "gate": "Click Analyze on a SEEK job → step 1 JSON visible live via Realtime."
+      "decisions": {
+        "jd_full_threshold":   "2000 chars — below this we attempt /internal/scrape-jd",
+        "jd_min_usable":       "200 chars — below this we fail with 422",
+        "provider_priority":   "Anthropic > OpenAI > DeepSeek when user has multiple keys"
+      },
+      "gate": "Click Analyze on a SEEK job → land on /dashboard/jobs/[id]/analyze/[run_id] → step 1 (jd_analysis) ticks running → completed via Realtime → JSON output renders."
     },
     {
       "phase": 6,
