@@ -39,11 +39,18 @@ interface AnalysisRunRow {
   created_at:                  string;
 }
 
+interface CategorisedSkills {
+  technical?:        string[];
+  soft_skills?:      string[];
+  domain_knowledge?: string[];
+}
+
 interface Props {
-  runId:     string;
-  initial:   AnalysisRunRow;
-  cvLabel?:  string | null;
-  cvCharLen?: number;
+  runId:              string;
+  initial:            AnalysisRunRow;
+  cvLabel?:           string | null;
+  cvCharLen?:         number;
+  cvCategorisedSkills?: CategorisedSkills | null;
 }
 
 const STEPS: { key: string; label: string }[] = [
@@ -76,7 +83,7 @@ function StepRow({ label, state }: { label: string; state: string }) {
   );
 }
 
-export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props) {
+export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
   const [showInput, setShowInput] = useState(false);
 
@@ -235,8 +242,12 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
         )}
       </div>
 
-      {/* Pipeline output cards — rendered in step order so the user can scan
-          top-to-bottom and see the AI's reasoning unfold. */}
+      {/* CV skills — shown independently of the JD, mirrors cv-magic order. */}
+      {cvCategorisedSkills && <CvSkillsSummary skills={cvCategorisedSkills} label={cvLabel ?? null} />}
+
+      {/* Pipeline output cards — order matches cv-magic: scoring impact
+          appears BEFORE the tailored CV markdown so the user sees the
+          'so what?' before scrolling through the rewrite. */}
       {run.jd_analysis_result && (
         <JdAnalysisCard data={run.jd_analysis_result as Record<string, unknown>} />
       )}
@@ -252,13 +263,6 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
       {run.ai_recommendations && (
         <RecommendationsCard markdown={run.ai_recommendations} />
       )}
-      {run.tailored_cv_storage_path && (
-        <TailoredCvCard
-          storagePath={run.tailored_cv_storage_path}
-          pdfStoragePath={run.tailored_pdf_storage_path}
-          runId={runId}
-        />
-      )}
       {(run.match_score != null || run.tailored_match_score != null) && (
         <TailoredScoreCard
           beforeScore={run.match_score}
@@ -273,6 +277,76 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
           }
         />
       )}
+      {run.tailored_cv_storage_path && (
+        <TailoredCvCard
+          storagePath={run.tailored_cv_storage_path}
+          pdfStoragePath={run.tailored_pdf_storage_path}
+          runId={runId}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── CV skills summary (independent of JD) ───────────────────────────────────
+
+const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
+const CAT_LABEL: Record<(typeof CAT_ORDER)[number], string> = {
+  technical:        "Technical",
+  soft_skills:      "Soft skills",
+  domain_knowledge: "Domain knowledge",
+};
+
+function CvSkillsSummary({
+  skills, label,
+}: {
+  skills: CategorisedSkills;
+  label:  string | null;
+}) {
+  const totals = CAT_ORDER.map((c) => skills[c]?.length ?? 0);
+  const total  = totals.reduce((a, b) => a + b, 0);
+  if (total === 0) return null;
+
+  return (
+    <div className="bg-surface border border-border rounded-md overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
+        <h2 className="text-[14px] font-semibold text-text">Your CV — skills by category</h2>
+        {label && <span className="text-[11px] text-text-3 truncate">{label}</span>}
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        <div className="flex flex-wrap gap-4 text-[12px]">
+          {CAT_ORDER.map((cat, i) => (
+            <div key={cat} className="flex items-baseline gap-1.5">
+              <span className="text-[14px] font-semibold tabular-nums text-text">{totals[i]}</span>
+              <span className="text-text-3">{CAT_LABEL[cat].toLowerCase()}</span>
+            </div>
+          ))}
+          <div className="ml-auto flex items-baseline gap-1.5">
+            <span className="text-[14px] font-semibold tabular-nums text-text">{total}</span>
+            <span className="text-text-3">total</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {CAT_ORDER.map((cat) => {
+            const items = skills[cat];
+            if (!items || items.length === 0) return null;
+            return (
+              <div key={cat}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1">
+                  {CAT_LABEL[cat]} <span className="font-normal">({items.length})</span>
+                </h3>
+                <div className="flex flex-wrap gap-1">
+                  {items.map((s) => (
+                    <span key={s} className="text-[11px] font-mono px-1.5 py-0.5 rounded border bg-[#DDF4FF] text-[#0969DA] border-[#0969DA]/20">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

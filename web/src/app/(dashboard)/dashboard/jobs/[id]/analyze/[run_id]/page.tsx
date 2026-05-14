@@ -45,11 +45,12 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const cvVersionId = (run as unknown as { cv_version_id: string }).cv_version_id;
   const { data: cv } = await admin
     .from("cv_versions")
-    .select("label, cv_text")
+    .select("label, cv_text, categorised_skills")
     .eq("id", cvVersionId)
     .maybeSingle();
-  const cvLabel    = cv?.label ?? null;
-  const cvCharLen  = (cv?.cv_text ?? "").length;
+  const cvLabel     = cv?.label ?? null;
+  const cvCharLen   = (cv?.cv_text ?? "").length;
+  const cvSkills    = (cv?.categorised_skills as { technical?: string[]; soft_skills?: string[]; domain_knowledge?: string[] } | null) ?? null;
 
   // Soft-stale check: compare the JD text snapshot the run used against the
   // job's current JD source (manual override if present, else description).
@@ -89,7 +90,13 @@ export default async function AnalyzeRunPage({ params }: Props) {
           </div>
         )}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <AnalysisRunClient runId={runId} initial={run as any} cvLabel={cvLabel} cvCharLen={cvCharLen} />
+        <AnalysisRunClient
+          runId={runId}
+          initial={run as any}
+          cvLabel={cvLabel}
+          cvCharLen={cvCharLen}
+          cvCategorisedSkills={cvSkills}
+        />
       </div>
     </div>
   );
