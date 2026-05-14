@@ -19,9 +19,23 @@ export default async function AiKeysPage() {
     .eq("user_id", user.id)
     .in("provider", PROVIDERS);
 
+  interface IntegrationRow {
+    provider:          AiKeyProvider;
+    status:            string;
+    status_reason:     string | null;
+    last_validated_at: string | null;
+    is_enabled:        boolean;
+  }
+
   const byProvider = new Map<AiKeyProvider, AiKeyState>();
-  for (const r of (rows ?? []) as Array<{ provider: AiKeyProvider } & AiKeyState>) {
-    byProvider.set(r.provider, { connected: true, ...r });
+  for (const r of (rows ?? []) as IntegrationRow[]) {
+    byProvider.set(r.provider, {
+      connected:         true,
+      status:            r.status,
+      status_reason:     r.status_reason,
+      last_validated_at: r.last_validated_at,
+      is_enabled:        r.is_enabled,
+    });
   }
 
   return (
