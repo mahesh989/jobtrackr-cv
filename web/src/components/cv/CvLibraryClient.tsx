@@ -100,9 +100,14 @@ export function CvLibraryClient({ initial }: Props) {
       ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       : "application/pdf";
 
+    // Recreate the file to force the browser to use the exact correct MIME type natively.
+    // This prevents CORS or fetch errors caused by the browser rejecting a custom 
+    // Content-Type header that conflicts with the file's inherent type property.
+    const fileForUpload = new File([file], file.name, { type: contentType });
+
     const { error: uploadErr } = await supabase.storage
       .from("cvs")
-      .upload(storagePath, file, {
+      .upload(storagePath, fileForUpload, {
         contentType,
         upsert: false,
       });
@@ -279,7 +284,7 @@ export function CvLibraryClient({ initial }: Props) {
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-text-3 mt-0.5">Uploaded {created}</p>
+                    <p suppressHydrationWarning className="text-[11px] text-text-3 mt-0.5">Uploaded {created}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {!cv.is_active && (
