@@ -2,18 +2,40 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { JdAnalysisCard } from "@/components/cv/JdAnalysisCard";
+import { JdAnalysisCard }       from "@/components/cv/JdAnalysisCard";
+import { CvJdMatchingCard }     from "@/components/cv/CvJdMatchingCard";
+import { AtsScoreCard }         from "@/components/cv/AtsScoreCard";
+import { FeasibilityCard }      from "@/components/cv/FeasibilityCard";
+import { RecommendationsCard }  from "@/components/cv/RecommendationsCard";
+import { TailoredCvCard }       from "@/components/cv/TailoredCvCard";
+import { TailoredScoreCard }    from "@/components/cv/TailoredScoreCard";
 
 interface AnalysisRunRow {
-  id:                  string;
-  status:              "pending" | "running" | "completed" | "failed";
-  step_status:         Record<string, string>;
-  jd_analysis_result:  Record<string, unknown> | null;
-  error_message:       string | null;
-  jd_text?:            string;
-  ai_provider?:        string | null;
-  ai_model?:           string | null;
-  created_at:          string;
+  id:                          string;
+  status:                      "pending" | "running" | "completed" | "failed";
+  step_status:                 Record<string, string>;
+  jd_analysis_result:          Record<string, unknown> | null;
+  cv_jd_matching_result:       Record<string, unknown> | null;
+  ats_scoring_result:          Record<string, unknown> | null;
+  input_recommendations:       Record<string, unknown> | null;
+  keyword_feasibility:         Record<string, unknown> | null;
+  ai_recommendations:          string | null;
+  tailored_cv_storage_path:    string | null;
+  tailored_ats_scoring_result: Record<string, unknown> | null;
+  injected_keywords:           {
+    injected?:         string[];
+    failed_to_inject?: string[];
+    honest_gaps?:      string[];
+    fabricated?:       string[];
+  } | null;
+  match_score:                 number | null;
+  tailored_match_score:        number | null;
+  ats_lift:                    number | null;
+  error_message:               string | null;
+  jd_text?:                    string;
+  ai_provider?:                string | null;
+  ai_model?:                   string | null;
+  created_at:                  string;
 }
 
 interface Props {
@@ -71,7 +93,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
       if (statusRef.current === "completed" || statusRef.current === "failed") return;
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, status, step_status, jd_analysis_result, error_message, jd_text, ai_provider, ai_model, created_at")
+        .select("id, status, step_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
@@ -212,9 +234,39 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props)
         )}
       </div>
 
-      {/* Step 1 result — proper card. Phase 6 adds cards for steps 2–7. */}
+      {/* Pipeline output cards — rendered in step order so the user can scan
+          top-to-bottom and see the AI's reasoning unfold. */}
       {run.jd_analysis_result && (
         <JdAnalysisCard data={run.jd_analysis_result as Record<string, unknown>} />
+      )}
+      {run.cv_jd_matching_result && (
+        <CvJdMatchingCard data={run.cv_jd_matching_result as Record<string, unknown>} />
+      )}
+      {run.ats_scoring_result && (
+        <AtsScoreCard data={run.ats_scoring_result as Record<string, unknown>} />
+      )}
+      {run.keyword_feasibility && (
+        <FeasibilityCard data={run.keyword_feasibility as Record<string, unknown>} />
+      )}
+      {run.ai_recommendations && (
+        <RecommendationsCard markdown={run.ai_recommendations} />
+      )}
+      {run.tailored_cv_storage_path && (
+        <TailoredCvCard storagePath={run.tailored_cv_storage_path} />
+      )}
+      {(run.match_score != null || run.tailored_match_score != null) && (
+        <TailoredScoreCard
+          beforeScore={run.match_score}
+          afterScore={run.tailored_match_score}
+          lift={run.ats_lift}
+          injected={run.injected_keywords?.injected}
+          failedToInject={run.injected_keywords?.failed_to_inject}
+          honestGaps={run.injected_keywords?.honest_gaps}
+          fabricated={run.injected_keywords?.fabricated}
+          structuralReport={
+            (run.tailored_ats_scoring_result as { structural_report?: { summary?: { pass?: number; warn?: number; fail?: number } } } | null)?.structural_report
+          }
+        />
       )}
     </div>
   );
