@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface AnalysisRunRow {
@@ -50,8 +50,37 @@ function StepRow({ label, state }: { label: string; state: string }) {
 export function AnalysisRunClient({ runId, initial }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
 
+  // Ref so the polling interval can read the latest status without restarting
+  // the effect each render.
+  const statusRef = useRef(run.status);
+  statusRef.current = run.status;
+
   useEffect(() => {
     const supabase = createClient();
+    let active = true;
+
+    async function fetchOnce() {
+      // Stop fetching once the run is terminal.
+      if (statusRef.current === "completed" || statusRef.current === "failed") return;
+      const { data } = await supabase
+        .from("analysis_runs")
+        .select("id, status, step_status, jd_analysis_result, error_message, created_at")
+        .eq("id", runId)
+        .single();
+      if (data && active) {
+        setRun(data as AnalysisRunRow);
+      }
+    }
+
+    // Initial fetch handles the race where the row was updated between SSR
+    // and the moment this client subscribed.
+    fetchOnce();
+
+    // Polling fallback every 3s — defensive against Realtime not delivering.
+    // Stops on its own once the run reaches a terminal state (see fetchOnce).
+    const poll = setInterval(fetchOnce, 3_000);
+
+    // Realtime subscription — instant updates when it works.
     const channel = supabase
       .channel(`analysis_runs:${runId}`)
       .on(
@@ -63,13 +92,15 @@ export function AnalysisRunClient({ runId, initial }: Props) {
           filter: `id=eq.${runId}`,
         },
         (payload) => {
-          // Server-side validation (RLS) already restricts to the user's own rows.
-          setRun((prev) => ({ ...prev, ...(payload.new as Partial<AnalysisRunRow>) }));
+          // RLS at the broadcast layer already restricts to the user's rows.
+          if (active) setRun((prev) => ({ ...prev, ...(payload.new as Partial<AnalysisRunRow>) }));
         },
       )
       .subscribe();
 
     return () => {
+      active = false;
+      clearInterval(poll);
       supabase.removeChannel(channel);
     };
   }, [runId]);
