@@ -11,12 +11,16 @@ interface AnalysisRunRow {
   jd_analysis_result:  Record<string, unknown> | null;
   error_message:       string | null;
   jd_text?:            string;
+  ai_provider?:        string | null;
+  ai_model?:           string | null;
   created_at:          string;
 }
 
 interface Props {
-  runId:   string;
-  initial: AnalysisRunRow;
+  runId:     string;
+  initial:   AnalysisRunRow;
+  cvLabel?:  string | null;
+  cvCharLen?: number;
 }
 
 const STEPS: { key: string; label: string }[] = [
@@ -49,8 +53,9 @@ function StepRow({ label, state }: { label: string; state: string }) {
   );
 }
 
-export function AnalysisRunClient({ runId, initial }: Props) {
+export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
+  const [showInput, setShowInput] = useState(false);
 
   // Ref so the polling interval can read the latest status without restarting
   // the effect each render.
@@ -66,7 +71,7 @@ export function AnalysisRunClient({ runId, initial }: Props) {
       if (statusRef.current === "completed" || statusRef.current === "failed") return;
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, status, step_status, jd_analysis_result, error_message, jd_text, created_at")
+        .select("id, status, step_status, jd_analysis_result, error_message, jd_text, ai_provider, ai_model, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
@@ -136,6 +141,73 @@ export function AnalysisRunClient({ runId, initial }: Props) {
         {!isTerminal && (
           <div className="px-5 py-3 border-t border-border bg-surface-2 text-[11px] text-text-3">
             Live — updates stream in via Supabase Realtime.
+          </div>
+        )}
+      </div>
+
+      {/* Run details — exactly what the AI saw. Useful for debugging quality. */}
+      <div className="bg-surface border border-border rounded-md overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowInput((v) => !v)}
+          className="w-full px-5 py-3 flex items-center justify-between gap-3 border-b border-border bg-surface-2 hover:bg-surface"
+        >
+          <div className="flex items-center gap-2">
+            <svg
+              className={`w-3 h-3 text-text-3 transition-transform ${showInput ? "rotate-90" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span className="text-[14px] font-semibold text-text">Run details</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-text-3 tabular-nums">
+            {run.ai_provider && <span>{run.ai_provider}</span>}
+            {run.ai_model && <span className="font-mono">{run.ai_model}</span>}
+            {typeof run.jd_text === "string" && (
+              <span>JD: {run.jd_text.length.toLocaleString()} chars</span>
+            )}
+            {typeof cvCharLen === "number" && (
+              <span>CV: {cvCharLen.toLocaleString()} chars</span>
+            )}
+          </div>
+        </button>
+
+        {showInput && (
+          <div className="px-5 py-4 space-y-4 text-[12px]">
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-text-2">
+              <dt className="text-text-3">Provider</dt>
+              <dd className="font-mono text-text">{run.ai_provider ?? "—"}</dd>
+              <dt className="text-text-3">Model</dt>
+              <dd className="font-mono text-text">{run.ai_model ?? "—"}</dd>
+              <dt className="text-text-3">CV used</dt>
+              <dd className="text-text">
+                {cvLabel ?? "(deleted)"}{" "}
+                {typeof cvCharLen === "number" && (
+                  <span className="text-text-3">· {cvCharLen.toLocaleString()} chars</span>
+                )}
+              </dd>
+              <dt className="text-text-3">JD length</dt>
+              <dd className="text-text tabular-nums">
+                {typeof run.jd_text === "string" ? run.jd_text.length.toLocaleString() : "—"} chars
+              </dd>
+            </dl>
+
+            {run.jd_text && (
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1.5">
+                  Exact JD text sent to the AI
+                </div>
+                <pre className="bg-surface-2 border border-border rounded p-3 text-[12px] text-text-2 leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap break-words">
+                  {run.jd_text}
+                </pre>
+                <p className="text-[11px] text-text-3 mt-1.5">
+                  To verify cv-magic parity: copy this text, paste into a standalone
+                  chat with <span className="font-mono">{run.ai_model ?? "the same model"}</span>,
+                  use cv-magic&apos;s JD-analysis prompt, and compare outputs.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

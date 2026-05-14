@@ -175,6 +175,8 @@ export async function POST(
       cv_version_id: cv.id,
       jd_text:       jdText,
       status:        "pending",
+      ai_provider:   chosen,
+      ai_model:      aiModel,
     })
     .select("id")
     .single();

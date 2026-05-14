@@ -19,7 +19,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const admin = createAdminClient();
   const { data: run } = await admin
     .from("analysis_runs")
-    .select("id, status, step_status, jd_analysis_result, error_message, jd_text, created_at")
+    .select("id, status, step_status, jd_analysis_result, error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at")
     .eq("id", runId)
     .eq("user_id", user.id)
     .eq("job_id", jobId)
@@ -32,6 +32,17 @@ export default async function AnalyzeRunPage({ params }: Props) {
     .select("title, company, location, url, manual_jd_text, description")
     .eq("id", jobId)
     .maybeSingle();
+
+  // Look up the CV label that was used so the diagnostic shows
+  // "Master CV 2026" rather than a UUID.
+  const cvVersionId = (run as { cv_version_id: string }).cv_version_id;
+  const { data: cv } = await admin
+    .from("cv_versions")
+    .select("label, cv_text")
+    .eq("id", cvVersionId)
+    .maybeSingle();
+  const cvLabel    = cv?.label ?? null;
+  const cvCharLen  = (cv?.cv_text ?? "").length;
 
   // Soft-stale check: compare the JD text snapshot the run used against the
   // job's current JD source (manual override if present, else description).
@@ -70,7 +81,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
             to refresh with the current JD.
           </div>
         )}
-        <AnalysisRunClient runId={runId} initial={run} />
+        <AnalysisRunClient runId={runId} initial={run} cvLabel={cvLabel} cvCharLen={cvCharLen} />
       </div>
     </div>
   );
