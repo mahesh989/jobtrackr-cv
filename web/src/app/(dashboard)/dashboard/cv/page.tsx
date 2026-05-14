@@ -13,7 +13,7 @@ export default async function CvPage() {
   const admin = createAdminClient();
   const { data: cvs } = await admin
     .from("cv_versions")
-    .select("id, label, pdf_storage_path, is_active, created_at")
+    .select("id, label, pdf_storage_path, is_active, categorised_skills, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 

@@ -104,6 +104,27 @@ export function scrapeJd(url: string): Promise<ScrapeJdResponse> {
   );
 }
 
+export interface CategoriseCvPayload {
+  cv_text:     string;
+  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_api_key:  string;
+  ai_model?:   string | null;
+}
+
+export interface CategoriseCvResponse {
+  technical:        string[];
+  soft_skills:      string[];
+  domain_knowledge: string[];
+}
+
+export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCvResponse> {
+  return callCvBackend<CategoriseCvResponse>(
+    "/internal/categorise-cv",
+    payload,
+    { timeoutMs: 45_000 },         // AI call can take a few seconds
+  );
+}
+
 export interface AnalyzePayload {
   run_id:        string;
   user_id:       string;

@@ -23,12 +23,16 @@ from app.database import get_supabase
 from app.schemas.internal import (
     AnalyzeRequest,
     AnalyzeResponse,
+    CategoriseCvRequest,
+    CategoriseCvResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
     ScrapeJdRequest,
     ScrapeJdResponse,
 )
 from app.security.hmac import verify_hmac
+from app.services.ai.client import AIClientError, make_ai_client
+from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.pipeline.orchestrator import run_analysis_pipeline
 from app.services.scraping.jd_scraper import JDScrapeError, scrape_jd
 
@@ -147,6 +151,35 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
 
 
 # ── /internal/scrape-jd ──────────────────────────────────────────────────────
+
+@router.post("/categorise-cv", response_model=CategoriseCvResponse)
+async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
+    """
+    BYOK skill categorisation. Returns three lists — technical / soft_skills /
+    domain_knowledge — extracted from the provided CV text by the AI provider
+    the user has connected. JobTrackr calls this once at CV upload time.
+    """
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        result = await categorise_cv_skills(ai_client, body.cv_text)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI categorisation failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    return CategoriseCvResponse(
+        technical=        result.get("technical", []),
+        soft_skills=      result.get("soft_skills", []),
+        domain_knowledge= result.get("domain_knowledge", []),
+    )
+
 
 @router.post("/scrape-jd", response_model=ScrapeJdResponse)
 async def scrape_jd_endpoint(body: ScrapeJdRequest) -> ScrapeJdResponse:

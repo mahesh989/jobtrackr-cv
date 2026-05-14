@@ -64,3 +64,22 @@ class ScrapeJdResponse(BaseModel):
     jd_text:    str
     job_title:  Optional[str] = None
     source_url: str
+
+
+# ── /internal/categorise-cv ──────────────────────────────────────────────────
+
+class CategoriseCvRequest(BaseModel):
+    """
+    Categorise the skills in a CV. BYOK — JobTrackr passes the user's AI
+    credentials per-request, cv-backend never persists them.
+    """
+    cv_text:     str = Field(min_length=1)
+    ai_provider: Literal["anthropic", "openai", "deepseek"]
+    ai_api_key:  str = Field(min_length=1)
+    ai_model:    Optional[str] = None
+
+
+class CategoriseCvResponse(BaseModel):
+    technical:        list[str]
+    soft_skills:      list[str]
+    domain_knowledge: list[str]

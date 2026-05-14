@@ -5,12 +5,19 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+interface CategorisedSkills {
+  technical?:        string[];
+  soft_skills?:      string[];
+  domain_knowledge?: string[];
+}
+
 interface CvRow {
-  id:                string;
-  label:             string;
-  pdf_storage_path:  string;
-  is_active:         boolean;
-  created_at:        string;
+  id:                  string;
+  label:               string;
+  pdf_storage_path:    string;
+  is_active:           boolean;
+  categorised_skills?: CategorisedSkills | null;
+  created_at:          string;
 }
 
 interface Props {
@@ -164,11 +171,12 @@ export function CvLibraryClient({ initial }: Props) {
       }
       const json = await res.json();
       const newRow: CvRow = {
-        id:               json.id,
-        label:            json.label,
-        pdf_storage_path: json.pdf_storage_path,
-        is_active:        json.is_active,
-        created_at:       new Date().toISOString(),
+        id:                 json.id,
+        label:              json.label,
+        pdf_storage_path:   json.pdf_storage_path,
+        is_active:          json.is_active,
+        categorised_skills: json.categorised_skills ?? null,
+        created_at:         new Date().toISOString(),
       };
       setCvs((prev) => {
         const demoted = newRow.is_active
@@ -296,41 +304,44 @@ export function CvLibraryClient({ initial }: Props) {
                 day: "numeric", month: "short", year: "numeric",
               });
               return (
-                <li key={cv.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium text-text truncate">
-                        {cv.label}
-                      </span>
-                      <span className="text-[10px] text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
-                        {ext}
-                      </span>
-                      {cv.is_active && (
-                        <span className="text-[10px] text-green bg-green-light border border-green/20 px-1.5 py-0.5 rounded">
-                          ACTIVE
+                <li key={cv.id} className="px-5 py-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-text truncate">
+                          {cv.label}
                         </span>
-                      )}
+                        <span className="text-[10px] text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
+                          {ext}
+                        </span>
+                        {cv.is_active && (
+                          <span className="text-[10px] text-green bg-green-light border border-green/20 px-1.5 py-0.5 rounded">
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                      <p suppressHydrationWarning className="text-[11px] text-text-3 mt-0.5">Uploaded {created}</p>
                     </div>
-                    <p suppressHydrationWarning className="text-[11px] text-text-3 mt-0.5">Uploaded {created}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!cv.is_active && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!cv.is_active && (
+                        <button
+                          onClick={() => handleSetActive(cv.id)}
+                          disabled={pendingId === cv.id}
+                          className="gh-btn text-[12px]"
+                        >
+                          Set active
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleSetActive(cv.id)}
+                        onClick={() => setDeleteTarget(cv)}
                         disabled={pendingId === cv.id}
-                        className="gh-btn text-[12px]"
+                        className="gh-btn gh-btn-danger text-[12px]"
                       >
-                        Set active
+                        Delete
                       </button>
-                    )}
-                    <button
-                      onClick={() => setDeleteTarget(cv)}
-                      disabled={pendingId === cv.id}
-                      className="gh-btn gh-btn-danger text-[12px]"
-                    >
-                      Delete
-                    </button>
+                    </div>
                   </div>
+                  <CvSkillsBlock skills={cv.categorised_skills} />
                 </li>
               );
             })}
@@ -377,6 +388,78 @@ export function CvLibraryClient({ initial }: Props) {
         </div>,
         document.body,
       )}
+    </div>
+  );
+}
+
+// ── Categorised CV skills — collapsed by default ───────────────────────────
+
+function CvSkillsBlock({ skills }: { skills?: CategorisedSkills | null }) {
+  const [open, setOpen] = useState(false);
+
+  if (!skills) {
+    return (
+      <p className="text-[11px] text-text-3 mt-2 italic">
+        Skills not categorised yet — connect an AI key (Settings → AI keys) before uploading
+        the next CV, or re-upload this one.
+      </p>
+    );
+  }
+
+  const tech   = skills.technical ?? [];
+  const soft   = skills.soft_skills ?? [];
+  const domain = skills.domain_knowledge ?? [];
+  const total  = tech.length + soft.length + domain.length;
+  if (total === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-[11px] text-text-2 hover:text-[#0969DA] inline-flex items-center gap-1"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+        Show AI-extracted skills ({total})
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 bg-surface-2/40 border border-border rounded p-3">
+          <SkillRow label="Technical"       items={tech}   variant="primary" />
+          <SkillRow label="Soft skills"     items={soft}   variant="muted" />
+          <SkillRow label="Domain knowledge" items={domain} variant="muted" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillRow({
+  label, items, variant,
+}: {
+  label: string;
+  items: string[];
+  variant: "primary" | "muted";
+}) {
+  if (items.length === 0) return null;
+  const chipCls = variant === "primary"
+    ? "bg-[#DDF4FF] text-[#0969DA] border-[#0969DA]/20"
+    : "bg-surface text-text-2 border-border";
+  return (
+    <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+      <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {items.map((s) => (
+          <span key={s} className={`text-[11px] px-1.5 py-0.5 rounded border ${chipCls}`}>{s}</span>
+        ))}
+      </div>
     </div>
   );
 }

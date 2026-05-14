@@ -16,7 +16,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { extractCvText, CvBackendError } from "@/lib/cvBackend";
+import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { extractCvText, categoriseCv, CvBackendError } from "@/lib/cvBackend";
+
+// Same priority order as /api/jobs/[id]/analyze — Anthropic preferred for quality.
+const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
+type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 export const runtime = "nodejs";
 // Extraction is normally <3s; allow headroom for cold-edge cases.
@@ -35,7 +40,7 @@ export async function GET() {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("cv_versions")
-    .select("id, label, pdf_storage_path, is_active, created_at, updated_at")
+    .select("id, label, pdf_storage_path, is_active, categorised_skills, created_at, updated_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -133,18 +138,49 @@ export async function POST(req: NextRequest) {
     .eq("is_active", true);
   const shouldActivate = (activeCount ?? 0) === 0;
 
-  // ── 4. INSERT the row.
+  // ── 4. Categorise CV skills if the user has an AI key. Non-fatal: a failure
+  //      here just leaves categorised_skills null. They can re-trigger later.
+  let categorised: { technical: string[]; soft_skills: string[]; domain_knowledge: string[] } | null = null;
+  const { data: keyRows } = await admin
+    .from("user_integrations")
+    .select("provider, encrypted_api_key, config")
+    .eq("user_id", user.id)
+    .eq("status", "valid")
+    .eq("is_enabled", true)
+    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
+  type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
+  const keyByProvider = new Map<Provider, KeyRow>();
+  for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
+  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
+  if (chosen) {
+    try {
+      const k = keyByProvider.get(chosen)!;
+      const apiKey = decryptApiKey(k.encrypted_api_key);
+      categorised = await categoriseCv({
+        cv_text:     cvText,
+        ai_provider: chosen,
+        ai_api_key:  apiKey,
+        ai_model:    k.config?.model ?? null,
+      });
+    } catch (err) {
+      console.warn("[/api/cv POST] categorisation failed (non-fatal):", err);
+    }
+  }
+
+  // ── 5. INSERT the row.
   const { data: row, error: insertErr } = await admin
     .from("cv_versions")
     .insert({
-      id:               cv_id,
-      user_id:          user.id,
+      id:                 cv_id,
+      user_id:            user.id,
       label,
-      pdf_storage_path: storagePath,
-      cv_text:          cvText,
-      is_active:        shouldActivate,
+      pdf_storage_path:   storagePath,
+      cv_text:            cvText,
+      is_active:          shouldActivate,
+      categorised_skills: categorised,
     })
-    .select("id, label, pdf_storage_path, is_active")
+    .select("id, label, pdf_storage_path, is_active, categorised_skills")
     .single();
 
   if (insertErr || !row) {
@@ -156,5 +192,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ...row, word_count: cvText.split(/\s+/).length });
+  return NextResponse.json({
+    ...row,
+    word_count: cvText.split(/\s+/).length,
+    has_categorisation: categorised !== null,
+  });
 }
