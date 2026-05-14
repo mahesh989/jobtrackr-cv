@@ -97,13 +97,14 @@
   },
 
   "build_state": {
-    "current_phase": 4,
-    "next_action": "Build /dashboard/settings/ai-keys page + API routes for Anthropic + OpenAI BYOK. Mirror the existing /dashboard/integrations Apify pattern.",
+    "current_phase": 5,
+    "next_action": "Phase 5 — wire the 'Analyze' button on job cards, build /jobs/[id]/analyze/[run_id] page with Realtime subscription, plumb cv-backend orchestrator through step 1 only (JD analysis).",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
       "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
-      "Phase 3 — CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)"
+      "Phase 3 — CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)",
+      "Phase 4 commits 4a–4c — DeepSeek added; /api/integrations/ai-keys/[provider] route; /dashboard/settings/ai-keys page; sidebar link"
     ],
     "in_progress": [],
     "blocked": []
@@ -205,13 +206,22 @@
     {
       "phase": 4,
       "name": "AI key UI + flow",
-      "status": "planned",
+      "status": "in_progress",
+      "sub_commits": {
+        "4a": "completed — DeepSeek added back; migration 014; cv-backend Provider literal extended",
+        "4b": "completed — parametric /api/integrations/ai-keys/[provider] route",
+        "4c": "completed — /dashboard/settings/ai-keys page + AiKeyCard + sidebar link"
+      },
       "tasks": [
-        { "id": "4.1", "desc": "Build /settings/ai-keys page (mirror Apify pattern)", "status": "planned" },
-        { "id": "4.2", "desc": "API: POST/GET/DELETE /api/integrations/anthropic", "status": "planned" },
-        { "id": "4.3", "desc": "API: POST/GET/DELETE /api/integrations/openai", "status": "planned" }
+        { "id": "4.1", "desc": "Re-add DeepSeek across cv-backend + schema", "status": "completed" },
+        { "id": "4.2", "desc": "Parametric API route for all three providers", "status": "completed" },
+        { "id": "4.3", "desc": "/dashboard/settings/ai-keys page", "status": "completed" },
+        { "id": "4.4", "desc": "AiKeyCard component (connect/replace/disconnect)", "status": "completed" },
+        { "id": "4.5", "desc": "Sidebar link", "status": "completed" },
+        { "id": "4.6", "desc": "Apply migration 014 in Supabase (manual)", "status": "pending_manual" },
+        { "id": "4.7", "desc": "Redeploy cv-backend so DeepSeek Provider literal is live (manual flyctl deploy)", "status": "pending_manual" }
       ],
-      "gate": "Paste a real key, see validated, see masked display, switch keys."
+      "gate": "Connect Anthropic + OpenAI + DeepSeek keys (real or known-bad to test rejection). See validated state, masked display, disconnect works."
     },
     {
       "phase": 5,
