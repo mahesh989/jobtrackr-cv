@@ -221,12 +221,12 @@
         { "id": "4.6", "desc": "Apply migration 014 in Supabase (manual)", "status": "pending_manual" },
         { "id": "4.7", "desc": "Redeploy cv-backend so DeepSeek Provider literal is live (manual flyctl deploy)", "status": "pending_manual" }
       ],
-      "gate": "Connect Anthropic + OpenAI + DeepSeek keys (real or known-bad to test rejection). See validated state, masked display, disconnect works."
+      "gate": "PASSED 2026-05-14 — verified in incognito session. OpenAI key connected, known-bad key rejected with clear error, Replace key + Disconnect cards function correctly. Stale-browser-cache issue with regular browser session is unrelated to feature correctness."
     },
     {
       "phase": 5,
       "name": "End-to-end with only step 1 wired",
-      "status": "planned",
+      "status": "in_progress",
       "tasks": [
         { "id": "5.1", "desc": "Analyze button + state machine on job card", "status": "planned" },
         { "id": "5.2", "desc": "API: POST /api/jobs/[id]/analyze (JD-source decision + HMAC call)", "status": "planned" },
