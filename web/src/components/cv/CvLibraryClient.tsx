@@ -82,43 +82,70 @@ export function CvLibraryClient({ initial }: Props) {
 
     setUploading(true);
 
-    // ── Step 1 — direct browser upload to Supabase Storage.
-    // RLS allows this because the path's first segment is the user's auth.uid().
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setUploading(false);
-      setError("Your session has expired — refresh and sign in again.");
-      return;
-    }
-
     const ext = EXT_FROM_MIME[file.type] ?? (file.name.toLowerCase().endsWith(".docx") ? "docx" : "pdf");
-    const cvId = crypto.randomUUID();
-    const storagePath = `${user.id}/${cvId}.${ext}`;
-
     const contentType = ext === "docx"
       ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       : "application/pdf";
 
-    // Recreate the file to force the browser to use the exact correct MIME type natively.
-    // This prevents CORS or fetch errors caused by the browser rejecting a custom 
-    // Content-Type header that conflicts with the file's inherent type property.
-    const fileForUpload = new File([file], file.name, { type: contentType });
-
-    const { error: uploadErr } = await supabase.storage
-      .from("cvs")
-      .upload(storagePath, fileForUpload, {
-        contentType,
-        upsert: false,
+    // ── Step 1 — ask the server for a one-time signed upload URL.
+    let cvId       = "";
+    let storagePath = "";
+    let signedUrl   = "";
+    let token       = "";
+    try {
+      const r = await fetch("/api/cv/upload-url", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ext }),
       });
-
-    if (uploadErr) {
+      if (!r.ok) {
+        setUploading(false);
+        setError(await readError(r));
+        return;
+      }
+      const j = await r.json();
+      cvId        = j.cv_id;
+      storagePath = j.storage_path;
+      signedUrl   = j.signed_url;
+      token       = j.token;
+    } catch (err) {
       setUploading(false);
-      setError(`Upload failed: ${uploadErr.message}`);
+      setError(err instanceof Error ? `Network error: ${err.message}` : "Could not get upload URL.");
       return;
     }
 
-    // ── Step 2 — tell the API to finalise (extract text + INSERT row).
+    // ── Step 2 — upload bytes directly to the signed URL.
+    // Use the supabase-js uploadToSignedUrl helper so SDK handles edge cases.
+    const supabase = createClient();
+    const { error: uploadErr } = await supabase.storage
+      .from("cvs")
+      .uploadToSignedUrl(storagePath, token, file, { contentType, upsert: false });
+
+    if (uploadErr) {
+      setUploading(false);
+      // If the SDK path failed with "Failed to fetch", try a raw fetch PUT as a fallback.
+      // This bypasses any SDK-level header/auth logic and uses the simplest possible request.
+      try {
+        const r = await fetch(signedUrl, {
+          method:  "PUT",
+          headers: { "Content-Type": contentType },
+          body:    file,
+        });
+        if (!r.ok) {
+          setError(`Storage upload failed (HTTP ${r.status}). ${await r.text().catch(() => "")}`.slice(0, 300));
+          return;
+        }
+      } catch (err) {
+        setError(
+          `Upload failed: ${uploadErr.message}` +
+          (err instanceof Error ? ` — fallback also failed: ${err.message}` : ""),
+        );
+        return;
+      }
+      setUploading(true); // continue to finalise
+    }
+
+    // ── Step 3 — tell the API to finalise (extract text + INSERT row).
     try {
       const res = await fetch("/api/cv", {
         method:  "POST",
