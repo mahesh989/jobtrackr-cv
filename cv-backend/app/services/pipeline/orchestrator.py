@@ -23,7 +23,10 @@ from app.services.pipeline.progress import (
     mark_run_completed,
     mark_run_failed,
     mark_run_running,
+    mark_step,
+    save_step_result,
 )
+from app.services.pipeline.steps.jd_analysis import run_jd_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +53,20 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             return
 
         # Construct the BYOK AI client. Raises AIClientError on invalid input.
-        _ai_client = make_ai_client(payload.ai_provider, payload.ai_api_key)
+        ai_client = make_ai_client(payload.ai_provider, payload.ai_api_key)
         logger.info(
-            "run %s: pipeline scaffold ready (provider=%s jd_len=%d cv_len=%d)",
+            "run %s: starting pipeline (provider=%s jd_len=%d cv_len=%d)",
             run_id, payload.ai_provider, len(payload.jd_text), len(payload.cv_text),
         )
 
-        # ── Phase 5+ will add step calls here. For now, the scaffold just
-        #    marks the run completed so we can prove the write path works
-        #    end-to-end (Supabase Realtime should fire two updates).
+        # ── Step 1 — JD analysis ───────────────────────────────────────────────
+        await mark_step(run_id, step_status, "jd_analysis", "running")
+        jd_analysis = await run_jd_analysis(ai_client, payload.jd_text)
+        await save_step_result(run_id, "jd_analysis_result", jd_analysis)
+        await mark_step(run_id, step_status, "jd_analysis", "completed")
+
+        # ── Phase 6 will add steps 2–6.6 here. For now, end the run after step 1
+        #    so Phase 5 can verify the end-to-end flow with Realtime updates.
         await mark_run_completed(run_id)
 
     except AIClientError as exc:
