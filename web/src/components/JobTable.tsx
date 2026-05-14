@@ -29,8 +29,10 @@ interface Job {
   is_dead_link: boolean;
   seen_at: string | null;
   dedup_status?: string | null;
-  manual_jd_text?: string | null;
-  contact_email?:  string | null;
+  manual_jd_text?:    string | null;
+  contact_email?:     string | null;
+  latest_run_id?:     string | null;
+  latest_run_status?: "pending" | "running" | "completed" | "failed" | null;
 }
 
 function relativeDate(d: string | null) {
@@ -347,6 +349,16 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             >
               Edit
             </button>
+            {job.latest_run_id && (
+              <a
+                href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="gh-btn text-[11px] px-2 py-1 hover:border-[#1A7F37]/40 hover:text-[#1A7F37]"
+                title="Open the most recent analysis for this job"
+              >
+                View
+              </a>
+            )}
             <AnalyzeJobButton jobId={job.id} />
             <button
               disabled={pending || localApplied}

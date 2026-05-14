@@ -90,6 +90,31 @@ export default async function JobsPage({
     if (!isNaN(minK)) jobList = jobList.filter((j) => (j.keywords_matched?.length ?? 0) >= minK);
   }
 
+  // ── Latest non-stale analysis run per job (for the 'View analysis' affordance)
+  // We pull all non-stale runs scoped to this profile's jobs, then group client-side.
+  const jobIds = jobList.map((j) => j.id);
+  const { data: recentRuns } = jobIds.length > 0
+    ? await supabase
+        .from("analysis_runs")
+        .select("id, job_id, status, created_at")
+        .in("job_id", jobIds)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false })
+    : { data: [] as Array<{ id: string; job_id: string; status: string; created_at: string }> };
+
+  const latestRunByJob = new Map<string, { id: string; status: string }>();
+  for (const r of recentRuns ?? []) {
+    if (!latestRunByJob.has(r.job_id)) {
+      latestRunByJob.set(r.job_id, { id: r.id, status: r.status });
+    }
+  }
+  // Attach to each job for JobTable consumption
+  jobList = jobList.map((j) => ({
+    ...j,
+    latest_run_id:     latestRunByJob.get(j.id)?.id ?? null,
+    latest_run_status: latestRunByJob.get(j.id)?.status ?? null,
+  }));
+
   // Counts (always against unfiltered active list)
   const { data: countRows } = await supabase
     .from("jobs")

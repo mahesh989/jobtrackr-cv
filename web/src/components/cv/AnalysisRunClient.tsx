@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { JdAnalysisCard } from "@/components/cv/JdAnalysisCard";
 
 interface AnalysisRunRow {
   id:                  string;
@@ -139,19 +140,9 @@ export function AnalysisRunClient({ runId, initial }: Props) {
         )}
       </div>
 
-      {/* Step 1 result — JSON for now; Phase 6 replaces with proper cards */}
+      {/* Step 1 result — proper card. Phase 6 adds cards for steps 2–7. */}
       {run.jd_analysis_result && (
-        <div className="bg-surface border border-border rounded-md">
-          <div className="px-5 py-3 border-b border-border bg-surface-2">
-            <h2 className="text-[14px] font-semibold text-text">JD analysis</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">
-              Structured output extracted from the job description by the AI step.
-            </p>
-          </div>
-          <pre className="px-5 py-4 text-[12px] text-text-2 leading-relaxed overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(run.jd_analysis_result, null, 2)}
-          </pre>
-        </div>
+        <JdAnalysisCard data={run.jd_analysis_result as Record<string, unknown>} />
       )}
     </div>
   );
