@@ -96,12 +96,14 @@ export function CvLibraryClient({ initial }: Props) {
     const cvId = crypto.randomUUID();
     const storagePath = `${user.id}/${cvId}.${ext}`;
 
+    const contentType = ext === "docx"
+      ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      : "application/pdf";
+
     const { error: uploadErr } = await supabase.storage
       .from("cvs")
       .upload(storagePath, file, {
-        contentType: file.type || (ext === "docx"
-          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          : "application/pdf"),
+        contentType,
         upsert: false,
       });
 
