@@ -26,7 +26,17 @@ from app.services.pipeline.progress import (
     mark_step,
     save_step_result,
 )
+from app.services.pipeline.steps.ai_recommendations import run_ai_recommendations
+from app.services.pipeline.steps.ats_scoring import run_ats_scoring
+from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
+from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
+from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
+from app.services.pipeline.steps.tailored_cv import run_tailored_cv
+from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+from app.services.pipeline.steps.tailored_structural_validation import (
+    run_tailored_structural_validation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +76,90 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await save_step_result(run_id, "jd_analysis_result", jd_analysis)
         await mark_step(run_id, step_status, "jd_analysis", "completed")
 
-        # ── Phase 6 will add steps 2–6.6 here. For now, end the run after step 1
-        #    so Phase 5 can verify the end-to-end flow with Realtime updates.
+        # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
+        await mark_step(run_id, step_status, "cv_jd_matching", "running")
+        matching = await run_cv_jd_matching(ai_client, payload.cv_text, jd_analysis)
+        await save_step_result(run_id, "cv_jd_matching_result", matching)
+        await mark_step(run_id, step_status, "cv_jd_matching", "completed")
+
+        # ── Step 3 — ATS scoring (deterministic) ───────────────────────────────
+        await mark_step(run_id, step_status, "ats_scoring", "running")
+        ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
+        await save_step_result(run_id, "ats_scoring_result", ats)
+        await save_step_result(run_id, "match_score", ats.get("overall_score"))
+        await mark_step(run_id, step_status, "ats_scoring", "completed")
+
+        # ── Step 4 — Input recommendations (deterministic) ─────────────────────
+        await mark_step(run_id, step_status, "input_recommendations", "running")
+        input_recs = run_input_recommendations(payload.cv_text, jd_analysis, matching, ats)
+        await save_step_result(run_id, "input_recommendations", input_recs)
+        await mark_step(run_id, step_status, "input_recommendations", "completed")
+
+        # ── Step 4.5 — Keyword feasibility classifier ──────────────────────────
+        # Decides which missed JD keywords can be legitimately surfaced in the
+        # tailored CV vs which are honest gaps. The tailored-CV writer below
+        # only injects entries this step approves.
+        await mark_step(run_id, step_status, "keyword_feasibility", "running")
+        feasibility = await run_keyword_feasibility(
+            ai_client, payload.cv_text, jd_analysis, matching, input_recs,
+        )
+        await save_step_result(run_id, "keyword_feasibility", feasibility)
+        await mark_step(run_id, step_status, "keyword_feasibility", "completed")
+
+        # ── Step 5 — AI recommendations (markdown) ─────────────────────────────
+        await mark_step(run_id, step_status, "ai_recommendations", "running")
+        recs_md = await run_ai_recommendations(
+            ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
+        )
+        await save_step_result(run_id, "ai_recommendations", recs_md)
+        await mark_step(run_id, step_status, "ai_recommendations", "completed")
+
+        # ── Step 6 — Tailored CV (markdown only — PDF lands in Phase 7) ────────
+        # cv-magic also fetched a contact_details preference from user_preferences;
+        # we don't have that table here, so contact_details=None and the AI's own
+        # contact line is preserved.
+        await mark_step(run_id, step_status, "tailored_cv", "running")
+        tailored_md, tailored_storage_path = await run_tailored_cv(
+            ai_client, payload.user_id, run_id, payload.cv_text,
+            jd_analysis, recs_md, feasibility,
+            contact_details=None,
+        )
+        await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
+
+        # ── Step 6.5 — Deterministic re-score of the tailored CV ───────────────
+        rescore = run_tailored_rescoring(
+            tailored_md, jd_analysis, matching, feasibility, ats,
+        )
+
+        # ── Step 6.6 — Deterministic structural validation ─────────────────────
+        structural_report = run_tailored_structural_validation(
+            tailored_md, payload.cv_text, jd_analysis=jd_analysis,
+        )
+        tailored_ats_payload = dict(rescore["tailored_ats_scoring_result"])
+        tailored_ats_payload["structural_report"] = structural_report
+        if structural_report.get("summary", {}).get("fail"):
+            logger.info(
+                "run %s: tailored CV structural validation — %d fail, %d warn, %d pass",
+                run_id,
+                structural_report["summary"]["fail"],
+                structural_report["summary"]["warn"],
+                structural_report["summary"]["pass"],
+            )
+
+        await save_step_result(run_id, "tailored_ats_scoring_result", tailored_ats_payload)
+        await save_step_result(run_id, "tailored_match_score", rescore["tailored_match_score"])
+        await save_step_result(run_id, "ats_lift", rescore["ats_lift"])
+        await save_step_result(run_id, "injected_keywords", {
+            "injected":         rescore["injected_keywords"],
+            "failed_to_inject": rescore["failed_to_inject"],
+            "honest_gaps":      rescore["honest_gaps"],
+            "fabricated":       rescore.get("fabricated_keywords") or [],
+        })
+        await mark_step(run_id, step_status, "tailored_cv", "completed")
+
         await mark_run_completed(run_id)
+        logger.info("run %s: pipeline completed (score=%s lift=%s)",
+                    run_id, ats.get("overall_score"), rescore["ats_lift"])
 
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)
