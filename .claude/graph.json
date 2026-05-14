@@ -97,14 +97,15 @@
   },
 
   "build_state": {
-    "current_phase": 5,
-    "next_action": "Phase 5 — wire the 'Analyze' button on job cards, build /jobs/[id]/analyze/[run_id] page with Realtime subscription, plumb cv-backend orchestrator through step 1 only (JD analysis).",
+    "current_phase": 5.5,
+    "next_action": "Apply migration 015 in Supabase. Then on the preview: edit a job's JD via the new Edit button, save, re-analyze, confirm AI receives the trimmed text. Verify the 'Edited JD' + 'Email' pills appear. Verify stale-warning shows if you edit a JD after running an analysis.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
       "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
       "Phase 3 — CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)",
-      "Phase 4 commits 4a–4c — DeepSeek added; /api/integrations/ai-keys/[provider] route; /dashboard/settings/ai-keys page; sidebar link"
+      "Phase 4 — BYOK keys (Anthropic/OpenAI/DeepSeek) UI + routes",
+      "Phase 5 — Analyze button wired end-to-end; JD analysis step runs live (polling fallback added because Realtime delivery is unreliable)"
     ],
     "in_progress": [],
     "blocked": []
@@ -246,6 +247,34 @@
         "provider_priority":   "Anthropic > OpenAI > DeepSeek when user has multiple keys"
       },
       "gate": "Click Analyze on a SEEK job → land on /dashboard/jobs/[id]/analyze/[run_id] → step 1 (jd_analysis) ticks running → completed via Realtime → JSON output renders."
+    },
+    {
+      "phase": 5.5,
+      "name": "Manual JD edit + contact email",
+      "status": "in_progress",
+      "sub_commits": {
+        "5.5a": "completed — migration 015 (jobs.manual_jd_text, jobs.contact_email) + analyze route prefers manual_jd_text",
+        "5.5b": "completed — PATCH /api/jobs/[id]",
+        "5.5c": "completed — JobEditModal + JobTable wiring + soft stale warning on analysis page"
+      },
+      "decisions_locked": {
+        "stale_policy":   "soft — banner on analysis page; user-driven re-run, no auto-stale",
+        "email_validation": "regex only — no SMTP / MX checks",
+        "char_count_hint": "show count, no fixed target",
+        "auto_extract":   "B2 (adapter-side regex) deferred",
+        "mcp_send_tool":  "B3 deferred to a separate epic"
+      },
+      "tasks": [
+        { "id": "5.5.1", "desc": "Migration 015 — manual_jd_text + contact_email", "status": "completed" },
+        { "id": "5.5.2", "desc": "PATCH /api/jobs/[id]", "status": "completed" },
+        { "id": "5.5.3", "desc": "JobEditModal client component", "status": "completed" },
+        { "id": "5.5.4", "desc": "Edit button on JobTable rows", "status": "completed" },
+        { "id": "5.5.5", "desc": "'Edited JD' + Email pills on job card", "status": "completed" },
+        { "id": "5.5.6", "desc": "Update profile-jobs SELECT to include new columns", "status": "completed" },
+        { "id": "5.5.7", "desc": "Soft stale-warning banner on analysis page", "status": "completed" },
+        { "id": "5.5.8", "desc": "Apply migration 015 in Supabase (manual)", "status": "pending_manual" }
+      ],
+      "gate": "Edit a noisy SEEK JD, save it, see 'Edited JD' pill on the card. Click Analyze, confirm Fly logs show jd_len matches the trimmed version. Edit again after the run completes, refresh the analysis page, see the yellow 'JD has changed' banner. Add a contact email, see the '✉ Email' pill."
     },
     {
       "phase": 6,
