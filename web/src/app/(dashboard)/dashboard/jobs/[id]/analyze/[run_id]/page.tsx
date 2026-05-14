@@ -42,7 +42,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   // Look up the CV label that was used so the diagnostic shows
   // "Master CV 2026" rather than a UUID.
-  const cvVersionId = (run as { cv_version_id: string }).cv_version_id;
+  const cvVersionId = (run as unknown as { cv_version_id: string }).cv_version_id;
   const { data: cv } = await admin
     .from("cv_versions")
     .select("label, cv_text")
@@ -55,7 +55,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
   // job's current JD source (manual override if present, else description).
   // If they differ, the user has edited the input — surface a banner.
   const currentJd = (job?.manual_jd_text ?? job?.description ?? "").trim();
-  const ranJd     = ((run as { jd_text: string }).jd_text ?? "").trim();
+  const ranJd     = ((run as unknown as { jd_text: string }).jd_text ?? "").trim();
   const jdChanged = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
 
   return (
