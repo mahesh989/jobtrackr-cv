@@ -88,7 +88,8 @@ export default async function AnalyzeRunPage({ params }: Props) {
             to refresh with the current JD.
           </div>
         )}
-        <AnalysisRunClient runId={runId} initial={run} cvLabel={cvLabel} cvCharLen={cvCharLen} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <AnalysisRunClient runId={runId} initial={run as any} cvLabel={cvLabel} cvCharLen={cvCharLen} />
       </div>
     </div>
   );
