@@ -338,6 +338,16 @@
 
   "known_issues": [
     {
+      "id":          "BUG-2",
+      "title":       "GPT-5* family forced to temperature=1 → noisier output than cv-magic intended",
+      "severity":    "medium",
+      "blocks":      "Output quality on GPT-5+ models. Does not affect Anthropic, DeepSeek, or GPT-4o.",
+      "symptoms":    "JD analysis on GPT-5.x produces less precise / more varied output. cv-magic was designed for 0.1 temperature on analytical steps (JD analysis, CV-JD matching) but OpenAI enforces temperature=1 server-side on the entire gpt-5* family with HTTP 400 'unsupported_value' if anything else is sent.",
+      "current_workaround": "We strip temperature for gpt-5* so the call succeeds; user trades determinism for capability. Lower-friction path: pick Anthropic Sonnet 4.6 which honours per-step temperature exactly.",
+      "next_steps": "Investigate whether OpenAI's `reasoning_effort` param can substitute for temperature control on gpt-5*. Consider per-provider prompt variants tuned for high-temperature output.",
+      "logged":      "2026-05-14"
+    },
+    {
       "id":          "BUG-1",
       "title":       "DOCX upload fails with ERR_TIMED_OUT to Supabase Storage",
       "severity":    "low",
