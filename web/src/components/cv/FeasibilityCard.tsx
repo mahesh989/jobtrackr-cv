@@ -14,9 +14,18 @@ interface FeasibilityPlan {
   honest_gaps?:          FeasibilityEntry[];
 }
 
+interface FeasibilitySummary {
+  n_inject_directly?:        number;
+  n_inject_as_extension?:    number;
+  n_inject_with_inference?:  number;
+  n_cannot_inject?:          number;
+  honest_gaps?:              number;
+  expected_lift_pts?:        number;
+}
+
 interface FeasibilityData {
   feasibility_plan?: FeasibilityPlan;
-  summary?:          string;
+  summary?:          FeasibilitySummary | string;
 }
 
 export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
@@ -26,8 +35,13 @@ export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
   const ext    = plan.inject_as_extension ?? [];
   const gaps   = plan.honest_gaps ?? [];
 
+  // summary is an object on the current cv-magic schema, but tolerate string
+  // (older/alternate prompts) for forward-compat.
+  const summaryObj = (d.summary && typeof d.summary === "object") ? d.summary as FeasibilitySummary : null;
+  const summaryStr = typeof d.summary === "string" ? d.summary : null;
+
   const total = inject.length + ext.length + gaps.length;
-  if (total === 0 && !d.summary) return null;
+  if (total === 0 && !summaryObj && !summaryStr) return null;
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -39,8 +53,23 @@ export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
         </p>
       </div>
       <div className="px-5 py-4 space-y-4">
-        {d.summary && (
-          <p className="text-[13px] text-text-2 italic leading-relaxed">{d.summary}</p>
+        {summaryObj && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <SummaryStat label="Direct adds"    value={summaryObj.n_inject_directly}       tone="green" />
+            <SummaryStat label="Reword bullets" value={summaryObj.n_inject_as_extension}   tone="blue" />
+            <SummaryStat label="From inference" value={summaryObj.n_inject_with_inference} tone="violet" />
+            <SummaryStat label="Honest gaps"    value={summaryObj.n_cannot_inject ?? summaryObj.honest_gaps} tone="amber" />
+            <SummaryStat
+              label="Predicted lift"
+              value={typeof summaryObj.expected_lift_pts === "number"
+                ? `+${summaryObj.expected_lift_pts.toFixed(1)} pts`
+                : "—"}
+              tone="gray"
+            />
+          </div>
+        )}
+        {summaryStr && (
+          <p className="text-[13px] text-text-2 italic leading-relaxed">{summaryStr}</p>
         )}
 
         {inject.length > 0 && (
@@ -103,6 +132,30 @@ function FeasibilityList({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function SummaryStat({
+  label, value, tone,
+}: {
+  label: string;
+  value: number | string | undefined;
+  tone:  "green" | "blue" | "violet" | "amber" | "gray";
+}) {
+  const toneCls = {
+    green:  "text-green bg-green-light border-green/30",
+    blue:   "text-[#0969DA] bg-[#DDF4FF] border-[#0969DA]/20",
+    violet: "text-[#8250DF] bg-[#FBEFFF] border-[#8250DF]/20",
+    amber:  "text-[#9A6700] bg-[#FFF8C5] border-[#D4A72C]/40",
+    gray:   "text-text-2 bg-surface-2 border-border",
+  }[tone];
+  return (
+    <div className="bg-surface-2 border border-border rounded p-2">
+      <div className="text-[10px] uppercase tracking-wide text-text-3">{label}</div>
+      <div className={`mt-1 inline-block text-[14px] font-bold tabular-nums px-2 py-0.5 rounded border ${toneCls}`}>
+        {value ?? "—"}
+      </div>
     </div>
   );
 }
