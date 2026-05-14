@@ -112,7 +112,7 @@ export interface AnalyzePayload {
   jd_source_url?: string | null;
   jd_meta?:      Record<string, unknown> | null;
   cv_text:       string;
-  ai_provider:   "anthropic" | "openai";
+  ai_provider:   "anthropic" | "openai" | "deepseek";
   ai_api_key:    string;
 }
 

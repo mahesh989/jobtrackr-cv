@@ -29,7 +29,7 @@ class AnalyzeRequest(BaseModel):
     cv_text:        str = Field(min_length=1)
 
     # BYOK — per-request key, never persisted in cv-backend.
-    ai_provider:    Literal["anthropic", "openai"]
+    ai_provider:    Literal["anthropic", "openai", "deepseek"]
     ai_api_key:     str = Field(min_length=1)
 
 

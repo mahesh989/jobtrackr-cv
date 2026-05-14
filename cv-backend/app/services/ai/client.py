@@ -27,7 +27,10 @@ class AIClientError(Exception):
     """Raised when the AI client fails (auth, network, parsing)."""
 
 
-Provider = Literal["anthropic", "openai"]
+Provider = Literal["anthropic", "openai", "deepseek"]
+
+# DeepSeek exposes an OpenAI-compatible REST surface at a different host.
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 
 
 @dataclass
@@ -53,8 +56,11 @@ class AIClient:
             return await self._anthropic_complete(
                 system=system, user=user, max_tokens=max_tokens, temperature=temperature
             )
+        # DeepSeek shares OpenAI's wire format; only the base URL differs.
+        base_url = DEEPSEEK_BASE_URL if self.provider == "deepseek" else None
         return await self._openai_complete(
-            system=system, user=user, max_tokens=max_tokens, temperature=temperature
+            system=system, user=user, max_tokens=max_tokens, temperature=temperature,
+            base_url=base_url,
         )
 
     async def complete_json(
@@ -114,13 +120,17 @@ class AIClient:
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
+        base_url: Optional[str] = None,
     ) -> str:
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:
             raise AIClientError("openai package not installed") from exc
 
-        client = AsyncOpenAI(api_key=self.api_key)
+        kwargs: Dict[str, Any] = {"api_key": self.api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        client = AsyncOpenAI(**kwargs)
 
         # o-series reasoning models (o1, o3, o4-mini, o3-mini, …) do not
         # support `temperature`; all modern OpenAI models (gpt-4.1+, o-series)
@@ -166,6 +176,7 @@ class AIClient:
 _DEFAULT_MODELS: Dict[Provider, str] = {
     "anthropic": "claude-3-5-sonnet-20241022",
     "openai":    "gpt-4o",
+    "deepseek":  "deepseek-chat",
 }
 
 
@@ -182,7 +193,7 @@ def make_ai_client(
     """
     if not api_key:
         raise AIClientError(f"BYOK api_key is empty for provider={provider}")
-    if provider not in ("anthropic", "openai"):
+    if provider not in ("anthropic", "openai", "deepseek"):
         raise AIClientError(f"Unsupported AI provider: {provider}")
 
     chosen_model = model or _DEFAULT_MODELS[provider]
