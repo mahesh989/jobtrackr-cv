@@ -3,6 +3,7 @@
 import { useTransition, useState } from "react";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
+import { JobEditModal } from "@/components/cv/JobEditModal";
 
 interface Job {
   id: string;
@@ -28,6 +29,8 @@ interface Job {
   is_dead_link: boolean;
   seen_at: string | null;
   dedup_status?: string | null;
+  manual_jd_text?: string | null;
+  contact_email?:  string | null;
 }
 
 function relativeDate(d: string | null) {
@@ -157,6 +160,10 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   const [pending, startTransition]  = useTransition();
   const [localApplied, setLocalApplied] = useState(!!job.applied_at);
   const [exitPhase, setExitPhase]   = useState<ExitPhase>("idle");
+  const [showEdit, setShowEdit]     = useState(false);
+  // Mirror server fields locally so the badges update without a router.refresh()
+  const [manualJd, setManualJd]     = useState<string | null>(job.manual_jd_text ?? null);
+  const [contactEmail, setContactEmail] = useState<string | null>(job.contact_email ?? null);
 
   const salary    = formatSalary(job.salary_min, job.salary_max);
   const postedAgo = relativeDate(job.posted_at || job.created_at);
@@ -255,6 +262,27 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
               {job.location && (
                 <p className="text-[11px] text-[#9198A1] truncate mt-0.5">{job.location}</p>
               )}
+              {/* Curation indicators */}
+              {(manualJd || contactEmail) && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {manualJd && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFF8C5] text-[#9A6700] border border-[#D4A72C]/40 font-medium"
+                      title="JD has been manually trimmed for AI analysis"
+                    >
+                      Edited JD
+                    </span>
+                  )}
+                  {contactEmail && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-[#DDF4FF] text-[#0969DA] border border-[#0969DA]/30 font-medium"
+                      title={contactEmail}
+                    >
+                      ✉ Email
+                    </span>
+                  )}
+                </div>
+              )}
               {/* Keywords */}
               {(job.keywords_matched?.length ?? 0) > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -312,6 +340,13 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              onClick={() => setShowEdit(true)}
+              className="gh-btn text-[11px] px-2 py-1 text-[#656D76] hover:text-[#0969DA] hover:border-[#0969DA]/30"
+              title="Edit the JD (trim noise) and add a contact email"
+            >
+              Edit
+            </button>
             <AnalyzeJobButton jobId={job.id} />
             <button
               disabled={pending || localApplied}
@@ -371,6 +406,20 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
         )}
 
       </div>
+
+      {showEdit && (
+        <JobEditModal
+          jobId={job.id}
+          originalJd={job.description ?? ""}
+          initialManual={manualJd}
+          initialEmail={contactEmail}
+          onClose={() => setShowEdit(false)}
+          onSaved={(patch) => {
+            setManualJd(patch.manual_jd_text);
+            setContactEmail(patch.contact_email);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const admin = createAdminClient();
   const { data: run } = await admin
     .from("analysis_runs")
-    .select("id, status, step_status, jd_analysis_result, error_message, created_at")
+    .select("id, status, step_status, jd_analysis_result, error_message, jd_text, created_at")
     .eq("id", runId)
     .eq("user_id", user.id)
     .eq("job_id", jobId)
@@ -29,9 +29,16 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   const { data: job } = await admin
     .from("jobs")
-    .select("title, company, location, url")
+    .select("title, company, location, url, manual_jd_text, description")
     .eq("id", jobId)
     .maybeSingle();
+
+  // Soft-stale check: compare the JD text snapshot the run used against the
+  // job's current JD source (manual override if present, else description).
+  // If they differ, the user has edited the input — surface a banner.
+  const currentJd = (job?.manual_jd_text ?? job?.description ?? "").trim();
+  const ranJd     = ((run as { jd_text: string }).jd_text ?? "").trim();
+  const jdChanged = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
 
   return (
     <div className="min-h-full">
@@ -52,7 +59,17 @@ export default async function AnalyzeRunPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="px-6 py-6 max-w-4xl">
+      <div className="px-6 py-6 max-w-4xl space-y-4">
+        {jdChanged && (
+          <div className="rounded-md bg-[#FFF8C5] border border-[#D4A72C]/40 px-4 py-3 text-[12px] text-[#9A6700]">
+            <strong className="font-semibold">JD has changed since this analysis ran.</strong>{" "}
+            The job description you saved is different from what was analysed.{" "}
+            <a href={`/dashboard/profiles`} className="underline hover:opacity-80">
+              Re-run from the job board
+            </a>{" "}
+            to refresh with the current JD.
+          </div>
+        )}
         <AnalysisRunClient runId={runId} initial={run} />
       </div>
     </div>

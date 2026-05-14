@@ -9,6 +9,7 @@ interface AnalysisRunRow {
   step_status:         Record<string, string>;
   jd_analysis_result:  Record<string, unknown> | null;
   error_message:       string | null;
+  jd_text?:            string;
   created_at:          string;
 }
 
@@ -64,7 +65,7 @@ export function AnalysisRunClient({ runId, initial }: Props) {
       if (statusRef.current === "completed" || statusRef.current === "failed") return;
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, status, step_status, jd_analysis_result, error_message, created_at")
+        .select("id, status, step_status, jd_analysis_result, error_message, jd_text, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
