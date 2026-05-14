@@ -1,0 +1,114 @@
+/**
+ * PATCH /api/jobs/[id]
+ *
+ * Update mutable per-job fields owned by the user:
+ *   - manual_jd_text: cleaned JD text the AI should see (replaces description
+ *                     in the analyze flow). Pass null to clear and fall back
+ *                     to the original description / scrape.
+ *   - contact_email:  recruiter contact for future MCP email-send flow.
+ *
+ * Ownership chain: job → search_profile → user. Service-role write only after
+ * we verify the chain — service-role bypasses RLS, so the check must run.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { createClient }              from "@/lib/supabase/server";
+import { createAdminClient }         from "@/lib/supabase/admin";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_JD_CHARS = 60_000;          // sane upper bound — tokens get expensive
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: jobId } = await params;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: { manual_jd_text?: string | null; contact_email?: string | null };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  // Build the update patch, only including fields the caller actually sent.
+  const patch: Record<string, string | null> = {};
+
+  if ("manual_jd_text" in body) {
+    const raw = body.manual_jd_text;
+    if (raw === null || raw === "") {
+      patch.manual_jd_text = null;
+    } else if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (trimmed.length > MAX_JD_CHARS) {
+        return NextResponse.json(
+          { error: `JD text is too long (${trimmed.length} chars). Cap is ${MAX_JD_CHARS}.` },
+          { status: 422 },
+        );
+      }
+      patch.manual_jd_text = trimmed.length === 0 ? null : trimmed;
+    } else {
+      return NextResponse.json({ error: "manual_jd_text must be a string or null" }, { status: 400 });
+    }
+  }
+
+  if ("contact_email" in body) {
+    const raw = body.contact_email;
+    if (raw === null || raw === "") {
+      patch.contact_email = null;
+    } else if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!EMAIL_RE.test(trimmed)) {
+        return NextResponse.json(
+          { error: `'${trimmed}' is not a valid email address` },
+          { status: 422 },
+        );
+      }
+      patch.contact_email = trimmed;
+    } else {
+      return NextResponse.json({ error: "contact_email must be a string or null" }, { status: 400 });
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  // Ownership check: load the job's profile_id, then verify the profile belongs
+  // to the user. Service-role bypasses RLS so this check is non-optional.
+  const { data: job } = await admin
+    .from("jobs")
+    .select("id, profile_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+
+  const { data: profile } = await admin
+    .from("search_profiles")
+    .select("user_id")
+    .eq("id", job.profile_id)
+    .maybeSingle();
+  if (!profile || profile.user_id !== user.id) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  const { data: updated, error } = await admin
+    .from("jobs")
+    .update(patch)
+    .eq("id", jobId)
+    .select("id, manual_jd_text, contact_email")
+    .single();
+
+  if (error || !updated) {
+    console.error("[/api/jobs/:id PATCH] update failed:", error?.message);
+    return NextResponse.json({ error: "Failed to update job" }, { status: 500 });
+  }
+
+  return NextResponse.json(updated);
+}
