@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.1",
-    "updated": "2026-05-15",
+    "updated": "2026-05-16",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -163,7 +163,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Phase 9: Polish + empty-state copy and error styling. Decision point on promotion.",
+    "next_action": "Phase 9: end-to-end QA pass on the new analysis layout. Open questions: revisit GPT-5 forced-temperature=1 quality issue (BUG-2); DOCX upload (BUG-1).",
     "completed": [
       "Phase 0 \u2014 preview env verified",
       "Phase 1 \u2014 migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -173,9 +173,11 @@
       "Phase 5 \u2014 Analyze button wired end-to-end; JD analysis step runs live (polling fallback added because Realtime delivery is unreliable)",
       "Phase 5.5 \u2014 Manual JD edit + contact email",
       "Phase 6 \u2014 Wire remaining steps + result cards",
-      "Phase 7 \u2014 Tailored CV PDF + viewer",
+      "Phase 7 \u2014 Tailored CV PDF + viewer (Download PDF button via pre-rendered ReportLab)",
       "Phase 7.5 \u2014 Profile settings (contact details + portfolio projects)",
-      "Phase 8 \u2014 Analyses tab + history view"
+      "Phase 8 \u2014 Analyses tab + history view grouped by job",
+      "Phase 8.5 \u2014 Integrations page consolidated (AI keys merged in); separate AI-keys nav removed",
+      "Phase 8.6 \u2014 cv-magic detail layout parity: CvJdMatchingCard table + ATS named sub-scores + 4-bucket FeasibilityCard with Evidence/Suggested rewrite + Tailored ATS-lift circle layout + Print/.md/PDF download trio on TailoredCvCard"
     ],
     "in_progress": [],
     "blocked": []
