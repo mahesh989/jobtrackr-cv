@@ -168,14 +168,17 @@
   --sidebar-item-py:   8px;
   --sidebar-active-style: left-bar;
 
-  --sidebar-bg:        #0A1530;
-  --sidebar-border:    #1A2547;
-  --sidebar-text:      #B8B6D9;
-  --sidebar-text-hover:#FFFFFF;
+  /* Sidebar matches cv-magic's --card token — a paler lavender than
+     the canvas --background. Subtle separation from the workspace,
+     not a hard colour break. */
+  --sidebar-bg:        #F4EEFB;
+  --sidebar-border:    #D8D2EA;
+  --sidebar-text:      #3D3B5E;
+  --sidebar-text-hover:#0A1530;
   --sidebar-text-dim:  #6B6A8C;
-  --sidebar-active-bg: #1A2547;
-  --sidebar-active:    #FFFFFF;
-  --sidebar-avatar-bg: #1A2547;
+  --sidebar-active-bg: #E9E1F5;
+  --sidebar-active:    #5645D4;
+  --sidebar-avatar-bg: #E9E1F5;
 
   --bg:         #E6E0F5;
   --surface:    #F4EEFB;
@@ -209,14 +212,16 @@
   --sidebar-item-py:   8px;
   --sidebar-active-style: left-bar;
 
-  --sidebar-bg:        #1A1410;
-  --sidebar-border:    #2D2620;
-  --sidebar-text:      #C8B8A8;
-  --sidebar-text-hover:#FFFFFF;
-  --sidebar-text-dim:  #7A6E60;
-  --sidebar-active-bg: #2D2620;
+  /* Sidebar matches cv-magic's --card token — lighter cream than the
+     canvas --background. Both surfaces stay warm and light. */
+  --sidebar-bg:        #FFFAF0;
+  --sidebar-border:    #D8D0BC;
+  --sidebar-text:      #3D3D3D;
+  --sidebar-text-hover:#0A0A0A;
+  --sidebar-text-dim:  #6A6A6A;
+  --sidebar-active-bg: #FFE4EE;
   --sidebar-active:    #FF4D8B;
-  --sidebar-avatar-bg: #2D2620;
+  --sidebar-avatar-bg: #F5EBE0;
 
   --bg:         #F5F0E0;
   --surface:    #FFFAF0;
@@ -534,23 +539,49 @@ body {
    SidebarNav. CSS below targets only theme classes for the left-bar
    variant; the default 'bg' variant lives in the Tailwind classes.
 */
-:root.theme-classic       .sidebar-item-active,
-:root.theme-gilded-noir   .sidebar-item-active,
-:root.theme-notion        .sidebar-item-active,
-:root.theme-clay          .sidebar-item-active {
+:root.theme-classic     .sidebar-item,
+:root.theme-gilded-noir .sidebar-item,
+:root.theme-notion      .sidebar-item,
+:root.theme-clay        .sidebar-item {
+  /* cv-magic uses text-sm (14px) + gap-3 (12px) for nav items.
+     Default theme keeps text-[13px] + gap-2.5 (set inline). */
+  font-size: 14px;
+  gap: 12px;
+}
+
+:root.theme-classic     .sidebar-item-active,
+:root.theme-gilded-noir .sidebar-item-active,
+:root.theme-notion      .sidebar-item-active,
+:root.theme-clay        .sidebar-item-active {
   background: color-mix(in srgb, var(--brand) 10%, transparent);
   color: var(--brand);
   border-left: 2px solid var(--brand);
   padding-left: 10px;   /* was 12px, reduce by 2 to compensate for the border */
 }
 
-/* Hover state for cv-magic theme sidebar items */
-:root.theme-classic       .sidebar-item:not(.sidebar-item-active):hover,
-:root.theme-gilded-noir   .sidebar-item:not(.sidebar-item-active):hover,
-:root.theme-notion        .sidebar-item:not(.sidebar-item-active):hover,
-:root.theme-clay          .sidebar-item:not(.sidebar-item-active):hover {
-  background: color-mix(in srgb, var(--brand) 5%, transparent);
+/* Hover state for cv-magic theme sidebar items — stronger tint for visibility */
+:root.theme-classic     .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-gilded-noir .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-notion      .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-clay        .sidebar-item:not(.sidebar-item-active):hover {
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
   color: var(--brand);
+}
+
+/* Logo: cv-magic uses px-6 (24px) and text-lg (18px). Default keeps the
+   tighter look. Pure CSS — no markup branching needed. */
+:root.theme-classic     .sidebar-logo,
+:root.theme-gilded-noir .sidebar-logo,
+:root.theme-notion      .sidebar-logo,
+:root.theme-clay        .sidebar-logo {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+:root.theme-classic     .sidebar-logo-text,
+:root.theme-gilded-noir .sidebar-logo-text,
+:root.theme-notion      .sidebar-logo-text,
+:root.theme-clay        .sidebar-logo-text {
+  font-size: 18px;
 }
 
 /* ─── Glass / card utility — cv-magic style ───────────────────

@@ -87,11 +87,11 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+      {/* Logo — width / padding / font size adapts per theme via CSS */}
+      <div className="sidebar-logo flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
         <Sparkles className="h-5 w-5 text-[var(--brand)] shrink-0" />
         <span
-          className="font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
+          className="sidebar-logo-text font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
           style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}
         >
           JobTrackr
