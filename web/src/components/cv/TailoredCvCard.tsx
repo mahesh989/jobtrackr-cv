@@ -87,6 +87,25 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
       )
     : null;
 
+  // Apply the two-column row layout (institution | location, title | date,
+  // etc.) to the preview DOM so the preview matches the PDF output.
+  // Previously this only ran at PDF-download time, which is why the Education
+  // section appeared as wide bold headings in preview but looked correct in
+  // the downloaded PDF. Run it after every ReactMarkdown render.
+  useEffect(() => {
+    if (!showPreview || !formattedMd) return;
+    // Wait for ReactMarkdown to paint, then mutate.
+    // applyCvSectionLayout is idempotent on already-converted DOM (it looks
+    // for H3 elements; after conversion they're cv-row divs and won't match),
+    // so it's safe to run on every formattedMd change.
+    const t = setTimeout(() => {
+      if (previewRef.current) {
+        applyCvSectionLayout(previewRef.current);
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [showPreview, formattedMd]);
+
   function ensurePreviewVisible(): Promise<HTMLElement | null> {
     setShowPreview(true);
     return new Promise((resolve) => setTimeout(() => resolve(previewRef.current), 100));
@@ -177,25 +196,69 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
       if (imgH <= usableH) {
         pdf.addImage(imgData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, imgH);
       } else {
-        // Multi-page: slice the canvas vertically, page by page.
-        const pageHpx = (canvas.width * usableH) / usableW;
+        // Multi-page: slice the canvas vertically. Instead of cutting at the
+        // exact pixel where the page boundary lands (which slices through the
+        // middle of text lines), scan upward from the ideal cut to find a row
+        // of all-white pixels — text never lives on a fully-white row, so
+        // cutting there cleanly breaks between lines/paragraphs/sections.
+        const pageHpx  = (canvas.width * usableH) / usableW;
+        const srcCtx   = canvas.getContext("2d", { willReadFrequently: true });
+        if (!srcCtx) throw new Error("Source canvas 2D context unavailable");
+
+        // How far we're willing to scan upward to find a clean break before
+        // giving up and using the original cut point. 18% of a page is enough
+        // to clear a line of text or a section header but won't sacrifice a
+        // huge portion of usable space.
+        const SCAN_BACK_PX = Math.floor(pageHpx * 0.18);
+
+        const findSafeBreak = (idealY: number): number => {
+          const minY = Math.max(idealY - SCAN_BACK_PX, 1);
+          // Read the strip we need to scan in one go for performance.
+          const strip = srcCtx.getImageData(0, minY, canvas.width, idealY - minY);
+          // Scan rows from bottom up.
+          for (let yRel = strip.height - 1; yRel >= 0; yRel--) {
+            let rowIsBlank = true;
+            const rowStart = yRel * strip.width * 4;
+            for (let x = 0; x < strip.width; x++) {
+              const i = rowStart + x * 4;
+              // Treat anything darker than ~245/255 on any channel as content.
+              if (strip.data[i] < 245 || strip.data[i + 1] < 245 || strip.data[i + 2] < 245) {
+                rowIsBlank = false;
+                break;
+              }
+            }
+            if (rowIsBlank) return minY + yRel;
+          }
+          // No clean break found — fall back to the original cut.
+          return idealY;
+        };
+
         let yPx = 0;
         let pageCount = 0;
         while (yPx < canvas.height) {
-          const sliceH = Math.min(pageHpx, canvas.height - yPx);
+          const remaining = canvas.height - yPx;
+          // Ideal bottom of this page in source-canvas coords.
+          const idealEndY = yPx + Math.min(pageHpx, remaining);
+          // If this is the last page (everything fits), just take the rest.
+          const isLastPage = idealEndY >= canvas.height - 1;
+          const endY = isLastPage ? canvas.height : findSafeBreak(idealEndY);
+          const sliceH = endY - yPx;
+
           const slice = document.createElement("canvas");
-          slice.width = canvas.width;
+          slice.width  = canvas.width;
           slice.height = sliceH;
           const ctx = slice.getContext("2d");
           if (!ctx) throw new Error("Canvas 2D context unavailable");
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, slice.width, slice.height);
           ctx.drawImage(canvas, 0, -yPx);
+
           if (pageCount > 0) pdf.addPage();
           const sliceData = slice.toDataURL("image/jpeg", 0.95);
           const sliceImgH = (sliceH * imgW) / canvas.width;
           pdf.addImage(sliceData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, sliceImgH);
-          yPx += sliceH;
+
+          yPx = endY;
           pageCount += 1;
           void PAGE_H_PX; // suppress unused-var: we use pdf.internal.pageSize instead
         }
