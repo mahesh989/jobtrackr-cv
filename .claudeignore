@@ -1,0 +1,73 @@
+# ============================================================
+# .claudeignore — keeps Claude's context window focused on
+# the code that actually matters for JobTrackr-CV work.
+# Rule of thumb: if Claude would never need to READ it to do
+# CV-integration work, block it here.
+# ============================================================
+
+# ── Dependencies & lockfiles ────────────────────────────────
+# 526 MB of node_modules + thousands of lockfile lines = pure waste
+**/node_modules/
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# ── Build & cache artefacts ─────────────────────────────────
+**/.next/
+**/dist/
+**/build/
+**/out/
+**/.vercel/
+**/__pycache__/
+**/*.pyc
+**/*.tsbuildinfo
+
+# ── Worker service (job-discovery pipeline) ─────────────────
+# Copied verbatim from production JobTrackr; explicitly out-of-scope
+# for CV integration work (see CLAUDE.md: "Don't extend it for CV work").
+# Blocking the whole directory prevents Claude reading TypeScript source,
+# JSON data dumps, Apify actor code, and nested lockfiles unnecessarily.
+worker/
+
+# ── Static / media assets ───────────────────────────────────
+web/public/
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.webp
+*.woff
+*.woff2
+*.ttf
+*.otf
+
+# ── Test data dumps & large JSON state files ────────────────
+**/storage/
+jobs.json
+jora_test_*.json
+**/*.test-output.json
+
+# ── Environment & secrets ───────────────────────────────────
+.env*
+
+# ── Editor / OS noise ───────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+**/*.swp
+**/*.swo
+
+# ── Logs ────────────────────────────────────────────────────
+*.log
+*.csv
+
+# ── Supabase internals ──────────────────────────────────────
+supabase/.temp/
+supabase/.branches/
+
+# ── Reference source (read-only; never modify) ──────────────
+# cv-magic is a reference repo only. Claude should look at specific
+# files when porting, not scan the whole tree every session.
+cv-magic/
