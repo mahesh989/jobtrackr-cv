@@ -35,7 +35,7 @@ export default async function AnalysesPage() {
   }
 
   return (
-    <div className="min-h-full px-6 pt-6 pb-16">
+    <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-[16px] font-semibold text-text">Analyses</h1>

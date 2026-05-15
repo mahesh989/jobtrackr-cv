@@ -454,6 +454,58 @@ def _enforce_education_count(markdown: str, max_entries: int = 3) -> str:
     return "\n".join(lines[: edu_start + 1] + body_lines[:cutoff] + lines[edu_end:])
 
 
+def _strip_education_bullets(markdown: str) -> str:
+    """
+    Defensive post-processor: strip bullets from the Education section.
+
+    The prompt instructs the LLM to emit each degree as a two-line block
+    (### Institution | Location ↵ *Degree | Year*) and explicitly forbids
+    bullets under degrees. But LLMs occasionally hallucinate filler bullets
+    like "Leveraged this program to navigate higher education data
+    requirements…" which is content the model invented to pad the entry.
+
+    The renderer's two-column row layout also can't align bullets — they
+    sit awkwardly between two formatted rows.
+
+    Strategy: inside ## Education only, drop any line that starts with a
+    bullet marker (-, *, •). Keep the H3 headings and the italic subtitle
+    lines. Stop at the next ## section.
+    """
+    EDU_HEADING = "## Education"
+    lines = markdown.split("\n")
+
+    edu_start = next((i for i, l in enumerate(lines) if l.strip() == EDU_HEADING), None)
+    if edu_start is None:
+        return markdown
+
+    edu_end = len(lines)
+    for i in range(edu_start + 1, len(lines)):
+        if lines[i].startswith("## "):
+            edu_end = i
+            break
+
+    cleaned: list[str] = []
+    bullet_re = re.compile(r"^\s*[-*•]\s+")
+    for line in lines[edu_start + 1 : edu_end]:
+        if bullet_re.match(line):
+            continue  # drop the bullet line
+        cleaned.append(line)
+
+    # Collapse runs of >2 blank lines that may have been left behind.
+    out: list[str] = []
+    blank_run = 0
+    for line in cleaned:
+        if line.strip() == "":
+            blank_run += 1
+            if blank_run <= 2:
+                out.append(line)
+        else:
+            blank_run = 0
+            out.append(line)
+
+    return "\n".join(lines[: edu_start + 1] + out + lines[edu_end:])
+
+
 # ---------------------------------------------------------------------------
 # Deterministic Skills-section keyword injector
 #
@@ -594,6 +646,7 @@ def _enforce_structure(markdown: str) -> str:
     markdown = _strip_certs_when_projects_exist(markdown)
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
+    markdown = _strip_education_bullets(markdown)
     markdown = _enforce_career_highlights_words(markdown, max_words=50)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 

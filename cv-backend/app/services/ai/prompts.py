@@ -1066,9 +1066,20 @@ field order below is fixed and why bullet-list shapes are forbidden.
 
   Then a blank line before the next entry. NEVER use a bullet-list
   shape (`- **Institution | Location** *Degree | Year*`) for Education.
-  NO bullets under degrees unless the candidate has a thesis title or
-  honours that materially matter for the JD — in which case ONE
-  bullet, max.
+
+  ZERO BULLETS UNDER EDUCATION ENTRIES (HARD RULE — no exceptions in
+  the default case). Do NOT write filler bullets like "Leveraged this
+  program to…", "Coursework in…", "Studying…", or any other prose
+  explaining what the degree is about — the degree title already
+  conveys that. The Education section must be H3 + italic line only,
+  nothing else, for every entry.
+
+  The ONLY allowed exception is a single bullet quoting a thesis
+  title or formal honour (e.g. "First-class Honours", "Dean's List")
+  that is BOTH (a) explicitly present in the source CV and (b) directly
+  relevant to the JD. Inferred or invented bullets are forbidden — a
+  post-processor strips bullets from Education before render, so
+  emitting them is wasted output.
 
   CONSISTENCY (HARD): every degree in the Education section MUST use
   the same two-line shape. Do NOT mix shapes across entries.
