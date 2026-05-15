@@ -34,7 +34,11 @@ export function AnalyzeJobButton({ jobId }: Props) {
         if (/active CV/i.test(message)) {
           setErr({ message, cta: { label: "Upload CV", href: "/dashboard/cv" } });
         } else if (/AI key/i.test(message)) {
-          setErr({ message, cta: { label: "Add AI key", href: "/dashboard/settings/ai-keys" } });
+          setErr({ message, cta: { label: "Add AI key", href: "/dashboard/integrations" } });
+        } else if (/job description text|expired|listing/i.test(message)) {
+          setErr({
+            message: "Not enough JD text to analyse. Use the ✏ Edit button on this row to paste the full job description manually.",
+          });
         } else {
           setErr({ message });
         }
