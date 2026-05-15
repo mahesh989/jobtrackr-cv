@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const BRAND_PANEL_FEATURES = [
@@ -19,7 +20,10 @@ const LOGO_SVG = (
 );
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [usePassword, setUsePw]   = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
@@ -29,6 +33,19 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
+
+    if (usePassword) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
@@ -183,7 +200,9 @@ export default function LoginPage() {
                   Welcome back.
                 </h1>
                 <p style={{ color: "#6b6b68", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
-                  Enter your email — we&apos;ll send you a one-click sign-in link.
+                  {usePassword
+                    ? "Sign in with your email and password."
+                    : "Enter your email — we'll send you a one-click sign-in link."}
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -210,6 +229,43 @@ export default function LoginPage() {
                       onFocus={(e) => { e.currentTarget.style.borderColor = "#1a6b4a"; e.currentTarget.style.background = "#ffffff"; }}
                       onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(15, 15, 14, 0.12)"; e.currentTarget.style.background = "#faf9f7"; }}
                     />
+                  </div>
+
+                  {usePassword && (
+                    <div>
+                      <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
+                        Password
+                      </label>
+                      <input
+                        id="password"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Your password"
+                        className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
+                        style={{
+                          background: "#faf9f7",
+                          border: "1px solid rgba(15, 15, 14, 0.12)",
+                          fontSize: 14,
+                          fontFamily: "var(--font-marketing), system-ui, sans-serif",
+                          color: "#0f0f0e",
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#1a6b4a"; e.currentTarget.style.background = "#ffffff"; }}
+                        onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(15, 15, 14, 0.12)"; e.currentTarget.style.background = "#faf9f7"; }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => { setUsePw((v) => !v); setError(null); }}
+                      className="text-[12px] transition-colors"
+                      style={{ color: "#6b6b68" }}
+                    >
+                      {usePassword ? "← Use magic link instead" : "Use password instead →"}
+                    </button>
                   </div>
 
                   {error && (
@@ -243,11 +299,11 @@ export default function LoginPage() {
                           <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path opacity="0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
-                        Sending…
+                        {usePassword ? "Signing in…" : "Sending…"}
                       </>
                     ) : (
                       <>
-                        Send magic link
+                        {usePassword ? "Sign in" : "Send magic link"}
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 8h10M9 4l4 4-4 4" />
                         </svg>
