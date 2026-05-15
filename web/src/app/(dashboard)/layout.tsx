@@ -52,8 +52,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <ThemeProvider>
     <div className="flex h-screen overflow-hidden bg-[var(--sidebar-bg)]">
-      {/* Sidebar — width adapts per theme (Default 220px, cv-magic 256px) */}
-      <div className="w-[var(--sidebar-width)] shrink-0 hidden md:flex flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]">
+      {/* Sidebar — width adapts per theme (Default 220px, cv-magic 256px).
+          Width is set via inline style for reliable CSS-variable evaluation,
+          since Tailwind arbitrary values with CSS vars can be flaky in v4. */}
+      <div
+        className="shrink-0 hidden md:flex flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
+        style={{ width: "var(--sidebar-width)" }}
+      >
         <SidebarNav email={user.email!} profiles={sidebarProfiles} isAdmin={isAdmin} />
       </div>
 

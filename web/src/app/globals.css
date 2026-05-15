@@ -625,3 +625,45 @@ body {
   box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.04);
   border-radius: var(--radius);
 }
+
+/* ─── cv-magic utility classes (used by ported pages) ─────────
+   Imported verbatim from cv-magic so ported page components render
+   identically. Default theme also gets them — they're harmless if a
+   default-theme component opts in. */
+
+/* Uppercase metadata label — used as section headings on cv-magic pages */
+.label-luxury {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Page title — large serif on cv-magic themes, default sans on Default */
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+:root.theme-classic     .page-title,
+:root.theme-gilded-noir .page-title,
+:root.theme-notion      .page-title,
+:root.theme-clay        .page-title {
+  font-family: var(--font-serif-active), Georgia, serif;
+}
+
+/* Page subtitle — italic muted line under the title */
+.page-subtitle {
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+/* Gold glow on hover — only visible in Gilded Noir */
+.glow-gold { box-shadow: none; }
+:root.theme-gilded-noir .glow-gold,
+:root.theme-gilded-noir .hover\:glow-gold:hover {
+  box-shadow: 0 0 16px 0 rgba(242, 202, 80, 0.25);
+}
