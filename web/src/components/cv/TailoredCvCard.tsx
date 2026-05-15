@@ -281,13 +281,12 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  a: ({ href, children, ...props }) => (
+                  a: ({ href, children }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown }) => (
                     <a
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ color: "#000080", textDecoration: "none" }}
-                      {...props}
                     >
                       {children}
                     </a>
