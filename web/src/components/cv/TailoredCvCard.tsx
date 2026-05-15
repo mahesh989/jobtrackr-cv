@@ -25,7 +25,9 @@ interface Props {
  *   - Preview toggle (Preview / Hide)
  *   - Print / PDF: opens a clean window with the rendered HTML and triggers print
  *   - Download .md: raw markdown
- *   - Download PDF: client-side html2pdf.js render — always matches the preview
+ *   - Download PDF: client-side html2canvas-pro + jsPDF render — supports modern
+ *     CSS color functions (lab/oklch) that Tailwind v4 emits, and always
+ *     matches the preview
  *
  * The contact line on the markdown is re-stamped client-side from the user's
  * saved contact_details in /api/user/preferences, so updates to your profile
@@ -110,7 +112,7 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
     setTimeout(() => win.print(), 300);
   }
 
-  // ── Download PDF — html2pdf.js client-side render ────────────────────────
+  // ── Download PDF — html2canvas-pro + jsPDF client-side render ───────────
   async function handleDownloadPdf() {
     const root = await ensurePreviewVisible();
     setDP(true); setErr(null);
@@ -119,43 +121,87 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
       const html = root?.innerHTML;
       if (!html) throw new Error("Preview HTML is empty");
 
+      // A4 content area = 794px page width − 2 × 36px (0.5in) margin = 722px
+      const PAGE_W_PX = 794;   // 8.27in @ 96dpi
+      const PAGE_H_PX = 1123;  // 11.69in @ 96dpi
+      const MARGIN_PT = 36;    // 0.5in
+      const CONTENT_W_PX = PAGE_W_PX - 2 * 48;  // 698px (matches preview)
+
       wrapper = document.createElement("div");
       Object.assign(wrapper.style, {
         position: "fixed", left: "0", top: "0",
-        width: "698px",   minHeight: "1027px",
-        padding: "0",     background: "#ffffff",
-        opacity: "0",     pointerEvents: "none",
+        width: `${CONTENT_W_PX}px`,
+        padding: "0",
+        background: "#ffffff",
+        opacity: "0",
+        pointerEvents: "none",
         zIndex: "-1",
+        // Reset inherited color so html2canvas-pro never has to parse a
+        // Tailwind v4 lab()/oklch() value from a parent.
+        color: "#000000",
+        colorScheme: "light",
       });
       wrapper.innerHTML = `<style>${CV_PDF_STYLE}</style><main class="cv-root">${html}</main>`;
       document.body.appendChild(wrapper);
       const cvRoot = wrapper.querySelector(".cv-root") as HTMLElement | null;
       if (!cvRoot) throw new Error("cv-root not found");
       applyCvSectionLayout(cvRoot);
-      // Two RAF ticks so the layout settles before html2canvas snapshots.
+      // Two RAF ticks so layout settles before snapshot.
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      type Html2PdfBuilder = {
-        set:  (opts: Record<string, unknown>) => Html2PdfBuilder;
-        from: (src: HTMLElement) => Html2PdfBuilder;
-        save: () => Promise<void>;
-      };
-      type Html2PdfFactory = () => Html2PdfBuilder;
-      const module = await import("html2pdf.js");
-      const html2pdf = (module.default as Html2PdfFactory) || (module as unknown as Html2PdfFactory);
+      const [{ default: html2canvas }, { default: JsPDF }] = await Promise.all([
+        import("html2canvas-pro"),
+        import("jspdf"),
+      ]);
 
-      await html2pdf()
-        .set({
-          margin:     [18, 36, 36, 36],
-          filename:   `tailored-cv-${runId.slice(0, 8)}.pdf`,
-          image:      { type: "jpeg", quality: 0.98 },
-          html2canvas:{ scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-          jsPDF:      { unit: "pt", format: "a4", orientation: "portrait" },
-          pagebreak:  { mode: ["avoid-all", "css", "legacy"], avoid: [".cv-entry", "li", "h2", "h3"] },
-        })
-        .from(cvRoot)
-        .save();
+      const canvas = await html2canvas(cvRoot, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        // Fail fast on weird CSS rather than swallow it silently.
+        logging: false,
+      });
+
+      const pdf = new JsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const usableW = pageW - 2 * MARGIN_PT;
+      // Convert canvas px → pt to keep proportions
+      const imgW = usableW;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      const usableH = pageH - 2 * MARGIN_PT;
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      if (imgH <= usableH) {
+        pdf.addImage(imgData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, imgH);
+      } else {
+        // Multi-page: slice the canvas vertically, page by page.
+        const pageHpx = (canvas.width * usableH) / usableW;
+        let yPx = 0;
+        let pageCount = 0;
+        while (yPx < canvas.height) {
+          const sliceH = Math.min(pageHpx, canvas.height - yPx);
+          const slice = document.createElement("canvas");
+          slice.width = canvas.width;
+          slice.height = sliceH;
+          const ctx = slice.getContext("2d");
+          if (!ctx) throw new Error("Canvas 2D context unavailable");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, slice.width, slice.height);
+          ctx.drawImage(canvas, 0, -yPx);
+          if (pageCount > 0) pdf.addPage();
+          const sliceData = slice.toDataURL("image/jpeg", 0.95);
+          const sliceImgH = (sliceH * imgW) / canvas.width;
+          pdf.addImage(sliceData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, sliceImgH);
+          yPx += sliceH;
+          pageCount += 1;
+          void PAGE_H_PX; // suppress unused-var: we use pdf.internal.pageSize instead
+        }
+      }
+
+      pdf.save(`tailored-cv-${runId.slice(0, 8)}.pdf`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "PDF generation failed");
     } finally {
