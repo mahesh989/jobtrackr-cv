@@ -1,12 +1,19 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* ─── Design tokens — Classic (default theme) ──────────────────
+/* ─── Design tokens — Default theme (original JobTrackr look) ──
    These act as the fallback for every theme. Themes below override
    only the tokens they need to change. The .theme-* class is applied
-   to <html> by ThemeProvider; absence of any theme class = Classic.
+   to <html> by ThemeProvider; absence of any theme class = Default.
    ───────────────────────────────────────────────────────────────── */
 :root {
+  /* Per-theme typography + radii. Default uses JobTrackr's original
+     pairing (Sofia Sans / DM Serif Display). cv-magic themes override
+     these to Manrope / Noto Serif. */
+  --font-sans-active:  var(--font-sans);
+  --font-serif-active: var(--font-serif);
+  --radius:            6px;
+
   /* Sidebar */
   --sidebar-bg:        #0D1117;
   --sidebar-border:    #21262D;
@@ -56,8 +63,49 @@
     #0969DA 0%, #8250DF 33%, #0EA5E9 66%, #0969DA 100%);
 }
 
+/* ─── Theme: Classic (cv-magic clean light interface) ─────────── */
+:root.theme-classic {
+  --font-sans-active:  var(--font-cv-sans);
+  --font-serif-active: var(--font-cv-serif);
+  --radius:            8px;
+
+  --sidebar-bg:        #FFFFFF;
+  --sidebar-border:    #E2E8F0;
+  --sidebar-text:      #475569;
+  --sidebar-text-hover:#0F172A;
+  --sidebar-text-dim:  #94A3B8;
+  --sidebar-active-bg: #F1F5F9;
+  --sidebar-active:    #0F172A;
+  --sidebar-avatar-bg: #F1F5F9;
+
+  --bg:         #FFFFFF;
+  --surface:    #FFFFFF;
+  --surface-2:  #F1F5F9;
+
+  --border:       #E2E8F0;
+  --border-muted: #F1F5F9;
+
+  --text:   #0F172A;
+  --text-2: #475569;
+  --text-3: #64748B;
+
+  --brand:      #3B82F6;
+  --brand-fg:   #FFFFFF;
+  --blue:       #3B82F6;
+  --blue-dark:  #2563EB;
+  --blue-light: #DBEAFE;
+  --blue-muted: #93C5FD;
+
+  --pipeline-grad: linear-gradient(90deg,
+    #3B82F6 0%, #6366F1 33%, #0EA5E9 66%, #3B82F6 100%);
+}
+
 /* ─── Theme: Gilded Noir (dark gold luxury) ───────────────────── */
 :root.theme-gilded-noir {
+  --font-sans-active:  var(--font-cv-sans);
+  --font-serif-active: var(--font-cv-serif);
+  --radius:            18px;
+
   --sidebar-bg:        #100C05;
   --sidebar-border:    #2A2418;
   --sidebar-text:      #B8AC91;
@@ -100,6 +148,10 @@
 
 /* ─── Theme: Notion (lavender canvas, deep purple) ────────────── */
 :root.theme-notion {
+  --font-sans-active:  var(--font-cv-sans);
+  --font-serif-active: var(--font-cv-serif);
+  --radius:            8px;
+
   --sidebar-bg:        #0A1530;
   --sidebar-border:    #1A2547;
   --sidebar-text:      #B8B6D9;
@@ -133,6 +185,10 @@
 
 /* ─── Theme: Clay (bold cream canvas, hot-pink pop) ───────────── */
 :root.theme-clay {
+  --font-sans-active:  var(--font-cv-sans);
+  --font-serif-active: var(--font-cv-serif);
+  --radius:            12px;
+
   --sidebar-bg:        #1A1410;
   --sidebar-border:    #2D2620;
   --sidebar-text:      #C8B8A8;
@@ -205,11 +261,23 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Themes swap the typography pair: Default uses Sofia Sans, the four
+     cv-magic themes (Classic / Gilded Noir / Notion / Clay) swap to
+     Manrope via --font-sans-active. */
+  font-family: var(--font-sans-active), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings in cv-magic themes use a serif (Noto Serif) for hierarchy.
+   Default keeps DM Serif Display only on .font-serif spans. */
+:root.theme-classic h1, :root.theme-classic h2, :root.theme-classic h3,
+:root.theme-gilded-noir h1, :root.theme-gilded-noir h2, :root.theme-gilded-noir h3,
+:root.theme-notion h1, :root.theme-notion h2, :root.theme-notion h3,
+:root.theme-clay h1, :root.theme-clay h2, :root.theme-clay h3 {
+  font-family: var(--font-serif-active), Georgia, serif;
 }
 
 /* ─── Scrollbar ─────────────────────────────────────────────── */

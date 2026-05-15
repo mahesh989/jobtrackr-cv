@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Sofia_Sans, DM_Serif_Display, DM_Sans } from "next/font/google";
+import { Sofia_Sans, DM_Serif_Display, DM_Sans, Manrope, Noto_Serif } from "next/font/google";
 import "./globals.css";
 
+// ── Default theme fonts (current JobTrackr look) ──────────────────────────
 const sofiaSans = Sofia_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
@@ -21,6 +22,22 @@ const dmSans = DM_Sans({
   weight: ["300", "400", "500"],
 });
 
+// ── cv-magic theme fonts (Classic / Gilded Noir / Notion / Clay) ──────────
+// Themes other than 'default' swap to these via CSS @ font-family override.
+const manrope = Manrope({
+  variable: "--font-cv-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+});
+
+const notoSerif = Noto_Serif({
+  variable: "--font-cv-serif",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "JobTrackr — Stop hunting. Start tracking.",
   description: "Find your next role while you sleep. JobTrackr scans 21+ Australian job sources daily, scores each listing with AI, and flags visa sponsorship — so you only review what matters.",
@@ -34,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sofiaSans.variable} ${dmSerif.variable} ${dmSans.variable} h-full antialiased`}
+      className={`${sofiaSans.variable} ${dmSerif.variable} ${dmSans.variable} ${manrope.variable} ${notoSerif.variable} h-full antialiased`}
     >
       <head>
         {/*
@@ -48,7 +65,7 @@ export default function RootLayout({
             __html: `
               try {
                 var t = localStorage.getItem('jobtrackr-theme');
-                if (t && t !== 'classic' && /^(gilded-noir|notion|clay)$/.test(t)) {
+                if (t && t !== 'default' && /^(classic|gilded-noir|notion|clay)$/.test(t)) {
                   document.documentElement.classList.add('theme-' + t);
                 }
               } catch (e) {}

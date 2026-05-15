@@ -1,16 +1,20 @@
 /**
- * Theme system for JobTrackr — adapted from cv-magic.
+ * Theme system for JobTrackr.
  *
- * Themes swap CSS custom properties (--sidebar-bg, --bg, --surface, etc.)
- * via a class on the <html> element. Components reference the variables
- * directly (bg-[var(--surface)], text-[var(--text)]) so a single class
- * change repaints the whole app.
+ * Five themes total:
+ *   - "default"     — original JobTrackr look (dark sidebar, light workspace,
+ *                     Sofia Sans + DM Serif Display). Fallback / no class.
+ *   - "classic"     — cv-magic's Classic theme (clean light interface
+ *                     everywhere, Manrope + Noto Serif).
+ *   - "gilded-noir" — cv-magic's Gilded Noir (dark gold luxury).
+ *   - "notion"      — cv-magic's Notion (lavender canvas + deep purple).
+ *   - "clay"        — cv-magic's Clay (bold cream + hot-pink pop).
  *
- * Classic is the default and matches the original JobTrackr look
- * (GitHub-dark sidebar + light content area). The other three themes
- * are full repaints (sidebar + content + brand colour all swap).
+ * Themes swap CSS custom properties (--bg, --surface, --text, --brand,
+ * --sidebar-*, --radius, --font-sans-active, etc.) via a class on <html>.
+ * The choice persists to localStorage under 'jobtrackr-theme'.
  */
-export type Theme = "classic" | "gilded-noir" | "notion" | "clay";
+export type Theme = "default" | "classic" | "gilded-noir" | "notion" | "clay";
 
 export const THEMES: ReadonlyArray<{
   id: Theme;
@@ -19,15 +23,27 @@ export const THEMES: ReadonlyArray<{
   preview: { bg: string; surface: string; primary: string; text: string; muted: string };
 }> = [
   {
-    id: "classic",
-    name: "Classic",
-    description: "Dark sidebar, clean light workspace",
+    id: "default",
+    name: "Default",
+    description: "Dark sidebar, GitHub-style light workspace",
     preview: {
       bg: "#F6F8FA",
       surface: "#FFFFFF",
       primary: "#0969DA",
       text: "#1F2328",
       muted: "#656D76",
+    },
+  },
+  {
+    id: "classic",
+    name: "Classic",
+    description: "Clean light interface",
+    preview: {
+      bg: "#FFFFFF",
+      surface: "#F1F5F9",
+      primary: "#3B82F6",
+      text: "#0F172A",
+      muted: "#64748B",
     },
   },
   {
@@ -69,21 +85,26 @@ export const THEMES: ReadonlyArray<{
 ];
 
 const STORAGE_KEY = "jobtrackr-theme";
-const VALID_IDS = new Set<Theme>(["classic", "gilded-noir", "notion", "clay"]);
+const VALID_IDS = new Set<Theme>(["default", "classic", "gilded-noir", "notion", "clay"]);
+const THEMED_CLASSES = ["theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "classic";
+  if (typeof window === "undefined") return "default";
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-  return stored && VALID_IDS.has(stored) ? stored : "classic";
+  if (stored === "classic" || stored === "gilded-noir" || stored === "notion" || stored === "clay" || stored === "default") {
+    return stored;
+  }
+  // Migrate old 'classic' value from Phase 1 — used to be the default name.
+  // Now default is its own theme. Unrecognised values fall through to default.
+  return "default";
 }
 
 export function applyTheme(theme: Theme) {
   if (typeof document === "undefined") return;
+  if (!VALID_IDS.has(theme)) theme = "default";
   const html = document.documentElement;
-  // Strip any existing theme-* classes and add the chosen one. Classic
-  // gets no class at all — :root tokens cover it.
-  html.classList.remove("theme-gilded-noir", "theme-notion", "theme-clay");
-  if (theme !== "classic") {
+  THEMED_CLASSES.forEach((c) => html.classList.remove(c));
+  if (theme !== "default") {
     html.classList.add(`theme-${theme}`);
   }
   try {
