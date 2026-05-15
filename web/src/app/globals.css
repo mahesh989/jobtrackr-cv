@@ -1,15 +1,21 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* ─── Design tokens ─────────────────────────────────────────── */
+/* ─── Design tokens — Classic (default theme) ──────────────────
+   These act as the fallback for every theme. Themes below override
+   only the tokens they need to change. The .theme-* class is applied
+   to <html> by ThemeProvider; absence of any theme class = Classic.
+   ───────────────────────────────────────────────────────────────── */
 :root {
   /* Sidebar */
   --sidebar-bg:        #0D1117;
   --sidebar-border:    #21262D;
   --sidebar-text:      #8B949E;
   --sidebar-text-hover:#C9D1D9;
+  --sidebar-text-dim:  #484F58;
   --sidebar-active-bg: #161B22;
   --sidebar-active:    #F0F6FF;
+  --sidebar-avatar-bg: #21262D;
 
   /* Content */
   --bg:         #F6F8FA;
@@ -26,6 +32,8 @@
   --text-3: #9198A1;
 
   /* Brand */
+  --brand:      #0969DA;
+  --brand-fg:   #FFFFFF;
   --blue:       #0969DA;
   --blue-dark:  #0550AE;
   --blue-light: #DDF4FF;
@@ -48,6 +56,114 @@
     #0969DA 0%, #8250DF 33%, #0EA5E9 66%, #0969DA 100%);
 }
 
+/* ─── Theme: Gilded Noir (dark gold luxury) ───────────────────── */
+:root.theme-gilded-noir {
+  --sidebar-bg:        #100C05;
+  --sidebar-border:    #2A2418;
+  --sidebar-text:      #B8AC91;
+  --sidebar-text-hover:#EAE1D4;
+  --sidebar-text-dim:  #7A6F58;
+  --sidebar-active-bg: #1F1A0E;
+  --sidebar-active:    #F2CA50;
+  --sidebar-avatar-bg: #2A2418;
+
+  --bg:         #16130B;
+  --surface:    #231F17;
+  --surface-2:  #1C1810;
+
+  --border:       #3D3625;
+  --border-muted: #2A2418;
+
+  --text:   #EAE1D4;
+  --text-2: #D0C5AF;
+  --text-3: #8A8068;
+
+  --brand:      #F2CA50;
+  --brand-fg:   #3C2F00;
+  --blue:       #F2CA50;
+  --blue-dark:  #D4AF37;
+  --blue-light: #3C2F00;
+  --blue-muted: #A88B2E;
+
+  --green:       #4ADE80;
+  --green-light: #14361F;
+  --red:         #FCA5A5;
+  --red-light:   #3F1212;
+  --amber:       #FCD34D;
+  --amber-light: #3F2D08;
+  --purple:      #C4B5FD;
+  --purple-light:#1F1A3A;
+
+  --pipeline-grad: linear-gradient(90deg,
+    #F2CA50 0%, #D4AF37 33%, #C49B2A 66%, #F2CA50 100%);
+}
+
+/* ─── Theme: Notion (lavender canvas, deep purple) ────────────── */
+:root.theme-notion {
+  --sidebar-bg:        #0A1530;
+  --sidebar-border:    #1A2547;
+  --sidebar-text:      #B8B6D9;
+  --sidebar-text-hover:#FFFFFF;
+  --sidebar-text-dim:  #6B6A8C;
+  --sidebar-active-bg: #1A2547;
+  --sidebar-active:    #FFFFFF;
+  --sidebar-avatar-bg: #1A2547;
+
+  --bg:         #E6E0F5;
+  --surface:    #F4EEFB;
+  --surface-2:  #EFE8F7;
+
+  --border:       #D8D2EA;
+  --border-muted: #E5DFF3;
+
+  --text:   #0A1530;
+  --text-2: #3D3B5E;
+  --text-3: #6B6A8C;
+
+  --brand:      #5645D4;
+  --brand-fg:   #FFFFFF;
+  --blue:       #5645D4;
+  --blue-dark:  #4335B8;
+  --blue-light: #E5E1F8;
+  --blue-muted: #8C81E0;
+
+  --pipeline-grad: linear-gradient(90deg,
+    #5645D4 0%, #8250DF 33%, #5645D4 66%, #4335B8 100%);
+}
+
+/* ─── Theme: Clay (bold cream canvas, hot-pink pop) ───────────── */
+:root.theme-clay {
+  --sidebar-bg:        #1A1410;
+  --sidebar-border:    #2D2620;
+  --sidebar-text:      #C8B8A8;
+  --sidebar-text-hover:#FFFFFF;
+  --sidebar-text-dim:  #7A6E60;
+  --sidebar-active-bg: #2D2620;
+  --sidebar-active:    #FF4D8B;
+  --sidebar-avatar-bg: #2D2620;
+
+  --bg:         #F5F0E0;
+  --surface:    #FFFAF0;
+  --surface-2:  #FAF5E8;
+
+  --border:       #D8D0BC;
+  --border-muted: #E4DCC8;
+
+  --text:   #0A0A0A;
+  --text-2: #3D3D3D;
+  --text-3: #6A6A6A;
+
+  --brand:      #FF4D8B;
+  --brand-fg:   #FFFFFF;
+  --blue:       #FF4D8B;
+  --blue-dark:  #E03B75;
+  --blue-light: #FFE4EE;
+  --blue-muted: #FF87B0;
+
+  --pipeline-grad: linear-gradient(90deg,
+    #FF4D8B 0%, #FF87B0 33%, #FF4D8B 66%, #E03B75 100%);
+}
+
 @theme inline {
   --color-sidebar-bg:     var(--sidebar-bg);
   --color-sidebar-text:   var(--sidebar-text);
@@ -62,6 +178,8 @@
   --color-text-2:   var(--text-2);
   --color-text-3:   var(--text-3);
 
+  --color-brand:       var(--brand);
+  --color-brand-fg:    var(--brand-fg);
   --color-blue:        var(--blue);
   --color-blue-dark:   var(--blue-dark);
   --color-blue-light:  var(--blue-light);

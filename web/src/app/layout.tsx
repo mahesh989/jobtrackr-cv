@@ -36,6 +36,26 @@ export default function RootLayout({
       lang="en"
       className={`${sofiaSans.variable} ${dmSerif.variable} ${dmSans.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          FOUC guard for the theme system. Runs synchronously before any
+          React code, so users on a non-Classic theme don't briefly see
+          Classic flash before their saved theme applies. Kept tiny on
+          purpose — anything heavier should live in ThemeProvider.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('jobtrackr-theme');
+                if (t && t !== 'classic' && /^(gilded-noir|notion|clay)$/.test(t)) {
+                  document.documentElement.classList.add('theme-' + t);
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-canvas text-ink">{children}</body>
     </html>
   );

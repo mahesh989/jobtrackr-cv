@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SidebarNav } from "@/components/SidebarNav";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -49,9 +50,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0D1117]">
+    <ThemeProvider>
+    <div className="flex h-screen overflow-hidden bg-[var(--sidebar-bg)]">
       {/* Sidebar — fixed width, full height */}
-      <div className="w-[220px] shrink-0 hidden md:flex flex-col border-r border-[#21262D]">
+      <div className="w-[220px] shrink-0 hidden md:flex flex-col border-r border-[var(--sidebar-border)]">
         <SidebarNav email={user.email!} profiles={sidebarProfiles} isAdmin={isAdmin} />
       </div>
 
@@ -76,5 +78,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </div>
     </div>
+    </ThemeProvider>
   );
 }
