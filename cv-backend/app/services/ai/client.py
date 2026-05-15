@@ -100,14 +100,27 @@ class AIClient:
             raise AIClientError("anthropic package not installed") from exc
 
         client = AsyncAnthropic(api_key=self.api_key)
-        try:
-            response = await client.messages.create(
+
+        async def _call(tokens: int):
+            return await client.messages.create(
                 model=self.model,
-                max_tokens=max_tokens,
+                max_tokens=tokens,
                 temperature=temperature,
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )
+
+        try:
+            response = await _call(max_tokens)
+            # Auto-retry once on max_tokens truncation — keeps cv-magic's
+            # per-step max_tokens unchanged in the steps directory, just
+            # adds resilience when a verbose JD overflows the cap.
+            if getattr(response, "stop_reason", None) == "max_tokens":
+                logger.info(
+                    "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
+                    max_tokens, self.model,
+                )
+                response = await _call(max_tokens * 2)
         except Exception as exc:
             raise AIClientError(f"Anthropic API error: {exc}") from exc
 
@@ -184,6 +197,21 @@ class AIClient:
 
         try:
             response = await _do_call(request_kwargs)
+            # Auto-retry once on max-tokens truncation. cv-magic's per-step
+            # max_tokens (2048 for keyword_feasibility) can be exhausted by
+            # JDs that produce verbose feasibility output; truncating mid-
+            # JSON then crashes _extract_json downstream. Doubling the cap
+            # once is plenty for any real-world CV/JD pair.
+            if response.choices and response.choices[0].finish_reason == "length":
+                logger.info(
+                    "OpenAI hit max_completion_tokens (%d) for model %s; retrying with doubled cap.",
+                    request_kwargs["max_completion_tokens"], self.model,
+                )
+                bumped = {
+                    **request_kwargs,
+                    "max_completion_tokens": request_kwargs["max_completion_tokens"] * 2,
+                }
+                response = await _do_call(bumped)
         except Exception as exc:
             raise AIClientError(f"OpenAI API error: {exc}") from exc
 
