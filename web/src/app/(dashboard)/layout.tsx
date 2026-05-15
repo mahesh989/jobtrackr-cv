@@ -50,8 +50,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0D1117]">
-      {/* Sidebar — fixed width, full height */}
-      <div className="w-[220px] shrink-0 hidden md:flex flex-col border-r border-[#21262D]">
+      {/* Sidebar — fixed width, full height (white theme) */}
+      <div className="w-[220px] shrink-0 hidden md:flex flex-col border-r border-[#D0D7DE] bg-white text-black">
         <SidebarNav email={user.email!} profiles={sidebarProfiles} isAdmin={isAdmin} />
       </div>
 
