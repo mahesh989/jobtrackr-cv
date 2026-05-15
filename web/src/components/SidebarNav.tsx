@@ -115,7 +115,6 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
         <NavItem href="/dashboard/cv">CV library</NavItem>
         <NavItem href="/dashboard/analyses">Analyses</NavItem>
         <NavItem href="/dashboard/settings/profile">Profile</NavItem>
-        <NavItem href="/dashboard/settings/ai-keys">AI keys</NavItem>
         <NavItem href="/dashboard/integrations">Integrations</NavItem>
         <NavItem href="/privacy">Privacy policy</NavItem>
 
