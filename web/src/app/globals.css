@@ -76,7 +76,13 @@
 }
 
 /* ─── Reset / base ──────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; }
+/* IMPORTANT: must live inside @layer base so it doesn't outrank
+   Tailwind's utility classes (e.g. mx-auto). Unlayered CSS wins
+   over layered utilities in Tailwind v4 — leaving this rule
+   unlayered silently broke every mx-auto on the site. */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; }
+}
 
 body {
   background: var(--bg);

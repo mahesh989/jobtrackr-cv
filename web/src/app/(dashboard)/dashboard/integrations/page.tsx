@@ -72,8 +72,8 @@ export default async function IntegrationsPage() {
   }
 
   return (
-    <div className="min-h-full px-6 py-6 flex flex-col">
-      <div className="w-full max-w-3xl mx-auto space-y-8">
+    <div className="min-h-full px-6 py-6">
+      <div className="max-w-3xl mx-auto space-y-8">
         <div>
           <h1 className="text-[16px] font-semibold text-text">Integrations</h1>
           <p className="text-[12px] text-text-3 mt-0.5">

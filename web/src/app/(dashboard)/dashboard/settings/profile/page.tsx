@@ -20,8 +20,8 @@ export default async function ProfileSettingsPage() {
   const initial = (data?.contact_details as ContactDetails | null) ?? null;
 
   return (
-    <div className="min-h-full px-6 py-6 flex flex-col">
-      <div className="w-full max-w-3xl mx-auto space-y-6">
+    <div className="min-h-full px-6 py-6">
+      <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h1 className="text-[16px] font-semibold text-text">Profile</h1>
           <p className="text-[12px] text-text-3 mt-0.5">

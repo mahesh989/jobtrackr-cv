@@ -94,8 +94,8 @@ export default async function AnalyzeRunPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="px-6 py-6 flex flex-col">
-        <div className="w-full max-w-4xl mx-auto space-y-4">
+      <div className="px-6 py-6">
+        <div className="max-w-4xl mx-auto space-y-4">
         {jdChanged && (
           <div className="rounded-md bg-[#FFF8C5] border border-[#D4A72C]/40 px-4 py-3 text-[12px] text-[#9A6700]">
             <strong className="font-semibold">JD has changed since this analysis ran.</strong>{" "}
