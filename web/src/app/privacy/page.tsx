@@ -12,6 +12,12 @@ export default function PrivacyPage() {
       </header>
 
       <article className="max-w-2xl mx-auto px-6 py-12 space-y-8 text-base leading-relaxed">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1 text-sm text-slate hover:text-ink transition-colors"
+        >
+          ← Back to dashboard
+        </Link>
         <div>
           <h1 className="text-3xl font-medium text-ink mb-3 tracking-tight">Privacy Policy</h1>
           <p className="text-slate">Effective: May 2026 · Applies to jobtrackr.app</p>

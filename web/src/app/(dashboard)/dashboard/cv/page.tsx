@@ -18,7 +18,7 @@ export default async function CvPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="min-h-full px-6 py-6">
+    <div className="min-h-full px-6 pt-6 pb-16">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h1 className="text-[16px] font-semibold text-text">CV library</h1>
