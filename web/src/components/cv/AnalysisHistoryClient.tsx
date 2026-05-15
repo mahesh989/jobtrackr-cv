@@ -127,7 +127,7 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
   }
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5 max-w-4xl mx-auto">
       {/* Status filter */}
       <div className="flex flex-wrap gap-1">
         {(["all", "completed", "running", "failed"] as StatusFilter[]).map((s) => {

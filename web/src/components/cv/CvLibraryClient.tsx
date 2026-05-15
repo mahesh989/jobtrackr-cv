@@ -234,7 +234,7 @@ export function CvLibraryClient({ initial }: Props) {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       {/* Upload form */}
       <div className="bg-surface border border-border rounded-md">
         <div className="px-5 py-4 border-b border-border bg-surface-2">

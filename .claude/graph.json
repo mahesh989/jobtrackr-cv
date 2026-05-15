@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.1",
-    "updated": "2026-05-16",
+    "updated": "2026-05-15",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -163,7 +163,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Phase 9: end-to-end QA pass on the new analysis layout. Open questions: revisit GPT-5 forced-temperature=1 quality issue (BUG-2); DOCX upload (BUG-1).",
+    "next_action": "Apply pending migrations 013–020 in Supabase SQL editor (in order). Redeploy cv-backend on Fly.io. Then do a full end-to-end QA pass on the preview URL — upload CV, connect AI key, analyze a job, verify all 7 cards render, download tailored PDF.",
     "completed": [
       "Phase 0 \u2014 preview env verified",
       "Phase 1 \u2014 migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -596,20 +596,20 @@
         {
           "id": "6.1",
           "desc": "Re-enable steps 2\u20136.6 in cv-backend orchestrator",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "id": "6.2",
           "desc": "Copy cv-magic/frontend/components/analysis/* into web/",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "id": "6.3",
-          "desc": "Wire all 12 cards into /jobs/[id]/analysis/[run_id]",
-          "status": "planned"
+          "desc": "Wire all 12 cards into /jobs/[id]/analyze/[run_id]",
+          "status": "completed"
         }
       ],
-      "gate": "PASSED"
+      "gate": "PASSED \u2014 full pipeline wired; all result cards rendering."
     },
     {
       "phase": 7,
@@ -619,15 +619,15 @@
         {
           "id": "7.1",
           "desc": "Enable PDF generation branch in orchestrator (uploads to Storage)",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "id": "7.2",
-          "desc": "Download + preview UI in tailored-cv-card.tsx",
-          "status": "planned"
+          "desc": "Inline markdown render + Download PDF button in TailoredCvCard",
+          "status": "completed"
         }
       ],
-      "gate": "PASSED (PDF rendering implemented in ccf445c)"
+      "gate": "PASSED — tailored CV renders inline; Download PDF triggers Supabase Storage download."
     },
     {
       "phase": 7.5,
@@ -677,16 +677,26 @@
       "tasks": [
         {
           "id": "9.1",
-          "desc": "Empty-state copy and error styling",
-          "status": "planned"
+          "desc": "Content centering — mx-auto on all Tools pages (CV, Analyses, Profile, Integrations, Analysis run)",
+          "status": "completed"
         },
         {
           "id": "9.2",
-          "desc": "Decision point: promote to production or keep as preview",
+          "desc": "Actions column declutter — Edit→pencil icon, remove redundant ↓ expand chevron",
+          "status": "completed"
+        },
+        {
+          "id": "9.3",
+          "desc": "AI keys nav link removed from sidebar; consolidated into Profile/Integrations",
+          "status": "completed"
+        },
+        {
+          "id": "9.4",
+          "desc": "Production promotion decision — promote to production repo or keep as preview",
           "status": "planned"
         }
       ],
-      "gate": "End-to-end test on preview clean. Production decision documented."
+      "gate": "End-to-end QA pass on preview after migrations applied. Production decision documented."
     }
   ],
   "decisions": [
@@ -731,6 +741,12 @@
       "date": "2026-05-14",
       "decision": "Production JobTrackr deploy stays on its own repo; this project deploys to its own Vercel+Fly apps.",
       "rationale": "Zero blast radius until explicit promotion decision."
+    },
+    {
+      "id": "D8",
+      "date": "2026-05-15",
+      "decision": "AI keys sidebar link removed; key management consolidated into Integrations page.",
+      "rationale": "Reduces sidebar clutter; one fewer nav item for what is a rare settings action."
     }
   ],
   "open_questions": [

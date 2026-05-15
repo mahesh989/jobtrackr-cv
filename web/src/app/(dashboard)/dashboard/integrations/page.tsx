@@ -80,7 +80,7 @@ export default async function IntegrationsPage() {
         </p>
       </div>
 
-      <div className="px-6 py-5 max-w-3xl space-y-8">
+      <div className="px-6 py-5 max-w-3xl mx-auto space-y-8">
 
         {/* AI providers section */}
         <section>

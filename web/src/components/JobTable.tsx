@@ -337,18 +337,23 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions — pencil icon | [View] | Analyze | Applied | × */}
           <div
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Edit — icon only; title attr gives the tooltip */}
             <button
               onClick={() => setShowEdit(true)}
-              className="gh-btn text-[11px] px-2 py-1 text-[#656D76] hover:text-[#0969DA] hover:border-[#0969DA]/30"
-              title="Edit the JD (trim noise) and add a contact email"
+              className="gh-btn p-1.5 text-[#656D76] hover:text-[#0969DA] hover:border-[#0969DA]/30"
+              title="Edit JD and contact email"
             >
-              Edit
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/>
+              </svg>
             </button>
+
             {job.latest_run_id && (
               <a
                 href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
@@ -359,7 +364,9 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 View
               </a>
             )}
+
             <AnalyzeJobButton jobId={job.id} />
+
             <button
               disabled={pending || localApplied}
               onClick={handleApply}
@@ -371,26 +378,15 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             >
               {localApplied ? "✓ Applied" : "Applied"}
             </button>
+
             <button
               disabled={pending}
               onClick={handleDismiss}
-              className="gh-btn text-[11px] px-2 py-1 text-[#9198A1] hover:text-[#CF222E] hover:border-[#CF222E]/30 hover:bg-[#FFEBE9]"
+              className="gh-btn p-1.5 text-[#9198A1] hover:text-[#CF222E] hover:border-[#CF222E]/30 hover:bg-[#FFEBE9]"
               title="Dismiss"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="gh-btn text-[11px] px-2 py-1 text-[#9198A1]"
-              title={expanded ? "Collapse" : "View description"}
-            >
-              <svg
-                className={`w-3 h-3 transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
-                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
               </svg>
             </button>
           </div>
