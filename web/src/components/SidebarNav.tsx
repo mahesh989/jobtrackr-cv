@@ -2,6 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Briefcase,
+  FileText,
+  History,
+  UserCircle2,
+  Plug,
+  Palette,
+  Lock,
+  Users,
+  BarChart3,
+  Plus,
+  LogOut,
+  Sparkles,
+} from "lucide-react";
 
 interface Profile {
   id: string;
@@ -16,8 +31,26 @@ interface Props {
   isAdmin: boolean;
 }
 
-function NavItem({ href, children, badge, exact }: {
+/**
+ * Sidebar nav. Visual structure adapted from cv-magic:
+ *  - 256px wide on cv-magic themes (Classic / Notion / Clay / Gilded Noir),
+ *    220px on Default — controlled by --sidebar-width on <html>.
+ *  - Each item is icon + label, font-semibold for cv-magic themes.
+ *  - Active state: solid bg fill on Default; 2px primary-coloured left
+ *    border + soft tint on cv-magic themes (handled by .sidebar-item
+ *    and .sidebar-item-active CSS in globals.css).
+ *  - Logo: Sparkles icon + "JobTrackr" in serif (cv-magic themes pull
+ *    the serif font from var(--font-serif-active)).
+ */
+function NavItem({
+  href,
+  icon: Icon,
+  children,
+  badge,
+  exact,
+}: {
   href: string;
+  icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
   badge?: number;
   exact?: boolean;
@@ -28,15 +61,21 @@ function NavItem({ href, children, badge, exact }: {
   return (
     <Link
       href={href}
-      className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors group ${
-        active
-          ? "bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
-          : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]"
-      }`}
+      className={
+        "sidebar-item flex items-center justify-between gap-2 px-3 rounded-[var(--sidebar-item-radius)] " +
+        "text-[13px] font-semibold transition-colors group " +
+        (active
+          ? "sidebar-item-active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
+          : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]")
+      }
+      style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
     >
-      <span className="truncate">{children}</span>
+      <span className="flex items-center gap-2.5 min-w-0">
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{children}</span>
+      </span>
       {badge !== undefined && badge > 0 && (
-        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-white text-[10px] font-bold flex items-center justify-center">
+        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-[10px] font-bold flex items-center justify-center">
           {badge > 99 ? "99+" : badge}
         </span>
       )}
@@ -49,29 +88,32 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 h-14 border-b border-[var(--sidebar-border)] shrink-0">
-        <div className="w-6 h-6 rounded-md bg-[var(--brand)] flex items-center justify-center shrink-0">
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="2" fill="white"/>
-            <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.64 2.64l1.42 1.42M9.94 9.94l1.42 1.42M2.64 11.36l1.42-1.42M9.94 4.06l1.42-1.42"
-              stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </div>
-        <span className="text-[var(--sidebar-active)] font-semibold text-[14px] tracking-tight">JobTrackr</span>
+      <div className="flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+        <Sparkles className="h-5 w-5 text-[var(--brand)] shrink-0" />
+        <span
+          className="font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
+          style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}
+        >
+          JobTrackr
+        </span>
       </div>
 
       {/* Nav body */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
         {/* Overview */}
-        <div className="px-2 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">Overview</p>
+        <div className="px-1 pb-1">
+          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+            Overview
+          </p>
         </div>
-        <NavItem href="/dashboard" exact>Dashboard</NavItem>
+        <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
 
         {/* Profiles */}
-        <div className="px-2 pt-4 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">My profiles</p>
+        <div className="px-1 pt-4 pb-1">
+          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+            My profiles
+          </p>
         </div>
 
         {profiles.length === 0 ? (
@@ -81,6 +123,7 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
             <NavItem
               key={p.id}
               href={`/dashboard/profiles/${p.id}/jobs`}
+              icon={Briefcase}
               badge={p.newCount}
             >
               <span className="flex items-center gap-1.5">
@@ -99,34 +142,36 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
         <div className="px-3 pt-1">
           <Link
             href="/dashboard/profiles/new"
-            className="flex items-center gap-1.5 text-[12px] text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text)] transition-colors py-1"
+            className="flex items-center gap-1.5 text-[12px] text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors py-1"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
+            <Plus className="w-3.5 h-3.5" />
             New profile
           </Link>
         </div>
 
         {/* Tools */}
-        <div className="px-2 pt-4 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">Tools</p>
+        <div className="px-1 pt-4 pb-1">
+          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+            Tools
+          </p>
         </div>
-        <NavItem href="/dashboard/cv">CV library</NavItem>
-        <NavItem href="/dashboard/analyses">Analyses</NavItem>
-        <NavItem href="/dashboard/settings/profile">Profile</NavItem>
-        <NavItem href="/dashboard/integrations">Integrations</NavItem>
-        <NavItem href="/dashboard/settings/theme">Theme</NavItem>
-        <NavItem href="/privacy">Privacy policy</NavItem>
+        <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
+        <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
+        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>Profile</NavItem>
+        <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
+        <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
+        <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
 
         {/* Admin */}
         {isAdmin && (
           <>
-            <div className="px-2 pt-4 pb-1">
-              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">Admin</p>
+            <div className="px-1 pt-4 pb-1">
+              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+                Admin
+              </p>
             </div>
-            <NavItem href="/dashboard/admin">Users & Invites</NavItem>
-            <NavItem href="/dashboard/admin/metrics">Beta Metrics</NavItem>
+            <NavItem href="/dashboard/admin" icon={Users}>Users &amp; Invites</NavItem>
+            <NavItem href="/dashboard/admin/metrics" icon={BarChart3}>Beta Metrics</NavItem>
           </>
         )}
       </nav>
@@ -134,20 +179,19 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
       {/* User footer */}
       <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-full bg-[#21262D] flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-[var(--sidebar-text)]">
+          <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
+            <span className="text-[11px] font-bold text-[var(--sidebar-text)]">
               {email[0]?.toUpperCase()}
             </span>
           </div>
           <span className="text-[12px] text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
           <form action="/auth/signout" method="post">
             <button
-              className="text-[11px] text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text)] transition-colors shrink-0"
+              className="text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0"
               title="Sign out"
+              aria-label="Sign out"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-              </svg>
+              <LogOut className="w-4 h-4" />
             </button>
           </form>
         </div>

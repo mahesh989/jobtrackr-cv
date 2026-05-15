@@ -13,6 +13,10 @@
   --font-sans-active:  var(--font-sans);
   --font-serif-active: var(--font-serif);
   --radius:            6px;
+  --sidebar-width:     220px;
+  --sidebar-item-radius: 6px;
+  --sidebar-item-py:   6px;
+  --sidebar-active-style: bg;        /* bg | left-bar */
 
   /* Sidebar */
   --sidebar-bg:        #0D1117;
@@ -68,6 +72,10 @@
   --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            8px;
+  --sidebar-width:     256px;        /* cv-magic w-64 */
+  --sidebar-item-radius: 8px;
+  --sidebar-item-py:   8px;
+  --sidebar-active-style: left-bar;
 
   --sidebar-bg:        #FFFFFF;
   --sidebar-border:    #E2E8F0;
@@ -105,6 +113,10 @@
   --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            18px;
+  --sidebar-width:     256px;
+  --sidebar-item-radius: 8px;
+  --sidebar-item-py:   8px;
+  --sidebar-active-style: left-bar;
 
   --sidebar-bg:        #100C05;
   --sidebar-border:    #2A2418;
@@ -151,6 +163,10 @@
   --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            8px;
+  --sidebar-width:     256px;
+  --sidebar-item-radius: 8px;
+  --sidebar-item-py:   8px;
+  --sidebar-active-style: left-bar;
 
   --sidebar-bg:        #0A1530;
   --sidebar-border:    #1A2547;
@@ -188,6 +204,10 @@
   --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            12px;
+  --sidebar-width:     256px;
+  --sidebar-item-radius: 10px;
+  --sidebar-item-py:   8px;
+  --sidebar-active-style: left-bar;
 
   --sidebar-bg:        #1A1410;
   --sidebar-border:    #2D2620;
@@ -504,4 +524,73 @@ body {
   height: 100%;
   border-radius: 2px;
   transition: width 0.4s ease;
+}
+
+/* ─── Sidebar items — cv-magic style (left-bar active) ─────────
+   Active visual differs between Default and the cv-magic themes:
+     Default       — solid bg behind active item (current look)
+     cv-magic 4×   — 2px primary-coloured left border + soft tint
+   The .sidebar-item-active class is applied conditionally in
+   SidebarNav. CSS below targets only theme classes for the left-bar
+   variant; the default 'bg' variant lives in the Tailwind classes.
+*/
+:root.theme-classic       .sidebar-item-active,
+:root.theme-gilded-noir   .sidebar-item-active,
+:root.theme-notion        .sidebar-item-active,
+:root.theme-clay          .sidebar-item-active {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand);
+  border-left: 2px solid var(--brand);
+  padding-left: 10px;   /* was 12px, reduce by 2 to compensate for the border */
+}
+
+/* Hover state for cv-magic theme sidebar items */
+:root.theme-classic       .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-gilded-noir   .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-notion        .sidebar-item:not(.sidebar-item-active):hover,
+:root.theme-clay          .sidebar-item:not(.sidebar-item-active):hover {
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+  color: var(--brand);
+}
+
+/* ─── Glass / card utility — cv-magic style ───────────────────
+   Default theme keeps plain cards via .bg-surface .border classes
+   already in components. The cv-magic themes add subtle shadow +
+   glass effect via the .glass class. Components add 'glass' to
+   their card containers when they want the cv-magic treatment;
+   in Default this is a no-op. */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+:root.theme-gilded-noir .glass {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--text) 5%, transparent),
+    color-mix(in srgb, var(--text) 2%, transparent)
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow:
+    0 8px 48px 0 color-mix(in srgb, var(--brand) 7%, transparent),
+    0 2px 12px 0 color-mix(in srgb, var(--brand) 4%, transparent);
+}
+
+:root.theme-classic .glass {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+:root.theme-notion .glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px 0 rgba(86, 69, 212, 0.04);
+}
+
+:root.theme-clay .glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius);
 }

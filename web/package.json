@@ -12,14 +12,15 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "bullmq": "^5.76.6",
+    "html2canvas-pro": "^1.5.8",
     "ioredis": "^5.10.1",
+    "jspdf": "^2.5.2",
+    "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^9.0.1",
-    "remark-gfm": "^4.0.0",
-    "html2canvas-pro": "^1.5.8",
-    "jspdf": "^2.5.2"
+    "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
