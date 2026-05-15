@@ -97,10 +97,15 @@ async def run_keyword_feasibility(
         ),
         match_evidence_json=json.dumps(match_evidence, indent=2),
     )
+    # Bumped from cv-magic's 2048 to 4096. Observed truncation on
+    # verbose JDs (many keywords × per-entry evidence + suggested_rewrite
+    # text). The AI client also retries on truncation as a safety net,
+    # but raising the first-try ceiling avoids the extra round-trip in
+    # the common case.
     raw = await client.complete_json(
         system=KEYWORD_FEASIBILITY_SYSTEM,
         user=user_prompt,
-        max_tokens=2048,
+        max_tokens=4096,
         temperature=0.2,
     )
 

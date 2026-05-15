@@ -47,10 +47,16 @@ async def run_tailored_cv(
         ai_recommendations_md=ai_recommendations_md,
         feasibility_json=json.dumps(feasibility_for_prompt, indent=2),
     )
+    # Bumped from cv-magic's 4096 to 6144. The tailored CV is the longest
+    # AI output in the pipeline; verbose JDs + multi-role CVs can produce
+    # markdown that hits 4096 and gets cut off mid-section, failing
+    # _enforce_structure downstream. The AI client also retries on
+    # truncation, but raising the first-try ceiling avoids the extra
+    # round-trip in the common case.
     markdown = await client.complete(
         system=TAILORED_CV_SYSTEM,
         user=user_prompt,
-        max_tokens=4096,
+        max_tokens=6144,
         temperature=0.3,
     )
 

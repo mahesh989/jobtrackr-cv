@@ -197,15 +197,37 @@ class AIClient:
 
         try:
             response = await _do_call(request_kwargs)
-            # Auto-retry once on max-tokens truncation. cv-magic's per-step
-            # max_tokens (2048 for keyword_feasibility) can be exhausted by
-            # JDs that produce verbose feasibility output; truncating mid-
-            # JSON then crashes _extract_json downstream. Doubling the cap
-            # once is plenty for any real-world CV/JD pair.
-            if response.choices and response.choices[0].finish_reason == "length":
+            # Always log the finish_reason so truncation issues are easy to
+            # diagnose in production. OpenAI exposes 'stop' | 'length' |
+            # 'content_filter' | 'tool_calls' | 'function_call' for chat
+            # completions. Some gpt-5 sub-versions have been observed
+            # returning 'length' on overflow; others may use different codes.
+            finish_reason = (
+                response.choices[0].finish_reason if response.choices else None
+            )
+            logger.info(
+                "OpenAI response for %s: finish_reason=%s, length=%d chars",
+                self.model, finish_reason,
+                len(response.choices[0].message.content or "") if response.choices else 0,
+            )
+            # Auto-retry once when the model clearly ran out of output budget.
+            # Also catch the gpt-5 'incomplete' code (some sub-versions use it
+            # instead of 'length') and any non-'stop' code with suspiciously
+            # truncated output (last 20 chars don't end with } or ] or "), as
+            # a belt-and-suspenders catch for new finish_reason variants.
+            content = response.choices[0].message.content if response.choices else ""
+            looks_truncated = (
+                content and not content.rstrip().endswith(("}", "]", "\"", ".", "`"))
+            )
+            should_retry = (
+                finish_reason in ("length", "incomplete")
+                or (finish_reason != "stop" and looks_truncated)
+            )
+            if should_retry:
                 logger.info(
-                    "OpenAI hit max_completion_tokens (%d) for model %s; retrying with doubled cap.",
-                    request_kwargs["max_completion_tokens"], self.model,
+                    "Retrying for model %s (finish_reason=%s, looks_truncated=%s) "
+                    "with doubled max_completion_tokens.",
+                    self.model, finish_reason, looks_truncated,
                 )
                 bumped = {
                     **request_kwargs,
