@@ -132,16 +132,21 @@ class AIClient:
             kwargs["base_url"] = base_url
         client = AsyncOpenAI(**kwargs)
 
-        # Models that reject non-default `temperature` (OpenAI 400 with
-        # `unsupported_value`): o-series reasoning models (o1, o3, o4)
-        # AND the gpt-5 family (gpt-5, gpt-5.x, gpt-5-mini, gpt-5-pro, ...).
-        # All modern OpenAI models also require `max_completion_tokens`
-        # instead of the deprecated `max_tokens`.
+        # o-series reasoning models (o1, o3, o4) NEVER accept custom
+        # temperature. gpt-5.x is mixed — some sub-versions accept it
+        # (e.g. gpt-5.1, gpt-5.2 in observed runs), others reject it
+        # with HTTP 400 `unsupported_value` (e.g. gpt-5.5). Rather than
+        # blanket-strip the whole gpt-5 family (which forced cv-magic's
+        # carefully-tuned 0.1 temperature up to OpenAI's default of 1
+        # and noticeably degraded extraction quality), we now:
+        #   1. Always strip for o-series — they universally reject.
+        #   2. Send temperature for everything else, including gpt-5.x.
+        #   3. If OpenAI returns the specific temperature-unsupported
+        #      error, retry once without temperature.
         skip_temperature = (
             self.model.startswith("o1")
             or self.model.startswith("o3")
             or self.model.startswith("o4")
-            or self.model.startswith("gpt-5")
         )
 
         request_kwargs: Dict[str, Any] = {
@@ -155,8 +160,30 @@ class AIClient:
         if not skip_temperature:
             request_kwargs["temperature"] = temperature
 
+        async def _do_call(kwargs: Dict[str, Any]):
+            try:
+                return await client.chat.completions.create(**kwargs)
+            except Exception as exc:
+                msg = str(exc)
+                # Heuristic match — covers both the SDK's string form and
+                # the raw {'error': {'message': '...'}} envelope.
+                temp_unsupported = (
+                    "'temperature'" in msg
+                    and ("unsupported_value" in msg.lower()
+                         or "does not support" in msg.lower())
+                )
+                if temp_unsupported and "temperature" in kwargs:
+                    # Retry without temperature — model enforces default=1.
+                    logger.info(
+                        "Model %s rejected custom temperature; retrying with default.",
+                        self.model,
+                    )
+                    retry = {k: v for k, v in kwargs.items() if k != "temperature"}
+                    return await client.chat.completions.create(**retry)
+                raise
+
         try:
-            response = await client.chat.completions.create(**request_kwargs)
+            response = await _do_call(request_kwargs)
         except Exception as exc:
             raise AIClientError(f"OpenAI API error: {exc}") from exc
 
