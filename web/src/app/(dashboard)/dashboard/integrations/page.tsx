@@ -72,15 +72,14 @@ export default async function IntegrationsPage() {
   }
 
   return (
-    <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">Integrations</h1>
-        <p className="text-[12px] text-text-3 mt-0.5">
-          Connect job sources and AI providers. All credentials are encrypted at rest with AES-256-GCM.
-        </p>
-      </div>
-
-      <div className="px-6 py-5 max-w-3xl mx-auto space-y-8">
+    <div className="min-h-full px-6 py-6">
+      <div className="max-w-3xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-[16px] font-semibold text-text">Integrations</h1>
+          <p className="text-[12px] text-text-3 mt-0.5">
+            Connect job sources and AI providers. All credentials are encrypted at rest with AES-256-GCM.
+          </p>
+        </div>
 
         {/* AI providers section */}
         <section>

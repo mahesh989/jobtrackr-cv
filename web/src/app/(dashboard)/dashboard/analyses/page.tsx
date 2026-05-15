@@ -35,17 +35,15 @@ export default async function AnalysesPage() {
   }
 
   return (
-    <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+    <div className="min-h-full px-6 py-6">
+      <div className="max-w-4xl mx-auto mb-6">
         <h1 className="text-[16px] font-semibold text-text">Analyses</h1>
         <p className="text-[12px] text-text-3 mt-0.5">
           Every CV-tailoring analysis you&apos;ve run, grouped by job. Click any
           row to view the full breakdown.
         </p>
       </div>
-      <div className="px-6 py-6">
-        <AnalysisHistoryClient initialRuns={safeRuns} jobs={jobs} />
-      </div>
+      <AnalysisHistoryClient initialRuns={safeRuns} jobs={jobs} />
     </div>
   );
 }

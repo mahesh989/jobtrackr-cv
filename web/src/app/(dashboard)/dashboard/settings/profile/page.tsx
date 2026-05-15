@@ -20,16 +20,14 @@ export default async function ProfileSettingsPage() {
   const initial = (data?.contact_details as ContactDetails | null) ?? null;
 
   return (
-    <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+    <div className="min-h-full px-6 py-6">
+      <div className="max-w-3xl mx-auto mb-6">
         <h1 className="text-[16px] font-semibold text-text">Profile</h1>
         <p className="text-[12px] text-text-3 mt-0.5">
           Contact details and portfolio projects used when tailoring your CV.
         </p>
       </div>
-      <div className="px-6 py-6">
-        <ProfileSettingsClient initial={initial} />
-      </div>
+      <ProfileSettingsClient initial={initial} />
     </div>
   );
 }
