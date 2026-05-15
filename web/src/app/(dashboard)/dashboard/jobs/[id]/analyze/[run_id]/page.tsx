@@ -59,19 +59,35 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const ranJd     = ((run as unknown as { jd_text: string }).jd_text ?? "").trim();
   const jdChanged = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
 
+  const runStatus    = (run as unknown as { status: string }).status;
+  const completedAt  = (run as unknown as { completed_at: string | null }).completed_at;
+  const subtitleText =
+    runStatus === "running"   ? "Pipeline running…" :
+    runStatus === "pending"   ? "Pipeline queued — starting shortly." :
+    runStatus === "completed" ? `Completed${completedAt ? " · " + new Date(completedAt).toLocaleString("en-AU") : ""}` :
+    runStatus === "failed"    ? "Failed." :
+                                "";
+
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">
-          {job?.title ?? "Analysis"}{job?.company ? ` · ${job.company}` : ""}
-        </h1>
-        <p className="text-[12px] text-text-3 mt-0.5">
-          {job?.location ?? ""}
+        <a
+          href="/dashboard/analyses"
+          className="inline-flex items-center text-[12px] text-text-3 hover:text-text"
+        >
+          ← Back to analyses
+        </a>
+        <h1 className="mt-1 text-[20px] font-serif font-bold text-text">Analysis Run</h1>
+        <p className="text-[12px] text-text-3 italic mt-0.5">{subtitleText}</p>
+        <p className="text-[11px] text-text-3 mt-1 truncate">
+          <span className="font-medium text-text-2">{job?.title ?? "Job"}</span>
+          {job?.company ? ` · ${job.company}` : ""}
+          {job?.location ? ` · ${job.location}` : ""}
           {job?.url && (
             <>
               {" · "}
               <a href={job.url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
-                Job listing ↗
+                Listing ↗
               </a>
             </>
           )}

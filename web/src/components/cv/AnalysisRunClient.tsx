@@ -53,17 +53,24 @@ interface Props {
   cvCategorisedSkills?: CategorisedSkills | null;
 }
 
+// Step labels match cv-magic's AnalysisProgress wording verbatim.
 const STEPS: { key: string; label: string }[] = [
-  { key: "jd_analysis",           label: "JD analysis" },
-  { key: "cv_jd_matching",        label: "CV ↔ JD matching" },
+  { key: "jd_analysis",           label: "Analysing job description" },
+  { key: "cv_jd_matching",        label: "Matching CV to JD" },
   { key: "ats_scoring",           label: "ATS scoring" },
-  { key: "input_recommendations", label: "Input recommendations" },
-  { key: "keyword_feasibility",   label: "Keyword feasibility" },
-  { key: "ai_recommendations",    label: "AI recommendations" },
-  { key: "tailored_cv",           label: "Tailored CV" },
+  { key: "input_recommendations", label: "Building recommendations" },
+  { key: "keyword_feasibility",   label: "Classifying keyword feasibility" },
+  { key: "ai_recommendations",    label: "Generating AI advice" },
+  { key: "tailored_cv",           label: "Creating tailored CV" },
 ];
 
-function StepRow({ label, state }: { label: string; state: string }) {
+function StepRow({
+  label, state, scoreBadge,
+}: {
+  label:       string;
+  state:       string;
+  scoreBadge?: number | null;       // shown inline after ATS scoring step
+}) {
   const dot =
     state === "completed" ? "bg-green" :
     state === "running"   ? "bg-blue animate-pulse" :
@@ -78,6 +85,11 @@ function StepRow({ label, state }: { label: string; state: string }) {
     <div className="flex items-center gap-3 py-2">
       <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
       <span className={`text-[13px] ${color}`}>{label}</span>
+      {typeof scoreBadge === "number" && state === "completed" && (
+        <span className="text-[11px] font-semibold text-[#0969DA] bg-[#DDF4FF] border border-[#0969DA]/20 rounded px-1.5 py-0.5 tabular-nums">
+          {Math.round(scoreBadge)}%
+        </span>
+      )}
       <span className="text-[11px] text-text-3 ml-auto uppercase tracking-wide">{state}</span>
     </div>
   );
@@ -160,7 +172,12 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         </div>
         <div className="px-5 py-3 divide-y divide-border/50">
           {STEPS.map((s) => (
-            <StepRow key={s.key} label={s.label} state={run.step_status?.[s.key] ?? "pending"} />
+            <StepRow
+              key={s.key}
+              label={s.label}
+              state={run.step_status?.[s.key] ?? "pending"}
+              scoreBadge={s.key === "ats_scoring" ? run.match_score ?? null : null}
+            />
           ))}
         </div>
         {run.error_message && (
