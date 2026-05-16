@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.2",
-    "updated": "2026-05-16",
+    "updated": "2026-05-16 (Session A cleanup)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -163,7 +163,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Phase 10 scoping: decide between (a) beta invite flow + onboarding, (b) custom domain setup, (c) additional job sources. Prerequisite: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should also update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
+    "next_action": "Session B: cover letter feature. Phase 10 longer-term: decide between (a) beta invite flow + onboarding, (b) custom domain setup, (c) additional job sources. Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -195,7 +195,8 @@
       "Phase 9.15 — Active CV sorts to top of list immediately when Set Active clicked.",
       "Phase 9.16 — OpenAI non-chat model fallback: cv-backend client.py detects 'not a chat model' error and retries with gpt-4o. Web routes also retry with ai_model=null on failure.",
       "Phase 9.17 — Brand-tinted theme borders: Clay --border #F5BECE (pink), Notion --border #C1B7EC (purple), Gilded Noir --border #5C4D23 (gold-dark). Table lines, card outlines, form boxes now match each theme's brand.",
-      "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1 (recommended), GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini. Removed fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini."
+      "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1 (recommended), GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini. Removed fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini.",
+      "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene: (1) Migration renames: 005_vertical_filter→006_vertical_filter, 009_possible_duplicate→009_add_possible_duplicate_dedup_status. No prod impact — migrations are CLI-untracked, applied manually via SQL editor. (2) Dead components deleted: AiKeyCard.tsx (superseded by ProviderPicker), JobCard.tsx, JobSortBar.tsx (both superseded by JobTable/JobFilterBar in Phase 9), ToggleActiveButton.tsx (never wired up). (3) scrapeJobUrl.ts kept but marked as DEFERRED-1 in deferred_features; deferred comment block added to file header. (4) bullmq + ioredis confirmed legitimate — server-side only, used by job-discovery pipeline queue trigger in run/route.ts and actions.ts; do not remove. (5) Test artefacts removed from git: 2× Jora CSV, discovered_slugs.json, jora_scraper.py, verify_slugs.py, 3× jora_test JSON, test-update.js, fix-dead-links.js. Patterns added to .gitignore with explanatory comment."
     ],
     "in_progress": [],
     "blocked": []
@@ -795,6 +796,32 @@
       "date": "2026-05-16",
       "decision": "OpenAI model list restricted to real chat-completions-compatible models: GPT-5.1, GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini.",
       "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded — they fail at the /v1/chat/completions endpoint."
+    }
+  ],
+  "deferred_features": [
+    {
+      "id": "DEFERRED-1",
+      "title": "Tier 4 user-initiated JD URL fetch",
+      "file": "web/src/lib/scrapeJobUrl.ts",
+      "status": "built, not wired up — no API route or UI calls this",
+      "description": "User pastes a job URL into the manual JD edit flow; utility fetches and pre-populates the JD text field via JSON-LD → OpenGraph → HTML parse chain.",
+      "distinct_from": "cv-backend/services/scraping/jd_scraper.py — that runs during analysis from a known source; this is a pre-analysis, user-triggered fetch.",
+      "to_activate": "Create POST /api/jobs/scrape-url calling scrapeJobUrl(), returning { jdText, source }. Wire to 'Fetch from URL' button on JobEditModal.",
+      "reconsider": "When manual JD edit flow gets enhanced (e.g. Phase 10+ or cover letter feature needs richer JD input)."
+    }
+  ],
+  "operational_notes": [
+    {
+      "id": "OPS-1",
+      "title": "Migration tracking is CLI-untracked",
+      "detail": "All migrations applied manually via Supabase SQL editor — supabase link has never been run, no config.toml exists. If supabase link is ever set up, run supabase migration repair to mark all 20 migrations as applied before using any CLI workflows (db push, branching, etc.). Renaming local migration files (as done 2026-05-16) has zero production impact while CLI-untracked.",
+      "logged": "2026-05-16"
+    },
+    {
+      "id": "OPS-2",
+      "title": "bullmq + ioredis in web/package.json are legitimate",
+      "detail": "Imported by web/src/app/api/profiles/[id]/run/route.ts and web/src/lib/actions.ts for the job-discovery pipeline BullMQ queue trigger. Both are server-side only (Next.js API route + server action). They do not enter the browser bundle. Do not remove them.",
+      "logged": "2026-05-16"
     }
   ],
   "open_questions": [

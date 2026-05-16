@@ -45,3 +45,14 @@ coverage/
 # Supabase
 supabase/.branches
 supabase/.temp
+
+# Test artefacts and one-off scripts — removed 2026-05-16
+# Do not re-add these. If you need ad-hoc scraping scripts, put them in
+# /scripts/ at repo root with a clear name and commit them properly.
+web/jora_jobs_*.csv
+web/discovered_slugs.json
+web/jora_scraper.py
+web/verify_slugs.py
+worker/jora_test_*.json
+worker/test-update.js
+worker/fix-dead-links.js

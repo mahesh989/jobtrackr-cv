@@ -1,3 +1,14 @@
+// DEFERRED FEATURE — Tier 4 user-initiated JD URL fetch
+//
+// Status: built, not wired up. No API route calls this.
+// Intended use: user pastes a job URL into the manual JD edit flow,
+//   this fetches and pre-populates the JD text field.
+// Distinct from cv-backend/services/scraping/jd_scraper.py, which runs
+//   during analysis from a known JD source.
+// To activate: create POST /api/jobs/scrape-url that calls scrapeJobUrl()
+//   and returns { jdText, source }. Wire to a "Fetch from URL" button on
+//   the JD edit modal.
+
 /**
  * scrapeJobUrl — Tier 4 user-initiated job page fetcher.
  *
