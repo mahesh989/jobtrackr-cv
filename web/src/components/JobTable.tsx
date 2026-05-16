@@ -219,9 +219,9 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
         {/* ── Main row ─────────────────────────────────────────────────────── */}
         <div
           className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
-            isFlash ? "bg-[#DAFBE1]" : "hover:bg-[#F6F8FA]"
+            isFlash ? "bg-green-light" : "hover:bg-[var(--surface-2)]/60"
           } ${
-            localApplied ? "border-l-2 border-l-[#1A7F37]" : isNew ? "border-l-2 border-l-[#0969DA]" : ""
+            localApplied ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""
           }`}
           onClick={() => setExpanded(!expanded)}
         >
@@ -249,7 +249,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-[13px] font-semibold text-[#1F2328] hover:text-[#0969DA] transition-colors leading-snug block truncate"
+                className="text-[13px] font-semibold text-text hover:text-[var(--brand)] transition-colors leading-snug block truncate"
               >
                 {job.title}
               </a>
