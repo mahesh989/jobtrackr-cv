@@ -1,13 +1,13 @@
 {
   "_meta": {
-    "version": "0.1",
-    "updated": "2026-05-15",
+    "version": "0.2",
+    "updated": "2026-05-16",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
   "project": {
     "name": "JobTrackr-CV",
-    "summary": "JobTrackr v2 \u2014 absorbs cv-magic's CV-tailoring pipeline as an internal feature module. ONE domain (Vercel auto URL), ONE user identity (Supabase), ONE database. The Python pipeline service is invisible plumbing on Fly.io.",
+    "summary": "JobTrackr v2 — absorbs cv-magic's CV-tailoring pipeline as an internal feature module. ONE domain (Vercel auto URL), ONE user identity (Supabase), ONE database. The Python pipeline service is invisible plumbing on Fly.io.",
     "framing": "cv-magic is no longer a separate product. It is a block of functionality inside JobTrackr. Users only ever see jobtrackr-cv-*.vercel.app. The Fly.io Python service has no public domain.",
     "navigation": "Same-tab (no new tabs). Analysis pages are JobTrackr routes: /jobs/[id]/analyze, /jobs/[id]/analyze/[run_id].",
     "source_projects": {
@@ -75,7 +75,7 @@
         ],
         "relations": [
           "belongs_to: User",
-          "belongs_to: Job (job_id \u2192 jobs.id)",
+          "belongs_to: Job (job_id → jobs.id)",
           "belongs_to: CVVersion"
         ],
         "notes": "Mirrors cv-magic AnalysisRun with company_id renamed to job_id. step_status = 7-key JSON tracking each pipeline step. cv-backend writes via service-role; frontend reads via RLS + Realtime."
@@ -111,7 +111,7 @@
     "worker": {
       "path": "worker/",
       "host": "Fly.io (jobtrackr-cv-worker)",
-      "role": "Job discovery pipeline only \u2014 unchanged from JobTrackr. NOT used for CV analysis.",
+      "role": "Job discovery pipeline only — unchanged from JobTrackr. NOT used for CV analysis.",
       "status": "copied_from_jobtrackr"
     },
     "cv_backend": {
@@ -163,21 +163,28 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Apply pending migrations 013–020 in Supabase SQL editor (in order). Redeploy cv-backend on Fly.io. Then do a full end-to-end QA pass on the preview URL — upload CV, connect AI key, analyze a job, verify all 7 cards render, download tailored PDF.",
+    "next_action": "End-to-end QA pass: upload CV, connect AI key via new ProviderPicker accordion, set preferred provider, run analysis, verify all 7 cards render, download tailored PDF. Then decide Phase 10 scope (beta invite flow, custom domain, or feature additions).",
     "completed": [
-      "Phase 0 \u2014 preview env verified",
-      "Phase 1 \u2014 migrations 010/011/012 applied; tables live + Realtime publication active",
-      "Phase 2 \u2014 cv-backend deployed; /health 200, signed /internal/analyze returns 202",
-      "Phase 3 \u2014 CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)",
-      "Phase 4 \u2014 BYOK keys (Anthropic/OpenAI/DeepSeek) UI + routes",
-      "Phase 5 \u2014 Analyze button wired end-to-end; JD analysis step runs live (polling fallback added because Realtime delivery is unreliable)",
-      "Phase 5.5 \u2014 Manual JD edit + contact email",
-      "Phase 6 \u2014 Wire remaining steps + result cards",
-      "Phase 7 \u2014 Tailored CV PDF + viewer (Download PDF button via pre-rendered ReportLab)",
-      "Phase 7.5 \u2014 Profile settings (contact details + portfolio projects)",
-      "Phase 8 \u2014 Analyses tab + history view grouped by job",
-      "Phase 8.5 \u2014 Integrations page consolidated (AI keys merged in); separate AI-keys nav removed",
-      "Phase 8.6 \u2014 cv-magic detail layout parity: CvJdMatchingCard table + ATS named sub-scores + 4-bucket FeasibilityCard with Evidence/Suggested rewrite + Tailored ATS-lift circle layout + Print/.md/PDF download trio on TailoredCvCard"
+      "Phase 0 — preview env verified",
+      "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
+      "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
+      "Phase 3 — CV upload UI + flow working for PDF (DOCX has known issue BUG-1, parked)",
+      "Phase 4 — BYOK keys (Anthropic/OpenAI/DeepSeek) UI + routes",
+      "Phase 5 — Analyze button wired end-to-end; JD analysis step runs live (polling fallback added because Realtime delivery is unreliable)",
+      "Phase 5.5 — Manual JD edit + contact email",
+      "Phase 6 — Wire remaining steps + result cards",
+      "Phase 7 — Tailored CV PDF + viewer (Download PDF button via pre-rendered ReportLab)",
+      "Phase 7.5 — Profile settings (contact details + portfolio projects)",
+      "Phase 8 — Analyses tab + history view grouped by job",
+      "Phase 8.5 — Integrations page consolidated (AI keys merged in); separate AI-keys nav removed",
+      "Phase 8.6 — cv-magic detail layout parity: CvJdMatchingCard table + ATS named sub-scores + 4-bucket FeasibilityCard with Evidence/Suggested rewrite + Tailored ATS-lift circle layout + Print/.md/PDF download trio on TailoredCvCard",
+      "Phase 9.1 — 5-theme system: Default / Classic / Gilded Noir / Notion / Clay. ThemeProvider + FOUC guard + CSS variable token architecture. Theme picker in sidebar.",
+      "Phase 9.2 — Sidebar redesigned to match cv-magic reference: brand-colour left-bar active indicator, lucide icons, per-theme font/radius/width tokens.",
+      "Phase 9.3 — All Tools pages (CV library, Analyses, Profile/Settings, Integrations, Analysis run) ported to cv-magic design language: glass cards, label-luxury, page-title/subtitle typography.",
+      "Phase 9.4 — Job table: theme-aware hover, row actions collapsed to Analyze + tri-dot (⋮) dropdown (Edit JD, View analysis, Mark applied, Dismiss). Edited JD label green.",
+      "Phase 9.5 — Job filter bar refactored: JobStatusTabs on own row + unified JobFilterBar (secondary filters + sort) on single nowrap row. Inline styles override .field{width:100%} bug.",
+      "Phase 9.6 — ProviderPicker accordion replaces AiKeyCard on Integrations page. Each card: radio (preferred), key input/connect/replace/disconnect, model pills (PATCH to DB). Preferred provider → localStorage; AnalyzeJobButton reads it + sends as body param; API honours override or falls back to priority.",
+      "Phase 9.7 — Theme-aware scrollbar: thumb uses color-mix(brand 35%) so each theme renders its own colour."
     ],
     "in_progress": [],
     "blocked": []
@@ -238,7 +245,7 @@
           "status": "completed"
         }
       ],
-      "gate": "PASSED 2026-05-14 \u2014 sign-in works, jobs visible on jobtrackr-cv.vercel.app, Run Now functional."
+      "gate": "PASSED 2026-05-14 — sign-in works, jobs visible on jobtrackr-cv.vercel.app, Run Now functional."
     },
     {
       "phase": 1,
@@ -279,24 +286,24 @@
           "status": "completed"
         }
       ],
-      "gate": "PASSED 2026-05-14 \u2014 migrations applied cleanly."
+      "gate": "PASSED 2026-05-14 — migrations applied cleanly."
     },
     {
       "phase": 2,
       "name": "cv-backend skeleton",
       "status": "in_progress",
       "sub_commits": {
-        "2a": "completed \u2014 verbatim copy of cv-magic/backend/ into cv-backend/",
-        "2b": "completed \u2014 stripped Clerk/Stripe/quota/Resend/Alembic (79\u219242 files, -3286 lines)",
-        "2c": "completed \u2014 HMAC middleware + /internal/* skeleton (analyze/extract-cv-text/scrape-jd)",
-        "2d": "completed \u2014 AI client adapted to BYOK make_ai_client(provider, key)",
-        "2e": "completed \u2014 progress.py rewritten on Supabase REST; orchestrator scaffold; pypdf fixed",
-        "2f": "completed \u2014 Dockerfile + fly.toml; pending manual flyctl deploy"
+        "2a": "completed — verbatim copy of cv-magic/backend/ into cv-backend/",
+        "2b": "completed — stripped Clerk/Stripe/quota/Resend/Alembic (79→42 files, -3286 lines)",
+        "2c": "completed — HMAC middleware + /internal/* skeleton (analyze/extract-cv-text/scrape-jd)",
+        "2d": "completed — AI client adapted to BYOK make_ai_client(provider, key)",
+        "2e": "completed — progress.py rewritten on Supabase REST; orchestrator scaffold; pypdf fixed",
+        "2f": "completed — Dockerfile + fly.toml; pending manual flyctl deploy"
       },
       "tasks": [
         {
           "id": "2.1",
-          "desc": "Copy cv-magic/backend/ \u2192 cv-backend/",
+          "desc": "Copy cv-magic/backend/ → cv-backend/",
           "status": "completed"
         },
         {
@@ -355,22 +362,22 @@
           "status": "pending_manual"
         }
       ],
-      "gate": "PASSED 2026-05-14 \u2014 signed POST returns 202 with {run_id, status: accepted}; deployed at https://jobtrackr-cv-api.fly.dev"
+      "gate": "PASSED 2026-05-14 — signed POST returns 202 with {run_id, status: accepted}; deployed at https://jobtrackr-cv-api.fly.dev"
     },
     {
       "phase": 3,
       "name": "CV upload UI + flow",
       "status": "in_progress",
       "sub_commits": {
-        "3a": "completed \u2014 bucket SQL (013) + cv-backend client + DOCX support",
-        "3b": "completed \u2014 /api/cv POST/GET + /api/cv/[id] PATCH/DELETE",
-        "3c": "completed \u2014 /dashboard/cv page + CvLibraryClient + sidebar link"
+        "3a": "completed — bucket SQL (013) + cv-backend client + DOCX support",
+        "3b": "completed — /api/cv POST/GET + /api/cv/[id] PATCH/DELETE",
+        "3c": "completed — /dashboard/cv page + CvLibraryClient + sidebar link"
       },
       "decisions_locked": {
         "input_types": "PDF + DOCX (output always PDF)",
         "size_cap": "5 MB",
         "versioning": "all uploads kept",
-        "delete_active_policy": "Option B \u2014 allow delete; user is left with zero active CVs"
+        "delete_active_policy": "Option B — allow delete; user is left with zero active CVs"
       },
       "tasks": [
         {
@@ -385,7 +392,7 @@
         },
         {
           "id": "3.3",
-          "desc": "web/src/lib/cvBackend.ts \u2014 HMAC client",
+          "desc": "web/src/lib/cvBackend.ts — HMAC client",
           "status": "completed"
         },
         {
@@ -434,16 +441,16 @@
           "status": "pending_manual"
         }
       ],
-      "gate": "PARTIAL PASS 2026-05-14 \u2014 PDF upload works end-to-end (upload, active toggle, delete modal, RLS-scoped storage). DOCX upload fails at the browser\u2192Supabase Storage layer with ERR_TIMED_OUT (BUG-1, parked). PDF-only workflow is sufficient to unblock subsequent phases."
+      "gate": "PARTIAL PASS 2026-05-14 — PDF upload works end-to-end (upload, active toggle, delete modal, RLS-scoped storage). DOCX upload fails at the browser→Supabase Storage layer with ERR_TIMED_OUT (BUG-1, parked). PDF-only workflow is sufficient to unblock subsequent phases."
     },
     {
       "phase": 4,
       "name": "AI key UI + flow",
       "status": "in_progress",
       "sub_commits": {
-        "4a": "completed \u2014 DeepSeek added back; migration 014; cv-backend Provider literal extended",
-        "4b": "completed \u2014 parametric /api/integrations/ai-keys/[provider] route",
-        "4c": "completed \u2014 /dashboard/settings/ai-keys page + AiKeyCard + sidebar link"
+        "4a": "completed — DeepSeek added back; migration 014; cv-backend Provider literal extended",
+        "4b": "completed — parametric /api/integrations/ai-keys/[provider] route",
+        "4c": "completed — /dashboard/settings/ai-keys page + AiKeyCard + sidebar link"
       },
       "tasks": [
         {
@@ -482,17 +489,17 @@
           "status": "pending_manual"
         }
       ],
-      "gate": "PASSED 2026-05-14 \u2014 verified in incognito session. OpenAI key connected, known-bad key rejected with clear error, Replace key + Disconnect cards function correctly. Stale-browser-cache issue with regular browser session is unrelated to feature correctness."
+      "gate": "PASSED 2026-05-14 — verified in incognito session. OpenAI key connected, known-bad key rejected with clear error, Replace key + Disconnect cards function correctly. Stale-browser-cache issue with regular browser session is unrelated to feature correctness."
     },
     {
       "phase": 5,
       "name": "End-to-end with only step 1 wired",
       "status": "in_progress",
       "sub_commits": {
-        "5a": "completed \u2014 orchestrator wires run_jd_analysis; step_status + jd_analysis_result persisted",
-        "5b": "completed \u2014 POST /api/jobs/[id]/analyze; JD-source decision; HMAC handoff to cv-backend",
-        "5c": "completed \u2014 /dashboard/jobs/[id]/analyze/[run_id] page + AnalysisRunClient Realtime sub",
-        "5d": "completed \u2014 AnalyzeJobButton on JobTable rows + inline-CTA error for missing prereqs"
+        "5a": "completed — orchestrator wires run_jd_analysis; step_status + jd_analysis_result persisted",
+        "5b": "completed — POST /api/jobs/[id]/analyze; JD-source decision; HMAC handoff to cv-backend",
+        "5c": "completed — /dashboard/jobs/[id]/analyze/[run_id] page + AnalysisRunClient Realtime sub",
+        "5d": "completed — AnalyzeJobButton on JobTable rows + inline-CTA error for missing prereqs"
       },
       "tasks": [
         {
@@ -522,24 +529,24 @@
         }
       ],
       "decisions": {
-        "jd_full_threshold": "2000 chars \u2014 below this we attempt /internal/scrape-jd",
-        "jd_min_usable": "200 chars \u2014 below this we fail with 422",
+        "jd_full_threshold": "2000 chars — below this we attempt /internal/scrape-jd",
+        "jd_min_usable": "200 chars — below this we fail with 422",
         "provider_priority": "Anthropic > OpenAI > DeepSeek when user has multiple keys"
       },
-      "gate": "Click Analyze on a SEEK job \u2192 land on /dashboard/jobs/[id]/analyze/[run_id] \u2192 step 1 (jd_analysis) ticks running \u2192 completed via Realtime \u2192 JSON output renders."
+      "gate": "Click Analyze on a SEEK job → land on /dashboard/jobs/[id]/analyze/[run_id] → step 1 (jd_analysis) ticks running → completed via Realtime → JSON output renders."
     },
     {
       "phase": 5.5,
       "name": "Manual JD edit + contact email",
       "status": "completed",
       "sub_commits": {
-        "5.5a": "completed \u2014 migration 015 (jobs.manual_jd_text, jobs.contact_email) + analyze route prefers manual_jd_text",
-        "5.5b": "completed \u2014 PATCH /api/jobs/[id]",
-        "5.5c": "completed \u2014 JobEditModal + JobTable wiring + soft stale warning on analysis page"
+        "5.5a": "completed — migration 015 (jobs.manual_jd_text, jobs.contact_email) + analyze route prefers manual_jd_text",
+        "5.5b": "completed — PATCH /api/jobs/[id]",
+        "5.5c": "completed — JobEditModal + JobTable wiring + soft stale warning on analysis page"
       },
       "decisions_locked": {
-        "stale_policy": "soft \u2014 banner on analysis page; user-driven re-run, no auto-stale",
-        "email_validation": "regex only \u2014 no SMTP / MX checks",
+        "stale_policy": "soft — banner on analysis page; user-driven re-run, no auto-stale",
+        "email_validation": "regex only — no SMTP / MX checks",
         "char_count_hint": "show count, no fixed target",
         "auto_extract": "B2 (adapter-side regex) deferred",
         "mcp_send_tool": "B3 deferred to a separate epic"
@@ -547,7 +554,7 @@
       "tasks": [
         {
           "id": "5.5.1",
-          "desc": "Migration 015 \u2014 manual_jd_text + contact_email",
+          "desc": "Migration 015 — manual_jd_text + contact_email",
           "status": "completed"
         },
         {
@@ -595,7 +602,7 @@
       "tasks": [
         {
           "id": "6.1",
-          "desc": "Re-enable steps 2\u20136.6 in cv-backend orchestrator",
+          "desc": "Re-enable steps 2–6.6 in cv-backend orchestrator",
           "status": "completed"
         },
         {
@@ -609,7 +616,7 @@
           "status": "completed"
         }
       ],
-      "gate": "PASSED \u2014 full pipeline wired; all result cards rendering."
+      "gate": "PASSED — full pipeline wired; all result cards rendering."
     },
     {
       "phase": 7,
@@ -710,7 +717,7 @@
       "id": "D2",
       "date": "2026-05-14",
       "decision": "Shared Supabase project with production JobTrackr.",
-      "rationale": "New tables are isolated from production code paths. FK from analysis_runs.job_id \u2192 jobs.id requires same DB."
+      "rationale": "New tables are isolated from production code paths. FK from analysis_runs.job_id → jobs.id requires same DB."
     },
     {
       "id": "D3",
@@ -747,29 +754,41 @@
       "date": "2026-05-15",
       "decision": "AI keys sidebar link removed; key management consolidated into Integrations page.",
       "rationale": "Reduces sidebar clutter; one fewer nav item for what is a rare settings action."
+    },
+    {
+      "id": "D9",
+      "date": "2026-05-16",
+      "decision": "Preferred AI provider stored in localStorage (not DB); passed as optional body param to /api/jobs/[id]/analyze.",
+      "rationale": "No migration needed; preference is per-browser and lightweight. API falls back to priority order (Anthropic > OpenAI > DeepSeek) if param absent or provider not connected."
+    },
+    {
+      "id": "D10",
+      "date": "2026-05-16",
+      "decision": "AiKeyCard component removed from Integrations page; absorbed into ProviderPicker accordion.",
+      "rationale": "Single component owns the full provider management lifecycle: connect, replace, disconnect, model selection, preferred flag."
     }
   ],
   "open_questions": [
     {
       "id": "Q1",
-      "question": "Provider support v1 \u2014 both Anthropic and OpenAI, or just Anthropic?",
+      "question": "Provider support v1 — both Anthropic and OpenAI, or just Anthropic?",
       "revisit_in": "Phase 4"
     },
     {
       "id": "Q2",
-      "question": "Tailored PDF viewer \u2014 inline iframe or download-only?",
+      "question": "Tailored PDF viewer — inline iframe or download-only?",
       "revisit_in": "Phase 7"
     },
     {
       "id": "Q3",
-      "question": "JD-scrape fallback UX \u2014 fail-and-retry or modal-paste?",
+      "question": "JD-scrape fallback UX — fail-and-retry or modal-paste?",
       "revisit_in": "Phase 8"
     }
   ],
   "known_issues": [
     {
       "id": "BUG-2",
-      "title": "GPT-5* family forced to temperature=1 \u2192 noisier output than cv-magic intended",
+      "title": "GPT-5* family forced to temperature=1 → noisier output than cv-magic intended",
       "severity": "medium",
       "blocks": "Output quality on GPT-5+ models. Does not affect Anthropic, DeepSeek, or GPT-4o.",
       "symptoms": "JD analysis on GPT-5.x produces less precise / more varied output. cv-magic was designed for 0.1 temperature on analytical steps (JD analysis, CV-JD matching) but OpenAI enforces temperature=1 server-side on the entire gpt-5* family with HTTP 400 'unsupported_value' if anything else is sent.",
@@ -781,12 +800,12 @@
       "id": "BUG-1",
       "title": "DOCX upload fails with ERR_TIMED_OUT to Supabase Storage",
       "severity": "low",
-      "blocks": "DOCX-only \u2014 PDF uploads work fine",
+      "blocks": "DOCX-only — PDF uploads work fine",
       "symptoms": "Browser POST/PUT to ltcqqlfsomqxuwfcxxbe.supabase.co/storage/v1/object/cvs/... aborts at 186ms-2s with net::ERR_TIMED_OUT. Other Supabase requests to the same host (auth, REST) work normally.",
       "tried": [
-        "Direct supabase.storage.upload() \u2014 fails",
-        "Signed upload URL + uploadToSignedUrl \u2014 fails",
-        "Raw fetch PUT to signed URL \u2014 fails (assumed, user stopped testing)"
+        "Direct supabase.storage.upload() — fails",
+        "Signed upload URL + uploadToSignedUrl — fails",
+        "Raw fetch PUT to signed URL — fails (assumed, user stopped testing)"
       ],
       "next_steps": "Try a tiny <50KB DOCX to rule out size; inspect Supabase project's storage CORS config; try same upload from a different network/country; consider supabase-js TUS resumable upload as last resort.",
       "workaround": "Users can convert DOCX to PDF before uploading. PDF path is fully functional.",
