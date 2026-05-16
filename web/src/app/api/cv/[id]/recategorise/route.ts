@@ -66,23 +66,43 @@ export async function POST(
     );
   }
 
-  // Decrypt key + call cv-backend
+  // Decrypt key + call cv-backend. If the stored model fails (e.g. a
+  // completions-only or unrecognised model name), retry once with the
+  // provider's safe default (ai_model: null → cv-backend uses gpt-4o / claude-3-5-sonnet / deepseek-chat).
+  function extractDetail(err: unknown): string {
+    if (err instanceof CvBackendError) {
+      const d = err.detail;
+      if (d && typeof d === "object" && "detail" in d) return String((d as Record<string,unknown>).detail);
+      return String(d ?? err.status);
+    }
+    return err instanceof Error ? err.message : "AI categorisation failed";
+  }
+
   let categorised: { technical: string[]; soft_skills: string[]; domain_knowledge: string[] };
+  const k = keyByProvider.get(chosen)!;
+  let apiKey: string;
+  try { apiKey = decryptApiKey(k.encrypted_api_key); }
+  catch (e) {
+    return NextResponse.json({ error: "Could not decrypt your AI key — re-connect it in Integrations." }, { status: 500 });
+  }
+
+  const storedModel = k.config?.model ?? null;
   try {
-    const k = keyByProvider.get(chosen)!;
-    const apiKey = decryptApiKey(k.encrypted_api_key);
-    categorised = await categoriseCv({
-      cv_text:     cv.cv_text,
-      ai_provider: chosen,
-      ai_api_key:  apiKey,
-      ai_model:    k.config?.model ?? null,
-    });
-  } catch (err) {
-    console.error("[/api/cv/:id/recategorise] categorisation failed:", err);
-    const msg = err instanceof CvBackendError
-      ? `AI categorisation failed (${err.status})`
-      : err instanceof Error ? err.message : "AI categorisation failed";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    categorised = await categoriseCv({ cv_text: cv.cv_text, ai_provider: chosen, ai_api_key: apiKey, ai_model: storedModel });
+  } catch (firstErr) {
+    // Retry without the stored model (cv-backend falls back to a safe default per provider).
+    if (storedModel) {
+      console.warn("[/api/cv/:id/recategorise] stored model failed, retrying with default:", extractDetail(firstErr));
+      try {
+        categorised = await categoriseCv({ cv_text: cv.cv_text, ai_provider: chosen, ai_api_key: apiKey, ai_model: null });
+      } catch (retryErr) {
+        console.error("[/api/cv/:id/recategorise] retry also failed:", extractDetail(retryErr));
+        return NextResponse.json({ error: extractDetail(retryErr) }, { status: 502 });
+      }
+    } else {
+      console.error("[/api/cv/:id/recategorise] categorisation failed:", extractDetail(firstErr));
+      return NextResponse.json({ error: extractDetail(firstErr) }, { status: 502 });
+    }
   }
 
   // Persist the result

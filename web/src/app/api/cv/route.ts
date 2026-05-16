@@ -154,15 +154,21 @@ export async function POST(req: NextRequest) {
   const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
 
   if (chosen) {
+    const k = keyByProvider.get(chosen)!;
     try {
-      const k = keyByProvider.get(chosen)!;
-      const apiKey = decryptApiKey(k.encrypted_api_key);
-      categorised = await categoriseCv({
-        cv_text:     cvText,
-        ai_provider: chosen,
-        ai_api_key:  apiKey,
-        ai_model:    k.config?.model ?? null,
-      });
+      const apiKey   = decryptApiKey(k.encrypted_api_key);
+      const storedModel = k.config?.model ?? null;
+      try {
+        categorised = await categoriseCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: storedModel });
+      } catch (firstErr) {
+        // Stored model may be a non-chat or unrecognised name — retry with provider default.
+        if (storedModel) {
+          console.warn("[/api/cv POST] stored model failed, retrying with default:", firstErr);
+          categorised = await categoriseCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: null });
+        } else {
+          throw firstErr;
+        }
+      }
     } catch (err) {
       console.warn("[/api/cv POST] categorisation failed (non-fatal):", err);
     }
