@@ -40,8 +40,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && isAuthRoute && pathname !== "/auth/callback" && pathname !== "/auth/confirm") {
+  // Redirect authenticated users away from auth pages.
+  // /auth/signout must be excluded — it's the POST handler that actually clears the session.
+  if (user && isAuthRoute && pathname !== "/auth/callback" && pathname !== "/auth/confirm" && pathname !== "/auth/signout") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

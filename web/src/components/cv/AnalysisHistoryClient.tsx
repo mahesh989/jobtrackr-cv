@@ -180,11 +180,9 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
 
 function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
   // Show the final tailored score if available, otherwise the initial score
-  const finalScore   = run.tailored_match_score ?? run.match_score;
-  const isTailored   = run.tailored_match_score != null;
-  const scoreLabel   = finalScore != null
-    ? `${Math.round(finalScore)}%${isTailored ? " final" : " match"}`
-    : "Analysis";
+  const finalScore = run.tailored_match_score ?? run.match_score;
+  const isTailored = run.tailored_match_score != null;
+  const scoreLabel = finalScore != null ? `${Math.round(finalScore)}%` : "Analysis";
 
   return (
     <li>

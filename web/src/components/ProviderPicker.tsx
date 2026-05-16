@@ -52,17 +52,17 @@ const META: Record<ProviderId, {
   },
   openai: {
     label:        "OpenAI",
-    tagline:      "GPT-4o family + reasoning (o-series)",
+    tagline:      "GPT-5.1 + GPT-4o family + reasoning (o-series)",
     color:        "#10a37f",
     placeholder:  "sk-...",
     helpUrl:      "https://platform.openai.com/api-keys",
-    defaultModel: "gpt-4o",
+    defaultModel: "gpt-5.1",
     models: [
-      { value: "gpt-4o",          label: "GPT-4o",        tag: "recommended"  },
+      { value: "gpt-5.1",         label: "GPT-5.1",       tag: "recommended"  },
+      { value: "gpt-4o",          label: "GPT-4o",         tag: "legacy"       },
       { value: "gpt-4o-mini",     label: "GPT-4o mini",   tag: "fastest"      },
       { value: "gpt-4-turbo",     label: "GPT-4 Turbo",   tag: "most capable" },
       { value: "o3-mini",         label: "o3-mini",        tag: "reasoning"    },
-      { value: "o1-mini",         label: "o1-mini",        tag: "reasoning"    },
     ],
   },
   deepseek: {
