@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles, Loader2 } from "lucide-react";
 
 interface Props {
   jobId: string;
@@ -50,13 +51,21 @@ export function AnalyzeJobButton({ jobId }: Props) {
 
   return (
     <>
+      {/* Analyze button — cv-magic pattern: brand-filled with Sparkles
+          icon, swap to Loader2 while pending. Matches cv-magic's
+          companies-client analyse button exactly. */}
       <button
         disabled={pending}
         onClick={handleClick}
-        className="gh-btn text-[11px] px-2.5 py-1 hover:border-[#0969DA]/40 hover:text-[#0969DA]"
+        className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
         title="Run a CV-tailoring analysis against this job"
       >
-        {pending ? "Starting…" : "Analyze"}
+        {pending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" />
+        )}
+        <span>{pending ? "…" : "Analyze"}</span>
       </button>
 
       {err && (

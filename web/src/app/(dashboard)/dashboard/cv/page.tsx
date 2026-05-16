@@ -21,10 +21,9 @@ export default async function CvPage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="page-title text-text">CV library</h1>
+          <h1 className="page-title text-text">My CVs</h1>
           <p className="page-subtitle">
-            Upload your CVs as PDF or DOCX. Set one as active — that is the CV the
-            analyser will tailor when you click <strong>Analyze</strong> on a job.
+            Upload and manage your CV versions. Set one as active for analyses.
           </p>
         </div>
         <CvLibraryClient initial={cvs ?? []} />

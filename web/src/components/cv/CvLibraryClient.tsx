@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight } from "lucide-react";
 
 interface CategorisedSkills {
   technical?:        string[];
@@ -52,6 +53,7 @@ async function readError(res: Response): Promise<string> {
 
 export function CvLibraryClient({ initial }: Props) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [cvs, setCvs]             = useState<CvRow[]>(initial);
   const [uploading, setUploading] = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -61,17 +63,35 @@ export function CvLibraryClient({ initial }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<CvRow | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
-  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  /**
+   * Trigger the hidden file input from the visible "Upload CV" button.
+   * Matches cv-magic's UX — one button, no separate form section.
+   */
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  /**
+   * Auto-derive the label from the filename and run the upload.
+   * Strips the extension and underscores → spaces, then title-cases the
+   * first letter so the row label looks tidy.
+   *   "Maheshwor_Tiwari.pdf" → "Maheshwor Tiwari"
+   */
+  function labelFromFilename(name: string): string {
+    const noExt = name.replace(/\.(pdf|docx)$/i, "");
+    const human = noExt.replace(/[_\-]+/g, " ").trim();
+    if (!human) return "Untitled CV";
+    return human.charAt(0).toUpperCase() + human.slice(1);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Always clear the input so the same file can be re-selected if upload fails.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+
     setError(null);
 
-    const form = e.currentTarget;
-    const data = new FormData(form);
-    const file = data.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      setError("Pick a PDF or DOCX file first.");
-      return;
-    }
     if (!ALLOWED_EXT.test(file.name) && !ALLOWED_MIME.has(file.type)) {
       setError(`Unsupported file. Pick a .pdf or .docx (got "${file.name}").`);
       return;
@@ -81,12 +101,8 @@ export function CvLibraryClient({ initial }: Props) {
       setError(`This file is ${mb} MB — the limit is 5 MB. Try compressing it or splitting sections.`);
       return;
     }
-    const label = (data.get("label") ?? "").toString().trim();
-    if (!label) {
-      setError("Give the CV a label (e.g. 'Master CV 2026').");
-      return;
-    }
 
+    const label = labelFromFilename(file.name);
     setUploading(true);
 
     const ext = EXT_FROM_MIME[file.type] ?? (file.name.toLowerCase().endsWith(".docx") ? "docx" : "pdf");
@@ -184,7 +200,6 @@ export function CvLibraryClient({ initial }: Props) {
           : prev;
         return [newRow, ...demoted];
       });
-      form.reset();
     } catch (err) {
       await supabase.storage.from("cvs").remove([storagePath]);
       setError(
@@ -234,120 +249,69 @@ export function CvLibraryClient({ initial }: Props) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Upload form */}
-      <div className="bg-surface border border-border rounded-md">
-        <div className="px-5 py-4 border-b border-border bg-surface-2">
-          <h2 className="text-[14px] font-semibold text-text">Upload a CV</h2>
-          <p className="text-[12px] text-text-3 mt-0.5">
+    <div className="space-y-6">
+      {/* Header row — title left, Upload CV button right (matches cv-magic) */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs text-text-3">
             PDF or DOCX. Max 5 MB. The first CV you upload becomes active automatically.
           </p>
         </div>
-        <form onSubmit={handleUpload} className="px-5 py-5 space-y-4">
-          <div>
-            <label className="block text-[12px] text-text-2 mb-1.5" htmlFor="cv-label">
-              Label
-            </label>
-            <input
-              id="cv-label"
-              name="label"
-              type="text"
-              placeholder="Master CV 2026"
-              required
-              className="w-full bg-surface border border-border rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </div>
-          <div>
-            <label className="block text-[12px] text-text-2 mb-1.5" htmlFor="cv-file">
-              File
-            </label>
-            <input
-              id="cv-file"
-              name="file"
-              type="file"
-              accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.docx"
-              required
-              className="block w-full text-[13px] text-text file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-border file:bg-surface-2 file:text-[12px] file:text-text-2 hover:file:bg-surface"
-            />
-          </div>
-          {error && (
-            <div className="rounded-md bg-red-light border border-red/20 px-3 py-2 text-[12px] text-red">
-              {error}
-            </div>
-          )}
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.docx"
+            className="hidden"
+            onChange={handleFileChange}
+          />
           <button
-            type="submit"
+            onClick={openFilePicker}
             disabled={uploading}
-            className="gh-btn gh-btn-primary text-[13px]"
+            className="flex items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90 hover:glow-gold disabled:opacity-50"
           >
+            <Upload className="h-4 w-4" />
             {uploading ? "Uploading…" : "Upload CV"}
           </button>
-        </form>
+        </div>
       </div>
 
-      {/* List */}
-      <div className="bg-surface border border-border rounded-md overflow-hidden">
-        <div className="px-5 py-4 border-b border-border bg-surface-2">
-          <h2 className="text-[14px] font-semibold text-text">Your CVs</h2>
-          <p className="text-[12px] text-text-3 mt-0.5">
-            {cvs.length === 0
-              ? "No CVs yet — upload one to enable analysis."
-              : `${cvs.length} ${cvs.length === 1 ? "CV" : "CVs"} stored. Pick one as active.`}
+      {error && (
+        <div className="rounded-md bg-red-light border border-red/20 px-4 py-3 text-sm text-red">
+          {error}
+        </div>
+      )}
+
+      {/* CV list — rounded-lg cards with glass effect, matches cv-magic */}
+      {cvs.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
+          <FileText className="mx-auto mb-3 h-8 w-8 text-text-3" />
+          <p className="text-text-3">No CV uploaded yet.</p>
+          <p className="mt-1 text-sm text-text-3">
+            Upload a PDF or DOCX to get started.
           </p>
         </div>
-
-        {cvs.length > 0 && (
-          <ul className="divide-y divide-border">
-            {cvs.map((cv) => {
-              const ext = cv.pdf_storage_path?.endsWith(".docx") ? "DOCX" : "PDF";
-              const created = new Date(cv.created_at).toLocaleDateString("en-AU", {
-                day: "numeric", month: "short", year: "numeric",
-              });
-              return (
-                <li key={cv.id} className="px-5 py-3.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-text truncate">
-                          {cv.label}
-                        </span>
-                        <span className="text-[10px] text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
-                          {ext}
-                        </span>
-                        {cv.is_active && (
-                          <span className="text-[10px] text-green bg-green-light border border-green/20 px-1.5 py-0.5 rounded">
-                            ACTIVE
-                          </span>
-                        )}
-                      </div>
-                      <p suppressHydrationWarning className="text-[11px] text-text-3 mt-0.5">Uploaded {created}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {!cv.is_active && (
-                        <button
-                          onClick={() => handleSetActive(cv.id)}
-                          disabled={pendingId === cv.id}
-                          className="gh-btn text-[12px]"
-                        >
-                          Set active
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setDeleteTarget(cv)}
-                        disabled={pendingId === cv.id}
-                        className="gh-btn gh-btn-danger text-[12px]"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  <CvSkillsBlock skills={cv.categorised_skills} />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      ) : (
+        <div className="space-y-3">
+          {cvs.map((cv) => {
+            const ext = cv.pdf_storage_path?.endsWith(".docx") ? "DOCX" : "PDF";
+            const created = new Date(cv.created_at).toLocaleDateString("en-AU", {
+              day: "numeric", month: "short", year: "numeric",
+            });
+            return (
+              <CvRowCard
+                key={cv.id}
+                cv={cv}
+                ext={ext}
+                created={created}
+                pending={pendingId === cv.id}
+                onActivate={() => handleSetActive(cv.id)}
+                onDelete={() => setDeleteTarget(cv)}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* Delete confirm modal — same pattern as DeleteProfileButton */}
       {deleteTarget && typeof window !== "undefined" && createPortal(
@@ -392,6 +356,69 @@ export function CvLibraryClient({ initial }: Props) {
   );
 }
 
+// ── CV row card — cv-magic style ──────────────────────────────────────────
+
+function CvRowCard({
+  cv,
+  ext,
+  created,
+  pending,
+  onActivate,
+  onDelete,
+}: {
+  cv:         CvRow;
+  ext:        string;
+  created:    string;
+  pending:    boolean;
+  onActivate: () => void;
+  onDelete:   () => void;
+}) {
+  return (
+    <div
+      className={
+        "flex items-start justify-between gap-3 rounded-lg glass p-4 " +
+        (cv.is_active ? "border border-[var(--brand)]/40 shadow-gold" : "shadow-gold")
+      }
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-text truncate">{cv.label}</span>
+          <span className="text-xs text-text-3">{ext}</span>
+          {cv.is_active && (
+            <span className="flex items-center gap-1 rounded-sm border border-[var(--brand)]/20 bg-[var(--brand)]/15 px-2 py-0.5 text-xs font-semibold text-[var(--brand)]">
+              <CheckCircle2 className="h-3 w-3" />
+              Active
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-3 text-xs text-text-3" suppressHydrationWarning>
+          <span>Uploaded {created}</span>
+        </div>
+        <CvSkillsBlock skills={cv.categorised_skills} />
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {!cv.is_active && (
+          <button
+            onClick={onActivate}
+            disabled={pending}
+            className="rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-1.5 text-xs font-semibold text-text hover:bg-[var(--brand)]/5 hover:text-[var(--brand)] hover:border-[var(--brand)]/40 transition-colors disabled:opacity-50"
+          >
+            Set active
+          </button>
+        )}
+        <button
+          onClick={onDelete}
+          disabled={pending}
+          className="rounded p-1.5 text-text-3 hover:bg-red-light hover:text-red transition-colors disabled:opacity-50"
+          aria-label="Delete CV"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Categorised CV skills — collapsed by default ───────────────────────────
 
 function CvSkillsBlock({ skills }: { skills?: CategorisedSkills | null }) {
@@ -417,14 +444,9 @@ function CvSkillsBlock({ skills }: { skills?: CategorisedSkills | null }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-[11px] text-text-2 hover:text-[#0969DA] inline-flex items-center gap-1"
+        className="text-xs text-text-2 hover:text-[var(--brand)] inline-flex items-center gap-1 transition-colors"
       >
-        <svg
-          className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-        </svg>
+        <ChevronRight className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} />
         Show AI-extracted skills ({total})
       </button>
 

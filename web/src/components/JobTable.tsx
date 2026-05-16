@@ -264,12 +264,14 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
               {job.location && (
                 <p className="text-[11px] text-[#9198A1] truncate mt-0.5">{job.location}</p>
               )}
-              {/* Curation indicators */}
+              {/* Curation indicators — match cv-magic's "JD attached"
+                  pattern: small text-xs labels with semantic colour, not
+                  filled badges. Uses CSS variables so each theme adapts. */}
               {(manualJd || contactEmail) && (
-                <div className="flex flex-wrap gap-1 mt-1">
+                <div className="flex flex-wrap items-center gap-3 mt-1 text-xs">
                   {manualJd && (
                     <span
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFF8C5] text-[#9A6700] border border-[#D4A72C]/40 font-medium"
+                      className="font-semibold text-amber"
                       title="JD has been manually trimmed for AI analysis"
                     >
                       Edited JD
@@ -277,7 +279,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                   )}
                   {contactEmail && (
                     <span
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-[#DDF4FF] text-[#0969DA] border border-[#0969DA]/30 font-medium"
+                      className="font-semibold text-[var(--brand)]"
                       title={contactEmail}
                     >
                       ✉ Email
