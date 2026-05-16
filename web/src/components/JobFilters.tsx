@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
+import { ShieldCheck, X } from "lucide-react";
 
 export function JobFilters({
   totalCount,
@@ -45,29 +46,34 @@ export function JobFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Status tabs */}
-      <div className="flex items-center gap-1 bg-[#F6F8FA] border border-[#D0D7DE] rounded-md p-0.5">
+      {/* Status tabs — cv-magic style segmented control. All colours come
+          from theme CSS variables so each theme repaints the active pill,
+          counts, and hover state automatically. */}
+      <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-md p-0.5">
         {STATUS_TABS.map((tab) => {
           const active = currentStatus === tab.value;
           return (
             <button
               key={tab.value}
               onClick={() => update("status", tab.value === "all" ? "" : tab.value)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-[12px] font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all ${
                 active
-                  ? "bg-white text-[#1F2328] shadow-sm border border-[#D0D7DE]"
-                  : "text-[#656D76] hover:text-[#1F2328]"
+                  ? "bg-[var(--surface)] text-text shadow-sm border border-[var(--border)]"
+                  : "text-text-2 hover:text-text"
               }`}
             >
               {tab.label}
               {tab.count !== undefined && tab.count > 0 && (
-                <span className={`text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center ${
-                  active && tab.value === "new"
-                    ? "bg-[#0969DA] text-white"
-                    : active
-                    ? "bg-[#1F2328] text-white"
-                    : "bg-[#D0D7DE] text-[#656D76]"
-                }`}>
+                <span
+                  className={
+                    "text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center " +
+                    (active && tab.value === "new"
+                      ? "bg-[var(--brand)] text-[var(--brand-fg)]"
+                      : active
+                      ? "bg-text text-[var(--surface)]"
+                      : "bg-[var(--border)] text-text-2")
+                  }
+                >
                   {tab.count > 99 ? "99+" : tab.count}
                 </span>
               )}
@@ -77,13 +83,13 @@ export function JobFilters({
       </div>
 
       {/* Divider */}
-      <div className="h-5 w-px bg-[#D0D7DE]" />
+      <div className="h-5 w-px bg-[var(--border)]" />
 
       {/* Posted within */}
       <select
         value={postedWithin || "any"}
         onChange={(e) => update("posted_within", e.target.value === "any" ? "" : e.target.value)}
-        className="field text-[12px] py-1 px-2.5 h-[30px] w-auto min-w-[120px]"
+        className="field text-xs py-1 px-2.5 h-[30px] w-auto min-w-[120px]"
       >
         <option value="any">Any time</option>
         <option value="7">Last 7 days</option>
@@ -95,7 +101,7 @@ export function JobFilters({
       <select
         value={minKeywords || "0"}
         onChange={(e) => update("min_keywords", e.target.value === "0" ? "" : e.target.value)}
-        className="field text-[12px] py-1 px-2.5 h-[30px] w-auto min-w-[130px]"
+        className="field text-xs py-1 px-2.5 h-[30px] w-auto min-w-[130px]"
       >
         <option value="0">Any keyword match</option>
         <option value="1">≥ 1 keyword</option>
@@ -108,23 +114,23 @@ export function JobFilters({
         type="text"
         defaultValue={locationVal}
         placeholder="Filter by location…"
-        className="field text-[12px] py-1 px-2.5 h-[30px] w-[160px]"
+        className="field text-xs py-1 px-2.5 h-[30px] w-[160px]"
         onBlur={(e) => update("location", e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && update("location", e.currentTarget.value)}
       />
 
-      {/* Visa toggle */}
+      {/* Visa toggle — purple pop uses the theme's --purple variable so
+          Notion's lavender, Gilded Noir's lavender-bright, etc. all
+          render correctly. */}
       <button
         onClick={() => update("visa_toggle", visaOn ? "" : "1")}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 h-[30px] rounded-md border text-[12px] font-medium transition-all ${
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 h-[30px] rounded-md border text-xs font-medium transition-all ${
           visaOn
-            ? "bg-[#FBEFFF] border-[#8250DF]/30 text-[#8250DF]"
-            : "bg-white border-[#D0D7DE] text-[#656D76] hover:text-[#1F2328]"
+            ? "bg-purple-light border-purple/30 text-purple"
+            : "bg-[var(--surface)] border-[var(--border)] text-text-2 hover:text-text"
         }`}
       >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-        </svg>
+        <ShieldCheck className="w-3 h-3" />
         {visaOn ? "Visa on" : "Visa filter"}
       </button>
 
@@ -132,11 +138,9 @@ export function JobFilters({
       {hasFilters && (
         <button
           onClick={clearAll}
-          className="inline-flex items-center gap-1 text-[11px] text-[#9198A1] hover:text-[#1F2328] transition-colors h-[30px] px-1"
+          className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text transition-colors h-[30px] px-1"
         >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
+          <X className="w-3 h-3" />
           Clear
         </button>
       )}
