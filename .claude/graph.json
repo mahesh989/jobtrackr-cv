@@ -163,7 +163,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "End-to-end QA pass: upload CV, connect AI key via new ProviderPicker accordion, set preferred provider, run analysis, verify all 7 cards render, download tailored PDF. Then decide Phase 10 scope (beta invite flow, custom domain, or feature additions).",
+    "next_action": "Phase 10 scoping: decide between (a) beta invite flow + onboarding, (b) custom domain setup, (c) additional job sources. Prerequisite: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should also update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -184,7 +184,18 @@
       "Phase 9.4 — Job table: theme-aware hover, row actions collapsed to Analyze + tri-dot (⋮) dropdown (Edit JD, View analysis, Mark applied, Dismiss). Edited JD label green.",
       "Phase 9.5 — Job filter bar refactored: JobStatusTabs on own row + unified JobFilterBar (secondary filters + sort) on single nowrap row. Inline styles override .field{width:100%} bug.",
       "Phase 9.6 — ProviderPicker accordion replaces AiKeyCard on Integrations page. Each card: radio (preferred), key input/connect/replace/disconnect, model pills (PATCH to DB). Preferred provider → localStorage; AnalyzeJobButton reads it + sends as body param; API honours override or falls back to priority.",
-      "Phase 9.7 — Theme-aware scrollbar: thumb uses color-mix(brand 35%) so each theme renders its own colour."
+      "Phase 9.7 — Theme-aware scrollbar: thumb uses color-mix(brand 35%) so each theme renders its own colour.",
+      "Phase 9.8 — Global hex color sweep: replaced all hardcoded #D0D7DE/border, #F6F8FA/surface-2, #0969DA/brand, #1F2328/text etc. with CSS var() tokens across 21 files so all elements respond to theme switches.",
+      "Phase 9.9 — ⋮ RowMenu dropdown fixed: createPortal + position:fixed so menu escapes overflow:hidden table wrapper and animation containers. All options now visible.",
+      "Phase 9.10 — Soft Skills layout fixed: SkillRow changed from flex-wrap (label+chips on same line) to flex-col; label now always on own line consistent with Technical/Domain Knowledge.",
+      "Phase 9.11 — Apply/Dismiss reliability: switched from startTransition (silent error swallow) to direct await with try/catch + UI revert on server action failure.",
+      "Phase 9.12 — CV re-categorise: added '↺ Categorise skills now' button to CvSkillsBlock + new POST /api/cv/[id]/recategorise route; auto-retries with provider default model if stored model fails.",
+      "Phase 9.13 — Sign out fixed: middleware was intercepting POST /auth/signout and redirecting to /dashboard because /auth/* rule had no exclusion for /auth/signout. Added exclusion. Also added visible 'Sign out' text label next to icon.",
+      "Phase 9.14 — Analysis history shows final (tailored) score; bare percentage with initial in grey parens when both exist.",
+      "Phase 9.15 — Active CV sorts to top of list immediately when Set Active clicked.",
+      "Phase 9.16 — OpenAI non-chat model fallback: cv-backend client.py detects 'not a chat model' error and retries with gpt-4o. Web routes also retry with ai_model=null on failure.",
+      "Phase 9.17 — Brand-tinted theme borders: Clay --border #F5BECE (pink), Notion --border #C1B7EC (purple), Gilded Noir --border #5C4D23 (gold-dark). Table lines, card outlines, form boxes now match each theme's brand.",
+      "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1 (recommended), GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini. Removed fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini."
     ],
     "in_progress": [],
     "blocked": []
@@ -766,6 +777,24 @@
       "date": "2026-05-16",
       "decision": "AiKeyCard component removed from Integrations page; absorbed into ProviderPicker accordion.",
       "rationale": "Single component owns the full provider management lifecycle: connect, replace, disconnect, model selection, preferred flag."
+    },
+    {
+      "id": "D11",
+      "date": "2026-05-16",
+      "decision": "Dropdowns/menus inside overflow:hidden containers use createPortal + position:fixed.",
+      "rationale": "Table rows use overflow:hidden for the collapse animation; absolute-positioned menus get clipped. Portal to document.body with fixed coordinates from getBoundingClientRect() is the only escape."
+    },
+    {
+      "id": "D12",
+      "date": "2026-05-16",
+      "decision": "AI model fallback: if stored model fails categorisation, retry once with ai_model=null (cv-backend provider default). Web routes handle this; cv-backend also catches 'not a chat model' and falls back to gpt-4o.",
+      "rationale": "Users may have stored invalid/legacy model names from earlier ProviderPicker versions. Silent retry means they still get categorisation without manual intervention."
+    },
+    {
+      "id": "D13",
+      "date": "2026-05-16",
+      "decision": "OpenAI model list restricted to real chat-completions-compatible models: GPT-5.1, GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini.",
+      "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded — they fail at the /v1/chat/completions endpoint."
     }
   ],
   "open_questions": [
