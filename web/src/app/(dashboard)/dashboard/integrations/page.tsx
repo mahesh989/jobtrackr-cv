@@ -2,12 +2,11 @@ import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { redirect }            from "next/navigation";
 import { ApifyIntegrationCard } from "@/components/ApifyIntegrationCard";
-import { AiKeyCard, type AiKeyProvider, type AiKeyState } from "@/components/cv/AiKeyCard";
-import { ProviderPicker } from "@/components/ProviderPicker";
+import { ProviderPicker, type ProviderId } from "@/components/ProviderPicker";
 
 export const metadata = { title: "Integrations — JobTrackr" };
 
-const AI_PROVIDERS: AiKeyProvider[] = ["anthropic", "openai", "deepseek"];
+const AI_PROVIDERS: ProviderId[] = ["anthropic", "openai", "deepseek"];
 
 export default async function IntegrationsPage() {
   const supabase = await createClient();
@@ -16,7 +15,7 @@ export default async function IntegrationsPage() {
 
   const admin = createAdminClient();
 
-  // ── Apify integration row (job-source) ────────────────────────────────────
+  // ── Apify integration ─────────────────────────────────────────────────────
   const { data: apify } = await admin
     .from("user_integrations")
     .select("status, status_reason, quota_used_usd, quota_used_requests, quota_period_start, last_used_at, is_enabled")
@@ -45,32 +44,45 @@ export default async function IntegrationsPage() {
     is_enabled:          (apify.is_enabled as boolean) ?? true,
   } : null;
 
-  // ── AI provider keys (BYOK) ────────────────────────────────────────────────
+  // ── AI provider keys ──────────────────────────────────────────────────────
   const { data: aiRows } = await admin
     .from("user_integrations")
-    .select("provider, status, status_reason, last_validated_at, is_enabled, config")
+    .select("provider, status, status_reason, last_validated_at, config")
     .eq("user_id", user.id)
     .in("provider", AI_PROVIDERS);
 
   interface IntegrationRow {
-    provider:          AiKeyProvider;
+    provider:          ProviderId;
     status:            string;
     status_reason:     string | null;
     last_validated_at: string | null;
-    is_enabled:        boolean;
     config:            { model?: string } | null;
   }
-  const byProvider = new Map<AiKeyProvider, AiKeyState>();
+
+  const byProvider = new Map<ProviderId, {
+    connected: boolean; statusReason: string | null;
+    lastValidated: string | null; model: string | null;
+  }>();
+
   for (const r of (aiRows ?? []) as IntegrationRow[]) {
     byProvider.set(r.provider, {
-      connected:         true,
-      status:            r.status,
-      status_reason:     r.status_reason,
-      last_validated_at: r.last_validated_at,
-      is_enabled:        r.is_enabled,
-      model:             r.config?.model ?? null,
+      connected:     true,
+      statusReason:  r.status_reason,
+      lastValidated: r.last_validated_at,
+      model:         r.config?.model ?? null,
     });
   }
+
+  const pickerProviders = AI_PROVIDERS.map((id) => {
+    const row = byProvider.get(id);
+    return {
+      id,
+      connected:     row?.connected     ?? false,
+      statusReason:  row?.statusReason  ?? null,
+      lastValidated: row?.lastValidated ?? null,
+      model:         row?.model         ?? null,
+    };
+  });
 
   return (
     <div className="min-h-full px-6 pt-6 pb-24">
@@ -82,45 +94,17 @@ export default async function IntegrationsPage() {
           </p>
         </div>
 
-        {/* AI providers section */}
+        {/* AI providers — unified picker */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">AI providers</h2>
           <p className="text-[12px] text-text-3 mb-4">
-            Bring your own key from at least one provider. Choose your preferred
-            provider and model — used for every analysis run.
+            Bring your own key. Click a provider to expand, paste your key, choose a model,
+            then hit Connect. Click the radio dot to set it as preferred for all analyses.
           </p>
-
-          {/* Preferred provider + model picker */}
-          <div className="mb-6">
-            <p className="text-[12px] font-medium text-text-2 mb-2">Preferred provider &amp; model</p>
-            <ProviderPicker
-              providers={AI_PROVIDERS.map((p) => {
-                const state = byProvider.get(p);
-                return {
-                  id:        p,
-                  connected: state?.connected ?? false,
-                  model:     state?.model ?? null,
-                };
-              })}
-            />
-          </div>
-
-          <p className="text-[11px] text-text-3 mb-4">
-            Connect your keys below. The picker above updates automatically once a provider is connected.
-          </p>
-
-          <div className="space-y-4">
-            {AI_PROVIDERS.map((p) => (
-              <AiKeyCard
-                key={p}
-                provider={p}
-                initial={byProvider.get(p) ?? { connected: false }}
-              />
-            ))}
-          </div>
+          <ProviderPicker providers={pickerProviders} />
         </section>
 
-        {/* Job sources section */}
+        {/* Job sources */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
           <p className="text-[12px] text-text-3 mb-3">
@@ -128,7 +112,6 @@ export default async function IntegrationsPage() {
           </p>
           <ApifyIntegrationCard initialData={apifyInitial} />
         </section>
-
       </div>
     </div>
   );
