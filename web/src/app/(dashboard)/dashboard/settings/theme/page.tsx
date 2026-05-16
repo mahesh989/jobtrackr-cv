@@ -13,15 +13,13 @@ export default async function ThemeSettingsPage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-[16px] font-semibold text-text">Theme</h1>
-          <p className="text-[12px] text-text-3 mt-0.5">
+          <h1 className="page-title text-text">Theme</h1>
+          <p className="page-subtitle">
             Pick how JobTrackr looks. Your choice is saved to this browser —
             click any card to apply it instantly.
           </p>
         </div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-text-3">
-          Appearance
-        </p>
+        <p className="label-luxury text-text-3">Appearance</p>
         <ThemePickerClient />
       </div>
     </div>

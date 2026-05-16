@@ -23,8 +23,8 @@ export default async function ProfileSettingsPage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-[16px] font-semibold text-text">Profile</h1>
-          <p className="text-[12px] text-text-3 mt-0.5">
+          <h1 className="page-title text-text">Profile</h1>
+          <p className="page-subtitle">
             Contact details and portfolio projects used when tailoring your CV.
           </p>
         </div>

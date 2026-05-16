@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, Trash2, ExternalLink } from "lucide-react";
 
 interface Project {
   name?:        string;
@@ -29,6 +30,14 @@ interface Props {
 
 const EMPTY: ContactDetails = {};
 
+/**
+ * Profile settings — ported to cv-magic's design language.
+ *
+ * Uses `.glass`, `.label-luxury`, and `.glow-gold` utility classes
+ * defined in globals.css so every theme renders consistently with
+ * cv-magic for the four cv-magic themes and inherits a tasteful card
+ * style on Default.
+ */
 export function ProfileSettingsClient({ initial }: Props) {
   const router = useRouter();
   const [cd, setCd]             = useState<ContactDetails>(initial ?? EMPTY);
@@ -40,7 +49,6 @@ export function ProfileSettingsClient({ initial }: Props) {
   function setField<K extends keyof ContactDetails>(k: K, v: string) {
     setCd((prev) => ({ ...prev, [k]: v }));
   }
-
   function addProject() {
     setProjects((p) => [...p, { name: "", url: "", description: "" }]);
   }
@@ -73,87 +81,118 @@ export function ProfileSettingsClient({ initial }: Props) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Contact details */}
-      <div className="bg-surface border border-border rounded-md">
-        <div className="px-5 py-4 border-b border-border bg-surface-2">
-          <h2 className="text-[14px] font-semibold text-text">Contact details</h2>
-          <p className="text-[12px] text-text-3 mt-0.5">
-            Stamped onto every tailored CV's contact line. Leave any field blank
-            to skip it.
+    <div className="space-y-6">
+      {/* ── Contact Details card ── */}
+      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+        <div>
+          <h2 className="label-luxury text-text-2">Contact Details</h2>
+          <p className="mt-1 text-xs text-text-3">
+            Used to stamp a clean contact line on every tailored CV. LinkedIn,
+            GitHub, and Portfolio appear as clickable links. Leave fields blank
+            to omit them.
           </p>
         </div>
-        <div className="px-5 py-5 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          <Field label="Name"      value={cd.name ?? ""}      onChange={(v) => setField("name", v)} />
-          <Field label="Email"     value={cd.email ?? ""}     onChange={(v) => setField("email", v)} type="email" />
-          <Field label="Phone"     value={cd.phone ?? ""}     onChange={(v) => setField("phone", v)} type="tel" />
-          <Field label="Address"   value={cd.address ?? ""}   onChange={(v) => setField("address", v)} />
-          <Field label="LinkedIn"  value={cd.linkedin ?? ""}  onChange={(v) => setField("linkedin", v)} placeholder="https://linkedin.com/in/…" />
-          <Field label="GitHub"    value={cd.github ?? ""}    onChange={(v) => setField("github", v)} placeholder="https://github.com/…" />
-          <Field label="Portfolio" value={cd.portfolio ?? ""} onChange={(v) => setField("portfolio", v)} placeholder="https://yoursite.com" />
-          <Field label="Website"   value={cd.website ?? ""}   onChange={(v) => setField("website", v)} placeholder="(if different from portfolio)" />
-          <Field label="Other label" value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
-          <Field label="Other URL"   value={cd.other_url ?? ""}   onChange={(v) => setField("other_url", v)} placeholder="https://…" />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Full Name"          value={cd.name        ?? ""} onChange={(v) => setField("name",        v)} placeholder="Jane Doe" />
+          <Field label="Phone"              value={cd.phone       ?? ""} onChange={(v) => setField("phone",       v)} placeholder="+61 414 032 507" type="tel" />
+          <Field label="Email"              value={cd.email       ?? ""} onChange={(v) => setField("email",       v)} placeholder="you@example.com" type="email" />
+          <Field label="Address / Location" value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="Hurstville, NSW 2220, Australia" />
+          <Field label="LinkedIn URL"       value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="linkedin.com/in/yourname" />
+          <Field label="GitHub URL"         value={cd.github      ?? ""} onChange={(v) => setField("github",      v)} placeholder="github.com/yourname" />
+          <Field label="Portfolio URL"      value={cd.portfolio   ?? ""} onChange={(v) => setField("portfolio",   v)} placeholder="yourname.dev" />
+          <Field label="Website URL"        value={cd.website     ?? ""} onChange={(v) => setField("website",     v)} placeholder="(used only if no Portfolio)" />
+          <Field label="Other (label)"      value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
+          <Field label="Other (URL)"        value={cd.other_url   ?? ""} onChange={(v) => setField("other_url",   v)} placeholder="https://..." />
         </div>
+
+        <p className="text-xs text-text-3">
+          On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Address | Phone | Email | LinkedIn | GitHub | Portfolio</code>
+        </p>
       </div>
 
-      {/* Portfolio projects */}
-      <div className="bg-surface border border-border rounded-md">
-        <div className="px-5 py-4 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[14px] font-semibold text-text">Portfolio projects</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">
-              Passed to the tailoring AI alongside your CV — it will surface relevant
-              projects in the tailored CV when they fit the JD.
-            </p>
-          </div>
-          <button onClick={addProject} className="gh-btn text-[12px]">+ Add project</button>
+      {/* ── Portfolio Projects card ── */}
+      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+        <div>
+          <h2 className="label-luxury text-text-2">Portfolio Projects</h2>
+          <p className="mt-1 text-xs text-text-3">
+            These are passed to the AI when tailoring your CV — it will reference
+            relevant projects for each role. Add name, live URL, and a one-line
+            description.
+          </p>
         </div>
 
-        <div className="px-5 py-5 space-y-4">
-          {projects.length === 0 && (
-            <p className="text-[12px] text-text-3 italic">No projects yet — click "Add project" to start.</p>
-          )}
+        <div className="space-y-3">
           {projects.map((proj, i) => (
-            <div key={i} className="border border-border rounded-md p-3 bg-surface-2/40">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
-                <div>
-                  <label className="block text-[11px] text-text-2 mb-1">Name</label>
+            <div key={i} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-text-2">Project {i + 1}</span>
+                <button
+                  onClick={() => removeProject(i)}
+                  className="rounded p-1 hover:bg-red-light hover:text-red transition-colors"
+                  aria-label="Remove project"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-text-2">Name</label>
                   <input
+                    type="text"
                     value={proj.name ?? ""}
                     onChange={(e) => patchProject(i, "name", e.target.value)}
                     placeholder="e.g. CV Magic"
-                    className="w-full bg-surface border border-border rounded-md px-2.5 py-1.5 text-[12px] text-text focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] text-text-2 mb-1">URL</label>
-                  <input
-                    value={proj.url ?? ""}
-                    onChange={(e) => patchProject(i, "url", e.target.value)}
-                    placeholder="https://…"
-                    className="w-full bg-surface border border-border rounded-md px-2.5 py-1.5 text-[12px] text-text focus:outline-none focus:ring-2 focus:ring-accent/30 font-mono"
-                  />
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-text-2">URL</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="url"
+                      value={proj.url ?? ""}
+                      onChange={(e) => patchProject(i, "url", e.target.value)}
+                      placeholder="https://github.com/you/project"
+                      className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+                    />
+                    {proj.url && (
+                      <a
+                        href={proj.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-text-3 hover:text-[var(--brand)]"
+                        aria-label="Open project URL"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="mt-2">
-                <label className="block text-[11px] text-text-2 mb-1">Description (one line)</label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-text-2">
+                  One-line description <span className="font-normal text-text-3">(optional)</span>
+                </label>
                 <input
+                  type="text"
                   value={proj.description ?? ""}
                   onChange={(e) => patchProject(i, "description", e.target.value)}
-                  placeholder="What it does + the tech stack"
-                  className="w-full bg-surface border border-border rounded-md px-2.5 py-1.5 text-[12px] text-text focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  placeholder="e.g. AI-powered CV tailoring tool built with Next.js and FastAPI"
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                 />
               </div>
-              <button
-                onClick={() => removeProject(i)}
-                className="mt-2 text-[11px] text-text-3 hover:text-red"
-              >
-                Remove project
-              </button>
             </div>
           ))}
         </div>
+
+        <button
+          onClick={addProject}
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-[var(--border)] px-3 py-2 text-sm font-medium text-text-2 hover:border-[var(--brand)]/40 hover:text-[var(--brand)] transition-colors w-full justify-center"
+        >
+          <Plus className="h-4 w-4" />
+          Add project
+        </button>
       </div>
 
       {error && (
@@ -166,34 +205,36 @@ export function ProfileSettingsClient({ initial }: Props) {
         <button
           onClick={save}
           disabled={busy}
-          className="gh-btn gh-btn-primary text-[13px]"
+          className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90 hover:glow-gold disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Save profile"}
+          {busy ? "Saving…" : "Save preferences"}
         </button>
-        {savedFlash && <span className="text-[12px] text-green">✓ Saved</span>}
+        {savedFlash && <span className="text-sm text-green">✓ Saved</span>}
       </div>
     </div>
   );
 }
 
+/* ─── Form field — cv-magic style ─────────────────────────────── */
+
 function Field({
   label, value, onChange, type = "text", placeholder,
 }: {
-  label:       string;
-  value:       string;
-  onChange:    (v: string) => void;
-  type?:       string;
+  label:        string;
+  value:        string;
+  onChange:     (v: string) => void;
+  type?:        string;
   placeholder?: string;
 }) {
   return (
-    <div>
-      <label className="block text-[11px] text-text-2 mb-1">{label}</label>
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-text-2">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-surface border border-border rounded-md px-2.5 py-1.5 text-[12px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
       />
     </div>
   );

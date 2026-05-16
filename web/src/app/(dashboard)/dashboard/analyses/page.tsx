@@ -38,8 +38,8 @@ export default async function AnalysesPage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-[16px] font-semibold text-text">Analyses</h1>
-          <p className="text-[12px] text-text-3 mt-0.5">
+          <h1 className="page-title text-text">Analyses</h1>
+          <p className="page-subtitle">
             Every CV-tailoring analysis you&apos;ve run, grouped by job. Click any
             row to view the full breakdown.
           </p>

@@ -75,8 +75,8 @@ export default async function IntegrationsPage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-8">
         <div>
-          <h1 className="text-[16px] font-semibold text-text">Integrations</h1>
-          <p className="text-[12px] text-text-3 mt-0.5">
+          <h1 className="page-title text-text">Integrations</h1>
+          <p className="page-subtitle">
             Connect job sources and AI providers. All credentials are encrypted at rest with AES-256-GCM.
           </p>
         </div>
