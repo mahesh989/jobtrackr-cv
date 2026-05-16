@@ -27,7 +27,15 @@ export function AnalyzeJobButton({ jobId }: Props) {
     e.stopPropagation();
     setErr(null);
     startTransition(async () => {
-      const res = await fetch(`/api/jobs/${jobId}/analyze`, { method: "POST" });
+      // Read preferred provider from localStorage (set on Integrations page).
+      let preferredProvider: string | null = null;
+      try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
+
+      const res = await fetch(`/api/jobs/${jobId}/analyze`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message = (json.error as string) ?? `Failed (${res.status})`;

@@ -34,10 +34,20 @@ const JD_FULL_THRESHOLD  = 2000;   // chars — below this we try a fresh scrape
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: jobId } = await params;
+
+  // Optional preferred provider sent by AnalyzeJobButton from localStorage.
+  let preferredProvider: Provider | null = null;
+  try {
+    const body = await req.json().catch(() => ({}));
+    const raw  = (body as { provider?: string }).provider ?? null;
+    if (raw && PROVIDER_PRIORITY.includes(raw as Provider)) {
+      preferredProvider = raw as Provider;
+    }
+  } catch {}
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -102,7 +112,12 @@ export async function POST(
       model:     row.config?.model ?? null,
     });
   }
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+  // Use the user's preferred provider if it's connected; otherwise fall back
+  // to the priority order so there's always a working fallback.
+  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
+    ? preferredProvider
+    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
   if (!chosen) {
     return NextResponse.json(
       { error: "No AI key configured. Add one in Settings → AI keys." },

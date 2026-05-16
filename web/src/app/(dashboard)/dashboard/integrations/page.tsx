@@ -3,6 +3,7 @@ import { createAdminClient }   from "@/lib/supabase/admin";
 import { redirect }            from "next/navigation";
 import { ApifyIntegrationCard } from "@/components/ApifyIntegrationCard";
 import { AiKeyCard, type AiKeyProvider, type AiKeyState } from "@/components/cv/AiKeyCard";
+import { ProviderPicker } from "@/components/ProviderPicker";
 
 export const metadata = { title: "Integrations — JobTrackr" };
 
@@ -84,10 +85,30 @@ export default async function IntegrationsPage() {
         {/* AI providers section */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">AI providers</h2>
-          <p className="text-[12px] text-text-3 mb-3">
-            Bring your own key from at least one provider. The CV-tailoring pipeline
-            prefers Anthropic, then OpenAI, then DeepSeek.
+          <p className="text-[12px] text-text-3 mb-4">
+            Bring your own key from at least one provider. Choose your preferred
+            provider and model — used for every analysis run.
           </p>
+
+          {/* Preferred provider + model picker */}
+          <div className="mb-6">
+            <p className="text-[12px] font-medium text-text-2 mb-2">Preferred provider &amp; model</p>
+            <ProviderPicker
+              providers={AI_PROVIDERS.map((p) => {
+                const state = byProvider.get(p);
+                return {
+                  id:        p,
+                  connected: state?.connected ?? false,
+                  model:     state?.model ?? null,
+                };
+              })}
+            />
+          </div>
+
+          <p className="text-[11px] text-text-3 mb-4">
+            Connect your keys below. The picker above updates automatically once a provider is connected.
+          </p>
+
           <div className="space-y-4">
             {AI_PROVIDERS.map((p) => (
               <AiKeyCard
