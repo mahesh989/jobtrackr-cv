@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.2",
-    "updated": "2026-05-16 (Session A cleanup)",
+    "version": "0.3",
+    "updated": "2026-05-16 (Session B — orchestration layer)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -163,7 +163,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Session B: cover letter feature. Phase 10 longer-term: decide between (a) beta invite flow + onboarding, (b) custom domain setup, (c) additional job sources. Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
+    "next_action": "Session C: Execute prompts.py modular split using the orchestration layer. Plan corrections already captured in planning_notes. Run /plan to re-plan with corrections applied, then /audit before merge. After that: cover letter feature (Phase 10). Longer-term: (a) beta invite flow + onboarding, (b) custom domain setup, (c) additional job sources. Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -196,7 +196,8 @@
       "Phase 9.16 — OpenAI non-chat model fallback: cv-backend client.py detects 'not a chat model' error and retries with gpt-4o. Web routes also retry with ai_model=null on failure.",
       "Phase 9.17 — Brand-tinted theme borders: Clay --border #F5BECE (pink), Notion --border #C1B7EC (purple), Gilded Noir --border #5C4D23 (gold-dark). Table lines, card outlines, form boxes now match each theme's brand.",
       "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1 (recommended), GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini. Removed fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini.",
-      "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene: (1) Migration renames: 005_vertical_filter→006_vertical_filter, 009_possible_duplicate→009_add_possible_duplicate_dedup_status. No prod impact — migrations are CLI-untracked, applied manually via SQL editor. (2) Dead components deleted: AiKeyCard.tsx (superseded by ProviderPicker), JobCard.tsx, JobSortBar.tsx (both superseded by JobTable/JobFilterBar in Phase 9), ToggleActiveButton.tsx (never wired up). (3) scrapeJobUrl.ts kept but marked as DEFERRED-1 in deferred_features; deferred comment block added to file header. (4) bullmq + ioredis confirmed legitimate — server-side only, used by job-discovery pipeline queue trigger in run/route.ts and actions.ts; do not remove. (5) Test artefacts removed from git: 2× Jora CSV, discovered_slugs.json, jora_scraper.py, verify_slugs.py, 3× jora_test JSON, test-update.js, fix-dead-links.js. Patterns added to .gitignore with explanatory comment."
+      "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene: (1) Migration renames: 005_vertical_filter→006_vertical_filter, 009_possible_duplicate→009_add_possible_duplicate_dedup_status. No prod impact — migrations are CLI-untracked, applied manually via SQL editor. (2) Dead components deleted: AiKeyCard.tsx (superseded by ProviderPicker), JobCard.tsx, JobSortBar.tsx (both superseded by JobTable/JobFilterBar in Phase 9), ToggleActiveButton.tsx (never wired up). (3) scrapeJobUrl.ts kept but marked as DEFERRED-1 in deferred_features; deferred comment block added to file header. (4) bullmq + ioredis confirmed legitimate — server-side only, used by job-discovery pipeline queue trigger in run/route.ts and actions.ts; do not remove. (5) Test artefacts removed from git: 2× Jora CSV, discovered_slugs.json, jora_scraper.py, verify_slugs.py, 3× jora_test JSON, test-update.js, fix-dead-links.js. Patterns added to .gitignore with explanatory comment.",
+      "Session B orchestration layer (2026-05-16) — Permanent subagent + slash command infrastructure. (1) .claude/agents/ created: planner (haiku-4-5, Read/Grep/Glob, plan-only), auditor (opus-4-7, Read/Grep/Glob/Bash read-only, PASS/FAIL structured review), migration-checker (sonnet-4-6, Read/Grep/Glob/Bash, pre-migration safety checker). (2) .claude/commands/ created: /plan (invokes planner, stops for approval), /audit (invokes auditor, halts on FAIL), /ship (graph.json → commit → push → summary ritual), /handoff (generates copy-pasteable next-session block). (3) CLAUDE.md updated: Model Routing section (routing table + Opus-is-reviewer rule), Session Management Rules section (60% threshold + /handoff protocol). (4) Smoke test passed: planner and auditor both verified to run in isolated agent contexts with correct models, producing structured output."
     ],
     "in_progress": [],
     "blocked": []
@@ -798,6 +799,39 @@
       "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded — they fail at the /v1/chat/completions endpoint."
     }
   ],
+  "tooling": {
+    "orchestration_layer": {
+      "status": "live",
+      "landed": "Session B (2026-05-16)",
+      "subagents": {
+        "planner": {
+          "file": ".claude/agents/planner.md",
+          "model": "claude-haiku-4-5",
+          "tools": ["Read", "Grep", "Glob"],
+          "role": "Pre-task planning. Produces structured 10-section plan. Never executes."
+        },
+        "auditor": {
+          "file": ".claude/agents/auditor.md",
+          "model": "claude-opus-4-7",
+          "tools": ["Read", "Grep", "Glob", "Bash (read-only)"],
+          "role": "Phase-boundary code review. Returns PASS / PASS_WITH_NOTES / FAIL. Never modifies code."
+        },
+        "migration_checker": {
+          "file": ".claude/agents/migration-checker.md",
+          "model": "claude-sonnet-4-6",
+          "tools": ["Read", "Grep", "Glob", "Bash (read-only)"],
+          "role": "Pre-migration safety check. Verifies CLI state, filename collisions, risk profile."
+        }
+      },
+      "slash_commands": {
+        "plan": ".claude/commands/plan.md — invokes planner subagent, stops for user approval",
+        "audit": ".claude/commands/audit.md — invokes auditor subagent, halts on FAIL",
+        "ship": ".claude/commands/ship.md — phase wrap-up: graph.json → commit → push → summary",
+        "handoff": ".claude/commands/handoff.md — generates copy-pasteable next-session block"
+      },
+      "model_routing_policy": "Documented in CLAUDE.md ## Model Routing. Main=sonnet-4-6, Planning=haiku-4-5, Auditing=opus-4-7 (reviewer only, not executor), Migration=sonnet-4-6."
+    }
+  },
   "deferred_features": [
     {
       "id": "DEFERRED-1",
@@ -822,6 +856,27 @@
       "title": "bullmq + ioredis in web/package.json are legitimate",
       "detail": "Imported by web/src/app/api/profiles/[id]/run/route.ts and web/src/lib/actions.ts for the job-discovery pipeline BullMQ queue trigger. Both are server-side only (Next.js API route + server action). They do not enter the browser bundle. Do not remove them.",
       "logged": "2026-05-16"
+    },
+    {
+      "id": "OPS-3",
+      "title": "Slash commands in .claude/commands/ are user-facing — not agent-triggerable",
+      "detail": "Files in .claude/commands/ define slash commands typed by the human (e.g. /plan, /audit). Agents cannot invoke slash commands via the Skill tool — that returns an error. Agents invoke subagents directly via the Agent tool, passing the subagent's role prompt explicitly. The slash command files document the protocol and standardise human-initiated invocations; they do not execute themselves.",
+      "logged": "2026-05-16"
+    }
+  ],
+  "planning_notes": [
+    {
+      "id": "PLAN-1",
+      "title": "prompts.py modular split — auditor corrections for Session C",
+      "source": "Auditor subagent review, Session B smoke test (PASS_WITH_NOTES)",
+      "corrections": [
+        "Planner line ranges are off by ~5 lines per step — verify actual constant boundaries in Session C before copying. Actual boundaries found by auditor: JD_ANALYSIS 13–77, CV_JD_MATCHING 79–144, KEYWORD_FEASIBILITY 146–289, AI_RECOMMENDATIONS 292–380, TAILORED_CV 383–1364, CV_SKILL_CATEGORISATION 1367–1413.",
+        "cv-backend/app/services/cv/skill_categoriser.py is also a consumer of prompts.py and was missing from the planner's Files to Read list. Must be included in import migration verification.",
+        "The prompts.py → prompts/ transition must be atomic — delete prompts.py and create prompts/ package in the same commit. Python cannot resolve both at the same path; 'delete or deprecate' is not a valid option.",
+        "Verification: local import smoke test (python -c 'from app.services.ai.prompts import ...') is sufficient. flyctl deploy is overkill for a mechanical refactor — defer to the next real functional change.",
+        "graph.json update must be part of the Session C commit — not a separate chore."
+      ],
+      "status": "ready_for_session_c"
     }
   ],
   "open_questions": [

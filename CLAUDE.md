@@ -73,3 +73,50 @@ This repo's `main` deploys to Vercel preview, not to the production JobTrackr do
 - DO NOT push to the production JobTrackr repo.
 - DO NOT alter existing JobTrackr Supabase tables (only new tables + new provider values).
 - DO seed test data freely in shared Supabase — new tables are isolated from JobTrackr code paths.
+
+## Model Routing
+
+This project uses tiered models for different roles. Do not override
+these defaults without explicit user instruction.
+
+| Role | Model | When |
+|---|---|---|
+| Main session | claude-sonnet-4-6 | All hands-on coding work |
+| Planning | claude-haiku-4-5 | Via /plan or planner subagent |
+| Auditing | claude-opus-4-7 | Via /audit or auditor subagent only, never as main session |
+| Migration checks | claude-sonnet-4-6 | Via migration-checker subagent before any Supabase migration work |
+
+Opus is the senior reviewer, not the executor. Do not run Opus as the
+main session model — it's expensive and unnecessary for most work.
+
+If a session starts on the wrong model, switch via /model before
+beginning substantive work.
+
+## Session Management Rules
+
+You are responsible for monitoring your own context usage and
+proactively telling the user when to start a fresh session. Do not
+wait to be asked.
+
+### When to recommend a new session
+
+Proactively recommend a fresh session when:
+
+1. Context usage approaches 60% (run /context if uncertain)
+2. A logical phase has just completed (committed and pushed)
+3. The next task is fundamentally different from the current one
+4. The conversation has accumulated more than ~20 substantial turns
+5. A /compact was just performed and new work is about to start
+
+### How to recommend a new session
+
+When you decide a new session is warranted, invoke the /handoff slash
+command. Do not write the handoff block manually — the command
+standardises the format.
+
+### What not to do
+
+- Do not recommend new sessions mid-task. Finish the current logical
+  unit first.
+- Do not recommend new sessions during active debugging.
+- Do not recommend sessions for short tasks (< 5 turns of activity).
