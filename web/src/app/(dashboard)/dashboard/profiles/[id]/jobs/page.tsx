@@ -201,8 +201,11 @@ export default async function JobsPage({
         {/* Pipeline running status */}
         <LiveRunStatus profileId={id} />
 
-        {/* Filters row */}
-        <div className="anim-in">
+        {/* Filters + Sort — single flex row. JobFilters fills the left
+            (status tabs, time, keywords, location, visa, clear);
+            JobSortBar floats right (results count + sort buttons).
+            flex-wrap keeps the layout sane on narrow screens. */}
+        <div className="anim-in flex flex-wrap items-center justify-between gap-3">
           <Suspense>
             <JobFilters
               totalCount={totalCount}
@@ -211,16 +214,13 @@ export default async function JobsPage({
               dismissedCount={dismissedCount}
             />
           </Suspense>
+          <Suspense>
+            <JobSortBar total={jobList.length} />
+          </Suspense>
         </div>
 
-        {/* Sort bar + results */}
+        {/* Job table */}
         <div className="anim-in anim-delay-1">
-          <div className="mb-2">
-            <Suspense>
-              <JobSortBar total={jobList.length} />
-            </Suspense>
-          </div>
-
           <JobTable
             jobs={jobList}
             showVisa={sp.visa_toggle === "1"}

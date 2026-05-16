@@ -31,13 +31,13 @@ export function JobSortBar({ total }: { total: number }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3">
-      <p className="text-[12px] text-[#656D76]">
+    <div className="flex items-center gap-3 flex-wrap">
+      <p className="text-xs text-text-2 whitespace-nowrap">
         {total.toLocaleString()} result{total !== 1 ? "s" : ""}
       </p>
 
-      <div className="flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-[#9198A1] mr-0.5">Sort</span>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[11px] font-medium text-text-3 mr-0.5">Sort</span>
         {SORT_OPTIONS.map((opt) => {
           const active = currentSort === opt.value;
           return (
@@ -46,8 +46,8 @@ export function JobSortBar({ total }: { total: number }) {
               onClick={() => setSort(opt.value)}
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all border ${
                 active
-                  ? "bg-[#1F2328] text-white border-[#1F2328]"
-                  : "bg-white border-[#D0D7DE] text-[#656D76] hover:text-[#1F2328]"
+                  ? "bg-text text-[var(--surface)] border-text"
+                  : "bg-[var(--surface)] border-[var(--border)] text-text-2 hover:text-text"
               }`}
             >
               {opt.label}
