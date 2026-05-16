@@ -31,7 +31,7 @@ export function JobSortBar({ total }: { total: number }) {
   }
 
   return (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="flex items-center gap-3 shrink-0 flex-nowrap">
       <p className="text-xs text-text-2 whitespace-nowrap">
         {total.toLocaleString()} result{total !== 1 ? "s" : ""}
       </p>

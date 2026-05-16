@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useRef, useEffect } from "react";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
@@ -271,7 +271,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 <div className="flex flex-wrap items-center gap-3 mt-1 text-xs">
                   {manualJd && (
                     <span
-                      className="font-semibold text-amber"
+                      className="font-semibold text-green-600"
                       title="JD has been manually trimmed for AI analysis"
                     >
                       Edited JD
@@ -339,58 +339,20 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             </div>
           )}
 
-          {/* Actions — pencil icon | [View] | Analyze | Applied | × */}
+          {/* Actions — Analyze (always visible) + ⋮ overflow menu */}
           <div
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Edit — icon only; title attr gives the tooltip */}
-            <button
-              onClick={() => setShowEdit(true)}
-              className="gh-btn p-1.5 text-[#656D76] hover:text-[#0969DA] hover:border-[#0969DA]/30"
-              title="Edit JD and contact email"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/>
-              </svg>
-            </button>
-
-            {job.latest_run_id && (
-              <a
-                href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="gh-btn text-[11px] px-2 py-1 hover:border-[#1A7F37]/40 hover:text-[#1A7F37]"
-                title="Open the most recent analysis for this job"
-              >
-                View
-              </a>
-            )}
-
             <AnalyzeJobButton jobId={job.id} />
-
-            <button
-              disabled={pending || localApplied}
-              onClick={handleApply}
-              className={`gh-btn text-[11px] px-2.5 py-1 ${
-                localApplied
-                  ? "text-[#1A7F37] border-[#1A7F37]/30 bg-[#DAFBE1] cursor-default"
-                  : "hover:border-[#1A7F37]/40 hover:text-[#1A7F37]"
-              }`}
-            >
-              {localApplied ? "✓ Applied" : "Applied"}
-            </button>
-
-            <button
-              disabled={pending}
-              onClick={handleDismiss}
-              className="gh-btn p-1.5 text-[#9198A1] hover:text-[#CF222E] hover:border-[#CF222E]/30 hover:bg-[#FFEBE9]"
-              title="Dismiss"
-            >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
+            <RowMenu
+              job={job}
+              pending={pending}
+              localApplied={localApplied}
+              onEdit={() => setShowEdit(true)}
+              onApply={handleApply}
+              onDismiss={handleDismiss}
+            />
           </div>
         </div>
 
@@ -429,6 +391,121 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             setContactEmail(patch.contact_email);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── ⋮ overflow menu ───────────────────────────────────────────────────────────
+
+function RowMenu({
+  job,
+  pending,
+  localApplied,
+  onEdit,
+  onApply,
+  onDismiss,
+}: {
+  job: Job;
+  pending: boolean;
+  localApplied: boolean;
+  onEdit: () => void;
+  onApply: (e: React.MouseEvent) => void;
+  onDismiss: (e: React.MouseEvent) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const itemCls =
+    "w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-2 hover:bg-[var(--surface-2)] hover:text-text transition-colors rounded text-left whitespace-nowrap";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="gh-btn p-1.5 text-text-3 hover:text-text"
+        title="More actions"
+      >
+        {/* Vertical ellipsis (⋮) */}
+        <svg className="w-3.5 h-3.5" viewBox="0 0 4 16" fill="currentColor">
+          <circle cx="2" cy="2"  r="1.5"/>
+          <circle cx="2" cy="8"  r="1.5"/>
+          <circle cx="2" cy="14" r="1.5"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg py-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Edit JD */}
+          <button
+            className={itemCls}
+            onClick={() => { setOpen(false); onEdit(); }}
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/>
+            </svg>
+            Edit JD
+          </button>
+
+          {/* View analysis */}
+          {job.latest_run_id && (
+            <a
+              href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
+              className={itemCls}
+              onClick={() => setOpen(false)}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              View analysis
+            </a>
+          )}
+
+          <div className="my-1 border-t border-[var(--border)]" />
+
+          {/* Mark applied */}
+          <button
+            disabled={pending || localApplied}
+            className={`${itemCls} ${localApplied ? "opacity-40 cursor-default" : ""}`}
+            onClick={(e) => { setOpen(false); onApply(e); }}
+          >
+            <svg className="w-3.5 h-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span className={localApplied ? "text-green-600 font-medium" : ""}>
+              {localApplied ? "Applied ✓" : "Mark as applied"}
+            </span>
+          </button>
+
+          {/* Dismiss */}
+          <button
+            disabled={pending}
+            className={`${itemCls} hover:text-red-600 hover:bg-red-50`}
+            onClick={(e) => { setOpen(false); onDismiss(e); }}
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Dismiss
+          </button>
+        </div>
       )}
     </div>
   );

@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { JobTable } from "@/components/JobTable";
-import { JobFilters } from "@/components/JobFilters";
-import { JobSortBar } from "@/components/JobSortBar";
+import { JobStatusTabs } from "@/components/JobFilters";
+import { JobFilterBar } from "@/components/JobFilterBar";
 import { RunNowButton } from "@/components/RunNowButton";
 import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
@@ -201,21 +201,22 @@ export default async function JobsPage({
         {/* Pipeline running status */}
         <LiveRunStatus profileId={id} />
 
-        {/* Filters + Sort — single flex row. JobFilters fills the left
-            (status tabs, time, keywords, location, visa, clear);
-            JobSortBar floats right (results count + sort buttons).
-            flex-wrap keeps the layout sane on narrow screens. */}
-        <div className="anim-in flex flex-wrap items-center justify-between gap-3">
+        {/* Row 1: status tabs */}
+        <div className="anim-in">
           <Suspense>
-            <JobFilters
+            <JobStatusTabs
               totalCount={totalCount}
               newCount={newCount}
               appliedCount={appliedCount}
               dismissedCount={dismissedCount}
             />
           </Suspense>
+        </div>
+
+        {/* Row 2: secondary filters (left) + sort bar (right) — unified single row */}
+        <div className="anim-in">
           <Suspense>
-            <JobSortBar total={jobList.length} />
+            <JobFilterBar total={jobList.length} />
           </Suspense>
         </div>
 
