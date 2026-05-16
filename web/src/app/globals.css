@@ -323,11 +323,16 @@ body {
   font-family: var(--font-sans-active), system-ui, sans-serif;
 }
 
-/* ─── Scrollbar ─────────────────────────────────────────────── */
+/* ─── Scrollbar — uses brand colour so each theme gets its own tint ─ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--brand) 35%, transparent);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--brand) 65%, transparent);
+}
 
 /* ─── Focus ─────────────────────────────────────────────────── */
 *:focus-visible {
