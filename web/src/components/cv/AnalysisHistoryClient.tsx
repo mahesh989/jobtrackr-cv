@@ -2,6 +2,15 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  CheckCircle2,
+  Clock,
+  Loader2,
+  XCircle,
+  ArrowRight,
+  Building2,
+  Filter,
+} from "lucide-react";
 
 export interface HistoryRun {
   id:                   string;
@@ -32,15 +41,6 @@ interface Props {
   jobs:        HistoryJob[];
 }
 
-function statusInfo(s: HistoryRun["status"]) {
-  switch (s) {
-    case "completed": return { label: "Completed", cls: "text-green"   };
-    case "running":   return { label: "Running",   cls: "text-[#0969DA]" };
-    case "failed":    return { label: "Failed",    cls: "text-red"     };
-    default:          return { label: "Pending",   cls: "text-text-3"  };
-  }
-}
-
 function fmtDate(s: string) {
   return new Date(s).toLocaleString("en-AU", {
     day: "numeric", month: "short", year: "numeric",
@@ -49,37 +49,24 @@ function fmtDate(s: string) {
 }
 
 function StatusIcon({ status }: { status: HistoryRun["status"] }) {
-  if (status === "completed") {
-    return (
-      <svg className="w-5 h-5 text-green shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (status === "failed") {
-    return (
-      <svg className="w-5 h-5 text-red shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (status === "running") {
-    return (
-      <svg className="w-5 h-5 text-[#0969DA] shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="w-5 h-5 text-text-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  if (status === "completed")
+    return <CheckCircle2 className="h-5 w-5 shrink-0 text-green" />;
+  if (status === "running")
+    return <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand)]" />;
+  if (status === "failed")
+    return <XCircle className="h-5 w-5 shrink-0 text-red" />;
+  return <Clock className="h-5 w-5 shrink-0 text-text-3" />;
 }
 
+/**
+ * Analysis history — ported from cv-magic's analysis-history-client.tsx.
+ *
+ * Structure matches cv-magic exactly:
+ *   • space-y-6 between company sections (24px gap — bigger breathing room)
+ *   • Each section: rounded-lg border bg-[var(--surface)] (8px corners)
+ *   • Header: Building2 icon + serif company name + job-title pill
+ *   • Body: divide-y list of run rows with status icon + match% + arrow
+ */
 export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
   const [filter, setFilter] = useState<StatusFilter>("all");
 
@@ -94,7 +81,6 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
     return initialRuns.filter((r) => r.status === filter);
   }, [initialRuns, filter]);
 
-  // Group by job_id; preserve newest-first across groups by their latest run
   const grouped = useMemo(() => {
     const groups = new Map<string, HistoryRun[]>();
     for (const r of filtered) {
@@ -116,10 +102,12 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
 
   if (initialRuns.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-surface px-6 py-12 text-center">
-        <p className="text-[13px] text-text-3">
+      <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-12 text-center">
+        <p className="text-sm text-text-3">
           No analyses yet. Run one from any job — click the{" "}
-          <span className="px-1.5 py-0.5 text-[11px] text-[#0969DA] border border-[#0969DA]/30 rounded">Analyze</span>{" "}
+          <span className="rounded border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-1.5 py-0.5 text-xs font-semibold text-[var(--brand)]">
+            Analyze
+          </span>{" "}
           button on a job row.
         </p>
       </div>
@@ -127,61 +115,58 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
   }
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
-      {/* Status filter */}
-      <div className="flex flex-wrap gap-1">
-        {(["all", "completed", "running", "failed"] as StatusFilter[]).map((s) => {
-          const active = filter === s;
-          return (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`text-[12px] px-2.5 py-1 rounded border ${
-                active
-                  ? "bg-[#DDF4FF] border-[#0969DA]/30 text-[#0969DA]"
-                  : "bg-surface border-border text-text-2 hover:border-text-3"
-              }`}
-            >
-              {s[0].toUpperCase() + s.slice(1)}{" "}
-              <span className="text-text-3 tabular-nums">({counts[s]})</span>
-            </button>
-          );
-        })}
+    <div className="space-y-6">
+      {/* Status filter — cv-magic style dropdown look */}
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm">
+          <Filter className="h-3.5 w-3.5 text-text-3" />
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as StatusFilter)}
+            className="bg-transparent text-sm text-text outline-none cursor-pointer"
+          >
+            <option value="all">All ({counts.all})</option>
+            <option value="completed">Completed ({counts.completed})</option>
+            <option value="running">Running ({counts.running})</option>
+            <option value="failed">Failed ({counts.failed})</option>
+          </select>
+        </label>
       </div>
 
       {grouped.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-surface px-6 py-8 text-center">
-          <p className="text-[12px] text-text-3">No runs match this filter.</p>
+        <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+          <p className="text-sm text-text-3">No runs match this filter.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {grouped.map(([jobId, runs]) => {
             const job = jobById.get(jobId);
             return (
-              <section key={jobId} className="bg-surface border border-border rounded-md overflow-hidden">
-                <header className="flex items-center justify-between gap-3 border-b border-border bg-surface-2 px-5 py-3">
+              <section
+                key={jobId}
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
+              >
+                <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3">
                   <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                    <svg className="w-4 h-4 text-text-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m0 4h1m4-4h1m-1 4h1m-6 4h6"/>
-                    </svg>
+                    <Building2 className="h-4 w-4 shrink-0 text-text-3" />
                     <Link
                       href={`/dashboard/jobs/${jobId}/analyze/${runs[0].id}`}
-                      className="text-[14px] font-semibold text-text hover:text-[#0969DA] truncate"
+                      className="text-sm font-semibold text-text hover:text-[var(--brand)] truncate"
                     >
                       {job?.company ?? job?.title ?? "Unknown job"}
                     </Link>
                     {job?.title && job?.company && (
-                      <span className="text-[10px] uppercase tracking-wider text-text-3 bg-surface border border-border rounded-full px-2 py-0.5">
+                      <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-text-3 truncate">
                         {job.title}
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-text-3 shrink-0">
+                  <span className="text-xs text-text-3 shrink-0">
                     {runs.length} run{runs.length === 1 ? "" : "s"}
                   </span>
                 </header>
 
-                <ul className="divide-y divide-border">
+                <ul className="divide-y divide-[var(--border)]">
                   {runs.map((r, i) => <RunRow key={r.id} run={r} superseded={i > 0} />)}
                 </ul>
               </section>
@@ -194,44 +179,39 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
 }
 
 function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
-  const info = statusInfo(run.status);
-  // cv-magic uses the SINGLE score (match_score, the original CV's ATS score
-  // against this JD) for the "X% match" label, not the post-tailoring score.
   const score = run.match_score;
 
   return (
     <li>
       <Link
         href={`/dashboard/jobs/${run.job_id}/analyze/${run.id}`}
-        className="flex items-center gap-4 px-5 py-3 hover:bg-surface-2/60"
+        className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--surface-2)]/60 transition-colors"
       >
         <StatusIcon status={run.status} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[14px] font-semibold text-text tabular-nums">
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <span className="font-medium text-text tabular-nums">
               {score != null ? `${Math.round(score)}% match` : "Analysis"}
             </span>
-            <span className="text-[12px] text-text-3 tabular-nums">{fmtDate(run.created_at)}</span>
+            <span className="text-xs text-text-3 tabular-nums">{fmtDate(run.created_at)}</span>
             {superseded && run.is_stale !== false && (
-              <span className="text-[10px] uppercase tracking-wider font-bold text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
-                SUPERSEDED
+              <span className="rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-3">
+                superseded
               </span>
             )}
           </div>
-          <p className={`text-[12px] mt-0.5 ${info.cls}`}>
-            {info.label}
+          <p className="mt-0.5 text-xs text-text-3 capitalize">
+            {run.status}
             {run.status === "failed" && run.error_message && (
-              <span className="text-text-3 ml-2 truncate" title={run.error_message}>
-                · {run.error_message}
+              <span className="text-text-3 ml-1 truncate" title={run.error_message}>
+                — {run.error_message.slice(0, 80)}
               </span>
             )}
           </p>
         </div>
 
-        <svg className="w-4 h-4 text-text-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-        </svg>
+        <ArrowRight className="h-4 w-4 shrink-0 text-text-3" />
       </Link>
     </li>
   );

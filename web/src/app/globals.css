@@ -296,14 +296,31 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Only h1 (page titles) use the serif on cv-magic themes — exactly what
-   cv-magic does. h2 / h3 / smaller headings stay in the sans (Manrope)
-   so card titles + .label-luxury sit cleanly against body copy. */
-:root.theme-classic     h1,
-:root.theme-gilded-noir h1,
-:root.theme-notion      h1,
-:root.theme-clay        h1 {
+/* cv-magic applies serif to ALL h1-h6 via @layer base. We replicate
+   that on the four cv-magic themes. The .label-luxury override below
+   beats this rule on a per-element basis so section labels stay sans. */
+:root.theme-classic     h1, :root.theme-classic     h2,
+:root.theme-classic     h3, :root.theme-classic     h4,
+:root.theme-classic     h5, :root.theme-classic     h6,
+:root.theme-gilded-noir h1, :root.theme-gilded-noir h2,
+:root.theme-gilded-noir h3, :root.theme-gilded-noir h4,
+:root.theme-gilded-noir h5, :root.theme-gilded-noir h6,
+:root.theme-notion      h1, :root.theme-notion      h2,
+:root.theme-notion      h3, :root.theme-notion      h4,
+:root.theme-notion      h5, :root.theme-notion      h6,
+:root.theme-clay        h1, :root.theme-clay        h2,
+:root.theme-clay        h3, :root.theme-clay        h4,
+:root.theme-clay        h5, :root.theme-clay        h6 {
   font-family: var(--font-serif-active), Georgia, serif;
+}
+
+/* .label-luxury must beat the theme-scoped heading rule (specificity
+   0,1,2). Using a 2-class selector gets us 0,2,0 which wins. */
+:root.theme-classic     .label-luxury,
+:root.theme-gilded-noir .label-luxury,
+:root.theme-notion      .label-luxury,
+:root.theme-clay        .label-luxury {
+  font-family: var(--font-sans-active), system-ui, sans-serif;
 }
 
 /* ─── Scrollbar ─────────────────────────────────────────────── */
