@@ -222,7 +222,12 @@ export function CvLibraryClient({ initial }: Props) {
         body:    JSON.stringify({ is_active: true }),
       });
       if (!res.ok) { setError(await readError(res)); return; }
-      setCvs((prev) => prev.map((c) => ({ ...c, is_active: c.id === id })));
+      // Move newly active CV to the top of the list
+      setCvs((prev) => {
+        const updated = prev.map((c) => ({ ...c, is_active: c.id === id }));
+        const active  = updated.find((c) => c.id === id)!;
+        return [active, ...updated.filter((c) => c.id !== id)];
+      });
       router.refresh();
     } catch {
       setError("Network error setting active CV.");
@@ -307,6 +312,9 @@ export function CvLibraryClient({ initial }: Props) {
                 pending={pendingId === cv.id}
                 onActivate={() => handleSetActive(cv.id)}
                 onDelete={() => setDeleteTarget(cv)}
+                onSkillsUpdated={(skills) =>
+                  setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, categorised_skills: skills } : c))
+                }
               />
             );
           })}
@@ -365,13 +373,15 @@ function CvRowCard({
   pending,
   onActivate,
   onDelete,
+  onSkillsUpdated,
 }: {
-  cv:         CvRow;
-  ext:        string;
-  created:    string;
-  pending:    boolean;
-  onActivate: () => void;
-  onDelete:   () => void;
+  cv:              CvRow;
+  ext:             string;
+  created:         string;
+  pending:         boolean;
+  onActivate:      () => void;
+  onDelete:        () => void;
+  onSkillsUpdated: (skills: CategorisedSkills) => void;
 }) {
   return (
     <div
@@ -394,7 +404,7 @@ function CvRowCard({
         <div className="mt-1 flex items-center gap-3 text-xs text-text-3" suppressHydrationWarning>
           <span>Uploaded {created}</span>
         </div>
-        <CvSkillsBlock skills={cv.categorised_skills} />
+        <CvSkillsBlock skills={cv.categorised_skills} cvId={cv.id} onSkillsUpdated={onSkillsUpdated} />
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {!cv.is_active && (
@@ -421,15 +431,49 @@ function CvRowCard({
 
 // ── Categorised CV skills — collapsed by default ───────────────────────────
 
-function CvSkillsBlock({ skills }: { skills?: CategorisedSkills | null }) {
-  const [open, setOpen] = useState(false);
+function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
+  skills?: CategorisedSkills | null;
+  cvId: string;
+  onSkillsUpdated: (skills: CategorisedSkills) => void;
+}) {
+  const [open, setOpen]           = useState(false);
+  const [reCatLoading, setReCatLoading] = useState(false);
+  const [reCatError, setReCatError]     = useState<string | null>(null);
+
+  async function handleRecategorise() {
+    setReCatLoading(true);
+    setReCatError(null);
+    try {
+      const res = await fetch(`/api/cv/${cvId}/recategorise`, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        setReCatError(j.error ?? `Failed (HTTP ${res.status})`);
+        return;
+      }
+      const { categorised_skills } = await res.json() as { categorised_skills: CategorisedSkills };
+      onSkillsUpdated(categorised_skills);
+    } catch (err) {
+      setReCatError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setReCatLoading(false);
+    }
+  }
 
   if (!skills) {
     return (
-      <p className="text-[11px] text-text-3 mt-2 italic">
-        Skills not categorised yet — connect an AI key (Settings → AI keys) before uploading
-        the next CV, or re-upload this one.
-      </p>
+      <div className="mt-2">
+        <p className="text-[11px] text-text-3 italic mb-1.5">
+          Skills not yet categorised. Make sure an AI key is connected, then click below.
+        </p>
+        {reCatError && <p className="text-[11px] text-red mb-1">{reCatError}</p>}
+        <button
+          onClick={handleRecategorise}
+          disabled={reCatLoading}
+          className="text-[11px] font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
+        >
+          {reCatLoading ? "Categorising…" : "↺ Categorise skills now"}
+        </button>
+      </div>
     );
   }
 
@@ -473,8 +517,8 @@ function SkillRow({
     ? "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/20"
     : "bg-surface text-text-2 border-border";
   return (
-    <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-      <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
+    <div className="flex flex-col gap-1.5">
+      <span className="w-fit text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">

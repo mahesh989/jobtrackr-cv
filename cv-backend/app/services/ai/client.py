@@ -193,6 +193,21 @@ class AIClient:
                     )
                     retry = {k: v for k, v in kwargs.items() if k != "temperature"}
                     return await client.chat.completions.create(**retry)
+                # Detect legacy completions-only models (e.g. gpt-3.5-turbo-instruct)
+                # that don't support the chat/completions endpoint.
+                not_chat_model = (
+                    "not a chat model" in msg.lower()
+                    or "v1/completions" in msg.lower()
+                )
+                if not_chat_model:
+                    fallback_model = "gpt-4o"
+                    logger.warning(
+                        "Model '%s' is not a chat model; falling back to '%s'. "
+                        "Update your AI key settings to use a supported model.",
+                        kwargs.get("model"), fallback_model,
+                    )
+                    retry = {**kwargs, "model": fallback_model}
+                    return await client.chat.completions.create(**retry)
                 raise
 
         try:

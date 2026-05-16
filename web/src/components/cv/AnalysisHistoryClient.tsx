@@ -179,7 +179,12 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
 }
 
 function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
-  const score = run.match_score;
+  // Show the final tailored score if available, otherwise the initial score
+  const finalScore   = run.tailored_match_score ?? run.match_score;
+  const isTailored   = run.tailored_match_score != null;
+  const scoreLabel   = finalScore != null
+    ? `${Math.round(finalScore)}%${isTailored ? " final" : " match"}`
+    : "Analysis";
 
   return (
     <li>
@@ -191,9 +196,12 @@ function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap text-sm">
-            <span className="font-medium text-text tabular-nums">
-              {score != null ? `${Math.round(score)}% match` : "Analysis"}
-            </span>
+            <span className="font-medium text-text tabular-nums">{scoreLabel}</span>
+            {isTailored && run.match_score != null && (
+              <span className="text-[11px] text-text-3 tabular-nums">
+                (initial {Math.round(run.match_score)}%)
+              </span>
+            )}
             <span className="text-xs text-text-3 tabular-nums">{fmtDate(run.created_at)}</span>
             {superseded && run.is_stale !== false && (
               <span className="rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-3">

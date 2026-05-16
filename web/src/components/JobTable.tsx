@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
@@ -159,7 +160,8 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   currentTab: string;
 }) {
   const [expanded, setExpanded]     = useState(false);
-  const [pending, startTransition]  = useTransition();
+  const [, startTransition]         = useTransition();
+  const [isPending, setIsPending]   = useState(false);
   const [localApplied, setLocalApplied] = useState(!!job.applied_at);
   const [exitPhase, setExitPhase]   = useState<ExitPhase>("idle");
   const [showEdit, setShowEdit]     = useState(false);
@@ -173,26 +175,45 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   const isFlash   = exitPhase === "flash";
   const isFading  = exitPhase === "fading";
 
-  function handleApply(e: React.MouseEvent) {
+  async function handleApply(e: React.MouseEvent) {
     e.stopPropagation();
-    if (localApplied || exitPhase !== "idle") return;
+    if (localApplied || exitPhase !== "idle" || isPending) return;
     setLocalApplied(true);
-    startTransition(() => markJobApplied(job.id, job.profile_id));
+    setIsPending(true);
 
-    // On the Applied tab the row stays; everywhere else it exits after the green flash
+    // Kick off exit animation immediately for snappy UX
     if (currentTab !== "applied") {
       setExitPhase("flash");
       setTimeout(() => setExitPhase("fading"), 700);
       setTimeout(() => setExitPhase("gone"), 1150);
     }
+
+    try {
+      await markJobApplied(job.id, job.profile_id);
+    } catch (err) {
+      console.error("[JobRow] markJobApplied failed:", err);
+      // Revert local state so the row reappears
+      setLocalApplied(false);
+      setExitPhase("idle");
+    } finally {
+      setIsPending(false);
+    }
   }
 
-  function handleDismiss(e: React.MouseEvent) {
+  async function handleDismiss(e: React.MouseEvent) {
     e.stopPropagation();
-    if (exitPhase !== "idle") return;
+    if (exitPhase !== "idle" || isPending) return;
+    setIsPending(true);
     setExitPhase("fading");
-    startTransition(() => markJobDismissed(job.id, job.profile_id));
     setTimeout(() => setExitPhase("gone"), 450);
+    try {
+      await markJobDismissed(job.id, job.profile_id);
+    } catch (err) {
+      console.error("[JobRow] markJobDismissed failed:", err);
+      setExitPhase("idle");
+    } finally {
+      setIsPending(false);
+    }
   }
 
   if (exitPhase === "gone") return null;
@@ -347,7 +368,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             <AnalyzeJobButton jobId={job.id} />
             <RowMenu
               job={job}
-              pending={pending}
+              pending={isPending}
               localApplied={localApplied}
               onEdit={() => setShowEdit(true)}
               onApply={handleApply}
@@ -397,6 +418,8 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 }
 
 // ── ⋮ overflow menu ───────────────────────────────────────────────────────────
+// Uses createPortal + position:fixed so it escapes overflow:hidden on the
+// table wrapper and the row collapse animation container.
 
 function RowMenu({
   job,
@@ -414,13 +437,27 @@ function RowMenu({
   onDismiss: (e: React.MouseEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  function handleToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setOpen((v) => !v);
+  }
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -431,10 +468,72 @@ function RowMenu({
   const itemCls =
     "w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-2 hover:bg-[var(--surface-2)] hover:text-text transition-colors rounded text-left whitespace-nowrap";
 
-  return (
-    <div ref={ref} className="relative">
+  const menu = open && menuPos ? (
+    <div
+      ref={menuRef}
+      style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+      className="min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg py-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Edit JD */}
+      <button className={itemCls} onClick={() => { setOpen(false); onEdit(); }}>
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/>
+        </svg>
+        Edit JD
+      </button>
+
+      {/* View analysis */}
+      {job.latest_run_id && (
+        <a
+          href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
+          className={itemCls}
+          onClick={() => setOpen(false)}
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          View analysis
+        </a>
+      )}
+
+      <div className="my-1 border-t border-[var(--border)]" />
+
+      {/* Mark applied */}
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        disabled={pending || localApplied}
+        className={`${itemCls} ${localApplied ? "opacity-40 cursor-default" : ""}`}
+        onClick={(e) => { setOpen(false); onApply(e); }}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span className={localApplied ? "text-green-600 font-medium" : ""}>
+          {localApplied ? "Applied ✓" : "Mark as applied"}
+        </span>
+      </button>
+
+      {/* Dismiss */}
+      <button
+        disabled={pending}
+        className={`${itemCls} hover:text-red-600 hover:bg-red-50`}
+        onClick={(e) => { setOpen(false); onDismiss(e); }}
+      >
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        Dismiss
+      </button>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
         className="gh-btn p-1.5 text-text-3 hover:text-text"
         title="More actions"
       >
@@ -445,69 +544,8 @@ function RowMenu({
           <circle cx="2" cy="14" r="1.5"/>
         </svg>
       </button>
-
-      {open && (
-        <div
-          className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg py-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Edit JD */}
-          <button
-            className={itemCls}
-            onClick={() => { setOpen(false); onEdit(); }}
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/>
-            </svg>
-            Edit JD
-          </button>
-
-          {/* View analysis */}
-          {job.latest_run_id && (
-            <a
-              href={`/dashboard/jobs/${job.id}/analyze/${job.latest_run_id}`}
-              className={itemCls}
-              onClick={() => setOpen(false)}
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-              </svg>
-              View analysis
-            </a>
-          )}
-
-          <div className="my-1 border-t border-[var(--border)]" />
-
-          {/* Mark applied */}
-          <button
-            disabled={pending || localApplied}
-            className={`${itemCls} ${localApplied ? "opacity-40 cursor-default" : ""}`}
-            onClick={(e) => { setOpen(false); onApply(e); }}
-          >
-            <svg className="w-3.5 h-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-            </svg>
-            <span className={localApplied ? "text-green-600 font-medium" : ""}>
-              {localApplied ? "Applied ✓" : "Mark as applied"}
-            </span>
-          </button>
-
-          {/* Dismiss */}
-          <button
-            disabled={pending}
-            className={`${itemCls} hover:text-red-600 hover:bg-red-50`}
-            onClick={(e) => { setOpen(false); onDismiss(e); }}
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-            Dismiss
-          </button>
-        </div>
-      )}
-    </div>
+      {typeof document !== "undefined" && menu && createPortal(menu, document.body)}
+    </>
   );
 }
 

@@ -187,11 +187,12 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
           <span className="text-[12px] text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
           <form action="/auth/signout" method="post">
             <button
-              className="text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0"
+              className="flex items-center gap-1 text-[11px] font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
               title="Sign out"
               aria-label="Sign out"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign out</span>
             </button>
           </form>
         </div>
