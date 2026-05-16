@@ -144,14 +144,14 @@ type Tone = "green" | "blue" | "violet" | "amber" | "gray";
 
 const TONE_CHIP: Record<Tone, string> = {
   green:  "bg-green-light text-green border-green/30",
-  blue:   "bg-[#DDF4FF] text-[#0969DA] border-[#0969DA]/30",
+  blue:   "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/30",
   violet: "bg-[#FBEFFF] text-[#8250DF] border-[#8250DF]/30",
   amber:  "bg-[#FFF8C5] text-[#9A6700] border-[#D4A72C]/40",
   gray:   "bg-surface-2 text-text-2 border-border",
 };
 const TONE_REWRITE: Record<Tone, string> = {
   green:  "bg-green-light text-green",
-  blue:   "bg-[#DDF4FF] text-[#0969DA]",
+  blue:   "bg-[#DDF4FF] text-[var(--brand)]",
   violet: "bg-[#FBEFFF] text-[#8250DF]",
   amber:  "bg-[#FFF8C5] text-[#9A6700]",
   gray:   "bg-surface-2 text-text-2",

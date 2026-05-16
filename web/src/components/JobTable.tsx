@@ -114,13 +114,13 @@ export function JobTable({ jobs, showVisa, currentTab }: {
     return (
       <div className="bg-surface border border-border rounded-md">
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 rounded-lg bg-[#F6F8FA] border border-border flex items-center justify-center mb-4">
-            <svg className="w-5 h-5 text-[#9198A1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+          <div className="w-12 h-12 rounded-lg bg-[var(--surface-2)] border border-border flex items-center justify-center mb-4">
+            <svg className="w-5 h-5 text-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
             </svg>
           </div>
-          <p className="text-[14px] font-semibold text-[#1F2328] mb-1">No jobs match your filters</p>
-          <p className="text-[12px] text-[#656D76]">Adjust the filters above or run the pipeline to fetch new listings.</p>
+          <p className="text-[14px] font-semibold text-text mb-1">No jobs match your filters</p>
+          <p className="text-[12px] text-text-2">Adjust the filters above or run the pipeline to fetch new listings.</p>
         </div>
       </div>
     );
@@ -129,7 +129,7 @@ export function JobTable({ jobs, showVisa, currentTab }: {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       {/* Table header */}
-      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[#F6F8FA] border-b border-border text-[11px] font-semibold text-[#656D76] uppercase tracking-wider">
+      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-4">Role</div>
         <div className="col-span-2">Company</div>
         <div className="col-span-1 text-center">Source</div>
@@ -227,8 +227,8 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
         >
           {/* Role */}
           <div className="col-span-4 flex items-start gap-2.5 min-w-0">
-            <div className="w-6 h-6 rounded bg-[#F6F8FA] border border-border flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-[11px] font-bold text-[#656D76]">
+            <div className="w-6 h-6 rounded bg-[var(--surface-2)] border border-border flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-[11px] font-bold text-text-2">
                 {job.company?.[0]?.toUpperCase() ?? "?"}
               </span>
             </div>
@@ -262,7 +262,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 </span>
               )}
               {job.location && (
-                <p className="text-[11px] text-[#9198A1] truncate mt-0.5">{job.location}</p>
+                <p className="text-[11px] text-text-3 truncate mt-0.5">{job.location}</p>
               )}
               {/* Curation indicators — match cv-magic's "JD attached"
                   pattern: small text-xs labels with semantic colour, not
@@ -294,7 +294,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                     <span key={kw} className="badge badge-gray text-[10px] px-1.5 h-4">{kw}</span>
                   ))}
                   {job.keywords_matched.length > 3 && (
-                    <span className="text-[10px] text-[#9198A1]">+{job.keywords_matched.length - 3}</span>
+                    <span className="text-[10px] text-text-3">+{job.keywords_matched.length - 3}</span>
                   )}
                 </div>
               )}
@@ -304,7 +304,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
           {/* Company */}
           <div className="col-span-2 flex items-center min-w-0">
             <div className="min-w-0">
-              <p className="text-[12px] font-medium text-[#1F2328] truncate">{job.company || "—"}</p>
+              <p className="text-[12px] font-medium text-text truncate">{job.company || "—"}</p>
               {salary && (
                 <p className="text-[11px] text-[#1A7F37] font-medium">{salary}</p>
               )}
@@ -320,12 +320,12 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 
           {/* Posted */}
           <div className="col-span-1 flex items-center justify-center">
-            <span className="text-[11px] text-[#9198A1]">{postedAgo ?? "—"}</span>
+            <span className="text-[11px] text-text-3">{postedAgo ?? "—"}</span>
           </div>
 
           {/* Added (fetched date) */}
           <div className="col-span-1 flex items-center justify-center">
-            <span className="text-[11px] text-[#9198A1]">{relativeAdded(job.created_at) ?? "—"}</span>
+            <span className="text-[11px] text-text-3">{relativeAdded(job.created_at) ?? "—"}</span>
           </div>
 
           {/* Visa status */}
@@ -358,8 +358,8 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 
         {/* ── Expandable description ───────────────────────────────────────── */}
         {expanded && (
-          <div className="border-b border-border bg-[#F6F8FA] px-4 py-4">
-            <p className="text-[12px] text-[#1F2328] leading-relaxed whitespace-pre-wrap break-words max-w-3xl">
+          <div className="border-b border-border bg-[var(--surface-2)] px-4 py-4">
+            <p className="text-[12px] text-text leading-relaxed whitespace-pre-wrap break-words max-w-3xl">
               {(job.description || "No description available.").slice(0, 600)}
               {(job.description || "").length > 600 ? "…" : ""}
             </p>
@@ -367,7 +367,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
               href={job.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#0969DA] hover:underline"
+              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[var(--brand)] hover:underline"
             >
               View full posting
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

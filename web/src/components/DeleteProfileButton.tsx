@@ -29,7 +29,7 @@ export function DeleteProfileButton({
           type="button"
           onClick={() => setShowConfirm(true)}
           title={`Delete "${profileName}"`}
-          className="gh-btn text-[12px] px-2 py-1 text-[#9198A1] hover:text-[#CF222E] hover:border-[#CF222E]/30 hover:bg-[#FFEBE9]"
+          className="gh-btn text-[12px] px-2 py-1 text-text-3 hover:text-[#CF222E] hover:border-[#CF222E]/30 hover:bg-[#FFEBE9]"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -48,13 +48,13 @@ export function DeleteProfileButton({
       {showConfirm && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-[#1F2328]/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-text/40 backdrop-blur-sm"
             onClick={() => !pending && setShowConfirm(false)}
           />
-          <div className="relative bg-white rounded-lg border border-[#D0D7DE] shadow-xl max-w-md w-full p-6">
-            <h2 className="text-[16px] font-semibold text-[#1F2328] mb-2">Delete profile?</h2>
-            <p className="text-[13px] text-[#656D76] leading-relaxed mb-2">
-              This will permanently delete <strong className="text-[#1F2328]">{profileName}</strong> and all its associated jobs, run history, and settings.
+          <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
+            <h2 className="text-[16px] font-semibold text-text mb-2">Delete profile?</h2>
+            <p className="text-[13px] text-text-2 leading-relaxed mb-2">
+              This will permanently delete <strong className="text-text">{profileName}</strong> and all its associated jobs, run history, and settings.
             </p>
             <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
 

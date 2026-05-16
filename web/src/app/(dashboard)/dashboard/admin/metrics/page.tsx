@@ -21,10 +21,10 @@ function MetricRow({
 
   return (
     <tr>
-      <td className="text-[#9198A1] w-8">{index}</td>
-      <td className="text-[#1F2328]">{label}</td>
-      <td className="text-[#656D76] font-mono whitespace-nowrap">{target}</td>
-      <td className="font-mono text-[#1F2328]">{value}</td>
+      <td className="text-text-3 w-8">{index}</td>
+      <td className="text-text">{label}</td>
+      <td className="text-text-2 font-mono whitespace-nowrap">{target}</td>
+      <td className="font-mono text-text">{value}</td>
       <td>{status}</td>
     </tr>
   );
@@ -78,27 +78,27 @@ export default async function MetricsPage() {
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
-          <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+          <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
-          <Link href="/dashboard/admin" className="hover:text-[#1F2328] transition-colors">Admin</Link>
+          <Link href="/dashboard/admin" className="hover:text-text transition-colors">Admin</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
-          <span className="text-[#656D76]">Beta metrics</span>
+          <span className="text-text-2">Beta metrics</span>
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-[16px] font-semibold text-[#1F2328]">Acceptance metrics</h1>
-          <span className="text-[11px] text-[#9198A1]">
+          <h1 className="text-[16px] font-semibold text-text">Acceptance metrics</h1>
+          <span className="text-[11px] text-text-3">
             Last computed: {new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}
           </span>
         </div>
       </div>
 
       <div className="px-6 py-5 space-y-5">
-        <p className="text-[12px] text-[#656D76] anim-in">
+        <p className="text-[12px] text-text-2 anim-in">
           All 8 metrics must pass simultaneously for 30 consecutive days before beta invites are issued.
         </p>
 
@@ -180,7 +180,7 @@ export default async function MetricsPage() {
         {/* Manual guidance */}
         <div className="bg-[#FFF8C5] border border-[#9A6700]/20 rounded-md p-4 anim-in anim-delay-2">
           <p className="text-[12px] font-semibold text-[#9A6700] mb-2">Manual metrics guidance</p>
-          <ul className="text-[12px] text-[#1F2328] space-y-1.5 list-disc list-inside leading-relaxed">
+          <ul className="text-[12px] text-text space-y-1.5 list-disc list-inside leading-relaxed">
             <li><span className="font-semibold">#4 Relevance accuracy</span> — Rate a sample of 20 jobs per run. Track in a spreadsheet until rating UI is built.</li>
             <li><span className="font-semibold">#5 Visa plausibility</span> — Does the visa_likelihood score match the actual job description?</li>
             <li><span className="font-semibold">#6 Time saved</span> — Estimate time saved vs. manual searching. Track weekly.</li>

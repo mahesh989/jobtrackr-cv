@@ -21,7 +21,7 @@ export function CopyProfileButton({
       <button
         onClick={handleCopy}
         disabled={pending}
-        className="gh-btn text-[12px] px-2 py-1 text-[#9198A1] hover:text-[#0969DA] hover:border-[#0969DA]/30"
+        className="gh-btn text-[12px] px-2 py-1 text-text-3 hover:text-[var(--brand)] hover:border-[var(--brand)]/30"
         title="Duplicate profile"
       >
         {pending ? (

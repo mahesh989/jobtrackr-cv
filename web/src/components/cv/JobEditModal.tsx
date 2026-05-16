@@ -91,13 +91,13 @@ export function JobEditModal({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-[#1F2328]/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-text/40 backdrop-blur-sm"
         onClick={() => !busy && onClose()}
       />
-      <div className="relative bg-white rounded-lg border border-[#D0D7DE] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-        <div className="px-5 py-4 border-b border-[#D0D7DE]">
-          <h2 className="text-[15px] font-semibold text-[#1F2328]">Edit job inputs</h2>
-          <p className="text-[12px] text-[#656D76] mt-0.5 leading-snug">
+      <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <div className="px-5 py-4 border-b border-[var(--border)]">
+          <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
+          <p className="text-[12px] text-text-2 mt-0.5 leading-snug">
             Trim out the noise — company blurb, EEO statement, benefits — so the
             AI focuses on responsibilities and skills. The original scrape is
             preserved either way.
@@ -108,10 +108,10 @@ export function JobEditModal({
           {/* JD text */}
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <label htmlFor="jd-edit" className="block text-[12px] font-medium text-[#1F2328]">
+              <label htmlFor="jd-edit" className="block text-[12px] font-medium text-text">
                 Job description (what the AI will see)
               </label>
-              <span className="text-[11px] text-[#656D76] tabular-nums">
+              <span className="text-[11px] text-text-2 tabular-nums">
                 {charCount.toLocaleString()} chars · {wordCount.toLocaleString()} words
               </span>
             </div>
@@ -122,14 +122,14 @@ export function JobEditModal({
               onChange={(e) => setText(e.target.value)}
               rows={16}
               spellCheck={false}
-              className="w-full bg-white border border-[#D0D7DE] rounded-md px-3 py-2 text-[12px] text-[#1F2328] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0969DA]/30 resize-y"
+              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[12px] text-text leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
             <div className="flex items-center gap-3 mt-1.5">
               <button
                 type="button"
                 onClick={resetToOriginal}
                 disabled={busy}
-                className="text-[11px] text-[#0969DA] hover:underline"
+                className="text-[11px] text-[var(--brand)] hover:underline"
                 title="Replace the editor contents with the original scraped description"
               >
                 Reset to original scrape
@@ -144,8 +144,8 @@ export function JobEditModal({
 
           {/* Email */}
           <div>
-            <label htmlFor="job-email" className="block text-[12px] font-medium text-[#1F2328] mb-1.5">
-              Recruiter / contact email <span className="text-[#9198A1] font-normal">(optional)</span>
+            <label htmlFor="job-email" className="block text-[12px] font-medium text-text mb-1.5">
+              Recruiter / contact email <span className="text-text-3 font-normal">(optional)</span>
             </label>
             <input
               id="job-email"
@@ -155,9 +155,9 @@ export function JobEditModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jane.recruiter@company.com"
-              className="w-full bg-white border border-[#D0D7DE] rounded-md px-3 py-2 text-[13px] text-[#1F2328] placeholder:text-[#9198A1] focus:outline-none focus:ring-2 focus:ring-[#0969DA]/30"
+              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
-            <p className="text-[11px] text-[#656D76] mt-1.5">
+            <p className="text-[11px] text-text-2 mt-1.5">
               Used later for sending your tailored CV via email — kept private on your account.
             </p>
           </div>
@@ -169,7 +169,7 @@ export function JobEditModal({
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-[#D0D7DE] flex gap-2 justify-end bg-[#F6F8FA] rounded-b-lg">
+        <div className="px-5 py-3 border-t border-[var(--border)] flex gap-2 justify-end bg-[var(--surface-2)] rounded-b-lg">
           <button onClick={onClose} disabled={busy} className="gh-btn text-[13px]">Cancel</button>
           <button
             onClick={save}

@@ -28,10 +28,10 @@ export function RunJobsTable({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-[#D0D7DE]">
+    <div className="mt-3 pt-3 border-t border-[var(--border)]">
       <button
         onClick={handleToggle}
-        className="text-[12px] text-[#0969DA] hover:text-[#0550AE] font-medium flex items-center gap-1.5 transition-colors"
+        className="text-[12px] text-[var(--brand)] hover:text-[#0550AE] font-medium flex items-center gap-1.5 transition-colors"
       >
         <svg
           className={`w-3 h-3 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
@@ -45,19 +45,19 @@ export function RunJobsTable({
       {isOpen && (
         <div className="mt-3 space-y-2">
           {loading ? (
-            <p className="text-[12px] text-[#656D76] py-2">Loading…</p>
+            <p className="text-[12px] text-text-2 py-2">Loading…</p>
           ) : (
             (jobs || []).map((job, i) => (
-              <div key={i} className="bg-white border border-[#D0D7DE] rounded-md px-4 py-3">
+              <div key={i} className="bg-white border border-[var(--border)] rounded-md px-4 py-3">
                 <a
                   href={job.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[13px] font-semibold text-[#1F2328] hover:text-[#0969DA] transition-colors block truncate"
+                  className="text-[13px] font-semibold text-text hover:text-[var(--brand)] transition-colors block truncate"
                 >
                   {job.title}
                 </a>
-                <p className="text-[11px] text-[#656D76] mt-0.5 truncate">
+                <p className="text-[11px] text-text-2 mt-0.5 truncate">
                   {job.company}{job.location ? ` · ${job.location}` : ""}
                 </p>
                 {((job.keywords_matched?.length ?? 0) > 0 || job.visa_likelihood !== null) && (

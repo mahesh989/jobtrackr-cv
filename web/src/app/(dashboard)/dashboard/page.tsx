@@ -113,8 +113,8 @@ export default async function DashboardPage() {
             <div className="kpi-value">{totalJobs.toLocaleString()}</div>
             <div className="kpi-label">Total jobs</div>
           </div>
-          <div className={`kpi-card ${totalNew > 0 ? "border-[#0969DA] ring-1 ring-[#0969DA]/20" : ""}`}>
-            <div className={`kpi-value ${totalNew > 0 ? "text-[#0969DA]" : ""}`}>{totalNew}</div>
+          <div className={`kpi-card ${totalNew > 0 ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/20" : ""}`}>
+            <div className={`kpi-value ${totalNew > 0 ? "text-[var(--brand)]" : ""}`}>{totalNew}</div>
             <div className="kpi-label">New · unseen</div>
           </div>
           <div className={`kpi-card ${totalApplied > 0 ? "border-[#1A7F37]/40" : ""}`}>
@@ -153,21 +153,21 @@ export default async function DashboardPage() {
                 <div
                   key={p.id}
                   className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 hover:bg-surface-2 transition-colors anim-in anim-delay-${Math.min(i + 2, 6)} ${
-                    isRunning ? "border-l-2 border-l-[#0969DA]" : ""
+                    isRunning ? "border-l-2 border-l-[var(--brand)]" : ""
                   }`}
                 >
                   {/* Profile name */}
                   <div className="col-span-3 flex items-center gap-2 min-w-0">
                     {isRunning && (
                       <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[#0969DA] opacity-75"/>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0969DA]"/>
+                        <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75"/>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand)]"/>
                       </span>
                     )}
                     <div className="min-w-0">
                       <Link
                         href={`/dashboard/profiles/${p.id}/jobs`}
-                        className="text-[13px] font-semibold text-text hover:text-[#0969DA] truncate block transition-colors"
+                        className="text-[13px] font-semibold text-text hover:text-[var(--brand)] truncate block transition-colors"
                       >
                         {p.name}
                       </Link>
@@ -213,7 +213,7 @@ export default async function DashboardPage() {
                     {!run ? (
                       <span className="text-[12px] text-text-3">Never</span>
                     ) : isRunning ? (
-                      <span className="text-[12px] text-[#0969DA] font-medium flex items-center gap-1.5">
+                      <span className="text-[12px] text-[var(--brand)] font-medium flex items-center gap-1.5">
                         <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -237,7 +237,7 @@ export default async function DashboardPage() {
                     <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
                     <Link
                       href={`/dashboard/profiles/${p.id}/jobs`}
-                      className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[#0969DA]/40 text-[#0969DA]" : ""}`}
+                      className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
                     >
                       {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
                     </Link>
@@ -268,8 +268,8 @@ function EmptyState() {
     <div className="flex-1 flex items-center justify-center p-12">
       <div className="text-center max-w-sm anim-in">
         {/* Radar icon */}
-        <div className="w-16 h-16 rounded-xl bg-[#0969DA]/10 border border-[#0969DA]/20 flex items-center justify-center mx-auto mb-5">
-          <svg className="w-8 h-8 text-[#0969DA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <div className="w-16 h-16 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-5">
+          <svg className="w-8 h-8 text-[var(--brand)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497z"/>
           </svg>
         </div>
@@ -286,7 +286,7 @@ function EmptyState() {
             { n: "3", title: "Review & track",   desc: "AI-scored feed, mark applied, export CSV" },
           ].map((s) => (
             <div key={s.n} className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full bg-[#0969DA] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              <span className="w-5 h-5 rounded-full bg-[var(--brand)] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                 {s.n}
               </span>
               <div>

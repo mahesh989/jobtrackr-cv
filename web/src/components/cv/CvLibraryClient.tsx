@@ -317,13 +317,13 @@ export function CvLibraryClient({ initial }: Props) {
       {deleteTarget && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-[#1F2328]/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-text/40 backdrop-blur-sm"
             onClick={() => !deleting && setDeleteTarget(null)}
           />
-          <div className="relative bg-white rounded-lg border border-[#D0D7DE] shadow-xl max-w-md w-full p-6">
-            <h2 className="text-[16px] font-semibold text-[#1F2328] mb-2">Delete this CV?</h2>
-            <p className="text-[13px] text-[#656D76] leading-relaxed mb-2">
-              This removes <strong className="text-[#1F2328]">{deleteTarget.label}</strong>{" "}
+          <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
+            <h2 className="text-[16px] font-semibold text-text mb-2">Delete this CV?</h2>
+            <p className="text-[13px] text-text-2 leading-relaxed mb-2">
+              This removes <strong className="text-text">{deleteTarget.label}</strong>{" "}
               from your library and deletes the file from storage.
               {deleteTarget.is_active && (
                 <> It is currently your <strong>active</strong> CV — after deletion you will need to set another active before running an analysis.</>
@@ -470,7 +470,7 @@ function SkillRow({
 }) {
   if (items.length === 0) return null;
   const chipCls = variant === "primary"
-    ? "bg-[#DDF4FF] text-[#0969DA] border-[#0969DA]/20"
+    ? "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/20"
     : "bg-surface text-text-2 border-border";
   return (
     <div className="flex flex-wrap items-start gap-x-2 gap-y-1">

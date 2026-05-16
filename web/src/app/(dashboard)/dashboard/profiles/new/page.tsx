@@ -6,14 +6,14 @@ export default function NewProfilePage() {
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
-          <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+          <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
-          <span className="text-[#656D76]">New profile</span>
+          <span className="text-text-2">New profile</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-[#1F2328]">New search profile</h1>
+        <h1 className="text-[16px] font-semibold text-text">New search profile</h1>
       </div>
 
       <div className="px-6 py-5">
@@ -26,24 +26,24 @@ export default function NewProfilePage() {
           {/* Tips panel */}
           <div className="w-72 shrink-0 hidden lg:block anim-in anim-delay-1">
             <div className="bg-surface border border-border rounded-md p-4 space-y-4 text-[12px]">
-              <p className="text-[11px] font-semibold text-[#656D76] uppercase tracking-wider">Tips</p>
+              <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">Tips</p>
 
               <div className="space-y-3">
                 <div>
-                  <p className="font-semibold text-[#1F2328] mb-0.5">More keywords = more results</p>
-                  <p className="text-[#656D76] leading-relaxed">Each keyword triggers a separate search. Add variations: <em>Data Analyst, Reporting Analyst, BI Analyst</em>.</p>
+                  <p className="font-semibold text-text mb-0.5">More keywords = more results</p>
+                  <p className="text-text-2 leading-relaxed">Each keyword triggers a separate search. Add variations: <em>Data Analyst, Reporting Analyst, BI Analyst</em>.</p>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="font-semibold text-[#1F2328] mb-0.5">Use the title filter wisely</p>
-                  <p className="text-[#656D76] leading-relaxed">Under Adzuna refinements, "Title must contain" narrows results to a word that <em>must appear</em> in the job title — great for enforcing role type.</p>
+                  <p className="font-semibold text-text mb-0.5">Use the title filter wisely</p>
+                  <p className="text-text-2 leading-relaxed">Under Adzuna refinements, "Title must contain" narrows results to a word that <em>must appear</em> in the job title — great for enforcing role type.</p>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="font-semibold text-[#1F2328] mb-0.5">Initial window vs. auto-run</p>
-                  <p className="text-[#656D76] leading-relaxed">Set a wider initial window (28 days) for a rich first batch. Auto-runs then fetch only what's new since the last run — no duplicates.</p>
+                  <p className="font-semibold text-text mb-0.5">Initial window vs. auto-run</p>
+                  <p className="text-text-2 leading-relaxed">Set a wider initial window (28 days) for a rich first batch. Auto-runs then fetch only what's new since the last run — no duplicates.</p>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="font-semibold text-[#1F2328] mb-0.5">Exclude noise upfront</p>
-                  <p className="text-[#656D76] leading-relaxed">Add seniority words to "Exclude from title" — e.g. <em>senior, lead, principal</em> — so you only see roles at the right level.</p>
+                  <p className="font-semibold text-text mb-0.5">Exclude noise upfront</p>
+                  <p className="text-text-2 leading-relaxed">Add seniority words to "Exclude from title" — e.g. <em>senior, lead, principal</em> — so you only see roles at the right level.</p>
                 </div>
               </div>
             </div>

@@ -63,14 +63,14 @@ export default async function AdminPage() {
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
-              <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <span className="text-[#656D76]">Admin</span>
+              <span className="text-text-2">Admin</span>
             </div>
-            <h1 className="text-[16px] font-semibold text-[#1F2328]">Admin</h1>
+            <h1 className="text-[16px] font-semibold text-text">Admin</h1>
           </div>
           <Link href="/dashboard/admin/metrics" className="gh-btn text-[12px] px-2.5 py-1">
             Beta metrics →
@@ -83,7 +83,7 @@ export default async function AdminPage() {
         {/* Users table */}
         <section className="anim-in">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[13px] font-semibold text-[#1F2328]">Users <span className="text-[#656D76] font-normal">({users.length})</span></h2>
+            <h2 className="text-[13px] font-semibold text-text">Users <span className="text-text-2 font-normal">({users.length})</span></h2>
           </div>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
@@ -105,7 +105,7 @@ export default async function AdminPage() {
                   const newestRun = allRuns.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0];
                   return (
                     <tr key={u.id}>
-                      <td className="font-medium text-[#1F2328]">{u.email}</td>
+                      <td className="font-medium text-text">{u.email}</td>
                       <td>
                         <span className={`badge text-[10px] ${
                           u.role === "founder" ? "badge-amber"
@@ -115,8 +115,8 @@ export default async function AdminPage() {
                           {u.role}
                         </span>
                       </td>
-                      <td className="text-[#656D76]">{ups.length} ({ups.filter((p) => p.is_active).length} active)</td>
-                      <td className="text-[#656D76]">{cost > 0 ? `$${(cost / 100000).toFixed(4)}` : "—"}</td>
+                      <td className="text-text-2">{ups.length} ({ups.filter((p) => p.is_active).length} active)</td>
+                      <td className="text-text-2">{cost > 0 ? `$${(cost / 100000).toFixed(4)}` : "—"}</td>
                       <td>
                         {newestRun ? (
                           <span className={`text-[12px] font-medium ${
@@ -127,10 +127,10 @@ export default async function AdminPage() {
                             {newestRun.status} · {new Date(newestRun.started_at).toLocaleDateString("en-AU")}
                           </span>
                         ) : (
-                          <span className="text-[#9198A1]">—</span>
+                          <span className="text-text-3">—</span>
                         )}
                       </td>
-                      <td className="text-[#9198A1]">{new Date(u.created_at).toLocaleDateString("en-AU")}</td>
+                      <td className="text-text-3">{new Date(u.created_at).toLocaleDateString("en-AU")}</td>
                     </tr>
                   );
                 })}
@@ -142,8 +142,8 @@ export default async function AdminPage() {
         {/* Invite codes */}
         <section className="anim-in anim-delay-1">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[13px] font-semibold text-[#1F2328]">
-              Invite codes <span className="text-[#656D76] font-normal">({invites.length})</span>
+            <h2 className="text-[13px] font-semibold text-text">
+              Invite codes <span className="text-text-2 font-normal">({invites.length})</span>
             </h2>
             <form action={generateInviteCode}>
               <button type="submit" className="gh-btn gh-btn-blue text-[12px] px-3 py-1">
@@ -166,14 +166,14 @@ export default async function AdminPage() {
               <tbody>
                 {invites.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center text-[#9198A1] py-8">
+                    <td colSpan={6} className="text-center text-text-3 py-8">
                       No invite codes yet — generate one above
                     </td>
                   </tr>
                 )}
                 {invites.map((inv) => (
                   <tr key={inv.code}>
-                    <td className="font-mono text-[13px] text-[#1F2328]">{inv.code}</td>
+                    <td className="font-mono text-[13px] text-text">{inv.code}</td>
                     <td>
                       <span className={`badge text-[10px] ${
                         !inv.is_active ? "badge-gray"
@@ -183,11 +183,11 @@ export default async function AdminPage() {
                         {!inv.is_active ? "revoked" : inv.used_by ? "used" : "available"}
                       </span>
                     </td>
-                    <td className="text-[#656D76]">
+                    <td className="text-text-2">
                       {inv.used_by ? (userEmailById[inv.used_by] ?? inv.used_by.slice(0, 8) + "…") : "—"}
                     </td>
-                    <td className="text-[#9198A1]">{inv.used_at ? new Date(inv.used_at).toLocaleDateString("en-AU") : "—"}</td>
-                    <td className="text-[#9198A1]">{new Date(inv.created_at).toLocaleDateString("en-AU")}</td>
+                    <td className="text-text-3">{inv.used_at ? new Date(inv.used_at).toLocaleDateString("en-AU") : "—"}</td>
+                    <td className="text-text-3">{new Date(inv.created_at).toLocaleDateString("en-AU")}</td>
                     <td>
                       {inv.is_active && !inv.used_by && (
                         <form action={revokeInviteCode.bind(null, inv.code)}>

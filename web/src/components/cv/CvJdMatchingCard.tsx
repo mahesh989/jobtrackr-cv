@@ -87,7 +87,7 @@ function CategorisedView({ d }: { d: MatchingData }) {
             </div>
             <div className="h-2 rounded-full bg-surface border border-border overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#0969DA] transition-all"
+                className="h-full rounded-full bg-[var(--brand)] transition-all"
                 style={{ width: `${rates.overall_pct ?? Math.round((overall.matched / overall.total) * 100)}%` }}
               />
             </div>

@@ -23,13 +23,13 @@ export function ToggleActiveButton({
       onClick={handleToggle}
       disabled={pending}
       className={`inline-flex items-center gap-2 text-[12px] font-medium transition-colors disabled:opacity-50 ${
-        isActive ? "text-[#1A7F37]" : "text-[#9198A1] hover:text-[#1F2328]"
+        isActive ? "text-[#1A7F37]" : "text-text-3 hover:text-text"
       }`}
     >
       {/* Toggle pill */}
       <span
         className={`relative flex h-4 w-7 shrink-0 rounded-full transition-colors ${
-          isActive ? "bg-[#1A7F37]" : "bg-[#D0D7DE]"
+          isActive ? "bg-[#1A7F37]" : "bg-[var(--border)]"
         }`}
       >
         <span

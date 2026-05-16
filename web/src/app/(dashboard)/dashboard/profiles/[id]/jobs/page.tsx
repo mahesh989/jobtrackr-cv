@@ -143,26 +143,26 @@ export default async function JobsPage({
         <div className="flex items-start justify-between gap-4">
           {/* Breadcrumb + title */}
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
-              <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <span className="text-[#656D76]">Profiles</span>
+              <span className="text-text-2">Profiles</span>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <span className="text-[#1F2328] font-medium truncate max-w-[200px]">{p.name}</span>
+              <span className="text-text font-medium truncate max-w-[200px]">{p.name}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-[16px] font-semibold text-[#1F2328]">{p.name}</h1>
+              <h1 className="text-[16px] font-semibold text-text">{p.name}</h1>
               {newCount > 0 && (
                 <span className="badge badge-blue font-bold">{newCount} new</span>
               )}
               {appliedCount > 0 && (
                 <span className="badge badge-green">{appliedCount} applied</span>
               )}
-              <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-[#9198A1]"}`}>
+              <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}
               </span>
             </div>
@@ -230,16 +230,16 @@ export default async function JobsPage({
         </div>
 
         {/* Footer links */}
-        <div className="flex items-center gap-3 text-[11px] text-[#9198A1] pt-2 anim-in anim-delay-2">
-          <Link href={`/dashboard/profiles/${id}/runs`} className="hover:text-[#1F2328] transition-colors">
+        <div className="flex items-center gap-3 text-[11px] text-text-3 pt-2 anim-in anim-delay-2">
+          <Link href={`/dashboard/profiles/${id}/runs`} className="hover:text-text transition-colors">
             Run history
           </Link>
           <span>·</span>
-          <Link href={`/api/profiles/${id}/jobs/export`} className="hover:text-[#1F2328] transition-colors">
+          <Link href={`/api/profiles/${id}/jobs/export`} className="hover:text-text transition-colors">
             Export all as CSV
           </Link>
           <span>·</span>
-          <Link href={`/dashboard/profiles/${id}/edit`} className="hover:text-[#1F2328] transition-colors">
+          <Link href={`/dashboard/profiles/${id}/edit`} className="hover:text-text transition-colors">
             Edit profile
           </Link>
         </div>

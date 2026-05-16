@@ -52,20 +52,20 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#9198A1] mb-1">
-              <Link href="/dashboard" className="hover:text-[#1F2328] transition-colors">Dashboard</Link>
+            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-[#1F2328] transition-colors truncate max-w-[200px]">
+              <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[200px]">
                 {p.name}
               </Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <span className="text-[#656D76]">Run history</span>
+              <span className="text-text-2">Run history</span>
             </div>
-            <h1 className="text-[16px] font-semibold text-[#1F2328]">Run history</h1>
+            <h1 className="text-[16px] font-semibold text-text">Run history</h1>
           </div>
           <Link href={`/dashboard/profiles/${id}/jobs`} className="gh-btn text-[12px] px-2.5 py-1">
             ← Back to jobs
@@ -76,18 +76,18 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
       <div className="px-6 py-5">
         {runList.length === 0 ? (
           <div className="bg-surface border border-border rounded-md flex flex-col items-center justify-center py-16 text-center anim-in">
-            <div className="w-10 h-10 rounded-md bg-[#F6F8FA] border border-border flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-[#9198A1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <div className="w-10 h-10 rounded-md bg-[var(--surface-2)] border border-border flex items-center justify-center mb-3">
+              <svg className="w-5 h-5 text-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <p className="text-[14px] font-semibold text-[#1F2328] mb-1">No runs yet</p>
-            <p className="text-[12px] text-[#656D76]">Trigger a run from the dashboard to see history here.</p>
+            <p className="text-[14px] font-semibold text-text mb-1">No runs yet</p>
+            <p className="text-[12px] text-text-2">Trigger a run from the dashboard to see history here.</p>
           </div>
         ) : (
           <div className="bg-surface border border-border rounded-md overflow-hidden anim-in">
             {/* Table header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[#F6F8FA] border-b border-border text-[11px] font-semibold text-[#656D76] uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
               <div className="col-span-3">Started</div>
               <div className="col-span-1">Duration</div>
               <div className="col-span-1 text-center">Status</div>
@@ -106,18 +106,18 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
               return (
                 <div key={run.id} className={`border-b border-border last:border-0 anim-in anim-delay-${Math.min(i, 5)}`}>
-                  <div className={`grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#F6F8FA] transition-colors ${
-                    isRunning ? "border-l-2 border-l-[#0969DA]" : ""
+                  <div className={`grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[var(--surface-2)] transition-colors ${
+                    isRunning ? "border-l-2 border-l-[var(--brand)]" : ""
                   }`}>
                     {/* Started */}
                     <div className="col-span-3 flex items-center gap-2">
                       {isRunning && (
                         <span className="relative flex h-2 w-2 shrink-0">
-                          <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[#0969DA] opacity-75"/>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0969DA]"/>
+                          <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75"/>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand)]"/>
                         </span>
                       )}
-                      <span className="text-[12px] font-medium text-[#1F2328]">
+                      <span className="text-[12px] font-medium text-text">
                         {new Date(run.started_at).toLocaleString("en-AU", {
                           day: "numeric", month: "short",
                           hour: "numeric", minute: "2-digit",
@@ -127,7 +127,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
                     {/* Duration */}
                     <div className="col-span-1 flex items-center">
-                      <span className={`text-[12px] ${isRunning ? "text-[#0969DA] font-medium" : "text-[#656D76]"}`}>
+                      <span className={`text-[12px] ${isRunning ? "text-[var(--brand)] font-medium" : "text-text-2"}`}>
                         {duration(run.started_at, run.finished_at)}
                       </span>
                     </div>
@@ -147,12 +147,12 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
                     {/* Fetched */}
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-[12px] text-[#656D76]">{run.jobs_fetched ?? "—"}</span>
+                      <span className="text-[12px] text-text-2">{run.jobs_fetched ?? "—"}</span>
                     </div>
 
                     {/* Deduped */}
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-[12px] text-[#656D76]">{run.jobs_after_dedup ?? "—"}</span>
+                      <span className="text-[12px] text-text-2">{run.jobs_after_dedup ?? "—"}</span>
                     </div>
 
                     {/* Saved */}
@@ -160,13 +160,13 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                       {run.jobs_saved > 0 ? (
                         <span className="text-[12px] font-semibold text-[#1A7F37]">+{run.jobs_saved}</span>
                       ) : (
-                        <span className="text-[12px] text-[#9198A1]">—</span>
+                        <span className="text-[12px] text-text-3">—</span>
                       )}
                     </div>
 
                     {/* Sources */}
                     <div className="col-span-2 flex items-center">
-                      <span className="text-[11px] text-[#656D76] truncate">
+                      <span className="text-[11px] text-text-2 truncate">
                         {run.sources_run?.length > 0
                           ? `${run.sources_run.length} source${run.sources_run.length !== 1 ? "s" : ""}`
                           : "—"}
@@ -175,7 +175,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
                     {/* AI cost */}
                     <div className="col-span-1 flex items-center justify-end">
-                      <span className="text-[11px] text-[#9198A1]">
+                      <span className="text-[11px] text-text-3">
                         {costLabel(run.ai_cost_cents) ?? "—"}
                       </span>
                     </div>

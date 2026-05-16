@@ -19,7 +19,7 @@ export function RecommendationsCard({ markdown }: Props) {
       </div>
       <div className="px-5 py-4 prose prose-sm max-w-none text-text-2 leading-relaxed
                       prose-headings:text-text prose-headings:font-semibold
-                      prose-strong:text-text prose-a:text-[#0969DA]
+                      prose-strong:text-text prose-a:text-[var(--brand)]
                       prose-li:my-0.5">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
       </div>

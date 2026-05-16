@@ -95,20 +95,20 @@ export function LiveRunStatus({ profileId }: { profileId: string }) {
   return (
     <div className="mb-4 anim-in">
       {/* Animated gradient bar — freezes grey while stopping */}
-      <div className={`h-0.5 rounded-t-md ${stopping ? "bg-[#D0D7DE]" : "pipeline-bar"}`} />
+      <div className={`h-0.5 rounded-t-md ${stopping ? "bg-[var(--border)]" : "pipeline-bar"}`} />
 
-      <div className="border border-t-0 border-[#0969DA]/20 bg-[#DDF4FF]/60 rounded-b-md px-4 py-3 flex items-center justify-between gap-4">
+      <div className="border border-t-0 border-[var(--brand)]/20 bg-[#DDF4FF]/60 rounded-b-md px-4 py-3 flex items-center justify-between gap-4">
         {/* Left: status text */}
         <div className="flex items-center gap-3">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
-            <span className={`absolute inline-flex h-full w-full rounded-full bg-[#0969DA] opacity-75 ${stopping ? "" : "dot-ping"}`} />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0969DA]" />
+            <span className={`absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75 ${stopping ? "" : "dot-ping"}`} />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--brand)]" />
           </span>
           <div>
-            <p className="text-[13px] font-semibold text-[#0969DA]">
+            <p className="text-[13px] font-semibold text-[var(--brand)]">
               {stopping ? "Stopping…" : "Pipeline running"}
             </p>
-            <p className="text-[11px] text-[#656D76] mt-0.5">
+            <p className="text-[11px] text-text-2 mt-0.5">
               {stopping
                 ? "Finishing current stage, then stopping"
                 : `${STAGES[stageIdx].label}…`}
@@ -125,10 +125,10 @@ export function LiveRunStatus({ profileId }: { profileId: string }) {
                   key={s.key}
                   className={`h-1.5 rounded-full transition-all duration-500 ${
                     i === stageIdx
-                      ? "w-6 bg-[#0969DA]"
+                      ? "w-6 bg-[var(--brand)]"
                       : i < stageIdx
-                      ? "w-3 bg-[#0969DA]/40"
-                      : "w-3 bg-[#D0D7DE]"
+                      ? "w-3 bg-[var(--brand)]/40"
+                      : "w-3 bg-[var(--border)]"
                   }`}
                 />
               ))}
