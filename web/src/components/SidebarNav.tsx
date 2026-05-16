@@ -70,7 +70,7 @@ function NavItem({
       }
       style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
     >
-      <span className="flex items-center gap-2.5 min-w-0">
+      <span className="sidebar-item-inner flex items-center gap-2.5 min-w-0">
         <Icon className="h-4 w-4 shrink-0" />
         <span className="truncate">{children}</span>
       </span>

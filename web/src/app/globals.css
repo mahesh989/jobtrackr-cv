@@ -296,12 +296,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Headings in cv-magic themes use a serif (Noto Serif) for hierarchy.
-   Default keeps DM Serif Display only on .font-serif spans. */
-:root.theme-classic h1, :root.theme-classic h2, :root.theme-classic h3,
-:root.theme-gilded-noir h1, :root.theme-gilded-noir h2, :root.theme-gilded-noir h3,
-:root.theme-notion h1, :root.theme-notion h2, :root.theme-notion h3,
-:root.theme-clay h1, :root.theme-clay h2, :root.theme-clay h3 {
+/* Only h1 (page titles) use the serif on cv-magic themes — exactly what
+   cv-magic does. h2 / h3 / smaller headings stay in the sans (Manrope)
+   so card titles + .label-luxury sit cleanly against body copy. */
+:root.theme-classic     h1,
+:root.theme-gilded-noir h1,
+:root.theme-notion      h1,
+:root.theme-clay        h1 {
   font-family: var(--font-serif-active), Georgia, serif;
 }
 
@@ -549,6 +550,15 @@ body {
   gap: 12px;
 }
 
+/* Inner icon↔label gap on cv-magic themes — 12px (gap-3) to match
+   cv-magic's flex items-center gap-3 nav-item pattern. */
+:root.theme-classic     .sidebar-item-inner,
+:root.theme-gilded-noir .sidebar-item-inner,
+:root.theme-notion      .sidebar-item-inner,
+:root.theme-clay        .sidebar-item-inner {
+  gap: 12px;
+}
+
 :root.theme-classic     .sidebar-item-active,
 :root.theme-gilded-noir .sidebar-item-active,
 :root.theme-notion      .sidebar-item-active,
@@ -631,20 +641,25 @@ body {
    identically. Default theme also gets them — they're harmless if a
    default-theme component opts in. */
 
-/* Uppercase metadata label — used as section headings on cv-magic pages */
+/* Uppercase metadata label — used as section headings on cv-magic pages.
+   Exact cv-magic values: 12px, font-bold (700), uppercase, 0.08em
+   tracking, line-height: 1, sans-serif. */
 .label-luxury {
-  font-size: 11px;
+  font-family: var(--font-sans-active), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-weight: 600;
-  line-height: 1.2;
+  line-height: 1;
 }
 
-/* Page title — large serif on cv-magic themes, default sans on Default */
+/* Page title — cv-magic uses `font-serif text-3xl font-bold` exactly.
+   text-3xl = 30px in Tailwind v4. */
 .page-title {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 :root.theme-classic     .page-title,
 :root.theme-gilded-noir .page-title,
