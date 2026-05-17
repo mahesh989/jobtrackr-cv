@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Mic } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Mic } from "lucide-react";
 
 interface TrustComponents {
   ai_pattern_score:             number;
@@ -58,11 +58,18 @@ function TrustBadge({ score }: { score: number }) {
   );
 }
 
+function formalityLabel(score: number): string {
+  if (score >= 0.7) return "Formal";
+  if (score >= 0.4) return "Professional";
+  return "Casual";
+}
+
 export function VoiceCaptureClient({ initialProfile }: Props) {
-  const [text,     setText]     = useState("");
-  const [status,   setStatus]   = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [result,   setResult]   = useState<SubmitResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [text,        setText]        = useState("");
+  const [status,      setStatus]      = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [result,      setResult]      = useState<SubmitResult | null>(null);
+  const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   const words      = countWords(text);
   const canSubmit  = words >= WORD_MIN && status !== "submitting";
@@ -106,7 +113,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
       {initialProfile && status !== "success" && (
         <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm font-medium text-[var(--sidebar-text-hover)]">Current voice profile</p>
+            <p className="text-sm font-medium text-[var(--text)]">Current voice profile</p>
             <TrustBadge score={initialProfile.voice_sample_trust_score} />
           </div>
           <p className="text-xs text-[var(--sidebar-text-dim)]">
@@ -144,11 +151,95 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
             </p>
           )}
           <button
-            onClick={() => { setStatus("idle"); setResult(null); }}
+            onClick={() => { setStatus("idle"); setResult(null); setShowDetails(false); }}
             className="text-xs text-emerald-700 underline hover:no-underline"
           >
             Submit another sample
           </button>
+
+          {/* Transparency affordance */}
+          <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowDetails((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors"
+            >
+              <span>View what we learned about your writing</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+            </button>
+
+            {showDetails && (() => {
+              const fp = result.fingerprint as Record<string, unknown>;
+              return (
+                <div className="border-t border-[var(--card-border)] px-3 py-3 space-y-4 text-xs text-[var(--text-2)]">
+
+                  {/* Trust score breakdown */}
+                  <div>
+                    <p className="font-semibold text-[var(--text)] mb-2">Trust score</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span>Overall</span>
+                        <span className="tabular-nums font-medium">{Math.round(result.trust_score * 100)}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-3)]">
+                        <span>Human vs AI patterns</span>
+                        <span className="tabular-nums">{Math.round(result.trust_components.ai_pattern_score * 100)}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-3)]">
+                        <span>Sentence variety</span>
+                        <span className="tabular-nums">{Math.round(result.trust_components.sentence_variance_score * 100)}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-3)]">
+                        <span>Sample length</span>
+                        <span className="tabular-nums">{Math.round(result.trust_components.length_appropriateness_score * 100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Formality */}
+                  {typeof fp.formality_score === "number" && (
+                    <div>
+                      <p className="font-semibold text-[var(--text)] mb-1">Formality</p>
+                      <div className="flex items-center justify-between">
+                        <span>{formalityLabel(fp.formality_score)}</span>
+                        <span className="tabular-nums">{Math.round(fp.formality_score * 100)}%</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tells */}
+                  {Array.isArray(fp.tells) && fp.tells.length > 0 && (
+                    <div>
+                      <p className="font-semibold text-[var(--text)] mb-1.5">Your writing tells</p>
+                      <ul className="space-y-1 list-disc list-inside">
+                        {(fp.tells as string[]).slice(0, 5).map((tell, i) => (
+                          <li key={i}>{tell}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Matched AI-tell phrases */}
+                  {result.matched_ai_phrases.length > 0 && (
+                    <div>
+                      <p className="font-semibold text-[var(--text)] mb-1.5">AI-pattern phrases detected</p>
+                      <div className="flex flex-wrap gap-1">
+                        {result.matched_ai_phrases.map((phrase) => (
+                          <span
+                            key={phrase}
+                            className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200"
+                          >
+                            {phrase}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 
@@ -158,7 +249,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
           <div className="space-y-1">
             <label
               htmlFor="voice-sample"
-              className="text-sm font-medium text-[var(--sidebar-text-hover)]"
+              className="text-sm font-medium text-[var(--text)]"
             >
               Write a short sample in your own voice
             </label>
@@ -214,7 +305,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
             ) : (
               <>
                 <Mic className="w-4 h-4" />
-                Capture voice
+                Save voice profile
               </>
             )}
           </button>
