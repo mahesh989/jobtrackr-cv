@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-18 (Session E — Phase 10.1 voice fingerprint module)",
+    "updated": "2026-05-18 (Session F — Phase 10.2 pre-work: voice UX polish + fingerprint stress-test)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -902,9 +902,28 @@
       "title": "Fixture-based smoke tests must verify the fixtures themselves, not just the function under test",
       "detail": "In Session E, the OBVIOUS_AI fixture declared expected_length_score: 1.0 and a comment claiming '~165 words', but the text was actually 136 words — placing it in the 100–500 intermediate band (score 0.7, not 1.0). The trust scorer was correct; the fixture was wrong. The auditor's smoke test run caught this. Lesson: when writing fixtures that include expected computed values (word counts, score buckets), always compute the value programmatically before writing the fixture rather than hand-counting. Hand-counts drift as text is edited. For word-count-sensitive thresholds specifically: run len(text.split()) in a REPL before committing the expected_length_score.",
       "logged": "2026-05-18"
+    },
+    {
+      "id": "OPS-7",
+      "title": "Burstiness floor (0.40) may be calibrated slightly high — defer evaluation to 20+ real samples",
+      "detail": "Real production sample (848 chars, ~145 words) produced burstiness ratio (stddev/mean sentence length) of 0.36, just below the 0.40 human-writing floor specified in docs/cover-letter-spec.md Part 5. Two interpretations: (a) factual self-introduction is inherently uniform; cover-letter writing will naturally be more varied; (b) the 0.40 floor may be calibrated slightly high for short samples. Do not tune the floor yet. When voice_profiles contains 20+ real samples, evaluate whether 0.36 is an outlier or the norm, then adjust the threshold if needed.",
+      "logged": "2026-05-18"
+    },
+    {
+      "id": "OPS-8",
+      "title": "150-word minimum may be safely lowered to 120 — defer to multi-sample validation",
+      "detail": "Real production sample was 848 chars / ~145 words — right at the lower edge of the 150-word target — and fingerprint quality is strong across all 5 acceptance criteria. Suggests the floor could be lowered to 120 words without degrading output quality. Do not change yet. Collect more samples first and assess whether shorter samples consistently produce comparable fingerprint specificity.",
+      "logged": "2026-05-18"
     }
   ],
-  "planning_notes": [],
+  "planning_notes": [
+    {
+      "id": "PHASE-10.2-READINESS",
+      "verdict": "PASS",
+      "assessed": "2026-05-18",
+      "reasoning": "Production voice_profiles fingerprint evaluated against Phase 2 acceptance criteria. Tells (5): all specific, actionable, grounded in the sample — directly usable as voice-transfer instructions in Phase 4. Formality (0.55): correctly calibrated, not collapsing to midpoint default. Vocabulary (moderate): matches actual sample register. Rhetorical devices (3): real structural patterns, usable for burstiness injection. Quantitative signals (avg sentence 18 words, stddev 6.4, paragraph openers, intensifiers): all usable. Phase 10.2 story library may proceed."
+    }
+  ],
   "open_questions": [
     {
       "id": "Q1",
