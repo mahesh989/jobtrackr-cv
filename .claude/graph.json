@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.3",
-    "updated": "2026-05-17 (Session C — prompts.py modular split)",
+    "updated": "2026-05-17 (Session D — documentation pass)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -71,7 +71,9 @@
           "error_message",
           "started_at",
           "completed_at",
-          "created_at"
+          "created_at",
+          "ai_provider",
+          "ai_model"
         ],
         "relations": [
           "belongs_to: User",
@@ -163,7 +165,7 @@
   },
   "build_state": {
     "current_phase": 9,
-    "next_action": "Session D: Cover letter feature (Phase 10) OR documentation pass (docs/architecture.md, docs/database.md, docs/cover-letter-spec.md). Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
+    "next_action": "Phase 10: Cover letter feature — start with Phase 1 (Voice Fingerprint Module). Spec in docs/cover-letter-spec.md. Architecture + DB context in docs/architecture.md and docs/database.md. Use /plan for Phase 1 plan. Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -198,7 +200,8 @@
       "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1 (recommended), GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini. Removed fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini.",
       "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene: (1) Migration renames: 005_vertical_filter→006_vertical_filter, 009_possible_duplicate→009_add_possible_duplicate_dedup_status. No prod impact — migrations are CLI-untracked, applied manually via SQL editor. (2) Dead components deleted: AiKeyCard.tsx (superseded by ProviderPicker), JobCard.tsx, JobSortBar.tsx (both superseded by JobTable/JobFilterBar in Phase 9), ToggleActiveButton.tsx (never wired up). (3) scrapeJobUrl.ts kept but marked as DEFERRED-1 in deferred_features; deferred comment block added to file header. (4) bullmq + ioredis confirmed legitimate — server-side only, used by job-discovery pipeline queue trigger in run/route.ts and actions.ts; do not remove. (5) Test artefacts removed from git: 2× Jora CSV, discovered_slugs.json, jora_scraper.py, verify_slugs.py, 3× jora_test JSON, test-update.js, fix-dead-links.js. Patterns added to .gitignore with explanatory comment.",
       "Session B orchestration layer (2026-05-16) — Permanent subagent + slash command infrastructure. (1) .claude/agents/ created: planner (haiku-4-5, Read/Grep/Glob, plan-only), auditor (opus-4-7, Read/Grep/Glob/Bash read-only, PASS/FAIL structured review), migration-checker (sonnet-4-6, Read/Grep/Glob/Bash, pre-migration safety checker). (2) .claude/commands/ created: /plan (invokes planner, stops for approval), /audit (invokes auditor, halts on FAIL), /ship (graph.json → commit → push → summary ritual), /handoff (generates copy-pasteable next-session block). (3) CLAUDE.md updated: Model Routing section (routing table + Opus-is-reviewer rule), Session Management Rules section (60% threshold + /handoff protocol). (4) Smoke test passed: planner and auditor both verified to run in isolated agent contexts with correct models, producing structured output.",
-      "Session C prompts.py modular split (2026-05-17) — Split cv-backend/app/services/ai/prompts.py (1413 lines, 12 constants) into a prompts/ package: 6 step modules (jd_analysis.py, cv_jd_matching.py, keyword_feasibility.py, ai_recommendations.py, tailored_cv.py, cv_skill_categorisation.py) + __init__.py with backward-compatible re-exports. All 6 consumer import paths unchanged. All 5 PLAN-1 auditor corrections applied (exact line boundaries, skill_categoriser consumer included, atomic commit, local-only verification, graph.json in same commit). Three smoke tests passed. Session required graceful mid-session recovery when tailored_cv.py (~970 lines) exceeded executor context capacity — OPS-4 heuristic captured."
+      "Session C prompts.py modular split (2026-05-17) — Split cv-backend/app/services/ai/prompts.py (1413 lines, 12 constants) into a prompts/ package: 6 step modules (jd_analysis.py, cv_jd_matching.py, keyword_feasibility.py, ai_recommendations.py, tailored_cv.py, cv_skill_categorisation.py) + __init__.py with backward-compatible re-exports. All 6 consumer import paths unchanged. All 5 PLAN-1 auditor corrections applied (exact line boundaries, skill_categoriser consumer included, atomic commit, local-only verification, graph.json in same commit). Three smoke tests passed. Session required graceful mid-session recovery when tailored_cv.py (~970 lines) exceeded executor context capacity — OPS-4 heuristic captured.",
+      "Session D documentation pass (2026-05-17) — Created docs/architecture.md (tech stack, data flow, HMAC boundary, BYOK, endpoints, deployment, constraints), docs/database.md (exhaustive schema reference: 10 tables, 2 storage buckets, functions, triggers, extensions — derived from all 20 migration files), and docs/cover-letter-spec.md (full 10-part cover letter generation spec, verbatim). Auditor returned PASS_WITH_NOTES; three fixes applied: HMAC encoding precision note in architecture.md, illustrative model-name disclaimer in cover-letter-spec.md Part 4, ai_provider/ai_model added to AnalysisRun.fields in graph.json. OPS-5 operational note captured. Primary criterion confirmed: a future planner can plan Phase 1 (Voice Fingerprint Module) from the three docs + graph.json alone."
     ],
     "in_progress": [],
     "blocked": []
@@ -868,6 +871,12 @@
       "id": "OPS-4",
       "title": "Executor session context limit — large single-file writes",
       "detail": "Sonnet executor sessions handle single-file writes up to ~600 lines reliably. Files larger than ~800 lines risk context pressure. Symptoms: re-reading source files without progress, claiming 'continuing now' without producing output, ignoring 'are you stuck' prompts. Mitigation: when a plan involves writing a single file >800 lines, the planner should either propose splitting that file further OR flag it as a dedicated single-task session with no other work in the same context. Heuristic: when an agent re-reads the same file twice in a row without producing output, it IS stuck regardless of what it claims. Discovered: Session C, 2026-05-17, attempting to write tailored_cv.py (~970 lines) after already writing 4 other modules in the same session.",
+      "logged": "2026-05-17"
+    },
+    {
+      "id": "OPS-5",
+      "title": "Audit acceptance criterion for documentation work",
+      "detail": "The framing 'could a future planner act from these docs alone, without reading source?' has proven effective at surfacing ambiguities in documentation. It caught three real issues in Session D (HMAC encoding precision, fictional model names in spec, missing analysis_runs fields in graph.json) that a standard correctness review would have missed. Use this framing as the primary acceptance criterion whenever documentation is the deliverable.",
       "logged": "2026-05-17"
     }
   ],
