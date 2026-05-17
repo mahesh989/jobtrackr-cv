@@ -50,17 +50,19 @@ class AIClient:
         user: str,
         max_tokens: int = 4096,
         temperature: float = 0.3,
+        no_training: bool = False,
     ) -> str:
         """Return a plain-text completion."""
         if self.provider == "anthropic":
             return await self._anthropic_complete(
-                system=system, user=user, max_tokens=max_tokens, temperature=temperature
+                system=system, user=user, max_tokens=max_tokens,
+                temperature=temperature, no_training=no_training,
             )
         # DeepSeek shares OpenAI's wire format; only the base URL differs.
         base_url = DEEPSEEK_BASE_URL if self.provider == "deepseek" else None
         return await self._openai_complete(
             system=system, user=user, max_tokens=max_tokens, temperature=temperature,
-            base_url=base_url,
+            base_url=base_url, no_training=no_training,
         )
 
     async def complete_json(
@@ -70,6 +72,7 @@ class AIClient:
         user: str,
         max_tokens: int = 4096,
         temperature: float = 0.1,
+        no_training: bool = False,
     ) -> Dict[str, Any]:
         """
         Return a parsed JSON object.
@@ -83,7 +86,8 @@ class AIClient:
             + "\n\nRespond with a single valid JSON object. No prose, no markdown fences."
         )
         raw = await self.complete(
-            system=json_system, user=user, max_tokens=max_tokens, temperature=temperature
+            system=json_system, user=user, max_tokens=max_tokens,
+            temperature=temperature, no_training=no_training,
         )
         return _extract_json(raw)
 
@@ -92,7 +96,8 @@ class AIClient:
     # ----------------------------------------------------------------------
 
     async def _anthropic_complete(
-        self, *, system: str, user: str, max_tokens: int, temperature: float
+        self, *, system: str, user: str, max_tokens: int, temperature: float,
+        no_training: bool = False,
     ) -> str:
         try:
             from anthropic import AsyncAnthropic
@@ -100,6 +105,12 @@ class AIClient:
             raise AIClientError("anthropic package not installed") from exc
 
         client = AsyncAnthropic(api_key=self.api_key)
+
+        if no_training:
+            # TODO: Anthropic SDK 0.97 has no public no-training API parameter.
+            # When Anthropic documents one, pass it here via extra_headers or a
+            # native param. Provider default data policy applies until then.
+            pass
 
         async def _call(tokens: int):
             return await client.messages.create(
@@ -133,7 +144,7 @@ class AIClient:
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
-        base_url: Optional[str] = None,
+        base_url: Optional[str] = None, no_training: bool = False,
     ) -> str:
         try:
             from openai import AsyncOpenAI
@@ -172,6 +183,11 @@ class AIClient:
         }
         if not skip_temperature:
             request_kwargs["temperature"] = temperature
+        if no_training:
+            # Opt out of OpenAI using this completion for model training.
+            # TODO: DeepSeek is OpenAI-compatible but does not document 'store';
+            # passing it is likely a no-op — verify when DeepSeek publishes API docs.
+            request_kwargs["store"] = False
 
         async def _do_call(kwargs: Dict[str, Any]):
             try:

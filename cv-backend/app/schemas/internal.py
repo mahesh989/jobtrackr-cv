@@ -6,6 +6,8 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.voice import VoiceFingerprint
+
 
 # ── /internal/analyze ─────────────────────────────────────────────────────────
 
@@ -89,3 +91,24 @@ class CategoriseCvResponse(BaseModel):
     technical:        list[str]
     soft_skills:      list[str]
     domain_knowledge: list[str]
+
+
+# ── /internal/extract-voice-fingerprint ──────────────────────────────────────
+
+class ExtractVoiceFingerprintRequest(BaseModel):
+    """
+    Extract a voice fingerprint from a writing sample. BYOK — key never
+    persisted in cv-backend. voice_sample_text must not appear in logs.
+    """
+    voice_sample_text: str = Field(min_length=1)
+    ai_provider:       Literal["anthropic", "openai", "deepseek"]
+    ai_api_key:        str = Field(min_length=1)
+    ai_model:          Optional[str] = None
+
+
+class ExtractVoiceFingerprintResponse(BaseModel):
+    fingerprint:        VoiceFingerprint
+    trust_score:        float
+    trust_components:   Dict[str, float]   # ai_pattern, sentence_variance, length
+    word_count:         int
+    matched_ai_phrases: list[str]

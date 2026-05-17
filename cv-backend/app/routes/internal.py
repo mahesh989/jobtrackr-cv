@@ -27,12 +27,15 @@ from app.schemas.internal import (
     CategoriseCvResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
+    ExtractVoiceFingerprintRequest,
+    ExtractVoiceFingerprintResponse,
     ScrapeJdRequest,
     ScrapeJdResponse,
 )
 from app.security.hmac import verify_hmac
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
+from app.services.voice.voice_fingerprint import extract_voice_fingerprint
 from app.services.pipeline.orchestrator import run_analysis_pipeline
 from app.services.scraping.jd_scraper import JDScrapeError, scrape_jd
 
@@ -178,6 +181,52 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
         technical=        result.get("technical", []),
         soft_skills=      result.get("soft_skills", []),
         domain_knowledge= result.get("domain_knowledge", []),
+    )
+
+
+# ── /internal/extract-voice-fingerprint ──────────────────────────────────────
+
+@router.post(
+    "/extract-voice-fingerprint",
+    response_model=ExtractVoiceFingerprintResponse,
+)
+async def extract_voice_fingerprint_endpoint(
+    body: ExtractVoiceFingerprintRequest,
+) -> ExtractVoiceFingerprintResponse:
+    """
+    Extract a structured voice fingerprint from a writing sample.
+
+    Runs a deterministic trust score on the sample, then calls the user's
+    AI provider (BYOK) to extract a 14-key fingerprint. Both the trust
+    score and the fingerprint are returned; the caller (web API route) is
+    responsible for persisting them to voice_profiles via service-role.
+
+    NOTE: voice_sample_text must not appear in logs. If request-body logging
+    is ever added to this service, add this field to the redaction list.
+    """
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        result = await extract_voice_fingerprint(ai_client, body.voice_sample_text)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Voice fingerprint extraction failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
+
+    return ExtractVoiceFingerprintResponse(
+        fingerprint=result["fingerprint"],
+        trust_score=result["trust_score"],
+        trust_components=result["trust_components"],
+        word_count=result["word_count"],
+        matched_ai_phrases=result["matched_ai_phrases"],
     )
 
 

@@ -7,6 +7,7 @@ import {
   Briefcase,
   FileText,
   History,
+  Mic,
   UserCircle2,
   Plug,
   Palette,
@@ -156,6 +157,7 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
           </p>
         </div>
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
+        <NavItem href="/dashboard/voice" icon={Mic}>My Voice</NavItem>
         <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
         <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>Profile</NavItem>
         <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>

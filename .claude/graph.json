@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.3",
-    "updated": "2026-05-17 (Session D — documentation pass)",
+    "version": "0.4",
+    "updated": "2026-05-18 (Session E — Phase 10.1 voice fingerprint module)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -100,6 +100,23 @@
           "belongs_to: User"
         ],
         "notes": "Added in Phase 7.5 via Migration 020. Stores contact details and portfolio projects for stamping on tailored CVs."
+      },
+      "VoiceProfile": {
+        "table": "voice_profiles",
+        "fields": [
+          "id",
+          "user_id",
+          "voice_sample_raw",
+          "voice_sample_source",
+          "voice_sample_trust_score",
+          "fingerprint",
+          "created_at",
+          "updated_at"
+        ],
+        "relations": [
+          "belongs_to: User (unique — one profile per user)"
+        ],
+        "notes": "Added in Phase 10.1 via Migration 021. UNIQUE on user_id — new sample silently overwrites existing. voice_sample_raw is NEVER returned in any GET response path or logged. voice_sample_source is text (not enum) with default 'in_app_capture' — extensible to file upload / audio in later phases. fingerprint is JSONB storing the 14-key VoiceFingerprint structure. RLS: auth.uid() = user_id with check."
       }
     }
   },
@@ -164,8 +181,8 @@
     }
   },
   "build_state": {
-    "current_phase": 9,
-    "next_action": "Phase 10: Cover letter feature — start with Phase 1 (Voice Fingerprint Module). Spec in docs/cover-letter-spec.md. Architecture + DB context in docs/architecture.md and docs/database.md. Use /plan for Phase 1 plan. Prerequisite still open: verify cv-backend Fly.io has redeployed with the non-chat-model fallback fix (client.py). User should update OpenAI model in Integrations to GPT-5.1 or GPT-4o.",
+    "current_phase": 10.1,
+    "next_action": "Phase 10.2: Cover letter story library — user curates 3–5 short stories (STAR format) that power the cover letter body. Spec in docs/cover-letter-spec.md Part 2. Prerequisite: Phase 10.1 (voice fingerprint) is live in production. cv-backend must be redeployed with the new /internal/extract-voice-fingerprint endpoint before story library can be tested end-to-end.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -201,7 +218,8 @@
       "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene: (1) Migration renames: 005_vertical_filter→006_vertical_filter, 009_possible_duplicate→009_add_possible_duplicate_dedup_status. No prod impact — migrations are CLI-untracked, applied manually via SQL editor. (2) Dead components deleted: AiKeyCard.tsx (superseded by ProviderPicker), JobCard.tsx, JobSortBar.tsx (both superseded by JobTable/JobFilterBar in Phase 9), ToggleActiveButton.tsx (never wired up). (3) scrapeJobUrl.ts kept but marked as DEFERRED-1 in deferred_features; deferred comment block added to file header. (4) bullmq + ioredis confirmed legitimate — server-side only, used by job-discovery pipeline queue trigger in run/route.ts and actions.ts; do not remove. (5) Test artefacts removed from git: 2× Jora CSV, discovered_slugs.json, jora_scraper.py, verify_slugs.py, 3× jora_test JSON, test-update.js, fix-dead-links.js. Patterns added to .gitignore with explanatory comment.",
       "Session B orchestration layer (2026-05-16) — Permanent subagent + slash command infrastructure. (1) .claude/agents/ created: planner (haiku-4-5, Read/Grep/Glob, plan-only), auditor (opus-4-7, Read/Grep/Glob/Bash read-only, PASS/FAIL structured review), migration-checker (sonnet-4-6, Read/Grep/Glob/Bash, pre-migration safety checker). (2) .claude/commands/ created: /plan (invokes planner, stops for approval), /audit (invokes auditor, halts on FAIL), /ship (graph.json → commit → push → summary ritual), /handoff (generates copy-pasteable next-session block). (3) CLAUDE.md updated: Model Routing section (routing table + Opus-is-reviewer rule), Session Management Rules section (60% threshold + /handoff protocol). (4) Smoke test passed: planner and auditor both verified to run in isolated agent contexts with correct models, producing structured output.",
       "Session C prompts.py modular split (2026-05-17) — Split cv-backend/app/services/ai/prompts.py (1413 lines, 12 constants) into a prompts/ package: 6 step modules (jd_analysis.py, cv_jd_matching.py, keyword_feasibility.py, ai_recommendations.py, tailored_cv.py, cv_skill_categorisation.py) + __init__.py with backward-compatible re-exports. All 6 consumer import paths unchanged. All 5 PLAN-1 auditor corrections applied (exact line boundaries, skill_categoriser consumer included, atomic commit, local-only verification, graph.json in same commit). Three smoke tests passed. Session required graceful mid-session recovery when tailored_cv.py (~970 lines) exceeded executor context capacity — OPS-4 heuristic captured.",
-      "Session D documentation pass (2026-05-17) — Created docs/architecture.md (tech stack, data flow, HMAC boundary, BYOK, endpoints, deployment, constraints), docs/database.md (exhaustive schema reference: 10 tables, 2 storage buckets, functions, triggers, extensions — derived from all 20 migration files), and docs/cover-letter-spec.md (full 10-part cover letter generation spec, verbatim). Auditor returned PASS_WITH_NOTES; three fixes applied: HMAC encoding precision note in architecture.md, illustrative model-name disclaimer in cover-letter-spec.md Part 4, ai_provider/ai_model added to AnalysisRun.fields in graph.json. OPS-5 operational note captured. Primary criterion confirmed: a future planner can plan Phase 1 (Voice Fingerprint Module) from the three docs + graph.json alone."
+      "Session D documentation pass (2026-05-17) — Created docs/architecture.md (tech stack, data flow, HMAC boundary, BYOK, endpoints, deployment, constraints), docs/database.md (exhaustive schema reference: 10 tables, 2 storage buckets, functions, triggers, extensions — derived from all 20 migration files), and docs/cover-letter-spec.md (full 10-part cover letter generation spec, verbatim). Auditor returned PASS_WITH_NOTES; three fixes applied: HMAC encoding precision note in architecture.md, illustrative model-name disclaimer in cover-letter-spec.md Part 4, ai_provider/ai_model added to AnalysisRun.fields in graph.json. OPS-5 operational note captured. Primary criterion confirmed: a future planner can plan Phase 1 (Voice Fingerprint Module) from the three docs + graph.json alone.",
+      "Session E — Phase 10.1 (Voice Fingerprint Module, 2026-05-18) — Migration 021 (voice_profiles: RLS, unique user_id, updated_at trigger) applied manually. cv-backend: app/schemas/voice.py (VoiceFingerprint Pydantic model, 14 fields with type constraints), app/services/voice/trust_scorer.py (pure function, TrustScore NamedTuple, 23 AI-tell phrases, deterministic), app/services/voice/trust_scorer_fixtures.py (6 smoke-test fixtures), app/services/voice/voice_fingerprint.py (extract_voice_fingerprint, full Pydantic validation, server-side-only error logging, no_training=True), app/services/ai/prompts/cover_letter/ (new subdirectory: voice_fingerprint.py prompt), app/services/ai/client.py (no_training: bool = False threaded through complete_json → complete → _anthropic_complete/_openai_complete; OpenAI store=False implemented; Anthropic TODO pending SDK support), app/routes/internal.py (POST /internal/extract-voice-fingerprint). Web: web/src/lib/cvBackend.ts (extractVoiceFingerprint wrapper), web/src/app/api/user/voice-profile/route.ts (GET omits voice_sample_raw; POST: key lookup/decrypt/call/upsert; TODO Phase 1.5 trust regression warning), web/src/components/cv/VoiceCaptureClient.tsx (paste disabled, word counter, TrustBadge), web/src/app/(dashboard)/dashboard/voice/page.tsx (Server Component), web/src/components/SidebarNav.tsx (Mic icon + My Voice link). Auditor verdict: PASS_WITH_NOTES — 20/21 checkpoints clean; one fixture calibration bug fixed post-audit (OBVIOUS_AI expected_length_score 1.0→0.7, ~165 words corrected to ~136 words). All 6 smoke-test fixtures PASS after fix. OPS-6 captured."
     ],
     "in_progress": [],
     "blocked": []
@@ -878,6 +896,12 @@
       "title": "Audit acceptance criterion for documentation work",
       "detail": "The framing 'could a future planner act from these docs alone, without reading source?' has proven effective at surfacing ambiguities in documentation. It caught three real issues in Session D (HMAC encoding precision, fictional model names in spec, missing analysis_runs fields in graph.json) that a standard correctness review would have missed. Use this framing as the primary acceptance criterion whenever documentation is the deliverable.",
       "logged": "2026-05-17"
+    },
+    {
+      "id": "OPS-6",
+      "title": "Fixture-based smoke tests must verify the fixtures themselves, not just the function under test",
+      "detail": "In Session E, the OBVIOUS_AI fixture declared expected_length_score: 1.0 and a comment claiming '~165 words', but the text was actually 136 words — placing it in the 100–500 intermediate band (score 0.7, not 1.0). The trust scorer was correct; the fixture was wrong. The auditor's smoke test run caught this. Lesson: when writing fixtures that include expected computed values (word counts, score buckets), always compute the value programmatically before writing the fixture rather than hand-counting. Hand-counts drift as text is edited. For word-count-sensitive thresholds specifically: run len(text.split()) in a REPL before committing the expected_length_score.",
+      "logged": "2026-05-18"
     }
   ],
   "planning_notes": [],

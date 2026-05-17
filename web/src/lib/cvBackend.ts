@@ -142,3 +142,32 @@ export interface AnalyzePayload {
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {
   return callCvBackend("/internal/analyze", payload);
 }
+
+export interface VoiceFingerprintPayload {
+  voice_sample_text: string;
+  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_api_key:        string;
+  ai_model?:         string | null;
+}
+
+export interface VoiceFingerprintResult {
+  fingerprint:        Record<string, unknown>;
+  trust_score:        number;
+  trust_components: {
+    ai_pattern_score:             number;
+    sentence_variance_score:      number;
+    length_appropriateness_score: number;
+  };
+  word_count:         number;
+  matched_ai_phrases: string[];
+}
+
+export function extractVoiceFingerprint(
+  payload: VoiceFingerprintPayload,
+): Promise<VoiceFingerprintResult> {
+  return callCvBackend<VoiceFingerprintResult>(
+    "/internal/extract-voice-fingerprint",
+    payload,
+    { timeoutMs: 60_000 },
+  );
+}
