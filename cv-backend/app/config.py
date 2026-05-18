@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     JOBTRACKR_HMAC_SECRET: str = ""
 
     # -------------------------------------------------------------------------
+    # Tavily web search (system-level key — NOT user-supplied)
+    # Used by company research pipeline (Phase 10.3). Leave empty to fall
+    # back to direct website scraping only (search_skipped=true in response).
+    # -------------------------------------------------------------------------
+    TAVILY_API_KEY: str = ""
+
+    # -------------------------------------------------------------------------
     # Sentry
     # -------------------------------------------------------------------------
     SENTRY_DSN: str = ""

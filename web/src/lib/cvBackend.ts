@@ -253,3 +253,102 @@ export function matchStories(
     { timeoutMs: 10_000 },  // deterministic, no AI — 10s is generous
   );
 }
+
+// ── Company research (Phase 10.3) ─────────────────────────────────────────────
+
+export interface RecentEvent {
+  date:                       string | null;
+  event:                      string;
+  source_url:                 string | null;
+  relevance_to_applicants:    string;
+  stale:                      boolean;
+}
+
+export interface CompanyFacts {
+  description_short:    string;
+  industry:             string;
+  size:                 "startup" | "small" | "mid" | "large" | "enterprise";
+  headquarters:         string;
+  recent_events:        RecentEvent[];
+  products_or_services: string[];
+  mission_statement:    string;
+  distinguishing_facts: string[];
+}
+
+export interface VoiceSignals {
+  tone:               "formal_corporate" | "professional_warm" | "casual_startup" | "technical" | "mission_driven";
+  sample_text:        string;
+  common_vocabulary:  string[];
+  avoids:             string[];
+}
+
+export interface HiringIntel {
+  hiring_manager_likely: string | null;
+  team_blog_posts:       string[];
+  recent_hires_titles:   string[];
+}
+
+export interface CompanyResearch {
+  company_id:             string;
+  name:                   string;
+  domain:                 string | null;
+  last_researched_at:     string;  // ISO 8601
+  research_ttl_days:      number;
+  facts:                  CompanyFacts;
+  voice_signals:          VoiceSignals;
+  hiring_intel:           HiringIntel;
+  research_quality_score: number;
+  search_skipped:         boolean;
+}
+
+export interface ResearchCompanyPayload {
+  company_name:    string;
+  company_domain?: string | null;
+  ai_provider:     "anthropic" | "openai" | "deepseek";
+  ai_api_key:      string;
+  ai_model?:       string | null;
+}
+
+export interface ResearchCompanyResult {
+  company_id:   string;
+  status:       "completed" | "cached" | "running";
+  research:     CompanyResearch | null;
+  search_skipped: boolean;
+}
+
+export function researchCompany(
+  payload: ResearchCompanyPayload,
+): Promise<ResearchCompanyResult> {
+  return callCvBackend<ResearchCompanyResult>(
+    "/internal/research-company",
+    payload,
+    { timeoutMs: 120_000 },  // Tavily + scrape + AI distill — allow up to 2 min
+  );
+}
+
+export interface RankedFact {
+  fact_text:    string;
+  score:        number;
+  source_field: string;
+}
+
+export interface SelectCompanyFactPayload {
+  company_id: string;
+  facts:      CompanyFacts;
+  jd_text:    string;
+  cv_text:    string;
+}
+
+export interface SelectCompanyFactResult {
+  ranked_facts: RankedFact[];
+}
+
+export function selectCompanyFact(
+  payload: SelectCompanyFactPayload,
+): Promise<SelectCompanyFactResult> {
+  return callCvBackend<SelectCompanyFactResult>(
+    "/internal/select-company-fact",
+    payload,
+    { timeoutMs: 10_000 },  // deterministic, no AI
+  );
+}
