@@ -31,10 +31,8 @@ const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 export async function POST(req: NextRequest) {
-  // ── 1. Verify session ────────────────────────────────────────────────────────
+  // ── 1. Init supabase client ───────────────────────────────────────────────────
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { company_name?: string; company_domain?: string };
@@ -52,9 +50,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const admin = createAdminClient();
-
-  // ── 3. Compute slug + check cache ─────────────────────────────────────────────
+  // ── 3. Compute slug ───────────────────────────────────────────────────────────
   // Slug must match make_company_slug() in cv-backend exactly.
   const companyId = companyName
     .toLowerCase()
@@ -64,11 +60,17 @@ export async function POST(req: NextRequest) {
     .slice(0, 80)
     .replace(/_+$/, "") || "unknown_company";
 
-  const { data: existing, error: lookupErr } = await admin
-    .from("company_research")
-    .select("*")
-    .eq("company_id", companyId)
-    .maybeSingle();
+  const admin = createAdminClient();
+
+  // ── 4. Parallel: auth check + cache lookup ────────────────────────────────────
+  // Slug is known at this point so both calls can fire concurrently — saves one
+  // full network roundtrip on every cache hit.
+  const [{ data: { user } }, { data: existing, error: lookupErr }] = await Promise.all([
+    supabase.auth.getUser(),
+    admin.from("company_research").select("*").eq("company_id", companyId).maybeSingle(),
+  ]);
+
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (lookupErr) {
     console.error("[/api/company-research] lookup error:", lookupErr.message);
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 4. Resolve AI key ─────────────────────────────────────────────────────────
+  // ── 5. Resolve AI key ─────────────────────────────────────────────────────────
   const { data: keys } = await admin
     .from("user_integrations")
     .select("provider, encrypted_api_key, status, config")

@@ -1,22 +1,27 @@
 /**
  * POST /api/company-research/facts/select
  *
- * Deterministic fact selection: given a company_id, JD text, and CV text,
- * returns the company's facts ranked by keyword overlap with the query.
- * No AI call — purely deterministic via cv-backend /internal/select-company-fact.
+ * Deterministic fact selection for a job. Resolves company_id, JD text, and
+ * CV text server-side from the provided job_id — callers do not need to
+ * supply these directly.
  *
- * Request body: { company_id: string, jd_text: string, cv_text: string }
+ * Request body: { job_id: string }
+ *
+ * Resolution order:
+ *   company_id  — jobs.company → slug (same algorithm as /api/company-research)
+ *   jd_text     — jobs.manual_jd_text → latest completed analysis_run.jd_text → 422
+ *   cv_text     — cv_versions where is_active = true → 422 if absent
  *
  * Responses:
- *   200  { ranked_facts: RankedFact[] }
+ *   200  { ranked_facts: RankedFact[], company_id: string }
+ *   400  Missing job_id
  *   401  Unauthorized
- *   404  No research found for company_id
- *   422  Missing required fields
+ *   404  Job not found / not owned / no company research found
+ *   422  No company set on job / no JD text / no active CV
  *   502  cv-backend call failed
  *   500  DB error
  *
- * No AI key resolution needed — the select-company-fact endpoint is
- * deterministic and makes no AI calls.
+ * No AI key resolution needed — select-company-fact is deterministic.
  */
 
 import { NextRequest, NextResponse }         from "next/server";
@@ -27,6 +32,8 @@ import { selectCompanyFact, CvBackendError } from "@/lib/cvBackend";
 export const runtime     = "nodejs";
 export const maxDuration = 30;
 
+const JD_MIN_CHARS = 50;
+
 export async function POST(req: NextRequest) {
   // ── 1. Verify session ────────────────────────────────────────────────────────
   const supabase = await createClient();
@@ -34,52 +41,126 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
-  let body: { company_id?: string; jd_text?: string; cv_text?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  let body: { job_id?: unknown };
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 }); }
+
+  const jobId = typeof body.job_id === "string" ? body.job_id.trim() : "";
+  if (!jobId) {
+    return NextResponse.json({ error: "job_id is required." }, { status: 400 });
   }
 
-  const { company_id, jd_text, cv_text } = body;
-  if (!company_id || !jd_text || !cv_text) {
+  const admin = createAdminClient();
+
+  // ── 3. Ownership check (job → search_profile → user) ─────────────────────────
+  // Service-role bypasses RLS so this manual ownership check is required.
+  const { data: job } = await admin
+    .from("jobs")
+    .select("id, profile_id, company, manual_jd_text")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+
+  const { data: profile } = await admin
+    .from("search_profiles")
+    .select("user_id")
+    .eq("id", job.profile_id)
+    .maybeSingle();
+
+  if (!profile || profile.user_id !== user.id) {
+    return NextResponse.json({ error: "Job not found." }, { status: 404 });
+  }
+
+  // ── 4. Resolve company_id from jobs.company ───────────────────────────────────
+  const companyRaw = (job.company as string | null)?.trim() ?? "";
+  if (!companyRaw) {
     return NextResponse.json(
-      { error: "company_id, jd_text, and cv_text are required." },
+      { error: "No company set for this job. Edit the job to add a company name." },
       { status: 422 },
     );
   }
 
-  // ── 3. Fetch company facts from Supabase ──────────────────────────────────────
-  const admin = createAdminClient();
+  // Must match make_company_slug() in cv-backend and /api/company-research.
+  const companyId = companyRaw
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80)
+    .replace(/_+$/, "") || "unknown_company";
 
-  const { data: row, error: lookupErr } = await admin
-    .from("company_research")
-    .select("facts")
-    .eq("company_id", company_id)
+  // ── 5. Resolve JD text ────────────────────────────────────────────────────────
+  let jdText: string | null = null;
+  const manualJd = (job.manual_jd_text as string | null)?.trim() ?? "";
+  if (manualJd.length >= JD_MIN_CHARS) {
+    jdText = manualJd;
+  } else {
+    const { data: run } = await admin
+      .from("analysis_runs")
+      .select("jd_text")
+      .eq("job_id", jobId)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const runJd = (run?.jd_text as string | null)?.trim() ?? "";
+    if (runJd.length >= JD_MIN_CHARS) jdText = runJd;
+  }
+
+  if (!jdText) {
+    return NextResponse.json(
+      { error: "No JD text available for this job. Analyse the job first or add a manual JD." },
+      { status: 422 },
+    );
+  }
+
+  // ── 6. Fetch active CV text ───────────────────────────────────────────────────
+  const { data: cv, error: cvErr } = await admin
+    .from("cv_versions")
+    .select("cv_text")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
     .maybeSingle();
 
-  if (lookupErr) {
-    console.error("[/api/company-research/facts/select] lookup error:", lookupErr.message);
+  if (cvErr || !cv?.cv_text) {
+    return NextResponse.json(
+      { error: "No active CV found. Upload a CV first." },
+      { status: 422 },
+    );
+  }
+
+  // ── 7. Fetch company facts ────────────────────────────────────────────────────
+  const { data: row, error: factsErr } = await admin
+    .from("company_research")
+    .select("facts")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (factsErr) {
+    console.error("[/api/company-research/facts/select] lookup error:", factsErr.message);
     return NextResponse.json({ error: "Database error." }, { status: 500 });
   }
 
   if (!row?.facts) {
     return NextResponse.json(
-      { error: `No research found for company_id '${company_id}'. Run POST /api/company-research first.` },
+      { error: `No research found for '${companyRaw}'. Run POST /api/company-research first.` },
       { status: 404 },
     );
   }
 
-  // ── 4. Call cv-backend /internal/select-company-fact ─────────────────────────
+  // ── 8. Call cv-backend /internal/select-company-fact ─────────────────────────
   try {
     const result = await selectCompanyFact({
-      company_id,
-      facts:    row.facts,
-      jd_text,
-      cv_text,
+      company_id: companyId,
+      facts:      row.facts,
+      jd_text:    jdText,
+      cv_text:    cv.cv_text,
     });
 
-    return NextResponse.json({ ranked_facts: result.ranked_facts });
+    return NextResponse.json({ ranked_facts: result.ranked_facts, company_id: companyId });
   } catch (err) {
     console.error(
       "[/api/company-research/facts/select] cv-backend error:",
