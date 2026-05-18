@@ -380,7 +380,7 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
             api_key=body.ai_api_key,
             model=body.ai_model,
         )
-    except Exception as exc:
+    except AIClientError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid AI client configuration: {exc}",

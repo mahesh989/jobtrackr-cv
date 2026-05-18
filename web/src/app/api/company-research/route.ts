@@ -30,9 +30,6 @@ export const maxDuration = 120;  // Tavily + scrape + AI distill
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
-/** Seconds until a company_research row is considered stale. */
-const TTL_SECONDS = 90 * 24 * 60 * 60;  // 90 days
-
 export async function POST(req: NextRequest) {
   // ── 1. Verify session ────────────────────────────────────────────────────────
   const supabase = await createClient();
