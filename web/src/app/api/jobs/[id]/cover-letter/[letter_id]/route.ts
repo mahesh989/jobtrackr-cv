@@ -1,0 +1,68 @@
+/**
+ * GET /api/jobs/[id]/cover-letter/[letter_id]
+ *
+ * Fetch the current state of a cover_letters row. Used for:
+ *   1. Initial page load — get whatever state exists at render time
+ *   2. Polling fallback — if Realtime is unavailable, poll this until
+ *      status === "completed" or "failed"
+ *
+ * Returns the full row (minus voice_sample_raw, which is not stored on
+ * cover_letters — only on voice_profiles).
+ *
+ * Ownership: letter must belong to the authenticated user AND to the job.
+ *
+ * Responses:
+ *   200  { letter: CoverLetterRow }
+ *   401  Unauthorized
+ *   404  Letter not found or not owned by user
+ *   500  DB error
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { createClient }              from "@/lib/supabase/server";
+import { createAdminClient }         from "@/lib/supabase/admin";
+
+export const runtime     = "nodejs";
+export const maxDuration = 10;
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string; letter_id: string }> },
+) {
+  const { id: jobId, letter_id: letterId } = await params;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const admin = createAdminClient();
+
+  // Ownership: letter must belong to this user AND this job.
+  // Use admin client for a single-query ownership-and-fetch.
+  const { data: letter, error } = await admin
+    .from("cover_letters")
+    .select(
+      "id, job_id, status, generation_status, story_id, company_hook_text, " +
+      "tone_target, word_count_target, pass_1_skeleton, pass_2_voice_transferred, " +
+      "pass_3_final, burstiness_score, naturalness_score, coherence_score, " +
+      "specificity_ok, honesty_ok, quality_flags, ai_provider, " +
+      "pass_1_model, pass_2_model, pass_3_model, " +
+      "user_edits, outcome, error_message, is_stale, " +
+      "started_at, completed_at, created_at, updated_at",
+    )
+    .eq("id", letterId)
+    .eq("user_id", user.id)
+    .eq("job_id", jobId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[GET /api/jobs/[id]/cover-letter/[letter_id]] DB error:", error.message);
+    return NextResponse.json({ error: "Failed to fetch cover letter." }, { status: 500 });
+  }
+
+  if (!letter) {
+    return NextResponse.json({ error: "Cover letter not found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ letter });
+}

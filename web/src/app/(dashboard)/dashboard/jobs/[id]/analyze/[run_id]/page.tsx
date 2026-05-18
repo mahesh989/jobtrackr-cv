@@ -2,6 +2,7 @@ import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
 import { AnalysisRunClient } from "@/components/cv/AnalysisRunClient";
+import { CoverLetterPanel }  from "@/components/cv/CoverLetterPanel";
 
 interface Props {
   params: Promise<{ id: string; run_id: string }>;
@@ -59,6 +60,22 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const ranJd     = ((run as unknown as { jd_text: string }).jd_text ?? "").trim();
   const jdChanged = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
 
+  // Pre-fetch most recent non-stale cover letter for this job (if any)
+  const { data: existingLetter } = await admin
+    .from("cover_letters")
+    .select(
+      "id, status, generation_status, pass_3_final, burstiness_score, " +
+      "naturalness_score, coherence_score, specificity_ok, honesty_ok, " +
+      "quality_flags, company_hook_text, tone_target, error_message, " +
+      "pass_1_model, pass_2_model, pass_3_model",
+    )
+    .eq("user_id", user.id)
+    .eq("job_id", jobId)
+    .eq("is_stale", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const runStatus    = (run as unknown as { status: string }).status;
   const completedAt  = (run as unknown as { completed_at: string | null }).completed_at;
   const subtitleText =
@@ -114,6 +131,8 @@ export default async function AnalyzeRunPage({ params }: Props) {
           cvCharLen={cvCharLen}
           cvCategorisedSkills={cvSkills}
         />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CoverLetterPanel jobId={jobId} initial={existingLetter as any} />
         </div>
       </div>
     </div>

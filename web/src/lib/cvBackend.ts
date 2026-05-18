@@ -352,3 +352,42 @@ export function selectCompanyFact(
     { timeoutMs: 10_000 },  // deterministic, no AI
   );
 }
+
+// ── Cover letter generation ───────────────────────────────────────────────────
+
+export interface GenerateCoverLetterPayload {
+  /** Pre-created UUID from the cover_letters row. */
+  letter_id:         string;
+  user_id:           string;
+  job_id:            string;
+  jd_text:           string;
+  role:              string;
+  company_name:      string;
+  cv_text:           string;
+  /** Verbatim writing sample. Never log this field. */
+  voice_sample_text: string;
+  fingerprint:       Record<string, unknown>;
+  story:             Record<string, unknown>;
+  company_hook_text: string;
+  tone_target:       "professional" | "warm" | "direct";
+  word_count_target: number;
+  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_api_key:        string;
+  ai_model?:         string;
+}
+
+export interface GenerateCoverLetterResult {
+  letter_id: string;
+  status:    "accepted";
+}
+
+export function generateCoverLetter(
+  payload: GenerateCoverLetterPayload,
+): Promise<GenerateCoverLetterResult> {
+  return callCvBackend<GenerateCoverLetterResult>(
+    "/internal/generate-cover-letter",
+    payload,
+    // cv-backend returns 202 immediately (BackgroundTask) — 30s is generous
+    { timeoutMs: 30_000 },
+  );
+}
