@@ -33,6 +33,10 @@ from .cover_letter.voice_fingerprint import (
     VOICE_FINGERPRINT_SYSTEM,
     VOICE_FINGERPRINT_USER_TEMPLATE,
 )
+from .cover_letter.story_extraction import (
+    STORY_EXTRACTION_SYSTEM,
+    STORY_EXTRACTION_USER_TEMPLATE,
+)
 
 __all__ = [
     "JD_ANALYSIS_SYSTEM",
@@ -49,4 +53,6 @@ __all__ = [
     "CV_SKILL_CATEGORISATION_USER_TEMPLATE",
     "VOICE_FINGERPRINT_SYSTEM",
     "VOICE_FINGERPRINT_USER_TEMPLATE",
+    "STORY_EXTRACTION_SYSTEM",
+    "STORY_EXTRACTION_USER_TEMPLATE",
 ]

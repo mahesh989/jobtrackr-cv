@@ -6,6 +6,7 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.stories import ExtractStoriesResponse  # noqa: F401 — re-exported
 from app.schemas.voice import VoiceFingerprint
 
 
@@ -112,3 +113,20 @@ class ExtractVoiceFingerprintResponse(BaseModel):
     trust_components:   Dict[str, float]   # ai_pattern, sentence_variance, length
     word_count:         int
     matched_ai_phrases: list[str]
+
+
+# ── /internal/extract-stories ─────────────────────────────────────────────────
+
+class ExtractStoriesRequest(BaseModel):
+    """
+    Extract structured achievement stories from a master CV.
+    BYOK — key never persisted in cv-backend.
+    cv_text must not appear in logs (privacy boundary — see story_extractor.py).
+    """
+    user_id:     uuid.UUID
+    cv_text:     str = Field(min_length=1)
+    ai_provider: Literal["anthropic", "openai", "deepseek"]
+    ai_api_key:  str = Field(min_length=1)
+    # Optional model override. When null, cv-backend falls back to
+    # _DEFAULT_MODELS[provider]. Never hardcode a model name here (BUG-2).
+    ai_model:    Optional[str] = None

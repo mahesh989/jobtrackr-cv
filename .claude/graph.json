@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-18 (Session F — Phase 10.2 pre-work: voice UX polish + fingerprint stress-test)",
+    "updated": "2026-05-18 (Session G — Phase 10.2.a: story extraction and storage)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -101,6 +101,27 @@
         ],
         "notes": "Added in Phase 7.5 via Migration 020. Stores contact details and portfolio projects for stamping on tailored CVs."
       },
+      "Story": {
+        "table": "stories",
+        "fields": [
+          "id",
+          "user_id",
+          "title",
+          "domain",
+          "year",
+          "one_line",
+          "detailed",
+          "numbers",
+          "tags",
+          "extraction_timestamp",
+          "created_at",
+          "updated_at"
+        ],
+        "relations": [
+          "belongs_to: User (many rows per user — no UNIQUE on user_id)"
+        ],
+        "notes": "Added in Phase 10.2.a via Migration 022. One row per story, multiple per user. Atomic overwrite on re-extraction: web route deletes all user stories then inserts new batch (single INSERT — atomic in Postgres; no partial write possible). extraction_timestamp is datetime with no DB default — set by cv-backend so all rows in a batch share the same value, enabling Phase 10.2.b batch queries: WHERE user_id = ? AND extraction_timestamp = MAX(...). numbers is JSONB [{metric, value}], tags is text[] (advisory vocabulary, not enum-enforced). Composite index on (user_id, extraction_timestamp DESC). RLS: auth.uid() = user_id. cv-backend writes via service-role."
+      },
       "VoiceProfile": {
         "table": "voice_profiles",
         "fields": [
@@ -181,8 +202,8 @@
     }
   },
   "build_state": {
-    "current_phase": 10.1,
-    "next_action": "Phase 10.2: Cover letter story library — user curates 3–5 short stories (STAR format) that power the cover letter body. Spec in docs/cover-letter-spec.md Part 2. Prerequisite: Phase 10.1 (voice fingerprint) is live in production. cv-backend must be redeployed with the new /internal/extract-voice-fingerprint endpoint before story library can be tested end-to-end.",
+    "current_phase": 10.2,
+    "next_action": "Phase 10.2.b: Story matching and UI — story-to-JD matching algorithm, story library UI (read/display stories), per-job story suggestion endpoint, manual story editing and tagging by user. Spec in docs/cover-letter-spec.md Part 2. Prerequisites: (1) migration 022 applied to production Supabase, (2) cv-backend redeployed with /internal/extract-stories live (Fly.io flyctl deploy), (3) POST /api/user/stories/extract verified end-to-end with a real user's active CV.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -219,6 +240,7 @@
       "Session B orchestration layer (2026-05-16) — Permanent subagent + slash command infrastructure. (1) .claude/agents/ created: planner (haiku-4-5, Read/Grep/Glob, plan-only), auditor (opus-4-7, Read/Grep/Glob/Bash read-only, PASS/FAIL structured review), migration-checker (sonnet-4-6, Read/Grep/Glob/Bash, pre-migration safety checker). (2) .claude/commands/ created: /plan (invokes planner, stops for approval), /audit (invokes auditor, halts on FAIL), /ship (graph.json → commit → push → summary ritual), /handoff (generates copy-pasteable next-session block). (3) CLAUDE.md updated: Model Routing section (routing table + Opus-is-reviewer rule), Session Management Rules section (60% threshold + /handoff protocol). (4) Smoke test passed: planner and auditor both verified to run in isolated agent contexts with correct models, producing structured output.",
       "Session C prompts.py modular split (2026-05-17) — Split cv-backend/app/services/ai/prompts.py (1413 lines, 12 constants) into a prompts/ package: 6 step modules (jd_analysis.py, cv_jd_matching.py, keyword_feasibility.py, ai_recommendations.py, tailored_cv.py, cv_skill_categorisation.py) + __init__.py with backward-compatible re-exports. All 6 consumer import paths unchanged. All 5 PLAN-1 auditor corrections applied (exact line boundaries, skill_categoriser consumer included, atomic commit, local-only verification, graph.json in same commit). Three smoke tests passed. Session required graceful mid-session recovery when tailored_cv.py (~970 lines) exceeded executor context capacity — OPS-4 heuristic captured.",
       "Session D documentation pass (2026-05-17) — Created docs/architecture.md (tech stack, data flow, HMAC boundary, BYOK, endpoints, deployment, constraints), docs/database.md (exhaustive schema reference: 10 tables, 2 storage buckets, functions, triggers, extensions — derived from all 20 migration files), and docs/cover-letter-spec.md (full 10-part cover letter generation spec, verbatim). Auditor returned PASS_WITH_NOTES; three fixes applied: HMAC encoding precision note in architecture.md, illustrative model-name disclaimer in cover-letter-spec.md Part 4, ai_provider/ai_model added to AnalysisRun.fields in graph.json. OPS-5 operational note captured. Primary criterion confirmed: a future planner can plan Phase 1 (Voice Fingerprint Module) from the three docs + graph.json alone.",
+      "Phase 10.2.a — Story Extraction and Storage (2026-05-18) — Migration 022 (stories table: JSONB numbers, text[] tags, datetime extraction_timestamp with no DB default, composite index on (user_id, extraction_timestamp DESC), set_updated_at trigger, RLS users_own_stories). cv-backend: app/schemas/stories.py (StoryNumber, Story with datetime extraction_timestamp, ExtractStoriesResponse), app/services/stories/story_extractor.py (privacy boundary block, _MAX_CV_CHARS=12_000, full Pydantic validation per story, extraction_timestamp injected by extractor not model), app/services/ai/prompts/cover_letter/story_extraction.py (STORY_EXTRACTION_SYSTEM with 8 BAD/GOOD calibration pairs + empty-result instruction, STORY_EXTRACTION_USER_TEMPLATE), story_extraction_fixtures.py (RICH_CV/SPARSE_CV/GENERIC_CV with P1-P4 criteria + async run_fixture_check()), POST /internal/extract-stories endpoint (HMAC-protected, mirrors extract-voice-fingerprint pattern), prompts/__init__.py re-exports updated. Web: cvBackend.ts (Story/StoryNumber/ExtractStoriesPayload/ExtractStoriesResult interfaces + extractStories() wrapper, 90s timeout), POST /api/user/stories/extract route (session auth → active CV from cv_versions → BYOK key resolve → cv-backend call → atomic delete+single-statement INSERT). Auditor verdict: PASS_WITH_NOTES — 3 doc fixes applied post-audit (extraction_timestamp docstring corrected to datetime, SPARSE_CV P5 verb-ban criterion removed from prose and never in list, prose P-count now matches list at 4). cv-backend Fly.io redeploy needed before web route can test end-to-end.",
       "Session E — Phase 10.1 (Voice Fingerprint Module, 2026-05-18) — Migration 021 (voice_profiles: RLS, unique user_id, updated_at trigger) applied manually. cv-backend: app/schemas/voice.py (VoiceFingerprint Pydantic model, 14 fields with type constraints), app/services/voice/trust_scorer.py (pure function, TrustScore NamedTuple, 23 AI-tell phrases, deterministic), app/services/voice/trust_scorer_fixtures.py (6 smoke-test fixtures), app/services/voice/voice_fingerprint.py (extract_voice_fingerprint, full Pydantic validation, server-side-only error logging, no_training=True), app/services/ai/prompts/cover_letter/ (new subdirectory: voice_fingerprint.py prompt), app/services/ai/client.py (no_training: bool = False threaded through complete_json → complete → _anthropic_complete/_openai_complete; OpenAI store=False implemented; Anthropic TODO pending SDK support), app/routes/internal.py (POST /internal/extract-voice-fingerprint). Web: web/src/lib/cvBackend.ts (extractVoiceFingerprint wrapper), web/src/app/api/user/voice-profile/route.ts (GET omits voice_sample_raw; POST: key lookup/decrypt/call/upsert; TODO Phase 1.5 trust regression warning), web/src/components/cv/VoiceCaptureClient.tsx (paste disabled, word counter, TrustBadge), web/src/app/(dashboard)/dashboard/voice/page.tsx (Server Component), web/src/components/SidebarNav.tsx (Mic icon + My Voice link). Auditor verdict: PASS_WITH_NOTES — 20/21 checkpoints clean; one fixture calibration bug fixed post-audit (OBVIOUS_AI expected_length_score 1.0→0.7, ~165 words corrected to ~136 words). All 6 smoke-test fixtures PASS after fix. OPS-6 captured. cv-backend redeployed 2026-05-18 (commit c931c07 → image deployment-01KRW3TWARNA0PWS6PKZ4FF2PS, version 17, region syd). /internal/extract-voice-fingerprint confirmed live via OpenAPI spec check. Browser E2E smoke test (sign in → /dashboard/voice → submit sample → verify fingerprint) pending manual verification by user."
     ],
     "in_progress": [],
@@ -913,6 +935,12 @@
       "id": "OPS-8",
       "title": "150-word minimum may be safely lowered to 120 — defer to multi-sample validation",
       "detail": "Real production sample was 848 chars / ~145 words — right at the lower edge of the 150-word target — and fingerprint quality is strong across all 5 acceptance criteria. Suggests the floor could be lowered to 120 words without degrading output quality. Do not change yet. Collect more samples first and assess whether shorter samples consistently produce comparable fingerprint specificity.",
+      "logged": "2026-05-18"
+    },
+    {
+      "id": "OPS-9",
+      "title": "Phase 10.2.a — extraction_timestamp is datetime, SPARSE_CV P5 dropped, INSERT atomicity confirmed",
+      "detail": "Three decisions captured from audit: (1) extraction_timestamp field in Story Pydantic schema is typed as datetime (not str). FastAPI serialises to ISO 8601 in HTTP responses; web layer receives it as a string and inserts directly as timestamptz. DB migration 022 has no DEFAULT on this column — a missing value produces a NOT NULL violation rather than a silent NULL row. (2) SPARSE_CV fixture P5 criterion (banning 'Helped'/'Assisted' verb starters in one_line) was dropped — banning specific verbs forces overstatement, which is worse than the problem it prevents. P1–P4 remain. (3) Atomic overwrite INSERT atomicity confirmed: admin.from('stories').insert(rows) sends the full batch as a single SQL INSERT ... VALUES (...) statement; Postgres accepts or rejects as one unit. Partial writes cannot occur. The DELETE-INSERT gap (user transiently has 0 stories if INSERT fails after DELETE) is documented with a TODO Phase 10.2.b comment to wrap both calls in a Supabase RPC transaction.",
       "logged": "2026-05-18"
     }
   ],

@@ -27,14 +27,17 @@ from app.schemas.internal import (
     CategoriseCvResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
+    ExtractStoriesRequest,
     ExtractVoiceFingerprintRequest,
     ExtractVoiceFingerprintResponse,
     ScrapeJdRequest,
     ScrapeJdResponse,
 )
+from app.schemas.stories import ExtractStoriesResponse
 from app.security.hmac import verify_hmac
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
+from app.services.stories.story_extractor import extract_stories
 from app.services.voice.voice_fingerprint import extract_voice_fingerprint
 from app.services.pipeline.orchestrator import run_analysis_pipeline
 from app.services.scraping.jd_scraper import JDScrapeError, scrape_jd
@@ -227,6 +230,50 @@ async def extract_voice_fingerprint_endpoint(
         trust_components=result["trust_components"],
         word_count=result["word_count"],
         matched_ai_phrases=result["matched_ai_phrases"],
+    )
+
+
+# ── /internal/extract-stories ────────────────────────────────────────────────
+
+@router.post(
+    "/extract-stories",
+    response_model=ExtractStoriesResponse,
+)
+async def extract_stories_endpoint(
+    body: ExtractStoriesRequest,
+) -> ExtractStoriesResponse:
+    """
+    Extract structured achievement stories from a master CV.
+
+    Calls the user's AI provider (BYOK) to identify 3–8 distinct achievements
+    suitable for use as cover letter narratives. Validates each story against
+    the Story Pydantic schema before returning. Returns HTTP 200 with an empty
+    stories list and a diagnostic message if no achievements are found — this
+    is not an error condition.
+
+    NOTE: body.cv_text must not appear in logs. If request-body logging is
+    ever added to this service, add cv_text to the redaction list.
+    """
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        result = await extract_stories(ai_client, body.cv_text)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Story extraction failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
+
+    return ExtractStoriesResponse(
+        stories=result["stories"],
+        diagnostic=result["diagnostic"],
     )
 
 

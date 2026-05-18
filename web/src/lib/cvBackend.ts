@@ -171,3 +171,45 @@ export function extractVoiceFingerprint(
     { timeoutMs: 60_000 },
   );
 }
+
+export interface StoryNumber {
+  metric: string;
+  value:  string;
+}
+
+/** A single validated story returned by cv-backend. */
+export interface Story {
+  title:                string;
+  domain:               string;
+  year:                 number | null;
+  one_line:             string;
+  detailed:             string;
+  numbers:              StoryNumber[];
+  tags:                 string[];
+  /** ISO 8601 string — FastAPI serialises Python datetime to this format. */
+  extraction_timestamp: string;
+}
+
+export interface ExtractStoriesPayload {
+  user_id:     string;
+  cv_text:     string;
+  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_api_key:  string;
+  ai_model?:   string | null;
+}
+
+export interface ExtractStoriesResult {
+  stories:    Story[];
+  /** Non-null only when stories is empty — explains why no achievements were found. */
+  diagnostic: string | null;
+}
+
+export function extractStories(
+  payload: ExtractStoriesPayload,
+): Promise<ExtractStoriesResult> {
+  return callCvBackend<ExtractStoriesResult>(
+    "/internal/extract-stories",
+    payload,
+    { timeoutMs: 90_000 },   // AI call on dense senior CVs; allow generous headroom
+  );
+}
