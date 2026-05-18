@@ -1,6 +1,6 @@
 # JobTrackr-CV — Database Reference
 
-> Derived from migrations `001`–`020` — the single source of truth.
+> Derived from migrations `001`–`025` — the single source of truth.
 > All migrations were applied manually via Supabase SQL Editor (CLI never linked; see OPS-1 in `.claude/graph.json`).
 > **Additive only** — never ALTER existing JobTrackr base tables (`jobs`, `search_profiles`, etc.). New columns and new `user_integrations.provider` values only.
 
@@ -30,6 +30,11 @@
 | 018 | `018_analysis_runs_provenance.sql` | `analysis_runs` — `ai_provider`, `ai_model` |
 | 019 | `019_tailored_bucket_allow_markdown.sql` | `tailored-cvs` bucket — adds `text/markdown` to MIME allow-list |
 | 020 | `020_user_preferences.sql` | `user_preferences` table + RLS |
+| 021 | `021_voice_profiles.sql` | `voice_profiles` table + RLS + unique user_id + updated_at trigger |
+| 022 | `022_stories.sql` | `stories` table + RLS + composite index + updated_at trigger |
+| 023 | `023_replace_stories_rpc.sql` | `replace_stories` RPC (SECURITY DEFINER, atomic delete+insert) |
+| 024 | `024_company_research.sql` | `company_research` global cache table + RLS (authenticated SELECT) |
+| 025 | `025_cover_letters.sql` | `cover_letters` table + RLS + Realtime publication |
 
 ---
 

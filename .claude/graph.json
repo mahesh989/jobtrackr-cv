@@ -143,6 +143,25 @@
         ],
         "notes": "Added in Phase 10.3 via Migration 024. company_id is a text slug computed by make_company_slug() (cv-backend) and replicated in JS (web route). RLS: auth.role() = 'authenticated' for SELECT only — all authenticated users can read; service-role key used for writes (bypasses RLS). Tavily system-level key (TAVILY_API_KEY env var) used for web search; gracefully degrades to httpx scraping when absent. Fact selection is deterministic (keyword scoring, no AI) via /internal/select-company-fact. Cache TTL checked in web route, not cv-backend."
       },
+      "CoverLetter": {
+        "table": "cover_letters",
+        "fields": [
+          "id", "user_id", "job_id", "status", "generation_status (jsonb — 6-key progress)",
+          "story_id (FK → stories ON DELETE SET NULL)", "company_hook_text", "tone_target", "word_count_target",
+          "pass_1_skeleton", "pass_2_voice_transferred", "pass_3_final",
+          "burstiness_score", "naturalness_score", "coherence_score", "specificity_ok", "honesty_ok",
+          "quality_flags (jsonb — records which gates retried)", "ai_provider",
+          "pass_1_model", "pass_2_model", "pass_3_model",
+          "user_edits", "edit_diff (jsonb)", "outcome", "error_message",
+          "is_stale", "started_at", "completed_at", "created_at", "updated_at"
+        ],
+        "relations": [
+          "belongs_to: User",
+          "belongs_to: Job",
+          "belongs_to: Story (nullable, ON DELETE SET NULL)"
+        ],
+        "notes": "Added in Phase 10.4 via Migration 025. One row per generated letter per (user_id, job_id) pair. cv-backend writes via service-role; frontend reads via RLS + Realtime. Pass 2 always uses expensive model tier (Opus/GPT-4o); passes 1 and 3 use cheap tier (Haiku/GPT-4o-mini) — hard-coded in model_router.py (D4). generation_status JSONB tracks 6 sub-steps: pass_1, pass_2, pass_3, gate_1, gate_2, gate_3. RLS: auth.uid() = user_id. Realtime: added to supabase_realtime publication."
+      },
       "VoiceProfile": {
         "table": "voice_profiles",
         "fields": [
@@ -238,7 +257,7 @@
   },
   "build_state": {
     "current_phase": 10.4,
-    "next_action": "Phase 10.4: Cover letter generation pipeline. Start with /plan. Spec: docs/cover-letter-spec.md Part 4 (three-pass: skeleton → voice transfer → burstiness injection), Part 5 (quality gates), Part 7 (caching strategy). Per-pass prompts go under cv-backend/app/services/ai/prompts/cover_letter/. New table: cover_letters (migration 025). New internal endpoints: POST /internal/generate-cover-letter. New web routes: POST /api/cover-letter, GET /api/cover-letter/[job_id]. Pass 2 uses expensive model (Opus/GPT-5); Passes 1 and 3 use cheap model (Haiku/GPT-4o-mini). Model routing must be BYOK-aware.",
+    "next_action": "Phase 10.4 Session 1 complete (commit d079df4). STOP POINT: (1) Apply migration 025_cover_letters.sql via Supabase SQL editor. (2) Deploy cv-backend: flyctl deploy from cv-backend/. (3) Smoke-test: curl POST /internal/generate-cover-letter with valid payload → expect 202. Then start Session 2: T8 (cvBackend.ts wrapper), T9 (POST /api/jobs/[id]/cover-letter web route), T10 (GET /api/jobs/[id]/cover-letter/[letter_id] polling route), T11 (generation UI on job page).",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
