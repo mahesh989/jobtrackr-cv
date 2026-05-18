@@ -59,8 +59,9 @@ Do not change the facts — only the sentence structure.
 replace them with plain language that fits the existing voice:
    "I am writing to express", "I am excited", "I'm excited", "passionate", \
 "synergy", "leverage", "track record", "results-driven", "proven", "dynamic", \
-"robust", "I look forward to hearing", "in today's", "fast-paced", \
-"Furthermore,", "Additionally,", "Moreover,"
+"robust", "I look forward to", "in today's", "fast-paced", \
+"Furthermore,", "Additionally,", "Moreover,", "fits with my career goals", \
+"aligns with my goals", "aligns with my passion", "I admire", "I am impressed"
 
 4. Specificity check: the letter must contain at least one concrete number, \
 name, or place from the candidate's experience. If none is present, add one \
@@ -69,7 +70,8 @@ that is consistent with the story already described — do not invent new facts.
 5. Opener check: the letter must NOT start with any of these (or close \
 variations):
    "I am writing", "I'm reaching out", "Dear Hiring Manager, I am", \
-"I would like to", "My name is"
-   If the opener matches, rewrite only the opening sentence.
+"I would like to", "My name is", "Hi,", "Hello,", "I admire", "I find"
+   If the opener matches, rewrite only the opening sentence so it leads with \
+a factual observation about the company or role — not the candidate's feelings.
 
 Output the final edited letter only. No commentary."""

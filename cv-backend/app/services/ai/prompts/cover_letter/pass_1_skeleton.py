@@ -38,12 +38,14 @@ Key metrics from story: {story_numbers}
 Candidate CV summary: {cv_summary}
 
 Required structure:
-- Paragraph 1 (2 sentences): Open with the company hook as a specific \
-observation — not a vague compliment. The bridge sentence must connect that \
-specific observation to a concrete aspect of the candidate's background or \
-the role. Banned bridges: "this focus on X matches my background", \
+- Paragraph 1 (2 sentences): The first sentence must be a factual statement \
+drawn from the company hook — it must NOT begin with "I admire", "I find", \
+"I am impressed", "Hi,", or any expression of the candidate's feelings about \
+the company. The second (bridge) sentence connects that observation to a \
+concrete skill or result from the candidate's background that is relevant to \
+this role. Banned bridges: "this focus on X matches my background", \
 "this aligns with my passion", "I share this commitment", \
-"It's clear they have a big impact".
+"fits with my career goals", "It's clear they have a big impact".
 - Paragraph 2 (4-5 sentences): The selected story with concrete numbers. \
 Name the role and company where the work happened. Show the action and the \
 result. Vary sentence structure — do not repeat "I [verb]ed X, which [led \
