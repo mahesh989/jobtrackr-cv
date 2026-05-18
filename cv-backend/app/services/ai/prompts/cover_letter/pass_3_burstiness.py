@@ -40,12 +40,20 @@ in length (measure by word count; adjust the middle sentence if needed).
 
 2. Human texture (add exactly ONE of the following — pick the most natural fit \
 for the existing text; do not add more than one):
-   - A sentence fragment used for emphasis (e.g. "Worth it.")
+   - A brief declarative fragment for emphasis. Keep it professional — NOT \
+casual phrases like "Worth it." or "Simple as that." Do not copy these \
+examples; write something specific to the letter content.
    - An em-dash aside within a sentence
    - A parenthetical remark
-   - A paragraph that starts with a conjunction (And, But, So)
+   - A sentence that starts with a conjunction (And, But, So)
    If one of these already appears naturally, this step is complete — \
 do not add another.
+
+2b. Structural pattern check:
+   - If two or more sentences in the same paragraph share the same grammatical \
+skeleton (e.g. "I [verb]ed X, which [led to / resulted in / meant] Y"), \
+rewrite the second instance so it uses a different construction. \
+Do not change the facts — only the sentence structure.
 
 3. Banned phrase removal — if any of the following phrases appear, \
 replace them with plain language that fits the existing voice:

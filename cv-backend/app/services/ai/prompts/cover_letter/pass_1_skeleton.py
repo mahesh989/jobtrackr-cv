@@ -38,11 +38,18 @@ Key metrics from story: {story_numbers}
 Candidate CV summary: {cv_summary}
 
 Required structure:
-- Paragraph 1 (2 sentences): Open with the company hook. Bridge to the \
-candidate — why does knowing this fact make them want to work here?
+- Paragraph 1 (2 sentences): Open with the company hook as a specific \
+observation — not a vague compliment. The bridge sentence must connect that \
+specific observation to a concrete aspect of the candidate's background or \
+the role. Banned bridges: "this focus on X matches my background", \
+"this aligns with my passion", "I share this commitment", \
+"It's clear they have a big impact".
 - Paragraph 2 (4-5 sentences): The selected story with concrete numbers. \
-Show the action taken and the result. Do not vague it up.
-- Paragraph 3 (1-2 sentences): Brief close. Do not use "I look forward to \
-hearing from you" or any variation. End with quiet confidence.
+Name the role and company where the work happened. Show the action and the \
+result. Vary sentence structure — do not repeat "I [verb]ed X, which [led \
+to / resulted in / meant] Y" more than once.
+- Paragraph 3 (1-2 sentences): Brief close naming the role explicitly. \
+Do not use "I look forward to hearing from you" or any variation. \
+End with quiet confidence.
 
 Word count: {word_count}. No greetings, no sign-off. Plain prose only."""

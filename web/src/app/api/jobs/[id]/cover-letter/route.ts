@@ -287,7 +287,17 @@ export async function POST(
   const companyName = (job.company ?? "").trim() || "the company";
   const companySlug = makeCompanySlug(companyName);
 
-  let companyHookText = `${companyName}'s work and impact in the industry`;  // fallback
+  // Fallback: extract first sentence from the JD that mentions the company by name.
+  // This gives pass-1 something specific even when company_research hasn't run.
+  function extractJdHook(jd: string, company: string): string {
+    const sentences = jd.replace(/\n+/g, " ").split(/(?<=[.!?])\s+/);
+    const hit = sentences.find(
+      (s) => s.length > 40 && s.toLowerCase().includes(company.toLowerCase()),
+    );
+    return hit?.trim() ?? `${company} is hiring for this role`;
+  }
+
+  let companyHookText = extractJdHook(jdText, companyName);
 
   const { data: companyResearch } = await admin
     .from("company_research")
