@@ -142,43 +142,29 @@ export async function POST() {
     );
   }
 
-  // ── 6. Atomic overwrite: delete prior batch, insert new batch ────────────────
-  // These are two separate Supabase calls — not a true DB transaction.
+  // ── 6. Atomic overwrite via replace_stories RPC (migration 023) ──────────────
+  // DELETE + INSERT are wrapped in a single plpgsql transaction, eliminating
+  // the DELETE-INSERT gap that existed in Phase 10.2.a. If the INSERT fails,
+  // the DELETE is rolled back and the user's previous batch is preserved.
   //
-  // INSERT atomicity: admin.from("stories").insert(rows) sends the full array
-  // as a single SQL INSERT ... VALUES (...) statement. A partial write — some
-  // stories saved, some not — cannot occur; Postgres accepts or rejects the
-  // whole statement as one unit.
-  //
-  // DELETE-INSERT gap: if DELETE succeeds but INSERT fails, the user temporarily
-  // has 0 stories. Re-running extraction is the safe recovery path.
-  //
-  // TODO Phase 10.2.b: wrap both calls in a Supabase RPC function using a DB
-  // transaction to eliminate the DELETE-INSERT gap. Deferred here because in
-  // Phase 10.2.a stories are only written, not yet read by the matching layer,
-  // so the cost of a transient 0-story state is low.
-  const { error: deleteErr } = await admin
-    .from("stories")
-    .delete()
-    .eq("user_id", user.id);
+  // id is omitted from each row — the DB generates it via gen_random_uuid().
+  // extraction_timestamp is already set by cv-backend (ISO 8601 string from
+  // FastAPI datetime serialisation) — all rows in the batch share the same value.
+  const rows = result.stories.map((s) => {
+    // Strip `id` if the Story schema ever includes it (always null from extraction,
+    // but defensive: we must not pass null into the RPC's id-less INSERT).
+    const { id: _id, ...rest } = s as Story & { id?: unknown };
+    void _id;
+    return rest;
+  });
 
-  if (deleteErr) {
-    console.error("[/api/user/stories/extract] delete failed:", deleteErr.message);
-    return NextResponse.json(
-      { error: "Failed to clear existing stories." },
-      { status: 500 },
-    );
-  }
+  const { error: rpcErr } = await (admin as any).rpc("replace_stories", {
+    p_user_id: user.id,
+    p_rows:    rows,
+  });
 
-  // Stamp user_id onto each story row before inserting. extraction_timestamp
-  // is already set by cv-backend (ISO 8601 string from FastAPI datetime
-  // serialisation) — all rows in the batch share the same value.
-  const rows = result.stories.map((s) => ({ ...s, user_id: user.id }));
-
-  const { error: insertErr } = await admin.from("stories").insert(rows);
-
-  if (insertErr) {
-    console.error("[/api/user/stories/extract] insert failed:", insertErr.message);
+  if (rpcErr) {
+    console.error("[/api/user/stories/extract] replace_stories RPC failed:", rpcErr.message);
     return NextResponse.json(
       { error: "Stories extracted but could not be saved. Please try again." },
       { status: 500 },

@@ -107,6 +107,14 @@ class Story(BaseModel):
             "arbitrary string. FastAPI serialises it to ISO 8601 in HTTP responses."
         ),
     )
+    id: Optional[str] = Field(
+        default=None,
+        description=(
+            "DB UUID — present when Story is read back from the stories table "
+            "(Phase 10.2.b match endpoint). Always None during extraction: cv-backend "
+            "never sets it; the DB generates it via gen_random_uuid()."
+        ),
+    )
 
 
 class ExtractStoriesResponse(BaseModel):
@@ -122,3 +130,41 @@ class ExtractStoriesResponse(BaseModel):
 
     stories: list[Story]
     diagnostic: Optional[str] = None
+
+
+# ── Phase 10.2.b — matching schemas ──────────────────────────────────────────
+
+
+class MatchStoriesRequest(BaseModel):
+    """
+    Request body for POST /internal/match-stories.
+
+    jd_text : Full job description text (used for keyword tokenisation).
+    stories : DB story rows for the user's current batch. Each Story must
+              have its `id` field populated (UUID from the stories table).
+              The match endpoint returns scored ids; the caller merges them
+              back onto the full story rows using those ids.
+    """
+
+    jd_text: str = Field(min_length=1, description="Job description text to match against")
+    stories: list[Story] = Field(
+        description="Current story batch — must have id set on each Story"
+    )
+
+
+class ScoredStory(BaseModel):
+    """A single story's relevance score, keyed by DB UUID."""
+
+    story_id: str = Field(description="DB UUID from the stories table")
+    score: float = Field(ge=0.0, le=1.0, description="Normalised relevance score in [0, 1]")
+
+
+class MatchStoriesResponse(BaseModel):
+    """
+    Response from POST /internal/match-stories.
+
+    scored: Stories ranked by relevance_score descending.
+            The caller merges scores back onto full story objects by story_id.
+    """
+
+    scored: list[ScoredStory]

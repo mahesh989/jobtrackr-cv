@@ -213,3 +213,43 @@ export function extractStories(
     { timeoutMs: 90_000 },   // AI call on dense senior CVs; allow generous headroom
   );
 }
+
+// ── Story matching (Phase 10.2.b) ────────────────────────────────────────────
+
+/** Story shape sent to /internal/match-stories — DB rows with id populated. */
+export interface MatchStoriesStory {
+  id:       string;
+  title:    string;
+  domain:   string;
+  year:     number | null;
+  one_line: string;
+  tags:     string[];
+  detailed: string;
+  numbers:  StoryNumber[];
+  /** Must be present — same shape as Story.extraction_timestamp */
+  extraction_timestamp: string;
+}
+
+export interface MatchStoriesPayload {
+  jd_text: string;
+  stories: MatchStoriesStory[];
+}
+
+export interface ScoredStory {
+  story_id: string;
+  score:    number;
+}
+
+export interface MatchStoriesResult {
+  scored: ScoredStory[];
+}
+
+export function matchStories(
+  payload: MatchStoriesPayload,
+): Promise<MatchStoriesResult> {
+  return callCvBackend<MatchStoriesResult>(
+    "/internal/match-stories",
+    payload,
+    { timeoutMs: 10_000 },  // deterministic, no AI — 10s is generous
+  );
+}

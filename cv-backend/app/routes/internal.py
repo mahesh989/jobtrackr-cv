@@ -6,9 +6,13 @@ the shared JOBTRACKR_HMAC_SECRET. cv-backend has no other auth surface and
 is not exposed to browsers.
 
 Endpoints:
-  - POST /internal/analyze         — kicks off the pipeline (BackgroundTask)
-  - POST /internal/extract-cv-text — pypdf extraction for a Storage object
-  - POST /internal/scrape-jd       — JD scraping helper
+  - POST /internal/analyze                  — kicks off the pipeline (BackgroundTask)
+  - POST /internal/extract-cv-text          — pypdf extraction for a Storage object
+  - POST /internal/categorise-cv            — BYOK skill categorisation
+  - POST /internal/extract-voice-fingerprint — voice fingerprint extraction
+  - POST /internal/extract-stories          — story extraction from CV
+  - POST /internal/match-stories            — deterministic story-to-JD ranking
+  - POST /internal/scrape-jd               — JD scraping helper
 """
 from __future__ import annotations
 
@@ -33,11 +37,17 @@ from app.schemas.internal import (
     ScrapeJdRequest,
     ScrapeJdResponse,
 )
-from app.schemas.stories import ExtractStoriesResponse
+from app.schemas.stories import (
+    ExtractStoriesResponse,
+    MatchStoriesRequest,
+    MatchStoriesResponse,
+    ScoredStory,
+)
 from app.security.hmac import verify_hmac
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.stories.story_extractor import extract_stories
+from app.services.stories.story_matcher import score_stories
 from app.services.voice.voice_fingerprint import extract_voice_fingerprint
 from app.services.pipeline.orchestrator import run_analysis_pipeline
 from app.services.scraping.jd_scraper import JDScrapeError, scrape_jd
@@ -274,6 +284,37 @@ async def extract_stories_endpoint(
     return ExtractStoriesResponse(
         stories=result["stories"],
         diagnostic=result["diagnostic"],
+    )
+
+
+# ── /internal/match-stories ──────────────────────────────────────────────────
+
+@router.post("/match-stories", response_model=MatchStoriesResponse)
+async def match_stories_endpoint(body: MatchStoriesRequest) -> MatchStoriesResponse:
+    """
+    Rank stories against a JD using deterministic keyword overlap. No AI call.
+
+    Caller (web route) passes the user's current story batch (with DB ids set)
+    and the JD text. Returns scored story ids sorted by relevance descending.
+    The web route merges scores back onto the full story objects by id.
+
+    jd_text is treated as PII-adjacent (contains employer details) — only
+    its length is logged, never the raw content.
+    """
+    logger.info(
+        "match-stories: jd_len=%d stories=%d",
+        len(body.jd_text),
+        len(body.stories),
+    )
+    raw_scored = score_stories(
+        body.jd_text,
+        [s.model_dump() for s in body.stories],
+    )
+    return MatchStoriesResponse(
+        scored=[
+            ScoredStory(story_id=item["story_id"], score=item["score"])
+            for item in raw_scored
+        ]
     )
 
 
