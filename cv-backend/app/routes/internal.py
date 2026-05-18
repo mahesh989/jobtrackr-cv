@@ -15,6 +15,7 @@ Endpoints:
   - POST /internal/scrape-jd               — JD scraping helper
   - POST /internal/research-company         — company research (Tavily + scrape + AI distill)
   - POST /internal/select-company-fact      — deterministic fact ranking (no AI)
+  - POST /internal/generate-cover-letter    — three-pass cover letter pipeline (BackgroundTask)
 """
 from __future__ import annotations
 
@@ -63,6 +64,8 @@ from app.schemas.company import (
     SelectCompanyFactResponse,
     RankedFact,
 )
+from app.schemas.cover_letter import GenerateCoverLetterRequest, GenerateCoverLetterResponse
+from app.services.cover_letter.generator import run_cover_letter_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -443,3 +446,33 @@ async def select_company_fact_endpoint(body: SelectCompanyFactRequest) -> Select
             for item in ranked
         ]
     )
+
+
+# ── /internal/generate-cover-letter ───────────────────────────────────────────
+
+@router.post(
+    "/generate-cover-letter",
+    response_model=GenerateCoverLetterResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_cover_letter(
+    body: GenerateCoverLetterRequest,
+    background_tasks: BackgroundTasks,
+) -> GenerateCoverLetterResponse:
+    """
+    Accept a cover letter generation trigger. Returns 202 immediately.
+
+    The three-pass pipeline (skeleton → voice transfer → burstiness) runs as a
+    FastAPI BackgroundTask and writes progress + outputs to cover_letters.{letter_id}
+    via Supabase service-role. The browser subscribes to postgres_changes on
+    cover_letters for real-time progress (same pattern as analysis_runs).
+
+    NOTE: body.voice_sample_text must not appear in logs. See GenerateCoverLetterRequest
+    privacy annotation.
+    """
+    logger.info(
+        "generate-cover-letter: letter_id=%s user=%s provider=%s jd_len=%d",
+        body.letter_id, body.user_id, body.ai_provider, len(body.jd_text),
+    )
+    background_tasks.add_task(run_cover_letter_pipeline, body)
+    return GenerateCoverLetterResponse(letter_id=body.letter_id)
