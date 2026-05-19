@@ -242,12 +242,12 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 36; // 0.5 inches = 36 points
+      const margin = 72; // 1 inch = 72 points
       const textWidth = pageWidth - 2 * margin;
 
       // Set font and size
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(11);
+      doc.setFontSize(12);
 
       let yPos = margin;
       const lineHeight = doc.getLineHeight() || 14;
