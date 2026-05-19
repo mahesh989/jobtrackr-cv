@@ -469,7 +469,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
           })()}
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
               className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
@@ -478,7 +478,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             </button>
             <button
               onClick={() => setShowDownloadModal(true)}
-              className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
+              className="rounded bg-green-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-green-700 transition-colors"
             >
               Download PDF
             </button>
