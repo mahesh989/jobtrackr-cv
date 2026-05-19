@@ -61,7 +61,9 @@ export async function GET(
     .maybeSingle();
   const contactDetails = (prefs?.contact_details as ContactDetails) || {};
 
-  const hiringManager = hireMgrOverride?.trim() || job.hiring_manager || "Hiring Manager";
+  // Real name only; null triggers the "Dear Hiring Manager," fallback inside
+  // assembleLetter and suppresses the duplicate name line in the employer block.
+  const hiringManager = (hireMgrOverride?.trim() || job.hiring_manager || "").trim() || null;
   const body          = editedBody || letter.pass_3_final || "";
 
   const templatedText = assembleLetter({
@@ -74,7 +76,7 @@ export async function GET(
 
   return NextResponse.json({
     templated_text: templatedText,
-    hiring_manager: hiringManager,
+    hiring_manager: hiringManager ?? "Hiring Manager",
     company:        job.company,
     user_name:      contactDetails.name || "",
   });

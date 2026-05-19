@@ -18,7 +18,9 @@ export interface AssembleLetterInput {
   contactDetails: ContactDetails;
   company:        string;
   jobTitle:       string;
-  hiringManager:  string;
+  /** Real hiring-manager name, or null if unknown. Controls both the employer
+   * block (name line omitted when null) and the salutation ("Dear Hiring Manager,"). */
+  hiringManager:  string | null;
   body:           string;
 }
 
@@ -56,15 +58,23 @@ export function assembleLetter({
     year:  "numeric",
   });
 
+  // Employer block: recipient name above company is AU convention. When the
+  // hiring manager is unknown, skip the name line entirely rather than
+  // printing the placeholder "Hiring Manager" twice (block + salutation).
+  const employerLines = hiringManager
+    ? [hiringManager, company]
+    : [company];
+
+  const greeting = hiringManager ? `Dear ${hiringManager},` : "Dear Hiring Manager,";
+
   return [
     buildContactBlock(contactDetails),
     "",
     dateStr,
     "",
-    company,
-    hiringManager,
+    ...employerLines,
     "",
-    `Dear ${hiringManager},`,
+    greeting,
     "",
     `RE: ${jobTitle} at ${company}`,
     "",
