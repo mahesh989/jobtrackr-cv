@@ -242,26 +242,28 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 72; // 1 inch = 72 points
-      const textWidth = pageWidth - 2 * margin;
+      const marginLeft = 57.6; // 0.8 inches = 57.6 points
+      const marginRight = 36; // 0.5 inches = 36 points
+      const marginTop = 36; // 0.5 inches top/bottom
+      const textWidth = pageWidth - marginLeft - marginRight;
 
       // Set font and size
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(12);
+      doc.setFontSize(11);
 
-      let yPos = margin;
+      let yPos = marginTop;
       const lineHeight = doc.getLineHeight() || 14;
 
       // Split text into lines and wrap
       const lines = doc.splitTextToSize(data.templated_text, textWidth);
 
       for (const line of lines) {
-        if (yPos + lineHeight > pageHeight - margin) {
+        if (yPos + lineHeight > pageHeight - marginTop) {
           // Page overflow - add new page
           doc.addPage();
-          yPos = margin;
+          yPos = marginTop;
         }
-        doc.text(line, margin, yPos);
+        doc.text(line, marginLeft, yPos);
         yPos += lineHeight;
       }
 
