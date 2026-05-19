@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-18 (Session I — Phase 10.3 post-merge fixes shipped: cache short-circuit + fact select job_id resolution. Phase 10.4 next.)",
+    "updated": "2026-05-19 (Session J — Phase 10.4 single-call refactor shipped: replaced 3-pass pipeline with one call to user's chosen model + intent-based 4-paragraph rubric + honesty gate w/ retry. End-to-end verified on Ampol + One51 letters. Audit pending.)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -146,14 +146,37 @@
       "CoverLetter": {
         "table": "cover_letters",
         "fields": [
-          "id", "user_id", "job_id", "status", "generation_status (jsonb — 6-key progress)",
-          "story_id (FK → stories ON DELETE SET NULL)", "company_hook_text", "tone_target", "word_count_target",
-          "pass_1_skeleton", "pass_2_voice_transferred", "pass_3_final",
-          "burstiness_score", "naturalness_score", "coherence_score", "specificity_ok", "honesty_ok",
-          "quality_flags (jsonb — records which gates retried)", "ai_provider",
-          "pass_1_model", "pass_2_model", "pass_3_model",
-          "user_edits", "edit_diff (jsonb)", "outcome", "error_message",
-          "is_stale", "started_at", "completed_at", "created_at", "updated_at"
+          "id",
+          "user_id",
+          "job_id",
+          "status",
+          "generation_status (jsonb — 6-key progress)",
+          "story_id (FK → stories ON DELETE SET NULL)",
+          "company_hook_text",
+          "tone_target",
+          "word_count_target",
+          "pass_1_skeleton",
+          "pass_2_voice_transferred",
+          "pass_3_final",
+          "burstiness_score",
+          "naturalness_score",
+          "coherence_score",
+          "specificity_ok",
+          "honesty_ok",
+          "quality_flags (jsonb — records which gates retried)",
+          "ai_provider",
+          "pass_1_model",
+          "pass_2_model",
+          "pass_3_model",
+          "user_edits",
+          "edit_diff (jsonb)",
+          "outcome",
+          "error_message",
+          "is_stale",
+          "started_at",
+          "completed_at",
+          "created_at",
+          "updated_at"
         ],
         "relations": [
           "belongs_to: User",
@@ -236,14 +259,25 @@
       "method": "POST",
       "path": "/internal/research-company",
       "auth": "HMAC-SHA256",
-      "body": ["company_name", "company_domain (optional)", "ai_provider", "ai_api_key", "ai_model (optional)"],
+      "body": [
+        "company_name",
+        "company_domain (optional)",
+        "ai_provider",
+        "ai_api_key",
+        "ai_model (optional)"
+      ],
       "response": "{ company_id, status: 'completed', research: CompanyResearch, search_skipped }"
     },
     "internal_select_company_fact": {
       "method": "POST",
       "path": "/internal/select-company-fact",
       "auth": "HMAC-SHA256",
-      "body": ["company_id", "facts: CompanyFacts", "jd_text", "cv_text"],
+      "body": [
+        "company_id",
+        "facts: CompanyFacts",
+        "jd_text",
+        "cv_text"
+      ],
       "response": "{ ranked_facts: [{fact_text, score, source_field}] } — deterministic, no AI call"
     },
     "internal_scrape_jd": {
@@ -257,7 +291,7 @@
   },
   "build_state": {
     "current_phase": 10.4,
-    "next_action": "Phase 10.4 Session 1 complete (commit d079df4). STOP POINT: (1) Apply migration 025_cover_letters.sql via Supabase SQL editor. (2) Deploy cv-backend: flyctl deploy from cv-backend/. (3) Smoke-test: curl POST /internal/generate-cover-letter with valid payload → expect 202. Then start Session 2: T8 (cvBackend.ts wrapper), T9 (POST /api/jobs/[id]/cover-letter web route), T10 (GET /api/jobs/[id]/cover-letter/[letter_id] polling route), T11 (generation UI on job page).",
+    "next_action": "Phase 10.4 single-call refactor complete (commits 8044aa2, 07e3b2b, 0c3679f, fd42d47, f12732a). Quality verified end-to-end. Final steps: (1) review audit findings — auditor subagent invoked at session end; (2) decide on /ship (formal) vs leave-on-main. Phase 10.5 (delivery template + PDF export, including single-page layout requirement) is the next planned phase.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -297,7 +331,8 @@
       "Phase 10.2.a — Story Extraction and Storage (2026-05-18) — Migration 022 (stories table: JSONB numbers, text[] tags, datetime extraction_timestamp with no DB default, composite index on (user_id, extraction_timestamp DESC), set_updated_at trigger, RLS users_own_stories). cv-backend: app/schemas/stories.py (StoryNumber, Story with datetime extraction_timestamp, ExtractStoriesResponse), app/services/stories/story_extractor.py (privacy boundary block, _MAX_CV_CHARS=12_000, full Pydantic validation per story, extraction_timestamp injected by extractor not model), app/services/ai/prompts/cover_letter/story_extraction.py (STORY_EXTRACTION_SYSTEM with 8 BAD/GOOD calibration pairs + empty-result instruction, STORY_EXTRACTION_USER_TEMPLATE), story_extraction_fixtures.py (RICH_CV/SPARSE_CV/GENERIC_CV with P1-P4 criteria + async run_fixture_check()), POST /internal/extract-stories endpoint (HMAC-protected, mirrors extract-voice-fingerprint pattern), prompts/__init__.py re-exports updated. Web: cvBackend.ts (Story/StoryNumber/ExtractStoriesPayload/ExtractStoriesResult interfaces + extractStories() wrapper, 90s timeout), POST /api/user/stories/extract route (session auth → active CV from cv_versions → BYOK key resolve → cv-backend call → atomic delete+single-statement INSERT). Auditor verdict: PASS_WITH_NOTES — 3 doc fixes applied post-audit (extraction_timestamp docstring corrected to datetime, SPARSE_CV P5 verb-ban criterion removed from prose and never in list, prose P-count now matches list at 4). Smoke test passed 2026-05-18 (commit 2bdb835): 8 stories extracted and persisted for test user — correct UUIDs, timestamps, domains, and years verified in Supabase Table Editor. Phase 10.2.a fully complete.",
       "Phase 10.3 — Company Research Pipeline (2026-05-18) — Migration 024 (company_research: text PK slug, jsonb facts/voice_signals/hiring_intel, research_quality_score float, search_skipped bool, auth.role()='authenticated' RLS — no user_id). cv-backend: app/schemas/company.py (CompanyFacts/VoiceSignals/HiringIntel/CompanyResearch Pydantic models + request/response schemas), app/services/company/slug.py (make_company_slug — deterministic slug, 80-char cap), app/services/company/quality_scorer.py (compute_quality_score — 3-signal formula, no AI), app/services/company/researcher.py (Tavily search + httpx scrape + AI distillation + stale-flag injection on RecentEvent), app/services/company/fact_selector.py (keyword scoring, story_matcher pattern, no AI), app/services/ai/prompts/cover_letter/company_research.py (bad/good fact framing prompt). TAVILY_API_KEY added to config.py + .env.example. POST /internal/research-company + POST /internal/select-company-fact added to internal.py. Web: cvBackend.ts (ResearchCompany* + SelectCompanyFact* typed wrappers, 120s/10s timeouts), POST /api/company-research (trigger+cache), GET+POST /api/company-research/[company_id] (read+refresh), POST /api/company-research/facts/select (fact ranking). Auditor PASS_WITH_NOTES: two post-audit fixes applied (dead TTL_SECONDS constant removed, Exception narrowed to AIClientError). Smoke tests C/D/E all passed: completed+skipped=true, cached on 2nd call, ranked facts returned deterministically. Phase 10.3 fully complete. Session I post-merge fixes (commit 8882fc4): /api/company-research auth+DB lookup parallelised with Promise.all (cache-hit latency ~600ms faster); /api/company-research/facts/select refactored to accept {job_id} and resolve company_id/jd_text/cv_text server-side (ownership: jobs→search_profiles→user_id, JD: manual_jd_text→analysis_run fallback→422, CV: cv_versions is_active=true).",
       "Phase 10.2.b — Story Matching and UI (2026-05-18) — Migration 023 (replace_stories RPC: plpgsql SECURITY DEFINER function wrapping DELETE+INSERT in one transaction, eliminating the Phase 10.2.a DELETE-INSERT gap; service_role-only execute grant). cv-backend: app/services/stories/story_matcher.py (deterministic keyword scoring: frozenset tokenisation, ~150 English function-word stop-words, overlap normalised by JD size, +0.15 numbers bonus, capped at 1.0, sorted descending), app/schemas/stories.py extended (id: Optional[str]=None added to Story, MatchStoriesRequest/ScoredStory/MatchStoriesResponse added), POST /internal/match-stories endpoint (no AI call; logs jd_len+story count only). Web: cvBackend.ts (MatchStoriesStory/MatchStoriesPayload/ScoredStory/MatchStoriesResult interfaces + matchStories() 10s wrapper), GET /api/user/stories (two-query batch: max timestamp → batch), POST /api/user/stories/match (job ownership chain → JD resolution: manual_jd_text → analysis_run fallback → 422 → story batch → cv-backend → Map score merge → sorted response), PATCH /api/user/stories/[id] (ownership check + tag/one_line constraints enforced), extract/route.ts updated to call rpc('replace_stories',...) replacing two-call pattern. UI: StoriesClient.tsx (335 lines: StoryCard sub-component, multi-expand Set<string>, inline tag editing state machine, 90s re-extract in-flight label, state-update-in-place on save/re-extract), voice/page.tsx extended (server-side two-query story fetch, StoriesClient rendered below VoiceCaptureClient with hr divider). Auditor: initial FAIL (MatchStoriesStory missing title+year — Pydantic 422 on every match call); both fixes applied; re-verified manually; TypeScript clean. Phase 10.2.b fully complete.",
-      "Session E — Phase 10.1 (Voice Fingerprint Module, 2026-05-18) — Migration 021 (voice_profiles: RLS, unique user_id, updated_at trigger) applied manually. cv-backend: app/schemas/voice.py (VoiceFingerprint Pydantic model, 14 fields with type constraints), app/services/voice/trust_scorer.py (pure function, TrustScore NamedTuple, 23 AI-tell phrases, deterministic), app/services/voice/trust_scorer_fixtures.py (6 smoke-test fixtures), app/services/voice/voice_fingerprint.py (extract_voice_fingerprint, full Pydantic validation, server-side-only error logging, no_training=True), app/services/ai/prompts/cover_letter/ (new subdirectory: voice_fingerprint.py prompt), app/services/ai/client.py (no_training: bool = False threaded through complete_json → complete → _anthropic_complete/_openai_complete; OpenAI store=False implemented; Anthropic TODO pending SDK support), app/routes/internal.py (POST /internal/extract-voice-fingerprint). Web: web/src/lib/cvBackend.ts (extractVoiceFingerprint wrapper), web/src/app/api/user/voice-profile/route.ts (GET omits voice_sample_raw; POST: key lookup/decrypt/call/upsert; TODO Phase 1.5 trust regression warning), web/src/components/cv/VoiceCaptureClient.tsx (paste disabled, word counter, TrustBadge), web/src/app/(dashboard)/dashboard/voice/page.tsx (Server Component), web/src/components/SidebarNav.tsx (Mic icon + My Voice link). Auditor verdict: PASS_WITH_NOTES — 20/21 checkpoints clean; one fixture calibration bug fixed post-audit (OBVIOUS_AI expected_length_score 1.0→0.7, ~165 words corrected to ~136 words). All 6 smoke-test fixtures PASS after fix. OPS-6 captured. cv-backend redeployed 2026-05-18 (commit c931c07 → image deployment-01KRW3TWARNA0PWS6PKZ4FF2PS, version 17, region syd). /internal/extract-voice-fingerprint confirmed live via OpenAPI spec check. Browser E2E smoke test (sign in → /dashboard/voice → submit sample → verify fingerprint) pending manual verification by user."
+      "Session E — Phase 10.1 (Voice Fingerprint Module, 2026-05-18) — Migration 021 (voice_profiles: RLS, unique user_id, updated_at trigger) applied manually. cv-backend: app/schemas/voice.py (VoiceFingerprint Pydantic model, 14 fields with type constraints), app/services/voice/trust_scorer.py (pure function, TrustScore NamedTuple, 23 AI-tell phrases, deterministic), app/services/voice/trust_scorer_fixtures.py (6 smoke-test fixtures), app/services/voice/voice_fingerprint.py (extract_voice_fingerprint, full Pydantic validation, server-side-only error logging, no_training=True), app/services/ai/prompts/cover_letter/ (new subdirectory: voice_fingerprint.py prompt), app/services/ai/client.py (no_training: bool = False threaded through complete_json → complete → _anthropic_complete/_openai_complete; OpenAI store=False implemented; Anthropic TODO pending SDK support), app/routes/internal.py (POST /internal/extract-voice-fingerprint). Web: web/src/lib/cvBackend.ts (extractVoiceFingerprint wrapper), web/src/app/api/user/voice-profile/route.ts (GET omits voice_sample_raw; POST: key lookup/decrypt/call/upsert; TODO Phase 1.5 trust regression warning), web/src/components/cv/VoiceCaptureClient.tsx (paste disabled, word counter, TrustBadge), web/src/app/(dashboard)/dashboard/voice/page.tsx (Server Component), web/src/components/SidebarNav.tsx (Mic icon + My Voice link). Auditor verdict: PASS_WITH_NOTES — 20/21 checkpoints clean; one fixture calibration bug fixed post-audit (OBVIOUS_AI expected_length_score 1.0→0.7, ~165 words corrected to ~136 words). All 6 smoke-test fixtures PASS after fix. OPS-6 captured. cv-backend redeployed 2026-05-18 (commit c931c07 → image deployment-01KRW3TWARNA0PWS6PKZ4FF2PS, version 17, region syd). /internal/extract-voice-fingerprint confirmed live via OpenAPI spec check. Browser E2E smoke test (sign in → /dashboard/voice → submit sample → verify fingerprint) pending manual verification by user.",
+      "Phase 10.4 — Cover Letter Generation (2026-05-18 + 2026-05-19) — Session 1: migration 025 (cover_letters table: status enum, generation_status JSONB, pass_1/2/3 text+model cols, gate scores, quality_flags JSONB, is_stale, RLS, Realtime publication), cv-backend three-pass pipeline (generator.py + model_router.py + quality_gates.py + 3 pass prompts + gate_1_honesty), /internal/generate-cover-letter endpoint. Session 2: web POST/GET routes, CoverLetterPanel UI with Realtime subscription, wired into analysis run page. Session J (refactor, 2026-05-19): replaced 3-pass pipeline with single-call architecture after end-to-end quality testing showed mechanical-feeling output. New design: one call to user's chosen model with voice sample + CV + story + company fact + four-paragraph intent rubric + anti-patterns; honesty gate rewritten for scope (candidate-claims only) and leniency (paraphrase tolerance). Company research is now a prerequisite (web POST returns 422 + action=research_company if missing; UI shows 'Research [Company]' button calling existing /api/company-research). Low-quality research falls back to JD-hook with warning. P1 spec bans role-first openers and demands substantive candidate-perspective claim (with 3 different-domain example shapes to prevent verbatim copy + formula entrenchment). P3 spec uses contrastive WEAK/STRONGER examples for structural variety + 4 named texture categories (colleague reaction / what changed afterwards / what was hard / specific moment). Deleted: model_router.py, quality_gates.py, pass_1/2/3_*.py prompts. DB schema unchanged; old rows keep 6-key generation_status, new rows use 2-key. quality_flags merge in generator preserves web-layer pre-writes. Commits 8044aa2, 07e3b2b, 0c3679f, fd42d47, f12732a."
     ],
     "in_progress": [],
     "blocked": []
@@ -897,6 +932,12 @@
       "date": "2026-05-16",
       "decision": "OpenAI model list restricted to real chat-completions-compatible models: GPT-5.1, GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini.",
       "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded — they fail at the /v1/chat/completions endpoint."
+    },
+    {
+      "id": "D14",
+      "date": "2026-05-19",
+      "decision": "Cover letter generation uses a single call to the user's chosen model (BYOK), not a hard-coded cheap/expensive tier split. Voice sample (verbatim) drives register; intent-based 4-paragraph rubric drives structure; anti-patterns list steers away from generic openers; one post-generation honesty gate (same model) with one retry on flag.",
+      "rationale": "Original 3-pass pipeline (skeleton→voice transfer→burstiness, with 3 deterministic gates) produced mechanical-feeling output: literal 'Worth it.' fragments copied verbatim from prompt examples, uniform 'I [verbed] X, which Y' sentence structures the burstiness gate did not catch, weak 'Hi, I admire' openers that survived multiple banned-phrase patches. Root cause: the pipeline was performing humanness rather than achieving it — pass-3 instructions to 'add a fragment' produce literal copies; pass-2 statistical voice fingerprint cannot replicate voice; pass-1 'hook → bridge' formula locks in cliché two-sentence openers. Replacing the pipeline with one rich call + verbatim voice sample + intent rubric + anti-patterns produced materially better output verified on Ampol and One51 letters. Trade-off: user's model choice determines quality ceiling (was previously masked by hard-coded expensive tier). Honest about what we can deliver; user controls the cost/quality dial via their integration settings."
     }
   ],
   "tooling": {
@@ -907,19 +948,33 @@
         "planner": {
           "file": ".claude/agents/planner.md",
           "model": "claude-haiku-4-5",
-          "tools": ["Read", "Grep", "Glob"],
+          "tools": [
+            "Read",
+            "Grep",
+            "Glob"
+          ],
           "role": "Pre-task planning. Produces structured 10-section plan. Never executes."
         },
         "auditor": {
           "file": ".claude/agents/auditor.md",
           "model": "claude-opus-4-7",
-          "tools": ["Read", "Grep", "Glob", "Bash (read-only)"],
+          "tools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "Bash (read-only)"
+          ],
           "role": "Phase-boundary code review. Returns PASS / PASS_WITH_NOTES / FAIL. Never modifies code."
         },
         "migration_checker": {
           "file": ".claude/agents/migration-checker.md",
           "model": "claude-sonnet-4-6",
-          "tools": ["Read", "Grep", "Glob", "Bash (read-only)"],
+          "tools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "Bash (read-only)"
+          ],
           "role": "Pre-migration safety check. Verifies CLI state, filename collisions, risk profile."
         }
       },
@@ -1056,6 +1111,26 @@
       "next_steps": "Try a tiny <50KB DOCX to rule out size; inspect Supabase project's storage CORS config; try same upload from a different network/country; consider supabase-js TUS resumable upload as last resort.",
       "workaround": "Users can convert DOCX to PDF before uploading. PDF path is fully functional.",
       "logged": "2026-05-14"
+    },
+    {
+      "id": "BUG-3",
+      "title": "company_research distillation produces weak hooks for some employers",
+      "severity": "low",
+      "blocks": "Paragraph 2 quality in cover letters when research returns naming history or generic mission statements rather than strategic distinguishing facts.",
+      "symptoms": "Ampol research returned 'Ampol Limited (previously Caltex Australia Limited) returned to its iconic Australian name following shareholder approval on 14 May 2020...' as distinguishing_facts[0]. This is a real historical fact but not a strategic anchor for paragraph 2 — the generator stretched to bridge it ('brand transition → candidate's own career transitions'), producing a workable but slightly forced paragraph. One51 research returned 'Power BI Health Check service' (a specific service offering) and the resulting paragraph 2 was strong and natural. Quality of P2 scales directly with quality of company_research.distinguishing_facts[0].",
+      "current_workaround": "None at generator level — the generator does its job with whatever fact it receives. Users can manually re-run research, but the distillation prompt will likely return similar output.",
+      "next_steps": "Tune the company_research distillation prompt to prefer strategic facts (product expansions, recent strategic moves, distinctive operational characteristics) over historical/naming events. Consider ranking facts by recency and strategic relevance before storing.",
+      "logged": "2026-05-19"
+    },
+    {
+      "id": "BUG-4",
+      "title": "Cover letter delivery layer (Phase 10.5) must fit on a single page",
+      "severity": "low",
+      "blocks": "Phase 10.5 (delivery template + PDF export) scoping only — not the current generation pipeline.",
+      "symptoms": "User pasted a 434-word generated letter into MS Word; the body alone filled the full page. Once the AU delivery template wraps it (header block ~5-7 lines, employer block ~4 lines, salutation, RE line, sign-off ~3-4 lines), the combined artefact will overflow a single A4 page.",
+      "current_workaround": "Current word target in generate.py is 250-400 words. When Phase 10.5 is scoped, tighten target to ~280-340 words to leave room for template wrapper. Alternatively (and additively): set type sizing and margins in the PDF render so the wrapped artefact fits comfortably.",
+      "next_steps": "When Phase 10.5 (delivery layer) is scoped: (1) measure actual rendered height of header + body + sign-off in the chosen PDF format; (2) decide whether to tighten word_count_target in generate.py or adjust rendering; (3) update generate.py word target if option 1.",
+      "logged": "2026-05-19"
     }
   ]
 }

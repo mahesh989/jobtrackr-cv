@@ -36,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from app.database import get_supabase
 from app.schemas.cover_letter import GenerateCoverLetterRequest
@@ -137,7 +137,7 @@ async def _run_honesty_gate(
     client: AIClient,
     letter_text: str,
     cv_text: str,
-) -> Tuple[bool, List[str]]:
+) -> tuple[bool, List[str]]:
     """
     Verify every factual claim in the letter against the CV.
     Returns (passed, unsupported_claims). On AI failure, returns (True, [])

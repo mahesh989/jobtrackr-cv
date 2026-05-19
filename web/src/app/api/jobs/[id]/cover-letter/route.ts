@@ -1,7 +1,7 @@
 /**
  * POST /api/jobs/[id]/cover-letter
  *
- * Trigger three-pass cover letter generation for a job. Returns 200 immediately
+ * Trigger single-call cover letter generation for a job. Returns 200 immediately
  * with { letter_id } — the cv-backend pipeline runs asynchronously and writes
  * progress to cover_letters via Supabase Realtime.
  *
@@ -389,6 +389,11 @@ export async function POST(
       word_count_target: 170,
       ai_provider:       chosen,
       quality_flags:     initialQualityFlags,
+      // Explicit generation_status with the new 2-key shape so the column
+      // default (still the legacy 6-key shape from migration 025) never fires
+      // for new rows. The generator overwrites this on its first patch anyway,
+      // but this closes a tiny window where readers could see stale keys.
+      generation_status: { generate: "pending", honesty: "pending" },
     })
     .select("id")
     .single();
