@@ -41,7 +41,7 @@ function normaliseLocation(raw: string): string {
   return loc;
 }
 
-function canonicalUrl(raw: string): string {
+export function canonicalUrl(raw: string): string {
   try {
     const u = new URL(raw);
     // Drop tracking params

@@ -19,7 +19,7 @@ import { createHash } from "crypto";
 import { db } from "../db/client.js";
 import { adapters } from "../sources/index.js";
 import type { RawJob, SearchProfile } from "../sources/types.js";
-import { normalise } from "./normalise.js";
+import { normalise, canonicalUrl } from "./normalise.js";
 import { keywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
@@ -236,9 +236,13 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     for (const adapter of adapters) {
       await checkCancellation(runLogId);
 
-      // Apply vertical filter (default to all if not set)
+      // Apply vertical filter (default to all if not set).
+      // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
+      // every profile regardless of target_verticals.
+      // Sector-specific adapters (tech, healthcare) only run when the profile
+      // explicitly targets that vertical.
       if (profile.target_verticals && profile.target_verticals.length > 0) {
-        if (!profile.target_verticals.includes(adapter.vertical)) {
+        if (adapter.vertical !== "general" && !profile.target_verticals.includes(adapter.vertical)) {
           console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
           continue;
         }
@@ -301,10 +305,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     console.log(`[pipeline] stage 2 done — total raw: ${jobsFetched}`);
 
     // Stage 3: L1 early URL dedup
+    // Hash the canonical URL (same transform dedup.ts uses) so the DB lookup
+    // actually matches rows saved by previous runs.
     const rawHashes = new Set<string>();
     const uniqueRawJobs: RawJob[] = [];
     const hashedRawJobs = rawJobs.map(job => {
-      return { job, hash: createHash("sha256").update(job.url).digest("hex") };
+      return { job, hash: createHash("sha256").update(canonicalUrl(job.url)).digest("hex") };
     });
     
     // Batch query DB for these hashes
@@ -346,7 +352,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     if (siblingIds.length > 0 && uniqueRawJobs.length > 0) {
       const hashByJob = uniqueRawJobs.map((j) => ({
         job:  j,
-        hash: createHash("sha256").update(j.url).digest("hex"),
+        hash: createHash("sha256").update(canonicalUrl(j.url)).digest("hex"),
       }));
 
       const { data: existingRows } = await db
