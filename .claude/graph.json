@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-19 (Session J — Phase 10.4 single-call refactor shipped: replaced 3-pass pipeline with one call to user's chosen model + intent-based 4-paragraph rubric + honesty gate w/ retry. End-to-end verified on Ampol + One51 letters. Audit pending.)",
+    "updated": "2026-05-19 (Session J — Phase 10.4 single-call cover letter refactor SHIPPED. Auditor subagent clean. cv-backend manual deploy pending — last commit 22c4852.)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -291,7 +291,7 @@
   },
   "build_state": {
     "current_phase": 10.4,
-    "next_action": "Phase 10.4 single-call refactor complete (commits 8044aa2, 07e3b2b, 0c3679f, fd42d47, f12732a). Quality verified end-to-end. Final steps: (1) review audit findings — auditor subagent invoked at session end; (2) decide on /ship (formal) vs leave-on-main. Phase 10.5 (delivery template + PDF export, including single-page layout requirement) is the next planned phase.",
+    "next_action": "Phase 10.4 shipped (commit 22c4852). Final deploy step: `cd cv-backend && fly deploy` to push post-audit fixes (gate prompt + P1 spec + Tuple cleanup) to Fly.io. Web is auto-deployed via Vercel. Next phase: 10.5 — delivery template + PDF export with single-page layout (see BUG-4 for word-count constraint when scoped).",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
