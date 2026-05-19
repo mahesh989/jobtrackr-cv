@@ -229,6 +229,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   let jobsFetched = 0;
   let jobsAfterDedup = 0;
   let jobsSaved = 0;
+  let sourcesSaved: Record<string, number> = {};
 
   try {
     // Stage 2: source layer
@@ -499,8 +500,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
-    const { saved } = await saveJobs(toSave, profileId);
+    const { saved, bySource } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
+    sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
 
     // Update visa_likelihood float on saved jobs (for sort compatibility)
@@ -532,6 +534,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       jobs_after_dedup: jobsAfterDedup,
       jobs_saved: jobsSaved,
       sources_run: sourcesRun,
+      sources_saved: sourcesSaved,
     });
 
     console.log(`[pipeline] ─── run complete ───\n`);
@@ -548,6 +551,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         jobs_after_dedup: jobsAfterDedup,
         jobs_saved: jobsSaved,
         sources_run: sourcesRun,
+        sources_saved: sourcesSaved,
         error_message: msg,
       });
       await sendPipelineFailureAlert(profileId, msg);

@@ -7,13 +7,17 @@ import { checkExpiry } from "./expiry.js";
 export interface SaveResult {
   saved: number;
   errors: number;
+  bySource: Record<string, number>;
 }
 
 export async function saveJobs(
   jobs: NormalisedJob[],
   profileId: string
 ): Promise<SaveResult> {
-  if (jobs.length === 0) return { saved: 0, errors: 0 };
+  if (jobs.length === 0) return { saved: 0, errors: 0, bySource: {} };
+
+  const bySource: Record<string, number> = {};
+  for (const j of jobs) bySource[j.source] = (bySource[j.source] ?? 0) + 1;
 
   const rows = jobs.map((job) => {
     const { is_expired, expires_at } = checkExpiry(job);
@@ -65,5 +69,5 @@ export async function saveJobs(
     }
   }
 
-  return { saved, errors };
+  return { saved, errors, bySource };
 }
