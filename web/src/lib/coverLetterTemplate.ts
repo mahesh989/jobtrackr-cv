@@ -17,7 +17,10 @@ export interface ContactDetails {
 export interface AssembleLetterInput {
   contactDetails:   ContactDetails;
   company:          string;
-  /** e.g. "Sydney NSW". Appears below company in the employer block when present. */
+  /** Multi-line postal address; newlines preserved. Inserted between company
+   * name and city/state in the employer block. Null = omit. */
+  companyAddress:   string | null;
+  /** e.g. "Sydney NSW". Appears below address in the employer block when present. */
   companyLocation:  string | null;
   /** Real hiring-manager name, or null if unknown. Controls both the employer
    * block (name line omitted when null) and the salutation ("Dear Hiring Manager,"). */
@@ -48,6 +51,7 @@ export function buildContactBlock(cd: ContactDetails): string {
 export function assembleLetter({
   contactDetails,
   company,
+  companyAddress,
   companyLocation,
   hiringManager,
   body,
@@ -62,9 +66,19 @@ export function assembleLetter({
   // Employer block: recipient name above company is AU convention. When the
   // hiring manager is unknown, skip the name line entirely rather than
   // printing the placeholder "Hiring Manager" twice (block + salutation).
+  // Employer block order (AU convention, top to bottom):
+  //   [Hiring manager name] (only if known — otherwise duplicates the salutation)
+  //   Company name
+  //   [Street address lines] (preserve internal newlines from the textarea)
+  //   [City/state line]
+  const addressLines = (companyAddress ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
   const employerLines = [
     ...(hiringManager ? [hiringManager] : []),
     company,
+    ...addressLines,
     ...(companyLocation?.trim() ? [companyLocation.trim()] : []),
   ];
 

@@ -33,6 +33,7 @@ interface Job {
   manual_jd_text?:    string | null;
   contact_email?:     string | null;
   hiring_manager?:    string | null;
+  company_address?:   string | null;
   latest_run_id?:     string | null;
   latest_run_status?: "pending" | "running" | "completed" | "failed" | null;
 }
@@ -170,6 +171,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   const [manualJd, setManualJd]     = useState<string | null>(job.manual_jd_text ?? null);
   const [contactEmail, setContactEmail] = useState<string | null>(job.contact_email ?? null);
   const [hiringMgr, setHiringMgr]   = useState<string | null>(job.hiring_manager ?? null);
+  const [companyAddress, setCompanyAddress] = useState<string | null>(job.company_address ?? null);
 
   const salary    = formatSalary(job.salary_min, job.salary_max);
   const postedAgo = relativeDate(job.posted_at || job.created_at);
@@ -409,11 +411,13 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
           initialManual={manualJd}
           initialEmail={contactEmail}
           initialHiringMgr={hiringMgr}
+          initialCompanyAddress={companyAddress}
           onClose={() => setShowEdit(false)}
           onSaved={(patch) => {
             setManualJd(patch.manual_jd_text);
             setContactEmail(patch.contact_email);
             setHiringMgr(patch.hiring_manager);
+            setCompanyAddress(patch.company_address);
           }}
         />
       )}

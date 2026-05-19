@@ -7,6 +7,7 @@
  *                     to the original description / scrape.
  *   - contact_email:  recruiter contact for future MCP email-send flow.
  *   - hiring_manager: name of the hiring manager for cover letter salutation.
+ *   - company_address: multi-line postal address for cover letter employer block.
  *
  * Ownership chain: job → search_profile → user. Service-role write only after
  * we verify the chain — service-role bypasses RLS, so the check must run.
@@ -29,7 +30,12 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { manual_jd_text?: string | null; contact_email?: string | null; hiring_manager?: string | null };
+  let body: {
+    manual_jd_text?:  string | null;
+    contact_email?:   string | null;
+    hiring_manager?:  string | null;
+    company_address?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -87,6 +93,25 @@ export async function PATCH(
     }
   }
 
+  if ("company_address" in body) {
+    const raw = body.company_address;
+    if (raw === null || raw === "") {
+      patch.company_address = null;
+    } else if (typeof raw === "string") {
+      // Preserve internal newlines but trim leading/trailing whitespace per line
+      // and collapse trailing blank lines so the field stays tidy.
+      const cleaned = raw
+        .split("\n")
+        .map((l) => l.trim())
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      patch.company_address = cleaned.length === 0 ? null : cleaned;
+    } else {
+      return NextResponse.json({ error: "company_address must be a string or null" }, { status: 400 });
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
   }
@@ -115,7 +140,7 @@ export async function PATCH(
     .from("jobs")
     .update(patch)
     .eq("id", jobId)
-    .select("id, manual_jd_text, contact_email, hiring_manager")
+    .select("id, manual_jd_text, contact_email, hiring_manager, company_address")
     .single();
 
   if (error || !updated) {

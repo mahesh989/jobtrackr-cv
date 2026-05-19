@@ -39,7 +39,7 @@ export async function GET(
 
   const { data: job } = await admin
     .from("jobs")
-    .select("id, profile_id, company, location, hiring_manager")
+    .select("id, profile_id, company, location, hiring_manager, company_address")
     .eq("id", jobId)
     .maybeSingle();
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
@@ -69,6 +69,7 @@ export async function GET(
   const templatedText = assembleLetter({
     contactDetails,
     company:         job.company,
+    companyAddress:  job.company_address ?? null,
     companyLocation: job.location ?? null,
     hiringManager,
     body,

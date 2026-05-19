@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-19 (Session K — Phase 10.5 SHIPPED + post-ship audit cleanup. Opus second-pass review of Haiku ship commits caught 5 real bugs; all fixed in 4 follow-up commits. Auto-research UX shift: company research now runs transparently before drafting (no manual button). RE: line dropped from template. Last commit ec5f086.)",
+    "updated": "2026-05-19 (Session K — Phase 10.5 SHIPPED + post-ship audit cleanup + company_address field added. Latest: migration 027 adds jobs.company_address, wired through PATCH/modal/JobTable/download/template. Also fixed parallel oversight where hiring_manager was never SELECTed on the profiles jobs page so the modal opened empty after refresh.)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },

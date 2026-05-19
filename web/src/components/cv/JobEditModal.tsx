@@ -9,20 +9,27 @@ interface Props {
   initialManual:      string | null;             // jobs.manual_jd_text
   initialEmail:       string | null;             // jobs.contact_email
   initialHiringMgr:   string | null;             // jobs.hiring_manager
+  initialCompanyAddress: string | null;          // jobs.company_address
   onClose():          void;
-  onSaved(patch: { manual_jd_text: string | null; contact_email: string | null; hiring_manager: string | null }): void;
+  onSaved(patch: {
+    manual_jd_text:  string | null;
+    contact_email:   string | null;
+    hiring_manager:  string | null;
+    company_address: string | null;
+  }): void;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function JobEditModal({
-  jobId, originalJd, initialManual, initialEmail, initialHiringMgr, onClose, onSaved,
+  jobId, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, onClose, onSaved,
 }: Props) {
   // The textarea starts with whatever the user previously set, falling back
   // to the raw scraped description so they can edit-in-place.
   const [text, setText]       = useState<string>(initialManual ?? originalJd ?? "");
   const [email, setEmail]     = useState<string>(initialEmail ?? "");
   const [hiringMgr, setHiringMgr] = useState<string>(initialHiringMgr ?? "");
+  const [companyAddress, setCompanyAddress] = useState<string>(initialCompanyAddress ?? "");
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -42,6 +49,7 @@ export function JobEditModal({
     const trimmedText  = text.trim();
     const trimmedEmail = email.trim();
     const trimmedHiringMgr = hiringMgr.trim();
+    const trimmedAddress   = companyAddress.trim();
 
     // Decide what manual_jd_text becomes:
     //   - identical to originalJd        → null (don't store a copy of the scrape)
@@ -63,9 +71,10 @@ export function JobEditModal({
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          manual_jd_text: manualForApi,
-          contact_email:  trimmedEmail === "" ? null : trimmedEmail,
-          hiring_manager: trimmedHiringMgr === "" ? null : trimmedHiringMgr,
+          manual_jd_text:  manualForApi,
+          contact_email:   trimmedEmail === "" ? null : trimmedEmail,
+          hiring_manager:  trimmedHiringMgr === "" ? null : trimmedHiringMgr,
+          company_address: trimmedAddress === "" ? null : trimmedAddress,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -75,9 +84,10 @@ export function JobEditModal({
         return;
       }
       onSaved({
-        manual_jd_text: json.manual_jd_text ?? null,
-        contact_email:  json.contact_email ?? null,
-        hiring_manager: json.hiring_manager ?? null,
+        manual_jd_text:  json.manual_jd_text ?? null,
+        contact_email:   json.contact_email ?? null,
+        hiring_manager:  json.hiring_manager ?? null,
+        company_address: json.company_address ?? null,
       });
       onClose();
     } catch (err) {
@@ -183,7 +193,26 @@ export function JobEditModal({
               className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
-              Used in the cover letter salutation (e.g., "Dear John Smith,").
+              Used in the cover letter salutation (e.g., &ldquo;Dear John Smith,&rdquo;).
+            </p>
+          </div>
+
+          {/* Company Address */}
+          <div>
+            <label htmlFor="company-address" className="block text-[12px] font-medium text-text mb-1.5">
+              Company address <span className="text-text-3 font-normal">(optional, multi-line)</span>
+            </label>
+            <textarea
+              id="company-address"
+              value={companyAddress}
+              onChange={(e) => setCompanyAddress(e.target.value)}
+              rows={3}
+              spellCheck={false}
+              placeholder={"Level 10, 123 Pitt Street\nSydney NSW 2000"}
+              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+            />
+            <p className="text-[11px] text-text-2 mt-1.5">
+              Appears in the cover letter employer block beneath the company name. Leave blank to omit.
             </p>
           </div>
 
