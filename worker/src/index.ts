@@ -35,7 +35,12 @@ const worker = new Worker<PipelineJobData>(
   },
   {
     connection,
-    concurrency: 2,
+    // Concurrency MUST stay at 1 on the 512MB shared-cpu-1x machine:
+    // Jora spawns a Playwright Chromium per pipeline, ~200-300MB resident.
+    // Two parallel runs send the VM into swap thrashing and Jora hangs
+    // silently inside makeBrowser() with no error to log. Increase only
+    // if memory is bumped via `fly scale memory`.
+    concurrency: 1,
   }
 );
 
