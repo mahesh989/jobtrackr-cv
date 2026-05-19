@@ -1159,6 +1159,16 @@
       "current_workaround": "Current word target in generate.py is 250-400 words. When Phase 10.5 is scoped, tighten target to ~280-340 words to leave room for template wrapper. Alternatively (and additively): set type sizing and margins in the PDF render so the wrapped artefact fits comfortably.",
       "next_steps": "When Phase 10.5 (delivery layer) is scoped: (1) measure actual rendered height of header + body + sign-off in the chosen PDF format; (2) decide whether to tighten word_count_target in generate.py or adjust rendering; (3) update generate.py word target if option 1.",
       "logged": "2026-05-19"
+    },
+    {
+      "id": "BUG-5",
+      "title": "Jora adapter hangs Chromium on 512MB Fly worker — disabled until memory bump",
+      "severity": "medium",
+      "blocks": "Jora as a source. Adzuna + Greenhouse + Lever + SEEK (via Apify) still run, so coverage is reduced but not zero. Pipeline runs end-to-end.",
+      "symptoms": "Pipeline reached '[pipeline] stage 2 — fetching: jora' and produced no further [jora] log lines for 3+ minutes. Earlier diagnostic confirmed the await chain stalls inside chromium.launch / context.newPage — when SIGINT closed the browser, the dangling await rejected with 'Target page, context or browser has been closed'. Repro: predictable on jobtrackr-worker shared-cpu-1x:512MB even at worker concurrency=1. Node baseline (~100-150MB) + Playwright Chromium spawn (~200-400MB at load) pushes the VM into swap thrashing and the browser process never makes progress.",
+      "current_workaround": "joraAdapter commented out of worker/src/sources/index.ts. Re-enable when memory is bumped or fetch path is rewritten.",
+      "next_steps": "Pick one: (A) `fly scale memory 1024 -a jobtrackr-worker` (~$3-5/mo extra), uncomment joraAdapter in sources/index.ts, redeploy. (B) Rewrite jora.ts to fetch via undici/HTTP and parse the SSR HTML — Jora used to be fully SSR, may still be partially scrapable without a real browser. (C) Drop Jora entirely if Adzuna+Greenhouse+SEEK coverage is acceptable long-term.",
+      "logged": "2026-05-19"
     }
   ]
 }

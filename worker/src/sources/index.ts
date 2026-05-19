@@ -35,7 +35,11 @@ export const adapters: SourceAdapter[] = [
   leverAdapter,
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
-  joraAdapter,
+  // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
+  //   makeBrowser/makeContext/makePage on the 512MB shared-cpu-1x Fly machine
+  //   (out-of-memory; no exception, just silent stall). Re-enable by either
+  //   `fly scale memory 1024 -a jobtrackr-worker` or migrating the Jora fetch
+  //   off Chromium. Tracked in graph.json BUG-5.
 
   // workdayAdapter,
   // smartrecruitersAdapter,
