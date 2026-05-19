@@ -37,7 +37,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   const { data: job } = await admin
     .from("jobs")
-    .select("title, company, location, url, manual_jd_text, description")
+    .select("title, company, location, url, manual_jd_text, description, hiring_manager")
     .eq("id", jobId)
     .maybeSingle();
 

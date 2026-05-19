@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { jsPDF } from "jspdf";
 
 interface GenerationStatus {
   generate: string;
@@ -63,6 +64,10 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [copied, setCopied]     = useState(false);
+  const [editedBody, setEditedBody] = useState<string | null>(null);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>("");
+  const [downloading, setDownloading] = useState(false);
   // Research-required state: when the cover letter API returns 422 with
   // action=research_company, we pause generation and ask the user to run
   // company research first.
@@ -209,6 +214,78 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
     }
   }
 
+  async function handleDownloadPDF() {
+    if (!letter?.id) return;
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      if (downloadHiringMgr) params.append("hiring_manager_override", downloadHiringMgr);
+      if (editedBody) params.append("edited_body", editedBody);
+
+      const res = await fetch(
+        `/api/jobs/${jobId}/cover-letter/${letter.id}/download?${params}`,
+        { method: "GET" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to prepare PDF");
+        setDownloading(false);
+        return;
+      }
+
+      // Generate PDF client-side with jspdf
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 36; // 0.5 inches = 36 points
+      const textWidth = pageWidth - 2 * margin;
+
+      // Set font and size
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(11);
+
+      let yPos = margin;
+      const lineHeight = doc.getLineHeight() || 14;
+
+      // Split text into lines and wrap
+      const lines = doc.splitTextToSize(data.templated_text, textWidth);
+
+      for (const line of lines) {
+        if (yPos + lineHeight > pageHeight - margin) {
+          // Page overflow - add new page
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(line, margin, yPos);
+        yPos += lineHeight;
+      }
+
+      // Generate filename: Company_Initials_cover_letter.pdf
+      const userInitials = (data.user_name || "")
+        .split(" ")
+        .map((word: string) => word[0]?.toUpperCase())
+        .join("")
+        .slice(0, 2) || "M";
+      const companySlug = (data.company || "")
+        .replace(/\s+/g, "_")
+        .toLowerCase();
+      const filename = `${companySlug}_${userInitials}_cover_letter.pdf`;
+
+      // Download
+      doc.save(filename);
+      setShowDownloadModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate PDF");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const isTerminal = letter?.status === "completed" || letter?.status === "failed";
   const isRunning  = letter?.status === "running" || letter?.status === "pending";
   const genStatus  = letter?.generation_status ?? { generate: "pending", honesty: "pending" };
@@ -339,11 +416,20 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             )}
           </div>
 
-          {/* Letter body */}
-          <div className="rounded border border-border bg-surface-2 px-4 py-4">
-            <pre className="whitespace-pre-wrap text-[13px] text-text leading-relaxed font-sans">
-              {letter.pass_3_final}
-            </pre>
+          {/* Letter body — editable textarea */}
+          <div>
+            <label className="text-[12px] font-medium text-text-2 mb-2 block">
+              Review and refine your letter
+            </label>
+            <textarea
+              value={editedBody ?? letter.pass_3_final ?? ""}
+              onChange={(e) => setEditedBody(e.target.value)}
+              rows={12}
+              className="w-full rounded border border-border bg-surface px-3 py-2 text-[13px] text-text leading-relaxed font-sans focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+            />
+            <p className="text-[11px] text-text-3 mt-1">
+              Edit freely — changes are temporary during this session.
+            </p>
           </div>
 
           {/* Quality warnings — honesty (unsupported claims) + research fallback */}
@@ -390,6 +476,12 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             >
               {copied ? "Copied!" : "Copy text"}
             </button>
+            <button
+              onClick={() => setShowDownloadModal(true)}
+              className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
+            >
+              Download PDF
+            </button>
           </div>
 
           {/* Model provenance */}
@@ -398,6 +490,50 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
               Generated with {letter.pass_3_model}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Download PDF Modal */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-surface rounded-lg border border-border shadow-xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-border">
+              <h3 className="text-[14px] font-semibold text-text">Download as PDF</h3>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="text-[12px] font-medium text-text-2 mb-2 block">
+                  Hiring manager name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={downloadHiringMgr}
+                  onChange={(e) => setDownloadHiringMgr(e.target.value)}
+                  placeholder="e.g., John Smith"
+                  className="w-full rounded border border-border bg-surface-2 px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+                />
+                <p className="text-[11px] text-text-3 mt-1">
+                  Used in the salutation line. Leave blank to use job default or "Hiring Manager".
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-border flex gap-2 justify-end bg-surface-2">
+              <button
+                onClick={() => setShowDownloadModal(false)}
+                disabled={downloading}
+                className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+                className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {downloading ? "Generating…" : "Download"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

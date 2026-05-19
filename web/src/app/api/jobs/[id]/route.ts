@@ -6,6 +6,7 @@
  *                     in the analyze flow). Pass null to clear and fall back
  *                     to the original description / scrape.
  *   - contact_email:  recruiter contact for future MCP email-send flow.
+ *   - hiring_manager: name of the hiring manager for cover letter salutation.
  *
  * Ownership chain: job → search_profile → user. Service-role write only after
  * we verify the chain — service-role bypasses RLS, so the check must run.
@@ -28,7 +29,7 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { manual_jd_text?: string | null; contact_email?: string | null };
+  let body: { manual_jd_text?: string | null; contact_email?: string | null; hiring_manager?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -74,6 +75,18 @@ export async function PATCH(
     }
   }
 
+  if ("hiring_manager" in body) {
+    const raw = body.hiring_manager;
+    if (raw === null || raw === "") {
+      patch.hiring_manager = null;
+    } else if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      patch.hiring_manager = trimmed.length === 0 ? null : trimmed;
+    } else {
+      return NextResponse.json({ error: "hiring_manager must be a string or null" }, { status: 400 });
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
   }
@@ -102,7 +115,7 @@ export async function PATCH(
     .from("jobs")
     .update(patch)
     .eq("id", jobId)
-    .select("id, manual_jd_text, contact_email")
+    .select("id, manual_jd_text, contact_email, hiring_manager")
     .single();
 
   if (error || !updated) {

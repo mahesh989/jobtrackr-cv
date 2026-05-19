@@ -4,25 +4,27 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface Props {
-  jobId:           string;
-  originalJd:      string;                    // jobs.description (raw scrape)
-  initialManual:   string | null;             // jobs.manual_jd_text
-  initialEmail:    string | null;             // jobs.contact_email
-  onClose():       void;
-  onSaved(patch: { manual_jd_text: string | null; contact_email: string | null }): void;
+  jobId:              string;
+  originalJd:         string;                    // jobs.description (raw scrape)
+  initialManual:      string | null;             // jobs.manual_jd_text
+  initialEmail:       string | null;             // jobs.contact_email
+  initialHiringMgr:   string | null;             // jobs.hiring_manager
+  onClose():          void;
+  onSaved(patch: { manual_jd_text: string | null; contact_email: string | null; hiring_manager: string | null }): void;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function JobEditModal({
-  jobId, originalJd, initialManual, initialEmail, onClose, onSaved,
+  jobId, originalJd, initialManual, initialEmail, initialHiringMgr, onClose, onSaved,
 }: Props) {
   // The textarea starts with whatever the user previously set, falling back
   // to the raw scraped description so they can edit-in-place.
-  const [text, setText]     = useState<string>(initialManual ?? originalJd ?? "");
-  const [email, setEmail]   = useState<string>(initialEmail ?? "");
-  const [busy, setBusy]     = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [text, setText]       = useState<string>(initialManual ?? originalJd ?? "");
+  const [email, setEmail]     = useState<string>(initialEmail ?? "");
+  const [hiringMgr, setHiringMgr] = useState<string>(initialHiringMgr ?? "");
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Track whether the field has been edited so we know how to interpret it.
@@ -39,6 +41,7 @@ export function JobEditModal({
 
     const trimmedText  = text.trim();
     const trimmedEmail = email.trim();
+    const trimmedHiringMgr = hiringMgr.trim();
 
     // Decide what manual_jd_text becomes:
     //   - identical to originalJd        → null (don't store a copy of the scrape)
@@ -62,6 +65,7 @@ export function JobEditModal({
         body:    JSON.stringify({
           manual_jd_text: manualForApi,
           contact_email:  trimmedEmail === "" ? null : trimmedEmail,
+          hiring_manager: trimmedHiringMgr === "" ? null : trimmedHiringMgr,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -73,6 +77,7 @@ export function JobEditModal({
       onSaved({
         manual_jd_text: json.manual_jd_text ?? null,
         contact_email:  json.contact_email ?? null,
+        hiring_manager: json.hiring_manager ?? null,
       });
       onClose();
     } catch (err) {
@@ -159,6 +164,26 @@ export function JobEditModal({
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Used later for sending your tailored CV via email — kept private on your account.
+            </p>
+          </div>
+
+          {/* Hiring Manager */}
+          <div>
+            <label htmlFor="hiring-manager" className="block text-[12px] font-medium text-text mb-1.5">
+              Hiring manager name <span className="text-text-3 font-normal">(optional)</span>
+            </label>
+            <input
+              id="hiring-manager"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={hiringMgr}
+              onChange={(e) => setHiringMgr(e.target.value)}
+              placeholder="John Smith"
+              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+            />
+            <p className="text-[11px] text-text-2 mt-1.5">
+              Used in the cover letter salutation (e.g., "Dear John Smith,").
             </p>
           </div>
 

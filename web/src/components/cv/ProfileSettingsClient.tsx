@@ -15,6 +15,8 @@ export interface ContactDetails {
   phone?:        string;
   email?:        string;
   address?:      string;
+  suburb?:       string;
+  postcode?:     string;
   linkedin?:     string;
   github?:       string;
   website?:      string;
@@ -97,7 +99,9 @@ export function ProfileSettingsClient({ initial }: Props) {
           <Field label="Full Name"          value={cd.name        ?? ""} onChange={(v) => setField("name",        v)} placeholder="Jane Doe" />
           <Field label="Phone"              value={cd.phone       ?? ""} onChange={(v) => setField("phone",       v)} placeholder="+61 414 032 507" type="tel" />
           <Field label="Email"              value={cd.email       ?? ""} onChange={(v) => setField("email",       v)} placeholder="you@example.com" type="email" />
-          <Field label="Address / Location" value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="Hurstville, NSW 2220, Australia" />
+          <Field label="Address / Location" value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="Street address" />
+          <Field label="Suburb"             value={cd.suburb      ?? ""} onChange={(v) => setField("suburb",      v)} placeholder="Hurstville" />
+          <Field label="Postcode"           value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220" />
           <Field label="LinkedIn URL"       value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="linkedin.com/in/yourname" />
           <Field label="GitHub URL"         value={cd.github      ?? ""} onChange={(v) => setField("github",      v)} placeholder="github.com/yourname" />
           <Field label="Portfolio URL"      value={cd.portfolio   ?? ""} onChange={(v) => setField("portfolio",   v)} placeholder="yourname.dev" />

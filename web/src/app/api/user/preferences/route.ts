@@ -6,7 +6,7 @@
  *
  * contact_details shape (all optional):
  *   {
- *     name, phone, email, address,
+ *     name, phone, email, address, suburb, postcode,
  *     linkedin, github, website, portfolio,
  *     other_label, other_url,
  *     projects: [ { name, url, description }, ... ]
@@ -28,6 +28,8 @@ interface ContactDetails {
   phone?:        string;
   email?:        string;
   address?:      string;
+  suburb?:       string;
+  postcode?:     string;
   linkedin?:     string;
   github?:       string;
   website?:      string;
@@ -44,7 +46,7 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   if (!input || typeof input !== "object") return { ok: false, error: "Body must be an object" };
   const i = input as Record<string, unknown>;
   const out: ContactDetails = {};
-  const strKeys = ["name", "phone", "address", "other_label"] as const;
+  const strKeys = ["name", "phone", "address", "suburb", "postcode", "other_label"] as const;
   for (const k of strKeys) {
     if (typeof i[k] === "string") out[k] = (i[k] as string).trim() || undefined;
   }
