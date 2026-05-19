@@ -14,7 +14,7 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let query = supabase.from("run_logs").select("id, status").eq("profile_id", id);
+  let query = supabase.from("run_logs").select("id, status, current_stage, started_at").eq("profile_id", id);
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;

@@ -3,38 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const STAGES = [
-  { key: "fetch",  label: "Fetching from 21+ sources" },
-  { key: "dedup",  label: "Deduplicating results" },
-  { key: "score",  label: "AI scoring with Claude Haiku" },
-  { key: "save",   label: "Saving to your feed" },
-];
-
 type BannerState = "running" | "stopping" | "stopped" | "hidden";
 
+interface ActiveRun {
+  current_stage: string | null;
+  started_at:    string;
+}
+
 export function LiveRunStatus({ profileId }: { profileId: string }) {
-  const [banner, setBanner]         = useState<BannerState>("hidden");
-  const [stageIdx, setStageIdx]     = useState(0);
-  const [stopping, setStopping]     = useState(false);
-  const wasRunning                  = useRef(false);
-  const router                      = useRouter();
+  const [banner,  setBanner]   = useState<BannerState>("hidden");
+  const [run,     setRun]      = useState<ActiveRun | null>(null);
+  const [elapsed, setElapsed]  = useState(0);
+  const [stopping, setStopping] = useState(false);
+  const wasRunning             = useRef(false);
+  const router                 = useRouter();
 
   // ── Poll for running state ────────────────────────────────────────────────────
   useEffect(() => {
     let poll: ReturnType<typeof setInterval>;
-    let stage: ReturnType<typeof setInterval>;
+    let tick: ReturnType<typeof setInterval>;
 
     async function check() {
       try {
         const res = await fetch(`/api/profiles/${profileId}/runs?status=running`);
         if (!res.ok) return;
         const { runs } = await res.json();
-        const running = Array.isArray(runs) && runs.length > 0;
+        const active = Array.isArray(runs) && runs.length > 0 ? runs[0] as ActiveRun : null;
+        const running = !!active;
 
         if (running && banner === "hidden") {
           setBanner("running");
           setStopping(false);
         }
+        setRun(active);
 
         if (wasRunning.current && !running) {
           // Transition: running → stopped (brief tick) → hidden
@@ -54,15 +55,21 @@ export function LiveRunStatus({ profileId }: { profileId: string }) {
     poll = setInterval(check, isActive ? 3000 : 12000);
 
     if (banner === "running") {
-      stage = setInterval(() => setStageIdx((i) => (i + 1) % STAGES.length), 3500);
+      tick = setInterval(() => {
+        if (run?.started_at) {
+          setElapsed(Math.max(0, Math.floor((Date.now() - new Date(run.started_at).getTime()) / 1000)));
+        }
+      }, 1000);
+    } else {
+      setElapsed(0);
     }
 
     return () => {
       clearInterval(poll);
-      clearInterval(stage);
+      clearInterval(tick);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId, banner, router]);
+  }, [profileId, banner, router, run?.started_at]);
 
   async function handleStop() {
     setStopping(true);
@@ -111,30 +118,13 @@ export function LiveRunStatus({ profileId }: { profileId: string }) {
             <p className="text-[11px] text-text-2 mt-0.5">
               {stopping
                 ? "Finishing current stage, then stopping"
-                : `${STAGES[stageIdx].label}…`}
+                : `${run?.current_stage ?? "Starting"}${elapsed > 0 ? ` · ${elapsed}s` : "…"}`}
             </p>
           </div>
         </div>
 
-        {/* Right: stage pills + stop button */}
+        {/* Right: stop button */}
         <div className="flex items-center gap-3">
-          {!stopping && (
-            <div className="hidden sm:flex items-center gap-1.5">
-              {STAGES.map((s, i) => (
-                <div
-                  key={s.key}
-                  className={`h-1.5 rounded-full transition-all duration-500 ${
-                    i === stageIdx
-                      ? "w-6 bg-[var(--brand)]"
-                      : i < stageIdx
-                      ? "w-3 bg-[var(--brand)]/40"
-                      : "w-3 bg-[var(--border)]"
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-
           <button
             onClick={handleStop}
             disabled={stopping}
