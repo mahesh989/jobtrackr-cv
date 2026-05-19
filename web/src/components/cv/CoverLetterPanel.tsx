@@ -70,11 +70,10 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>(jobHiringManager ?? "");
   const [downloading, setDownloading] = useState(false);
-  // Research-required state: when the cover letter API returns 422 with
-  // action=research_company, we pause generation and ask the user to run
-  // company research first.
-  const [researchRequired, setResearchRequired] = useState<{ company_name: string } | null>(null);
-  const [researching, setResearching]           = useState(false);
+  // When the cover letter API returns 422 with action=research_company we
+  // auto-trigger company research and retry generation. This state drives the
+  // inline "Researching <company> first…" indicator while that runs.
+  const [researching, setResearching] = useState<string | null>(null);
   const statusRef               = useRef(letter?.status ?? "");
 
   statusRef.current = letter?.status ?? "";
@@ -144,7 +143,9 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   }, [showDownloadModal, downloading]);
 
   // ── Trigger generation ────────────────────────────────────────────────────
-  async function handleGenerate(regenerate = false) {
+  // didAutoResearch guards against infinite loops: if the second call STILL
+  // returns research_company, we surface an error instead of spinning forever.
+  async function handleGenerate(regenerate = false, didAutoResearch = false) {
     setLoading(true);
     setError(null);
 
@@ -157,20 +158,41 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
-        // Special case: 422 + action=research_company → not an error in the
-        // user sense, it's an intentional pause asking them to run research.
+        // 422 + action=research_company → company research is a prerequisite.
+        // Auto-run it once, then retry generation. The user never sees a button.
         if (res.status === 422 && data.action === "research_company") {
-          setResearchRequired({ company_name: data.company_name ?? "this company" });
+          if (didAutoResearch) {
+            setError("Company research did not produce enough information to draft the letter. Try again or research the company manually from the Integrations page.");
+            return;
+          }
+          const companyName = data.company_name ?? "this company";
+          setResearching(companyName);
+          try {
+            const r = await fetch("/api/company-research", {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body:    JSON.stringify({ company_name: companyName }),
+            });
+            const d = await r.json();
+            if (!r.ok) {
+              setError(d.error ?? "Company research failed. Try again.");
+              return;
+            }
+          } catch {
+            setError("Network error while researching the company.");
+            return;
+          } finally {
+            setResearching(null);
+          }
+          // Recurse once with the guard flipped so a repeat 422 errors cleanly.
+          await handleGenerate(regenerate, true);
           return;
         }
         setError(data.error ?? "Generation failed. Try again.");
         return;
       }
 
-      setResearchRequired(null);
-
       if (data.status === "cached" && data.letter_id) {
-        // Fetch the cached letter to display it
         const r = await fetch(`/api/jobs/${jobId}/cover-letter/${data.letter_id}`);
         const d = await r.json();
         if (d.letter) setLetter(d.letter as CoverLetterRow);
@@ -210,31 +232,6 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
     await navigator.clipboard.writeText(letter.pass_3_final);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function handleResearch() {
-    if (!researchRequired) return;
-    setResearching(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/company-research", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ company_name: researchRequired.company_name }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Company research failed. Try again.");
-        return;
-      }
-      // Research succeeded — clear the gate and immediately trigger generation.
-      setResearchRequired(null);
-      await handleGenerate(false);
-    } catch {
-      setError("Network error while researching the company.");
-    } finally {
-      setResearching(false);
-    }
   }
 
   async function handleDownloadPDF() {
@@ -356,30 +353,17 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
         </div>
       )}
 
-      {/* Research-required gate — shows regardless of whether a prior letter exists,
-          since regenerating an existing letter also hits this prompt. */}
-      {researchRequired && (
-        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3">
-          <p className="text-[13px] text-blue-900 font-medium">
-            Run company research first
-          </p>
-          <p className="mt-1 text-[12px] text-blue-800">
-            Paragraph 2 of your cover letter needs a real fact about{" "}
-            <span className="font-medium">{researchRequired.company_name}</span> to anchor on
-            — not generic praise. Research takes 1-2 minutes.
-          </p>
-          <button
-            onClick={handleResearch}
-            disabled={researching}
-            className="mt-3 rounded bg-blue-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {researching ? "Researching company…" : `Research ${researchRequired.company_name}`}
-          </button>
+      {/* Auto-research indicator: shown while we transparently fetch company
+          research before drafting (the user doesn't click anything). */}
+      {researching && (
+        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-[12px] text-blue-900">
+          <span className="animate-pulse">●</span>{" "}
+          Researching <span className="font-medium">{researching}</span> before drafting your letter…
         </div>
       )}
 
       {/* No letter yet — prompt */}
-      {!letter && !loading && !error && !researchRequired && (
+      {!letter && !loading && !error && !researching && (
         <div className="px-5 py-8 text-center">
           <p className="text-[13px] text-text-2">
             Generate a personalised cover letter using your voice profile, story library,

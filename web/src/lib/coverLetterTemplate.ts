@@ -19,7 +19,6 @@ export interface AssembleLetterInput {
   company:          string;
   /** e.g. "Sydney NSW". Appears below company in the employer block when present. */
   companyLocation:  string | null;
-  jobTitle:         string;
   /** Real hiring-manager name, or null if unknown. Controls both the employer
    * block (name line omitted when null) and the salutation ("Dear Hiring Manager,"). */
   hiringManager:    string | null;
@@ -50,7 +49,6 @@ export function assembleLetter({
   contactDetails,
   company,
   companyLocation,
-  jobTitle,
   hiringManager,
   body,
 }: AssembleLetterInput): string {
@@ -80,8 +78,6 @@ export function assembleLetter({
     ...employerLines,
     "",
     greeting,
-    "",
-    `RE: ${jobTitle} at ${company}`,
     "",
     body,
     "",
