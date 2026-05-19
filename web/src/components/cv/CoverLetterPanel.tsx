@@ -63,6 +63,11 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [copied, setCopied]     = useState(false);
+  // Research-required state: when the cover letter API returns 422 with
+  // action=research_company, we pause generation and ask the user to run
+  // company research first.
+  const [researchRequired, setResearchRequired] = useState<{ company_name: string } | null>(null);
+  const [researching, setResearching]           = useState(false);
   const statusRef               = useRef(letter?.status ?? "");
 
   statusRef.current = letter?.status ?? "";
@@ -124,9 +129,17 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
+        // Special case: 422 + action=research_company → not an error in the
+        // user sense, it's an intentional pause asking them to run research.
+        if (res.status === 422 && data.action === "research_company") {
+          setResearchRequired({ company_name: data.company_name ?? "this company" });
+          return;
+        }
         setError(data.error ?? "Generation failed. Try again.");
         return;
       }
+
+      setResearchRequired(null);
 
       if (data.status === "cached" && data.letter_id) {
         // Fetch the cached letter to display it
@@ -169,6 +182,31 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
     await navigator.clipboard.writeText(letter.pass_3_final);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleResearch() {
+    if (!researchRequired) return;
+    setResearching(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/company-research", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ company_name: researchRequired.company_name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Company research failed. Try again.");
+        return;
+      }
+      // Research succeeded — clear the gate and immediately trigger generation.
+      setResearchRequired(null);
+      await handleGenerate(false);
+    } catch {
+      setError("Network error while researching the company.");
+    } finally {
+      setResearching(false);
+    }
   }
 
   const isTerminal = letter?.status === "completed" || letter?.status === "failed";
@@ -215,8 +253,29 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
         </div>
       )}
 
+      {/* Research-required gate */}
+      {researchRequired && !letter && (
+        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+          <p className="text-[13px] text-blue-900 font-medium">
+            Run company research first
+          </p>
+          <p className="mt-1 text-[12px] text-blue-800">
+            Paragraph 2 of your cover letter needs a real fact about{" "}
+            <span className="font-medium">{researchRequired.company_name}</span> to anchor on
+            — not generic praise. Research takes 1-2 minutes.
+          </p>
+          <button
+            onClick={handleResearch}
+            disabled={researching}
+            className="mt-3 rounded bg-blue-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {researching ? "Researching company…" : `Research ${researchRequired.company_name}`}
+          </button>
+        </div>
+      )}
+
       {/* No letter yet — prompt */}
-      {!letter && !loading && !error && (
+      {!letter && !loading && !error && !researchRequired && (
         <div className="px-5 py-8 text-center">
           <p className="text-[13px] text-text-2">
             Generate a personalised cover letter using your voice profile, story library,
@@ -286,33 +345,40 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             </pre>
           </div>
 
-          {/* Honesty warning — surfaces unsupported claims so the user reviews before sending */}
+          {/* Quality warnings — honesty (unsupported claims) + research fallback */}
           {(() => {
             const flags = (letter.quality_flags ?? {}) as {
               unsupported_claims?: string[];
               honesty_inconclusive?: boolean;
               honesty_retried?: boolean;
               honesty_passed_after_retry?: boolean;
+              low_quality_company_research?: boolean;
             };
             const claims = Array.isArray(flags.unsupported_claims) ? flags.unsupported_claims : [];
-            if (claims.length > 0) {
-              return (
-                <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
-                  <p className="font-medium">Review before sending — these claims could not be verified against your CV:</p>
-                  <ul className="mt-1 list-disc list-inside space-y-0.5">
-                    {claims.map((c, i) => <li key={i}>{c}</li>)}
-                  </ul>
-                </div>
-              );
-            }
-            if (flags.honesty_inconclusive) {
-              return (
-                <p className="text-[11px] text-text-3">
-                  Note: honesty check was inconclusive — give the letter a quick read before sending.
-                </p>
-              );
-            }
-            return null;
+            return (
+              <>
+                {claims.length > 0 && (
+                  <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                    <p className="font-medium">Review before sending — these claims could not be verified against your CV:</p>
+                    <ul className="mt-1 list-disc list-inside space-y-0.5">
+                      {claims.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {flags.low_quality_company_research && (
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                    Company research returned limited information for this employer.
+                    Paragraph 2 falls back to the job description — read it carefully
+                    before sending.
+                  </div>
+                )}
+                {claims.length === 0 && flags.honesty_inconclusive && (
+                  <p className="text-[11px] text-text-3">
+                    Note: honesty check was inconclusive — give the letter a quick read before sending.
+                  </p>
+                )}
+              </>
+            );
           })()}
 
           {/* Actions */}

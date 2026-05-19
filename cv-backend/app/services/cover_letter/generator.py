@@ -65,12 +65,21 @@ _CV_TEXT_CAP = 8000
 # ground that still fits comfortably alongside cv_text in a single prompt.
 _JD_TEXT_CAP = 1500
 
-# Higher than the old 0.3 — single-call generation needs meaningful variation
-# across regenerations of the same JD.
-_GENERATE_TEMPERATURE = 0.7
-
 # 400 words ≈ 600 tokens; allow headroom for varied phrasing.
 _GENERATE_MAX_TOKENS = 1200
+
+
+def _generation_temperature(model: str) -> float:
+    """
+    OpenAI silently forces temperature=1.0 on the entire gpt-5* family — any
+    other value passed via the API is ignored. Return 1.0 for those models so
+    the code reflects reality. Use 0.7 for everything else (higher than the
+    AIClient default of 0.3) to give meaningful variation across regenerations
+    of the same JD.
+    """
+    if model.lower().startswith("gpt-5"):
+        return 1.0
+    return 0.7
 
 # Fallback model per provider when the user's integration has no model set.
 # Chosen as the best generally-available model for each provider — the user's
@@ -89,6 +98,29 @@ async def _patch(letter_id: str, patch: Dict[str, Any]) -> None:
     def _do() -> None:
         get_supabase().table(_TABLE).update(patch).eq("id", letter_id).execute()
     await asyncio.to_thread(_do)
+
+
+async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:
+    """
+    Read existing quality_flags from the row so the web layer's pre-write
+    warnings (e.g. low_quality_company_research) survive the generator's
+    final write. Returns {} if the row is missing or the column is null.
+    """
+    def _do() -> Any:
+        return (
+            get_supabase()
+            .table(_TABLE)
+            .select("quality_flags")
+            .eq("id", letter_id)
+            .single()
+            .execute()
+        )
+    try:
+        result = await asyncio.to_thread(_do)
+        existing = (result.data or {}).get("quality_flags") if result else None
+        return existing if isinstance(existing, dict) else {}
+    except Exception:
+        return {}
 
 
 def _now_iso() -> str:
@@ -162,7 +194,7 @@ async def _generate_body(
         system=SYSTEM,
         user=user,
         max_tokens=_GENERATE_MAX_TOKENS,
-        temperature=_GENERATE_TEMPERATURE,
+        temperature=_generation_temperature(client.model),
         no_training=True,
     )
 
@@ -196,6 +228,11 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             "completed_at": _now_iso(),
         })
         return
+
+    # Preserve any quality_flags the web layer pre-wrote (e.g. the
+    # low_quality_company_research warning surfaced when company research
+    # found nothing actionable and we fell back to the JD-derived hook).
+    pre_flags = await _read_quality_flags(letter_id)
 
     # Mark running. Record the actually-used model in all three model columns
     # so existing audit queries keep working regardless of which they read.
@@ -282,10 +319,13 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             honesty_ok = True
 
         # ── Persist final state ───────────────────────────────────────────
+        # Merge: web-layer warnings first, generator-side flags override
+        # only if they share a key (they should not).
+        merged_flags: Dict[str, Any] = {**pre_flags, **quality_flags}
         await _patch(letter_id, {
             "status": "completed",
             "honesty_ok": honesty_ok,
-            "quality_flags": quality_flags,
+            "quality_flags": merged_flags,
             "generation_status": {"generate": "completed", "honesty": "completed"},
             "completed_at": _now_iso(),
         })

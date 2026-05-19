@@ -288,24 +288,66 @@ export async function POST(
   const companySlug = makeCompanySlug(companyName);
 
   // Fallback: extract first sentence from the JD that mentions the company by name.
-  // This gives pass-1 something specific even when company_research hasn't run.
+  // This gives generation something specific even when company_research hasn't run
+  // — used both as the fallback hook (defensive) and as the low-research fallback.
   function extractJdHook(jd: string, company: string): string {
     const sentences = jd.replace(/\n+/g, " ").split(/(?<=[.!?])\s+/);
     const hit = sentences.find(
       (s) => s.length > 40 && s.toLowerCase().includes(company.toLowerCase()),
     );
-    return hit?.trim() ?? `${company} is hiring for this role`;
+    if (!hit) return `${company} is hiring for this role`;
+    return stripJdHeaderPrefix(hit.trim(), company);
   }
 
-  let companyHookText = extractJdHook(jdText, companyName);
+  // Strip common JD section-header prefixes that bleed into the first sentence
+  // when newlines collapse to spaces (e.g. "Job Description At Ampol, we...").
+  // Only one header is stripped — if a sentence accidentally matches twice, that
+  // is already pathological and a single strip is enough.
+  function stripJdHeaderPrefix(s: string, company: string): string {
+    const companyEsc = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const HEADER_PATTERNS = [
+      /^Job Description\s+/i,
+      /^About (?:Us|the (?:Company|Role|Position|Team))\s+/i,
+      new RegExp(`^About ${companyEsc}\\s+`, "i"),
+      /^The (?:Role|Position|Opportunity|Company)\s+/i,
+      /^(?:Company |Position |Role |Job )?(?:Overview|Summary|Description)\s+/i,
+    ];
+    for (const re of HEADER_PATTERNS) {
+      const m = s.match(re);
+      if (m) return s.slice(m[0].length).trim();
+    }
+    return s;
+  }
 
+  // Phase 10.4 refactor: company research is a prerequisite for generation.
+  // The architecture's quality ceiling for paragraph 2 is set by the company
+  // hook, and a JD-derived hook is reliably weaker than a researched fact.
+  // - No research row at all → block with a 422 the UI can act on.
+  // - Research exists but has no usable facts → proceed, fall back to JD hook,
+  //   and record a warning so the UI surfaces it next to the finished letter.
   const { data: companyResearch } = await admin
     .from("company_research")
     .select("facts")
     .eq("company_id", companySlug)
     .maybeSingle();
 
-  if (companyResearch?.facts) {
+  if (!companyResearch) {
+    return NextResponse.json(
+      {
+        error:
+          `Company research has not been run for ${companyName}. ` +
+          "Run it first to give paragraph 2 a real company fact to anchor on.",
+        action:       "research_company",
+        company_name: companyName,
+      },
+      { status: 422 },
+    );
+  }
+
+  let companyHookText = "";
+  let lowQualityResearch = false;
+
+  if (companyResearch.facts) {
     const facts = companyResearch.facts as {
       distinguishing_facts?: string[];
       mission_statement?: string;
@@ -321,7 +363,20 @@ export async function POST(
     }
   }
 
+  if (!companyHookText) {
+    // Research exists but distillation produced nothing usable — fall back
+    // to JD-derived hook and let the UI warn the user before they send.
+    companyHookText  = extractJdHook(jdText, companyName);
+    lowQualityResearch = true;
+  }
+
   // ── 10. Create cover_letters row (pending) ────────────────────────────────────
+  // quality_flags pre-populated with web-layer warnings; cv-backend merges
+  // its own honesty-gate flags on top at the end without clobbering these.
+  const initialQualityFlags = lowQualityResearch
+    ? { low_quality_company_research: true }
+    : {};
+
   const { data: letterRow, error: insertErr } = await admin
     .from("cover_letters")
     .insert({
@@ -333,6 +388,7 @@ export async function POST(
       tone_target:       toneTarget,
       word_count_target: 170,
       ai_provider:       chosen,
+      quality_flags:     initialQualityFlags,
     })
     .select("id")
     .single();

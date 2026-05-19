@@ -88,12 +88,48 @@ PARAGRAPH 3 — What you contribute (4-7 sentences)
   Intent: The substantive proof. Tell the primary story with concrete \
 numbers, named tools, real outcomes. If a secondary story exists and fits, \
 add it briefly at the end.
-  Must: include at least one number or named outcome from the primary \
-story. Vary sentence structure — do not write two sentences in this \
-paragraph that share the skeleton "I [verb]ed X, which [led to / resulted \
-in / meant] Y."
+  Must: include at least one number or named outcome from the primary story.
+
+  STRUCTURAL VARIETY — the sentences must not share the same skeleton.
+
+    WEAK (avoid this pattern — sentences all built around "I [verb]ed X, \
+which [resulted in / led to / meant] Y"):
+      "I automated data extraction, which improved accuracy by 20%. \
+I worked with developers on analytics components, which improved \
+processing speed by 25%. I built dashboards in Power BI, which reduced \
+reporting time by 30%."
+
+    STRONGER (varied structures — situation, action, consequence, detail):
+      "At [employer], the analyst team was rebuilding the same report every \
+Monday morning. I automated the extraction in Python, which cut the work \
+from three hours to fifteen minutes and improved accuracy by 20%. The team \
+kept the script and adapted it for three other data sources over the next \
+quarter."
+
+  The examples above use illustrative content. Apply the structural pattern \
+to the candidate's own story — do not reuse the example sentences, phrasing, \
+or employer details.
+
+  TEXTURE — include at least one of the following texture elements, drawn \
+from the candidate's actual experience:
+    - A colleague's reaction or behaviour change (e.g. "the team kept the \
+script", "the manager started checking the dashboard before her 9am \
+meetings", "the developers wanted to know how it worked").
+    - What changed about the work afterwards (e.g. "the same pattern is \
+now used for three other data sources", "we stopped having Monday morning \
+data fire drills").
+    - What was hard or unexpected (e.g. "the data was inconsistent across \
+sources, so I had to build reconciliation logic", "the first version was \
+too slow, so I redesigned the query").
+    - A specific moment that captured the work's impact (e.g. "the client \
+saw the dashboard for the first time and asked to redesign their weekly \
+meeting around it").
+  Statistics alone do not prove the work happened. A texture detail proves \
+there was a real situation, real people, real consequences.
+
   Must not: invent facts not in <candidate_cv>; deploy statistics as a \
-bullet-point list in prose form.
+bullet-point list in prose form; copy any of the example sentences above \
+verbatim — they are structural patterns to imitate, not phrases to use.
 
 PARAGRAPH 4 — Close (1-3 sentences)
   Intent: Thank the reader. Reiterate interest in this specific role at \
