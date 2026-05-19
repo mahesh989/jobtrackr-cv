@@ -67,13 +67,52 @@ constraints. Choose the wording, the order of ideas within the paragraph, \
 and the sentence structure yourself.
 
 PARAGRAPH 1 — Attention + qualification (2-4 sentences)
-  Intent: Grab attention. Name the role. Reference one concrete qualifier \
-(an experience, achievement, or skill — not a personality trait) that makes \
-the candidate plausible for this role.
-  Must: name the role explicitly; include one concrete qualifier drawn \
-from the CV.
-  Must not: open with "Hi,", "Hello,", "Dear", "I admire", "I am writing", \
-"I am thrilled", "I'm excited", "I would like to", or any greeting.
+  Intent: Grab attention with a substantive claim the candidate has formed \
+from their own experience — something only this person could write. The \
+paragraph as a whole must name the role and include one concrete qualifier; \
+the FIRST SENTENCE does not.
+
+  FIRST SENTENCE RULE — the opening sentence must NOT:
+    - describe the role
+    - state what the candidate "brings" or how they "line up" with the role
+    - explain why the role appeals
+
+  Those are all role-first patterns and they produce bland openings. \
+The opening sentence must make a substantive claim the candidate has \
+formed from their actual experience.
+
+  If the candidate's CV shows a career transition or an unusual path, that \
+is often the strongest opening material — a perspective only this person \
+could plausibly have formed.
+
+  Examples (do not copy these words — they are shapes, not text to reuse):
+
+    Pattern A — perspective drawn from tenure:
+      "Eighteen months of running incident response taught me that the \
+loudest alerts are almost never the ones that matter."
+
+    Pattern B — counterintuitive observation about the work:
+      "The most useful thing I learned writing technical documentation is \
+that good docs are mostly about deciding what to leave out."
+
+    Pattern C — perspective shaped by an unusual path:
+      "Moving from clinical research into product analytics changed how I \
+read a dashboard — I now look first at what is missing."
+
+  Each of these makes a claim only this person could plausibly have formed. \
+None of them describes the role or explains why the role appeals — that \
+material belongs in paragraph 2.
+
+  Subsequent sentences in paragraph 1 should bridge from the opening claim \
+to a concrete qualifier from the CV (an experience, achievement, or skill — \
+not a personality trait) and name the role being applied for.
+
+  Must: name the role explicitly somewhere in the paragraph; include one \
+concrete qualifier drawn from the CV.
+  Must not: open the paragraph with "Hi,", "Hello,", "Dear", "I admire", \
+"I am writing", "I am thrilled", "I'm excited", "I would like to", or any \
+greeting. Must not open with "The [Role] at [Company]..." or any "role + \
+verb explaining appeal" construction.
 
 PARAGRAPH 2 — Why this company (3-5 sentences)
   Intent: Show this application is informed, not generic. Anchor on the \
