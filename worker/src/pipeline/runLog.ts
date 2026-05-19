@@ -4,7 +4,7 @@ import { db } from "../db/client.js";
 export async function startRunLog(profileId: string): Promise<string> {
   const { data, error } = await db
     .from("run_logs")
-    .insert({ profile_id: profileId, status: "running" })
+    .insert({ profile_id: profileId, status: "running", current_stage: "starting" })
     .select("id")
     .single();
 
@@ -12,6 +12,15 @@ export async function startRunLog(profileId: string): Promise<string> {
     throw new Error(`Failed to create run_log: ${error?.message}`);
   }
   return data.id as string;
+}
+
+// Best-effort progress write. Never throws — UI signal only.
+export async function setStage(runLogId: string, stage: string): Promise<void> {
+  const { error } = await db
+    .from("run_logs")
+    .update({ current_stage: stage })
+    .eq("id", runLogId);
+  if (error) console.warn(`[runLog] setStage(${stage}) failed: ${error.message}`);
 }
 
 export async function finishRunLog(
@@ -35,6 +44,7 @@ export async function finishRunLog(
       jobs_saved: outcome.jobs_saved,
       sources_run: outcome.sources_run,
       error_message: outcome.error_message ?? null,
+      current_stage: null,
     })
     .eq("id", runLogId);
 }

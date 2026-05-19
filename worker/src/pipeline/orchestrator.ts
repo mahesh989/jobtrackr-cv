@@ -24,7 +24,7 @@ import { keywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
 import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
-import { startRunLog, finishRunLog } from "./runLog.js";
+import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
@@ -254,6 +254,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
       try {
         console.log(`[pipeline] stage 2 — fetching: ${adapter.name}`);
+        await setStage(runLogId, `Fetching from ${adapter.name}`);
         const results = await adapter.fetchJobs(profile);
         rawJobs.push(...results);
         sourcesRun.push(adapter.name);
@@ -271,6 +272,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Runs after the shared adapters so cost is tracked separately.
     if (seekAdapter && seekIntegration) {
       await checkCancellation(runLogId);
+      await setStage(runLogId, "Fetching from SEEK");
       try {
         const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
         rawJobs.push(...seekJobs);
@@ -303,6 +305,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     jobsFetched = rawJobs.length;
     console.log(`[pipeline] stage 2 done — total raw: ${jobsFetched}`);
+    await setStage(runLogId, "Filtering & deduplicating");
 
     // Stage 3: L1 early URL dedup
     // Hash the canonical URL (same transform dedup.ts uses) so the DB lookup
@@ -420,6 +423,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // sources pass through unchanged.
     let kept = dedupKept;
     if (seekAdapter && seekToken && seekIntegration && dedupKept.some((j) => j.source === "seek")) {
+      await setStage(runLogId, "Fetching full SEEK descriptions");
       const { jobs: enriched, costUsd: jdCost, merged, fetched } =
         await enrichWithFullJDs(dedupKept, seekToken);
       kept = enriched;
@@ -461,6 +465,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     let visaReady = kept;
     if (kept.length > 0) {
       console.log(`[pipeline] stage 10a — extracting visa info for ${kept.length} jobs`);
+      await setStage(runLogId, `Extracting visa info (${kept.length} jobs)`);
       const visaMap = await extractVisaInfo(kept);
       visaReady = kept.map((job) => {
         const info = visaMap.get(job.url_hash);
@@ -493,6 +498,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
 
     // Stage 12: save with visa info included
+    await setStage(runLogId, `Saving ${toSave.length} jobs`);
     const { saved } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
