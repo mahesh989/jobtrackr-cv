@@ -253,8 +253,9 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
         </div>
       )}
 
-      {/* Research-required gate */}
-      {researchRequired && !letter && (
+      {/* Research-required gate — shows regardless of whether a prior letter exists,
+          since regenerating an existing letter also hits this prompt. */}
+      {researchRequired && (
         <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3">
           <p className="text-[13px] text-blue-900 font-medium">
             Run company research first
