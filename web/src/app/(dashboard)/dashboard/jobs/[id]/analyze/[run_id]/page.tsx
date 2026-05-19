@@ -132,7 +132,11 @@ export default async function AnalyzeRunPage({ params }: Props) {
           cvCategorisedSkills={cvSkills}
         />
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <CoverLetterPanel jobId={jobId} initial={existingLetter as any} />
+        <CoverLetterPanel
+          jobId={jobId}
+          initial={existingLetter as any}
+          jobHiringManager={job?.hiring_manager ?? null}
+        />
         </div>
       </div>
     </div>

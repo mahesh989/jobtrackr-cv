@@ -32,6 +32,8 @@ interface Props {
   jobId:    string;
   /** Pre-fetched letter row if one already exists for this job — null if not yet generated. */
   initial:  CoverLetterRow | null;
+  /** Saved hiring manager name from the job row (used to pre-fill the download modal). */
+  jobHiringManager: string | null;
 }
 
 const STEP_LABELS = [
@@ -59,14 +61,14 @@ function Naturalnessbadge({ score }: { score: number | null }) {
   );
 }
 
-export function CoverLetterPanel({ jobId, initial }: Props) {
+export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   const [letter, setLetter]     = useState<CoverLetterRow | null>(initial);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [copied, setCopied]     = useState(false);
   const [editedBody, setEditedBody] = useState<string | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>("");
+  const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>(jobHiringManager ?? "");
   const [downloading, setDownloading] = useState(false);
   // Research-required state: when the cover letter API returns 422 with
   // action=research_company, we pause generation and ask the user to run
@@ -119,6 +121,27 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
       supabase.removeChannel(channel);
     };
   }, [letter?.id]);
+
+  // Reset session-only edits when the active letter changes (e.g. regenerate)
+  // so stale edits from a prior letter aren't silently sent to the PDF route.
+  useEffect(() => {
+    setEditedBody(null);
+  }, [letter?.id]);
+
+  // Escape-to-close + body scroll lock while the download modal is open.
+  useEffect(() => {
+    if (!showDownloadModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !downloading) setShowDownloadModal(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showDownloadModal, downloading]);
 
   // ── Trigger generation ────────────────────────────────────────────────────
   async function handleGenerate(regenerate = false) {
@@ -233,50 +256,53 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
         return;
       }
 
-      // Generate PDF client-side with jspdf
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "pt",
-        format: "a4",
-      });
+      // Generate PDF client-side with jspdf.
+      // A4 portrait, 0.8in margins all sides, 11pt Helvetica.
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth   = doc.internal.pageSize.getWidth();
+      const pageHeight  = doc.internal.pageSize.getHeight();
+      const margin      = 57.6; // 0.8in
+      const textWidth   = pageWidth - 2 * margin;
+      const fontSize    = 11;
+      const lineHeight  = fontSize * 1.35;        // explicit; jsPDF default 1.15 is too tight
+      const paragraphGap = lineHeight * 0.6;      // extra space for blank source lines
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 57.6; // 0.8 inches = 57.6 points (left, right, top, bottom)
-      const textWidth = pageWidth - 2 * margin;
-
-      // Set font and size
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(11);
+      doc.setFontSize(fontSize);
 
       let yPos = margin;
-      const lineHeight = doc.getLineHeight() || 14;
-
-      // Split text into lines and wrap
-      const lines = doc.splitTextToSize(data.templated_text, textWidth);
-
-      for (const line of lines) {
-        if (yPos + lineHeight > pageHeight - margin) {
-          // Page overflow - add new page
-          doc.addPage();
-          yPos = margin;
+      // Split on hard newlines first so blank source lines become explicit
+      // paragraph gaps rather than collapsing into uniform line spacing.
+      const rawLines = (data.templated_text as string).split("\n");
+      for (const raw of rawLines) {
+        if (raw.trim() === "") {
+          yPos += paragraphGap;
+          continue;
         }
-        doc.text(line, margin, yPos);
-        yPos += lineHeight;
+        const wrapped: string[] = doc.splitTextToSize(raw, textWidth);
+        for (const wl of wrapped) {
+          if (yPos + lineHeight > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+          }
+          doc.text(wl, margin, yPos);
+          yPos += lineHeight;
+        }
       }
 
-      // Generate filename: Company_Initials_cover_letter.pdf
-      const userInitials = (data.user_name || "")
-        .split(" ")
-        .map((word: string) => word[0]?.toUpperCase())
+      // Filename: <company>_<initials>_cover_letter.pdf
+      const slug = (s: string) =>
+        s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      const initials = (data.user_name || "")
+        .split(/\s+/)
+        .map((w: string) => w[0]?.toUpperCase() ?? "")
         .join("")
-        .slice(0, 2) || "M";
-      const companySlug = (data.company || "")
-        .replace(/\s+/g, "_")
-        .toLowerCase();
-      const filename = `${companySlug}_${userInitials}_cover_letter.pdf`;
+        .slice(0, 3);
+      const companySlug = slug(data.company || "company");
+      const filename = initials
+        ? `${companySlug}_${initials}_cover_letter.pdf`
+        : `${companySlug}_cover_letter.pdf`;
 
-      // Download
       doc.save(filename);
       setShowDownloadModal(false);
     } catch (err) {
@@ -495,25 +521,38 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
 
       {/* Download PDF Modal */}
       {showDownloadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-surface rounded-lg border border-border shadow-xl w-full max-w-md">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={() => { if (!downloading) setShowDownloadModal(false); }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="download-pdf-title"
+            className="bg-surface rounded-lg border border-border shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="px-5 py-4 border-b border-border">
-              <h3 className="text-[14px] font-semibold text-text">Download as PDF</h3>
+              <h3 id="download-pdf-title" className="text-[14px] font-semibold text-text">
+                Download as PDF
+              </h3>
             </div>
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="text-[12px] font-medium text-text-2 mb-2 block">
+                <label htmlFor="dl-hiring-mgr" className="text-[12px] font-medium text-text-2 mb-2 block">
                   Hiring manager name (optional)
                 </label>
                 <input
+                  id="dl-hiring-mgr"
                   type="text"
+                  autoFocus
                   value={downloadHiringMgr}
                   onChange={(e) => setDownloadHiringMgr(e.target.value)}
                   placeholder="e.g., John Smith"
                   className="w-full rounded border border-border bg-surface-2 px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                 />
                 <p className="text-[11px] text-text-3 mt-1">
-                  Used in the salutation line. Leave blank to use job default or "Hiring Manager".
+                  Used in the salutation line. Leave blank to use the job default or &ldquo;Hiring Manager&rdquo;.
                 </p>
               </div>
             </div>
