@@ -15,7 +15,7 @@ Endpoints:
   - POST /internal/scrape-jd               — JD scraping helper
   - POST /internal/research-company         — company research (Tavily + scrape + AI distill)
   - POST /internal/select-company-fact      — deterministic fact ranking (no AI)
-  - POST /internal/generate-cover-letter    — three-pass cover letter pipeline (BackgroundTask)
+  - POST /internal/generate-cover-letter    — single-call cover letter pipeline (BackgroundTask)
 """
 from __future__ import annotations
 

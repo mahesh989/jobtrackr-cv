@@ -4,12 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface GenerationStatus {
-  pass_1: string;
-  pass_2: string;
-  pass_3: string;
-  gate_1: string;
-  gate_2: string;
-  gate_3: string;
+  generate: string;
+  honesty:  string;
 }
 
 interface CoverLetterRow {
@@ -37,10 +33,9 @@ interface Props {
   initial:  CoverLetterRow | null;
 }
 
-const PASS_LABELS = [
-  { key: "pass_1", label: "Skeleton draft"    },
-  { key: "pass_2", label: "Voice transfer"    },
-  { key: "pass_3", label: "Final polish"      },
+const STEP_LABELS = [
+  { key: "generate", label: "Writing your letter"      },
+  { key: "honesty",  label: "Checking against your CV" },
 ] as const;
 
 function stepIcon(state: string) {
@@ -146,7 +141,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
         setLetter({
           id:                data.letter_id,
           status:            "pending",
-          generation_status: { pass_1: "pending", pass_2: "pending", pass_3: "pending", gate_1: "pending", gate_2: "pending", gate_3: "pending" },
+          generation_status: { generate: "pending", honesty: "pending" },
           pass_3_final:      null,
           burstiness_score:  null,
           naturalness_score: null,
@@ -178,7 +173,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
 
   const isTerminal = letter?.status === "completed" || letter?.status === "failed";
   const isRunning  = letter?.status === "running" || letter?.status === "pending";
-  const genStatus  = letter?.generation_status ?? { pass_1: "pending", pass_2: "pending", pass_3: "pending", gate_1: "pending", gate_2: "pending", gate_3: "pending" };
+  const genStatus  = letter?.generation_status ?? { generate: "pending", honesty: "pending" };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -188,7 +183,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
         <div>
           <h2 className="text-[14px] font-semibold text-text">Cover Letter</h2>
           <p className="text-[11px] text-text-3 mt-0.5">
-            Three-pass AI generation — skeleton → your voice → final polish
+            Tailored to your voice, your CV, and this job description
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -243,7 +238,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
       {/* Progress steps */}
       {letter && (isRunning || (!isTerminal)) && (
         <div className="px-5 py-4 space-y-2">
-          {PASS_LABELS.map(({ key, label }) => (
+          {STEP_LABELS.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-2 text-[13px]">
               {stepIcon(genStatus[key as keyof GenerationStatus])}
               <span className={genStatus[key as keyof GenerationStatus] === "running" ? "text-text font-medium" : "text-text-2"}>
@@ -291,6 +286,35 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             </pre>
           </div>
 
+          {/* Honesty warning — surfaces unsupported claims so the user reviews before sending */}
+          {(() => {
+            const flags = (letter.quality_flags ?? {}) as {
+              unsupported_claims?: string[];
+              honesty_inconclusive?: boolean;
+              honesty_retried?: boolean;
+              honesty_passed_after_retry?: boolean;
+            };
+            const claims = Array.isArray(flags.unsupported_claims) ? flags.unsupported_claims : [];
+            if (claims.length > 0) {
+              return (
+                <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                  <p className="font-medium">Review before sending — these claims could not be verified against your CV:</p>
+                  <ul className="mt-1 list-disc list-inside space-y-0.5">
+                    {claims.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                </div>
+              );
+            }
+            if (flags.honesty_inconclusive) {
+              return (
+                <p className="text-[11px] text-text-3">
+                  Note: honesty check was inconclusive — give the letter a quick read before sending.
+                </p>
+              );
+            }
+            return null;
+          })()}
+
           {/* Actions */}
           <div className="flex items-center gap-3">
             <button
@@ -299,18 +323,12 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             >
               {copied ? "Copied!" : "Copy text"}
             </button>
-            {letter.quality_flags && Object.keys(letter.quality_flags).length > 0 && (
-              <span className="text-[11px] text-text-3">
-                {Object.keys(letter.quality_flags).filter(k => k.includes("retry")).length} gate
-                {Object.keys(letter.quality_flags).filter(k => k.includes("retry")).length !== 1 ? "s" : ""} retried
-              </span>
-            )}
           </div>
 
           {/* Model provenance */}
-          {(letter.pass_1_model || letter.pass_2_model) && (
+          {letter.pass_3_model && (
             <p className="text-[10px] text-text-3">
-              Models — draft: {letter.pass_1_model ?? "—"} · voice: {letter.pass_2_model ?? "—"}
+              Generated with {letter.pass_3_model}
             </p>
           )}
         </div>

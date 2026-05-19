@@ -3,15 +3,19 @@
 Import path: app.schemas.cover_letter
 
 Design notes:
-- GenerateCoverLetterRequest carries all inputs needed for the full three-pass
-  pipeline. cv-backend does NOT look up story or voice data from Supabase —
+- GenerateCoverLetterRequest carries all inputs needed for cover letter
+  generation. cv-backend does NOT look up story or voice data from Supabase —
   the web route resolves and decrypts all inputs before calling cv-backend.
   This matches the pattern of /internal/analyze.
 
-- ai_model is accepted but NOT used for model routing inside the generator.
-  The three-pass pipeline hard-codes cheap/expensive tiers per provider
-  (see services/cover_letter/model_router.py, D4). The field is retained for
-  audit logging and future flexibility.
+- ai_model is the user's chosen model from their integration settings. The
+  generator uses it for the single generation call and the honesty gate.
+  Falls back to a provider-specific default if None.
+
+- fingerprint, tone_target, and word_count_target are accepted for API
+  stability but no longer drive generation. The single-call architecture
+  uses voice_sample_text as the register anchor and hard-codes a 250-400
+  word target in the prompt. These fields may be removed in a later cleanup.
 
 - voice_sample_text is marked with a privacy annotation matching the pattern
   in voice_fingerprint.py. It must never be logged or returned to the caller.
@@ -86,9 +90,8 @@ class GenerateCoverLetterRequest(BaseModel):
     ai_model:    Optional[str] = Field(
         default=None,
         description=(
-            "Accepted for audit logging but NOT used for model routing. "
-            "The generator always uses hard-coded cheap/expensive tiers per provider. "
-            "See model_router.py D4."
+            "The user's chosen model. Used for both the generation call and "
+            "the honesty gate. Falls back to a provider-specific default if None."
         ),
     )
 

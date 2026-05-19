@@ -1,5 +1,5 @@
 """
-Three-pass cover letter generation pipeline — Phase 10.4.
+Single-call cover letter generation pipeline — Phase 10.4 (refactored).
 
 Entry point: run_cover_letter_pipeline(payload)
 Scheduled as a FastAPI BackgroundTask by /internal/generate-cover-letter.
@@ -7,65 +7,82 @@ Returns 202 immediately; this function runs asynchronously and writes
 progress to cover_letters.{letter_id} via Supabase service-role, which
 triggers Supabase Realtime events to the browser.
 
-Pipeline:
-  Pass 1  → skeleton draft (cheap model)
-  Gate 1  → honesty check (cheap model, retries once on fail)
-  Pass 2  → voice transfer (expensive model, retries once on Gate 2 fail)
-  Gate 2  → coherence check (deterministic, no AI)
-  Pass 3  → burstiness injection (cheap model, retries once on Gate 3 fail)
-  Gate 3  → statistical signature check (deterministic, no AI)
+Replaces the previous three-pass (skeleton → voice → burstiness) pipeline.
+The new flow:
 
-Writes to cover_letters after each pass. Owns all error handling — never
-raises. On any unrecovered error, writes status=failed.
+  Generate  → one call to the user's chosen model with the four-paragraph
+              rubric (see prompts/cover_letter/generate.py)
+  Honesty   → one call to verify every factual claim ties to the CV.
+              On fail with specific claims: one retry with feedback.
+              After retry: accept the output, surface warnings in
+              quality_flags (decision b — never block the user with no
+              output).
 
-OPS-4 note: if this file exceeds 550 lines during a future edit, extract
-_run_pass_1/_run_pass_2/_run_pass_3 into a sibling passes.py module.
+DB compatibility:
+  - pass_3_final holds the generated body.
+  - pass_1_skeleton and pass_2_voice_transferred stay NULL going forward.
+  - pass_1_model / pass_2_model / pass_3_model all record the actually-used
+    model, so audits do not need to know which column the architecture
+    happens to use this week.
+  - generation_status JSONB shape simplifies to {generate, honesty}. Old
+    completed rows keep their 6-key shape; the UI never re-reads progress
+    for rows in a terminal state.
+
+Owns all error handling — never raises. On any unrecovered error, writes
+status='failed' with an error_message.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-import math
-import string
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from app.database import get_supabase
 from app.schemas.cover_letter import GenerateCoverLetterRequest
-from app.services.ai.client import AIClientError
+from app.services.ai.client import AIClient, AIClientError, make_ai_client
 from app.services.ai.prompts.cover_letter.gate_1_honesty import (
     GATE_1_SYSTEM,
     GATE_1_USER_TEMPLATE,
 )
-from app.services.ai.prompts.cover_letter.pass_1_skeleton import (
-    PASS_1_SYSTEM,
-    PASS_1_USER_TEMPLATE,
-)
-from app.services.ai.prompts.cover_letter.pass_2_voice_transfer import (
-    PASS_2_SYSTEM,
-    PASS_2_USER_TEMPLATE,
-)
-from app.services.ai.prompts.cover_letter.pass_3_burstiness import (
-    PASS_3_SYSTEM,
-    PASS_3_USER_TEMPLATE,
-)
-from app.services.cover_letter.model_router import make_cheap_client, make_expensive_client
-from app.services.cover_letter.quality_gates import (
-    BURSTINESS_MIN,
-    BURSTINESS_MAX,
-    COHERENCE_MIN,
-    check_specificity,
-    compute_burstiness,
-    compute_coherence_score,
-    normalise_burstiness,
+from app.services.ai.prompts.cover_letter.generate import (
+    HONESTY_RETRY_TEMPLATE,
+    SYSTEM,
+    USER_TEMPLATE,
+    format_story,
+    format_unsupported_claims,
 )
 
 logger = logging.getLogger(__name__)
 
 _TABLE = "cover_letters"
 
+# Cap on cv_text passed into the prompt. Controls token cost across providers
+# and matches the cap used by the honesty gate so both calls see the same CV.
+_CV_TEXT_CAP = 8000
 
-# ── Supabase helpers ──────────────────────────────────────────────────────────
+# Cap on JD text. Tailoring signal, not direct quotation — generous middle
+# ground that still fits comfortably alongside cv_text in a single prompt.
+_JD_TEXT_CAP = 1500
+
+# Higher than the old 0.3 — single-call generation needs meaningful variation
+# across regenerations of the same JD.
+_GENERATE_TEMPERATURE = 0.7
+
+# 400 words ≈ 600 tokens; allow headroom for varied phrasing.
+_GENERATE_MAX_TOKENS = 1200
+
+# Fallback model per provider when the user's integration has no model set.
+# Chosen as the best generally-available model for each provider — the user's
+# integration choice always wins; this is the "they did not pick" branch.
+_PROVIDER_DEFAULT_MODEL: Dict[str, str] = {
+    "anthropic": "claude-opus-4-7",
+    "openai":    "gpt-4o",
+    "deepseek":  "deepseek-chat",
+}
+
+
+# ── Supabase persistence ──────────────────────────────────────────────────────
 
 async def _patch(letter_id: str, patch: Dict[str, Any]) -> None:
     """Persist a partial update to the cover_letters row. Supabase-py is sync."""
@@ -78,60 +95,28 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ── Input formatting helpers ──────────────────────────────────────────────────
-
-def _format_story_numbers(numbers: list) -> str:
-    if not numbers:
-        return "No specific metrics stated."
-    parts = []
-    for n in numbers:
-        if isinstance(n, dict):
-            parts.append(f"{n.get('metric', '')}: {n.get('value', '')}")
-        else:
-            parts.append(str(n))
-    return "; ".join(parts)
+def _initial_status() -> Dict[str, str]:
+    return {"generate": "pending", "honesty": "pending"}
 
 
-def _format_tells(tells: list) -> str:
-    if not tells:
-        return "  (no specific tells captured)"
-    return "\n".join(f"  - {t}" for t in tells)
+# ── Honesty gate ──────────────────────────────────────────────────────────────
 
-
-def _format_list(items: list) -> str:
-    if not items:
-        return "(none)"
-    return ", ".join(str(i) for i in items)
-
-
-def _jd_priorities(jd_text: str) -> str:
-    """Extract a rough priority summary from the JD — first 600 chars."""
-    return jd_text[:600].strip()
-
-
-def _cv_summary(cv_text: str) -> str:
-    """Return first 3 non-empty lines of the CV as a brief summary."""
-    lines = [l.strip() for l in cv_text.splitlines() if l.strip()]
-    return " | ".join(lines[:3]) if lines else cv_text[:200]
-
-
-# ── Gate 1: honesty check ─────────────────────────────────────────────────────
-
-async def _run_gate_1(
-    cheap_client: Any,
+async def _run_honesty_gate(
+    client: AIClient,
     letter_text: str,
     cv_text: str,
-) -> tuple[bool, list[str]]:
+) -> Tuple[bool, List[str]]:
     """
-    Call the cheap model to check every factual claim in the letter against
-    the CV. Returns (passed: bool, unsupported_claims: list).
+    Verify every factual claim in the letter against the CV.
+    Returns (passed, unsupported_claims). On AI failure, returns (True, [])
+    so a transient gate problem does not block the user from seeing output.
     """
     user = GATE_1_USER_TEMPLATE.format(
         letter_text=letter_text,
-        master_cv_text=cv_text[:8000],  # cap to avoid runaway token use
+        master_cv_text=cv_text[:_CV_TEXT_CAP],
     )
     try:
-        result = await cheap_client.complete_json(
+        result = await client.complete_json(
             system=GATE_1_SYSTEM,
             user=user,
             max_tokens=512,
@@ -139,276 +124,184 @@ async def _run_gate_1(
             no_training=True,
         )
         passed = result.get("result", "fail") == "pass"
-        unsupported = result.get("unsupported_claims", [])
+        raw_unsupported = result.get("unsupported_claims") or []
+        unsupported = (
+            [str(c) for c in raw_unsupported if c]
+            if isinstance(raw_unsupported, list)
+            else []
+        )
         return passed, unsupported
     except AIClientError as exc:
-        logger.warning("gate_1: honesty check call failed (%s) — treating as pass", exc)
-        return True, []  # graceful degradation: don't block generation on gate failures
+        logger.warning("honesty gate call failed (%s) — treating as pass", exc)
+        return True, []
 
 
-# ── Pass 1 ────────────────────────────────────────────────────────────────────
+# ── Main generation call ──────────────────────────────────────────────────────
 
-async def _run_pass_1(
-    cheap_client: Any,
+async def _generate_body(
+    client: AIClient,
     payload: GenerateCoverLetterRequest,
-    extra_grounding: str = "",
+    *,
+    primary_story_block: str,
+    secondary_story_block: str,
+    honesty_retry_block: str,
 ) -> str:
-    story = payload.story
-    user = PASS_1_USER_TEMPLATE.format(
-        role=payload.role,
-        company_name=payload.company_name,
-        company_hook=payload.company_hook_text,
-        jd_priorities=_jd_priorities(payload.jd_text),
-        story_one_line=story.get("one_line", ""),
-        story_detailed=story.get("detailed", ""),
-        story_numbers=_format_story_numbers(story.get("numbers", [])),
-        cv_summary=_cv_summary(payload.cv_text),
-        word_count=payload.word_count_target,
-    )
-    if extra_grounding:
-        user = user + f"\n\nEXTRA GROUNDING REQUIREMENT: {extra_grounding}"
-    return await cheap_client.complete(
-        system=PASS_1_SYSTEM, user=user,
-        max_tokens=600, temperature=0.3, no_training=True,
-    )
-
-
-# ── Pass 2 ────────────────────────────────────────────────────────────────────
-
-async def _run_pass_2(
-    expensive_client: Any,
-    payload: GenerateCoverLetterRequest,
-    pass_1_draft: str,
-    extra_coherence: str = "",
-) -> str:
-    fp = payload.fingerprint
-    user = PASS_2_USER_TEMPLATE.format(
+    """One call to the user's chosen model. Returns the body text."""
+    user = USER_TEMPLATE.format(
         voice_sample=payload.voice_sample_text,
-        avg_sentence_length=fp.get("avg_sentence_length", "unknown"),
-        sentence_stddev=fp.get("sentence_length_stddev", "unknown"),
-        uses_contractions="yes" if fp.get("uses_contractions") else "no",
-        uses_em_dashes="yes" if fp.get("uses_em_dashes") else "no",
-        uses_semicolons="yes" if fp.get("uses_semicolons") else "no",
-        uses_parentheticals="yes" if fp.get("uses_parentheticals") else "no",
-        formality_score=fp.get("formality_score", 0.5),
-        vocabulary_complexity=fp.get("vocabulary_complexity", "moderate"),
-        paragraph_openers=_format_list(fp.get("paragraph_opener_patterns", [])),
-        intensifiers=_format_list(fp.get("intensifier_words", [])),
-        rhetorical_devices=_format_list(fp.get("rhetorical_devices", [])),
-        tells=_format_tells(fp.get("tells", [])),
-        pass_1_draft=pass_1_draft,
-    )
-    if extra_coherence:
-        user = user + f"\n\nCOHERENCE REQUIREMENT: {extra_coherence}"
-    return await expensive_client.complete(
-        system=PASS_2_SYSTEM, user=user,
-        max_tokens=800, temperature=0.7, no_training=True,
-    )
-
-
-# ── Pass 3 ────────────────────────────────────────────────────────────────────
-
-async def _run_pass_3(
-    cheap_client: Any,
-    payload: GenerateCoverLetterRequest,
-    pass_2_letter: str,
-    extra_variance: str = "",
-) -> str:
-    user = PASS_3_USER_TEMPLATE.format(
-        pass_2_letter=pass_2_letter,
-        company_name=payload.company_name,
+        cv_text=payload.cv_text[:_CV_TEXT_CAP],
+        primary_story=primary_story_block,
+        secondary_story=secondary_story_block,
         role=payload.role,
+        company_name=payload.company_name,
+        company_fact=payload.company_hook_text,
+        jd_priorities=payload.jd_text[:_JD_TEXT_CAP],
+        honesty_retry_block=honesty_retry_block,
     )
-    if extra_variance:
-        user = user + f"\n\nVARIANCE REQUIREMENT: {extra_variance}"
-    return await cheap_client.complete(
-        system=PASS_3_SYSTEM, user=user,
-        max_tokens=700, temperature=0.4, no_training=True,
+    return await client.complete(
+        system=SYSTEM,
+        user=user,
+        max_tokens=_GENERATE_MAX_TOKENS,
+        temperature=_GENERATE_TEMPERATURE,
+        no_training=True,
     )
 
 
-# ── Main pipeline ─────────────────────────────────────────────────────────────
+# ── Pipeline orchestrator ─────────────────────────────────────────────────────
 
 async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None:
-    """
-    Three-pass cover letter generation. Owns all error handling — never raises.
-    Writes progress to cover_letters via Supabase service-role.
-    """
-    letter_id  = payload.letter_id
-    provider   = payload.ai_provider
-    api_key    = payload.ai_api_key
-    quality_flags: Dict[str, Any] = {}
+    """Execute the single-call cover letter pipeline. Never raises."""
+    letter_id = payload.letter_id
+    model = payload.ai_model or _PROVIDER_DEFAULT_MODEL.get(payload.ai_provider, "")
 
-    logger.info(
-        "cover-letter-gen: letter_id=%s provider=%s jd_len=%d cv_len=%d",
-        letter_id, provider, len(payload.jd_text), len(payload.cv_text),
-    )
-
-    try:
-        cheap_client     = make_cheap_client(provider, api_key)
-        expensive_client = make_expensive_client(provider, api_key)
-    except AIClientError as exc:
+    if not model:
         await _patch(letter_id, {
             "status": "failed",
-            "error_message": f"AI client setup failed: {exc}",
+            "error_message": f"No model available for provider '{payload.ai_provider}'",
             "completed_at": _now_iso(),
         })
         return
 
     try:
+        client = make_ai_client(
+            provider=payload.ai_provider,
+            api_key=payload.ai_api_key,
+            model=model,
+        )
+    except AIClientError as exc:
+        logger.error("cover letter %s: AI client init failed: %s", letter_id, exc)
         await _patch(letter_id, {
-            "status": "running",
-            "started_at": _now_iso(),
-            "pass_1_model": cheap_client.model,
-            "pass_2_model": expensive_client.model,
-            "pass_3_model": cheap_client.model,
-        })
-
-        gen_status = {
-            "pass_1": "pending", "pass_2": "pending", "pass_3": "pending",
-            "gate_1": "pending", "gate_2": "pending", "gate_3": "pending",
-        }
-
-        # ── Pass 1 ───────────────────────────────────────────────────────────
-        gen_status["pass_1"] = "running"
-        await _patch(letter_id, {"generation_status": gen_status})
-
-        pass_1_output = await _run_pass_1(cheap_client, payload)
-
-        gen_status["pass_1"] = "completed"
-        await _patch(letter_id, {
-            "pass_1_skeleton": pass_1_output,
-            "generation_status": gen_status,
-        })
-        logger.info("cover-letter-gen: letter_id=%s pass_1 done (%d chars)",
-                    letter_id, len(pass_1_output))
-
-        # ── Gate 1: honesty ───────────────────────────────────────────────────
-        gen_status["gate_1"] = "running"
-        await _patch(letter_id, {"generation_status": gen_status})
-
-        honesty_ok, unsupported = await _run_gate_1(cheap_client, pass_1_output, payload.cv_text)
-
-        if not honesty_ok:
-            quality_flags["gate_1_retry"] = True
-            quality_flags["gate_1_unsupported"] = unsupported[:5]  # cap list length
-            logger.info("cover-letter-gen: letter_id=%s gate_1 fail — retrying pass_1", letter_id)
-            grounding = (
-                "Every claim MUST appear verbatim in the candidate CV provided. "
-                "Do not introduce any achievement, role, or metric not explicitly stated there."
-            )
-            pass_1_output = await _run_pass_1(cheap_client, payload, extra_grounding=grounding)
-            honesty_ok, _ = await _run_gate_1(cheap_client, pass_1_output, payload.cv_text)
-            await _patch(letter_id, {"pass_1_skeleton": pass_1_output})
-
-        gen_status["gate_1"] = "completed"
-        await _patch(letter_id, {
-            "honesty_ok": honesty_ok,
-            "generation_status": gen_status,
-        })
-
-        # ── Pass 2 ───────────────────────────────────────────────────────────
-        gen_status["pass_2"] = "running"
-        await _patch(letter_id, {"generation_status": gen_status})
-
-        pass_2_output = await _run_pass_2(expensive_client, payload, pass_1_output)
-
-        # ── Gate 2: coherence (deterministic) ─────────────────────────────────
-        gen_status["gate_2"] = "running"
-        coherence = compute_coherence_score(pass_2_output, payload.cv_text)
-
-        if coherence < COHERENCE_MIN:
-            quality_flags["gate_2_retry"] = True
-            quality_flags["gate_2_coherence_score"] = round(coherence, 3)
-            logger.info("cover-letter-gen: letter_id=%s gate_2 fail (coherence=%.3f) — retrying pass_2",
-                        letter_id, coherence)
-            coherence_guidance = (
-                "The vocabulary used must closely match the candidate's own CV language. "
-                "Prefer simpler, more direct phrasing. Avoid introducing terminology not "
-                "found in the candidate's CV or writing sample."
-            )
-            pass_2_output = await _run_pass_2(
-                expensive_client, payload, pass_1_output, extra_coherence=coherence_guidance
-            )
-            coherence = compute_coherence_score(pass_2_output, payload.cv_text)
-
-        gen_status["pass_2"] = "completed"
-        gen_status["gate_2"] = "completed"
-        await _patch(letter_id, {
-            "pass_2_voice_transferred": pass_2_output,
-            "coherence_score": round(coherence, 4) if not math.isnan(coherence) else None,
-            "generation_status": gen_status,
-        })
-        logger.info("cover-letter-gen: letter_id=%s pass_2 done (coherence=%.3f)",
-                    letter_id, coherence)
-
-        # ── Pass 3 ───────────────────────────────────────────────────────────
-        gen_status["pass_3"] = "running"
-        await _patch(letter_id, {"generation_status": gen_status})
-
-        pass_3_output = await _run_pass_3(cheap_client, payload, pass_2_output)
-
-        # ── Gate 3: burstiness (deterministic) ────────────────────────────────
-        gen_status["gate_3"] = "running"
-        burstiness = compute_burstiness(pass_3_output)
-        burstiness_ok = math.isnan(burstiness) or (BURSTINESS_MIN <= burstiness <= BURSTINESS_MAX)
-
-        if not burstiness_ok:
-            quality_flags["gate_3_retry"] = True
-            quality_flags["gate_3_burstiness"] = round(burstiness, 3)
-            logger.info("cover-letter-gen: letter_id=%s gate_3 fail (burstiness=%.3f) — retrying pass_3",
-                        letter_id, burstiness)
-            variance_guidance = (
-                "CRITICAL: vary sentence lengths significantly. At least one sentence must "
-                "be under 8 words and at least one must be over 20 words. No three "
-                "consecutive sentences should be within 5 words of each other in length."
-            )
-            pass_3_output = await _run_pass_3(
-                cheap_client, payload, pass_2_output, extra_variance=variance_guidance
-            )
-            burstiness = compute_burstiness(pass_3_output)
-
-        gen_status["pass_3"] = "completed"
-        gen_status["gate_3"] = "completed"
-
-        naturalness = normalise_burstiness(burstiness)
-        specificity_ok = check_specificity(pass_3_output)
-
-        await _patch(letter_id, {
-            "status": "completed",
+            "status": "failed",
+            "error_message": f"AI client initialisation failed: {exc}",
             "completed_at": _now_iso(),
-            "pass_3_final": pass_3_output,
-            "burstiness_score": round(burstiness, 4) if not math.isnan(burstiness) else None,
-            "naturalness_score": round(naturalness, 4),
-            "specificity_ok": specificity_ok,
-            "quality_flags": quality_flags,
-            "generation_status": gen_status,
+        })
+        return
+
+    # Mark running. Record the actually-used model in all three model columns
+    # so existing audit queries keep working regardless of which they read.
+    await _patch(letter_id, {
+        "status": "running",
+        "started_at": _now_iso(),
+        "generation_status": _initial_status(),
+        "pass_1_model": model,
+        "pass_2_model": model,
+        "pass_3_model": model,
+    })
+
+    primary_story_block = format_story(payload.story)
+    # Secondary-story plumbing is not yet wired in the web route — emits
+    # "(none available)" and the prompt naturally adapts (paragraph 3 only
+    # adds the secondary "if it exists and fits").
+    secondary_story_block = format_story(None)
+
+    try:
+        # ── Generate ──────────────────────────────────────────────────────
+        await _patch(letter_id, {
+            "generation_status": {"generate": "running", "honesty": "pending"},
         })
 
-        logger.info(
-            "cover-letter-gen: letter_id=%s completed — burstiness=%.3f naturalness=%.3f "
-            "specificity=%s honesty=%s coherence=%.3f",
-            letter_id,
-            burstiness if not math.isnan(burstiness) else -1,
-            naturalness,
-            specificity_ok,
-            honesty_ok,
-            coherence,
+        body = await _generate_body(
+            client, payload,
+            primary_story_block=primary_story_block,
+            secondary_story_block=secondary_story_block,
+            honesty_retry_block="",
         )
 
-    except AIClientError as exc:
-        logger.error("cover-letter-gen: letter_id=%s AI error: %s", letter_id, exc)
         await _patch(letter_id, {
-            "status": "failed",
-            "error_message": f"AI provider error: {str(exc)[:1000]}",
+            "pass_3_final": body,
+            "generation_status": {"generate": "completed", "honesty": "pending"},
+        })
+
+        # ── Honesty gate ──────────────────────────────────────────────────
+        await _patch(letter_id, {
+            "generation_status": {"generate": "completed", "honesty": "running"},
+        })
+
+        passed, unsupported = await _run_honesty_gate(client, body, payload.cv_text)
+        quality_flags: Dict[str, Any] = {}
+        honesty_ok = passed
+
+        if not passed and unsupported:
+            # One retry with the unsupported claims fed back into the prompt.
+            logger.info(
+                "cover letter %s: honesty gate failed (%d claims), retrying",
+                letter_id, len(unsupported),
+            )
+            retry_block = HONESTY_RETRY_TEMPLATE.format(
+                unsupported_claims=format_unsupported_claims(unsupported),
+            )
+            try:
+                body = await _generate_body(
+                    client, payload,
+                    primary_story_block=primary_story_block,
+                    secondary_story_block=secondary_story_block,
+                    honesty_retry_block=retry_block,
+                )
+                await _patch(letter_id, {"pass_3_final": body})
+                passed_2, unsupported_2 = await _run_honesty_gate(
+                    client, body, payload.cv_text,
+                )
+                quality_flags["honesty_retried"] = True
+                quality_flags["honesty_passed_after_retry"] = passed_2
+                honesty_ok = passed_2
+                if not passed_2 and unsupported_2:
+                    # Decision (b): accept output, surface warning in flags.
+                    quality_flags["unsupported_claims"] = unsupported_2
+            except AIClientError as exc:
+                logger.warning(
+                    "cover letter %s: honesty retry failed: %s", letter_id, exc,
+                )
+                quality_flags["honesty_retry_error"] = str(exc)
+                quality_flags["unsupported_claims"] = unsupported
+                # honesty_ok stays False — first-attempt failure stands.
+
+        elif not passed and not unsupported:
+            # Gate said fail but enumerated no claims — we cannot act on it.
+            # Surface the inconclusive state but do not block the output.
+            quality_flags["honesty_inconclusive"] = True
+            honesty_ok = True
+
+        # ── Persist final state ───────────────────────────────────────────
+        await _patch(letter_id, {
+            "status": "completed",
+            "honesty_ok": honesty_ok,
             "quality_flags": quality_flags,
+            "generation_status": {"generate": "completed", "honesty": "completed"},
             "completed_at": _now_iso(),
         })
-    except Exception as exc:
-        logger.exception("cover-letter-gen: letter_id=%s unexpected error", letter_id)
+        logger.info("cover letter %s: completed (honesty_ok=%s)", letter_id, honesty_ok)
+
+    except AIClientError as exc:
+        logger.error("cover letter %s: AI call failed: %s", letter_id, exc)
         await _patch(letter_id, {
             "status": "failed",
-            "error_message": f"Internal error: {str(exc)[:1000]}",
-            "quality_flags": quality_flags,
+            "error_message": f"AI generation failed: {exc}",
+            "completed_at": _now_iso(),
+        })
+    except Exception as exc:  # noqa: BLE001 — top-level safety net
+        logger.exception("cover letter %s: unexpected error", letter_id)
+        await _patch(letter_id, {
+            "status": "failed",
+            "error_message": f"Unexpected error: {exc}",
             "completed_at": _now_iso(),
         })
