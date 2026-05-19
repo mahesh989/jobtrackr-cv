@@ -1,41 +1,79 @@
 """
-Gate 1 prompt — Honesty check.
+Honesty gate prompt.
 
-Cheap model (Haiku / GPT-4o-mini). Verifies that every factual claim in
-the generated letter can be traced to the candidate's master CV. This is
-the most critical safety gate — a letter that invents credentials could
-end a job application.
+Verifies that claims about THE CANDIDATE in the generated letter can be
+traced to the candidate's master CV. Used by the single-call cover letter
+pipeline as a post-generation safety check.
 
-The model is asked to return a structured JSON object so the result can
-be parsed deterministically.
+Two design decisions worth knowing about:
+
+  1. Scope is candidate claims only. Claims about the company, the role, or
+     the industry are NEVER flagged here — the gate has no signal to verify
+     them against, and previously over-flagged sentences that came from the
+     company_fact input.
+
+  2. Bias is toward leniency. False positives (flagging a legitimate
+     paraphrase) scare users and erode trust in the warning. False negatives
+     (missing an invented claim) are caught by the user reviewing the letter
+     before sending. Under uncertainty, do not flag.
 
 Inputs (format placeholders):
-  {letter_text}    — the cover letter to verify (Pass 1 output typically,
-                     but may be called on Pass 3 output for final check)
-  {master_cv_text} — the candidate's full CV text
+  {letter_text}    — the cover letter body to verify
+  {master_cv_text} — the candidate's full CV text (truncated to 8000 chars
+                     upstream to fit alongside the letter in one call)
+
+Output: structured JSON object the orchestrator parses deterministically.
 """
 
 GATE_1_SYSTEM = """\
-You are a fact-checker for cover letters. Your job is to verify that every \
-factual claim in a cover letter can be traced to the candidate's CV.
+You are a fact-checker for cover letters. Your job is narrow: identify only \
+those claims ABOUT THE CANDIDATE that are clearly fabricated — meaning the \
+CV provides no support for them at all.
 
-A "factual claim" is any statement about:
-- A specific role, title, or employer
-- A date range or year
-- A measurable achievement (numbers, percentages, sizes)
-- A named skill, technology, product, or tool
-- An educational qualification
+IN SCOPE — only check claims about:
+  - Employers the candidate worked at
+  - Job titles the candidate held
+  - Educational qualifications (degrees, institutions, fields of study)
+  - Specific tools, technologies, or skills the candidate claims to have used
+  - Specific numeric achievements (percentages, scale, outcomes) the \
+candidate claims
+  - Date ranges or years of employment
 
-Generic statements ("I am experienced in X") are NOT factual claims — \
-ignore them. Only check specific, verifiable assertions.
+OUT OF SCOPE — never flag these:
+  - Any claim about the company being applied to (its history, products, \
+strategy, mission, values, recent events, naming, ownership)
+  - Any claim about the role itself or the industry
+  - Generic statements about the candidate's mindset, approach, comfort, \
+or interests (e.g. "I am comfortable with end-to-end work", "I enjoy \
+solving problems", "I bring a mix of experience")
+  - Paraphrases or summaries of CV content. "Contract role at X" is fine \
+if the CV says "X, Data Analyst (2024-2025)". "Led a team" is fine if \
+the CV says "team lead".
+  - Reasonable elaborations. "Improved accuracy by 20%" passes if the CV \
+mentions "20% accuracy" anywhere, even with different surrounding wording.
 
-Return a JSON object with this exact structure:
+DECISION RULE:
+A claim is "unsupported" only if the CV makes NO mention of the underlying \
+fact at all. If the CV mentions the employer, the technology, the \
+achievement, or the qualification — even briefly, even phrased differently \
+— the claim passes.
+
+When in doubt, do NOT flag. False positives are worse than false negatives \
+in this system — users see the warnings, and a noisy gate trains them to \
+ignore real problems.
+
+Return a JSON object with EXACTLY this structure (no other keys, no other \
+text):
 {
   "result": "pass" | "fail",
   "unsupported_claims": ["claim text", ...]
 }
 
-unsupported_claims must be empty ([]) when result is "pass"."""
+- "result" is "pass" when unsupported_claims is empty, "fail" otherwise.
+- "unsupported_claims" contains the specific text of unsupported claims \
+from the letter (a precise quote or close paraphrase). Empty list when \
+nothing is flagged.
+"""
 
 GATE_1_USER_TEMPLATE = """\
 Cover letter to fact-check:
@@ -50,7 +88,13 @@ Candidate's master CV:
 {master_cv_text}
 ---
 
-For each factual claim in the cover letter, verify it appears in the CV \
-or is a reasonable summary of something that does.
+Apply the decision rule from the system message:
+  - Only flag claims about THE CANDIDATE (employers, education, tools, \
+achievements).
+  - Do NOT flag claims about the company, the role, or the industry.
+  - Do NOT flag generic statements about mindset, approach, or interests.
+  - Do NOT flag paraphrases or elaborations of CV content.
+  - Only flag a claim if the CV makes NO MENTION of the underlying fact.
+  - When in doubt, do not flag.
 
 Return only the JSON object. No commentary."""
