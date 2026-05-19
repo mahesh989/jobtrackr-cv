@@ -478,7 +478,7 @@ export function CoverLetterPanel({ jobId, initial }: Props) {
             </button>
             <button
               onClick={() => setShowDownloadModal(true)}
-              className="rounded bg-green-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-green-700 transition-colors"
+              className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"
             >
               Download PDF
             </button>
