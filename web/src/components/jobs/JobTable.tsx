@@ -57,6 +57,9 @@ export interface Job {
   contact_email?:      string | null;
   hiring_manager?:     string | null;
   company_address?:    string | null;
+  /** Set on the unified dashboard board (all profiles) — undefined on
+   * per-profile boards where the profile context is already obvious. */
+  profile_name?:       string | null;
   /** Derived in page.tsx via progressFlags.deriveProgress(). */
   progress:            JobProgress;
 }
@@ -272,6 +275,11 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
               )}
               {job.location && (
                 <p className="text-[11px] text-text-3 truncate mt-0.5">{job.location}</p>
+              )}
+              {job.profile_name && (
+                <p className="text-[10px] text-text-3 truncate mt-0.5 italic opacity-80" title={`Found via "${job.profile_name}" search`}>
+                  via {job.profile_name}
+                </p>
               )}
               {(manualJd || contactEmail) && (
                 <div className="flex flex-wrap items-center gap-3 mt-1 text-xs">
