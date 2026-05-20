@@ -2,14 +2,15 @@
 
 /**
  * "Continue where you left off" — 3 horizontal cards above the job
- * board showing the most recently progressed jobs. Each card shows
- * a 4-dot progress indicator and a single contextual "next action"
- * CTA. Dismissable per browser via localStorage.
+ * board showing the most recently progressed jobs. Each card has a
+ * 4-dot progress indicator and a contextual "next action" CTA.
+ * Dismissable per browser via localStorage.
  *
  * Hidden when:
- *   - dismissed (localStorage key jobtrackr-lab-rail-dismissed = "1")
+ *   - dismissed (localStorage key jobtrackr-rail-dismissed = "1")
  *   - no jobs have any progress yet
- *   - user is on the Dismissed tab (and railOnAllTabs is false)
+ *   - user is not on the Active tab (unless showRailOnAllTabs is on)
+ *   - settings.hideRail is true
  */
 
 import { useState, useEffect } from "react";
@@ -17,7 +18,7 @@ import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
 import type { JobProgress } from "./progressFlags";
 import { nextAction } from "./progressFlags";
-import { useLabSettings } from "./LabSettingsPanel";
+import { useJobBoardSettings } from "./JobBoardSettings";
 
 export interface RailJob {
   id:                string;
@@ -27,7 +28,7 @@ export interface RailJob {
   progress:          JobProgress;
 }
 
-const DISMISS_KEY = "jobtrackr-lab-rail-dismissed";
+const DISMISS_KEY = "jobtrackr-rail-dismissed";
 
 function ProgressDots({ p }: { p: JobProgress }) {
   const cells: Array<{ on: boolean; label: string }> = [
@@ -52,7 +53,7 @@ function ProgressDots({ p }: { p: JobProgress }) {
 }
 
 export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab: string }) {
-  const settings = useLabSettings();
+  const settings = useJobBoardSettings();
   const [dismissed, setDismissed]   = useState<boolean | null>(null); // null = SSR/loading
 
   useEffect(() => {
@@ -63,7 +64,6 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
   if (dismissed)          return null;
   if (jobs.length === 0)  return null;
   if (settings.hideRail)  return null;
-  // Default: rail only on the Active tab. Overridable via settings.
   const isActiveTab = currentTab === "all" || !currentTab;
   if (!isActiveTab && !settings.showRailOnAllTabs) return null;
 

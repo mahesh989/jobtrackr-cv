@@ -1,83 +1,77 @@
 "use client";
 
 /**
- * Gear-icon dropdown with the 4 product-decision toggles for the lab.
- * Local state, persisted to localStorage. No DB.
+ * Gear-icon dropdown — display preferences for the job board.
+ * Local-only, persisted to localStorage. No DB.
  *
- * Toggles let the user feel each option live without redeploying:
- *   - showRailOnAllTabs        — show "Continue rail" on Applied/Dismissed too
- *   - hideProgressOnDismissed  — grey out vs hide progress dots on Dismissed
- *   - hideRail                 — kill the rail entirely (in case it gets noisy)
- *   - showProgressColumnHeader — text label "Progress" above the 4 icons
- *
- * Settings broadcast via a CustomEvent("lab-settings-changed") so the
- * board re-renders without prop-drilling. Components that care subscribe
- * to that event + read localStorage in a useEffect.
+ * Toggles broadcast via a CustomEvent("job-board-settings-changed") so
+ * any component that uses useJobBoardSettings() re-renders without
+ * prop-drilling.
  */
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
 
-export interface LabSettings {
+export interface JobBoardSettings {
   showRailOnAllTabs:       boolean;
   hideProgressOnDismissed: boolean;
   hideRail:                boolean;
   showProgressColumnLabel: boolean;
 }
 
-const STORAGE_KEY = "jobtrackr-lab-settings";
+const STORAGE_KEY = "jobtrackr-jobs-settings";
 
-export const DEFAULT_LAB_SETTINGS: LabSettings = {
+export const DEFAULT_JOB_BOARD_SETTINGS: JobBoardSettings = {
   showRailOnAllTabs:       false,
   hideProgressOnDismissed: false,
   hideRail:                false,
   showProgressColumnLabel: true,
 };
 
-export function readLabSettings(): LabSettings {
-  if (typeof window === "undefined") return DEFAULT_LAB_SETTINGS;
+export function readJobBoardSettings(): JobBoardSettings {
+  if (typeof window === "undefined") return DEFAULT_JOB_BOARD_SETTINGS;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_LAB_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<LabSettings>;
-    return { ...DEFAULT_LAB_SETTINGS, ...parsed };
+    if (!raw) return DEFAULT_JOB_BOARD_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<JobBoardSettings>;
+    return { ...DEFAULT_JOB_BOARD_SETTINGS, ...parsed };
   } catch {
-    return DEFAULT_LAB_SETTINGS;
+    return DEFAULT_JOB_BOARD_SETTINGS;
   }
 }
 
-function writeLabSettings(s: LabSettings) {
+function writeSettings(s: JobBoardSettings) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    window.dispatchEvent(new CustomEvent("lab-settings-changed"));
+    window.dispatchEvent(new CustomEvent("job-board-settings-changed"));
   } catch { /* quota */ }
 }
 
-/** Hook for any client component to react to settings changes live. */
-export function useLabSettings(): LabSettings {
-  const [s, setS] = useState<LabSettings>(DEFAULT_LAB_SETTINGS);
+/** Hook — any client component reacts to settings changes live. */
+export function useJobBoardSettings(): JobBoardSettings {
+  const [s, setS] = useState<JobBoardSettings>(DEFAULT_JOB_BOARD_SETTINGS);
   useEffect(() => {
-    setS(readLabSettings());
-    const handler = () => setS(readLabSettings());
-    window.addEventListener("lab-settings-changed", handler);
+    setS(readJobBoardSettings());
+    const handler = () => setS(readJobBoardSettings());
+    window.addEventListener("job-board-settings-changed", handler);
     window.addEventListener("storage", handler);
     return () => {
-      window.removeEventListener("lab-settings-changed", handler);
+      window.removeEventListener("job-board-settings-changed", handler);
       window.removeEventListener("storage", handler);
     };
   }, []);
   return s;
 }
 
-export function LabSettingsPanel() {
+export function JobBoardSettingsPanel() {
   const [open, setOpen]   = useState(false);
-  const [s, setS]         = useState<LabSettings>(DEFAULT_LAB_SETTINGS);
+  const [s, setS]         = useState<JobBoardSettings>(DEFAULT_JOB_BOARD_SETTINGS);
   const [pos, setPos]     = useState<{ top: number; right: number } | null>(null);
   const btnRef            = useRef<HTMLButtonElement>(null);
   const menuRef           = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setS(readLabSettings()); }, []);
+  useEffect(() => { setS(readJobBoardSettings()); }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -99,18 +93,18 @@ export function LabSettingsPanel() {
     setOpen((v) => !v);
   }
 
-  function update<K extends keyof LabSettings>(k: K, v: LabSettings[K]) {
+  function update<K extends keyof JobBoardSettings>(k: K, v: JobBoardSettings[K]) {
     const next = { ...s, [k]: v };
     setS(next);
-    writeLabSettings(next);
+    writeSettings(next);
   }
 
   function reset() {
-    setS(DEFAULT_LAB_SETTINGS);
-    writeLabSettings(DEFAULT_LAB_SETTINGS);
+    setS(DEFAULT_JOB_BOARD_SETTINGS);
+    writeSettings(DEFAULT_JOB_BOARD_SETTINGS);
   }
 
-  const Row = ({ k, label, hint }: { k: keyof LabSettings; label: string; hint: string }) => (
+  const Row = ({ k, label, hint }: { k: keyof JobBoardSettings; label: string; hint: string }) => (
     <label className="flex items-start gap-2.5 px-3 py-2 hover:bg-[var(--surface-2)] cursor-pointer transition-colors">
       <input
         type="checkbox"
@@ -133,7 +127,7 @@ export function LabSettingsPanel() {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="px-3 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]">
-        <p className="text-[12px] font-semibold text-text">Lab settings</p>
+        <p className="text-[12px] font-semibold text-text">Display settings</p>
         <p className="text-[11px] text-text-3 leading-snug mt-0.5">
           Stored in your browser. No data leaves this device.
         </p>
@@ -182,13 +176,13 @@ export function LabSettingsPanel() {
       <button
         ref={btnRef}
         onClick={toggle}
-        title="Lab settings"
+        title="Display settings"
         className={`gh-btn inline-flex items-center gap-1.5 text-[11px] px-2 py-1 ${
           open ? "border-[var(--brand)] text-[var(--brand)]" : ""
         }`}
       >
         <Settings2 className="w-3.5 h-3.5" />
-        Settings
+        Display
       </button>
       {typeof document !== "undefined" && menu && createPortal(menu, document.body)}
     </>

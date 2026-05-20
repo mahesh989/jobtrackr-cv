@@ -1,19 +1,18 @@
 /**
- * Lab job-board: progress derivation helpers.
+ * Job-board progress derivation helpers.
  *
  * Pure functions — no React, no Supabase. Take raw rows from
  * `analysis_runs` and `cover_letters`, return a small struct of 4
  * boolean progress flags + a score + the most-recent timestamp.
  *
- * Why a separate module: the same derivation is consumed by
- * LabJobTable (progress column), LabFilterChips (counts), ContinueRail
- * (sort by last_progress_at), and the lab page (chip filter + sort).
- * Single source of truth.
+ * Single source of truth for: JobTable (progress column),
+ * JobProgressChips (counts), ContinueRail (sort by last_progress_at),
+ * the jobs page (chip filter + sort).
  *
- * If/when we promote the lab to production, the four booleans here
- * should be denormalised onto `jobs` via triggers (migration 031) so
- * the join can be replaced by a single indexed scan. See OPS notes
- * in graph.json — this file's contract stays the same either way.
+ * At million-user scale, the four booleans here should be denormalised
+ * onto `jobs` via triggers (migration 031 — designed, not built) so
+ * the join can be replaced by a single indexed scan. This file's
+ * contract stays the same either way.
  */
 
 export interface AnalysisRunRef {
@@ -96,8 +95,7 @@ export function deriveProgress(
 
 /**
  * Build a Map<job_id, latestRow> taking the FIRST row per job_id from
- * a list already ordered by created_at DESC. Mirrors the existing
- * pattern in profiles/[id]/jobs/page.tsx.
+ * a list already ordered by created_at DESC.
  */
 export function indexLatestByJob<T extends { job_id: string }>(
   rows: T[] | null | undefined,
@@ -130,5 +128,5 @@ export function nextAction(
     return { label: "Continue analysis", key: "continue",
              href: p.latest_run_id ? `/dashboard/jobs/${job.id}/analyze/${p.latest_run_id}` : null };
   }
-  return { label: "Analyse now", key: "analyse", href: null }; // analyse via AnalyzeJobButton in row
+  return { label: "Analyse now", key: "analyse", href: null };
 }

@@ -1,8 +1,25 @@
+/**
+ * Job board — canonical route at /dashboard/profiles/[id]/jobs.
+ *
+ * Data fetch: three queries + JS stitching.
+ *   1. jobs              (filtered by status / location / posted_within)
+ *   2. analysis_runs     (latest non-stale per job — for "Analysed" + tailored CV)
+ *   3. cover_letters     (latest non-stale per job — for "Cover letter ready")
+ *
+ * Progress derivation runs in JS (progressFlags.deriveProgress). At
+ * million-user scale, replace with denormalised flags on `jobs` +
+ * indexed scan (migration 031 — designed, not built).
+ *
+ * URL params:
+ *   status, sort, dir, location, posted_within, min_keywords, visa_toggle,
+ *   chips        (comma list: analysed,hasCv,hasLetter — AND semantics)
+ *   sort=recently_progressed | most_progressed   (JS-side sort modes)
+ */
+
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { JobTable } from "@/components/JobTable";
 import { JobStatusTabs } from "@/components/JobFilters";
 import { JobFilterBar } from "@/components/JobFilterBar";
 import { RunNowButton } from "@/components/RunNowButton";
@@ -10,22 +27,50 @@ import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
 import { LiveRunStatus } from "@/components/LiveRunStatus";
 import { LiveLogConsole } from "@/components/LiveLogConsole";
+import { JobTable, type Job } from "@/components/jobs/JobTable";
+import { JobProgressChips, type JobProgressChipCounts } from "@/components/jobs/JobProgressChips";
+import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
+import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
+import {
+  deriveProgress,
+  indexLatestByJob,
+  type AnalysisRunRef,
+  type CoverLetterRef,
+} from "@/components/jobs/progressFlags";
 
 interface SearchParams {
-  sort?: string; dir?: string; status?: string;
-  min_keywords?: string; min_visa?: string; visa_toggle?: string;
-  source?: string; location?: string; posted_within?: string;
+  sort?:          string;
+  dir?:           string;
+  status?:        string;
+  min_keywords?:  string;
+  min_visa?:      string;
+  visa_toggle?:   string;
+  source?:        string;
+  location?:      string;
+  posted_within?: string;
+  chips?:         string;
+}
+
+type ChipKey = "analysed" | "hasCv" | "hasLetter";
+const VALID_CHIPS: ChipKey[] = ["analysed", "hasCv", "hasLetter"];
+
+function parseChips(raw: string | undefined): Set<ChipKey> {
+  if (!raw) return new Set();
+  const valid = new Set<ChipKey>(VALID_CHIPS);
+  return new Set(
+    raw.split(",").map((s) => s.trim()).filter((s): s is ChipKey => valid.has(s as ChipKey)),
+  );
 }
 
 export default async function JobsPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params:       Promise<{ id: string }>;
   searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
-  const sp = await searchParams;
+  const sp     = await searchParams;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -50,7 +95,7 @@ export default async function JobsPage({
     keywords: string[]; schedule_cron: string;
   };
 
-  // Build filtered query
+  // ── Build filtered jobs query ────────────────────────────────────────────
   let query = supabase
     .from("jobs")
     .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address")
@@ -58,8 +103,7 @@ export default async function JobsPage({
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  // Status filter
-  if (sp.status === "new")       query = query.is("seen_at", null).is("dismissed_at", null);
+  if (sp.status === "new")            query = query.is("seen_at", null).is("dismissed_at", null);
   else if (sp.status === "applied")   query = query.not("applied_at", "is", null).is("dismissed_at", null);
   else if (sp.status === "dismissed") query = query.not("dismissed_at", "is", null);
   else                                query = query.is("dismissed_at", null);
@@ -75,6 +119,9 @@ export default async function JobsPage({
     }
   }
 
+  // Server-side sort applies only for the column sort modes. The two
+  // progress sorts (recently_progressed, most_progressed) are JS-side
+  // because they depend on derived data.
   const sortCol = sp.sort ?? "posted_at";
   const sortDir = sp.dir === "asc";
   const allowed = ["title", "company", "location", "posted_at", "created_at", "visa_likelihood"];
@@ -84,39 +131,103 @@ export default async function JobsPage({
 
   query = query.limit(200);
   const { data: jobs } = await query;
-  let jobList = (jobs ?? []) as any[];
+  let jobList = (jobs ?? []) as Array<{
+    id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
+  }>;
 
   if (sp.min_keywords) {
     const minK = parseInt(sp.min_keywords, 10);
-    if (!isNaN(minK)) jobList = jobList.filter((j) => (j.keywords_matched?.length ?? 0) >= minK);
+    if (!isNaN(minK)) {
+      jobList = jobList.filter((j) => ((j.keywords_matched as string[] | null)?.length ?? 0) >= minK);
+    }
   }
 
-  // ── Latest non-stale analysis run per job (for the 'View analysis' affordance)
-  // We pull all non-stale runs scoped to this profile's jobs, then group client-side.
   const jobIds = jobList.map((j) => j.id);
+
+  // ── Latest non-stale analysis_runs row per job ───────────────────────────
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, created_at")
+        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at")
         .in("job_id", jobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
-    : { data: [] as Array<{ id: string; job_id: string; status: string; created_at: string }> };
+    : { data: [] as AnalysisRunRef[] };
 
-  const latestRunByJob = new Map<string, { id: string; status: string }>();
-  for (const r of recentRuns ?? []) {
-    if (!latestRunByJob.has(r.job_id)) {
-      latestRunByJob.set(r.job_id, { id: r.id, status: r.status });
-    }
+  // ── Latest non-stale cover_letters row per job ───────────────────────────
+  const { data: recentLetters } = jobIds.length > 0
+    ? await supabase
+        .from("cover_letters")
+        .select("id, job_id, status, completed_at, created_at")
+        .in("job_id", jobIds)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false })
+    : { data: [] as CoverLetterRef[] };
+
+  const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
+  const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
+
+  // ── Derive progress + attach to each job ─────────────────────────────────
+  let typedJobs: Job[] = jobList.map((j) => {
+    const progress = deriveProgress(
+      { applied_at: j.applied_at },
+      runByJob.get(j.id),
+      letterByJob.get(j.id),
+    );
+    return { ...(j as unknown as Job), progress };
+  });
+
+  // ── Chip counts BEFORE chip filter (so toggling never collapses to 0) ────
+  const chipCounts: JobProgressChipCounts = {
+    analysed:  typedJobs.filter((j) => j.progress.has_analysis).length,
+    hasCv:     typedJobs.filter((j) => j.progress.has_tailored_cv).length,
+    hasLetter: typedJobs.filter((j) => j.progress.has_cover_letter).length,
+  };
+
+  // ── Continue rail — top 3 by last_progress_at DESC ───────────────────────
+  const railJobs: RailJob[] = [...typedJobs]
+    .filter((j) => j.progress.last_progress_at !== null && !j.dismissed_at)
+    .sort((a, b) =>
+      (b.progress.last_progress_at ?? "").localeCompare(a.progress.last_progress_at ?? ""),
+    )
+    .slice(0, 3)
+    .map((j) => ({
+      id:         j.id,
+      profile_id: j.profile_id,
+      title:      j.title,
+      company:    j.company,
+      progress:   j.progress,
+    }));
+
+  // ── Chip filter (AND semantics) ──────────────────────────────────────────
+  const selectedChips = parseChips(sp.chips);
+  if (selectedChips.size > 0) {
+    typedJobs = typedJobs.filter((j) => {
+      if (selectedChips.has("analysed")  && !j.progress.has_analysis)     return false;
+      if (selectedChips.has("hasCv")     && !j.progress.has_tailored_cv)  return false;
+      if (selectedChips.has("hasLetter") && !j.progress.has_cover_letter) return false;
+      return true;
+    });
   }
-  // Attach to each job for JobTable consumption
-  jobList = jobList.map((j) => ({
-    ...j,
-    latest_run_id:     latestRunByJob.get(j.id)?.id ?? null,
-    latest_run_status: latestRunByJob.get(j.id)?.status ?? null,
-  }));
 
-  // Counts (always against unfiltered active list)
+  // ── JS-side sort modes ───────────────────────────────────────────────────
+  if (sortCol === "recently_progressed") {
+    typedJobs = [...typedJobs].sort((a, b) => {
+      const aT = a.progress.last_progress_at ?? "";
+      const bT = b.progress.last_progress_at ?? "";
+      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
+    });
+  } else if (sortCol === "most_progressed") {
+    typedJobs = [...typedJobs].sort((a, b) => {
+      const ds = b.progress.progress_score - a.progress.progress_score;
+      if (ds !== 0) return sortDir ? -ds : ds;
+      const aT = a.progress.last_progress_at ?? "";
+      const bT = b.progress.last_progress_at ?? "";
+      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
+    });
+  }
+
+  // ── Status-tab counts (always against unfiltered active list) ────────────
   const { data: countRows } = await supabase
     .from("jobs")
     .select("id, seen_at, applied_at, dismissed_at")
@@ -124,11 +235,13 @@ export default async function JobsPage({
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  const allRows     = countRows ?? [];
-  const totalCount  = allRows.filter((j) => !j.dismissed_at).length;
-  const newCount    = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
-  const appliedCount = allRows.filter((j) => j.applied_at).length;
-  const dismissedCount = allRows.filter((j) => j.dismissed_at).length;
+  const allRows         = countRows ?? [];
+  const totalCount      = allRows.filter((j) => !j.dismissed_at).length;
+  const newCount        = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
+  const appliedCount    = allRows.filter((j) => j.applied_at).length;
+  const dismissedCount  = allRows.filter((j) => j.dismissed_at).length;
+
+  const currentTab = sp.status ?? "all";
 
   const exportParams = new URLSearchParams();
   if (sp.sort) exportParams.set("sort", sp.sort);
@@ -139,10 +252,9 @@ export default async function JobsPage({
     <div className="min-h-full">
       <MarkSeenOnLoad profileId={id} />
 
-      {/* Page header */}
+      {/* Header */}
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-start justify-between gap-4">
-          {/* Breadcrumb + title */}
           <div>
             <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
               <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
@@ -172,13 +284,6 @@ export default async function JobsPage({
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href={`/dashboard/profiles/${id}/jobs/lab`}
-              className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-md font-medium border border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
-              title="Open the new beta job board (progress column, filter chips, continue rail)"
-            >
-              ✨ Try beta board
-            </Link>
-            <Link
               href={`/api/profiles/${id}/jobs/export?${exportParams.toString()}`}
               className="gh-btn text-[12px] px-2.5 py-1"
             >
@@ -199,6 +304,7 @@ export default async function JobsPage({
             >
               Edit
             </Link>
+            <JobBoardSettingsPanel />
             <RunNowButton profileId={id} initialIsRunning={isRunning} />
             <DeleteProfileButton profileId={id} profileName={p.name} compact />
           </div>
@@ -206,11 +312,10 @@ export default async function JobsPage({
       </div>
 
       <div className="px-6 py-4 space-y-4">
-        {/* Pipeline running status */}
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
         <LiveLogConsole profileId={id} />
 
-        {/* Row 1: status tabs */}
+        {/* Status tabs */}
         <div className="anim-in">
           <Suspense>
             <JobStatusTabs
@@ -222,23 +327,33 @@ export default async function JobsPage({
           </Suspense>
         </div>
 
-        {/* Row 2: secondary filters (left) + sort bar (right) — unified single row */}
+        {/* Filter bar (posted-within, location, visa, base sort) */}
         <div className="anim-in">
           <Suspense>
-            <JobFilterBar total={jobList.length} />
+            <JobFilterBar total={typedJobs.length} />
           </Suspense>
         </div>
+
+        {/* Progress chips + progress sorts */}
+        <div className="anim-in anim-delay-1">
+          <Suspense>
+            <JobProgressChips counts={chipCounts} />
+          </Suspense>
+        </div>
+
+        {/* Continue rail — gated by tab + settings */}
+        <ContinueRail jobs={railJobs} currentTab={currentTab} />
 
         {/* Job table */}
         <div className="anim-in anim-delay-1">
           <JobTable
-            jobs={jobList}
+            jobs={typedJobs}
             showVisa={sp.visa_toggle === "1"}
-            currentTab={sp.status ?? "all"}
+            currentTab={currentTab}
           />
         </div>
 
-        {/* Footer links */}
+        {/* Footer */}
         <div className="flex items-center gap-3 text-[11px] text-text-3 pt-2 anim-in anim-delay-2">
           <Link href={`/dashboard/profiles/${id}/runs`} className="hover:text-text transition-colors">
             Run history

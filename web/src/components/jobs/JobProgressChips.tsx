@@ -1,19 +1,18 @@
 "use client";
 
 /**
- * Multi-select progress filter chips + two extra sort modes.
+ * Multi-select progress filter chips + two progress sort modes.
  *
  * Filter chips (AND semantics, URL-encoded as ?chips=hasCv,hasLetter,analysed):
  *   - Analysed:   has a completed analysis_runs row
  *   - Has CV:     has a tailored_pdf_storage_path (or markdown) in analysis_runs
  *   - Has Letter: has a completed cover_letters row
  *
- * Extra sorts (URL-encoded as ?sort=recently_analysed | most_progressed):
- *   - Recently analysed: by max(analysis_runs.completed_at) DESC
- *   - Most progressed:   by progress_score DESC, tiebreak last_progress_at DESC
+ * Extra sorts (URL-encoded as ?sort=recently_progressed | most_progressed):
+ *   - Recently progressed: by max(last_progress_at) DESC
+ *   - Most progressed:     by progress_score DESC, tiebreak last_progress_at DESC
  *
- * Server-side filtering/sorting for the standard sort modes is left to the
- * existing JobFilterBar — this component is additive.
+ * Standard sorts (Date posted / Date added) live in the JobFilterBar.
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -22,7 +21,7 @@ import { Check, FileText, Mail, BarChart3, Sparkles } from "lucide-react";
 
 export type ChipKey = "analysed" | "hasCv" | "hasLetter";
 
-export interface LabFilterChipCounts {
+export interface JobProgressChipCounts {
   analysed:  number;
   hasCv:     number;
   hasLetter: number;
@@ -34,9 +33,9 @@ const CHIPS: Array<{ key: ChipKey; label: string; Icon: typeof Check }> = [
   { key: "hasLetter", label: "Has Letter", Icon: Mail },
 ];
 
-const LAB_SORTS = [
-  { value: "recently_analysed", label: "Recently progressed" },
-  { value: "most_progressed",   label: "Most progressed"     },
+const PROGRESS_SORTS = [
+  { value: "recently_progressed", label: "Recently progressed" },
+  { value: "most_progressed",     label: "Most progressed"     },
 ] as const;
 
 function parseChips(raw: string | null): Set<ChipKey> {
@@ -45,7 +44,7 @@ function parseChips(raw: string | null): Set<ChipKey> {
   return new Set(raw.split(",").map((s) => s.trim()).filter((s): s is ChipKey => valid.has(s as ChipKey)));
 }
 
-export function LabFilterChips({ counts }: { counts: LabFilterChipCounts }) {
+export function JobProgressChips({ counts }: { counts: JobProgressChipCounts }) {
   const router   = useRouter();
   const pathname = usePathname();
   const sp       = useSearchParams();
@@ -66,7 +65,6 @@ export function LabFilterChips({ counts }: { counts: LabFilterChipCounts }) {
   function setSort(value: string) {
     const params = new URLSearchParams(sp.toString());
     if (value === currentSort) {
-      // Toggle off → back to default
       params.delete("sort");
       params.delete("dir");
     } else {
@@ -105,11 +103,10 @@ export function LabFilterChips({ counts }: { counts: LabFilterChipCounts }) {
         );
       })}
 
-      {/* Spacer */}
       <div className="flex-1 min-w-2" />
 
       <span className="text-[11px] font-medium text-text-3 mr-1">Sort</span>
-      {LAB_SORTS.map((opt) => {
+      {PROGRESS_SORTS.map((opt) => {
         const active = currentSort === opt.value;
         return (
           <button
