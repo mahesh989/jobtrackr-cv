@@ -17,6 +17,7 @@ const SOURCE_BONUS: Record<string, number> = {
   seek:       2000,
   greenhouse: 1500,
   lever:      1500,
+  careerjet:  1800,   // Long full-JD descriptions (5-14k chars) via /jobad/<hash>
   adzuna:      400,
   jora:        100,
 };

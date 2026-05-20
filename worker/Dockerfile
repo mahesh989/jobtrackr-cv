@@ -16,17 +16,24 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Playwright Chromium system dependencies (Debian)
+# System dependencies: Playwright Chromium libs + Python + curl_cffi
+# curl_cffi provides Chrome 124 TLS impersonation for Cloudflare bypass
+# (used by fetch_jd.py to scrape SEEK and Careerjet JD pages from Fly's IP).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
     libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
     libxfixes3 libxrandr2 libgbm1 libasound2 ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    python3-minimal python3-pip \
+    && pip3 install --break-system-packages --no-cache-dir curl_cffi \
+    && rm -rf /var/lib/apt/lists/* ~/.cache/pip
 
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 RUN npx playwright install chromium
 
 COPY --from=build /app/dist ./dist
+
+# Python JD-fetcher script (used by curl_cffi subprocess in curlfetch.ts)
+COPY scripts/fetch_jd.py ./scripts/fetch_jd.py
 
 CMD ["node", "dist/index.js"]

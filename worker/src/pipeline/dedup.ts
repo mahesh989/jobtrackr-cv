@@ -192,6 +192,7 @@ function scoreOf(m: { kind: "new"; job: NormalisedJob } | { kind: "existing"; jo
     src === "seek"        ? 2000 :
     src === "greenhouse"  ? 1500 :
     src === "lever"       ? 1500 :
+    src === "careerjet"   ? 1800 :
     src === "adzuna"      ?  400 :
     src === "jora"        ?  100 : 0;
   return Math.min(desc, 5000) + srcBonus;

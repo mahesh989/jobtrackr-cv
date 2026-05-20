@@ -46,6 +46,11 @@ coverage/
 supabase/.branches
 supabase/.temp
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
 # Test artefacts and one-off scripts — removed 2026-05-16
 # Do not re-add these. If you need ad-hoc scraping scripts, put them in
 # /scripts/ at repo root with a clear name and commit them properly.
@@ -56,3 +61,10 @@ web/verify_slugs.py
 worker/jora_test_*.json
 worker/test-update.js
 worker/fix-dead-links.js
+
+# Scraper probe/debug scripts — one-off diagnostics, not production code
+worker/scripts/seek-*.ts
+worker/scripts/.seek-capture/
+worker/src/scripts/test*.ts
+supabase/migrations/ain_jobs*.json
+supabase/migrations/scrape_*.py

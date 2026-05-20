@@ -1,4 +1,5 @@
 import { adzunaAdapter } from "./adzuna.js";
+import { careerjetAdapter } from "./careerjet.js";
 import { apsJobsRssAdapter } from "./apsJobsRss.js";
 import { nswGovRssAdapter } from "./nswGovRss.js";
 import { vicGovRssAdapter } from "./vicGovRss.js";
@@ -29,6 +30,7 @@ export const adapters: SourceAdapter[] = [
   // Note: apsJobsRssAdapter, nswGovRssAdapter, vicGovRssAdapter, qldGovRssAdapter removed —
   // none of these gov sites expose working RSS feeds (Salesforce/403/HTML-only).
   adzunaAdapter,
+  careerjetAdapter,    // Tier 1 — free API (500 reqs/day), full JD via /jobad/<hash>
 
   // Tier 2 — AU tech/enterprise ATS (public JSON, no auth)
   greenhouseAdapter,
@@ -61,6 +63,7 @@ export const adapters: SourceAdapter[] = [
 
 export {
   adzunaAdapter,
+  careerjetAdapter,
   apsJobsRssAdapter,
   nswGovRssAdapter,
   vicGovRssAdapter,

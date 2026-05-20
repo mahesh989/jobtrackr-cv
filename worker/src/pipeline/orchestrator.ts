@@ -30,6 +30,8 @@ import { extractVisaInfo } from "../ai/visaExtractor.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
+import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
+import { enrichWithCareerjetJDs } from "../sources/careerjet.js";
 import { decryptApiKey } from "../lib/crypto.js";
 
 interface FullProfile extends SearchProfile {
@@ -275,16 +277,38 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         }
       }
     }
-    // ── SEEK (per-user Apify adapter) ─────────────────────────────────────────
-    // Runs after the shared adapters so cost is tracked separately.
-    if (seekAdapter && seekIntegration) {
+    // ── SEEK ──────────────────────────────────────────────────────────────────
+    // Primary: seekDirect (got-scraping → seek.com.au HTML, zero cost).
+    // Fallback: createSeekAdapter (Apify actor) — only runs if direct THROWS.
+    // A direct fetch that returns 0 jobs successfully is a valid result for
+    // small markets (e.g. Darwin) and must NOT trigger fallback.
+    let seekDirectFailed = false;
+    await checkCancellation(runLogId);
+    await setStage(runLogId, "Fetching from SEEK");
+    try {
+      const seekJobs = await seekDirectAdapter.fetchJobs(profile);
+      rawJobs.push(...seekJobs);
+      sourcesRun.push("seek");
+      console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
+    } catch (err) {
+      seekDirectFailed = true;
+      console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
+      if (seekAdapter && seekIntegration) {
+        console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor`);
+      } else {
+        console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
+      }
+    }
+
+    // Fallback: only runs if direct path threw AND user has a working Apify integration.
+    if (seekDirectFailed && seekAdapter && seekIntegration) {
       await checkCancellation(runLogId);
-      await setStage(runLogId, "Fetching from SEEK");
+      await setStage(runLogId, "Fetching from SEEK (Apify fallback)");
       try {
         const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
         rawJobs.push(...seekJobs);
-        sourcesRun.push("seek");
-        console.log(`[pipeline]   seek: ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
+        if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
+        console.log(`[pipeline]   seek (apify fallback): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
 
         // Persist updated spend immediately — even if rest of pipeline fails
         const newSpend = seekIntegration.quota_used_usd + costUsd;
@@ -302,7 +326,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           })
           .eq("id", seekIntegration.id);
       } catch (err) {
-        console.error(`[pipeline] seek failed: ${err instanceof Error ? err.message : err}`);
+        console.error(`[pipeline] seek (apify fallback) failed: ${err instanceof Error ? err.message : err}`);
         // Mark as invalid so next run doesn't retry a broken token
         await db.from("user_integrations")
           .update({ status: "invalid", status_reason: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
@@ -429,31 +453,72 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // on to be saved (modulo the desc-exclusion re-check below). Non-SEEK
     // sources pass through unchanged.
     let kept = dedupKept;
-    if (seekAdapter && seekToken && seekIntegration && dedupKept.some((j) => j.source === "seek")) {
+    const seekSurvivors = dedupKept.some((j) => j.source === "seek");
+    if (seekSurvivors) {
       await setStage(runLogId, "Fetching full SEEK descriptions");
-      const { jobs: enriched, costUsd: jdCost, merged, fetched } =
-        await enrichWithFullJDs(dedupKept, seekToken);
-      kept = enriched;
-      console.log(`[pipeline] stage 7 — SEEK JD enrichment: ${merged}/${fetched} full descriptions merged (cost $${jdCost.toFixed(4)})`);
 
-      if (jdCost > 0) {
-        const newSpend  = seekIntegration.quota_used_usd + jdCost;
-        const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
-        await db.from("user_integrations")
-          .update({
-            quota_used_usd: newSpend,
-            last_used_at:   new Date().toISOString(),
-            status:         newStatus,
-            status_reason:  newStatus === "quota_exceeded"
-              ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
-              : null,
-            updated_at:     new Date().toISOString(),
-          })
-          .eq("id", seekIntegration.id);
-        // Keep local copy fresh so any later updates stack correctly
-        seekIntegration.quota_used_usd = newSpend;
+      // Primary: direct fetch via got-scraping (free, fast).
+      let directMerged = 0;
+      let directFetched = 0;
+      let directThrew = false;
+      try {
+        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept);
+        kept = enriched;
+        directMerged = merged;
+        directFetched = fetched;
+        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0)`);
+      } catch (err) {
+        directThrew = true;
+        console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}`);
       }
 
+      // Fallback: Apify enrichment only if direct couldn't merge ANY descriptions
+      // AND the user has a working Apify integration with budget left.
+      const directProducedNothing = directThrew || (directFetched > 0 && directMerged === 0);
+      if (directProducedNothing && seekAdapter && seekToken && seekIntegration) {
+        console.warn(`[pipeline] stage 7 — falling back to Apify JD fetcher`);
+        const { jobs: enriched, costUsd: jdCost, merged, fetched } =
+          await enrichWithFullJDs(kept, seekToken);
+        kept = enriched;
+        console.log(`[pipeline] stage 7 — SEEK JD apify fallback: ${merged}/${fetched} full descriptions merged (cost $${jdCost.toFixed(4)})`);
+
+        if (jdCost > 0) {
+          const newSpend  = seekIntegration.quota_used_usd + jdCost;
+          const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
+          await db.from("user_integrations")
+            .update({
+              quota_used_usd: newSpend,
+              last_used_at:   new Date().toISOString(),
+              status:         newStatus,
+              status_reason:  newStatus === "quota_exceeded"
+                ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
+                : null,
+              updated_at:     new Date().toISOString(),
+            })
+            .eq("id", seekIntegration.id);
+          // Keep local copy fresh so any later updates stack correctly
+          seekIntegration.quota_used_usd = newSpend;
+        }
+      }
+    }
+
+    // ── Stage 7c: Careerjet full-JD enrichment ─────────────────────────────────
+    // Mirrors SEEK's pattern — Careerjet survivors only, free (got-scraping +
+    // Apify residential proxy on Fly). Runs independently of SEEK so a
+    // Careerjet-only profile still gets full JDs.
+    const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
+    if (careerjetSurvivors) {
+      await setStage(runLogId, "Fetching full Careerjet descriptions");
+      try {
+        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept);
+        kept = enriched;
+        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0)`);
+      } catch (err) {
+        console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    if (seekSurvivors || careerjetSurvivors) {
       // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
       // The first pass at stage 4c could only see teasers for SEEK. Now that we
       // have full JDs, dropped phrases that lived deep in the description are
