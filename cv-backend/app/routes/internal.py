@@ -15,7 +15,8 @@ Endpoints:
   - POST /internal/scrape-jd               — JD scraping helper
   - POST /internal/research-company         — company research (Tavily + scrape + AI distill)
   - POST /internal/select-company-fact      — deterministic fact ranking (no AI)
-  - POST /internal/generate-cover-letter    — single-call cover letter pipeline (BackgroundTask)
+  - POST /internal/generate-cover-letter        — single-call cover letter pipeline (BackgroundTask)
+  - POST /internal/generate-opening-variants    — 3-4 P1 opener variants, synchronous
 """
 from __future__ import annotations
 
@@ -64,8 +65,14 @@ from app.schemas.company import (
     SelectCompanyFactResponse,
     RankedFact,
 )
-from app.schemas.cover_letter import GenerateCoverLetterRequest, GenerateCoverLetterResponse
+from app.schemas.cover_letter import (
+    GenerateCoverLetterRequest,
+    GenerateCoverLetterResponse,
+    GenerateOpeningVariantsRequest,
+    GenerateOpeningVariantsResponse,
+)
 from app.services.cover_letter.generator import run_cover_letter_pipeline
+from app.services.cover_letter.variants import generate_opening_variants
 
 logger = logging.getLogger(__name__)
 
@@ -446,6 +453,50 @@ async def select_company_fact_endpoint(body: SelectCompanyFactRequest) -> Select
             for item in ranked
         ]
     )
+
+
+# ── /internal/generate-opening-variants ───────────────────────────────────────
+
+@router.post(
+    "/generate-opening-variants",
+    response_model=GenerateOpeningVariantsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_opening_variants_endpoint(
+    body: GenerateOpeningVariantsRequest,
+) -> GenerateOpeningVariantsResponse:
+    """
+    Generate 3-4 structurally distinct P1 openers in a single AI call.
+
+    Unlike /generate-cover-letter this endpoint is synchronous — it returns
+    the variants in the response body (typical latency: 5-15 s). The caller
+    (web /cover-letter POST route) stores the variants in the cover_letters
+    row and returns them to the browser for the picker UI.
+
+    NOTE: body.voice_sample_text must not appear in logs.
+    """
+    logger.info(
+        "generate-opening-variants: user=%s job=%s provider=%s",
+        body.user_id, body.job_id, body.ai_provider,
+    )
+
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid AI client configuration: {exc}",
+        ) from exc
+
+    try:
+        variants = await generate_opening_variants(ai_client, body)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Opening variants generation failed: {exc}",
+        ) from exc
+
+    return GenerateOpeningVariantsResponse(variants=variants)
 
 
 # ── /internal/generate-cover-letter ───────────────────────────────────────────

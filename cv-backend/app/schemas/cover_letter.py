@@ -25,11 +25,19 @@ Design notes:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 Provider = Literal["anthropic", "openai", "deepseek"]
+
+
+class OpeningVariant(BaseModel):
+    """One P1 opener option returned by /internal/generate-opening-variants."""
+
+    id: str = Field(description="Pattern identifier: 'A', 'B', 'C', or 'D'")
+    text: str = Field(min_length=1, description="The opener text (2-4 sentences, 30-60 words)")
+    pattern_label: str = Field(description="Human-readable pattern name shown in the picker UI")
 
 
 class GenerateCoverLetterRequest(BaseModel):
@@ -95,9 +103,66 @@ class GenerateCoverLetterRequest(BaseModel):
         ),
     )
 
+    # ── Phase 11: chosen opener ────────────────────────────────────────────────
+    chosen_opening: Optional[str] = Field(
+        default=None,
+        description=(
+            "If set, P1 is already chosen by the user. The generator writes "
+            "only P2-4, then prepends chosen_opening as the first paragraph "
+            "of the stored letter. Set by the /pick web route after the user "
+            "selects a variant from the picker UI."
+        ),
+    )
+
 
 class GenerateCoverLetterResponse(BaseModel):
     """Response from POST /internal/generate-cover-letter."""
 
     letter_id: str = Field(description="UUID of the cover_letters row")
     status:    Literal["accepted"] = "accepted"
+
+
+class GenerateOpeningVariantsRequest(BaseModel):
+    """
+    Request body for POST /internal/generate-opening-variants.
+
+    Identical inputs to GenerateCoverLetterRequest minus letter_id and
+    chosen_opening — variants are generated before a letter row is fully
+    committed to body generation. The web route resolves all inputs (auth,
+    DB lookups, key decrypt) before calling cv-backend.
+
+    PRIVACY: voice_sample_text must not appear in logs.
+    """
+
+    # ── Identity ───────────────────────────────────────────────────────────────
+    user_id: str = Field(description="User UUID — logged for audit")
+    job_id:  str = Field(description="Job UUID — logged for audit")
+
+    # ── JD + CV inputs ─────────────────────────────────────────────────────────
+    jd_text:      str = Field(min_length=1)
+    role:         str = Field(min_length=1)
+    company_name: str = Field(min_length=1)
+    cv_text:      str = Field(min_length=1)
+
+    # ── Voice profile inputs ───────────────────────────────────────────────────
+    voice_sample_text: str = Field(min_length=1, description="Verbatim writing sample. NEVER logged.")
+    fingerprint:       Dict[str, Any] = Field(description="14-key VoiceFingerprint dict")
+
+    # ── Story input ────────────────────────────────────────────────────────────
+    story: Dict[str, Any] = Field(description="Top-scored story dict (title, one_line, detailed, numbers)")
+
+    # ── Company fact ───────────────────────────────────────────────────────────
+    company_hook_text: str = Field(min_length=1, description="The selected company fact for paragraph 2")
+
+    # ── AI provider ────────────────────────────────────────────────────────────
+    ai_provider: Provider
+    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
+    ai_model:    Optional[str] = Field(default=None)
+
+
+class GenerateOpeningVariantsResponse(BaseModel):
+    """Response from POST /internal/generate-opening-variants."""
+
+    variants: List[OpeningVariant] = Field(
+        description="3-4 structurally distinct P1 openers, one per named pattern"
+    )

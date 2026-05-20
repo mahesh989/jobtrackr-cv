@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-20 (Session L — scrape pipeline triage + observability layer. Fixed: vertical filter dropped Adzuna/Jora for non-general profiles (commit 7ff4889); stage-3/3b URL hashes used raw URLs while dedup.ts used canonical, making cross-run/cross-profile dedup silently ineffective; worker concurrency=2 on 512MB OOM-hung Jora's Chromium so dropped to 1 (59e4699); Jora disabled entirely until memory bump — see BUG-5 (dfe3055). Built: migration 028 run_logs.current_stage + setStage() at each pipeline transition (85bded3); migration 029 run_logs.sources_saved jsonb captures per-source breakdown (b9b6637); migration 030 run_logs.log_lines + append_run_log_line() SQL function + AsyncLocalStorage-based console.log interception streams worker output (215be08). UI: LiveRunStatus banner now reads real current_stage instead of fake rotating labels (06da156); fixed three pipeline-run UX bugs (ce6dc8c — cancelRun used user-scoped client where RLS has no UPDATE policy → admin client; Stop button snap-to-idle on DELETE success; banner uses initialIsRunning prop to appear on first paint); live stage + scrolling console mounted on /runs page (a92a9a7, 215be08); cross-page RunNotifier toast in dashboard layout (907501d). Outstanding: user must apply migrations 028+029+030 in Supabase SQL editor and `fly deploy` worker; Darwin profile's exclude_title_keywords too strict for that market (see Darwin diagnosis in session transcript). See OPS-12 for the observability layer summary.)",
+    "updated": "2026-05-20 (Session L+11a — scrape pipeline triage + observability layer. Fixed: vertical filter dropped Adzuna/Jora for non-general profiles (commit 7ff4889); stage-3/3b URL hashes used raw URLs while dedup.ts used canonical, making cross-run/cross-profile dedup silently ineffective; worker concurrency=2 on 512MB OOM-hung Jora's Chromium so dropped to 1 (59e4699); Jora disabled entirely until memory bump — see BUG-5 (dfe3055). Built: migration 028 run_logs.current_stage + setStage() at each pipeline transition (85bded3); migration 029 run_logs.sources_saved jsonb captures per-source breakdown (b9b6637); migration 030 run_logs.log_lines + append_run_log_line() SQL function + AsyncLocalStorage-based console.log interception streams worker output (215be08). UI: LiveRunStatus banner now reads real current_stage instead of fake rotating labels (06da156); fixed three pipeline-run UX bugs (ce6dc8c — cancelRun used user-scoped client where RLS has no UPDATE policy → admin client; Stop button snap-to-idle on DELETE success; banner uses initialIsRunning prop to appear on first paint); live stage + scrolling console mounted on /runs page (a92a9a7, 215be08); cross-page RunNotifier toast in dashboard layout (907501d). Outstanding: user must apply migrations 028+029+030 in Supabase SQL editor and `fly deploy` worker; Darwin profile's exclude_title_keywords too strict for that market (see Darwin diagnosis in session transcript). See OPS-12 for the observability layer summary. + Session L: evaluated Jooble (skip — swooped.co mirror), Careerjet (winner for inline integration), documented multi-source dedup architecture as DEFERRED-2 for post-test-circle work)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -290,8 +290,8 @@
     }
   },
   "build_state": {
-    "current_phase": 10.5,
-    "next_action": "Phase 10.5 SHIPPED and post-ship audit cleanup complete (last commit ec5f086). All known bugs in the delivery layer are fixed. Next phase: Phase 11 — voice-directed drafting (seed 3-4 opening-paragraph variants using voice fingerprint + company fact, let user pick before generating full body). See Phase 11 handoff section in graph.json.",
+    "current_phase": 11,
+    "next_action": "Phase 11a (cv-backend) complete — opening_variants.py prompt, schemas, /internal/generate-opening-variants endpoint, USER_TEMPLATE_BODY_ONLY + _generate_body_with_chosen_opener() in generator. cv-backend deployed; smoke tests 1-3 must pass before Session 11b begins. Session 11b: migration 027, cvBackend.ts additions, /cover-letter route phase-split, /pick route, CoverLetterPanel variant picker UI, manual verification, /audit, ship.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -998,6 +998,50 @@
       "distinct_from": "cv-backend/services/scraping/jd_scraper.py — that runs during analysis from a known source; this is a pre-analysis, user-triggered fetch.",
       "to_activate": "Create POST /api/jobs/scrape-url calling scrapeJobUrl(), returning { jdText, source }. Wire to 'Fetch from URL' button on JobEditModal.",
       "reconsider": "When manual JD edit flow gets enhanced (e.g. Phase 10+ or cover letter feature needs richer JD input)."
+    },
+    {
+      "id": "DEFERRED-2",
+      "title": "Multi-source job scraping architecture for scale (1000s of users)",
+      "file": "cv-backend/services/scraping/ (does not exist yet)",
+      "status": "designed, not built — current MVP does naive per-search fetches; OK for test circle of 10-20 users, breaks at scale",
+      "description": "Current state: a fresh user search triggers live API calls to each source. At 1000 users this hits all rate limits within hours: Careerjet free tier 500/day, Adzuna 1000/month, SEEK Apify ~$225/day at 1000 users × 3 keywords × 3 sources. Designed solution: shared global jobs pool refreshed by scheduled crawler on popular keyword clusters (Tier 1 every 4h, Tier 2 daily, Tier 3 on-demand), user searches filter the pool instantly instead of triggering live fetches. Dedup priority: SEEK > Careerjet > Adzuna (match on normalize(title)+normalize(company)+city); always store all source URLs on the merged row so user sees 'Apply on SEEK · Also on Careerjet'. Visa keyword scan runs once at description-fetch time, stored on row, enables instant 'show sponsorship-friendly jobs only' filter — the JobTrackr differentiator.",
+      "distinct_from": "Current per-user live fetch in cv-backend — fine for 10-20 test users, will break at production scale.",
+      "to_activate": "After test circle (10-20 users) validates the AIN + Data Analyst flow: (1) add columns to jobs table — source, source_id, dedup_key, all_sources JSONB, visa_keywords, may_sponsor, requires_pr; index on dedup_key; (2) build Careerjet client module (no Apify needed — uses inline curl_cffi); (3) build description-time visa scanner (single regex pass); (4) build scheduled crawler on Fly cron (every 4h for Tier 1 keywords × major cities); (5) refactor search endpoint to read pool first, on-demand fetch only on cache miss; (6) evaluate decommissioning SEEK Apify actor in favour of inline curl_cffi (curl_cffi was proven 2026-05-20 to extract full descriptions from seek.com.au/job/{id} pages with no Apify dependency — would save ~$225/day at 1000 users if stable at volume).",
+      "reconsider": "When test circle (10-20 users) is validated AND user count starts approaching the free-tier rate limits — likely around 50-100 active daily users. Earlier triggers: any source returns 429 rate-limit error; Apify monthly bill exceeds budget.",
+      "source_comparison_snapshot_2026-05-20": {
+        "AIN_jobs_AU": {
+          "seek": 3974,
+          "careerjet": 241,
+          "adzuna": "untested",
+          "jooble": 8
+        },
+        "data_analyst_jobs_AU": {
+          "seek": "100s",
+          "careerjet": 920,
+          "adzuna": "untested",
+          "jooble": 33
+        },
+        "software_engineer_AU": {
+          "seek": "100s",
+          "careerjet": 1328,
+          "adzuna": "untested",
+          "jooble": 59
+        },
+        "registered_nurse_AU": {
+          "seek": "untested",
+          "careerjet": 1943,
+          "adzuna": "untested",
+          "jooble": "untested"
+        },
+        "description_extraction": {
+          "seek": "curl_cffi works → 1,388-4,258 chars (no Apify needed)",
+          "careerjet": "curl_cffi works → 5,418-14,366 chars (no Apify, no proxy)",
+          "adzuna": "partial only via API",
+          "jooble": "Cloudflare blocks /desc/ pages — needs Apify residential proxy"
+        },
+        "ip_whitelist_note": "Careerjet requires server IP allowlist (max 8 IPs). This is the Fly.io server IP, NOT user IPs — does not scale with user count.",
+        "jooble_verdict": "Skip — 88-93% of AU results come from a single source (swooped.co). Not real aggregation."
+      }
     }
   ],
   "operational_notes": [
@@ -1101,6 +1145,12 @@
         "docs/cover-letter-spec.md — full 10-part spec for context"
       ],
       "starting_prompt_for_next_session": "Read .claude/graph.json then PHASE-11-HANDOFF planning_note. Plan Phase 11 (voice-directed drafting multi-variant opening paragraphs) using the /plan slash command — produce the 10-section plan, then stop for my review."
+    },
+    {
+      "id": "PHASE-11-STALE-VARIANTS",
+      "logged": "2026-05-20",
+      "title": "Stale variants edge case — deferred",
+      "detail": "If a user closes the tab during status='picking' and returns later, the cover_letters row still has status='picking' and opening_variants is populated. CoverLetterPanel reconstructs the picker from the initial prop — same 4 variants are shown without re-generating. Decision: show old variants as-is (option a). The scenario where company research was refreshed between the original variant generation and the user's return (potentially producing better company facts) is acknowledged but rare enough not to build detection logic in Phase 11. Future improvement: add a variants_generated_at timestamp column and compare against company_research.last_researched_at — if research is fresher than variants, offer a 'Refresh options' button. Defer until Phase 12 or later."
     }
   ],
   "open_questions": [

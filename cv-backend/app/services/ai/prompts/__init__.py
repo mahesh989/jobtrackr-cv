@@ -37,6 +37,10 @@ from .cover_letter.story_extraction import (
     STORY_EXTRACTION_SYSTEM,
     STORY_EXTRACTION_USER_TEMPLATE,
 )
+from .cover_letter.opening_variants import (
+    VARIANTS_SYSTEM,
+    VARIANTS_USER_TEMPLATE,
+)
 
 __all__ = [
     "JD_ANALYSIS_SYSTEM",
@@ -55,4 +59,6 @@ __all__ = [
     "VOICE_FINGERPRINT_USER_TEMPLATE",
     "STORY_EXTRACTION_SYSTEM",
     "STORY_EXTRACTION_USER_TEMPLATE",
+    "VARIANTS_SYSTEM",
+    "VARIANTS_USER_TEMPLATE",
 ]

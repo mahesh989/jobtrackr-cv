@@ -48,7 +48,9 @@ from app.services.ai.prompts.cover_letter.gate_1_honesty import (
 from app.services.ai.prompts.cover_letter.generate import (
     HONESTY_RETRY_TEMPLATE,
     SYSTEM,
+    SYSTEM_BODY_ONLY,
     USER_TEMPLATE,
+    USER_TEMPLATE_BODY_ONLY,
     format_story,
     format_unsupported_claims,
 )
@@ -199,6 +201,42 @@ async def _generate_body(
     )
 
 
+async def _generate_body_with_chosen_opener(
+    client: AIClient,
+    payload: GenerateCoverLetterRequest,
+    *,
+    primary_story_block: str,
+    secondary_story_block: str,
+    honesty_retry_block: str,
+) -> str:
+    """
+    Write P2-P4 only, treating payload.chosen_opening as the fixed P1.
+
+    The returned string is P2-P4 prose only — the caller prepends
+    chosen_opening + a blank line before storing in pass_3_final so the
+    honesty gate sees the complete combined letter.
+    """
+    user = USER_TEMPLATE_BODY_ONLY.format(
+        voice_sample=payload.voice_sample_text,
+        cv_text=payload.cv_text[:_CV_TEXT_CAP],
+        primary_story=primary_story_block,
+        secondary_story=secondary_story_block,
+        role=payload.role,
+        company_name=payload.company_name,
+        company_fact=payload.company_hook_text,
+        jd_priorities=payload.jd_text[:_JD_TEXT_CAP],
+        chosen_opening=payload.chosen_opening,
+        honesty_retry_block=honesty_retry_block,
+    )
+    return await client.complete(
+        system=SYSTEM_BODY_ONLY,
+        user=user,
+        max_tokens=_GENERATE_MAX_TOKENS,
+        temperature=_generation_temperature(client.model),
+        no_training=True,
+    )
+
+
 # ── Pipeline orchestrator ─────────────────────────────────────────────────────
 
 async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None:
@@ -257,12 +295,24 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             "generation_status": {"generate": "running", "honesty": "pending"},
         })
 
-        body = await _generate_body(
-            client, payload,
-            primary_story_block=primary_story_block,
-            secondary_story_block=secondary_story_block,
-            honesty_retry_block="",
-        )
+        if payload.chosen_opening:
+            # Phase 11 path: user picked a P1 opener — write P2-4 only,
+            # then prepend the chosen opener so the honesty gate sees the
+            # complete letter.
+            p2_4 = await _generate_body_with_chosen_opener(
+                client, payload,
+                primary_story_block=primary_story_block,
+                secondary_story_block=secondary_story_block,
+                honesty_retry_block="",
+            )
+            body = payload.chosen_opening.rstrip() + "\n\n" + p2_4.lstrip()
+        else:
+            body = await _generate_body(
+                client, payload,
+                primary_story_block=primary_story_block,
+                secondary_story_block=secondary_story_block,
+                honesty_retry_block="",
+            )
 
         await _patch(letter_id, {
             "pass_3_final": body,
@@ -288,12 +338,21 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                 unsupported_claims=format_unsupported_claims(unsupported),
             )
             try:
-                body = await _generate_body(
-                    client, payload,
-                    primary_story_block=primary_story_block,
-                    secondary_story_block=secondary_story_block,
-                    honesty_retry_block=retry_block,
-                )
+                if payload.chosen_opening:
+                    p2_4_retry = await _generate_body_with_chosen_opener(
+                        client, payload,
+                        primary_story_block=primary_story_block,
+                        secondary_story_block=secondary_story_block,
+                        honesty_retry_block=retry_block,
+                    )
+                    body = payload.chosen_opening.rstrip() + "\n\n" + p2_4_retry.lstrip()
+                else:
+                    body = await _generate_body(
+                        client, payload,
+                        primary_story_block=primary_story_block,
+                        secondary_story_block=secondary_story_block,
+                        honesty_retry_block=retry_block,
+                    )
                 await _patch(letter_id, {"pass_3_final": body})
                 passed_2, unsupported_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,
