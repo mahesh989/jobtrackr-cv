@@ -7,8 +7,6 @@ import { ShieldCheck, X } from "lucide-react";
 const SORT_OPTIONS = [
   { value: "posted_at",  label: "Date posted" },
   { value: "created_at", label: "Date added" },
-  { value: "company",    label: "Company" },
-  { value: "title",      label: "Title" },
 ] as const;
 
 export function JobFilterBar({
