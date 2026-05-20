@@ -1,18 +1,15 @@
 "use client";
 
 /**
- * Multi-select progress filter chips + two progress sort modes.
+ * Multi-select progress filter chips.
  *
- * Filter chips (AND semantics, URL-encoded as ?chips=hasCv,hasLetter,analysed):
+ * URL-encoded as ?chips=hasCv,hasLetter,analysed — AND semantics.
  *   - Analysed:   has a completed analysis_runs row
  *   - Has CV:     has a tailored_pdf_storage_path (or markdown) in analysis_runs
  *   - Has Letter: has a completed cover_letters row
  *
- * Extra sorts (URL-encoded as ?sort=recently_progressed | most_progressed):
- *   - Recently progressed: by max(last_progress_at) DESC
- *   - Most progressed:     by progress_score DESC, tiebreak last_progress_at DESC
- *
- * Standard sorts (Date posted / Date added) live in the JobFilterBar.
+ * All sort modes (date + progress) live in the JobFilterBar — single
+ * row, single label, no duplication.
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -33,11 +30,6 @@ const CHIPS: Array<{ key: ChipKey; label: string; Icon: typeof Check }> = [
   { key: "hasLetter", label: "Has Letter", Icon: Mail },
 ];
 
-const PROGRESS_SORTS = [
-  { value: "recently_progressed", label: "Recently progressed" },
-  { value: "most_progressed",     label: "Most progressed"     },
-] as const;
-
 function parseChips(raw: string | null): Set<ChipKey> {
   if (!raw) return new Set();
   const valid = new Set<ChipKey>(["analysed", "hasCv", "hasLetter"]);
@@ -50,8 +42,7 @@ export function JobProgressChips({ counts }: { counts: JobProgressChipCounts }) 
   const sp       = useSearchParams();
   const [, startTransition] = useTransition();
 
-  const selected    = parseChips(sp.get("chips"));
-  const currentSort = sp.get("sort") || "posted_at";
+  const selected = parseChips(sp.get("chips"));
 
   function toggleChip(k: ChipKey) {
     const next = new Set(selected);
@@ -59,18 +50,6 @@ export function JobProgressChips({ counts }: { counts: JobProgressChipCounts }) 
     const params = new URLSearchParams(sp.toString());
     if (next.size > 0) params.set("chips", Array.from(next).join(","));
     else params.delete("chips");
-    startTransition(() => router.replace(`${pathname}?${params}`));
-  }
-
-  function setSort(value: string) {
-    const params = new URLSearchParams(sp.toString());
-    if (value === currentSort) {
-      params.delete("sort");
-      params.delete("dir");
-    } else {
-      params.set("sort", value);
-      params.set("dir", "desc");
-    }
     startTransition(() => router.replace(`${pathname}?${params}`));
   }
 
@@ -99,26 +78,6 @@ export function JobProgressChips({ counts }: { counts: JobProgressChipCounts }) 
               {count}
             </span>
             {active && <Check className="w-3 h-3 shrink-0 opacity-90" />}
-          </button>
-        );
-      })}
-
-      <div className="flex-1 min-w-2" />
-
-      <span className="text-[11px] font-medium text-text-3 mr-1">Sort</span>
-      {PROGRESS_SORTS.map((opt) => {
-        const active = currentSort === opt.value;
-        return (
-          <button
-            key={opt.value}
-            onClick={() => setSort(opt.value)}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 h-[28px] rounded-md text-[11px] font-medium transition-all border whitespace-nowrap ${
-              active
-                ? "bg-text text-[var(--surface)] border-text"
-                : "bg-[var(--surface)] border-[var(--border)] text-text-2 hover:text-text"
-            }`}
-          >
-            {opt.label}
           </button>
         );
       })}

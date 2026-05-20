@@ -5,8 +5,10 @@ import { useTransition } from "react";
 import { ShieldCheck, X } from "lucide-react";
 
 const SORT_OPTIONS = [
-  { value: "posted_at",  label: "Date posted" },
-  { value: "created_at", label: "Date added" },
+  { value: "posted_at",           label: "Date posted"         },
+  { value: "created_at",          label: "Date added"          },
+  { value: "recently_progressed", label: "Recently progressed" },
+  { value: "most_progressed",     label: "Most progressed"     },
 ] as const;
 
 export function JobFilterBar({
