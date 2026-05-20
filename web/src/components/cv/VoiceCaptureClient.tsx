@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Mic } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Mic, Plus } from "lucide-react";
 
 interface TrustComponents {
   ai_pattern_score:             number;
@@ -70,6 +70,9 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
   const [result,      setResult]      = useState<SubmitResult | null>(null);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  // Hide the textarea by default when a profile already exists — users
+  // explicitly click "Add another voice sample" to record over it.
+  const [showForm,    setShowForm]    = useState<boolean>(!initialProfile);
 
   const words      = countWords(text);
   const canSubmit  = words >= WORD_MIN && status !== "submitting";
@@ -125,6 +128,25 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
         </div>
       )}
 
+      {/* "Add another voice sample" affordance — only when a profile
+          already exists and the form is hidden. Recording a new sample
+          OVERWRITES the previous one (voice_profiles is unique per user). */}
+      {initialProfile && status !== "success" && !showForm && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-[var(--sidebar-text-dim)]">
+            Recording a new sample will replace your current voice profile.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--brand)] text-[var(--brand)] text-sm font-semibold hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add another voice sample
+          </button>
+        </div>
+      )}
+
       {/* Success result */}
       {status === "success" && result && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
@@ -151,7 +173,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
             </p>
           )}
           <button
-            onClick={() => { setStatus("idle"); setResult(null); setShowDetails(false); }}
+            onClick={() => { setStatus("idle"); setResult(null); setShowDetails(false); setShowForm(true); }}
             className="text-xs text-emerald-700 underline hover:no-underline"
           >
             Submit another sample
@@ -243,8 +265,9 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
         </div>
       )}
 
-      {/* Capture form */}
-      {status !== "success" && (
+      {/* Capture form — hidden when a profile already exists and the user
+          hasn't clicked "Add another". Always shown for first-time users. */}
+      {status !== "success" && showForm && (
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
             <label
@@ -292,23 +315,37 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-          >
-            {status === "submitting" ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Analysing…
-              </>
-            ) : (
-              <>
-                <Mic className="w-4 h-4" />
-                Save voice profile
-              </>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+            >
+              {status === "submitting" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analysing…
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4" />
+                  Save voice profile
+                </>
+              )}
+            </button>
+
+            {/* Cancel — only visible when a current profile exists, since
+                first-time users have nowhere to "cancel" back to. */}
+            {initialProfile && status !== "submitting" && (
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setText(""); setErrorMsg(null); }}
+                className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                Cancel
+              </button>
             )}
-          </button>
+          </div>
         </form>
       )}
     </div>
