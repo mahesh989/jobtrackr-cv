@@ -172,6 +172,13 @@ export default async function JobsPage({
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
             <Link
+              href={`/dashboard/profiles/${id}/jobs/lab`}
+              className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-md font-medium border border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
+              title="Open the new beta job board (progress column, filter chips, continue rail)"
+            >
+              ✨ Try beta board
+            </Link>
+            <Link
               href={`/api/profiles/${id}/jobs/export?${exportParams.toString()}`}
               className="gh-btn text-[12px] px-2.5 py-1"
             >
