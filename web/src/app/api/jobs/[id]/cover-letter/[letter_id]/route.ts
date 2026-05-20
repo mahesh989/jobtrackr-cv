@@ -47,6 +47,7 @@ export async function GET(
       "pass_3_final, burstiness_score, naturalness_score, coherence_score, " +
       "specificity_ok, honesty_ok, quality_flags, ai_provider, " +
       "pass_1_model, pass_2_model, pass_3_model, " +
+      "opening_variants, chosen_opening, discarded_openings, " +
       "user_edits, outcome, error_message, is_stale, " +
       "started_at, completed_at, created_at, updated_at",
     )

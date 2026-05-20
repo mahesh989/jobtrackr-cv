@@ -353,6 +353,47 @@ export function selectCompanyFact(
   );
 }
 
+// ── Phase 11: Opening paragraph variants ─────────────────────────────────────
+
+export interface OpeningVariant {
+  id:            string;
+  text:          string;
+  pattern_label: string;
+}
+
+export interface GenerateOpeningVariantsPayload {
+  user_id:           string;
+  job_id:            string;
+  jd_text:           string;
+  role:              string;
+  company_name:      string;
+  cv_text:           string;
+  /** Verbatim writing sample. Never log this field. */
+  voice_sample_text: string;
+  fingerprint:       Record<string, unknown>;
+  story:             Record<string, unknown>;
+  company_hook_text: string;
+  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_api_key:        string;
+  ai_model?:         string;
+}
+
+export interface GenerateOpeningVariantsResult {
+  variants: OpeningVariant[];
+}
+
+export function generateOpeningVariants(
+  payload: GenerateOpeningVariantsPayload,
+): Promise<GenerateOpeningVariantsResult> {
+  return callCvBackend<GenerateOpeningVariantsResult>(
+    "/internal/generate-opening-variants",
+    payload,
+    // Synchronous AI call — 4 variants × ~60 words. Allow generous headroom
+    // for cold starts; typical latency is 5-15 s.
+    { timeoutMs: 60_000 },
+  );
+}
+
 // ── Cover letter generation ───────────────────────────────────────────────────
 
 export interface GenerateCoverLetterPayload {
@@ -374,6 +415,11 @@ export interface GenerateCoverLetterPayload {
   ai_provider:       "anthropic" | "openai" | "deepseek";
   ai_api_key:        string;
   ai_model?:         string;
+  /**
+   * Phase 11: if set, P1 is already chosen. cv-backend writes P2-4 only and
+   * prepends this text as the first paragraph of the stored letter.
+   */
+  chosen_opening?:   string;
 }
 
 export interface GenerateCoverLetterResult {

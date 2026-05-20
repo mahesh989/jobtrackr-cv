@@ -9,9 +9,15 @@ interface GenerationStatus {
   honesty:  string;
 }
 
+interface OpeningVariant {
+  id:            string;
+  text:          string;
+  pattern_label: string;
+}
+
 interface CoverLetterRow {
   id:                       string;
-  status:                   "pending" | "running" | "completed" | "failed";
+  status:                   "pending" | "running" | "completed" | "failed" | "picking";
   generation_status:        GenerationStatus;
   pass_3_final:             string | null;
   burstiness_score:         number | null;
@@ -26,6 +32,10 @@ interface CoverLetterRow {
   pass_1_model:             string | null;
   pass_2_model:             string | null;
   pass_3_model:             string | null;
+  // Phase 11 columns
+  opening_variants:         OpeningVariant[] | null;
+  chosen_opening:           string | null;
+  discarded_openings:       OpeningVariant[] | null;
 }
 
 interface Props {
@@ -86,14 +96,21 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
     let active = true;
 
     async function fetchOnce() {
-      if (statusRef.current === "completed" || statusRef.current === "failed") return;
+      // Stop polling for terminal states and for 'picking' — the row won't
+      // change until the user acts; Realtime will deliver the pick update.
+      if (
+        statusRef.current === "completed" ||
+        statusRef.current === "failed"    ||
+        statusRef.current === "picking"
+      ) return;
       const { data } = await supabase
         .from("cover_letters")
         .select(
           "id, status, generation_status, pass_3_final, burstiness_score, " +
           "naturalness_score, coherence_score, specificity_ok, honesty_ok, " +
           "quality_flags, company_hook_text, tone_target, error_message, " +
-          "pass_1_model, pass_2_model, pass_3_model",
+          "pass_1_model, pass_2_model, pass_3_model, " +
+          "opening_variants, chosen_opening, discarded_openings",
         )
         .eq("id", letterId)
         .single();
@@ -193,37 +210,106 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
       }
 
       if (data.status === "cached" && data.letter_id) {
+        // Cached letter — fetch the full row (may be 'picking', 'completed', etc.)
         const r = await fetch(`/api/jobs/${jobId}/cover-letter/${data.letter_id}`);
         const d = await r.json();
         if (d.letter) setLetter(d.letter as CoverLetterRow);
         return;
       }
 
-      // New generation — set a pending shell so the progress UI shows immediately
+      // Phase 11: variants generated — show the picker
+      if (data.status === "picking" && data.letter_id) {
+        setLetter({
+          id:                 data.letter_id,
+          status:             "picking",
+          generation_status:  { generate: "pending", honesty: "pending" },
+          pass_3_final:       null,
+          burstiness_score:   null,
+          naturalness_score:  null,
+          coherence_score:    null,
+          specificity_ok:     null,
+          honesty_ok:         null,
+          quality_flags:      {},
+          company_hook_text:  null,
+          tone_target:        null,
+          error_message:      null,
+          pass_1_model:       null,
+          pass_2_model:       null,
+          pass_3_model:       null,
+          opening_variants:   data.variants ?? null,
+          chosen_opening:     null,
+          discarded_openings: null,
+        });
+        return;
+      }
+
+      // Legacy / fallback: status=generating — set pending shell
       if (data.letter_id) {
         setLetter({
-          id:                data.letter_id,
-          status:            "pending",
-          generation_status: { generate: "pending", honesty: "pending" },
-          pass_3_final:      null,
-          burstiness_score:  null,
-          naturalness_score: null,
-          coherence_score:   null,
-          specificity_ok:    null,
-          honesty_ok:        null,
-          quality_flags:     {},
-          company_hook_text: null,
-          tone_target:       null,
-          error_message:     null,
-          pass_1_model:      null,
-          pass_2_model:      null,
-          pass_3_model:      null,
+          id:                 data.letter_id,
+          status:             "pending",
+          generation_status:  { generate: "pending", honesty: "pending" },
+          pass_3_final:       null,
+          burstiness_score:   null,
+          naturalness_score:  null,
+          coherence_score:    null,
+          specificity_ok:     null,
+          honesty_ok:         null,
+          quality_flags:      {},
+          company_hook_text:  null,
+          tone_target:        null,
+          error_message:      null,
+          pass_1_model:       null,
+          pass_2_model:       null,
+          pass_3_model:       null,
+          opening_variants:   null,
+          chosen_opening:     null,
+          discarded_openings: null,
         });
       }
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ── Variant picker ────────────────────────────────────────────────────────
+  const [pickingId, setPickingId] = useState<string | null>(null);
+
+  async function handlePick(variantId: string) {
+    if (!letter?.id) return;
+    setPickingId(variantId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/jobs/${jobId}/cover-letter/${letter.id}/pick`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ variant_id: variantId }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to confirm selection. Try again.");
+        return;
+      }
+      // Optimistic: advance to pending shell so the progress UI shows immediately.
+      // Realtime will deliver the true status updates from cv-backend.
+      setLetter((prev) =>
+        prev
+          ? {
+              ...prev,
+              status:             "pending",
+              generation_status:  { generate: "pending", honesty: "pending" },
+            }
+          : prev,
+      );
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setPickingId(null);
     }
   }
 
@@ -309,6 +395,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
     }
   }
 
+  const isPicking  = letter?.status === "picking";
   const isTerminal = letter?.status === "completed" || letter?.status === "failed";
   const isRunning  = letter?.status === "running" || letter?.status === "pending";
   const genStatus  = letter?.generation_status ?? { generate: "pending", honesty: "pending" };
@@ -340,7 +427,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
               disabled={loading}
               className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {loading ? "Starting…" : "Generate cover letter"}
+              {loading ? "Generating options…" : "Generate cover letter"}
             </button>
           )}
         </div>
@@ -377,13 +464,44 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
             disabled={loading}
             className="mt-4 rounded bg-brand px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Starting…" : "Generate cover letter"}
+            {loading ? "Generating options…" : "Generate cover letter"}
           </button>
         </div>
       )}
 
+      {/* Variant picker — shown while status='picking' */}
+      {isPicking && letter?.opening_variants && letter.opening_variants.length > 0 && (
+        <div className="px-5 py-4">
+          <p className="text-[13px] text-text-2 mb-4">
+            Choose an opening — the rest of the letter will be written to match it.
+          </p>
+          <div className="space-y-3">
+            {letter.opening_variants.map((variant) => (
+              <div
+                key={variant.id}
+                className="rounded border border-border bg-surface p-4"
+              >
+                <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wider mb-2">
+                  {variant.pattern_label}
+                </p>
+                <p className="text-[13px] text-text leading-relaxed mb-3">
+                  {variant.text}
+                </p>
+                <button
+                  onClick={() => handlePick(variant.id)}
+                  disabled={pickingId !== null}
+                  className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {pickingId === variant.id ? "Confirming…" : "Use this opener"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Progress steps */}
-      {letter && (isRunning || (!isTerminal)) && (
+      {letter && (isRunning || (!isTerminal && !isPicking)) && (
         <div className="px-5 py-4 space-y-2">
           {STEP_LABELS.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-2 text-[13px]">

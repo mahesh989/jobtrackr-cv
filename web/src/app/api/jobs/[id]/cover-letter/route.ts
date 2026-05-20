@@ -37,13 +37,15 @@ import { createAdminClient }                               from "@/lib/supabase/
 import { decryptApiKey }                                   from "@/lib/integrations/crypto";
 import {
   generateCoverLetter,
+  generateOpeningVariants,
   matchStories,
   CvBackendError,
   MatchStoriesStory,
+  OpeningVariant,
 } from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
-export const maxDuration = 30;  // cv-backend returns 202 immediately — 30s is generous
+export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
 
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type  Provider          = (typeof PROVIDER_PRIORITY)[number];
@@ -370,7 +372,43 @@ export async function POST(
     lowQualityResearch = true;
   }
 
-  // ── 10. Create cover_letters row (pending) ────────────────────────────────────
+  // ── 10. Generate opening variants (synchronous — ~5-15 s) ───────────────────
+  // Phase 11: generate 3-4 P1 openers before creating the DB row.
+  // Creating the row only after a successful variants call means a cv-backend
+  // failure never leaves a stuck 'picking' row in the DB.
+  // voice_sample_raw is forwarded in the signed payload and must not be logged.
+  const variantsPayload = {
+    user_id:           user.id,
+    job_id:            jobId,
+    jd_text:           jdText,
+    role:              (job.title ?? "the role").trim(),
+    company_name:      companyName,
+    cv_text:           cvRow.cv_text as string,
+    voice_sample_text: voiceRow.voice_sample_raw as string,
+    fingerprint:       voiceRow.fingerprint as Record<string, unknown>,
+    story:             topStory,
+    company_hook_text: companyHookText,
+    ai_provider:       chosen,
+    ai_api_key:        aiApiKey,
+    ai_model:          entry.model ?? undefined,
+  };
+
+  let variants: OpeningVariant[];
+  try {
+    const result = await generateOpeningVariants(variantsPayload);
+    variants = result.variants;
+  } catch (err) {
+    console.error(
+      "[POST /api/jobs/[id]/cover-letter] variants generation failed:",
+      err instanceof CvBackendError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err),
+    );
+    return NextResponse.json(
+      { error: "Could not generate opening options. Try again." },
+      { status: 502 },
+    );
+  }
+
+  // ── 11. Create cover_letters row (picking) ────────────────────────────────────
   // quality_flags pre-populated with web-layer warnings; cv-backend merges
   // its own honesty-gate flags on top at the end without clobbering these.
   const initialQualityFlags = lowQualityResearch
@@ -382,18 +420,15 @@ export async function POST(
     .insert({
       user_id:           user.id,
       job_id:            jobId,
-      status:            "pending",
+      status:            "picking",
       story_id:          topStoryId,
       company_hook_text: companyHookText,
       tone_target:       toneTarget,
       word_count_target: 170,
       ai_provider:       chosen,
       quality_flags:     initialQualityFlags,
-      // Explicit generation_status with the new 2-key shape so the column
-      // default (still the legacy 6-key shape from migration 025) never fires
-      // for new rows. The generator overwrites this on its first patch anyway,
-      // but this closes a tiny window where readers could see stale keys.
       generation_status: { generate: "pending", honesty: "pending" },
+      opening_variants:  variants,
     })
     .select("id")
     .single();
@@ -405,40 +440,5 @@ export async function POST(
 
   const letterId = letterRow.id as string;
 
-  // ── 11. Trigger cv-backend (returns 202 immediately) ─────────────────────────
-  // voice_sample_raw is forwarded in the signed payload and must not be logged.
-  try {
-    await generateCoverLetter({
-      letter_id:         letterId,
-      user_id:           user.id,
-      job_id:            jobId,
-      jd_text:           jdText,
-      role:              (job.title ?? "the role").trim(),
-      company_name:      companyName,
-      cv_text:           cvRow.cv_text as string,
-      voice_sample_text: voiceRow.voice_sample_raw as string,
-      fingerprint:       voiceRow.fingerprint as Record<string, unknown>,
-      story:             topStory,
-      company_hook_text: companyHookText,
-      tone_target:       toneTarget,
-      word_count_target: 170,
-      ai_provider:       chosen,
-      ai_api_key:        aiApiKey,
-      ai_model:          entry.model ?? undefined,
-    });
-  } catch (err) {
-    // Mark the row failed so the UI doesn't show a stuck "pending" state
-    await admin
-      .from("cover_letters")
-      .update({ status: "failed", error_message: "cv-backend trigger failed" })
-      .eq("id", letterId);
-
-    console.error(
-      "[POST /api/jobs/[id]/cover-letter] cv-backend trigger error:",
-      err instanceof CvBackendError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err),
-    );
-    return NextResponse.json({ error: "Cover letter generation failed to start." }, { status: 502 });
-  }
-
-  return NextResponse.json({ letter_id: letterId, status: "generating" });
+  return NextResponse.json({ letter_id: letterId, status: "picking", variants });
 }
