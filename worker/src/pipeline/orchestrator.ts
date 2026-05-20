@@ -25,6 +25,7 @@ import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
 import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
+import { runLogContext } from "./logContext.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
@@ -224,6 +225,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     console.error("[pipeline] failed to create run log:", err);
     return;
   }
+
+  // Bind the rest of this pipeline (and every async call it spawns) to this
+  // run's log context. Patched console.log/warn/error in logContext.ts will
+  // mirror each line into run_logs.log_lines for the live console UI.
+  runLogContext.enterWith({ runLogId });
 
   const sourcesRun: string[] = [];
   let jobsFetched = 0;

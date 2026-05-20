@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cancelRun } from "@/lib/actions";
 import { RunJobsTable } from "@/components/RunJobsTable";
 import { LiveRunStatus } from "@/components/LiveRunStatus";
+import { LiveLogConsole } from "@/components/LiveLogConsole";
 
 export default async function RunHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -80,6 +81,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
           profileId={id}
           initialIsRunning={runList.some((r) => r.status === "running")}
         />
+        <LiveLogConsole profileId={id} />
 
         {runList.length === 0 ? (
           <div className="bg-surface border border-border rounded-md flex flex-col items-center justify-center py-16 text-center anim-in">

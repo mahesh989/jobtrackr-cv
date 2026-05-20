@@ -1,3 +1,8 @@
+// Patch console.log/warn/error to mirror into run_logs.log_lines when a
+// pipeline run is active. Side-effect import — must come first so any code
+// path that logs (orchestrator, adapters, AI extractors, ...) is captured.
+import "./pipeline/logContext.js";
+
 import { Worker } from "bullmq";
 import { connection, QUEUE_NAME } from "./queue/connection.js";
 import type { PipelineJobData } from "./queue/queue.js";

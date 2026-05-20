@@ -9,6 +9,7 @@ import { RunNowButton } from "@/components/RunNowButton";
 import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
 import { LiveRunStatus } from "@/components/LiveRunStatus";
+import { LiveLogConsole } from "@/components/LiveLogConsole";
 
 interface SearchParams {
   sort?: string; dir?: string; status?: string;
@@ -200,6 +201,7 @@ export default async function JobsPage({
       <div className="px-6 py-4 space-y-4">
         {/* Pipeline running status */}
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
+        <LiveLogConsole profileId={id} />
 
         {/* Row 1: status tabs */}
         <div className="anim-in">
