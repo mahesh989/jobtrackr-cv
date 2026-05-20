@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.4",
-    "updated": "2026-05-19 (Session K — Phase 10.5 SHIPPED + post-ship audit cleanup + company_address field added. Latest: migration 027 adds jobs.company_address, wired through PATCH/modal/JobTable/download/template. Also fixed parallel oversight where hiring_manager was never SELECTed on the profiles jobs page so the modal opened empty after refresh.)",
+    "updated": "2026-05-20 (Session L — scrape pipeline triage + observability layer. Fixed: vertical filter dropped Adzuna/Jora for non-general profiles (commit 7ff4889); stage-3/3b URL hashes used raw URLs while dedup.ts used canonical, making cross-run/cross-profile dedup silently ineffective; worker concurrency=2 on 512MB OOM-hung Jora's Chromium so dropped to 1 (59e4699); Jora disabled entirely until memory bump — see BUG-5 (dfe3055). Built: migration 028 run_logs.current_stage + setStage() at each pipeline transition (85bded3); migration 029 run_logs.sources_saved jsonb captures per-source breakdown (b9b6637); migration 030 run_logs.log_lines + append_run_log_line() SQL function + AsyncLocalStorage-based console.log interception streams worker output (215be08). UI: LiveRunStatus banner now reads real current_stage instead of fake rotating labels (06da156); fixed three pipeline-run UX bugs (ce6dc8c — cancelRun used user-scoped client where RLS has no UPDATE policy → admin client; Stop button snap-to-idle on DELETE success; banner uses initialIsRunning prop to appear on first paint); live stage + scrolling console mounted on /runs page (a92a9a7, 215be08); cross-page RunNotifier toast in dashboard layout (907501d). Outstanding: user must apply migrations 028+029+030 in Supabase SQL editor and `fly deploy` worker; Darwin profile's exclude_title_keywords too strict for that market (see Darwin diagnosis in session transcript). See OPS-12 for the observability layer summary.)",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -1054,6 +1054,12 @@
       "title": "MatchStoriesStory TS interface must mirror Story Pydantic schema — all required fields",
       "detail": "The TypeScript MatchStoriesStory interface (cvBackend.ts) maps directly to the Pydantic Story schema used in MatchStoriesRequest. FastAPI validates every field at deserialization — a missing required field produces HTTP 422 before the endpoint handler runs. Phase 10.2.b initial audit caught this: title and year were absent, causing every /internal/match-stories call to fail. When Story gains or loses required fields in a future phase, MatchStoriesStory must be updated in sync. A future improvement (noted for Phase 10.3): define a narrower MatchableStory Pydantic schema with only the fields score_stories actually uses, breaking the tight coupling.",
       "logged": "2026-05-18"
+    },
+    {
+      "id": "OPS-12",
+      "title": "Scrape pipeline observability layer (Session L)",
+      "detail": "run_logs gained three fields and one append-only stream over Session L: (1) current_stage text — written by setStage() at each pipeline transition, cleared to NULL on finishRunLog; powers the blue 'Pipeline running' banner. (2) sources_saved jsonb — captured from saveJobs() return; answers 'where did the N saved jobs come from?' without a join. (3) log_lines jsonb + append_run_log_line(rid, line) Postgres function — logContext.ts patches console.log/warn/error once at worker startup; orchestrator calls runLogContext.enterWith({ runLogId }) right after startRunLog so every console call inside the pipeline (orchestrator + adapters + AI helpers) mirrors to log_lines fire-and-forget. UI: LiveRunStatus banner (jobs + runs page), LiveLogConsole collapsible terminal-style scrollback (jobs + runs page), RunNotifier toast mounted in dashboard layout for cross-page run-complete notifications. Polling cadences: LiveRunStatus 3s when active / 12s idle, LiveLogConsole 4s discover + 1.5s tail, RunNotifier 3s. Three migrations land in order: 028 (current_stage), 029 (sources_saved), 030 (log_lines + RPC). Worker must redeploy AFTER 030 is applied or appendLog spams 'function does not exist' warnings.",
+      "logged": "2026-05-20"
     },
     {
       "id": "OPS-11",
