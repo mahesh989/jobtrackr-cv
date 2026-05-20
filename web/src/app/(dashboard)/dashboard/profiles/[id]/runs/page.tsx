@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cancelRun } from "@/lib/actions";
 import { RunJobsTable } from "@/components/RunJobsTable";
+import { LiveRunStatus } from "@/components/LiveRunStatus";
 
 export default async function RunHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,13 +22,14 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
   const { data: runs } = await supabase
     .from("run_logs")
-    .select("id, started_at, finished_at, status, jobs_fetched, jobs_after_dedup, jobs_saved, sources_run, error_message, ai_tokens_input, ai_tokens_output, ai_cost_cents")
+    .select("id, started_at, finished_at, status, current_stage, jobs_fetched, jobs_after_dedup, jobs_saved, sources_run, error_message, ai_tokens_input, ai_tokens_output, ai_cost_cents")
     .eq("profile_id", id)
     .order("started_at", { ascending: false })
     .limit(50);
 
   type RunRow = {
     id: string; started_at: string; finished_at: string | null; status: string;
+    current_stage: string | null;
     jobs_fetched: number; jobs_after_dedup: number; jobs_saved: number;
     sources_run: string[]; error_message: string | null;
     ai_tokens_input: number; ai_tokens_output: number; ai_cost_cents: number;
@@ -74,6 +76,11 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="px-6 py-5">
+        <LiveRunStatus
+          profileId={id}
+          initialIsRunning={runList.some((r) => r.status === "running")}
+        />
+
         {runList.length === 0 ? (
           <div className="bg-surface border border-border rounded-md flex flex-col items-center justify-center py-16 text-center anim-in">
             <div className="w-10 h-10 rounded-md bg-[var(--surface-2)] border border-border flex items-center justify-center mb-3">
@@ -127,8 +134,13 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
                     {/* Duration */}
                     <div className="col-span-1 flex items-center">
-                      <span className={`text-[12px] ${isRunning ? "text-[var(--brand)] font-medium" : "text-text-2"}`}>
-                        {duration(run.started_at, run.finished_at)}
+                      <span
+                        className={`text-[12px] ${isRunning ? "text-[var(--brand)] font-medium" : "text-text-2"}`}
+                        title={isRunning && run.current_stage ? run.current_stage : undefined}
+                      >
+                        {isRunning && run.current_stage
+                          ? run.current_stage
+                          : duration(run.started_at, run.finished_at)}
                       </span>
                     </div>
 
