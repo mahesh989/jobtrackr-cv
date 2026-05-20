@@ -226,7 +226,7 @@ export async function POST(
   // Resolve JD text: prefer job.manual_jd_text, fall back to latest completed run.
   const { data: jobRow } = await admin
     .from("jobs")
-    .select("manual_jd_text, description, title")
+    .select("manual_jd_text, description, title, company")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -275,7 +275,7 @@ export async function POST(
       job_id:            jobId,
       jd_text:           jdText,
       role:              (jobRow?.title ?? "the role").trim(),
-      company_name:      (letter.company_hook_text ?? "the company"), // used for prompt context
+      company_name:      (jobRow?.company ?? "the company").trim(), // jobs.company, not cover_letters.company_hook_text
       cv_text:           cvRow.cv_text as string,
       voice_sample_text: voiceRow.voice_sample_raw as string,
       fingerprint:       voiceRow.fingerprint as Record<string, unknown>,
