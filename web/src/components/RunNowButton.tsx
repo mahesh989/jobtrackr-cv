@@ -56,7 +56,17 @@ export function RunNowButton({
   async function handleStop() {
     setState("stopping");
     try {
-      await fetch(`/api/profiles/${profileId}/runs`, { method: "DELETE" });
+      const res = await fetch(`/api/profiles/${profileId}/runs`, { method: "DELETE" });
+      if (res.ok) {
+        // DELETE flips run_logs.status to "failed" synchronously, so the UI
+        // doesn't need to wait for the worker to notice the cancel at the next
+        // stage boundary. Snap to idle now.
+        setState("idle");
+        startedAtRef.current = null;
+        router.refresh();
+      } else {
+        setState("running"); // revert if request failed
+      }
     } catch {
       setState("running"); // revert if request failed
     }

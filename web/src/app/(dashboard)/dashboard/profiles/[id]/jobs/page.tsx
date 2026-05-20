@@ -199,7 +199,7 @@ export default async function JobsPage({
 
       <div className="px-6 py-4 space-y-4">
         {/* Pipeline running status */}
-        <LiveRunStatus profileId={id} />
+        <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
 
         {/* Row 1: status tabs */}
         <div className="anim-in">

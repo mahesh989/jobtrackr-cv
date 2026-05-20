@@ -193,13 +193,22 @@ export async function cancelRun(runId: string, profileId: string) {
   const { data: profile } = await supabase.from("search_profiles").select("id").eq("id", profileId).eq("user_id", user.id).single();
   if (!profile) return;
 
-  await supabase
+  // run_logs RLS exposes select/insert to the owning user but no UPDATE policy,
+  // so the user-scoped client silently matches 0 rows. Use the admin client —
+  // same pattern as the DELETE handler in /api/profiles/[id]/runs/route.ts.
+  const admin = createAdminClient();
+  await admin
     .from("run_logs")
-    .update({ status: "failed", error_message: "Cancelled by user" })
+    .update({
+      status:        "failed",
+      finished_at:   new Date().toISOString(),
+      error_message: "Cancelled by user",
+    })
     .eq("id", runId)
     .eq("status", "running");
-    
+
   revalidatePath(`/dashboard/profiles/${profileId}/runs`);
+  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
 }
 
 // ── job actions ───────────────────────────────────────────────────────────────

@@ -10,8 +10,16 @@ interface ActiveRun {
   started_at:    string;
 }
 
-export function LiveRunStatus({ profileId }: { profileId: string }) {
-  const [banner,  setBanner]   = useState<BannerState>("hidden");
+export function LiveRunStatus({
+  profileId,
+  initialIsRunning = false,
+}: {
+  profileId: string;
+  initialIsRunning?: boolean;
+}) {
+  // Seed banner state from server-side knowledge so the banner appears the
+  // instant the page renders during an active run — no 3-12s polling wait.
+  const [banner,  setBanner]   = useState<BannerState>(initialIsRunning ? "running" : "hidden");
   const [run,     setRun]      = useState<ActiveRun | null>(null);
   const [elapsed, setElapsed]  = useState(0);
   const [stopping, setStopping] = useState(false);
@@ -75,7 +83,17 @@ export function LiveRunStatus({ profileId }: { profileId: string }) {
     setStopping(true);
     setBanner("stopping");
     try {
-      await fetch(`/api/profiles/${profileId}/runs`, { method: "DELETE" });
+      const res = await fetch(`/api/profiles/${profileId}/runs`, { method: "DELETE" });
+      if (res.ok) {
+        // Row is already flipped to "failed". Don't wait for the next poll cycle.
+        setStopping(false);
+        setBanner("stopped");
+        router.refresh();
+        setTimeout(() => setBanner("hidden"), 2000);
+      } else {
+        setStopping(false);
+        setBanner("running");
+      }
     } catch {
       setStopping(false);
       setBanner("running");
