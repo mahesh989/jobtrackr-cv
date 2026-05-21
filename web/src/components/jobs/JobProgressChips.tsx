@@ -40,10 +40,10 @@ const PROGRESS_CHIPS: Array<{ key: ChipKey; label: string; Icon: typeof Check }>
 ];
 
 const TRIAGE_CHIPS: Array<{ key: ChipKey; label: string; Icon: typeof Check }> = [
-  { key: "needsJd",      label: "Needs JD",      Icon: FileWarning   },
-  { key: "roleMismatch", label: "Role mismatch", Icon: AlertTriangle },
-  { key: "hasEmail",     label: "Has email",     Icon: AtSign        },
-  { key: "autoSkipped",  label: "Auto-skipped",  Icon: MinusCircle   },
+  { key: "needsJd",      label: "Needs JD",         Icon: FileWarning   },
+  { key: "roleMismatch", label: "Role mismatch",    Icon: AlertTriangle },
+  { key: "hasEmail",     label: "Has email",        Icon: AtSign        },
+  { key: "autoSkipped",  label: "Below threshold",  Icon: MinusCircle   },
 ];
 
 function parseChips(raw: string | null): Set<ChipKey> {

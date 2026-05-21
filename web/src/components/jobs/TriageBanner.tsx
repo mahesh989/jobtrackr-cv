@@ -70,7 +70,7 @@ export function TriageBanner({ counts }: { counts: TriageCounts }) {
   if (counts.autoSkipped > 0) {
     messages.push({
       chip:  "autoSkipped",
-      text:  `${counts.autoSkipped} job${counts.autoSkipped === 1 ? "" : "s"} auto-skipped by ATS threshold`,
+      text:  `${counts.autoSkipped} job${counts.autoSkipped === 1 ? " scored" : "s scored"} below your ATS threshold`,
       count: counts.autoSkipped,
     });
   }
