@@ -30,7 +30,7 @@ StepName = Literal[
     "ai_recommendations",
     "tailored_cv",
 ]
-StepState = Literal["pending", "running", "completed", "failed"]
+StepState = Literal["pending", "running", "completed", "failed", "skipped"]
 
 DEFAULT_STEP_STATUS: Dict[str, str] = {
     "jd_analysis":           "pending",

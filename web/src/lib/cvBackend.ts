@@ -141,6 +141,10 @@ export interface AnalyzePayload {
   // route. cv-backend defaults to 55 / 75 if omitted.
   min_initial_ats?: number;
   min_final_ats?:   number;
+  // Phase C-3 — true ONLY when the user clicked "Force tailoring
+  // anyway" on a job that failed the initial ATS gate. Default false:
+  // gate is hard, pipeline stops before tailoring on low-match jobs.
+  skip_initial_gate?: boolean;
 }
 
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {

@@ -2,10 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Zap } from "lucide-react";
 
 interface Props {
   jobId: string;
+  /**
+   * Phase C-3 override flag forwarded as ?override=… on the POST.
+   *   thin_jd      — bypass the API thin-JD pre-check
+   *   initial_gate — force tailoring even on low initial ATS
+   *   all          — both
+   */
+  override?: "thin_jd" | "initial_gate" | "all";
+  /** Compact mode — small "Force →" link instead of the full primary button. */
+  compact?: boolean;
 }
 
 interface AnalyzeError {
@@ -18,7 +27,7 @@ interface AnalyzeError {
  * analysis page. On 422 (missing CV or AI key), show an inline error
  * with a link to the relevant settings page.
  */
-export function AnalyzeJobButton({ jobId }: Props) {
+export function AnalyzeJobButton({ jobId, override, compact }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [err, setErr]              = useState<AnalyzeError | null>(null);
@@ -31,7 +40,8 @@ export function AnalyzeJobButton({ jobId }: Props) {
       let preferredProvider: string | null = null;
       try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
 
-      const res = await fetch(`/api/jobs/${jobId}/analyze`, {
+      const url = override ? `/api/jobs/${jobId}/analyze?override=${override}` : `/api/jobs/${jobId}/analyze`;
+      const res = await fetch(url, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
@@ -59,22 +69,41 @@ export function AnalyzeJobButton({ jobId }: Props) {
 
   return (
     <>
-      {/* Analyze button — cv-magic pattern: brand-filled with Sparkles
-          icon, swap to Loader2 while pending. Matches cv-magic's
-          companies-client analyse button exactly. */}
-      <button
-        disabled={pending}
-        onClick={handleClick}
-        className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
-        title="Run a CV-tailoring analysis against this job"
-      >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Sparkles className="h-3.5 w-3.5" />
-        )}
-        <span>{pending ? "…" : "Analyze"}</span>
-      </button>
+      {compact ? (
+        /* Compact override link — used inline next to a "Below initial"
+           or "Needs JD" state badge. Smaller, ghost-styled. */
+        <button
+          disabled={pending}
+          onClick={handleClick}
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-40 transition-colors"
+          title={
+            override === "initial_gate"
+              ? "Force the pipeline to tailor the CV anyway, despite low initial ATS score"
+              : override === "thin_jd"
+              ? "Run analysis anyway, despite a thin job description"
+              : "Force analysis (override gate)"
+          }
+        >
+          {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Zap className="h-2.5 w-2.5" />}
+          {pending ? "…" : "Force"}
+        </button>
+      ) : (
+        /* Analyze button — cv-magic pattern: brand-filled with Sparkles
+            icon, swap to Loader2 while pending. */
+        <button
+          disabled={pending}
+          onClick={handleClick}
+          className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
+          title="Run a CV-tailoring analysis against this job"
+        >
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          <span>{pending ? "…" : "Analyze"}</span>
+        </button>
+      )}
 
       {err && (
         <div

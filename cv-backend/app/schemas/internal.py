@@ -48,12 +48,16 @@ class AnalyzeRequest(BaseModel):
     # forwarded by /api/jobs/[id]/analyze from the search_profiles row.
     # Defaults mirror Migration 031 column defaults so older callers and
     # backward-compat tests continue to work.
-    #
-    # Phase C-2 behaviour: RECORD only. Both gate booleans are computed
-    # and written to analysis_runs but the pipeline never stops early on
-    # manual runs. Early-stopping arrives in Phase E (automated worker).
     min_initial_ats: float = 55
     min_final_ats:   float = 75
+
+    # Phase C-3 — override flag. When False (default), the orchestrator
+    # STOPS before tailoring if the initial ATS score is below
+    # min_initial_ats (saves ~3 AI calls per low-match job). When True
+    # (sent by the web layer when the user clicks "Force tailoring"),
+    # the pipeline runs to completion regardless of the gate. The
+    # gate result is always recorded — only the early-stop is gated.
+    skip_initial_gate: bool = False
 
 
 class AnalyzeResponse(BaseModel):

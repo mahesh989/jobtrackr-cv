@@ -39,6 +39,17 @@ export async function POST(
 ) {
   const { id: jobId } = await params;
 
+  // ── Phase C-3 override flag ─────────────────────────────────────────────
+  // ?override=thin_jd       — bypass the thin-JD pre-check (run anyway
+  //                            even when description is too short)
+  // ?override=initial_gate  — pass skip_initial_gate=true to cv-backend,
+  //                            forcing tailoring even on low initial ATS
+  // ?override=all           — both
+  const overrideRaw = req.nextUrl.searchParams.get("override");
+  const override = overrideRaw === "thin_jd" || overrideRaw === "initial_gate" || overrideRaw === "all"
+    ? overrideRaw
+    : null;
+
   // Optional preferred provider sent by AnalyzeJobButton from localStorage.
   let preferredProvider: Provider | null = null;
   try {
@@ -58,12 +69,29 @@ export async function POST(
   // ── 1a. Verify the job belongs to a profile owned by this user ───────────
   const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text")
+    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text, jd_quality")
     .eq("id", jobId)
     .maybeSingle();
 
   if (jobErr || !job) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  // ── Phase C-3 thin-JD pre-check (zero AI cost) ───────────────────────────
+  // Block analysis at the API layer when the JD is too thin AND the user
+  // hasn't manually pasted one. Saves the full 4-5-call pipeline on stub
+  // listings. Override via ?override=thin_jd or ?override=all when the
+  // user wants to attempt analysis anyway.
+  const hasManualJd = !!(job.manual_jd_text && (job.manual_jd_text as string).trim().length >= 200);
+  if (job.jd_quality === "thin" && !hasManualJd && override !== "thin_jd" && override !== "all") {
+    return NextResponse.json(
+      {
+        error:       "This job's description is too short to analyse. Click Edit JD on the row and paste the full job description.",
+        action:      "paste_jd",
+        jd_quality:  job.jd_quality,
+      },
+      { status: 422 },
+    );
   }
 
   // Ownership: job → profile → user. Also pull the gate thresholds so we
@@ -262,6 +290,8 @@ export async function POST(
       contact_details: contactForBackend,
       min_initial_ats: profile.min_initial_ats as number | undefined,
       min_final_ats:   profile.min_final_ats   as number | undefined,
+      // Phase C-3 — override forces tailoring even if initial gate fails.
+      skip_initial_gate: override === "initial_gate" || override === "all",
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);

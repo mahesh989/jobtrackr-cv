@@ -93,19 +93,39 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await save_step_result(run_id, "ats_scoring_result", ats)
         await save_step_result(run_id, "match_score", ats.get("overall_score"))
 
-        # ── Initial-ATS gate (Phase C-2 — record only, no early-stop) ─────────
+        # ── Initial-ATS gate (Phase C-2 record + Phase C-3 early-stop) ────────
         # Mirror match_score into initial_ats_score so Phase B's UI doesn't
-        # need to know the synonym. Compute passed_initial_gate against the
-        # caller's per-profile threshold; downstream Phase E will use this
-        # to decide whether to run the tailoring step at all.
+        # need to know the synonym. passed_initial_gate is recorded regardless.
         initial_score = ats.get("overall_score")
+        passed_initial_gate: Optional[bool] = None
         if initial_score is not None:
+            passed_initial_gate = initial_score >= payload.min_initial_ats
             await save_step_result(run_id, "initial_ats_score", initial_score)
-            await save_step_result(
-                run_id, "passed_initial_gate",
-                initial_score >= payload.min_initial_ats,
-            )
+            await save_step_result(run_id, "passed_initial_gate", passed_initial_gate)
         await mark_step(run_id, step_status, "ats_scoring", "completed")
+
+        # ── Phase C-3 early-stop: gate failed AND no override ─────────────────
+        # Saves the tailored-CV + downstream AI calls (~3 calls per job).
+        # Manual override path: the web layer sets skip_initial_gate=True
+        # when the user clicks "Force tailoring anyway".
+        if passed_initial_gate is False and not payload.skip_initial_gate:
+            logger.info(
+                "run %s: initial gate failed (%s < %s) — stopping before tailoring "
+                "(skip_initial_gate=false). Saves ~3 AI calls.",
+                run_id, initial_score, payload.min_initial_ats,
+            )
+            # Mark downstream steps as 'skipped' so the UI can distinguish
+            # a deliberate skip from a pending/failed state.
+            for skipped_step in (
+                "input_recommendations",
+                "keyword_feasibility",
+                "ai_recommendations",
+                "tailored_cv",
+            ):
+                step_status[skipped_step] = "skipped"
+            await save_step_result(run_id, "step_status", step_status)
+            await mark_run_completed(run_id)
+            return
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
         await mark_step(run_id, step_status, "input_recommendations", "running")
