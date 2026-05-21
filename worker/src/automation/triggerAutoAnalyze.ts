@@ -28,7 +28,7 @@ import { callCvBackend, CvBackendError } from "../lib/cvBackendHmac.js";
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type Provider = (typeof PROVIDER_PRIORITY)[number];
 
-const JD_MIN_USABLE = 200;   // chars — matches web /analyze route
+const JD_MIN_USABLE = 2000;  // chars — below this, JD is too thin for reliable AI analysis
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
 
 interface ProfileThresholds {

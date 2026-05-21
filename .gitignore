@@ -68,3 +68,4 @@ worker/scripts/.seek-capture/
 worker/src/scripts/test*.ts
 supabase/migrations/ain_jobs*.json
 supabase/migrations/scrape_*.py
+.env*.local
