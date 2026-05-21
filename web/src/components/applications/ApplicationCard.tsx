@@ -45,7 +45,8 @@ function relativeDate(d: string | null) {
 
 export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; isPool?: boolean }) {
   const [, startTransition]  = useTransition();
-  const [pending, setPending] = useState<"apply" | "archive" | "pool" | null>(null);
+  const [pending, setPending]     = useState<"apply" | "archive" | "pool" | "send" | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
@@ -90,6 +91,24 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
       catch (e) { console.error(e); setHidden(false); }
       finally   { setPending(null); }
     });
+  }
+
+  async function handleSend() {
+    if (pending) return;
+    setSendError(null);
+    setPending("send");
+    try {
+      const res = await fetch(`/api/applications/${row.letter_id}/send-email`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setSendError(json.error ?? "Send failed"); return; }
+      // Email sent → mark applied locally and slide card out
+      setLocalApplied(true);
+      setTimeout(() => setHidden(true), 700);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setPending(null);
+    }
   }
 
   if (hidden) return null;
@@ -194,6 +213,13 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
         )
       )}
 
+      {/* Send error */}
+      {sendError && (
+        <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-3 py-2 mb-3">
+          <p className="text-[12px] text-red-700 dark:text-red-400">{sendError}</p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {analysisHref && (
@@ -214,11 +240,22 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           <ExternalLink className="w-3 h-3" />
           Open job
         </a>
+        {/* Send email — only for cards with a contact email that haven't been applied yet */}
+        {!isPool && !localApplied && row.job_contact_email && (
+          <button
+            onClick={handleSend}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+          >
+            {pending === "send" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            Send email
+          </button>
+        )}
         {!isPool && !localApplied && (
           <button
             onClick={handleApply}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
           >
             {pending === "apply" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
             Mark applied

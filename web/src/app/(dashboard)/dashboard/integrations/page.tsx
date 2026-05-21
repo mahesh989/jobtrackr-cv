@@ -1,7 +1,8 @@
 import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { redirect }            from "next/navigation";
-import { ApifyIntegrationCard } from "@/components/ApifyIntegrationCard";
+import { ApifyIntegrationCard }  from "@/components/ApifyIntegrationCard";
+import { EmailIntegrationCard }  from "@/components/email/EmailIntegrationCard";
 import { ProviderPicker, type ProviderId } from "@/components/ProviderPicker";
 
 export const metadata = { title: "Integrations — JobTrackr" };
@@ -73,6 +74,17 @@ export default async function IntegrationsPage() {
     });
   }
 
+  // ── Email integration ─────────────────────────────────────────────────────
+  const { data: emailRow } = await admin
+    .from("email_integrations")
+    .select("provider, from_address")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const emailConnected = emailRow?.from_address
+    ? { provider: emailRow.provider as "google" | "microsoft", from_address: emailRow.from_address as string }
+    : null;
+
   const pickerProviders = AI_PROVIDERS.map((id) => {
     const row = byProvider.get(id);
     return {
@@ -102,6 +114,20 @@ export default async function IntegrationsPage() {
             then hit Connect. Click the radio dot to set it as preferred for all analyses.
           </p>
           <ProviderPicker providers={pickerProviders} />
+        </section>
+
+        {/* Email account */}
+        <section>
+          <h2 className="text-[13px] font-semibold text-text mb-1">Email account</h2>
+          <p className="text-[12px] text-text-3 mb-3">
+            Connect Gmail or Outlook to send application emails with your cover letter
+            and tailored CV directly from the Applications page.
+          </p>
+          <EmailIntegrationCard
+            connected={emailConnected}
+            googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
+            microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}
+          />
         </section>
 
         {/* Job sources */}
