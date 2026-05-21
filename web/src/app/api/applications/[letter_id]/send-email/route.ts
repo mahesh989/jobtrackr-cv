@@ -16,6 +16,7 @@ import { createAdminClient }          from "@/lib/supabase/admin";
 import { getValidAccessToken }        from "@/lib/email/tokens";
 import { sendViaGmail }               from "@/lib/email/gmail";
 import { sendViaOutlook }             from "@/lib/email/outlook";
+import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
@@ -69,16 +70,28 @@ export async function POST(
     .limit(1)
     .maybeSingle();
 
-  // ── 4. Download PDF (best-effort — send without attachment if missing) ───
-  let pdfBuffer: Buffer | null = null;
+  // ── 4. Download tailored CV PDF (best-effort) ───────────────────────────
+  let cvPdfBuffer: Buffer | null = null;
   if (run?.tailored_pdf_storage_path) {
     const { data: pdfData } = await admin
       .storage
       .from(TAILORED_CV_BUCKET)
       .download(run.tailored_pdf_storage_path);
     if (pdfData) {
-      pdfBuffer = Buffer.from(await pdfData.arrayBuffer());
+      cvPdfBuffer = Buffer.from(await pdfData.arrayBuffer());
     }
+  }
+
+  // ── 4b. Generate (or fetch) cover letter PDF (Phase G) ──────────────────
+  // ensureCoverLetterPdf is idempotent: returns existing path+bytes when the
+  // PDF was already rendered, otherwise renders, uploads, and stamps the path.
+  let letterPdfBuffer: Buffer | null = null;
+  try {
+    const ensured = await ensureCoverLetterPdf(letter_id, user.id);
+    letterPdfBuffer = ensured.bytes;
+  } catch (err) {
+    // Non-fatal — we'll send with cover letter as email body only.
+    console.warn("[send-email] cover letter PDF generation failed (non-fatal):", err);
   }
 
   // ── 5. Get valid OAuth access token ──────────────────────────────────────
@@ -102,13 +115,22 @@ export async function POST(
     ? `${job.hiring_manager} <${job.contact_email}>`
     : job.contact_email;
 
-  const attachment = pdfBuffer
-    ? {
-        filename:    `TailoredCV_${companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
-        contentType: "application/pdf",
-        data:        pdfBuffer,
-      }
-    : undefined;
+  const companySlug = companyName.replace(/[^a-zA-Z0-9]/g, "_");
+  const attachments = [];
+  if (letterPdfBuffer) {
+    attachments.push({
+      filename:    `CoverLetter_${companySlug}.pdf`,
+      contentType: "application/pdf",
+      data:        letterPdfBuffer,
+    });
+  }
+  if (cvPdfBuffer) {
+    attachments.push({
+      filename:    `TailoredCV_${companySlug}.pdf`,
+      contentType: "application/pdf",
+      data:        cvPdfBuffer,
+    });
+  }
 
   // ── 7. Send ───────────────────────────────────────────────────────────────
   try {
@@ -118,14 +140,14 @@ export async function POST(
         to:         toAddress,
         subject,
         body,
-        attachment,
+        attachments,
       });
     } else {
       await sendViaOutlook(tokenInfo.access_token, {
         to:         toAddress,
         subject,
         body,
-        attachment,
+        attachments,
       });
     }
   } catch (err) {

@@ -3,15 +3,17 @@
  * Only call from server-side code.
  */
 
+export interface OutlookAttachment {
+  filename:    string;
+  contentType: string;
+  data:        Buffer;
+}
+
 export interface OutlookSendOptions {
-  to:      string;
-  subject: string;
-  body:    string;           // plain text
-  attachment?: {
-    filename:    string;
-    contentType: string;
-    data:        Buffer;
-  };
+  to:           string;
+  subject:      string;
+  body:         string;           // plain text
+  attachments?: OutlookAttachment[];
 }
 
 export async function sendViaOutlook(
@@ -30,15 +32,14 @@ export async function sendViaOutlook(
     ],
   };
 
-  if (opts.attachment) {
-    message.attachments = [
-      {
-        "@odata.type": "#microsoft.graph.fileAttachment",
-        name:          opts.attachment.filename,
-        contentType:   opts.attachment.contentType,
-        contentBytes:  opts.attachment.data.toString("base64"),
-      },
-    ];
+  const atts = opts.attachments ?? [];
+  if (atts.length > 0) {
+    message.attachments = atts.map((att) => ({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name:          att.filename,
+      contentType:   att.contentType,
+      contentBytes:  att.data.toString("base64"),
+    }));
   }
 
   const res = await fetch(

@@ -4,16 +4,18 @@
  * Only call from server-side code.
  */
 
+export interface EmailAttachment {
+  filename:    string;
+  contentType: string;
+  data:        Buffer;
+}
+
 export interface GmailSendOptions {
-  from:        string;         // "Name <email>" or plain email
-  to:          string;
-  subject:     string;
-  body:        string;         // plain text
-  attachment?: {
-    filename:    string;
-    contentType: string;
-    data:        Buffer;
-  };
+  from:         string;         // "Name <email>" or plain email
+  to:           string;
+  subject:      string;
+  body:         string;         // plain text
+  attachments?: EmailAttachment[];
 }
 
 export async function sendViaGmail(
@@ -36,14 +38,14 @@ export async function sendViaGmail(
     Buffer.from(opts.body, "utf-8").toString("base64"),
   ];
 
-  if (opts.attachment) {
+  for (const att of opts.attachments ?? []) {
     lines.push(
       `--${boundary}`,
-      `Content-Type: ${opts.attachment.contentType}; name="${opts.attachment.filename}"`,
-      `Content-Disposition: attachment; filename="${opts.attachment.filename}"`,
+      `Content-Type: ${att.contentType}; name="${att.filename}"`,
+      `Content-Disposition: attachment; filename="${att.filename}"`,
       `Content-Transfer-Encoding: base64`,
       ``,
-      opts.attachment.data.toString("base64"),
+      att.data.toString("base64"),
     );
   }
 

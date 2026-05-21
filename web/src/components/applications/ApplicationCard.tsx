@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, ArrowRight } from "lucide-react";
+import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, Download } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 
 export interface ApplicationRow {
@@ -246,6 +246,16 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
         >
           <ExternalLink className="w-3 h-3" />
           Open job
+        </a>
+        <a
+          href={`/api/applications/${row.letter_id}/cover-letter-pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+          title="Download cover letter PDF"
+        >
+          <Download className="w-3 h-3" />
+          Letter
         </a>
         {/* Send email — only for cards with a contact email that haven't been applied yet */}
         {!isPool && !localApplied && row.job_contact_email && (
