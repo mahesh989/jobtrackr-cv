@@ -78,13 +78,21 @@ export async function GET(req: NextRequest) {
   const profileJson = profileRes.ok ? await profileRes.json() : {};
   const email       = profileJson.mail ?? profileJson.userPrincipalName ?? user.email ?? "";
 
-  await saveTokens(user.id, {
-    access_token,
-    refresh_token,
-    expiry_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-    email,
-    provider:  "microsoft",
-  });
+  try {
+    await saveTokens(user.id, {
+      access_token,
+      refresh_token,
+      expiry_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+      email,
+      provider:  "microsoft",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[outlook/callback] saveTokens failed:", msg);
+    return NextResponse.redirect(
+      `${appUrl}/dashboard/integrations?email_error=${encodeURIComponent("save_failed:" + msg.slice(0, 120))}`,
+    );
+  }
 
   return NextResponse.redirect(
     `${appUrl}/dashboard/integrations?email_connected=outlook`,

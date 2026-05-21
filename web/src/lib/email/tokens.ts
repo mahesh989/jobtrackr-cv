@@ -20,9 +20,10 @@ export interface StoredTokens {
 // ── Persist ──────────────────────────────────────────────────────────────────
 
 export async function saveTokens(userId: string, tokens: StoredTokens): Promise<void> {
-  const encrypted = encryptApiKey(JSON.stringify(tokens));
-  const admin     = createAdminClient();
-  await admin
+  const encrypted = encryptApiKey(JSON.stringify(tokens));   // throws if INTEGRATION_ENCRYPTION_KEY missing/wrong
+  const admin     = createAdminClient();                     // throws if Supabase URL/service-role key missing
+
+  const { error } = await admin
     .from("email_integrations")
     .upsert({
       user_id:      userId,
@@ -31,6 +32,11 @@ export async function saveTokens(userId: string, tokens: StoredTokens): Promise<
       from_address: tokens.email,
       updated_at:   new Date().toISOString(),
     }, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("[saveTokens] upsert failed:", error);
+    throw new Error(`email_integrations upsert failed: ${error.message}`);
+  }
 }
 
 // ── Load ─────────────────────────────────────────────────────────────────────

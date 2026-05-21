@@ -78,13 +78,21 @@ export async function GET(req: NextRequest) {
   const profileJson = profileRes.ok ? await profileRes.json() : {};
   const email = profileJson.email ?? user.email ?? "";
 
-  await saveTokens(user.id, {
-    access_token,
-    refresh_token,
-    expiry_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-    email,
-    provider:  "google",
-  });
+  try {
+    await saveTokens(user.id, {
+      access_token,
+      refresh_token,
+      expiry_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+      email,
+      provider:  "google",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[google/callback] saveTokens failed:", msg);
+    return NextResponse.redirect(
+      `${appUrl}/dashboard/integrations?email_error=${encodeURIComponent("save_failed:" + msg.slice(0, 120))}`,
+    );
+  }
 
   return NextResponse.redirect(
     `${appUrl}/dashboard/integrations?email_connected=google`,

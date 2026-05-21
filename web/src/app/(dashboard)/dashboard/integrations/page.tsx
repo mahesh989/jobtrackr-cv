@@ -17,6 +17,12 @@ const OAUTH_ERROR_LABELS: Record<string, string> = {
   access_denied:           "You declined the consent screen.",
 };
 
+function describeError(key: string): string {
+  // save_failed:<reason> — surface the underlying message verbatim
+  if (key.startsWith("save_failed:")) return `Token save failed — ${key.slice("save_failed:".length)}`;
+  return OAUTH_ERROR_LABELS[key] ?? `Error: ${key}`;
+}
+
 interface PageProps {
   searchParams: Promise<{
     email_connected?: "google" | "outlook";
@@ -142,7 +148,7 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
               ✗ Email connection failed
             </p>
             <p className="text-[12px] text-red-700 dark:text-red-400 mt-0.5">
-              {OAUTH_ERROR_LABELS[errorKey] ?? `Error: ${errorKey}`}
+              {describeError(errorKey)}
             </p>
           </div>
         )}
