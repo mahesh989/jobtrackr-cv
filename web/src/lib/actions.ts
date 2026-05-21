@@ -29,6 +29,36 @@ async function authedClient() {
   return { supabase, user };
 }
 
+/**
+ * Pipeline-automation fields (Phase A schema). Defaults match the
+ * Migration 031 column defaults so first-time creation and a no-op
+ * edit both land on the same values. Toggling automation_enabled off
+ * is silent — the gate thresholds and email mode persist but aren't
+ * acted on by the orchestrator until automation_enabled is true.
+ */
+function extractAutomationFields(formData: FormData) {
+  const autoSend = (formData.get("auto_send_emails") as string) || "never";
+  const allowedSend = new Set(["never", "after_review", "auto"]);
+
+  // Numbers: parse + clamp into the CHECK-constraint ranges so a
+  // hand-edited form value can't reach Postgres with a bad number.
+  function clampInt(raw: FormDataEntryValue | null, fallback: number, min: number, max: number) {
+    if (raw == null) return fallback;
+    const n = parseInt(raw as string, 10);
+    if (Number.isNaN(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  return {
+    automation_enabled:      formData.get("automation_enabled") === "on",
+    min_initial_ats:         clampInt(formData.get("min_initial_ats"),       55,  0, 100),
+    min_final_ats:           clampInt(formData.get("min_final_ats"),         75,  0, 100),
+    role_match_strict:       formData.get("role_match_strict") === "on",
+    auto_send_emails:        allowedSend.has(autoSend) ? autoSend : "never",
+    daily_application_limit: clampInt(formData.get("daily_application_limit"), 10, 0, 1000),
+  };
+}
+
 function extractAdzunaFields(formData: FormData) {
   const adzuna_contract_type = formData.get("adzuna_contract_type") as string;
   const adzuna_hours = formData.get("adzuna_hours") as string;
@@ -76,6 +106,7 @@ export async function createProfile(formData: FormData) {
     is_active: isActive,
     target_verticals: formData.getAll("target_verticals") as string[],
     ...extractAdzunaFields(formData),
+    ...extractAutomationFields(formData),
   });
 
   if (error) throw new Error(error.message);
@@ -111,6 +142,7 @@ export async function updateProfile(profileId: string, formData: FormData) {
       is_active: isActive,
       target_verticals: formData.getAll("target_verticals") as string[],
       ...extractAdzunaFields(formData),
+      ...extractAutomationFields(formData),
     })
     .eq("id", profileId)
     .eq("user_id", user.id);

@@ -24,6 +24,13 @@ interface Props {
     adzuna_distance_km?: number;
     adzuna_max_days_old?: number;
     exclude_title_keywords?: string[];
+    // Phase A automation config (defaults match Migration 031 column defaults)
+    automation_enabled?:       boolean;
+    min_initial_ats?:          number;
+    min_final_ats?:            number;
+    role_match_strict?:        boolean;
+    auto_send_emails?:         string;
+    daily_application_limit?:  number;
   };
 }
 
@@ -35,6 +42,10 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
 
   const match = defaults?.schedule_cron?.match(/\*\/(\d+)/);
   const defaultDays = match ? match[1] : "2";
+
+  // Pipeline automation — gate the dependent fields behind the on/off
+  // toggle so the form clearly signals "off does nothing".
+  const [automationOn, setAutomationOn] = useState<boolean>(defaults?.automation_enabled ?? false);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -200,6 +211,149 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
             </div>
             <p className="text-[11px] text-text-2 mt-1.5">The system automatically schedules the optimal time each day.</p>
           </div>
+        )}
+      </div>
+
+      {/* Pipeline automation — gate-based auto-tailoring and auto-sending.
+          Distinct from "Automation mode" above, which controls scrape
+          SCHEDULING. This section controls what happens to the jobs after
+          they're scraped: which ones get tailored CVs, which get cover
+          letters, and how emails are sent. */}
+      <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-md p-4 space-y-4">
+        <div>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              name="automation_enabled"
+              checked={automationOn}
+              onChange={(e) => setAutomationOn(e.target.checked)}
+              className="mt-1 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+            />
+            <div className="min-w-0">
+              <span className="block text-[13px] font-semibold text-text">Pipeline automation</span>
+              <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">
+                Auto-generate tailored CVs and cover letters after scraping. Each gate below decides whether to spend an AI call — saves cost on low-match jobs. <strong>Off</strong> means the pipeline only runs when you click Analyze manually.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {automationOn && (
+          <div className="pt-4 border-t border-[var(--border)] space-y-4">
+
+            {/* Initial ATS gate */}
+            <div>
+              <label className="block text-[12px] font-semibold text-text mb-1.5">
+                Initial ATS threshold <span className="font-normal text-text-2">(skip tailoring below this score)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number" name="min_initial_ats"
+                  min="0" max="100" step="1"
+                  defaultValue={defaults?.min_initial_ats ?? 55}
+                  className="field text-center w-20"
+                />
+                <span className="text-[12px] text-text-2">/ 100</span>
+              </div>
+              <p className="text-[11px] text-text-2 mt-1.5">
+                After JD analysis, if the match score is below this, the pipeline stops. Saves the tailored-CV + cover-letter AI calls (~3 calls per job). Default <strong>55</strong>.
+              </p>
+            </div>
+
+            {/* Final ATS gate */}
+            <div>
+              <label className="block text-[12px] font-semibold text-text mb-1.5">
+                Final ATS threshold <span className="font-normal text-text-2">(skip cover letter below this score)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number" name="min_final_ats"
+                  min="0" max="100" step="1"
+                  defaultValue={defaults?.min_final_ats ?? 75}
+                  className="field text-center w-20"
+                />
+                <span className="text-[12px] text-text-2">/ 100</span>
+              </div>
+              <p className="text-[11px] text-text-2 mt-1.5">
+                After tailoring, if the new score is below this, no cover letter is generated. Saves the cover-letter AI calls (~2 calls per job). Default <strong>75</strong>.
+              </p>
+            </div>
+
+            {/* Strict role match */}
+            <div>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox" name="role_match_strict"
+                  defaultChecked={defaults?.role_match_strict ?? false}
+                  className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                />
+                <div className="min-w-0">
+                  <span className="block text-[12px] font-semibold text-text">Strict role match</span>
+                  <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">
+                    Drop jobs whose title doesn&apos;t contain any of your keywords — before any AI call. Catches obvious mismatches (Software Engineer in a Data Analyst feed). Off by default; risks dropping titles that use synonyms.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Email sending mode */}
+            <div>
+              <label className="block text-[12px] font-semibold text-text mb-2">Email sending mode</label>
+              <div className="flex flex-col gap-2">
+                {[
+                  { value: "never",         label: "Never auto-send",          desc: "Cover letters and email drafts are generated; you click Send manually." },
+                  { value: "after_review",  label: "Auto-send after I verify", desc: "Drafts wait in the outbox until you click Verify, then send automatically." },
+                  { value: "auto",          label: "Auto-send without review", desc: "Drafts go straight to send (respects the daily cap below). Use with caution." },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="radio" name="auto_send_emails" value={opt.value}
+                      defaultChecked={(defaults?.auto_send_emails ?? "never") === opt.value}
+                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                      <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">{opt.desc}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Daily cap */}
+            <div>
+              <label className="block text-[12px] font-semibold text-text mb-1.5">
+                Daily application cap
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number" name="daily_application_limit"
+                  min="0" max="1000" step="1"
+                  defaultValue={defaults?.daily_application_limit ?? 10}
+                  className="field text-center w-20"
+                />
+                <span className="text-[12px] text-text-2">applications / day</span>
+              </div>
+              <p className="text-[11px] text-text-2 mt-1.5">
+                Hard guardrail so an automated pipeline can&apos;t spam. Default <strong>10</strong>; 0 = no auto-applications today (you can still review/send manually).
+              </p>
+            </div>
+
+          </div>
+        )}
+
+        {/* When the toggle is OFF we still submit the hidden fields so
+            edits don't clobber existing values. */}
+        {!automationOn && (
+          <>
+            <input type="hidden" name="min_initial_ats"         value={defaults?.min_initial_ats         ?? 55} />
+            <input type="hidden" name="min_final_ats"           value={defaults?.min_final_ats           ?? 75} />
+            <input type="hidden" name="auto_send_emails"        value={defaults?.auto_send_emails        ?? "never"} />
+            <input type="hidden" name="daily_application_limit" value={defaults?.daily_application_limit ?? 10} />
+            {(defaults?.role_match_strict ?? false) && (
+              <input type="hidden" name="role_match_strict" value="on" />
+            )}
+          </>
         )}
       </div>
 
