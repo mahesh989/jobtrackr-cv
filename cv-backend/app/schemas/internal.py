@@ -44,6 +44,17 @@ class AnalyzeRequest(BaseModel):
     # canonical contact info.
     contact_details: Optional[Dict[str, Any]] = None
 
+    # Pipeline-automation gate thresholds (Phase A / C-2). Per-profile,
+    # forwarded by /api/jobs/[id]/analyze from the search_profiles row.
+    # Defaults mirror Migration 031 column defaults so older callers and
+    # backward-compat tests continue to work.
+    #
+    # Phase C-2 behaviour: RECORD only. Both gate booleans are computed
+    # and written to analysis_runs but the pipeline never stops early on
+    # manual runs. Early-stopping arrives in Phase E (automated worker).
+    min_initial_ats: float = 55
+    min_final_ats:   float = 75
+
 
 class AnalyzeResponse(BaseModel):
     run_id: uuid.UUID

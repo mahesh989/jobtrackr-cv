@@ -92,6 +92,19 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
         await save_step_result(run_id, "ats_scoring_result", ats)
         await save_step_result(run_id, "match_score", ats.get("overall_score"))
+
+        # ── Initial-ATS gate (Phase C-2 — record only, no early-stop) ─────────
+        # Mirror match_score into initial_ats_score so Phase B's UI doesn't
+        # need to know the synonym. Compute passed_initial_gate against the
+        # caller's per-profile threshold; downstream Phase E will use this
+        # to decide whether to run the tailoring step at all.
+        initial_score = ats.get("overall_score")
+        if initial_score is not None:
+            await save_step_result(run_id, "initial_ats_score", initial_score)
+            await save_step_result(
+                run_id, "passed_initial_gate",
+                initial_score >= payload.min_initial_ats,
+            )
         await mark_step(run_id, step_status, "ats_scoring", "completed")
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
@@ -188,6 +201,17 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await save_step_result(run_id, "tailored_ats_scoring_result", tailored_ats_payload)
         await save_step_result(run_id, "tailored_match_score", rescore["tailored_match_score"])
         await save_step_result(run_id, "ats_lift", rescore["ats_lift"])
+
+        # ── Final-ATS gate (Phase C-2 — record only, no early-stop) ───────────
+        # Phase E will use this to decide whether to run cover-letter
+        # generation; for now the cover-letter step is always user-triggered
+        # so this is information-only.
+        final_score = rescore["tailored_match_score"]
+        if final_score is not None:
+            await save_step_result(
+                run_id, "passed_final_gate",
+                final_score >= payload.min_final_ats,
+            )
         await save_step_result(run_id, "injected_keywords", {
             "injected":         rescore["injected_keywords"],
             "failed_to_inject": rescore["failed_to_inject"],

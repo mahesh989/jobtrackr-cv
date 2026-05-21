@@ -137,6 +137,10 @@ export interface AnalyzePayload {
   ai_api_key:    string;
   ai_model?:     string | null;
   contact_details?: Record<string, unknown> | null;
+  // Phase C-2 gate thresholds — read from the profile by the analyze
+  // route. cv-backend defaults to 55 / 75 if omitted.
+  min_initial_ats?: number;
+  min_final_ats?:   number;
 }
 
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {

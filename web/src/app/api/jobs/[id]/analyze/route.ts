@@ -66,10 +66,11 @@ export async function POST(
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
-  // Ownership: job → profile → user
+  // Ownership: job → profile → user. Also pull the gate thresholds so we
+  // can forward them to cv-backend (Phase C-2 — record-only gates).
   const { data: profile } = await admin
     .from("search_profiles")
-    .select("user_id")
+    .select("user_id, min_initial_ats, min_final_ats")
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
@@ -259,6 +260,8 @@ export async function POST(
       ai_api_key:     aiApiKey,
       ai_model:       aiModel,
       contact_details: contactForBackend,
+      min_initial_ats: profile.min_initial_ats as number | undefined,
+      min_final_ats:   profile.min_final_ats   as number | undefined,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);
