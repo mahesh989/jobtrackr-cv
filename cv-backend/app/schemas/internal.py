@@ -59,6 +59,12 @@ class AnalyzeRequest(BaseModel):
     # gate result is always recorded — only the early-stop is gated.
     skip_initial_gate: bool = False
 
+    # Phase E-1 — automation marker. True ONLY when the run was triggered
+    # by the worker's auto-analyze step (scheduled pipeline). The web
+    # /api/jobs/[id]/analyze route always sends False so manual runs stay
+    # distinguishable in analytics. Stored on the analysis_runs row.
+    automation: bool = False
+
 
 class AnalyzeResponse(BaseModel):
     run_id: uuid.UUID

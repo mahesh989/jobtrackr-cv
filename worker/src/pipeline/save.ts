@@ -8,13 +8,17 @@ export interface SaveResult {
   saved: number;
   errors: number;
   bySource: Record<string, number>;
+  /** Phase E-1 — IDs of the upserted rows (both new + re-touched).
+   *  The worker's auto-analyze step filters this list to only
+   *  newly-discovered jobs (no prior analysis_run) before queuing. */
+  savedIds: string[];
 }
 
 export async function saveJobs(
   jobs: NormalisedJob[],
   profileId: string
 ): Promise<SaveResult> {
-  if (jobs.length === 0) return { saved: 0, errors: 0, bySource: {} };
+  if (jobs.length === 0) return { saved: 0, errors: 0, bySource: {}, savedIds: [] };
 
   const bySource: Record<string, number> = {};
   for (const j of jobs) bySource[j.source] = (bySource[j.source] ?? 0) + 1;
@@ -50,10 +54,11 @@ export async function saveJobs(
   const BATCH = 100;
   let saved = 0;
   let errors = 0;
+  const savedIds: string[] = [];
 
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);
-    const { error, count } = await db
+    const { error, count, data } = await db
       .from("jobs")
       .upsert(batch, {
         onConflict: "profile_id,url_hash",
@@ -66,8 +71,11 @@ export async function saveJobs(
       errors += batch.length;
     } else {
       saved += count ?? batch.length;
+      for (const row of (data ?? []) as Array<{ id: string }>) {
+        savedIds.push(row.id);
+      }
     }
   }
 
-  return { saved, errors, bySource };
+  return { saved, errors, bySource, savedIds };
 }

@@ -33,9 +33,14 @@ import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichWithCareerjetJDs } from "../sources/careerjet.js";
 import { decryptApiKey } from "../lib/crypto.js";
+import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 
 interface FullProfile extends SearchProfile {
   user_id: string;
+  // Phase A automation config (Migration 031 column defaults: false / 55 / 75)
+  automation_enabled:      boolean;
+  min_initial_ats:         number;
+  min_final_ats:           number;
 }
 
 // ── Integration types ──────────────────────────────────────────────────────────
@@ -88,7 +93,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, min_initial_ats, min_final_ats")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -571,10 +576,31 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
-    const { saved, bySource } = await saveJobs(toSave, profileId);
+    const { saved, bySource, savedIds } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
+
+    // Stage 13 (Phase E-1): auto-analyze new jobs for automation_enabled
+    // profiles. Best-effort and fire-and-forget — cv-backend returns 202
+    // immediately and runs the AI pipeline in background. Failures here
+    // DON'T mark the scrape run failed; they're logged and skipped.
+    if (profile.automation_enabled && savedIds.length > 0) {
+      await setStage(runLogId, `Auto-analyzing ${savedIds.length} jobs`);
+      console.log(`[pipeline] stage 13 — auto-analyze ${savedIds.length} jobs (automation_enabled=true)`);
+      try {
+        const result = await autoAnalyzeBatch(savedIds, {
+          user_id:         profile.user_id,
+          min_initial_ats: profile.min_initial_ats,
+          min_final_ats:   profile.min_final_ats,
+        });
+        console.log(`[pipeline] stage 13 — triggered ${result.triggered}, skipped ${result.skipped}`);
+      } catch (err) {
+        console.error("[pipeline] stage 13 — autoAnalyzeBatch unexpected error:", err);
+      }
+    } else if (!profile.automation_enabled) {
+      console.log(`[pipeline] stage 13 — skipped (automation_enabled=false)`);
+    }
 
     // Update visa_likelihood float on saved jobs (for sort compatibility)
     // Derived: sponsored=1.0, not_mentioned=0.5, no/citizen_pr_only=0.0

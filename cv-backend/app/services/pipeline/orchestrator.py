@@ -53,6 +53,11 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
 
     try:
         await mark_run_running(run_id)
+        # Phase E-1 — record the run provenance (manual vs automated worker).
+        # Recorded once at the very start so the row reflects the trigger
+        # even when the pipeline early-stops at a gate later on.
+        if payload.automation:
+            await save_step_result(run_id, "automation", True)
 
         # Early-exit if the JD itself says the role is closed.
         expiry = detect_jd_expiry(payload.jd_text)

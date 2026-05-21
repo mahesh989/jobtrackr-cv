@@ -145,6 +145,10 @@ export interface AnalyzePayload {
   // anyway" on a job that failed the initial ATS gate. Default false:
   // gate is hard, pipeline stops before tailoring on low-match jobs.
   skip_initial_gate?: boolean;
+  // Phase E-1 — true ONLY when the worker's auto-analyze fires this
+  // request. The /api/jobs/[id]/analyze route always sends false (or
+  // omits) so manual runs stay distinguishable.
+  automation?: boolean;
 }
 
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {
