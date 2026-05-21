@@ -257,7 +257,8 @@ export async function markJobApplied(jobId: string, profileId: string) {
   if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
 
   revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard"); // dashboard now hosts a unified jobs board too
+  revalidatePath("/dashboard"); // dashboard hosts a unified jobs board too
+  revalidatePath("/dashboard/applications"); // outbox bucket may change
 }
 
 export async function markJobDismissed(jobId: string, profileId: string) {
@@ -273,6 +274,7 @@ export async function markJobDismissed(jobId: string, profileId: string) {
 
   revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/applications");
 }
 
 export async function markJobSeen(jobId: string) {

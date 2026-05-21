@@ -17,6 +17,7 @@ import {
   Plus,
   LogOut,
   Sparkles,
+  Send,
 } from "lucide-react";
 
 interface Profile {
@@ -109,6 +110,7 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
           </p>
         </div>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
+        <NavItem href="/dashboard/applications" icon={Send}>Applications</NavItem>
 
         {/* Profiles */}
         <div className="px-1 pt-4 pb-1">
