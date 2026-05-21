@@ -80,6 +80,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>(jobHiringManager ?? "");
   const [downloading, setDownloading] = useState(false);
+
+  // Phase D-2: when the API returns 422 + action=below_final_gate, surface
+  // an inline override prompt with the actual score + threshold so the
+  // user can decide whether to spend the ~5-15s AI call anyway.
+  const [belowFinalGate, setBelowFinalGate] = useState<{
+    score:     number | null;
+    threshold: number;
+  } | null>(null);
   // When the cover letter API returns 422 with action=research_company we
   // auto-trigger company research and retry generation. This state drives the
   // inline "Researching <company> first…" indicator while that runs.
@@ -162,12 +170,22 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   // ── Trigger generation ────────────────────────────────────────────────────
   // didAutoResearch guards against infinite loops: if the second call STILL
   // returns research_company, we surface an error instead of spinning forever.
-  async function handleGenerate(regenerate = false, didAutoResearch = false) {
+  // override (Phase D-2) is set when the user clicks "Generate anyway" on
+  // a below-final-gate prompt — forwarded to the API as ?override=final_gate.
+  async function handleGenerate(
+    regenerate     = false,
+    didAutoResearch = false,
+    override?:    "final_gate",
+  ) {
     setLoading(true);
     setError(null);
+    setBelowFinalGate(null);
 
     try {
-      const res = await fetch(`/api/jobs/${jobId}/cover-letter`, {
+      const url = override
+        ? `/api/jobs/${jobId}/cover-letter?override=${override}`
+        : `/api/jobs/${jobId}/cover-letter`;
+      const res = await fetch(url, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ regenerate }),
@@ -175,6 +193,17 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
+        // Phase D-2: tailored score below user's final-ATS threshold.
+        // Show an inline override prompt so the user can decide whether to
+        // spend the AI call anyway.
+        if (res.status === 422 && data.action === "below_final_gate") {
+          setBelowFinalGate({
+            score:     (data.tailored_score as number | null) ?? null,
+            threshold: (data.threshold      as number)         ?? 75,
+          });
+          return;
+        }
+
         // 422 + action=research_company → company research is a prerequisite.
         // Auto-run it once, then retry generation. The user never sees a button.
         if (res.status === 422 && data.action === "research_company") {
@@ -432,6 +461,44 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
           )}
         </div>
       </div>
+
+      {/* Phase D-2 — final-ATS gate override prompt */}
+      {belowFinalGate && (
+        <div className="mx-5 mt-4 rounded border-2 border-amber-300 bg-amber-50 px-3 py-3">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-[10px] font-bold text-amber-900">!</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-amber-900 leading-snug">
+                Below your final-ATS threshold
+              </p>
+              <p className="mt-1 text-[12px] text-amber-800 leading-relaxed">
+                Tailored CV scored{" "}
+                <span className="font-bold tabular-nums">{belowFinalGate.score ?? "—"}</span>
+                {" "}/ 100, below your configured threshold of{" "}
+                <span className="font-bold tabular-nums">{belowFinalGate.threshold}</span>.
+                A cover letter built on a low tailored score rarely wins interviews — consider improving the CV first, or generate the letter anyway if you want to send it as-is.
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleGenerate(true, false, "final_gate")}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-100 px-2.5 py-1 text-[12px] font-semibold text-amber-900 hover:bg-amber-200 transition-colors disabled:opacity-40"
+                >
+                  Generate cover letter anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBelowFinalGate(null)}
+                  className="px-2 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

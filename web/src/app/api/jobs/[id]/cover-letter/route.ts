@@ -71,6 +71,17 @@ export async function POST(
 ) {
   const { id: jobId } = await params;
 
+  // ── Phase D-2 final-gate override ──────────────────────────────────────────
+  // ?override=final_gate  — bypass passed_final_gate check (user clicked
+  //                         "Generate cover letter anyway" on a low-scoring run)
+  // ?override=all         — bypass every gate (currently only final_gate
+  //                         exists on this route — initial_gate fires earlier)
+  const overrideRaw = req.nextUrl.searchParams.get("override");
+  const override =
+    overrideRaw === "final_gate" || overrideRaw === "all"
+      ? (overrideRaw as "final_gate" | "all")
+      : null;
+
   // ── 1. Auth ───────────────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -105,6 +116,56 @@ export async function POST(
 
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  // ── 3.5. Phase D-2 final-ATS gate ─────────────────────────────────────────────
+  // Mirrors the C-3 initial-gate pattern (on /analyze) but for the
+  // cover-letter call. Reads passed_final_gate from the latest non-stale
+  // analysis_run. When the gate failed and no override flag is set, blocks
+  // with a 422 the UI converts into an inline "Generate anyway" prompt.
+  //
+  // Why on the web side and not cv-backend: the gate decision is a cheap
+  // boolean read + an early-return. Doing it here means we never spend the
+  // ~5-15 s synchronous variants AI call on a job the user's own threshold
+  // would have rejected. cv-backend stays oblivious to this gate.
+  //
+  // No-analysis case: passed_final_gate is null when no analysis_run exists
+  // (or it ran pre-Phase-C-2 before the column was written). We intentionally
+  // do NOT block in that case — the user might be drafting without a prior
+  // analysis. The strict `=== false` check only fires when the gate has
+  // actually been evaluated and failed.
+  if (!override) {
+    const { data: latestRun } = await admin
+      .from("analysis_runs")
+      .select("tailored_match_score, passed_final_gate")
+      .eq("job_id", jobId)
+      .eq("is_stale", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestRun?.passed_final_gate === false) {
+      // Fetch the profile threshold so the UI message can show the user
+      // the actual number they configured (not the default 75).
+      const { data: profileThresholdRow } = await admin
+        .from("search_profiles")
+        .select("min_final_ats")
+        .eq("id", job.profile_id)
+        .maybeSingle();
+      const threshold      = (profileThresholdRow?.min_final_ats as number | undefined) ?? 75;
+      const tailoredScore  = latestRun.tailored_match_score as number | null;
+      return NextResponse.json(
+        {
+          error:
+            `Tailored CV scored ${tailoredScore ?? "—"}, below your final-ATS threshold of ${threshold}. ` +
+            `A cover letter built on a low tailored score rarely wins interviews. Generate anyway?`,
+          action:         "below_final_gate",
+          tailored_score: tailoredScore,
+          threshold,
+        },
+        { status: 422 },
+      );
+    }
   }
 
   // ── 4. Resolve JD text ────────────────────────────────────────────────────────
