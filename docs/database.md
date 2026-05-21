@@ -1,6 +1,6 @@
 # JobTrackr-CV — Database Reference
 
-> Derived from migrations `001`–`025` — the single source of truth.
+> Derived from migrations `001`–`035` — the single source of truth.
 > All migrations were applied manually via Supabase SQL Editor (CLI never linked; see OPS-1 in `.claude/graph.json`).
 > **Additive only** — never ALTER existing JobTrackr base tables (`jobs`, `search_profiles`, etc.). New columns and new `user_integrations.provider` values only.
 
@@ -35,6 +35,16 @@
 | 023 | `023_replace_stories_rpc.sql` | `replace_stories` RPC (SECURITY DEFINER, atomic delete+insert) |
 | 024 | `024_company_research.sql` | `company_research` global cache table + RLS (authenticated SELECT) |
 | 025 | `025_cover_letters.sql` | `cover_letters` table + RLS + Realtime publication |
+| 026 | `026_jobs_hiring_manager.sql` | `jobs` — `hiring_manager` (Phase 10.5 delivery template) |
+| 027 | `027_cover_letters_variants.sql` | `cover_letters` — `opening_variants` / `chosen_opening` / `discarded_openings` JSONB + status CHECK adds `'picking'` (Phase 11) |
+| 028 | `028_add_run_logs_current_stage.sql` | `run_logs` — pipeline stage tracking |
+| 029 | `029_add_run_logs_sources_saved.sql` | `run_logs` — source-level save counters |
+| 030 | `030_add_run_logs_log_lines.sql` | `run_logs` — captured worker log lines |
+| 031 | `031_automation_gates_and_applications.sql` | Phase A — gated automation foundation: `jobs.jd_quality`/`role_match`/`has_email`(GENERATED); `analysis_runs` 4 gate columns + `automation` flag; `search_profiles` 6 automation-config columns; `cover_letters.auto_selected_variant_id`; NEW `applications` outbox (RLS + Realtime + 2 indexes); NEW `email_integrations` stub |
+| 032 | `032_backfill_jd_quality_and_role_match.sql` | Phase A backfill — classified existing 141 jobs (37 rich / 41 thin / 63 unknown JDs; 74 match / 67 uncertain) |
+| 033 | `033_add_pool_decision_at.sql` | D-1 revision — `jobs.pool_decision_at timestamptz` for the Applications Pool "To review" → email/apply routing |
+| 034 | `034_email_integration_phase_f.sql` | Phase F — `email_integrations.oauth_token` `bytea`→`text`; `cover_letters.email_sent_at` + `email_sent_to` send tracking |
+| 035 | `035_email_provider_check_align.sql` | Phase F bug fix — `email_integrations.provider` CHECK realigned `('gmail','outlook')`→`('google','microsoft')` to match code |
 
 ---
 
