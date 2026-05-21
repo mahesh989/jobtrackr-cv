@@ -22,12 +22,13 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { BarChart3, FileText, Mail, CheckCircle2 } from "lucide-react";
+import { BarChart3, FileText, Mail, CheckCircle2, FileWarning, FileQuestion } from "lucide-react";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { JobProgress } from "./progressFlags";
 import { useJobBoardSettings } from "./JobBoardSettings";
+import { PIPELINE_STATE_META, TONE_CLASSES, type PipelineState } from "./pipelineState";
 
 export interface Job {
   id:                  string;
@@ -60,8 +61,15 @@ export interface Job {
   /** Set on the unified dashboard board (all profiles) — undefined on
    * per-profile boards where the profile context is already obvious. */
   profile_name?:       string | null;
+  // Phase A signals (backfilled for existing jobs, set during scraping
+  // for new jobs once Phase C lands).
+  jd_quality?:         "rich" | "thin" | "unknown" | null;
+  role_match?:         "match" | "mismatch" | "uncertain" | null;
+  has_email?:          boolean | null;
   /** Derived in page.tsx via progressFlags.deriveProgress(). */
   progress:            JobProgress;
+  /** Derived in page.tsx via pipelineState.derivePipelineState(). */
+  pipelineState?:      PipelineState;
 }
 
 function relativeDate(d: string | null) {
@@ -249,9 +257,22 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 {isNew && (
                   <span className="badge badge-blue text-[10px] px-1.5 h-4 font-bold">NEW</span>
                 )}
-                {localApplied && (
-                  <span className="badge badge-green text-[10px] px-1.5 h-4">Applied</span>
-                )}
+                {/* Pipeline state badge — single source for lifecycle position.
+                    Hidden when state == discovered (the default — nothing to say). */}
+                {job.pipelineState && (() => {
+                  const meta = PIPELINE_STATE_META[job.pipelineState];
+                  if (!meta.showAsBadge) return null;
+                  const tone = TONE_CLASSES[meta.tone];
+                  return (
+                    <span
+                      title={meta.short}
+                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 h-4 rounded font-medium border ${tone.pill}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
+                      {meta.label}
+                    </span>
+                  );
+                })()}
                 {job.is_dead_link && (
                   <span className="badge badge-red text-[10px] px-1.5 h-4">Dead link</span>
                 )}
@@ -273,8 +294,28 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                   Possible duplicate
                 </span>
               )}
-              {job.location && (
-                <p className="text-[11px] text-text-3 truncate mt-0.5">{job.location}</p>
+              {(job.location || job.jd_quality === "thin" || job.jd_quality === "unknown") && (
+                <p className="text-[11px] text-text-3 truncate mt-0.5 flex items-center gap-1.5">
+                  {job.location && <span className="truncate">{job.location}</span>}
+                  {/* JD-quality indicator — only shown for problems, not for 'rich' */}
+                  {job.jd_quality === "thin" && (
+                    <span
+                      title="JD too short to analyse — click Edit JD to paste the full description"
+                      className="inline-flex items-center gap-0.5 text-amber-600 shrink-0"
+                    >
+                      <FileWarning className="w-3 h-3" />
+                      <span className="text-[10px] font-medium">thin JD</span>
+                    </span>
+                  )}
+                  {job.jd_quality === "unknown" && (
+                    <span
+                      title="JD may be incomplete — review or paste the full description if analysis is off"
+                      className="inline-flex items-center gap-0.5 text-text-3 shrink-0"
+                    >
+                      <FileQuestion className="w-3 h-3" />
+                    </span>
+                  )}
+                </p>
               )}
               {job.profile_name && (
                 <p className="text-[10px] text-text-3 truncate mt-0.5 italic opacity-80" title={`Found via "${job.profile_name}" search`}>

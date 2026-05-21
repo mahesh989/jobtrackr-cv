@@ -30,12 +30,14 @@ import { JobTable, type Job } from "@/components/jobs/JobTable";
 import { JobProgressChips, type JobProgressChipCounts } from "@/components/jobs/JobProgressChips";
 import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
+import { TriageBanner } from "@/components/jobs/TriageBanner";
 import {
   deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
 } from "@/components/jobs/progressFlags";
+import { derivePipelineState } from "@/components/jobs/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -50,8 +52,13 @@ interface SearchParams {
   chips?:         string;
 }
 
-type ChipKey = "analysed" | "hasCv" | "hasLetter";
-const VALID_CHIPS: ChipKey[] = ["analysed", "hasCv", "hasLetter"];
+type ChipKey =
+  | "analysed" | "hasCv" | "hasLetter"
+  | "needsJd"  | "roleMismatch" | "hasEmail" | "autoSkipped";
+const VALID_CHIPS: ChipKey[] = [
+  "analysed", "hasCv", "hasLetter",
+  "needsJd", "roleMismatch", "hasEmail", "autoSkipped",
+];
 
 function parseChips(raw: string | undefined): Set<ChipKey> {
   if (!raw) return new Set();
@@ -152,7 +159,7 @@ export default async function DashboardPage({
   // ── Unified jobs board: data fetch ───────────────────────────────────────
   let q = supabase
     .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address")
+    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -198,7 +205,7 @@ export default async function DashboardPage({
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at")
+        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, passed_initial_gate, passed_final_gate, automation")
         .in("job_id", jobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
@@ -217,22 +224,42 @@ export default async function DashboardPage({
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
 
   let typedJobs: Job[] = jobList.map((j) => {
+    const run    = runByJob.get(j.id);
+    const letter = letterByJob.get(j.id);
     const progress = deriveProgress(
       { applied_at: j.applied_at },
-      runByJob.get(j.id),
-      letterByJob.get(j.id),
+      run,
+      letter,
     );
+    const pipelineState = derivePipelineState({
+      job: {
+        applied_at:   j.applied_at,
+        dismissed_at: (j.dismissed_at as string | null) ?? null,
+        has_email:    (j.has_email    as boolean | null) ?? null,
+        jd_quality:   (j.jd_quality   as string  | null) ?? null,
+        role_match:   (j.role_match   as string  | null) ?? null,
+      },
+      latestRun:    run,
+      latestLetter: letter,
+    });
     return {
       ...(j as unknown as Job),
       profile_name: profileNameById.get(j.profile_id) ?? null,
       progress,
+      pipelineState,
     };
   });
 
   const chipCounts: JobProgressChipCounts = {
-    analysed:  typedJobs.filter((x) => x.progress.has_analysis).length,
-    hasCv:     typedJobs.filter((x) => x.progress.has_tailored_cv).length,
-    hasLetter: typedJobs.filter((x) => x.progress.has_cover_letter).length,
+    analysed:     typedJobs.filter((x) => x.progress.has_analysis).length,
+    hasCv:        typedJobs.filter((x) => x.progress.has_tailored_cv).length,
+    hasLetter:    typedJobs.filter((x) => x.progress.has_cover_letter).length,
+    needsJd:      typedJobs.filter((x) => x.jd_quality === "thin").length,
+    roleMismatch: typedJobs.filter((x) => x.role_match === "mismatch").length,
+    hasEmail:     typedJobs.filter((x) => x.has_email === true).length,
+    autoSkipped:  typedJobs.filter((x) =>
+      x.pipelineState === "below_initial" || x.pipelineState === "below_final"
+    ).length,
   };
 
   const railJobs: RailJob[] = [...typedJobs]
@@ -252,14 +279,28 @@ export default async function DashboardPage({
   const selectedChips = parseChips(sp.chips);
   if (selectedChips.size > 0) {
     typedJobs = typedJobs.filter((x) => {
-      if (selectedChips.has("analysed")  && !x.progress.has_analysis)     return false;
-      if (selectedChips.has("hasCv")     && !x.progress.has_tailored_cv)  return false;
-      if (selectedChips.has("hasLetter") && !x.progress.has_cover_letter) return false;
+      if (selectedChips.has("analysed")     && !x.progress.has_analysis)     return false;
+      if (selectedChips.has("hasCv")        && !x.progress.has_tailored_cv)  return false;
+      if (selectedChips.has("hasLetter")    && !x.progress.has_cover_letter) return false;
+      if (selectedChips.has("needsJd")      && x.jd_quality !== "thin")      return false;
+      if (selectedChips.has("roleMismatch") && x.role_match !== "mismatch")  return false;
+      if (selectedChips.has("hasEmail")     && x.has_email !== true)         return false;
+      if (selectedChips.has("autoSkipped")  &&
+          x.pipelineState !== "below_initial" &&
+          x.pipelineState !== "below_final") return false;
       return true;
     });
   }
 
-  if (sortCol === "recently_progressed") {
+  if (sortCol === "rich_jd_first") {
+    const rank: Record<string, number> = { rich: 1, unknown: 2, thin: 3 };
+    typedJobs = [...typedJobs].sort((a, b) => {
+      const aR = rank[a.jd_quality ?? ""] ?? 4;
+      const bR = rank[b.jd_quality ?? ""] ?? 4;
+      if (aR !== bR) return sortDir ? bR - aR : aR - bR;
+      return (b.posted_at ?? "").localeCompare(a.posted_at ?? "");
+    });
+  } else if (sortCol === "recently_progressed") {
     typedJobs = [...typedJobs].sort((a, b) => {
       const aT = a.progress.last_progress_at ?? "";
       const bT = b.progress.last_progress_at ?? "";
@@ -464,6 +505,13 @@ export default async function DashboardPage({
               <span className="text-[11px] text-text-3">{typedJobs.length} of {tabTotalCount}</span>
             </div>
           </div>
+
+          {/* Triage banner — only shows when there are actionable counts */}
+          <TriageBanner counts={{
+            needsJd:      chipCounts.needsJd,
+            roleMismatch: chipCounts.roleMismatch,
+            autoSkipped:  chipCounts.autoSkipped,
+          }} />
 
           {/* Status tabs (aggregated counts) */}
           <Suspense>

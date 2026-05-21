@@ -7,6 +7,7 @@ import { ShieldCheck, X } from "lucide-react";
 const SORT_OPTIONS = [
   { value: "posted_at",           label: "Date posted"         },
   { value: "created_at",          label: "Date added"          },
+  { value: "rich_jd_first",       label: "Rich JD first"       },
   { value: "recently_progressed", label: "Recently progressed" },
   { value: "most_progressed",     label: "Most progressed"     },
 ] as const;

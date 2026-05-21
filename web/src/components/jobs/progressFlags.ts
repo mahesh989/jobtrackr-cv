@@ -23,6 +23,12 @@ export interface AnalysisRunRef {
   tailored_cv_storage_path:    string | null;
   completed_at:                string | null;
   created_at:                  string;
+  // Phase A gate columns — null until Phase C populates them on
+  // user-initiated or automated runs.
+  initial_ats_score?:          number  | null;
+  passed_initial_gate?:        boolean | null;
+  passed_final_gate?:          boolean | null;
+  automation?:                 boolean | null;
 }
 
 export interface CoverLetterRef {

@@ -31,12 +31,14 @@ import { JobTable, type Job } from "@/components/jobs/JobTable";
 import { JobProgressChips, type JobProgressChipCounts } from "@/components/jobs/JobProgressChips";
 import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
+import { TriageBanner } from "@/components/jobs/TriageBanner";
 import {
   deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
 } from "@/components/jobs/progressFlags";
+import { derivePipelineState } from "@/components/jobs/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -51,8 +53,13 @@ interface SearchParams {
   chips?:         string;
 }
 
-type ChipKey = "analysed" | "hasCv" | "hasLetter";
-const VALID_CHIPS: ChipKey[] = ["analysed", "hasCv", "hasLetter"];
+type ChipKey =
+  | "analysed" | "hasCv" | "hasLetter"
+  | "needsJd"  | "roleMismatch" | "hasEmail" | "autoSkipped";
+const VALID_CHIPS: ChipKey[] = [
+  "analysed", "hasCv", "hasLetter",
+  "needsJd", "roleMismatch", "hasEmail", "autoSkipped",
+];
 
 function parseChips(raw: string | undefined): Set<ChipKey> {
   if (!raw) return new Set();
@@ -98,7 +105,7 @@ export default async function JobsPage({
   // ── Build filtered jobs query ────────────────────────────────────────────
   let query = supabase
     .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address")
+    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -148,7 +155,7 @@ export default async function JobsPage({
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at")
+        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, passed_initial_gate, passed_final_gate, automation")
         .in("job_id", jobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
@@ -167,21 +174,40 @@ export default async function JobsPage({
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
 
-  // ── Derive progress + attach to each job ─────────────────────────────────
+  // ── Derive progress + pipeline state + attach to each job ────────────────
   let typedJobs: Job[] = jobList.map((j) => {
+    const run    = runByJob.get(j.id);
+    const letter = letterByJob.get(j.id);
     const progress = deriveProgress(
       { applied_at: j.applied_at },
-      runByJob.get(j.id),
-      letterByJob.get(j.id),
+      run,
+      letter,
     );
-    return { ...(j as unknown as Job), progress };
+    const pipelineState = derivePipelineState({
+      job: {
+        applied_at:   j.applied_at,
+        dismissed_at: (j.dismissed_at as string | null) ?? null,
+        has_email:    (j.has_email    as boolean | null) ?? null,
+        jd_quality:   (j.jd_quality   as string  | null) ?? null,
+        role_match:   (j.role_match   as string  | null) ?? null,
+      },
+      latestRun:    run,
+      latestLetter: letter,
+    });
+    return { ...(j as unknown as Job), progress, pipelineState };
   });
 
   // ── Chip counts BEFORE chip filter (so toggling never collapses to 0) ────
   const chipCounts: JobProgressChipCounts = {
-    analysed:  typedJobs.filter((j) => j.progress.has_analysis).length,
-    hasCv:     typedJobs.filter((j) => j.progress.has_tailored_cv).length,
-    hasLetter: typedJobs.filter((j) => j.progress.has_cover_letter).length,
+    analysed:     typedJobs.filter((j) => j.progress.has_analysis).length,
+    hasCv:        typedJobs.filter((j) => j.progress.has_tailored_cv).length,
+    hasLetter:    typedJobs.filter((j) => j.progress.has_cover_letter).length,
+    needsJd:      typedJobs.filter((j) => j.jd_quality === "thin").length,
+    roleMismatch: typedJobs.filter((j) => j.role_match === "mismatch").length,
+    hasEmail:     typedJobs.filter((j) => j.has_email === true).length,
+    autoSkipped:  typedJobs.filter((j) =>
+      j.pipelineState === "below_initial" || j.pipelineState === "below_final"
+    ).length,
   };
 
   // ── Continue rail — top 3 by last_progress_at DESC ───────────────────────
@@ -203,15 +229,29 @@ export default async function JobsPage({
   const selectedChips = parseChips(sp.chips);
   if (selectedChips.size > 0) {
     typedJobs = typedJobs.filter((j) => {
-      if (selectedChips.has("analysed")  && !j.progress.has_analysis)     return false;
-      if (selectedChips.has("hasCv")     && !j.progress.has_tailored_cv)  return false;
-      if (selectedChips.has("hasLetter") && !j.progress.has_cover_letter) return false;
+      if (selectedChips.has("analysed")     && !j.progress.has_analysis)     return false;
+      if (selectedChips.has("hasCv")        && !j.progress.has_tailored_cv)  return false;
+      if (selectedChips.has("hasLetter")    && !j.progress.has_cover_letter) return false;
+      if (selectedChips.has("needsJd")      && j.jd_quality !== "thin")      return false;
+      if (selectedChips.has("roleMismatch") && j.role_match !== "mismatch")  return false;
+      if (selectedChips.has("hasEmail")     && j.has_email !== true)         return false;
+      if (selectedChips.has("autoSkipped")  &&
+          j.pipelineState !== "below_initial" &&
+          j.pipelineState !== "below_final") return false;
       return true;
     });
   }
 
   // ── JS-side sort modes ───────────────────────────────────────────────────
-  if (sortCol === "recently_progressed") {
+  if (sortCol === "rich_jd_first") {
+    const rank: Record<string, number> = { rich: 1, unknown: 2, thin: 3 };
+    typedJobs = [...typedJobs].sort((a, b) => {
+      const aR = rank[a.jd_quality ?? ""] ?? 4;
+      const bR = rank[b.jd_quality ?? ""] ?? 4;
+      if (aR !== bR) return sortDir ? bR - aR : aR - bR;
+      return (b.posted_at ?? "").localeCompare(a.posted_at ?? "");
+    });
+  } else if (sortCol === "recently_progressed") {
     typedJobs = [...typedJobs].sort((a, b) => {
       const aT = a.progress.last_progress_at ?? "";
       const bT = b.progress.last_progress_at ?? "";
@@ -340,6 +380,13 @@ export default async function JobsPage({
             <JobProgressChips counts={chipCounts} />
           </Suspense>
         </div>
+
+        {/* Triage banner — only shows when there are actionable counts */}
+        <TriageBanner counts={{
+          needsJd:      chipCounts.needsJd,
+          roleMismatch: chipCounts.roleMismatch,
+          autoSkipped:  chipCounts.autoSkipped,
+        }} />
 
         {/* Continue rail — gated by tab + settings */}
         <ContinueRail jobs={railJobs} currentTab={currentTab} />
