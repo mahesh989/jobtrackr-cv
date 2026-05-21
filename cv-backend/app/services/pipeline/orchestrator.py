@@ -18,6 +18,7 @@ import logging
 import asyncio
 
 from app.config import get_settings
+from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
 from app.schemas.internal import AnalyzeRequest
 from app.services.ai.client import AIClientError, make_ai_client
@@ -248,6 +249,21 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_run_completed(run_id)
         logger.info("run %s: pipeline completed (score=%s lift=%s)",
                     run_id, ats.get("overall_score"), rescore["ats_lift"])
+
+        # ── Phase E-2 — auto cover letter (automation runs that passed final gate)
+        if payload.automation and final_score is not None and final_score >= payload.min_final_ats:
+            jd_meta = payload.jd_meta or {}
+            asyncio.create_task(auto_generate_cover_letter(
+                run_id=       str(payload.run_id),
+                user_id=      str(payload.user_id),
+                jd_text=      payload.jd_text,
+                job_title=    jd_meta.get("title", ""),
+                company_name= jd_meta.get("company", ""),
+                cv_text=      payload.cv_text,
+                ai_provider=  payload.ai_provider,
+                ai_api_key=   payload.ai_api_key,
+                ai_model=     payload.ai_model,
+            ))
 
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)

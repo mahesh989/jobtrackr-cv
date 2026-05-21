@@ -277,6 +277,33 @@ export async function markJobDismissed(jobId: string, profileId: string) {
   revalidatePath("/dashboard/applications");
 }
 
+/**
+ * Pool decision — user chose how to apply for this job.
+ * email provided → Ready to email tab (contact_email + has_email set)
+ * no email       → Ready to apply tab (manual apply)
+ */
+export async function markPoolDecision(jobId: string, profileId: string, email?: string) {
+  const { supabase } = await authedClient();
+  const patch: Record<string, unknown> = {
+    pool_decision_at: new Date().toISOString(),
+  };
+  if (email && email.trim()) {
+    patch.contact_email = email.trim();
+    patch.has_email     = true;
+  }
+  const { error, data } = await supabase
+    .from("jobs")
+    .update(patch)
+    .eq("id", jobId)
+    .select();
+
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
+
+  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath("/dashboard/applications");
+}
+
 export async function markJobSeen(jobId: string) {
   const { supabase } = await authedClient();
   await supabase

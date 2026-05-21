@@ -1,24 +1,12 @@
 "use client";
 
-/**
- * Status tabs for /dashboard/applications.
- *
- * Four mutually-exclusive lifecycle buckets, URL-encoded as ?status=…:
- *   - email      : has completed cover letter + has_email   + not applied + not archived
- *   - apply      : has completed cover letter + no email    + not applied + not archived
- *   - sent       : applied_at IS NOT NULL                      (any channel)
- *   - archived   : dismissed_at IS NOT NULL                    (whether applied or not)
- *
- * Default tab when no ?status= is set: "email" (the highest-leverage bucket).
- * Reuses the same URL-param + useTransition pattern as JobStatusTabs.
- */
-
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 
-export type ApplicationStatusKey = "email" | "apply" | "sent" | "archived";
+export type ApplicationStatusKey = "pool" | "email" | "apply" | "sent" | "archived";
 
 export interface ApplicationStatusCounts {
+  pool:     number;
   email:    number;
   apply:    number;
   sent:     number;
@@ -26,6 +14,7 @@ export interface ApplicationStatusCounts {
 }
 
 const TABS: Array<{ value: ApplicationStatusKey; label: string }> = [
+  { value: "pool",     label: "To review"      },
   { value: "email",    label: "Ready to email" },
   { value: "apply",    label: "Ready to apply" },
   { value: "sent",     label: "Sent / Applied" },
@@ -38,11 +27,11 @@ export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCou
   const sp       = useSearchParams();
   const [, startTransition] = useTransition();
 
-  const current = (sp.get("status") as ApplicationStatusKey) || "email";
+  const current = (sp.get("status") as ApplicationStatusKey) || "pool";
 
   function setTab(v: ApplicationStatusKey) {
     const params = new URLSearchParams(sp.toString());
-    if (v === "email") params.delete("status"); else params.set("status", v);
+    if (v === "pool") params.delete("status"); else params.set("status", v);
     startTransition(() => router.replace(`${pathname}?${params}`));
   }
 

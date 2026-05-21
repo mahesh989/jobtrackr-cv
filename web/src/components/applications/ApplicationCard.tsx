@@ -1,32 +1,14 @@
 "use client";
 
-/**
- * One application — a job that has a completed cover letter.
- *
- * Renders a richer card than the JobTable row because the user is now
- * in "act on it" mode rather than "triage" mode. Per-row info:
- *   - Title + company + location + profile-of-origin + match score
- *   - Inline preview of the cover letter (first ~180 chars) with
- *     "View full" link to the analysis run page where the existing
- *     letter+CV UI lives
- *   - Channel ribbon — "To: <email>" OR "No email — open the job link"
- *   - Actions: Open job · View full · Mark applied · Archive
- *
- * Mark applied / Archive are existing server actions (markJobApplied,
- * markJobDismissed). The "Sent" sub-tab and "Archived" sub-tab on the
- * outbox are derived from job.applied_at and job.dismissed_at — same
- * source of truth as the rest of the app.
- */
-
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2 } from "lucide-react";
-import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, ArrowRight } from "lucide-react";
+import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 
 export interface ApplicationRow {
   letter_id:                 string;
   letter_completed_at:       string | null;
-  letter_preview:            string;   // first ~180 chars of pass_3_final
+  letter_preview:            string;
   job_id:                    string;
   job_title:                 string;
   job_company:               string;
@@ -36,6 +18,7 @@ export interface ApplicationRow {
   job_dismissed_at:          string | null;
   job_contact_email:         string | null;
   job_has_email:             boolean;
+  job_pool_decision_at:      string | null;
   job_hiring_manager:        string | null;
   profile_id:                string;
   profile_name:              string;
@@ -60,12 +43,14 @@ function relativeDate(d: string | null) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export function ApplicationCard({ row }: { row: ApplicationRow }) {
+export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; isPool?: boolean }) {
   const [, startTransition]  = useTransition();
-  const [pending, setPending] = useState<"apply" | "archive" | null>(null);
+  const [pending, setPending] = useState<"apply" | "archive" | "pool" | null>(null);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
 
   const score        = formatScore(row.tailored_match_score);
   const analysisHref = row.latest_run_id
@@ -76,7 +61,6 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
     if (localApplied || pending) return;
     setPending("apply");
     setLocalApplied(true);
-    // Smooth exit animation when leaving the current bucket (Ready→Sent).
     setTimeout(() => setHidden(true), 700);
     startTransition(async () => {
       try { await markJobApplied(row.job_id, row.profile_id); }
@@ -97,11 +81,22 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
     });
   }
 
+  function handlePoolDecision(email?: string) {
+    if (pending) return;
+    setPending("pool");
+    setTimeout(() => setHidden(true), 500);
+    startTransition(async () => {
+      try { await markPoolDecision(row.job_id, row.profile_id, email); }
+      catch (e) { console.error(e); setHidden(false); }
+      finally   { setPending(null); }
+    });
+  }
+
   if (hidden) return null;
 
   return (
     <div className="bg-surface border border-border rounded-md p-4 anim-in hover:border-[var(--text-3)] transition-colors">
-      {/* Header row — title, company, score */}
+      {/* Header row */}
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -152,18 +147,51 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
         </p>
       </div>
 
-      {/* Channel ribbon */}
-      {row.job_has_email && row.job_contact_email ? (
-        <div className="flex items-center gap-1.5 mb-3 text-[12px] text-text-2">
-          <Mail className="w-3.5 h-3.5 text-[var(--brand)] shrink-0" />
-          <span className="font-medium">To:</span>
-          <span className="font-mono text-[11px] truncate">{row.job_contact_email}</span>
+      {/* Pool decision — only shown in the "To review" tab */}
+      {isPool ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 px-3 py-2.5 mb-3">
+          <p className="text-[12px] font-medium text-amber-800 dark:text-amber-300 mb-2">
+            Does this job have a contact email?
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              ref={emailRef}
+              type="email"
+              placeholder="recruiter@company.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && emailInput.trim()) handlePoolDecision(emailInput.trim());
+              }}
+              className="flex-1 text-[12px] px-2.5 py-1.5 rounded border border-[var(--border)] bg-[var(--surface)] text-text placeholder:text-text-3 focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            />
+            <button
+              onClick={() => handlePoolDecision(emailInput.trim() || undefined)}
+              disabled={pending !== null}
+              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1.5 disabled:opacity-40 shrink-0"
+            >
+              {pending === "pool" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              {emailInput.trim() ? "Add email" : "No email"}
+            </button>
+          </div>
+          <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1.5">
+            Add an email to move it to "Ready to email", or click "No email" to queue it for manual application.
+          </p>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 mb-3 text-[12px] text-text-3">
-          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-          <span>No email on file — apply via the job link</span>
-        </div>
+        /* Channel ribbon for non-pool tabs */
+        row.job_has_email && row.job_contact_email ? (
+          <div className="flex items-center gap-1.5 mb-3 text-[12px] text-text-2">
+            <Mail className="w-3.5 h-3.5 text-[var(--brand)] shrink-0" />
+            <span className="font-medium">To:</span>
+            <span className="font-mono text-[11px] truncate">{row.job_contact_email}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 mb-3 text-[12px] text-text-3">
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            <span>No email on file — apply via the job link</span>
+          </div>
+        )
       )}
 
       {/* Actions */}
@@ -172,7 +200,6 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
           <Link
             href={analysisHref}
             className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-            title="View the full tailored CV + cover letter on the analysis page"
           >
             <FileText className="w-3 h-3" />
             View full
@@ -187,7 +214,7 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
           <ExternalLink className="w-3 h-3" />
           Open job
         </a>
-        {!localApplied && (
+        {!isPool && !localApplied && (
           <button
             onClick={handleApply}
             disabled={pending !== null}
@@ -197,7 +224,7 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
             Mark applied
           </button>
         )}
-        {!localArchived && (
+        {!isPool && !localArchived && (
           <button
             onClick={handleArchive}
             disabled={pending !== null}
@@ -205,6 +232,16 @@ export function ApplicationCard({ row }: { row: ApplicationRow }) {
           >
             {pending === "archive" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
             Archive
+          </button>
+        )}
+        {isPool && (
+          <button
+            onClick={handleArchive}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40 ml-auto"
+          >
+            {pending === "archive" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
+            Dismiss
           </button>
         )}
       </div>

@@ -1,23 +1,13 @@
 /**
  * /dashboard/applications — the outbox.
  *
- * Lists every job that has a completed cover letter, bucketed by lifecycle:
- *   - Ready to email      (has_email=true,  not applied, not archived)
- *   - Ready to apply      (has_email=false, not applied, not archived)
- *   - Sent / Applied      (job.applied_at is not null)
- *   - Archived            (job.dismissed_at is not null)
- *
- * Data fetch — three queries + JS stitching (same pattern as /dashboard
- * and /dashboard/profiles/[id]/jobs):
- *   1. cover_letters (status='completed', is_stale=false, this user)
- *   2. jobs IN (letter.job_id)
- *   3. analysis_runs IN (letter.job_id), latest non-stale per job
- *   + search_profiles (already loaded for the sidebar via layout but
- *     refetched here cheaply for profile names)
- *
- * No applications table writes yet — Phase F will populate it for the
- * email send pipeline. Reading directly from cover_letters keeps D-1
- * fully reversible without a migration.
+ * Bucket lifecycle:
+ *   Pool (To review) — cover letter ready, user hasn't set email/no-email yet
+ *                      (pool_decision_at IS NULL)
+ *   Ready to email   — pool_decision_at set + contact_email IS NOT NULL
+ *   Ready to apply   — pool_decision_at set + contact_email IS NULL (apply manually)
+ *   Sent / Applied   — job.applied_at IS NOT NULL
+ *   Archived         — job.dismissed_at IS NOT NULL
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -43,9 +33,11 @@ export default async function ApplicationsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = ((sp.status as ApplicationStatusKey) || "email") as ApplicationStatusKey;
+  const rawTab = sp.status as ApplicationStatusKey | undefined;
   const validTab: ApplicationStatusKey =
-    tab === "email" || tab === "apply" || tab === "sent" || tab === "archived" ? tab : "email";
+    rawTab === "email" || rawTab === "apply" || rawTab === "sent" || rawTab === "archived"
+      ? rawTab
+      : "pool";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -77,7 +69,7 @@ export default async function ApplicationsPage({
   // ── 2. Jobs ───────────────────────────────────────────────────────────────
   const { data: jobs } = await supabase
     .from("jobs")
-    .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, has_email, contact_email, hiring_manager")
+    .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, has_email, contact_email, hiring_manager, pool_decision_at")
     .in("id", jobIds);
 
   const jobById = new Map(
@@ -93,6 +85,7 @@ export default async function ApplicationsPage({
       has_email:         boolean | null;
       contact_email:     string | null;
       hiring_manager:    string | null;
+      pool_decision_at:  string | null;
     }>).map((j) => [j.id, j]),
   );
 
@@ -117,7 +110,7 @@ export default async function ApplicationsPage({
     });
   }
 
-  // ── 4. Profile names for the "via <profile>" line ─────────────────────────
+  // ── 4. Profile names ──────────────────────────────────────────────────────
   const profileIds = Array.from(new Set(
     Array.from(jobById.values()).map((j) => j.profile_id),
   ));
@@ -147,6 +140,7 @@ export default async function ApplicationsPage({
       job_dismissed_at:          j.dismissed_at,
       job_contact_email:         j.contact_email,
       job_has_email:             !!j.has_email,
+      job_pool_decision_at:      j.pool_decision_at,
       job_hiring_manager:        j.hiring_manager,
       profile_id:                j.profile_id,
       profile_name:              profileNameById.get(j.profile_id) ?? "",
@@ -156,33 +150,41 @@ export default async function ApplicationsPage({
     });
   }
 
-  // ── 6. Bucket counts (against the FULL list — never collapses to 0) ──────
+  // ── 6. Bucket counts ──────────────────────────────────────────────────────
+  const isPool     = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at === null;
+  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.job_contact_email;
+  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !r.job_contact_email;
+  const isSent     = (r: ApplicationRow) => !!r.job_applied_at;
+  const isArchived = (r: ApplicationRow) => !!r.job_dismissed_at && !r.job_applied_at;
+
   const counts: ApplicationStatusCounts = {
-    email:    allRows.filter((r) => !r.job_applied_at && !r.job_dismissed_at && r.job_has_email).length,
-    apply:    allRows.filter((r) => !r.job_applied_at && !r.job_dismissed_at && !r.job_has_email).length,
-    sent:     allRows.filter((r) => !!r.job_applied_at).length,
-    archived: allRows.filter((r) => !!r.job_dismissed_at && !r.job_applied_at).length,
+    pool:     allRows.filter(isPool).length,
+    email:    allRows.filter(isEmail).length,
+    apply:    allRows.filter(isApply).length,
+    sent:     allRows.filter(isSent).length,
+    archived: allRows.filter(isArchived).length,
   };
 
   // ── 7. Filter to current tab ──────────────────────────────────────────────
   const visible = allRows.filter((r) => {
-    if (validTab === "email")    return !r.job_applied_at && !r.job_dismissed_at && r.job_has_email;
-    if (validTab === "apply")    return !r.job_applied_at && !r.job_dismissed_at && !r.job_has_email;
-    if (validTab === "sent")     return !!r.job_applied_at;
-    if (validTab === "archived") return !!r.job_dismissed_at && !r.job_applied_at;
+    if (validTab === "pool")     return isPool(r);
+    if (validTab === "email")    return isEmail(r);
+    if (validTab === "apply")    return isApply(r);
+    if (validTab === "sent")     return isSent(r);
+    if (validTab === "archived") return isArchived(r);
     return false;
   });
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
-    email:    "Cover letter generated and a contact email is on file. Send via the email client of your choice for now — the integrated send pipeline lands in a later phase.",
-    apply:    "Cover letter generated but no contact email — open the job link to apply manually. Download the tailored CV + copy the letter text from the analysis page.",
-    sent:     "Jobs you've marked as applied. Track outcomes here once the response tracker lands.",
-    archived: "Jobs you've archived (dismissed) after generating a letter. Listed here for reference; can't easily un-archive yet.",
+    pool:     "Cover letter is ready — decide whether you have a contact email for each job. Add one to queue it for email, or skip to mark it as manual apply.",
+    email:    "Contact email on file. Download your tailored CV and cover letter from the analysis page, then send via your email client.",
+    apply:    "No contact email — apply manually via the job link. Download the tailored CV + copy the letter from the analysis page.",
+    sent:     "Jobs you've marked as applied. Track outcomes here.",
+    archived: "Jobs you've dismissed after generating a letter.",
   };
 
   return (
     <div className="min-h-full">
-      {/* Header */}
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -202,33 +204,31 @@ export default async function ApplicationsPage({
       </div>
 
       <div className="px-6 py-5 space-y-4 max-w-4xl">
-        {/* Sub-tabs */}
         <div className="anim-in">
           <Suspense>
             <ApplicationStatusTabs counts={counts} />
           </Suspense>
         </div>
 
-        {/* Help text */}
         <p className="text-[12px] text-text-2 anim-in anim-delay-1">
           {TAB_HELP[validTab]}
         </p>
 
-        {/* Cards */}
         {visible.length === 0 ? (
           <div className="bg-surface border border-border rounded-md py-12 text-center anim-in anim-delay-2">
             <p className="text-[13px] font-medium text-text mb-1">Nothing here yet</p>
             <p className="text-[12px] text-text-2">
-              {validTab === "email" && "Cover letters with a contact email will appear here."}
-              {validTab === "apply" && "Cover letters for jobs without a contact email will appear here."}
-              {validTab === "sent"  && "Jobs you mark as applied will appear here."}
+              {validTab === "pool"     && "Cover letters waiting for your email decision will appear here."}
+              {validTab === "email"    && "Cover letters with a contact email will appear here."}
+              {validTab === "apply"    && "Cover letters for manual applications will appear here."}
+              {validTab === "sent"     && "Jobs you mark as applied will appear here."}
               {validTab === "archived" && "Archived applications will appear here."}
             </p>
           </div>
         ) : (
           <div className="space-y-3 anim-in anim-delay-2">
             {visible.map((row) => (
-              <ApplicationCard key={row.letter_id} row={row} />
+              <ApplicationCard key={row.letter_id} row={row} isPool={validTab === "pool"} />
             ))}
           </div>
         )}
@@ -250,7 +250,7 @@ function EmptyState() {
           </div>
           <h2 className="text-[16px] font-semibold text-text mb-2">No applications yet</h2>
           <p className="text-[13px] text-text-2 leading-relaxed mb-6">
-            Generate a cover letter from any job&apos;s analysis page and it&apos;ll show up here, ready to send or apply.
+            Generate a cover letter from any job&apos;s analysis page and it&apos;ll show up here ready for review.
           </p>
           <Link href="/dashboard" className="gh-btn gh-btn-blue text-[13px] px-4 py-2">
             Go to the job board →
