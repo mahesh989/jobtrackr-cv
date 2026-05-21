@@ -275,14 +275,11 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 })()}
                 {/* Override link — appears inline next to a Below-initial badge.
                     Click → POST analyze with ?override=initial_gate so the
-                    orchestrator runs the tailoring step despite the failed gate. */}
+                    orchestrator runs the tailoring step despite the failed gate.
+                    (Needs-JD doesn't get an inline override — the toast that
+                     appears on Analyze-click handles that flow.) */}
                 {job.pipelineState === "below_initial" && (
                   <AnalyzeJobButton jobId={job.id} override="initial_gate" compact />
-                )}
-                {/* For thin JD jobs, the API blocks at the pre-check. Offer an
-                    override link inline so the user can run anyway (rare). */}
-                {job.pipelineState === "needs_jd" && (
-                  <AnalyzeJobButton jobId={job.id} override="thin_jd" compact />
                 )}
                 {job.is_dead_link && (
                   <span className="badge badge-red text-[10px] px-1.5 h-4">Dead link</span>

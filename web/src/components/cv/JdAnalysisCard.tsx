@@ -5,6 +5,8 @@
  * Ported from cv-magic and restyled with JobTrackr design tokens.
  */
 
+import { AlertTriangle } from "lucide-react";
+
 interface CategorisedSkills {
   technical?:         string[];
   soft_skills?:       string[];
@@ -28,12 +30,36 @@ const CAT_LABEL: Record<string, string> = {
 };
 const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
 
+// Decide whether the JD analysis came back "weak" — i.e. the AI couldn't
+// extract a real role description because the source text was a stub /
+// company-benefits page / paywall. When that happens we render `summary`
+// in bold red so the user understands why the downstream pipeline is
+// pointless without a real JD pasted.
+function hasAnySkills(s: CategorisedSkills | string[] | undefined | null): boolean {
+  if (!s) return false;
+  if (Array.isArray(s)) return s.length > 0;
+  return Object.values(s).some((arr) => Array.isArray(arr) && arr.length > 0);
+}
+
+function isWeakAnalysis(d: JDAnalysisData): boolean {
+  const noResp     = !d.responsibilities  || d.responsibilities.length === 0;
+  const noReq      = !hasAnySkills(d.required_skills);
+  const noPref     = !hasAnySkills(d.preferred_skills);
+  const noTitle    = !d.job_title;
+  const unknownSr  = !d.seniority_level || d.seniority_level === "unknown";
+  // Be conservative: only treat as weak if the AI returned essentially
+  // nothing of substance. Real roles always have at least responsibilities
+  // OR required skills.
+  return noResp && noReq && noPref && (noTitle || unknownSr);
+}
+
 export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
   const d = data as JDAnalysisData;
   const req  = d.required_skills;
   const pref = d.preferred_skills;
   const reqIsCategorised  = req  != null && !Array.isArray(req)  && typeof req  === "object";
   const prefIsCategorised = pref != null && !Array.isArray(pref) && typeof pref === "object";
+  const weak = isWeakAnalysis(d);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -65,7 +91,14 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
         )}
 
         {d.summary && (
-          <p className="text-[13px] text-text-2 leading-relaxed italic">{d.summary}</p>
+          weak ? (
+            <div className="flex items-start gap-2 p-3 rounded-md border-2 border-red-200 bg-red-50">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <p className="text-[13px] font-bold text-red-700 leading-relaxed">{d.summary}</p>
+            </div>
+          ) : (
+            <p className="text-[13px] text-text-2 leading-relaxed italic">{d.summary}</p>
+          )
         )}
 
         {/* Required skills */}

@@ -96,7 +96,11 @@ export const PIPELINE_STATE_META: Record<PipelineState, PipelineStateMeta> = {
   below_initial:   { label: "Below initial",  tone: "warning", short: "Initial ATS scored below your starting threshold. Manual runs complete; the automated worker (Phase E) will skip these.",      showAsBadge: true  },
   analysing:       { label: "Analysing…",     tone: "info",    short: "Analysis in progress",                                              showAsBadge: true  },
   role_mismatch:   { label: "Role mismatch",  tone: "danger",  short: "Title doesn't match your profile keywords",                         showAsBadge: true  },
-  needs_jd:        { label: "Needs JD",       tone: "warning", short: "Job description too short to analyse — paste the full JD to continue", showAsBadge: true  },
+  // Needs-JD: showAsBadge=false because the thin-JD icon already appears
+  // inline with the location, and the Analyze button surfaces a clear
+  // toast + "Run anyway" option when clicked. A separate State badge
+  // would be redundant.
+  needs_jd:        { label: "Needs JD",       tone: "warning", short: "Job description too short to analyse — paste the full JD to continue", showAsBadge: false },
   discovered:      { label: "—",              tone: "neutral", short: "Not yet processed",                                                 showAsBadge: false },
 };
 
