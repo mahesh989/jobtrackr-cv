@@ -9,7 +9,26 @@ export const metadata = { title: "Integrations — JobTrackr" };
 
 const AI_PROVIDERS: ProviderId[] = ["anthropic", "openai", "deepseek"];
 
-export default async function IntegrationsPage() {
+const OAUTH_ERROR_LABELS: Record<string, string> = {
+  invalid_state:           "Security check failed — please try again.",
+  no_code:                 "Google didn't return an authorization code.",
+  token_exchange_failed:   "Couldn't exchange the code for a token. Check your GOOGLE_CLIENT_SECRET / MICROSOFT_CLIENT_SECRET.",
+  missing_tokens:          "OAuth completed but no refresh token was returned. Re-run consent (refresh tokens require offline_access + prompt=consent).",
+  access_denied:           "You declined the consent screen.",
+};
+
+interface PageProps {
+  searchParams: Promise<{
+    email_connected?: "google" | "outlook";
+    email_error?:     string;
+  }>;
+}
+
+export default async function IntegrationsPage({ searchParams }: PageProps) {
+  const sp        = await searchParams;
+  const connected = sp.email_connected ?? null;
+  const errorKey  = sp.email_error     ?? null;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
@@ -105,6 +124,28 @@ export default async function IntegrationsPage() {
             Connect job sources and AI providers. All credentials are encrypted at rest with AES-256-GCM.
           </p>
         </div>
+
+        {/* OAuth result banner ── shown for one page-load after callback */}
+        {connected && (
+          <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
+            <p className="text-[13px] font-medium text-emerald-800 dark:text-emerald-300">
+              ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
+            </p>
+            <p className="text-[12px] text-emerald-700 dark:text-emerald-400 mt-0.5">
+              You can now send application emails from the Applications page.
+            </p>
+          </div>
+        )}
+        {errorKey && (
+          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
+            <p className="text-[13px] font-medium text-red-800 dark:text-red-300">
+              ✗ Email connection failed
+            </p>
+            <p className="text-[12px] text-red-700 dark:text-red-400 mt-0.5">
+              {OAUTH_ERROR_LABELS[errorKey] ?? `Error: ${errorKey}`}
+            </p>
+          </div>
+        )}
 
         {/* AI providers — unified picker */}
         <section>
