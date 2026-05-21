@@ -177,9 +177,9 @@ export default async function ApplicationsPage({
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool:     "Cover letter is ready — decide whether you have a contact email for each job. Add one to queue it for email, or skip to mark it as manual apply.",
-    email:    "Contact email on file. Download your tailored CV and cover letter from the analysis page, then send via your email client.",
-    apply:    "No contact email — apply manually via the job link. Download the tailored CV + copy the letter from the analysis page.",
-    sent:     "Jobs you've marked as applied. Track outcomes here.",
+    email:    "Contact email on file. Click Send to email your cover letter and tailored CV directly from your connected Gmail or Outlook account.",
+    apply:    "No contact email — apply manually via the job link, then mark applied. The full analysis with CV PDF is available via View full.",
+    sent:     "Jobs you've applied to. Track outcomes here.",
     archived: "Jobs you've dismissed after generating a letter.",
   };
 

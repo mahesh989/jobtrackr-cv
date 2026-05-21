@@ -284,12 +284,14 @@ export async function markJobDismissed(jobId: string, profileId: string) {
  */
 export async function markPoolDecision(jobId: string, profileId: string, email?: string) {
   const { supabase } = await authedClient();
+  // Note: jobs.has_email is a GENERATED column (contact_email IS NOT NULL).
+  // We must NOT write to it directly — Postgres rejects writes to GENERATED ALWAYS.
+  // Setting contact_email below automatically updates has_email via the generation expression.
   const patch: Record<string, unknown> = {
     pool_decision_at: new Date().toISOString(),
   };
   if (email && email.trim()) {
     patch.contact_email = email.trim();
-    patch.has_email     = true;
   }
   const { error, data } = await supabase
     .from("jobs")

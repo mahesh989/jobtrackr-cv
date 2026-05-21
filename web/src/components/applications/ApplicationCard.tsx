@@ -46,7 +46,7 @@ function relativeDate(d: string | null) {
 export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; isPool?: boolean }) {
   const [, startTransition]  = useTransition();
   const [pending, setPending]     = useState<"apply" | "archive" | "pool" | "send" | null>(null);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
@@ -84,28 +84,35 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
 
   function handlePoolDecision(email?: string) {
     if (pending) return;
+    setActionError(null);
     setPending("pool");
-    setTimeout(() => setHidden(true), 500);
     startTransition(async () => {
-      try { await markPoolDecision(row.job_id, row.profile_id, email); }
-      catch (e) { console.error(e); setHidden(false); }
-      finally   { setPending(null); }
+      try {
+        await markPoolDecision(row.job_id, row.profile_id, email);
+        // Success — slide the card out of the pool tab
+        setTimeout(() => setHidden(true), 300);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to save decision";
+        setActionError(msg);
+      } finally {
+        setPending(null);
+      }
     });
   }
 
   async function handleSend() {
     if (pending) return;
-    setSendError(null);
+    setActionError(null);
     setPending("send");
     try {
       const res = await fetch(`/api/applications/${row.letter_id}/send-email`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) { setSendError(json.error ?? "Send failed"); return; }
+      if (!res.ok) { setActionError(json.error ?? "Send failed"); return; }
       // Email sent → mark applied locally and slide card out
       setLocalApplied(true);
       setTimeout(() => setHidden(true), 700);
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : "Network error");
+      setActionError(e instanceof Error ? e.message : "Network error");
     } finally {
       setPending(null);
     }
@@ -213,10 +220,10 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
         )
       )}
 
-      {/* Send error */}
-      {sendError && (
+      {/* Action error (pool decision or send) */}
+      {actionError && (
         <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-3 py-2 mb-3">
-          <p className="text-[12px] text-red-700 dark:text-red-400">{sendError}</p>
+          <p className="text-[12px] text-red-700 dark:text-red-400">{actionError}</p>
         </div>
       )}
 
