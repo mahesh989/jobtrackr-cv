@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.5",
-    "updated": "2026-05-20 (Phase 11 ship — voice-directed drafting: multi-variant opening paragraphs. cv-backend: opening_variants.py prompt (4 named patterns, single JSON-array call), GenerateOpeningVariantsRequest/Response schemas, /internal/generate-opening-variants endpoint (synchronous, HTTP 200), SYSTEM_BODY_ONLY + USER_TEMPLATE_BODY_ONLY prompts, _generate_body_with_chosen_opener() in generator.py, chosen_opening?: string added to GenerateCoverLetterRequest. Migration 027: DROP+ADD constraint adds 'picking' to status CHECK; opening_variants/chosen_opening/discarded_openings JSONB columns added. Web: cvBackend.ts (OpeningVariant, GenerateOpeningVariants* interfaces + function); /cover-letter POST phase-split: generateOpeningVariants() called before DB insert — cv-backend failure returns 502 without leaving stuck rows; row created with status='picking' + opening_variants payload; returns {letter_id, status:'picking', variants}; /cover-letter/[letter_id]/pick POST: auth → fetch letter (PickLetter cast) → 409 if not picking → find chosen → compute discarded → re-resolve CV/voice/key/story/JD → PATCH {chosen_opening, discarded_openings, status:'pending'} → generateCoverLetter(chosen_opening:) → 502 rolls back to 'picking'. Audit fix d61c048: company_name reads jobs.company not cover_letters.company_hook_text. CoverLetterPanel: extended CoverLetterRow + status union, Realtime SELECT updated, isPicking derived state, handlePick(), stacked-card VariantPicker UI with pattern_label + 'Use this opener' buttons. Commits: 8dbcf8c (11b), d61c048 (audit fix).) — Worker curl_cffi session (2026-05-20): scripts/fetch_jd.py + src/lib/curlfetch.ts + seekDirect curl_cffi upgrade (replaced got-scraping; location normalisation) + careerjet two-phase integration (API+tracking-URL-immediate-resolution+curl_cffi-JD-enrichment). SEEK: 22 jobs/run at $0 from Fly datacenter, no proxy. Careerjet: 20 jobs + 10/11 JDs at $0. Apify actor: fallback only, $0. Dockerfile: python3 + curl_cffi added. OPS-13+OPS-14 captured. Worker service status updated from copied_from_jobtrackr → active.",
+    "version": "0.6",
+    "updated": "2026-05-21 (Phase A — Migration 031+032 applied + verified. Schema foundation for the gated-pipeline overhaul: jobs gains jd_quality/role_match/has_email(GENERATED); analysis_runs gains 4 gate columns; search_profiles gains 6 automation-config columns with safe defaults (automation OFF by default); cover_letters gains auto_selected_variant_id; NEW applications table (the outbox — RLS + Realtime + 2 indexes); NEW email_integrations table (Phase F stub — schema only). Backfill classified 141 existing jobs: 37 rich / 41 thin / 63 unknown JDs; 74 match / 67 uncertain role-match. KEY FINDING: has_email = 1 — only ONE job in the pool has a contact_email, which means the apply_link channel will be the dominant flow; Phase F priority may shift toward JD email extraction before Gmail OAuth send. All 5 search_profiles received automation defaults. pipeline_state DROPPED from plan in favour of JS-derived state (same pattern as progressFlags.deriveProgress). No code reads new columns yet — Phase B is visibility-only UI.) — Earlier this session: 2026-05-20 (Phase 11 ship — voice-directed drafting: multi-variant opening paragraphs. cv-backend: opening_variants.py prompt (4 named patterns, single JSON-array call), GenerateOpeningVariantsRequest/Response schemas, /internal/generate-opening-variants endpoint (synchronous, HTTP 200), SYSTEM_BODY_ONLY + USER_TEMPLATE_BODY_ONLY prompts, _generate_body_with_chosen_opener() in generator.py, chosen_opening?: string added to GenerateCoverLetterRequest. Migration 027: DROP+ADD constraint adds 'picking' to status CHECK; opening_variants/chosen_opening/discarded_openings JSONB columns added. Web: cvBackend.ts (OpeningVariant, GenerateOpeningVariants* interfaces + function); /cover-letter POST phase-split: generateOpeningVariants() called before DB insert — cv-backend failure returns 502 without leaving stuck rows; row created with status='picking' + opening_variants payload; returns {letter_id, status:'picking', variants}; /cover-letter/[letter_id]/pick POST: auth → fetch letter (PickLetter cast) → 409 if not picking → find chosen → compute discarded → re-resolve CV/voice/key/story/JD → PATCH {chosen_opening, discarded_openings, status:'pending'} → generateCoverLetter(chosen_opening:) → 502 rolls back to 'picking'. Audit fix d61c048: company_name reads jobs.company not cover_letters.company_hook_text. CoverLetterPanel: extended CoverLetterRow + status union, Realtime SELECT updated, isPicking derived state, handlePick(), stacked-card VariantPicker UI with pattern_label + 'Use this opener' buttons. Commits: 8dbcf8c (11b), d61c048 (audit fix).) — Worker curl_cffi session (2026-05-20): scripts/fetch_jd.py + src/lib/curlfetch.ts + seekDirect curl_cffi upgrade (replaced got-scraping; location normalisation) + careerjet two-phase integration (API+tracking-URL-immediate-resolution+curl_cffi-JD-enrichment). SEEK: 22 jobs/run at $0 from Fly datacenter, no proxy. Careerjet: 20 jobs + 10/11 JDs at $0. Apify actor: fallback only, $0. Dockerfile: python3 + curl_cffi added. OPS-13+OPS-14 captured. Worker service status updated from copied_from_jobtrackr → active.",
     "purpose": "Single source of truth for the JobTrackr-CV integration project. Read every session start. Update immediately when state changes. DESIGN.md is the architectural plan; this is the live state.",
     "design_doc": "DESIGN.md"
   },
@@ -188,6 +188,48 @@
         ],
         "notes": "Added in Phase 10.4 via Migration 025. Extended in Phase 11 via Migration 027 (new columns: opening_variants, chosen_opening, discarded_openings; 'picking' added to status CHECK). One row per generated letter per (user_id, job_id) pair. Lifecycle: status='picking' → user selects opener → status='pending' → cv-backend generates P2-4 → status='completed'/'failed'. cv-backend writes via service-role; frontend reads via RLS + Realtime. generation_status JSONB tracks sub-steps. RLS: auth.uid() = user_id. Realtime: added to supabase_realtime publication."
       },
+      "Application": {
+        "table": "applications",
+        "fields": [
+          "id",
+          "user_id",
+          "job_id",
+          "analysis_run_id (nullable, ON DELETE SET NULL)",
+          "cover_letter_id (nullable, ON DELETE SET NULL)",
+          "channel ('email' | 'apply_link')",
+          "email_draft",
+          "email_subject",
+          "status ('draft' | 'pending_review' | 'queued' | 'sent' | 'failed' | 'applied' | 'archived')",
+          "sent_at",
+          "sent_to",
+          "error_message",
+          "user_verified",
+          "created_at",
+          "updated_at"
+        ],
+        "relations": [
+          "belongs_to: User",
+          "belongs_to: Job (ON DELETE CASCADE)",
+          "belongs_to: AnalysisRun (nullable)",
+          "belongs_to: CoverLetter (nullable)"
+        ],
+        "notes": "Added in Phase A (Migration 031). The pipeline OUTBOX — distinct from cover_letters. One row per application attempt. Channel = 'email' (we can send via email_integrations) OR 'apply_link' (no email; user opens the job URL manually). email_draft + email_subject are generated for BOTH channels — the apply_link case treats it as a 'sample' the user can copy if they find a contact later. status flow: draft → pending_review (user verifies) → queued → sent | failed. apply_link rows skip pending_review/queued/sent and go to 'applied' when the user clicks Mark applied. RLS: auth.uid() = user_id. Realtime: added to supabase_realtime publication so the outbox tab can react to send-state changes live. Indexes: (user_id, status, created_at DESC) for the four sub-tab queries; (job_id) for per-job lookup."
+      },
+      "EmailIntegration": {
+        "table": "email_integrations",
+        "fields": [
+          "user_id (PK)",
+          "provider ('gmail' | 'outlook')",
+          "oauth_token (bytea, encrypted AES-256-GCM via existing crypto helper)",
+          "from_address",
+          "created_at",
+          "updated_at"
+        ],
+        "relations": [
+          "belongs_to: User (unique — one integration per user)"
+        ],
+        "notes": "Added in Phase A (Migration 031) as a SCHEMA STUB ONLY. No code reads or writes this table in Phase A — the OAuth handshake, token storage, and send pipeline land in Phase F. Encryption format matches the existing user_integrations pattern. RLS: auth.uid() = user_id."
+      },
       "VoiceProfile": {
         "table": "voice_profiles",
         "fields": [
@@ -296,7 +338,7 @@
   },
   "build_state": {
     "current_phase": 12,
-    "next_action": "Phase 11 shipped (commits 8dbcf8c, d61c048). Phase 12 TBD — candidates: stale-variants detection (variants_generated_at column; 'Refresh options' if research fresher), per-paragraph regeneration UI, cover letter outcome tracking (accepted/rejected/no_response), or delivery-format polish. Read PHASE-11-STALE-VARIANTS planning_note and BUG-3 for the two most natural starting points.",
+    "next_action": "Phase A APPLIED + VERIFIED (2026-05-21). Schema foundation live in Supabase. Proceed to Phase B — Jobs table visibility-only UI: (1) NEW file components/jobs/pipelineState.ts (pure deriver mirroring progressFlags.deriveProgress) — derives 'needs_jd' | 'role_mismatch' | 'below_initial' | 'below_final' | 'ready_to_apply' | 'ready_to_send' | 'sent' | 'applied' | 'archived' from raw row data. (2) Add State column + JD-quality column to JobTable.tsx. (3) Add new filter chips to JobProgressChips: Needs JD, Role mismatch, Has email, Auto-skipped. (4) Add dashboard banner for triage queues ('12 jobs need a JD pasted'). No pipeline changes, no AI calls, no automation logic. Just surfaces the new columns. Read PHASE-A-AUTOMATION-GATES-READY-TO-APPLY (status: applied_and_verified) + PIPELINE-AUTOMATION-DESIGN planning_notes for the full design context.",
     "completed": [
       "Phase 0 — preview env verified",
       "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
@@ -340,6 +382,7 @@
       "Phase 10.4 — Cover Letter Generation (2026-05-18 + 2026-05-19) — Session 1: migration 025 (cover_letters table: status enum, generation_status JSONB, pass_1/2/3 text+model cols, gate scores, quality_flags JSONB, is_stale, RLS, Realtime publication), cv-backend three-pass pipeline (generator.py + model_router.py + quality_gates.py + 3 pass prompts + gate_1_honesty), /internal/generate-cover-letter endpoint. Session 2: web POST/GET routes, CoverLetterPanel UI with Realtime subscription, wired into analysis run page. Session J (refactor, 2026-05-19): replaced 3-pass pipeline with single-call architecture after end-to-end quality testing showed mechanical-feeling output. New design: one call to user's chosen model with voice sample + CV + story + company fact + four-paragraph intent rubric + anti-patterns; honesty gate rewritten for scope (candidate-claims only) and leniency (paraphrase tolerance). Company research is now a prerequisite (web POST returns 422 + action=research_company if missing; UI shows 'Research [Company]' button calling existing /api/company-research). Low-quality research falls back to JD-hook with warning. P1 spec bans role-first openers and demands substantive candidate-perspective claim (with 3 different-domain example shapes to prevent verbatim copy + formula entrenchment). P3 spec uses contrastive WEAK/STRONGER examples for structural variety + 4 named texture categories (colleague reaction / what changed afterwards / what was hard / specific moment). Deleted: model_router.py, quality_gates.py, pass_1/2/3_*.py prompts. DB schema unchanged; old rows keep 6-key generation_status, new rows use 2-key. quality_flags merge in generator preserves web-layer pre-writes. Commits 8044aa2, 07e3b2b, 0c3679f, fd42d47, f12732a.",
       "Phase 10.5 — Delivery Template + PDF Export (2026-05-19, Session K) — Initial ship (Haiku, commits 0c21b19→caefadf): Migration 026 (hiring_manager column on jobs), suburb/postcode added to user_preferences contact_details, JobEditModal hiring_manager field, /api/jobs/[id]/cover-letter/[letter_id]/{template,download} routes, CoverLetterPanel rewritten with jsPDF client-side rendering (A4, 0.8in margins, 11pt Helvetica). Post-ship Opus audit caught 5 real bugs that all shipped: (1) /template route was dead code, never wired; (2) ownership-fail returned 401 instead of 403; (3) hardcoded 'Australia' line in employer block; (4) 'M' user-specific fallback initial in filename slug; (5) job.location existed and was unfetched, so employer block was missing city/state. Three behavioural bugs also fixed: editedBody not reset on regenerate (silent stale-edit send), hiring-manager name duplicated in employer block + salutation, name positioned BELOW company instead of above (inverted AU convention). Plus two product-feedback fixes: dropped RE: line entirely (redundant in one-job letters), and company research now auto-triggers transparently with didAutoResearch loop guard (no manual 'Research [Company]' button). Cleanup commits: f45a3df (5 bug fixes + shared coverLetterTemplate.ts helper extracted, 122-line net reduction), 8f270e6 (hiring-manager dedup + reorder), 463aa0c (wire job.location), ec5f086 (drop RE: + auto-research). All pushed and Vercel-deployed. Final ship state: AU-standard format, single-page fit verified, accessible modal (role=dialog, Escape, backdrop click, autoFocus), shared template helper at web/src/lib/coverLetterTemplate.ts.",
       "Worker curl_cffi infrastructure + SEEK direct + Careerjet integration (2026-05-20) — curl_cffi (Chrome 124 TLS impersonation) bypasses Cloudflare from Fly.io datacenter IP without any proxy — confirmed in production. New files: scripts/fetch_jd.py (Python subprocess: Chrome 124 JA3/ALPN via curl_cffi, --proxy + --no-redirect flags, single JSON-line stdout), src/lib/curlfetch.ts (TypeScript wrapper: curlFetch() full-body fetch + curlRedirect() header-only probe). seekDirect.ts: replaced got-scraping with curlFetch; added normaliseSeekLocation() stripping ', Australia' suffix from state-level locations; 22 SEEK jobs/run at $0 from Fly datacenter without any proxy. careerjet.ts: Phase 1 — Careerjet API listings + immediate tracking-URL resolution (Node native fetch(redirect:'manual') at CONCURRENCY=5 resolves jobviewtrack.com/v2/<hash> → careerjet.com.au/clk/<hash> within seconds of API call, before tokens expire); Phase 2 — curl_cffi JD enrichment (10/11 full descriptions merged, 421–6846 chars each). Careerjet.com.au URLs stored in DB — links are permanent and clickable in UI. Apify actor path preserved as automatic orchestrator fallback — never ran. Dockerfile: python3-minimal + pip3 install curl_cffi + COPY scripts/fetch_jd.py. Production run confirmed: SEEK 22 jobs + Careerjet 20 jobs, Apify cost $0.",
+      "Phase A — Migration 031+032 applied + verified (2026-05-21) — Schema foundation for the gated-pipeline overhaul. SCOPE: pure schema, zero code changes, existing flows unchanged. ADDED: jobs.jd_quality (CHECK 'rich'|'thin'|'unknown'), jobs.role_match (CHECK 'match'|'mismatch'|'uncertain'), jobs.has_email (GENERATED ALWAYS AS contact_email IS NOT NULL STORED — auto-computed, can be indexed); analysis_runs.initial_ats_score numeric, .passed_initial_gate boolean, .passed_final_gate boolean, .automation boolean NOT NULL DEFAULT false; search_profiles.automation_enabled bool DEFAULT false, .min_initial_ats numeric DEFAULT 55 (CHECK 0-100), .min_final_ats numeric DEFAULT 75 (CHECK 0-100), .role_match_strict bool DEFAULT false, .auto_send_emails text DEFAULT 'never' (CHECK 'never'|'after_review'|'auto'), .daily_application_limit int DEFAULT 10; cover_letters.auto_selected_variant_id text. NEW TABLES: applications (id/user_id/job_id/analysis_run_id/cover_letter_id/channel('email'|'apply_link')/email_draft/email_subject/status('draft'|'pending_review'|'queued'|'sent'|'failed'|'applied'|'archived')/sent_at/sent_to/error_message/user_verified/timestamps — RLS users_own_applications + set_updated_at trigger + 2 indexes (user_id+status+created_at DESC; job_id) + added to supabase_realtime publication) and email_integrations (user_id PK/provider/oauth_token bytea/from_address/timestamps — RLS only, Phase F schema stub with no code). BACKFILL (032): classified all 141 existing jobs — jd_quality 37 rich / 41 thin / 63 unknown; role_match 74 match / 67 uncertain (SQL does only match/uncertain — 'mismatch' deferred to JS denylist). KEY FINDING from has_email count: only 1/141 jobs has a contact_email in the existing pool. This means the apply_link channel (open job URL manually) will dominate; Phase F priority may shift toward JD-regex email extraction (cheap) or a manual email-paste UX before Gmail OAuth send becomes high-value. DESIGN DECISION: dropped pipeline_state + pipeline_blocked_reason columns from the original plan — state is derived in JS via a pure function (same pattern as components/jobs/progressFlags.deriveProgress), single source of truth, no trigger maintenance burden, no consistency risk. All 5 search_profiles received automation defaults. Phase B (visibility-only UI: State + JD-quality columns, chips, dashboard banner) is the next step — no pipeline changes, no AI changes, no automation logic.",
       "Phase 11 — Voice-directed drafting: multi-variant opening paragraphs (2026-05-20) — cv-backend: opening_variants.py (VARIANTS_SYSTEM + VARIANTS_USER_TEMPLATE with 4 named patterns: Story Hook, Conviction Statement, Mirror-Back, Before/After Contrast; Pattern D key constraint: contrast must be in thinking/method not metric results); schemas/cover_letter.py (OpeningVariant, GenerateOpeningVariantsRequest/Response, chosen_opening optional on GenerateCoverLetterRequest); services/cover_letter/variants.py (generate_opening_variants: single JSON-array call, temperature 1.0 for gpt-5* else 0.9, 700 max tokens, validates ≥3 variants); generator.py (_generate_body_with_chosen_opener using SYSTEM_BODY_ONLY + USER_TEMPLATE_BODY_ONLY; coherence constraint: P2 must build on P1's frame; run_cover_letter_pipeline branches on chosen_opening present/absent); /internal/generate-opening-variants endpoint (synchronous HTTP 200, HMAC-protected). Migration 027: adds 'picking' to status CHECK (DROP+ADD constraint pattern — text not enum); adds opening_variants/chosen_opening/discarded_openings columns. Web: cvBackend.ts (OpeningVariant/GenerateOpeningVariants* typed wrappers, 60s timeout); /cover-letter POST phase-split (variants generated before DB insert — failure returns 502 without leaving stuck rows; row created with status='picking'; returns {letter_id, status:'picking', variants}); /cover-letter/[letter_id]/pick POST (new route: auth → PickLetter cast workaround for Supabase type lag → 409 guard → find chosen/discarded → re-resolve prerequisites → PATCH to 'pending' → generateCoverLetter(chosen_opening:) → 502 rolls back to 'picking'; audit fix d61c048: company_name from jobs.company not cover_letters.company_hook_text); GET route updated to include new columns in SELECT. CoverLetterPanel: OpeningVariant interface, extended CoverLetterRow ('picking' in status union + 3 nullable fields), polling pauses during 'picking', handlePick(), stacked-card VariantPicker UI (pattern_label in small caps, 'Use this opener' button, disabled/loading during in-flight). Opus audit: PASS_WITH_NOTES — one blocking fix applied (d61c048), three non-blocking notes deferred. Commits: 8dbcf8c (11b web), d61c048 (audit fix)."
     ],
     "in_progress": [],
@@ -1164,6 +1207,66 @@
         "docs/cover-letter-spec.md — full 10-part spec for context"
       ],
       "starting_prompt_for_next_session": "Read .claude/graph.json then PHASE-11-HANDOFF planning_note. Plan Phase 11 (voice-directed drafting multi-variant opening paragraphs) using the /plan slash command — produce the 10-section plan, then stop for my review."
+    },
+    {
+      "id": "PHASE-A-AUTOMATION-GATES-READY-TO-APPLY",
+      "status": "applied_and_verified_2026-05-21",
+      "logged": "2026-05-21",
+      "title": "Phase A — Automation gates schema (Migration 031) written, awaiting Supabase apply + verification",
+      "context": "Phase A of the larger gated-pipeline overhaul (see PIPELINE-AUTOMATION-DESIGN below). Pure schema, no code. Lays the foundation for: cheap pre-checks (jd_quality, role_match) that avoid AI calls; two-gate ATS model (skip tailoring below initial threshold, skip cover letter below final threshold); per-profile automation config; an applications outbox distinct from cover_letters; and a stub for email integration (Phase F).",
+      "files_written": [
+        "supabase/migrations/031_automation_gates_and_applications.sql — schema",
+        "supabase/migrations/032_backfill_jd_quality_and_role_match.sql — backfill"
+      ],
+      "schema_summary": {
+        "jobs": "added jd_quality ('rich'|'thin'|'unknown'), role_match ('match'|'mismatch'|'uncertain'), has_email (GENERATED ALWAYS AS contact_email IS NOT NULL)",
+        "analysis_runs": "added initial_ats_score, passed_initial_gate, passed_final_gate, automation (default false)",
+        "search_profiles": "added automation_enabled (false), min_initial_ats (55), min_final_ats (75), role_match_strict (false), auto_send_emails ('never'), daily_application_limit (10)",
+        "cover_letters": "added auto_selected_variant_id",
+        "applications (NEW)": "the outbox — channel/email_draft/email_subject/status/sent_at/sent_to/user_verified — RLS + Realtime + 2 indexes",
+        "email_integrations (NEW)": "schema stub — provider/oauth_token/from_address — RLS only, no code"
+      },
+      "design_decision_pipeline_state": "DROPPED the pipeline_state + pipeline_blocked_reason columns from the original plan. State is DERIVED in JS (same pattern as components/jobs/progressFlags.deriveProgress) — single source of truth, no trigger maintenance burden, no consistency risk.",
+      "user_action_required": [
+        "Open Supabase SQL editor",
+        "Run 031_automation_gates_and_applications.sql in a fresh query — verify no errors",
+        "Run 032_backfill_jd_quality_and_role_match.sql in a fresh query — verify no errors",
+        "Run the 5 verification queries from the PHASE-A plan (column distribution, RLS, policies, Realtime publication, search_profiles defaults)",
+        "Report the verification output back — especially the jd_quality/role_match distributions, which will tell us if the heuristics are well-calibrated for the existing data"
+      ],
+      "after_verification": "Commit both .sql files to the repo. Add a `completed` entry to build_state. Update _meta.updated. Proceed to Phase B (visibility-only UI changes).",
+      "phases_after_A": {
+        "B": "Jobs table: State + JD columns, new chips (Needs JD / Role mismatch / Has email / Auto-skipped), dashboard banner for triage queues. Visibility only — no pipeline changes. NEW file: components/jobs/pipelineState.ts (pure deriver).",
+        "C": "Two gate checks wired into the existing MANUAL pipeline. automation_enabled stays false everywhere — defaults make this invisible until a user opts in.",
+        "D": "Applications tab on dashboard with 4 sub-tabs (Ready to email / Ready to apply / Sent / Archived). Apply-link channel works; email send is mocked.",
+        "E": "Automation worker — scheduled job that runs the pipeline gate-by-gate for automation_enabled profiles, respecting daily limits.",
+        "F": "Email integration — Gmail OAuth (confirmed Q1), send pipeline, auto-send modes."
+      }
+    },
+    {
+      "id": "PIPELINE-AUTOMATION-DESIGN",
+      "logged": "2026-05-21",
+      "title": "Gated automation pipeline — design reference (the spine that A-F implement)",
+      "lifecycle_state_machine": "DISCOVERED → JD_CHECK (jd_quality=thin → NEEDS_JD_PASTE; else next) → ROLE_CHECK (role_match=mismatch → ROLE_MISMATCH; else next) → INITIAL_ATS_GATE (score < min_initial → BELOW_INITIAL; else next) → TAILORED_CV (AI call) → FINAL_ATS_GATE (score < min_final → BELOW_FINAL; else next) → COVER_LETTER + EMAIL (single AI call producing both — auto-picks hook variant) → APPLICATION_READY (creates applications row) → (has_email ? READY_TO_SEND → SENT/FAILED : READY_TO_APPLY → APPLIED). Every terminal state is visible in the UI; manual override is ALWAYS available regardless of gates.",
+      "cost_savings_per_gate": {
+        "JD_CHECK": "zero AI cost — pure SQL/regex pre-check; saves entire pipeline for stub listings",
+        "ROLE_CHECK": "zero AI cost — keyword overlap on title; saves entire pipeline for off-target jobs (Software Engineer in Data Analyst feed)",
+        "INITIAL_ATS_GATE": "1 AI call (JD analysis) spent, saves ~3 (tailoring + variants + cover letter)",
+        "FINAL_ATS_GATE": "2 AI calls (JD + tailoring) spent, saves ~2 (variants + cover letter)",
+        "cover_letter_with_email": "co-generated in ONE AI call (cover letter + application email + subject) — no separate email call ever"
+      },
+      "ui_principle": "Single jobs pool on dashboard. Per-profile pages stay for scoped management but de-emphasised. Notifications appear in exactly ONE place per signal: row-level state column + (optional) dashboard banner that links to the filtered view. No duplicate information.",
+      "decided_open_questions": {
+        "Q1_email_provider": "email-send integration — Gmail OAuth (Phase F)",
+        "Q2_default_thresholds": "OK — compute actual distributions from analysis_runs first, then tune",
+        "Q3_role_match_strictness": "keyword-based with 'uncertain' bucket that still processes (no silent drops)",
+        "Q4_below_gate_behaviour": "visible in board with state badge (NOT auto-dismissed); manual override always available",
+        "Q5_cover_letter_hook": "AI picks in the same generation call (no extra cost)",
+        "Q6_per_profile_in_applications": "profile filter as a chip inside the Applications tab (no separate route)",
+        "Q7_single_jobs_pool": "confirmed — dashboard primary, per-profile secondary",
+        "Q8_daily_limit_default": "10 applications/day per profile, user-configurable"
+      },
+      "email_draft_always_on": "Every APPLICATION_READY job gets BOTH a cover letter AND an application email body+subject — co-generated in the same AI call. For non-email jobs the email is labelled 'Sample email — useful if you find a contact later'. If the user later edits the job and adds contact_email, the row auto-promotes to 'Ready to send' on next page load — no regeneration needed."
     },
     {
       "id": "PHASE-11-STALE-VARIANTS",
