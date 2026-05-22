@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Send, Loader2, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { Send, Loader2, X, CheckCircle2, AlertCircle, SkipForward } from "lucide-react";
 import { ApplicationCard, type ApplicationRow } from "./ApplicationCard";
+import { ComposeEmailModal } from "./ComposeEmailModal";
 
 interface Props {
   rows: ApplicationRow[];   // already filtered to Ready-to-email tab rows
@@ -10,32 +11,35 @@ interface Props {
 
 type LetterStatus =
   | { state: "pending"  }
-  | { state: "sending"  }
   | { state: "sent"; to: string }
+  | { state: "skipped" }
   | { state: "failed"; error: string };
 
 /**
- * Ready-to-email tab wrapper that adds bulk-send capability on top of the
- * existing per-card Send button. UX mirrors PoolBulkBar:
- *   • checkbox overlay per card
- *   • Select all (N) / Deselect all toggle
- *   • sticky action bar with 'Send N emails' button
- *   • confirmation modal listing recipients before dispatch (irreversible)
- *   • sequential POST to /api/applications/[letter_id]/send-email
- *   • per-letter status pill (sending/sent/failed) during + after batch
+ * Ready-to-email tab wrapper. Bulk-send opens the compose/review modal for
+ * EACH selected letter in sequence so the user can edit subject+body before
+ * dispatch — every email is reviewed individually (no batch-blind send).
  *
- * Why sequential, not parallel? Gmail API quota is ~250 units/sec/user and
- * each send uses ~100 units; bursting 10+ at once risks 429s. Sequential
- * also lets us hide each card immediately on success for snappier feedback.
+ * Flow:
+ *   1. User selects N cards
+ *   2. Click "Review & send N emails" → confirmation modal lists recipients
+ *   3. Confirm → first ComposeEmailModal opens with that letter's prefilled
+ *      draft. User edits + clicks Send (POSTs /send-email) → next opens.
+ *      Clicking Cancel/Close on a modal SKIPS that letter (advances without
+ *      sending) so the user can drop individual rows mid-batch.
+ *   4. After the last letter → batch summary card.
  *
- * Individual per-card Send buttons still work — bulk is additive.
+ * Per-card Send still works (also opens the compose modal — same component).
  */
 export function EmailBulkBar({ rows }: Props) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected,   setSelected]   = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [results, setResults] = useState<Map<string, LetterStatus>>(new Map());
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [queue,      setQueue]      = useState<string[]>([]);
+  const [queueIdx,   setQueueIdx]   = useState(0);
+  const [results,    setResults]    = useState<Map<string, LetterStatus>>(new Map());
+  const [hidden,     setHidden]     = useState<Set<string>>(new Set());
+
+  const inBatch = queue.length > 0 && queueIdx < queue.length;
 
   const visibleRows = useMemo(
     () => rows.filter((r) => !hidden.has(r.letter_id)),
@@ -43,7 +47,7 @@ export function EmailBulkBar({ rows }: Props) {
   );
 
   function toggle(letterId: string) {
-    if (sending) return;
+    if (inBatch) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(letterId)) next.delete(letterId);
@@ -52,65 +56,51 @@ export function EmailBulkBar({ rows }: Props) {
     });
   }
 
-  function selectAll() {
-    setSelected(new Set(visibleRows.map((r) => r.letter_id)));
-  }
-  function clearSelection() {
-    setSelected(new Set());
-  }
+  function selectAll()       { setSelected(new Set(visibleRows.map((r) => r.letter_id))); }
+  function clearSelection()  { setSelected(new Set()); }
 
-  async function runBatch() {
-    if (sending || selected.size === 0) return;
+  function startQueue() {
+    if (inBatch || selected.size === 0) return;
     setConfirming(false);
-    setSending(true);
+    const q = Array.from(selected);
+    setResults(new Map(q.map((id) => [id, { state: "pending" }])));
+    setQueue(q);
+    setQueueIdx(0);
+  }
 
-    // Snapshot the queue so newly selected/deselected during dispatch
-    // doesn't change what's being sent.
-    const queue = Array.from(selected);
+  function advance() {
+    setQueueIdx((i) => i + 1);
+  }
 
-    // Initialise all to pending so the bulk bar shows accurate counts.
-    setResults(new Map(queue.map((id) => [id, { state: "pending" }])));
+  function handleSent(letterId: string, toEmail: string) {
+    setResults((prev) => new Map(prev).set(letterId, { state: "sent", to: toEmail }));
+    setHidden((prev) => {
+      const next = new Set(prev);
+      next.add(letterId);
+      return next;
+    });
+    advance();
+  }
 
-    for (const letterId of queue) {
-      setResults((prev) => new Map(prev).set(letterId, { state: "sending" }));
-      try {
-        const res  = await fetch(`/api/applications/${letterId}/send-email`, { method: "POST" });
-        const json = await res.json();
-        if (!res.ok) {
-          setResults((prev) => new Map(prev).set(letterId, {
-            state: "failed",
-            error: json.error ?? `HTTP ${res.status}`,
-          }));
-        } else {
-          setResults((prev) => new Map(prev).set(letterId, {
-            state: "sent",
-            to:    json.to ?? "",
-          }));
-          // Slide the card out — the same revalidate that markPoolDecision
-          // triggers will eventually drop it from the parent's list, but the
-          // optimistic hide makes the UI feel responsive.
-          setHidden((prev) => {
-            const next = new Set(prev);
-            next.add(letterId);
-            return next;
-          });
-        }
-      } catch (e) {
-        setResults((prev) => new Map(prev).set(letterId, {
-          state: "failed",
-          error: e instanceof Error ? e.message : "Network error",
-        }));
-      }
-    }
+  function handleSkip(letterId: string) {
+    setResults((prev) => new Map(prev).set(letterId, { state: "skipped" }));
+    advance();
+  }
 
-    setSending(false);
+  function finishBatch() {
+    setQueue([]);
+    setQueueIdx(0);
     setSelected(new Set());
   }
 
-  if (visibleRows.length === 0 && rows.length > 0) {
-    // All have been hidden by a successful batch — show a quick summary.
-    const sentCount   = [...results.values()].filter((s) => s.state === "sent").length;
-    const failedCount = [...results.values()].filter((s) => s.state === "failed").length;
+  // ── Batch-complete summary ────────────────────────────────────────────────
+  // Shown when (a) the whole queue completed and there are no visible cards
+  // left, OR (b) every row was hidden by successful sends.
+  const batchDone = queue.length > 0 && queueIdx >= queue.length;
+  if (batchDone && visibleRows.length === 0) {
+    const sent    = [...results.values()].filter((s) => s.state === "sent").length;
+    const skipped = [...results.values()].filter((s) => s.state === "skipped").length;
+    const failed  = [...results.values()].filter((s) => s.state === "failed").length;
     return (
       <div className="bg-surface border border-border rounded-md py-8 px-6 anim-in">
         <div className="flex items-center gap-2 mb-2">
@@ -118,21 +108,16 @@ export function EmailBulkBar({ rows }: Props) {
           <p className="text-[13px] font-semibold text-text">Batch complete</p>
         </div>
         <p className="text-[12px] text-text-2">
-          {sentCount} email{sentCount === 1 ? "" : "s"} sent.
-          {failedCount > 0 && ` · ${failedCount} failed.`}
+          {sent} email{sent === 1 ? "" : "s"} sent.
+          {skipped > 0 && ` · ${skipped} skipped.`}
+          {failed  > 0 && ` · ${failed} failed.`}
         </p>
-        {failedCount > 0 && (
-          <ul className="mt-3 space-y-1">
-            {[...results.entries()]
-              .filter(([, s]) => s.state === "failed")
-              .map(([id, s]) => (
-                <li key={id} className="text-[11px] text-red-600 dark:text-red-400">
-                  {/* @ts-expect-error narrowed by filter */}
-                  · {id.slice(0, 8)}: {s.error}
-                </li>
-              ))}
-          </ul>
-        )}
+        <button
+          onClick={finishBatch}
+          className="mt-3 text-[11px] text-[var(--brand)] hover:underline"
+        >
+          Reset
+        </button>
       </div>
     );
   }
@@ -140,8 +125,10 @@ export function EmailBulkBar({ rows }: Props) {
   if (visibleRows.length === 0) return null;
 
   const allSelected = selected.size === visibleRows.length && visibleRows.length > 0;
-  const sentSoFar   = [...results.values()].filter((s) => s.state === "sent").length;
-  const totalQueue  = results.size;
+  const currentLetterId = inBatch ? queue[queueIdx] : null;
+  const currentRow = currentLetterId
+    ? rows.find((r) => r.letter_id === currentLetterId) ?? null
+    : null;
 
   return (
     <div className="space-y-3">
@@ -149,7 +136,7 @@ export function EmailBulkBar({ rows }: Props) {
       <div className="flex items-center gap-2 text-[11px] text-text-3">
         <button
           onClick={allSelected ? clearSelection : selectAll}
-          disabled={sending}
+          disabled={inBatch}
           className="inline-flex items-center gap-1.5 hover:text-text transition-colors disabled:opacity-40"
         >
           <input
@@ -174,7 +161,7 @@ export function EmailBulkBar({ rows }: Props) {
             <div key={row.letter_id} className="relative">
               <button
                 onClick={() => toggle(row.letter_id)}
-                disabled={sending}
+                disabled={inBatch}
                 className="absolute top-3 left-3 z-10 w-5 h-5 rounded border border-[var(--border)] bg-[var(--surface)] flex items-center justify-center hover:border-[var(--brand)] transition-colors disabled:opacity-40"
                 aria-label={isSelected ? "Deselect" : "Select"}
               >
@@ -186,12 +173,12 @@ export function EmailBulkBar({ rows }: Props) {
                 />
               </button>
               <div className="pl-7">
-                {/* Per-card status pill — only during/after batch send */}
-                {status && (
+                {/* Per-card status pill — reflects skip / fail from a previous batch attempt */}
+                {status && status.state !== "pending" && (
                   <div className="absolute top-3 right-3 z-10">
-                    {status.state === "sending" && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                        <Loader2 className="w-3 h-3 animate-spin" /> Sending
+                    {status.state === "skipped" && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        <SkipForward className="w-3 h-3" /> Skipped
                       </span>
                     )}
                     {status.state === "failed" && (
@@ -214,13 +201,13 @@ export function EmailBulkBar({ rows }: Props) {
       </div>
 
       {/* Sticky bulk action bar */}
-      {(selected.size > 0 || sending) && (
+      {(selected.size > 0 || inBatch) && (
         <div className="sticky bottom-4 z-20 mx-auto max-w-2xl rounded-md border border-[var(--border)] bg-surface shadow-lg px-3 py-2.5 flex items-center gap-3 flex-wrap">
-          {sending ? (
+          {inBatch ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-[var(--brand)]" />
               <span className="text-[12px] font-medium text-text">
-                Sending {Math.min(sentSoFar + 1, totalQueue)} of {totalQueue}…
+                Reviewing {queueIdx + 1} of {queue.length}…
               </span>
             </>
           ) : (
@@ -232,10 +219,10 @@ export function EmailBulkBar({ rows }: Props) {
                 <button
                   onClick={() => setConfirming(true)}
                   className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1"
-                  title="Send the selected emails (irreversible)"
+                  title="Review and send each email one at a time"
                 >
                   <Send className="w-3 h-3" />
-                  Send {selected.size} email{selected.size === 1 ? "" : "s"}
+                  Review & send {selected.size} email{selected.size === 1 ? "" : "s"}
                 </button>
                 <button
                   onClick={clearSelection}
@@ -250,12 +237,23 @@ export function EmailBulkBar({ rows }: Props) {
         </div>
       )}
 
-      {/* Confirmation modal */}
+      {/* Confirmation modal — lists what's about to enter the review queue */}
       {confirming && (
         <ConfirmModal
           rows={visibleRows.filter((r) => selected.has(r.letter_id))}
           onCancel={() => setConfirming(false)}
-          onConfirm={runBatch}
+          onConfirm={startQueue}
+        />
+      )}
+
+      {/* Per-letter compose modal — opens for each letter in sequence */}
+      {currentLetterId && currentRow && (
+        <ComposeEmailModal
+          key={currentLetterId}
+          letterId={currentLetterId}
+          jobLabel={`${currentRow.job_title}${currentRow.job_company ? ` @ ${currentRow.job_company}` : ""} · ${queueIdx + 1} of ${queue.length}`}
+          onSent={(toEmail) => handleSent(currentLetterId, toEmail)}
+          onClose={() => handleSkip(currentLetterId)}
         />
       )}
     </div>
@@ -284,11 +282,11 @@ function ConfirmModal({
       >
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-[14px] font-semibold text-text">
-            Send {rows.length} email{rows.length === 1 ? "" : "s"}?
+            Review {rows.length} email{rows.length === 1 ? "" : "s"} before sending
           </h2>
           <p className="text-[12px] text-text-2 mt-1">
-            This dispatches via your connected email account and cannot be undone.
-            Each job will be marked as applied.
+            Each email opens in a compose window where you can edit the subject and
+            body. Closing a window skips that one without sending.
           </p>
         </div>
         <div className="px-5 py-3 overflow-y-auto flex-1">
@@ -317,7 +315,7 @@ function ConfirmModal({
             className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5"
           >
             <Send className="w-3.5 h-3.5" />
-            Send {rows.length} now
+            Start review
           </button>
         </div>
       </div>

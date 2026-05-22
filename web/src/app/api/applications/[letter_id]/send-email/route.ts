@@ -17,11 +17,16 @@ import { getValidAccessToken }        from "@/lib/email/tokens";
 import { sendViaGmail }               from "@/lib/email/gmail";
 import { sendViaOutlook }             from "@/lib/email/outlook";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
+import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
+const MAX_SUBJECT_LEN = 300;
+const MAX_BODY_LEN    = 20_000;
+
+interface ContactDetails { name?: string }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
 ) {
   const supabase = await createClient();
@@ -29,6 +34,22 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { letter_id } = await params;
+
+  // Optional overrides from the compose modal. If neither is provided, fall
+  // back to the same draft the modal would have shown (zero-surprise default).
+  let override: { subject?: string; body?: string } = {};
+  try {
+    const text = await req.text();
+    if (text.trim()) override = JSON.parse(text);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  if (override.subject != null && (typeof override.subject !== "string" || override.subject.length > MAX_SUBJECT_LEN)) {
+    return NextResponse.json({ error: `Subject must be a string under ${MAX_SUBJECT_LEN} chars` }, { status: 400 });
+  }
+  if (override.body != null && (typeof override.body !== "string" || override.body.length > MAX_BODY_LEN)) {
+    return NextResponse.json({ error: `Body must be a string under ${MAX_BODY_LEN} chars` }, { status: 400 });
+  }
 
   const admin = createAdminClient();
 
@@ -116,15 +137,31 @@ export async function POST(
   }
 
   // ── 6. Build email fields ─────────────────────────────────────────────────
-  const jobTitle    = job.title    ?? "the role";
-  const companyName = job.company  ?? "the company";
-  const subject     = `Application for ${jobTitle} at ${companyName}`;
-  const body        = letter.pass_3_final ?? "";
+  // The body that goes out is a short email cover note pointing to the two
+  // PDF attachments — NOT the full cover letter text (that's already attached
+  // as CoverLetter_<company>.pdf). Defaults computed from job + user name;
+  // can be overridden by the compose modal payload.
+  const { data: prefs } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const userName = ((prefs?.contact_details as ContactDetails | null)?.name ?? "").trim() || null;
 
-  const toAddress   = job.hiring_manager
+  const defaults = buildDefaultEmailDraft({
+    jobTitle:      job.title,
+    company:       job.company,
+    hiringManager: job.hiring_manager,
+    userName,
+  });
+  const subject = override.subject?.trim() || defaults.subject;
+  const body    = override.body    ?? defaults.body;
+
+  const toAddress = job.hiring_manager
     ? `${job.hiring_manager} <${job.contact_email}>`
     : job.contact_email;
 
+  const companyName = job.company ?? "company";
   const companySlug = companyName.replace(/[^a-zA-Z0-9]/g, "_");
   const attachments = [];
   if (letterPdfBuffer) {

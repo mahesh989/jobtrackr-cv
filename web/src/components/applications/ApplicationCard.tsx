@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, FileType, Pencil } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 import { EditLetterModal } from "./EditLetterModal";
+import { ComposeEmailModal } from "./ComposeEmailModal";
 
 export interface ApplicationRow {
   letter_id:                 string;
@@ -49,6 +50,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
   const [pending, setPending]     = useState<"apply" | "archive" | "pool" | "send" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing]     = useState(false);
+  const [composing, setComposing] = useState(false);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
@@ -102,22 +104,17 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
     });
   }
 
-  async function handleSend() {
+  function openCompose() {
     if (pending) return;
     setActionError(null);
-    setPending("send");
-    try {
-      const res = await fetch(`/api/applications/${row.letter_id}/send-email`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) { setActionError(json.error ?? "Send failed"); return; }
-      // Email sent → mark applied locally and slide card out
-      setLocalApplied(true);
-      setTimeout(() => setHidden(true), 700);
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Network error");
-    } finally {
-      setPending(null);
-    }
+    setComposing(true);
+  }
+
+  function handleSent() {
+    // Compose modal already posted successfully — close it and slide the card out.
+    setComposing(false);
+    setLocalApplied(true);
+    setTimeout(() => setHidden(true), 700);
   }
 
   if (hidden) return null;
@@ -285,14 +282,15 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             Edit Letter
           </button>
         )}
-        {/* Send email — only for cards with a contact email that haven't been applied yet */}
+        {/* Send email — opens the compose/review modal first; nothing is sent
+            until the user confirms inside the modal. */}
         {!isPool && !localApplied && row.job_contact_email && (
           <button
-            onClick={handleSend}
+            onClick={openCompose}
             disabled={pending !== null}
             className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
           >
-            {pending === "send" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            <Send className="w-3 h-3" />
             Send email
           </button>
         )}
@@ -330,6 +328,14 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
 
       {editing && (
         <EditLetterModal letterId={row.letter_id} onClose={() => setEditing(false)} />
+      )}
+      {composing && (
+        <ComposeEmailModal
+          letterId={row.letter_id}
+          jobLabel={`${row.job_title}${row.job_company ? ` @ ${row.job_company}` : ""}`}
+          onClose={() => setComposing(false)}
+          onSent={handleSent}
+        />
       )}
     </div>
   );
