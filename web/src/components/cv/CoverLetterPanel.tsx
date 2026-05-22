@@ -230,7 +230,11 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
             setResearching(null);
           }
           // Recurse once with the guard flipped so a repeat 422 errors cleanly.
-          await handleGenerate(regenerate, true);
+          // CRITICAL: preserve `override`. If the user clicked "Generate
+          // anyway" on a below-final-gate job, the override must survive the
+          // auto-research detour — otherwise the retry trips the final-gate
+          // again and the amber card pops back up, forcing another click.
+          await handleGenerate(regenerate, true, override);
           return;
         }
         setError(data.error ?? "Generation failed. Try again.");
