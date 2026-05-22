@@ -48,18 +48,28 @@ export async function POST(
   }
 
   // ── 2. Fetch job ─────────────────────────────────────────────────────────
-  const { data: job } = await admin
+  // jobs has no direct user_id column — ownership flows through
+  // jobs.profile_id → search_profiles.user_id. letter.user_id is the
+  // authoritative gate (checked in step 1 above).
+  const { data: job, error: jobErr } = await admin
     .from("jobs")
     .select("id, profile_id, title, company, contact_email, hiring_manager")
     .eq("id", letter.job_id)
-    .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!job?.contact_email) {
-    return NextResponse.json({ error: "Job has no contact email" }, { status: 422 });
+  if (jobErr) {
+    console.error("[send-email] job lookup failed:", jobErr);
+    return NextResponse.json({ error: `Job lookup failed: ${jobErr.message}` }, { status: 500 });
+  }
+  if (!job) {
+    return NextResponse.json({ error: "Job not found for this letter" }, { status: 404 });
+  }
+  if (!job.contact_email) {
+    return NextResponse.json({ error: "Job has no contact email — add one in the pool first" }, { status: 422 });
   }
 
   // ── 3. Fetch latest non-stale analysis run for the PDF path ──────────────
+  // analysis_runs HAS a direct user_id column (added by an earlier migration).
   const { data: run } = await admin
     .from("analysis_runs")
     .select("tailored_pdf_storage_path")

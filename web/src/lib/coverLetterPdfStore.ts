@@ -66,12 +66,19 @@ export async function ensureCoverLetterPdf(
   }
 
   // ── 3. Fetch job + user_preferences to assemble the letter ──────────────
-  const { data: job } = await admin
+  // Note: jobs has no direct user_id column — ownership flows through
+  // jobs.profile_id → search_profiles.user_id. The letter.user_id check
+  // above is the authoritative ownership gate; the cover_letter could only
+  // be created against a job in one of the user's own profiles in the first
+  // place (enforced by the existing /cover-letter POST route).
+  const { data: job, error: jobErr } = await admin
     .from("jobs")
-    .select("id, profile_id, company, location, hiring_manager, company_address, user_id")
+    .select("id, profile_id, company, location, hiring_manager, company_address")
     .eq("id", letter.job_id)
     .maybeSingle();
-  if (!job) throw new Error("job lookup failed");
+  if (jobErr || !job) {
+    throw new Error(`job lookup failed: ${jobErr?.message ?? "no row for letter.job_id"}`);
+  }
 
   const { data: prefs } = await admin
     .from("user_preferences")
