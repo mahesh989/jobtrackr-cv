@@ -306,6 +306,47 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
   revalidatePath("/dashboard/applications");
 }
 
+/**
+ * Bulk variants of the pool actions. RLS still scopes each update to jobs
+ * the user owns (via the profile → user_id chain) — sending extra ids in
+ * the array is safe, those rows just won't match.
+ */
+
+export async function bulkMarkPoolNoEmail(jobIds: string[]) {
+  if (jobIds.length === 0) return { updated: 0 };
+  const { supabase } = await authedClient();
+  // pool_decision_at stamped, contact_email left null → routes to "Ready to apply".
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ pool_decision_at: new Date().toISOString() })
+    .in("id", jobIds)
+    .is("pool_decision_at", null)   // only flip undecided rows
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/applications");
+  // Per-profile boards may also surface these jobs — broad revalidate is fine.
+  revalidatePath("/dashboard");
+  return { updated: data?.length ?? 0 };
+}
+
+export async function bulkArchiveJobs(jobIds: string[]) {
+  if (jobIds.length === 0) return { updated: 0 };
+  const { supabase } = await authedClient();
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ dismissed_at: new Date().toISOString() })
+    .in("id", jobIds)
+    .is("dismissed_at", null)       // don't re-stamp already-dismissed
+    .is("applied_at", null)         // don't archive jobs already applied
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/applications");
+  revalidatePath("/dashboard");
+  return { updated: data?.length ?? 0 };
+}
+
 export async function markJobSeen(jobId: string) {
   const { supabase } = await authedClient();
   await supabase

@@ -17,6 +17,7 @@ import { Suspense } from "react";
 import { Inbox } from "lucide-react";
 import { ApplicationStatusTabs, type ApplicationStatusCounts, type ApplicationStatusKey } from "@/components/applications/ApplicationStatusTabs";
 import { ApplicationCard, type ApplicationRow } from "@/components/applications/ApplicationCard";
+import { PoolBulkBar } from "@/components/applications/PoolBulkBar";
 
 const LETTER_PREVIEW_CHARS = 180;
 
@@ -225,10 +226,15 @@ export default async function ApplicationsPage({
               {validTab === "archived" && "Archived applications will appear here."}
             </p>
           </div>
+        ) : validTab === "pool" ? (
+          /* Pool tab uses the bulk-selection wrapper. Other tabs render plain. */
+          <div className="anim-in anim-delay-2">
+            <PoolBulkBar rows={visible} />
+          </div>
         ) : (
           <div className="space-y-3 anim-in anim-delay-2">
             {visible.map((row) => (
-              <ApplicationCard key={row.letter_id} row={row} isPool={validTab === "pool"} />
+              <ApplicationCard key={row.letter_id} row={row} isPool={false} />
             ))}
           </div>
         )}
