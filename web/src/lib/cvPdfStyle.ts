@@ -75,7 +75,7 @@ export const CV_PDF_STYLE = `
     width: 100%;
     margin-top: 1.44pt;
     border-bottom: 0.5pt solid #000000;
-    padding-bottom: 4.32pt;
+    padding-bottom: 2.59pt;
   }
 
   .cv-root h3 {
