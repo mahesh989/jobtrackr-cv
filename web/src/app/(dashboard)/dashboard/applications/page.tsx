@@ -18,6 +18,7 @@ import { Inbox } from "lucide-react";
 import { ApplicationStatusTabs, type ApplicationStatusCounts, type ApplicationStatusKey } from "@/components/applications/ApplicationStatusTabs";
 import { ApplicationCard, type ApplicationRow } from "@/components/applications/ApplicationCard";
 import { PoolBulkBar } from "@/components/applications/PoolBulkBar";
+import { EmailBulkBar } from "@/components/applications/EmailBulkBar";
 
 const LETTER_PREVIEW_CHARS = 180;
 
@@ -178,7 +179,7 @@ export default async function ApplicationsPage({
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool:     "Cover letter is ready — decide whether you have a contact email for each job. Add one to queue it for email, or skip to mark it as manual apply.",
-    email:    "Contact email on file. Click Send to email your cover letter and tailored CV directly from your connected Gmail or Outlook account.",
+    email:    "Contact email on file. Click Send on a card to dispatch one, or select multiple and use 'Send N emails' for bulk dispatch via your connected Gmail/Outlook. Sending is always user-initiated — nothing leaves your account automatically.",
     apply:    "No contact email — apply manually via the job link, then mark applied. The full analysis with CV PDF is available via View full.",
     sent:     "Jobs you've applied to. Track outcomes here.",
     archived: "Jobs you've dismissed after generating a letter.",
@@ -227,11 +228,17 @@ export default async function ApplicationsPage({
             </p>
           </div>
         ) : validTab === "pool" ? (
-          /* Pool tab uses the bulk-selection wrapper. Other tabs render plain. */
+          /* Pool tab uses the pool-bulk wrapper. */
           <div className="anim-in anim-delay-2">
             <PoolBulkBar rows={visible} />
           </div>
+        ) : validTab === "email" ? (
+          /* Ready-to-email uses the send-bulk wrapper (still allows per-card Send). */
+          <div className="anim-in anim-delay-2">
+            <EmailBulkBar rows={visible} />
+          </div>
         ) : (
+          /* Apply / Sent / Archived render plain. */
           <div className="space-y-3 anim-in anim-delay-2">
             {visible.map((row) => (
               <ApplicationCard key={row.letter_id} row={row} isPool={false} />
