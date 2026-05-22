@@ -22,6 +22,7 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 const TAILORED_CV_BUCKET = "tailored-cvs";
 const MAX_SUBJECT_LEN = 300;
 const MAX_BODY_LEN    = 20_000;
+const MAX_CV_PDF_BYTES = 4 * 1024 * 1024;  // 4 MB — generous; a typical CV is ~80-200KB
 
 interface ContactDetails { name?: string }
 
@@ -35,14 +36,39 @@ export async function POST(
 
   const { letter_id } = await params;
 
-  // Optional overrides from the compose modal. If neither is provided, fall
-  // back to the same draft the modal would have shown (zero-surprise default).
+  // The compose modal POSTs multipart/form-data with subject + body + an
+  // optional cv_pdf blob (client-rendered to match the analysis-page CV).
+  // We still accept JSON for backward compatibility with any callers that
+  // haven't switched over.
   let override: { subject?: string; body?: string } = {};
-  try {
-    const text = await req.text();
-    if (text.trim()) override = JSON.parse(text);
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  let clientCvPdfBuffer: Buffer | null = null;
+
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    try {
+      const form = await req.formData();
+      const subjectField = form.get("subject");
+      const bodyField    = form.get("body");
+      const cvField      = form.get("cv_pdf");
+      if (typeof subjectField === "string") override.subject = subjectField;
+      if (typeof bodyField    === "string") override.body    = bodyField;
+      if (cvField && typeof cvField === "object" && "arrayBuffer" in cvField) {
+        const buf = Buffer.from(await cvField.arrayBuffer());
+        if (buf.length > MAX_CV_PDF_BYTES) {
+          return NextResponse.json({ error: `Tailored CV PDF too large (>${MAX_CV_PDF_BYTES} bytes)` }, { status: 413 });
+        }
+        clientCvPdfBuffer = buf;
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
+    }
+  } else {
+    try {
+      const text = await req.text();
+      if (text.trim()) override = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
   }
   if (override.subject != null && (typeof override.subject !== "string" || override.subject.length > MAX_SUBJECT_LEN)) {
     return NextResponse.json({ error: `Subject must be a string under ${MAX_SUBJECT_LEN} chars` }, { status: 400 });
@@ -89,27 +115,37 @@ export async function POST(
     return NextResponse.json({ error: "Job has no contact email — add one in the pool first" }, { status: 422 });
   }
 
-  // ── 3. Fetch latest non-stale analysis run for the PDF path ──────────────
-  // analysis_runs HAS a direct user_id column (added by an earlier migration).
-  const { data: run } = await admin
-    .from("analysis_runs")
-    .select("tailored_pdf_storage_path")
-    .eq("job_id", letter.job_id)
-    .eq("user_id", user.id)
-    .eq("is_stale", false)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // ── 3+4. Tailored CV PDF source ───────────────────────────────────────────
+  // Preference order:
+  //   (a) clientCvPdfBuffer — multipart upload from the compose modal,
+  //       rendered in the user's browser using the SAME html2canvas+jsPDF
+  //       pipeline as the analysis-page Download PDF button. Guarantees the
+  //       outgoing attachment matches what the user previewed.
+  //   (b) Legacy fallback — analysis_runs.tailored_pdf_storage_path, the
+  //       server-rendered PDF written by cv-backend at analysis time.
+  //       Kept for backward-compat (older callers / no-multipart paths);
+  //       does NOT match the analysis-tab render but is better than no CV.
+  let cvPdfBuffer: Buffer | null = clientCvPdfBuffer;
 
-  // ── 4. Download tailored CV PDF (best-effort) ───────────────────────────
-  let cvPdfBuffer: Buffer | null = null;
-  if (run?.tailored_pdf_storage_path) {
-    const { data: pdfData } = await admin
-      .storage
-      .from(TAILORED_CV_BUCKET)
-      .download(run.tailored_pdf_storage_path);
-    if (pdfData) {
-      cvPdfBuffer = Buffer.from(await pdfData.arrayBuffer());
+  if (!cvPdfBuffer) {
+    const { data: run } = await admin
+      .from("analysis_runs")
+      .select("tailored_pdf_storage_path")
+      .eq("job_id", letter.job_id)
+      .eq("user_id", user.id)
+      .eq("is_stale", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (run?.tailored_pdf_storage_path) {
+      const { data: pdfData } = await admin
+        .storage
+        .from(TAILORED_CV_BUCKET)
+        .download(run.tailored_pdf_storage_path);
+      if (pdfData) {
+        cvPdfBuffer = Buffer.from(await pdfData.arrayBuffer());
+      }
     }
   }
 

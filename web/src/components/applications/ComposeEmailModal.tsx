@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, X, Send, Paperclip, RotateCcw } from "lucide-react";
+import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
+import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
 
 interface Draft {
   to:              string;
@@ -14,7 +16,16 @@ interface Draft {
   body:            string;
   attachments:     string[];
   has_tailored_cv: boolean;
+  cv_markdown:     string | null;
+  contact_details: ContactDetails | null;
 }
+
+type CvRenderState =
+  | { state: "idle" }
+  | { state: "rendering" }
+  | { state: "ready"; blob: Blob }
+  | { state: "failed"; error: string }
+  | { state: "skipped" };  // no CV markdown available
 
 interface Props {
   letterId:  string;
@@ -40,8 +51,13 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
   const [subject, setSubject]   = useState("");
   const [body,    setBody]      = useState("");
   const [error,   setError]     = useState<string | null>(null);
+  const [cvRender, setCvRender] = useState<CvRenderState>({ state: "idle" });
 
-  // Initial load
+  // Once a CV render finishes we keep the blob around so re-clicking Send
+  // doesn't trigger a second 1-2s html2canvas pass.
+  const cvBlobRef = useRef<Blob | null>(null);
+
+  // Initial load — fetch the draft, then kick off the CV render in background
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -53,9 +69,35 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
           setError(json.error ?? `Load failed (${res.status})`);
           return;
         }
-        setDraft(json as Draft);
-        setSubject(json.subject ?? "");
-        setBody(json.body ?? "");
+        const d = json as Draft;
+        setDraft(d);
+        setSubject(d.subject ?? "");
+        setBody(d.body ?? "");
+
+        // Render the CV PDF in the background so it's ready by the time the
+        // user clicks Send. Same pipeline as TailoredCvCard so the attached
+        // PDF matches what they'd see on the analysis page.
+        if (d.cv_markdown) {
+          setCvRender({ state: "rendering" });
+          try {
+            const blob = await renderTailoredCvBlob({
+              markdown:       d.cv_markdown,
+              contactDetails: d.contact_details,
+            });
+            if (cancelled) return;
+            cvBlobRef.current = blob;
+            setCvRender({ state: "ready", blob });
+          } catch (renderErr) {
+            if (cancelled) return;
+            console.warn("[ComposeEmailModal] CV render failed:", renderErr);
+            setCvRender({
+              state: "failed",
+              error: renderErr instanceof Error ? renderErr.message : "CV render failed",
+            });
+          }
+        } else {
+          setCvRender({ state: "skipped" });
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Network error");
       } finally {
@@ -84,13 +126,32 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
     if (sending || loading || !draft) return;
     if (!subject.trim()) { setError("Subject can't be empty"); return; }
     if (!body.trim())    { setError("Body can't be empty"); return; }
+
+    // If the CV render is still in flight, wait for it before posting.
+    // Otherwise the server falls back to the legacy PDF which doesn't match
+    // what the user previewed on the analysis page.
+    if (draft.cv_markdown && cvRender.state === "rendering") {
+      setError("CV is still rendering — give it a moment and try again.");
+      return;
+    }
+
     setError(null);
     setSending(true);
     try {
+      const form = new FormData();
+      form.set("subject", subject.trim());
+      form.set("body",    body);
+
+      const blob = cvBlobRef.current
+        ?? (cvRender.state === "ready" ? cvRender.blob : null);
+      if (blob) {
+        const slug = (draft.job_company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
+        form.set("cv_pdf", blob, `TailoredCV_${slug}.pdf`);
+      }
+
       const res = await fetch(`/api/applications/${letterId}/send-email`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ subject: subject.trim(), body }),
+        method: "POST",
+        body:   form,
       });
       const json = await res.json();
       if (!res.ok) {
@@ -195,16 +256,35 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
                   Attachments ({draft.attachments.length})
                 </label>
                 <ul className="space-y-1">
-                  {draft.attachments.map((name) => (
-                    <li key={name} className="flex items-center gap-1.5 text-[12px] text-text-2">
-                      <Paperclip className="w-3 h-3 text-text-3 shrink-0" />
-                      <span className="font-mono">{name}</span>
-                    </li>
-                  ))}
+                  {draft.attachments.map((name) => {
+                    const isCv = name.startsWith("TailoredCV_");
+                    return (
+                      <li key={name} className="flex items-center gap-1.5 text-[12px] text-text-2">
+                        <Paperclip className="w-3 h-3 text-text-3 shrink-0" />
+                        <span className="font-mono">{name}</span>
+                        {isCv && cvRender.state === "rendering" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-text-3 ml-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> rendering…
+                          </span>
+                        )}
+                        {isCv && cvRender.state === "ready" && (
+                          <span className="text-[10px] text-emerald-600 ml-1">ready</span>
+                        )}
+                        {isCv && cvRender.state === "failed" && (
+                          <span className="text-[10px] text-amber-700 ml-1">render failed — server fallback</span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {!draft.has_tailored_cv && (
                   <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1">
-                    No tailored CV PDF found for this job — only the cover letter will be attached.
+                    No tailored CV markdown found for this job — only the cover letter will be attached.
+                  </p>
+                )}
+                {cvRender.state === "ready" && (
+                  <p className="text-[10px] text-text-3 mt-1">
+                    Tailored CV rendered fresh from your current contact details — matches the analysis-page download.
                   </p>
                 )}
               </div>
@@ -240,11 +320,15 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
           </button>
           <button
             onClick={handleSend}
-            disabled={sending || loading || !draft || !subject.trim() || !body.trim()}
+            disabled={
+              sending || loading || !draft || !subject.trim() || !body.trim()
+              || cvRender.state === "rendering"
+            }
             className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
+            title={cvRender.state === "rendering" ? "Waiting for the CV PDF to finish rendering" : undefined}
           >
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            Send now
+            {cvRender.state === "rendering" ? "Rendering CV…" : "Send now"}
           </button>
         </div>
       </div>
