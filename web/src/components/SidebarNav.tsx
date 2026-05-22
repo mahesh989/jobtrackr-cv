@@ -31,6 +31,8 @@ interface Props {
   email: string;
   profiles: Profile[];
   isAdmin: boolean;
+  /** Count of completed-letter jobs awaiting the To-review pool decision. */
+  poolCount?: number;
 }
 
 /**
@@ -85,7 +87,7 @@ function NavItem({
   );
 }
 
-export function SidebarNav({ email, profiles, isAdmin }: Props) {
+export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
@@ -110,7 +112,7 @@ export function SidebarNav({ email, profiles, isAdmin }: Props) {
           </p>
         </div>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
-        <NavItem href="/dashboard/applications" icon={Send}>Applications</NavItem>
+        <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
 
         {/* Profiles */}
         <div className="px-1 pt-4 pb-1">

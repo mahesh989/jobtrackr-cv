@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profiles = (profileRows ?? []) as { id: string; name: string }[];
   const profileIds = profiles.map((p) => p.id);
 
-  const [{ data: unseenRows }, { data: runRows }] = await Promise.all([
+  const [{ data: unseenRows }, { data: runRows }, { count: poolCount }] = await Promise.all([
     supabase.from("jobs")
       .select("profile_id")
       .in("profile_id", profileIds)
@@ -34,6 +34,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
       .select("profile_id, status")
       .in("profile_id", profileIds)
       .eq("status", "running"),
+    // Applications pool count: completed non-stale cover letters whose job
+    // is still awaiting the email/no-email decision. RLS scopes to user_id.
+    supabase.from("cover_letters")
+      .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
+        count: "exact",
+        head:  true,
+      })
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .eq("is_stale", false)
+      .is("jobs.pool_decision_at", null)
+      .is("jobs.applied_at", null)
+      .is("jobs.dismissed_at", null),
   ]);
 
   const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
@@ -60,7 +73,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         className="shrink-0 hidden md:flex flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
         style={{ width: "var(--sidebar-width)" }}
       >
-        <SidebarNav email={user.email!} profiles={sidebarProfiles} isAdmin={isAdmin} />
+        <SidebarNav
+          email={user.email!}
+          profiles={sidebarProfiles}
+          isAdmin={isAdmin}
+          poolCount={poolCount ?? 0}
+        />
       </div>
 
       {/* Main content area */}
