@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, Download } from "lucide-react";
+import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, Download, Pencil } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
+import { EditLetterModal } from "./EditLetterModal";
 
 export interface ApplicationRow {
   letter_id:                 string;
@@ -47,6 +48,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
   const [, startTransition]  = useTransition();
   const [pending, setPending]     = useState<"apply" | "archive" | "pool" | "send" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editing, setEditing]     = useState(false);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
@@ -257,6 +259,20 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           <Download className="w-3 h-3" />
           Letter
         </a>
+        {/* Edit letter — visible on all non-sent cards. Server blocks edits to
+            already-sent letters; hiding the button on Sent/Archived avoids
+            inviting that error path. */}
+        {!localApplied && !row.job_applied_at && !row.job_dismissed_at && (
+          <button
+            onClick={() => setEditing(true)}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Edit cover letter body"
+          >
+            <Pencil className="w-3 h-3" />
+            Edit
+          </button>
+        )}
         {/* Send email — only for cards with a contact email that haven't been applied yet */}
         {!isPool && !localApplied && row.job_contact_email && (
           <button
@@ -299,6 +315,10 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           </button>
         )}
       </div>
+
+      {editing && (
+        <EditLetterModal letterId={row.letter_id} onClose={() => setEditing(false)} />
+      )}
     </div>
   );
 }
