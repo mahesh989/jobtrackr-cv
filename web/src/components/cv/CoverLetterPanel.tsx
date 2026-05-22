@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { jsPDF } from "jspdf";
 
 interface GenerationStatus {
   generate: string;
@@ -353,69 +352,40 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
     if (!letter?.id) return;
     setDownloading(true);
     try {
-      const params = new URLSearchParams();
+      // Phase G-2: rendering now happens server-side via the same renderer the
+      // Applications outbox uses. Fetch the PDF bytes directly with format=pdf
+      // and hand them to the browser via an object URL.
+      const params = new URLSearchParams({ format: "pdf" });
       if (downloadHiringMgr) params.append("hiring_manager_override", downloadHiringMgr);
-      if (editedBody) params.append("edited_body", editedBody);
+      if (editedBody)        params.append("edited_body", editedBody);
 
       const res = await fetch(
         `/api/jobs/${jobId}/cover-letter/${letter.id}/download?${params}`,
         { method: "GET" }
       );
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Failed to prepare PDF");
+        const msg = await res.json().catch(() => ({}));
+        setError(msg.error ?? `Failed to prepare PDF (${res.status})`);
         setDownloading(false);
         return;
       }
 
-      // Generate PDF client-side with jspdf.
-      // A4 portrait, 0.8in margins all sides, 11pt Helvetica.
-      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      const pageWidth   = doc.internal.pageSize.getWidth();
-      const pageHeight  = doc.internal.pageSize.getHeight();
-      const margin      = 57.6; // 0.8in
-      const textWidth   = pageWidth - 2 * margin;
-      const fontSize    = 11;
-      const lineHeight  = fontSize * 1.35;        // explicit; jsPDF default 1.15 is too tight
-      const paragraphGap = lineHeight * 0.6;      // extra space for blank source lines
+      // Filename comes from Content-Disposition; falling back to a generic
+      // name if the header is missing for any reason.
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const fnMatch = cd.match(/filename="?([^"]+)"?/i);
+      const filename = fnMatch?.[1] ?? "cover_letter.pdf";
 
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(fontSize);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-      let yPos = margin;
-      // Split on hard newlines first so blank source lines become explicit
-      // paragraph gaps rather than collapsing into uniform line spacing.
-      const rawLines = (data.templated_text as string).split("\n");
-      for (const raw of rawLines) {
-        if (raw.trim() === "") {
-          yPos += paragraphGap;
-          continue;
-        }
-        const wrapped: string[] = doc.splitTextToSize(raw, textWidth);
-        for (const wl of wrapped) {
-          if (yPos + lineHeight > pageHeight - margin) {
-            doc.addPage();
-            yPos = margin;
-          }
-          doc.text(wl, margin, yPos);
-          yPos += lineHeight;
-        }
-      }
-
-      // Filename: <company>_<initials>_cover_letter.pdf
-      const slug = (s: string) =>
-        s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-      const initials = (data.user_name || "")
-        .split(/\s+/)
-        .map((w: string) => w[0]?.toUpperCase() ?? "")
-        .join("")
-        .slice(0, 3);
-      const companySlug = slug(data.company || "company");
-      const filename = initials
-        ? `${companySlug}_${initials}_cover_letter.pdf`
-        : `${companySlug}_cover_letter.pdf`;
-
-      doc.save(filename);
       setShowDownloadModal(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate PDF");

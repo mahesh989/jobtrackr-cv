@@ -1,19 +1,26 @@
 /**
  * GET /api/jobs/[id]/cover-letter/[letter_id]/download
  *
- * Assemble the delivery-ready cover letter and return it for client-side
- * PDF rendering. The client (CoverLetterPanel) generates the PDF using
- * jspdf and initiates the browser download.
+ * Assemble the delivery-ready cover letter. By default returns JSON
+ * containing the assembled text (legacy contract — kept for any callers
+ * still rendering client-side). Pass ?format=pdf to receive the PDF bytes
+ * directly — same server-side renderer used by the Applications outbox
+ * (Phase G), so this is now the single canonical PDF path.
  *
  * Query params:
+ *   ?format=pdf — return application/pdf bytes (Content-Disposition: attachment)
+ *                 otherwise return JSON {templated_text, ...}
  *   ?hiring_manager_override=... — use this name instead of jobs.hiring_manager
- *   ?edited_body=... — use this body text instead of pass_3_final (optional)
+ *                                  (preview-only — does not persist to the job)
+ *   ?edited_body=... — use this body text instead of pass_3_final
+ *                      (preview-only — does not persist to cover_letters)
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient }   from "@/lib/supabase/admin";
+import { createClient }        from "@/lib/supabase/server";
 import { assembleLetter, type ContactDetails } from "@/lib/coverLetterTemplate";
+import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
 
 export async function GET(
   req: NextRequest,
@@ -27,6 +34,7 @@ export async function GET(
 
   const hireMgrOverride = req.nextUrl.searchParams.get("hiring_manager_override");
   const editedBody      = req.nextUrl.searchParams.get("edited_body");
+  const format          = req.nextUrl.searchParams.get("format");   // "pdf" or null
 
   const admin = createAdminClient();
 
@@ -75,6 +83,32 @@ export async function GET(
     body,
   });
 
+  // ── format=pdf: render server-side and stream PDF bytes ──────────────────
+  if (format === "pdf") {
+    const bytes  = renderCoverLetterPdf(templatedText);
+    const slug   = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const initials = (contactDetails.name ?? "")
+      .split(/\s+/)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("")
+      .slice(0, 3);
+    const companySlug = slug(job.company ?? "company");
+    const filename    = initials
+      ? `${companySlug}_${initials}_cover_letter.pdf`
+      : `${companySlug}_cover_letter.pdf`;
+
+    return new NextResponse(new Uint8Array(bytes), {
+      status: 200,
+      headers: {
+        "Content-Type":        "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length":      bytes.length.toString(),
+      },
+    });
+  }
+
+  // ── Default: legacy JSON response with the assembled text ────────────────
   return NextResponse.json({
     templated_text: templatedText,
     hiring_manager: hiringManager ?? "Hiring Manager",
