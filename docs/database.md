@@ -1,6 +1,6 @@
 # JobTrackr-CV — Database Reference
 
-> Derived from migrations `001`–`035` — the single source of truth.
+> Derived from migrations `001`–`036` — the single source of truth.
 > All migrations were applied manually via Supabase SQL Editor (CLI never linked; see OPS-1 in `.claude/graph.json`).
 > **Additive only** — never ALTER existing JobTrackr base tables (`jobs`, `search_profiles`, etc.). New columns and new `user_integrations.provider` values only.
 
@@ -45,6 +45,7 @@
 | 033 | `033_add_pool_decision_at.sql` | D-1 revision — `jobs.pool_decision_at timestamptz` for the Applications Pool "To review" → email/apply routing |
 | 034 | `034_email_integration_phase_f.sql` | Phase F — `email_integrations.oauth_token` `bytea`→`text`; `cover_letters.email_sent_at` + `email_sent_to` send tracking |
 | 035 | `035_email_provider_check_align.sql` | Phase F bug fix — `email_integrations.provider` CHECK realigned `('gmail','outlook')`→`('google','microsoft')` to match code |
+| 036 | `036_cover_letter_pdf_storage.sql` | Phase G — `cover_letters.pdf_storage_path text` + NEW `cover-letters` storage bucket (5 MB cap, PDF-only) + RLS owner-select policy |
 
 ---
 
