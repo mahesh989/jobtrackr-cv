@@ -256,18 +256,13 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           <FileType className="w-3 h-3" />
           Cover Letter
         </a>
-        {row.tailored_pdf_storage_path && (
-          <a
-            href={`/api/applications/${row.letter_id}/tailored-cv-pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-            title="Preview tailored CV PDF"
-          >
-            <FileType className="w-3 h-3" />
-            Tailored CV
-          </a>
-        )}
+        {/* NOTE: no "Tailored CV" preview button here on purpose. The CV PDF
+            shown on the analysis page is rendered CLIENT-side by
+            TailoredCvCard (markdown + current contact details + html2pdf),
+            while tailored_pdf_storage_path on analysis_runs is the legacy
+            server-rendered PDF from cv-backend with different layout +
+            frozen contact details. Until those two paths are unified,
+            previewing the server PDF here would mislead users. */}
         {/* Edit letter — visible on all non-sent cards. Server blocks edits to
             already-sent letters; hiding the button on Sent/Archived avoids
             inviting that error path. */}
