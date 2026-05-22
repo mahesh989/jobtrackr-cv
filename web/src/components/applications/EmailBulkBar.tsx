@@ -185,7 +185,7 @@ export function EmailBulkBar({ rows }: Props) {
                   className="w-3 h-3 accent-[var(--brand)] pointer-events-none"
                 />
               </button>
-              <div className={isSelected || status ? "pl-7" : ""}>
+              <div className="pl-7">
                 {/* Per-card status pill — only during/after batch send */}
                 {status && (
                   <div className="absolute top-3 right-3 z-10">

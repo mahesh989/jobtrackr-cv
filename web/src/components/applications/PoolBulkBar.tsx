@@ -104,8 +104,9 @@ export function PoolBulkBar({ rows }: Props) {
                   className="w-3 h-3 accent-[var(--brand)] pointer-events-none"
                 />
               </button>
-              {/* Indent the card body so the checkbox doesn't overlap content */}
-              <div className={isSelected ? "pl-7" : ""}>
+              {/* Always reserve space for the checkbox so the title doesn't
+                  shift between selected/unselected states. */}
+              <div className="pl-7">
                 <ApplicationCard row={row} isPool={true} />
               </div>
             </div>

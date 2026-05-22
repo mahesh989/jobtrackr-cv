@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, Download, Pencil } from "lucide-react";
+import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, FileType, Pencil } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 import { EditLetterModal } from "./EditLetterModal";
 
@@ -237,7 +237,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
           >
             <FileText className="w-3 h-3" />
-            View full
+            Full Analysis
           </Link>
         )}
         <a
@@ -254,11 +254,23 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-          title="Download cover letter PDF"
+          title="Preview cover letter PDF"
         >
-          <Download className="w-3 h-3" />
-          Letter
+          <FileType className="w-3 h-3" />
+          Cover Letter
         </a>
+        {row.tailored_pdf_storage_path && (
+          <a
+            href={`/api/applications/${row.letter_id}/tailored-cv-pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+            title="Preview tailored CV PDF"
+          >
+            <FileType className="w-3 h-3" />
+            Tailored CV
+          </a>
+        )}
         {/* Edit letter — visible on all non-sent cards. Server blocks edits to
             already-sent letters; hiding the button on Sent/Archived avoids
             inviting that error path. */}
@@ -270,7 +282,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             title="Edit cover letter body"
           >
             <Pencil className="w-3 h-3" />
-            Edit
+            Edit Letter
           </button>
         )}
         {/* Send email — only for cards with a contact email that haven't been applied yet */}

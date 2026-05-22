@@ -60,7 +60,9 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type":        "application/pdf",
-      "Content-Disposition": `attachment; filename="CoverLetter_${companySlug}.pdf"`,
+      // `inline` so the browser previews in a new tab; users can still save
+      // from the viewer. The card opens this in target="_blank".
+      "Content-Disposition": `inline; filename="CoverLetter_${companySlug}.pdf"`,
       "Content-Length":      bytes.length.toString(),
     },
   });
