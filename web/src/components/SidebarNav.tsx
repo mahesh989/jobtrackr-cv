@@ -114,35 +114,18 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
 
-        {/* Profiles */}
-        <div className="px-1 pt-4 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-            My profiles
-          </p>
-        </div>
-
-        {profiles.length === 0 ? (
-          <p className="px-3 text-[12px] text-[var(--sidebar-text-dim)] italic">No profiles yet</p>
-        ) : (
-          profiles.map((p) => (
-            <NavItem
-              key={p.id}
-              href={`/dashboard/profiles/${p.id}/jobs`}
-              icon={Briefcase}
-              badge={p.newCount}
-            >
-              <span className="flex items-center gap-1.5">
-                {p.isRunning && (
-                  <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--brand)]" />
-                  </span>
-                )}
-                <span className="truncate">{p.name}</span>
-              </span>
-            </NavItem>
-          ))
-        )}
+        {/* My profiles — single nav entry (NOT a per-profile list anymore).
+            The full table with each profile's stats / Run / Jobs / Copy /
+            Delete lives on the /dashboard/profiles page. Badge is the
+            aggregate "new across all profiles" count so the user still
+            sees there's something fresh without expanding. */}
+        <NavItem
+          href="/dashboard/profiles"
+          icon={Briefcase}
+          badge={profiles.reduce((sum, p) => sum + (p.newCount ?? 0), 0) || undefined}
+        >
+          My profiles
+        </NavItem>
 
         <div className="px-3 pt-1">
           <Link

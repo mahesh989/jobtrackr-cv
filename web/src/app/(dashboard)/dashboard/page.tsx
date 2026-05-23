@@ -21,9 +21,6 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { RunNowButton } from "@/components/RunNowButton";
-import { DeleteProfileButton } from "@/components/DeleteProfileButton";
-import { CopyProfileButton } from "@/components/CopyProfileButton";
 import { JobStatusTabs } from "@/components/JobFilters";
 import { JobFilterBar } from "@/components/JobFilterBar";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
@@ -95,21 +92,19 @@ export default async function DashboardPage({
 
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
 
-  // ── Existing summary queries ─────────────────────────────────────────────
+  // ── Summary queries for the KPI strip ────────────────────────────────────
+  // The per-profile latest-run breakdown lives on /dashboard/profiles now —
+  // this page only needs the aggregate counts feeding the four KPIs.
   const [
     { data: jobRows },
     { data: unseenRows },
     { data: appliedRows },
-    { data: runRows },
   ] = await Promise.all([
     supabase.from("jobs").select("profile_id").in("profile_id", ids)
       .eq("is_expired", false).eq("is_dead_link", false).is("dismissed_at", null),
     supabase.from("jobs").select("profile_id").in("profile_id", ids)
       .eq("is_expired", false).eq("is_dead_link", false).is("seen_at", null).is("dismissed_at", null),
     supabase.from("jobs").select("profile_id").in("profile_id", ids).not("applied_at", "is", null),
-    supabase.from("run_logs")
-      .select("profile_id, status, started_at, finished_at, jobs_saved, error_message")
-      .in("profile_id", ids).order("started_at", { ascending: false }).limit(ids.length * 5),
   ]);
 
   function countBy(rows: { profile_id: string }[] | null) {
@@ -122,39 +117,10 @@ export default async function DashboardPage({
   const unseenCounts  = countBy(unseenRows);
   const appliedCounts = countBy(appliedRows);
 
-  type RunRow = { profile_id: string; status: string; started_at: string; finished_at: string | null; jobs_saved: number; error_message: string | null };
-  const latestRun = ((runRows ?? []) as RunRow[]).reduce<Record<string, RunRow>>((acc, r) => {
-    if (!acc[r.profile_id]) acc[r.profile_id] = r;
-    return acc;
-  }, {});
-
   const totalJobs    = Object.values(totalCounts).reduce((a, b) => a + b, 0);
   const totalNew     = Object.values(unseenCounts).reduce((a, b) => a + b, 0);
   const totalApplied = Object.values(appliedCounts).reduce((a, b) => a + b, 0);
   const activeCount  = profiles.filter((p) => p.is_active).length;
-
-  function scheduleLabel(cron: string) {
-    if (!cron) return "Manual";
-    if (cron.includes("*/1") || cron === "0 21 * * *") return "Daily";
-    const m = cron.match(/\*\/(\d+)/);
-    if (m && parseInt(m[1]) > 1) return `Every ${m[1]} days`;
-    if (cron.includes("* * 1")) return "Weekly Mon";
-    if (cron.includes("* * 3")) return "Weekly Wed";
-    if (cron.includes("* * 5")) return "Weekly Fri";
-    return "Scheduled";
-  }
-
-  function timeAgo(dateStr: string) {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins  = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days  = Math.floor(diff / 86400000);
-    if (mins < 2)  return "just now";
-    if (hours < 1) return `${mins}m ago`;
-    if (days < 1)  return `${hours}h ago`;
-    if (days === 1) return "yesterday";
-    return `${days}d ago`;
-  }
 
   // ── Unified jobs board: data fetch ───────────────────────────────────────
   let q = supabase
@@ -375,127 +341,6 @@ export default async function DashboardPage({
             <div className="kpi-label">Auto-scheduled</div>
           </div>
         </div>
-
-        {/* ── Profile table ── */}
-        <details className="anim-in anim-delay-1 group" open>
-          <summary className="flex items-center gap-2 cursor-pointer text-[12px] font-semibold text-text-2 uppercase tracking-wider mb-2 select-none">
-            <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-            </svg>
-            My profiles ({profiles.length})
-          </summary>
-          <div className="bg-surface border border-border rounded-md overflow-hidden mt-2">
-            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
-              <div className="col-span-3">Profile</div>
-              <div className="col-span-2">Keywords</div>
-              <div className="col-span-1 text-center">New</div>
-              <div className="col-span-1 text-center">Total</div>
-              <div className="col-span-1 text-center">Applied</div>
-              <div className="col-span-2">Last run</div>
-              <div className="col-span-2"></div>
-            </div>
-
-            {profiles.map((p, i) => {
-              const run      = latestRun[p.id];
-              const newJobs  = unseenCounts[p.id] ?? 0;
-              const total    = totalCounts[p.id] ?? 0;
-              const applied  = appliedCounts[p.id] ?? 0;
-              const isRunning = run?.status === "running";
-              const failed    = run?.status === "failed";
-
-              return (
-                <div
-                  key={p.id}
-                  className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 hover:bg-surface-2 transition-colors anim-in anim-delay-${Math.min(i + 2, 6)} ${
-                    isRunning ? "border-l-2 border-l-[var(--brand)]" : ""
-                  }`}
-                >
-                  <div className="col-span-3 flex items-center gap-2 min-w-0">
-                    {isRunning && (
-                      <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75"/>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand)]"/>
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <Link
-                        href={`/dashboard/profiles/${p.id}/jobs`}
-                        className="text-[13px] font-semibold text-text hover:text-[var(--brand)] truncate block transition-colors"
-                      >
-                        {p.name}
-                      </Link>
-                      <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
-                        {p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 flex items-center">
-                    <span className="text-[12px] text-text-2 truncate">
-                      {p.keywords.slice(0, 3).join(", ")}
-                      {p.keywords.length > 3 && <span className="text-text-3"> +{p.keywords.length - 3}</span>}
-                    </span>
-                  </div>
-
-                  <div className="col-span-1 flex items-center justify-center">
-                    {newJobs > 0 ? (
-                      <span className="badge badge-blue font-bold">{newJobs}</span>
-                    ) : (
-                      <span className="text-[12px] text-text-3">—</span>
-                    )}
-                  </div>
-
-                  <div className="col-span-1 flex items-center justify-center">
-                    <span className="text-[13px] font-medium text-text">{total}</span>
-                  </div>
-
-                  <div className="col-span-1 flex items-center justify-center">
-                    {applied > 0 ? (
-                      <span className="badge badge-green">{applied}</span>
-                    ) : (
-                      <span className="text-[12px] text-text-3">—</span>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 flex items-center">
-                    {!run ? (
-                      <span className="text-[12px] text-text-3">Never</span>
-                    ) : isRunning ? (
-                      <span className="text-[12px] text-[var(--brand)] font-medium flex items-center gap-1.5">
-                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
-                        Running…
-                      </span>
-                    ) : failed ? (
-                      <span className="text-[12px] text-[#CF222E]">✗ Failed</span>
-                    ) : (
-                      <div>
-                        <span className="text-[12px] text-text-2">{timeAgo(run.started_at)}</span>
-                        {run.jobs_saved > 0 && (
-                          <span className="text-[11px] text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-end gap-1.5">
-                    <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
-                    <Link
-                      href={`/dashboard/profiles/${p.id}/jobs`}
-                      className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
-                    >
-                      {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
-                    </Link>
-                    <CopyProfileButton profileId={p.id} compact />
-                    <DeleteProfileButton profileId={p.id} profileName={p.name} compact />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </details>
 
         {/* ── Unified jobs board ── */}
         <div className="anim-in anim-delay-2 space-y-4 pt-2">
