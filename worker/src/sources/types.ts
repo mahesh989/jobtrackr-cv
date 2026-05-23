@@ -20,6 +20,14 @@ export interface SearchProfile {
   adzuna_max_days_old?: number;
   exclude_title_keywords?: string[];
   is_manual_run?: boolean;
+
+  // Set by the orchestrator per run, read by date-aware adapters (Adzuna, SEEK,
+  // Careerjet) to fetch deep on the first run then do incremental top-ups:
+  //   is_first_run  — no prior completed run for this profile → fetch deeper.
+  //   lookback_days — days to look back this run (28 on first run, else
+  //                   days-since-last-run + 1, capped 30).
+  is_first_run?: boolean;
+  lookback_days?: number;
 }
 
 export interface RawJob {

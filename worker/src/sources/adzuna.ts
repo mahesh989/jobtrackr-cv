@@ -4,7 +4,8 @@ const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
 const BASE = "https://api.adzuna.com/v1/api/jobs/au/search";
 const RESULTS_PER_PAGE = 50;
-const MAX_PAGES = 4; // 200 results per keyword — still well within 1000 calls/mo free tier
+const MAX_PAGES = 4;            // 200 results per keyword — incremental runs
+const FIRST_RUN_MAX_PAGES = 10; // 500 results per keyword — one-off deep cold start
 
 interface AdzunaResult {
   id: string;
@@ -104,7 +105,8 @@ function buildBaseParams(profile: SearchProfile, where: string): URLSearchParams
 async function fetchKeyword(
   keyword: string,
   baseParams: URLSearchParams,
-  rateLimitDelay: number
+  rateLimitDelay: number,
+  maxPages: number
 ): Promise<AdzunaResult[]> {
   const params = new URLSearchParams(baseParams.toString());
   params.set("what", keyword.trim());
@@ -116,7 +118,7 @@ async function fetchKeyword(
 
   const results: AdzunaResult[] = [];
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     let pageResults: AdzunaResult[];
     try {
       pageResults = await fetchPage(params, page);
@@ -133,7 +135,7 @@ async function fetchKeyword(
     if (pageResults.length < RESULTS_PER_PAGE) break;
 
     // Delay between pages
-    if (page < MAX_PAGES) await delay(rateLimitDelay);
+    if (page < maxPages) await delay(rateLimitDelay);
   }
 
   return results;
@@ -164,9 +166,13 @@ export const adzunaAdapter: SourceAdapter = {
     const allResults: AdzunaResult[] = [];
     const seenUrls = new Set<string>();
 
+    // First (cold-start) run goes deep; incremental runs stay shallow since the
+    // narrow date window early-stops after a page or two anyway.
+    const maxPages = profile.is_first_run ? FIRST_RUN_MAX_PAGES : MAX_PAGES;
+
     for (let i = 0; i < searchTerms.length; i++) {
       const keyword = searchTerms[i];
-      const pageResults = await fetchKeyword(keyword, baseParams, this.rateLimitDelay);
+      const pageResults = await fetchKeyword(keyword, baseParams, this.rateLimitDelay, maxPages);
 
       let newCount = 0;
       for (const r of pageResults) {

@@ -31,7 +31,13 @@ export const SEEK_DIRECT_JD_FETCH_CAP = 20;
 const PAGE_SIZE = 22;
 const MAX_PAGES_PER_KEYWORD = 9;       // → up to ~200 jobs per keyword
 const MAX_JOBS_PER_KEYWORD  = 200;     // hard cap (matches actor maxResults)
-const DATE_RANGE_DAYS       = 14;      // matches seek.ts daysOld
+const DATE_RANGE_DAYS       = 14;      // fallback when the orchestrator sets no window
+// SEEK's daterange only accepts these values. Map our lookback to the smallest
+// allowed value that still covers it (never under-fetch), capped at 31.
+const SEEK_ALLOWED_DATERANGES = [1, 3, 7, 14, 31];
+function seekDateRange(days: number): number {
+  return SEEK_ALLOWED_DATERANGES.find((d) => d >= days) ?? 31;
+}
 const REQUEST_TIMEOUT_MS    = 25_000;
 const PAGE_DELAY_MS         = 800;     // gentle pacing between pages
 const JD_DELAY_MS           = 400;     // gentle pacing between JD pages
@@ -113,12 +119,12 @@ function normaliseSeekLocation(raw: string): string {
   return loc;
 }
 
-function buildSearchUrl(keyword: string, location: string, page: number): string {
+function buildSearchUrl(keyword: string, location: string, page: number, dateRange: number): string {
   const params = new URLSearchParams({
     keywords:  keyword,
     sortmode:  "ListedDate",
     page:      String(page),
-    daterange: String(DATE_RANGE_DAYS),
+    daterange: String(dateRange),
   });
   const where = normaliseSeekLocation(location);
   if (where) params.set("where", where);
@@ -213,12 +219,16 @@ export const seekDirectAdapter: SourceAdapter = {
       (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
     );
 
+    // Window the search to the orchestrator's lookback (28 on first run → 31;
+    // small on incremental runs), mapped to SEEK's allowed daterange values.
+    const dateRange = seekDateRange(profile.lookback_days ?? DATE_RANGE_DAYS);
+
     for (const keyword of profile.keywords) {
       let keywordCount = 0;
       let totalPages = MAX_PAGES_PER_KEYWORD;
 
       for (let page = 1; page <= totalPages && keywordCount < MAX_JOBS_PER_KEYWORD; page++) {
-        const url = buildSearchUrl(keyword, profile.location, page);
+        const url = buildSearchUrl(keyword, profile.location, page, dateRange);
         let status = 0;
         let body = "";
 

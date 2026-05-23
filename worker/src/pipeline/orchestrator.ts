@@ -162,11 +162,13 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     return;
   }
 
-  // Compute optimal Adzuna lookback window from the last completed run.
-  // This avoids re-fetching jobs the dedup would throw away anyway.
-  //   - First run: default 14 days (reasonable cold-start window)
-  //   - Subsequent runs: days since last success + 1 day buffer for timing jitter
-  //   - Capped at 30 days to prevent massive fetches after a long outage
+  // Compute the lookback window from the last completed run, then apply it to
+  // all date-aware adapters (Adzuna, SEEK, Careerjet). Avoids re-fetching jobs
+  // the dedup would throw away anyway.
+  //   - First run (cold start): fetch DEEP — 28 days back, more pages.
+  //   - Subsequent runs (incremental): only what's new since last success
+  //     + 1 day buffer for timing jitter, capped at 30 days.
+  const FIRST_RUN_LOOKBACK_DAYS = 28;
   const { data: lastRun } = await db
     .from("run_logs")
     .select("started_at")
@@ -176,19 +178,25 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     .limit(1)
     .maybeSingle();
 
+  const isFirstRun = !lastRun;
+  let lookbackDays: number;
   if (lastRun) {
-    // Subsequent runs: fetch only what's new since last success + 1 day buffer
+    // Incremental: fetch only what's new since last success + 1 day buffer
     const daysSince = Math.ceil(
       (Date.now() - new Date(lastRun.started_at).getTime()) / 86_400_000
     );
-    profile.adzuna_max_days_old = Math.min(daysSince + 1, 30);
-    console.log(`[pipeline] Adzuna lookback: ${profile.adzuna_max_days_old}d (last run ${daysSince}d ago)`);
+    lookbackDays = Math.min(daysSince + 1, 30);
+    console.log(`[pipeline] lookback: ${lookbackDays}d (incremental — last run ${daysSince}d ago)`);
   } else {
-    // First run: use the user's configured initial fetch window (default 14 if not set)
-    const initialWindow = profile.adzuna_max_days_old ?? 14;
-    profile.adzuna_max_days_old = initialWindow;
-    console.log(`[pipeline] Adzuna lookback: ${initialWindow}d (first run — user-configured cold-start window)`);
+    // First run: deep cold-start backfill
+    lookbackDays = FIRST_RUN_LOOKBACK_DAYS;
+    console.log(`[pipeline] lookback: ${lookbackDays}d (first run — deep cold-start backfill)`);
   }
+  // Adzuna reads adzuna_max_days_old; SEEK + Careerjet read lookback_days /
+  // is_first_run. Set all three so every date-aware adapter follows suit.
+  profile.adzuna_max_days_old = lookbackDays;
+  profile.lookback_days       = lookbackDays;
+  profile.is_first_run        = isFirstRun;
 
   // ── Load SEEK integration (per-user Apify token) ──────────────────────────
   // Each user brings their own $5/month Apify free tier — costs nothing to the app.

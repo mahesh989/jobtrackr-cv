@@ -36,7 +36,8 @@ const REFERER         = "https://jobtrackr-cv.vercel.app/";
 const USER_AGENT      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const FRAGMENT_SIZE   = 500;            // API excerpt size in chars
 const PAGE_SIZE       = 50;             // Careerjet supports up to 100
-const MAX_PAGES       = 4;              // → up to 200 jobs per keyword
+const MAX_PAGES       = 4;              // → up to 200 jobs per keyword (incremental)
+const FIRST_RUN_MAX_PAGES = 6;          // → up to 300 jobs per keyword (cold start)
 const REQUEST_TIMEOUT = 15_000;
 const KEYWORD_DELAY   = 800;            // gentle pacing between keywords
 const JD_DELAY        = 600;            // pacing between /jobad/ fetches
@@ -310,12 +311,16 @@ export const careerjetAdapter: SourceAdapter = {
     const allJobs: RawJob[] = [];
     const seenUrls = new Set<string>();
 
+    // Careerjet has no date filter, so we lean on sort=date (newest first) +
+    // dedup. First run goes deeper; incremental runs stay shallow.
+    const maxPages = profile.is_first_run ? FIRST_RUN_MAX_PAGES : MAX_PAGES;
+
     for (let i = 0; i < profile.keywords.length; i++) {
       const keyword = profile.keywords[i].trim();
       if (!keyword) continue;
 
       let keywordCount = 0;
-      let totalPages = MAX_PAGES;
+      let totalPages = maxPages;
 
       for (let page = 1; page <= totalPages; page++) {
         let body: CareerjetApiResponse;
@@ -337,7 +342,7 @@ export const careerjetAdapter: SourceAdapter = {
 
         const jobs    = body.jobs ?? [];
         const reported = body.pages ?? 1;
-        totalPages = Math.min(MAX_PAGES, reported);
+        totalPages = Math.min(maxPages, reported);
 
         if (jobs.length === 0) break;
 
