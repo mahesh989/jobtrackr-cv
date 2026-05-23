@@ -81,17 +81,14 @@ const STAGES: StageConfig[] = [
   { key: "applied", label: "Applied", countKey: "applied" },
 ];
 
-/* Stage accent colors — blend with surface for theme compat */
-const STAGE_ACCENTS = [
-  "color-mix(in srgb, #6366f1 18%, var(--surface))",  // indigo (discovered)
-  "color-mix(in srgb, #f59e0b 18%, var(--surface))",  // amber (thinJd)
-  "color-mix(in srgb, #3b82f6 18%, var(--surface))",  // blue (analysed)
-  "color-mix(in srgb, #06b6d4 18%, var(--surface))",  // cyan (cvReady)
-  "color-mix(in srgb, #10b981 18%, var(--surface))",  // emerald (letterReady)
-  "color-mix(in srgb, #22c55e 18%, var(--surface))",  // green (applied)
+const STAGE_DOTS = [
+  "var(--text-2)",
+  "var(--amber)",
+  "var(--blue)",
+  "var(--teal)",
+  "var(--green)",
+  "var(--purple)",
 ];
-
-const STAGE_DOTS = ["#6366f1", "#f59e0b", "#3b82f6", "#06b6d4", "#10b981", "#22c55e"];
 
 export function PipelineFunnel({
   counts,
@@ -154,12 +151,11 @@ export function PipelineFunnel({
   return (
     <div className="space-y-2">
       {/* ── Main funnel bar ──────────────────────────────── */}
-      <div className="flex items-stretch gap-px rounded-lg overflow-hidden border border-[var(--border)]">
+      <div className="flex items-stretch gap-px rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--border)]">
         {activeStages.map((stage, i) => {
           const count = counts[stage.countKey];
           const isActive = currentStage === stage.key;
           const origIdx = STAGES.findIndex((s) => s.key === stage.key);
-          const accentColor = STAGE_ACCENTS[origIdx] ?? STAGE_ACCENTS[0];
           const dotColor = STAGE_DOTS[origIdx] ?? STAGE_DOTS[0];
 
           return (
@@ -169,8 +165,8 @@ export function PipelineFunnel({
               className="flex-1 flex flex-col items-center justify-center py-2.5 px-2 transition-all duration-200 relative cursor-pointer min-w-0"
               style={{
                 background: isActive
-                  ? `linear-gradient(135deg, ${dotColor}22, ${dotColor}11)`
-                  : accentColor,
+                  ? `color-mix(in srgb, ${dotColor} 20%, var(--surface))`
+                  : `color-mix(in srgb, ${dotColor} 6%, var(--surface))`,
                 borderBottom: isActive ? `2px solid ${dotColor}` : "2px solid transparent",
               }}
               title={`Show ${count} ${stage.label.toLowerCase()} jobs`}

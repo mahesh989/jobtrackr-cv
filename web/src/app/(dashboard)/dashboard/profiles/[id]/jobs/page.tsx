@@ -201,23 +201,10 @@ export default async function JobsPage({
     return { ...(j as unknown as Job), progress, pipelineState };
   });
 
-  // ── Funnel counts (computed BEFORE stage/triage filter) ──────────────────
-  const funnelCounts: FunnelCounts = {
-    discovered:     typedJobs.length,
-    analysed:       typedJobs.filter((j) => j.progress.has_analysis).length,
-    cvReady:        typedJobs.filter((j) => j.progress.has_tailored_cv).length,
-    letterReady:    typedJobs.filter((j) => j.progress.has_cover_letter).length,
-    applied:        0, // computed from separate query below
-    dismissed:      0, // computed from separate query below
-    newCount:       0, // computed from separate query below
-    needsJd:        typedJobs.filter((j) => j.jd_quality === "thin").length,
-    roleMismatch:   typedJobs.filter((j) => j.role_match === "mismatch").length,
-    belowThreshold: typedJobs.filter((j) =>
-      j.pipelineState === "below_initial" || j.pipelineState === "below_final"
-    ).length,
-    hasEmail:       typedJobs.filter((j) => j.has_email === true).length,
-    thinJd:         typedJobs.filter((j) => j.jd_quality === "thin").length,
-    richJd:         typedJobs.filter((j) => j.jd_quality === "rich").length,
+  // Declare funnelCounts as a mutable variable, populated below using the global countRows query
+  let funnelCounts: FunnelCounts = {
+    discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, newCount: 0,
+    needsJd: 0, roleMismatch: 0, belowThreshold: 0, hasEmail: 0, thinJd: 0, richJd: 0
   };
 
   // ── Continue rail — top 3 by last_progress_at DESC ───────────────────────
@@ -290,20 +277,70 @@ export default async function JobsPage({
   // ── Global counts for funnel (always against unfiltered list) ────────────
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at")
+    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, role_match, has_email")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  const allRows         = countRows ?? [];
-  const newCount        = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
-  const appliedCount    = allRows.filter((j) => j.applied_at).length;
-  const dismissedCount  = allRows.filter((j) => j.dismissed_at).length;
+  interface AllCountRow {
+    id: string;
+    seen_at: string | null;
+    applied_at: string | null;
+    dismissed_at: string | null;
+    profile_id: string;
+    jd_quality: string | null;
+    role_match: string | null;
+    has_email: boolean | null;
+  }
+  const allRows = (countRows ?? []) as AllCountRow[];
+  const jobIdsForCounts = allRows.map((r) => r.id);
 
-  // Patch the counts that need the full unfiltered set
-  funnelCounts.applied = appliedCount;
-  funnelCounts.dismissed = dismissedCount;
-  funnelCounts.newCount = newCount;
+  const [runsRes, lettersRes] = jobIdsForCounts.length > 0
+    ? await Promise.all([
+        supabase
+          .from("analysis_runs")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, passed_initial_gate, passed_final_gate")
+          .eq("is_stale", false)
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts),
+        supabase
+          .from("cover_letters")
+          .select("job_id")
+          .eq("is_stale", false)
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const analysedSet = new Set((runsRes.data ?? []).map((r) => r.job_id));
+  const cvReadySet = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
+  const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
+  const belowThresholdSet = new Set(
+    (runsRes.data ?? [])
+      .filter((r) => r.passed_initial_gate === false || r.passed_final_gate === false)
+      .map((r) => r.job_id)
+  );
+
+  const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
+  const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
+  const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
+  const newCount        = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
+
+  funnelCounts = {
+    discovered:     tabTotalCount,
+    analysed:       allRows.filter((j) => !j.dismissed_at && analysedSet.has(j.id)).length,
+    cvReady:        allRows.filter((j) => !j.dismissed_at && cvReadySet.has(j.id)).length,
+    letterReady:    allRows.filter((j) => !j.dismissed_at && letterReadySet.has(j.id)).length,
+    applied:        tabAppliedCount,
+    dismissed:      tabDismissedCount,
+    newCount:       newCount,
+    needsJd:        allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,
+    belowThreshold: allRows.filter((j) => !j.dismissed_at && belowThresholdSet.has(j.id)).length,
+    hasEmail:       allRows.filter((j) => !j.dismissed_at && j.has_email === true).length,
+    thinJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    richJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "rich").length,
+  };
 
   const currentTab = currentStage;
 
@@ -336,8 +373,8 @@ export default async function JobsPage({
               {newCount > 0 && (
                 <span className="badge badge-blue font-bold">{newCount} new</span>
               )}
-              {appliedCount > 0 && (
-                <span className="badge badge-green">{appliedCount} applied</span>
+              {tabAppliedCount > 0 && (
+                <span className="badge badge-green">{tabAppliedCount} applied</span>
               )}
               <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}

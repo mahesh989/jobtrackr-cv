@@ -221,23 +221,10 @@ export default async function DashboardPage({
     };
   });
 
-  // ── Funnel counts (computed BEFORE stage/triage filter) ──────────────────
-  const funnelCounts: FunnelCounts = {
-    discovered:     typedJobs.length,
-    analysed:       typedJobs.filter((x) => x.progress.has_analysis).length,
-    cvReady:        typedJobs.filter((x) => x.progress.has_tailored_cv).length,
-    letterReady:    typedJobs.filter((x) => x.progress.has_cover_letter).length,
-    applied:        0, // computed from separate query below
-    dismissed:      0, // computed from separate query below
-    newCount:       0, // computed from separate query below
-    needsJd:        typedJobs.filter((x) => x.jd_quality === "thin").length,
-    roleMismatch:   typedJobs.filter((x) => x.role_match === "mismatch").length,
-    belowThreshold: typedJobs.filter((x) =>
-      x.pipelineState === "below_initial" || x.pipelineState === "below_final"
-    ).length,
-    hasEmail:       typedJobs.filter((x) => x.has_email === true).length,
-    thinJd:         typedJobs.filter((x) => x.jd_quality === "thin").length,
-    richJd:         typedJobs.filter((x) => x.jd_quality === "rich").length,
+  // Declare funnelCounts as a mutable variable, populated below using the global countRows query
+  let funnelCounts: FunnelCounts = {
+    discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, newCount: 0,
+    needsJd: 0, roleMismatch: 0, belowThreshold: 0, hasEmail: 0, thinJd: 0, richJd: 0
   };
 
   const railJobs: RailJob[] = [...typedJobs]
@@ -308,7 +295,7 @@ export default async function DashboardPage({
   // Status-tab counts — aggregated across profiles
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality")
+    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, role_match, has_email")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -320,15 +307,57 @@ export default async function DashboardPage({
     dismissed_at: string | null;
     profile_id: string;
     jd_quality: string | null;
+    role_match: string | null;
+    has_email: boolean | null;
   }
   const allRows = (countRows ?? []) as AllCountRow[];
+  const jobIdsForCounts = allRows.map((r) => r.id);
+
+  const [runsRes, lettersRes] = jobIdsForCounts.length > 0
+    ? await Promise.all([
+        supabase
+          .from("analysis_runs")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, passed_initial_gate, passed_final_gate")
+          .eq("is_stale", false)
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts),
+        supabase
+          .from("cover_letters")
+          .select("job_id")
+          .eq("is_stale", false)
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const analysedSet = new Set((runsRes.data ?? []).map((r) => r.job_id));
+  const cvReadySet = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
+  const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
+  const belowThresholdSet = new Set(
+    (runsRes.data ?? [])
+      .filter((r) => r.passed_initial_gate === false || r.passed_final_gate === false)
+      .map((r) => r.job_id)
+  );
+
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
   const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
   const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
 
-  funnelCounts.applied = tabAppliedCount;
-  funnelCounts.dismissed = tabDismissedCount;
-  funnelCounts.newCount = totalNew;
+  funnelCounts = {
+    discovered:     tabTotalCount,
+    analysed:       allRows.filter((j) => !j.dismissed_at && analysedSet.has(j.id)).length,
+    cvReady:        allRows.filter((j) => !j.dismissed_at && cvReadySet.has(j.id)).length,
+    letterReady:    allRows.filter((j) => !j.dismissed_at && letterReadySet.has(j.id)).length,
+    applied:        tabAppliedCount,
+    dismissed:      tabDismissedCount,
+    newCount:       totalNew,
+    needsJd:        allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,
+    belowThreshold: allRows.filter((j) => !j.dismissed_at && belowThresholdSet.has(j.id)).length,
+    hasEmail:       allRows.filter((j) => !j.dismissed_at && j.has_email === true).length,
+    thinJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    richJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "rich").length,
+  };
 
   // ── Pipeline donut: additional queries ───────────────────────────────────────
   interface DonutRunRow {
@@ -535,7 +564,6 @@ export default async function DashboardPage({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
-              <span className="text-[11px] text-text-3">{typedJobs.length} of {tabTotalCount}</span>
             </div>
           </div>
 
