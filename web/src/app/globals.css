@@ -536,6 +536,16 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* Brief pulse when a stat card targets an already-visible section */
+@keyframes pulse-highlight {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); }
+  100% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--brand) 0%, transparent); }
+}
+.pulse-highlight {
+  animation: pulse-highlight 0.9s ease-out 1;
+  border-radius: 8px;
+}
+
 /* Divider */
 .divider { height: 1px; background: var(--border-muted); }
 

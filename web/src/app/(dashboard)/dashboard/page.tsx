@@ -21,8 +21,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { JobStatusTabs } from "@/components/JobFilters";
 import { JobFilterBar } from "@/components/JobFilterBar";
+import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
 import { JobProgressChips, type JobProgressChipCounts } from "@/components/jobs/JobProgressChips";
 import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
@@ -292,9 +292,6 @@ export default async function DashboardPage({
 
   const allRows         = countRows ?? [];
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
-  const tabNewCount     = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
-  const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
-  const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
 
   const currentTab = sp.status ?? "all";
 
@@ -322,28 +319,16 @@ export default async function DashboardPage({
       </div>
 
       <div className="px-6 py-5 space-y-6">
-        {/* ── KPI bar ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 anim-in">
-          <div className="kpi-card">
-            <div className="kpi-value">{totalJobs.toLocaleString()}</div>
-            <div className="kpi-label">Total jobs</div>
-          </div>
-          <div className={`kpi-card ${totalNew > 0 ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/20" : ""}`}>
-            <div className={`kpi-value ${totalNew > 0 ? "text-[var(--brand)]" : ""}`}>{totalNew}</div>
-            <div className="kpi-label">New · unseen</div>
-          </div>
-          <div className={`kpi-card ${totalApplied > 0 ? "border-[#1A7F37]/40" : ""}`}>
-            <div className={`kpi-value ${totalApplied > 0 ? "text-[#1A7F37]" : ""}`}>{totalApplied}</div>
-            <div className="kpi-label">Applied</div>
-          </div>
-          <div className="kpi-card">
-            <div className="kpi-value">{activeCount}</div>
-            <div className="kpi-label">Auto-scheduled</div>
-          </div>
-        </div>
+        {/* ── KPI bar (interactive) ── */}
+        <DashboardStatCards
+          totalJobs={totalJobs}
+          totalNew={totalNew}
+          totalApplied={totalApplied}
+          activeCount={activeCount}
+        />
 
         {/* ── Unified jobs board ── */}
-        <div className="anim-in anim-delay-2 space-y-4 pt-2">
+        <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
@@ -357,16 +342,6 @@ export default async function DashboardPage({
             roleMismatch: chipCounts.roleMismatch,
             autoSkipped:  chipCounts.autoSkipped,
           }} />
-
-          {/* Status tabs (aggregated counts) */}
-          <Suspense>
-            <JobStatusTabs
-              totalCount={tabTotalCount}
-              newCount={tabNewCount}
-              appliedCount={tabAppliedCount}
-              dismissedCount={tabDismissedCount}
-            />
-          </Suspense>
 
           {/* Filter bar (posted-within, location, visa, sort) */}
           <Suspense>
