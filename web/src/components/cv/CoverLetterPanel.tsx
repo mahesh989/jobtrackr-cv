@@ -652,8 +652,8 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
             >
               Download PDF
             </button>
-            {/* Jump to the Applications "To review" tab so the user can
-                queue this letter for review without hunting through the nav. */}
+            {/* Jump to the Applications "Application pool" tab so the user
+                can queue this letter for review without hunting through the nav. */}
             <Link
               href="/dashboard/applications"
               className="ml-auto inline-flex items-center gap-1 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"

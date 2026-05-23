@@ -2,7 +2,7 @@
  * /dashboard/applications — the outbox.
  *
  * Bucket lifecycle:
- *   Pool (To review) — cover letter ready, user hasn't set email/no-email yet
+ *   Pool (Application pool) — cover letter ready, user hasn't queued for review yet
  *                      (pool_decision_at IS NULL)
  *   Ready to email   — pool_decision_at set + contact_email IS NOT NULL
  *   Ready to apply   — pool_decision_at set + contact_email IS NULL (apply manually)
@@ -164,7 +164,7 @@ export default async function ApplicationsPage({
 
   // ── 6. Bucket counts ──────────────────────────────────────────────────────
   // Lifecycle (post-039 + unified review):
-  //   pool    — user hasn't queued the card for review yet ("To review" tab).
+  //   pool    — user hasn't queued the card for review yet ("Application pool" tab).
   //             pool_decision_at IS NULL.
   //   email   — REVIEW STAGE ("Ready to review" tab). Every queued card —
   //             email or no-email — is reviewed here. Filter: pool_decision_at

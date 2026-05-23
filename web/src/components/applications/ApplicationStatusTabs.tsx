@@ -22,11 +22,11 @@ export interface ApplicationStatusCounts {
 //   apply    — Action stage. Reviewed cards land here. Email-channel cards
 //              show Send email; no-email cards show Copy email + Apply now.
 const TABS: Array<{ value: ApplicationStatusKey; label: string }> = [
-  { value: "pool",     label: "To review"       },
-  { value: "email",    label: "Ready to review" },
-  { value: "apply",    label: "Ready to apply"  },
-  { value: "sent",     label: "Sent / Applied"  },
-  { value: "archived", label: "Archived"        },
+  { value: "pool",     label: "Application pool" },
+  { value: "email",    label: "Ready to review"  },
+  { value: "apply",    label: "Ready to apply"   },
+  { value: "sent",     label: "Sent / Applied"   },
+  { value: "archived", label: "Archived"         },
 ];
 
 export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCounts }) {

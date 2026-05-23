@@ -309,7 +309,7 @@ export function ApplicationCard({
         </p>
       </div>
 
-      {/* Pool decision — only shown in the "To review" tab. The flow is the
+      {/* Pool decision — only shown in the "Application pool" tab. The flow is the
           same regardless of whether the job has a contact email; the email
           field is optional and just gets saved to jobs.contact_email if filled.
           When sending is later attempted from Ready to apply, the presence of
