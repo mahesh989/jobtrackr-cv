@@ -21,13 +21,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { JobFilterBar } from "@/components/JobFilterBar";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
-import { JobProgressChips, type JobProgressChipCounts } from "@/components/jobs/JobProgressChips";
+import { PipelineFunnel, type FunnelCounts } from "@/components/jobs/PipelineFunnel";
+import { SmartFilterBar } from "@/components/jobs/SmartFilterBar";
 import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
-import { TriageBanner } from "@/components/jobs/TriageBanner";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -39,30 +38,31 @@ import { derivePipelineState } from "@/components/jobs/pipelineState";
 interface SearchParams {
   sort?:          string;
   dir?:           string;
+  stage?:         string;
+  triage?:        string;
+  /** @deprecated — kept for backward compat */
   status?:        string;
+  /** @deprecated — kept for backward compat */
+  chips?:         string;
   min_keywords?:  string;
   min_visa?:      string;
   visa_toggle?:   string;
   source?:        string;
   location?:      string;
   posted_within?: string;
-  chips?:         string;
 }
 
-type ChipKey =
-  | "analysed" | "hasCv" | "hasLetter"
-  | "needsJd"  | "roleMismatch" | "hasEmail" | "autoSkipped";
-const VALID_CHIPS: ChipKey[] = [
-  "analysed", "hasCv", "hasLetter",
-  "needsJd", "roleMismatch", "hasEmail", "autoSkipped",
-];
-
-function parseChips(raw: string | undefined): Set<ChipKey> {
-  if (!raw) return new Set();
-  const valid = new Set<ChipKey>(VALID_CHIPS);
-  return new Set(
-    raw.split(",").map((s) => s.trim()).filter((s): s is ChipKey => valid.has(s as ChipKey)),
-  );
+/** Map the new ?stage= param (or legacy ?status=) to a stage key */
+function resolveStage(sp: SearchParams): string {
+  if (sp.stage) return sp.stage;
+  // Backward compat: map old ?status= to new stages
+  if (sp.status === "applied") return "applied";
+  if (sp.status === "dismissed") return "dismissed";
+  // Old chips backward compat
+  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasLetter")) return "letterReady";
+  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasCv")) return "cvReady";
+  if (sp.chips?.includes("analysed")) return "analysed";
+  return "all";
 }
 
 export default async function DashboardPage({
@@ -122,6 +122,10 @@ export default async function DashboardPage({
   const totalApplied = Object.values(appliedCounts).reduce((a, b) => a + b, 0);
   const activeCount  = profiles.filter((p) => p.is_active).length;
 
+  // ── Resolve stage from URL params ─────────────────────────────────────────
+  const currentStage = resolveStage(sp);
+  const currentTriage = sp.triage || "";
+
   // ── Unified jobs board: data fetch ───────────────────────────────────────
   let q = supabase
     .from("jobs")
@@ -130,10 +134,10 @@ export default async function DashboardPage({
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  if (sp.status === "new")            q = q.is("seen_at", null).is("dismissed_at", null);
-  else if (sp.status === "applied")   q = q.not("applied_at", "is", null).is("dismissed_at", null);
-  else if (sp.status === "dismissed") q = q.not("dismissed_at", "is", null);
-  else                                q = q.is("dismissed_at", null);
+  // Stage-based server-side filtering
+  if (currentStage === "applied")        q = q.not("applied_at", "is", null);
+  else if (currentStage === "dismissed") q = q.not("dismissed_at", "is", null);
+  else                                   q = q.is("dismissed_at", null);
 
   if (sp.location) q = q.ilike("location", `%${sp.location}%`);
 
@@ -216,16 +220,21 @@ export default async function DashboardPage({
     };
   });
 
-  const chipCounts: JobProgressChipCounts = {
-    analysed:     typedJobs.filter((x) => x.progress.has_analysis).length,
-    hasCv:        typedJobs.filter((x) => x.progress.has_tailored_cv).length,
-    hasLetter:    typedJobs.filter((x) => x.progress.has_cover_letter).length,
-    needsJd:      typedJobs.filter((x) => x.jd_quality === "thin").length,
-    roleMismatch: typedJobs.filter((x) => x.role_match === "mismatch").length,
-    hasEmail:     typedJobs.filter((x) => x.has_email === true).length,
-    autoSkipped:  typedJobs.filter((x) =>
+  // ── Funnel counts (computed BEFORE stage/triage filter) ──────────────────
+  const funnelCounts: FunnelCounts = {
+    discovered:     typedJobs.length,
+    analysed:       typedJobs.filter((x) => x.progress.has_analysis).length,
+    cvReady:        typedJobs.filter((x) => x.progress.has_tailored_cv).length,
+    letterReady:    typedJobs.filter((x) => x.progress.has_cover_letter).length,
+    applied:        0, // computed from separate query below
+    dismissed:      0, // computed from separate query below
+    newCount:       0, // computed from separate query below
+    needsJd:        typedJobs.filter((x) => x.jd_quality === "thin").length,
+    roleMismatch:   typedJobs.filter((x) => x.role_match === "mismatch").length,
+    belowThreshold: typedJobs.filter((x) =>
       x.pipelineState === "below_initial" || x.pipelineState === "below_final"
     ).length,
+    hasEmail:       typedJobs.filter((x) => x.has_email === true).length,
   };
 
   const railJobs: RailJob[] = [...typedJobs]
@@ -242,20 +251,27 @@ export default async function DashboardPage({
       progress:   x.progress,
     }));
 
-  const selectedChips = parseChips(sp.chips);
-  if (selectedChips.size > 0) {
-    typedJobs = typedJobs.filter((x) => {
-      if (selectedChips.has("analysed")     && !x.progress.has_analysis)     return false;
-      if (selectedChips.has("hasCv")        && !x.progress.has_tailored_cv)  return false;
-      if (selectedChips.has("hasLetter")    && !x.progress.has_cover_letter) return false;
-      if (selectedChips.has("needsJd")      && x.jd_quality !== "thin")      return false;
-      if (selectedChips.has("roleMismatch") && x.role_match !== "mismatch")  return false;
-      if (selectedChips.has("hasEmail")     && x.has_email !== true)         return false;
-      if (selectedChips.has("autoSkipped")  &&
-          x.pipelineState !== "below_initial" &&
-          x.pipelineState !== "below_final") return false;
-      return true;
-    });
+  // ── Stage filter (replaces old chip filter) ──────────────────────────────
+  if (currentStage === "analysed") {
+    typedJobs = typedJobs.filter((x) => x.progress.has_analysis);
+  } else if (currentStage === "cvReady") {
+    typedJobs = typedJobs.filter((x) => x.progress.has_tailored_cv);
+  } else if (currentStage === "letterReady") {
+    typedJobs = typedJobs.filter((x) => x.progress.has_cover_letter);
+  }
+  // applied + dismissed are handled server-side above
+
+  // ── Triage sub-filter ────────────────────────────────────────────────────
+  if (currentTriage === "needsJd") {
+    typedJobs = typedJobs.filter((x) => x.jd_quality === "thin");
+  } else if (currentTriage === "roleMismatch") {
+    typedJobs = typedJobs.filter((x) => x.role_match === "mismatch");
+  } else if (currentTriage === "belowThreshold") {
+    typedJobs = typedJobs.filter((x) =>
+      x.pipelineState === "below_initial" || x.pipelineState === "below_final"
+    );
+  } else if (currentTriage === "hasEmail") {
+    typedJobs = typedJobs.filter((x) => x.has_email === true);
   }
 
   if (sortCol === "rich_jd_first") {
@@ -292,8 +308,14 @@ export default async function DashboardPage({
 
   const allRows         = countRows ?? [];
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
+  const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
+  const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
 
-  const currentTab = sp.status ?? "all";
+  funnelCounts.applied = tabAppliedCount;
+  funnelCounts.dismissed = tabDismissedCount;
+  funnelCounts.newCount = totalNew;
+
+  const currentTab = currentStage;
 
   return (
     <div className="min-h-full">
@@ -336,21 +358,14 @@ export default async function DashboardPage({
             </div>
           </div>
 
-          {/* Triage banner — only shows when there are actionable counts */}
-          <TriageBanner counts={{
-            needsJd:      chipCounts.needsJd,
-            roleMismatch: chipCounts.roleMismatch,
-            autoSkipped:  chipCounts.autoSkipped,
-          }} />
-
-          {/* Filter bar (posted-within, location, visa, sort) */}
+          {/* Pipeline funnel */}
           <Suspense>
-            <JobFilterBar total={typedJobs.length} />
+            <PipelineFunnel counts={funnelCounts} />
           </Suspense>
 
-          {/* Progress chips */}
+          {/* Smart filter bar */}
           <Suspense>
-            <JobProgressChips counts={chipCounts} />
+            <SmartFilterBar total={typedJobs.length} />
           </Suspense>
 
           {/* Continue rail */}
