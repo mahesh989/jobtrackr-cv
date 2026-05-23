@@ -1,13 +1,17 @@
 /**
  * /api/user/voice-profile
  *
- * GET  — return the current user's voice fingerprint (deliberately omits
- *         voice_sample_raw — it must never be returned after initial submission).
+ * GET  — return the current user's voice fingerprint AND the raw sample text
+ *         so they can view + edit it. (Earlier versions hid the raw sample
+ *         "for safety" but it's the user's own writing — no reason to lock
+ *         them out of their own data.)
  * POST — submit a new writing sample, extract a voice fingerprint via cv-backend
- *         (BYOK), then upsert into voice_profiles.
+ *         (BYOK), then upsert into voice_profiles. Accepts an optional
+ *         `source` field so we can record whether the sample was freshly
+ *         typed or pasted from an existing cover letter.
  *
  * POST body:
- *   { voice_sample_text: string, provider?: string }
+ *   { voice_sample_text: string, provider?: string, source?: string }
  *
  * NOTE: voice_sample_text must never appear in server logs here or downstream.
  */
@@ -32,10 +36,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  // Deliberately exclude voice_sample_raw — it must never be returned after submission.
+  // Returns voice_sample_raw too — the user owns this text, they should be
+  // able to see what we have stored and edit it.
   const { data } = await admin
     .from("voice_profiles")
-    .select("id, fingerprint, voice_sample_trust_score, voice_sample_source, created_at, updated_at")
+    .select("id, fingerprint, voice_sample_raw, voice_sample_trust_score, voice_sample_source, created_at, updated_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { voice_sample_text?: unknown; provider?: unknown };
+  let body: { voice_sample_text?: unknown; provider?: unknown; source?: unknown };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
@@ -57,6 +62,15 @@ export async function POST(req: NextRequest) {
   if (!voiceSample) {
     return NextResponse.json({ error: "voice_sample_text is required" }, { status: 422 });
   }
+
+  // Normalise the source tag. Defaults to in_app_capture so legacy clients
+  // that don't send a source keep working unchanged.
+  const ALLOWED_SOURCES = ["in_app_capture", "pasted_cover_letter"] as const;
+  type SourceTag = (typeof ALLOWED_SOURCES)[number];
+  const sourceRaw = typeof body.source === "string" ? body.source : null;
+  const source: SourceTag = sourceRaw && (ALLOWED_SOURCES as readonly string[]).includes(sourceRaw)
+    ? (sourceRaw as SourceTag)
+    : "in_app_capture";
 
   // ── Resolve AI key (same pattern as /api/jobs/[id]/analyze) ──────────────
   const admin = createAdminClient();
@@ -133,7 +147,7 @@ export async function POST(req: NextRequest) {
       {
         user_id:                  user.id,
         voice_sample_raw:         voiceSample,
-        voice_sample_source:      "in_app_capture",
+        voice_sample_source:      source,
         voice_sample_trust_score: result.trust_score,
         fingerprint:              result.fingerprint,
         updated_at:               new Date().toISOString(),

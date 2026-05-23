@@ -5,7 +5,7 @@ import { VoiceCaptureClient } from "@/components/cv/VoiceCaptureClient";
 import { StoriesClient }      from "@/components/cv/StoriesClient";
 import type { StoredStory }   from "@/components/cv/StoriesClient";
 
-export const metadata = { title: "My Voice — JobTrackr" };
+export const metadata = { title: "Writing voice — JobTrackr" };
 
 export default async function VoicePage() {
   const supabase = await createClient();

@@ -85,7 +85,7 @@ export function DashboardStatCards({
 
   function handleAppliedClick() {
     rememberOrigin();
-    router.push("/dashboard/applications");
+    router.push("/dashboard/applications?status=sent");
   }
 
   function handleAutoScheduledClick() {
