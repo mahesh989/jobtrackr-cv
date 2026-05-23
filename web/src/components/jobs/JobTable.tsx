@@ -397,7 +397,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
-            <AnalyzeJobButton jobId={job.id} />
+            <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
             <RowMenu
               job={job}
               pending={isPending}

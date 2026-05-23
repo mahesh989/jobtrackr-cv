@@ -7,6 +7,8 @@ import { Sparkles, Loader2, Zap, AlertTriangle, X } from "lucide-react";
 
 interface Props {
   jobId: string;
+  /** When true, shows "Re-analyze" instead of "Analyze". */
+  hasAnalysis?: boolean;
   /**
    * Phase C-3 override flag forwarded as ?override=… on the POST.
    *   thin_jd      — bypass the API thin-JD pre-check
@@ -35,7 +37,7 @@ interface AnalyzeError {
  * toast also offers a "Run analysis anyway" button that retries with
  * ?override=thin_jd.
  */
-export function AnalyzeJobButton({ jobId, override, compact }: Props) {
+export function AnalyzeJobButton({ jobId, hasAnalysis = false, override, compact }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [err, setErr]              = useState<AnalyzeError | null>(null);
@@ -164,16 +166,16 @@ export function AnalyzeJobButton({ jobId, override, compact }: Props) {
           {pending ? "…" : "Force"}
         </button>
       ) : (
-        /* Primary Analyze button — brand-filled with Sparkles. */
+        /* Primary Analyze / Re-analyze button — brand-filled with Sparkles. */
         <button
           ref={btnRef}
           disabled={pending}
           onClick={handleClick}
           className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
-          title="Run a CV-tailoring analysis against this job"
+          title={hasAnalysis ? "Run a fresh analysis to update the tailored CV and scores" : "Run a CV-tailoring analysis against this job"}
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          <span>{pending ? "…" : "Analyze"}</span>
+          <span>{pending ? "…" : hasAnalysis ? "Re-analyze" : "Analyze"}</span>
         </button>
       )}
       {typeof document !== "undefined" && toast && createPortal(toast, document.body)}
