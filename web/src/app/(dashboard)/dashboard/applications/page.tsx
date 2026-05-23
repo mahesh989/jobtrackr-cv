@@ -94,21 +94,28 @@ export default async function ApplicationsPage({
   // ── 3. Latest non-stale analysis_runs per job ─────────────────────────────
   const { data: runs } = await supabase
     .from("analysis_runs")
-    .select("id, job_id, tailored_match_score, tailored_pdf_storage_path, created_at")
+    .select("id, job_id, tailored_match_score, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
     .in("job_id", jobIds)
     .eq("is_stale", false)
     .order("created_at", { ascending: false });
 
-  const runByJob = new Map<string, { id: string; tailored_match_score: number | null; tailored_pdf_storage_path: string | null }>();
+  const runByJob = new Map<string, {
+    id: string;
+    tailored_match_score: number | null;
+    tailored_pdf_storage_path: string | null;
+    tailored_cv_storage_path: string | null;
+  }>();
   for (const r of (runs ?? []) as Array<{
     id: string; job_id: string;
     tailored_match_score: number | null;
     tailored_pdf_storage_path: string | null;
+    tailored_cv_storage_path: string | null;
   }>) {
     if (!runByJob.has(r.job_id)) runByJob.set(r.job_id, {
       id: r.id,
       tailored_match_score: r.tailored_match_score,
       tailored_pdf_storage_path: r.tailored_pdf_storage_path,
+      tailored_cv_storage_path: r.tailored_cv_storage_path,
     });
   }
 
@@ -149,6 +156,7 @@ export default async function ApplicationsPage({
       latest_run_id:             run?.id ?? null,
       tailored_match_score:      run?.tailored_match_score ?? null,
       tailored_pdf_storage_path: run?.tailored_pdf_storage_path ?? null,
+      tailored_cv_storage_path:  run?.tailored_cv_storage_path ?? null,
     });
   }
 

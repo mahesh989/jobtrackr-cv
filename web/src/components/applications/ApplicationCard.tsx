@@ -6,6 +6,9 @@ import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, Fil
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 import { EditLetterModal } from "./EditLetterModal";
 import { ComposeEmailModal } from "./ComposeEmailModal";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
+import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
 
 export interface ApplicationRow {
   letter_id:                 string;
@@ -27,6 +30,7 @@ export interface ApplicationRow {
   latest_run_id:             string | null;
   tailored_match_score:      number | null;
   tailored_pdf_storage_path: string | null;
+  tailored_cv_storage_path:  string | null;
 }
 
 function formatScore(n: number | null) {
@@ -51,6 +55,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing]     = useState(false);
   const [composing, setComposing] = useState(false);
+  const [cvPreviewing, setCvPreviewing] = useState(false);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
@@ -108,6 +113,39 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
     if (pending) return;
     setActionError(null);
     setComposing(true);
+  }
+
+  async function previewTailoredCv() {
+    if (cvPreviewing || !row.tailored_cv_storage_path) return;
+    setActionError(null);
+    setCvPreviewing(true);
+    try {
+      const supabase = createSupabaseClient();
+      const [{ data: mdBlob, error: dlErr }, prefsRes] = await Promise.all([
+        supabase.storage.from("tailored-cvs").download(row.tailored_cv_storage_path),
+        fetch("/api/user/preferences"),
+      ]);
+      if (dlErr || !mdBlob) throw new Error(dlErr?.message ?? "Couldn't load CV markdown");
+      const markdown = await mdBlob.text();
+      let contactDetails: ContactDetails | null = null;
+      if (prefsRes.ok) {
+        const json = await prefsRes.json();
+        if (json?.contact_details) {
+          const cd = { ...json.contact_details };
+          delete cd.projects;
+          contactDetails = cd as ContactDetails;
+        }
+      }
+      const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
+      const url = URL.createObjectURL(pdfBlob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      // Revoke after a delay so the new tab has time to read the URL.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "CV preview failed");
+    } finally {
+      setCvPreviewing(false);
+    }
   }
 
   function handleSent() {
@@ -256,13 +294,21 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
           <FileType className="w-3 h-3" />
           Cover Letter
         </a>
-        {/* NOTE: no "Tailored CV" preview button here on purpose. The CV PDF
-            shown on the analysis page is rendered CLIENT-side by
-            TailoredCvCard (markdown + current contact details + html2pdf),
-            while tailored_pdf_storage_path on analysis_runs is the legacy
-            server-rendered PDF from cv-backend with different layout +
-            frozen contact details. Until those two paths are unified,
-            previewing the server PDF here would mislead users. */}
+        {/* Tailored CV preview — renders client-side using the same pipeline
+            as the analysis page Download PDF button, so what users preview
+            here matches what the recipient receives as an attachment. */}
+        {row.tailored_cv_storage_path && (
+          <button
+            type="button"
+            onClick={previewTailoredCv}
+            disabled={cvPreviewing}
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Preview tailored CV PDF (renders in your browser, ~1-2s)"
+          >
+            {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileType className="w-3 h-3" />}
+            {cvPreviewing ? "Rendering…" : "Tailored CV"}
+          </button>
+        )}
         {/* Edit letter — visible on all non-sent cards. Server blocks edits to
             already-sent letters; hiding the button on Sent/Archived avoids
             inviting that error path. */}
