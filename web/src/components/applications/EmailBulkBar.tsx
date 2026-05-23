@@ -224,7 +224,7 @@ export function EmailBulkBar({ rows }: Props) {
                   title="Open each card's review modal in sequence"
                 >
                   <Send className="w-3 h-3" />
-                  Review {selected.size} email{selected.size === 1 ? "" : "s"}
+                  Review {selected.size} job{selected.size === 1 ? "" : "s"}
                 </button>
                 <button
                   onClick={clearSelection}
@@ -287,7 +287,7 @@ function ConfirmModal({
       >
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-[14px] font-semibold text-text">
-            Review {rows.length} email{rows.length === 1 ? "" : "s"}
+            Review {rows.length} job{rows.length === 1 ? "" : "s"}
           </h2>
           <p className="text-[12px] text-text-2 mt-1">
             Each card opens in a review window where you can edit the subject and

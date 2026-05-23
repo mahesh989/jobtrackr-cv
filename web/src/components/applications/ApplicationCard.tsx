@@ -298,16 +298,11 @@ export function ApplicationCard({
         </div>
       </div>
 
-      {/* Letter preview */}
-      <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 mb-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1">Cover letter</p>
-        <p className="text-[12px] text-text-2 leading-relaxed line-clamp-2">
-          {row.letter_preview || "(empty letter)"}
-        </p>
-        <p className="text-[10px] text-text-3 mt-1">
-          Generated {relativeDate(row.letter_completed_at) ?? "—"}
-        </p>
-      </div>
+      {/* Cover letter freshness line — full preview is one click away via the
+          Cover Letter PDF button, so the truncated snippet is removed. */}
+      <p className="text-[11px] text-text-3 mb-3">
+        Cover letter generated {relativeDate(row.letter_completed_at) ?? "—"}
+      </p>
 
       {/* Pool decision — only shown in the "Application pool" tab. The flow is the
           same regardless of whether the job has a contact email; the email
