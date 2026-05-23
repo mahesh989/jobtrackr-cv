@@ -23,6 +23,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { SetupGuide } from "@/components/onboarding/SetupGuide";
 import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
+import { BulkThinJdButton, type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
@@ -234,6 +235,18 @@ export default async function DashboardPage({
       pipelineState,
     };
   });
+
+  // Thin-JD jobs in the loaded board — fed to the bulk "Fix thin JDs" modal.
+  // Captured before the stage/triage filters below mutate typedJobs.
+  const thinJdJobs: ThinJdJob[] = typedJobs
+    .filter((x) => x.jd_quality === "thin")
+    .map((x) => ({
+      id:             x.id,
+      title:          x.title ?? null,
+      company:        x.company ?? null,
+      description:    (x as { description?: string | null }).description ?? null,
+      manual_jd_text: (x as { manual_jd_text?: string | null }).manual_jd_text ?? null,
+    }));
 
   // Declare funnelCounts as a mutable variable, populated below using the global countRows query
   let funnelCounts: FunnelCounts = {
@@ -595,6 +608,7 @@ export default async function DashboardPage({
                 </Link>
               )}
             </div>
+            <BulkThinJdButton jobs={thinJdJobs} />
           </div>
 
           {/* Pipeline funnel */}
