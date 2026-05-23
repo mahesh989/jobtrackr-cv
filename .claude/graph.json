@@ -8,7 +8,7 @@
   },
   "project": {
     "name": "JobTrackr-CV",
-    "summary": "JobTrackr v2 — absorbs cv-magic's CV-tailoring pipeline as an internal feature module. ONE domain (Vercel auto URL), ONE user identity (Supabase), ONE database. The Python pipeline service is invisible plumbing on Fly.io.",
+    "summary": "JobTrackr v2 \u2014 absorbs cv-magic's CV-tailoring pipeline as an internal feature module. ONE domain (Vercel auto URL), ONE user identity (Supabase), ONE database. The Python pipeline service is invisible plumbing on Fly.io.",
     "framing": "cv-magic is no longer a separate product. It is a block of functionality inside JobTrackr. Users only ever see jobtrackr-cv-*.vercel.app. The Fly.io Python service has no public domain.",
     "navigation": "Same-tab (no new tabs). Analysis pages are JobTrackr routes: /jobs/[id]/analyze, /jobs/[id]/analyze/[run_id].",
     "source_projects": {
@@ -83,10 +83,10 @@
     "worker": {
       "path": "worker/",
       "host": "Fly.io (jobtrackr-cv-worker)",
-      "role": "Job discovery pipeline only — NOT used for CV analysis.",
+      "role": "Job discovery pipeline only \u2014 NOT used for CV analysis.",
       "stack": "Node.js 22, TypeScript, BullMQ, Python curl_cffi subprocess",
       "status": "active",
-      "notes": "Primary SEEK path: seekDirect adapter via curl_cffi (Chrome 124 TLS, no proxy needed from Fly). Apify Seek actor: automatic fallback only, never ran in production. Careerjet: two-phase — Phase 1 API listings + immediate tracking-URL resolution (Node fetch redirect:manual) → stable careerjet.com.au/clk URLs stored in DB; Phase 2 curl_cffi JD enrichment. Confirmed production 2026-05-20: SEEK 22 jobs/run + Careerjet 20 jobs + 10/11 full JDs at $0."
+      "notes": "Primary SEEK path: seekDirect adapter via curl_cffi (Chrome 124 TLS, no proxy needed from Fly). Apify Seek actor: automatic fallback only, never ran in production. Careerjet: two-phase \u2014 Phase 1 API listings + immediate tracking-URL resolution (Node fetch redirect:manual) \u2192 stable careerjet.com.au/clk URLs stored in DB; Phase 2 curl_cffi JD enrichment. Confirmed production 2026-05-20: SEEK 22 jobs/run + Careerjet 20 jobs + 10/11 full JDs at $0."
     },
     "cv_backend": {
       "path": "cv-backend/",
@@ -149,7 +149,7 @@
         "jd_text",
         "cv_text"
       ],
-      "response": "{ ranked_facts: [{fact_text, score, source_field}] } — deterministic, no AI call"
+      "response": "{ ranked_facts: [{fact_text, score, source_field}] } \u2014 deterministic, no AI call"
     },
     "internal_scrape_jd": {
       "method": "POST",
@@ -162,69 +162,72 @@
   },
   "build_state": {
     "current_phase": 12,
-    "next_action": "Session 2026-05-22 end state — code complete, partial user-verification, three things outstanding for the next session to pick up. SHIPPED THIS SESSION: Phase E-2 + applications pool revision + Phase F (Gmail/Outlook OAuth — verified working end-to-end, green badge shown) + Phase G (cover letter PDF persistence + email attachment) + G-2 (single PDF renderer) + H-1 (sidebar pool count badge) + H-2 (bulk No-email/Archive in pool) + H-3 (bulk send + confirmation modal in Ready-to-email) + D-3 (inline letter editing). Bug-fix pass: Migration 037 (cover_letters.analysis_run_id missing — Phase E-2 was silently crashing on every attempt), commit adc078b (jobs.user_id doesn't exist — two new routes filtered by it and threw misleading errors), Migration 038 (jd_quality trigger + threshold alignment — new jobs stayed at NULL after scrape, so 'Needs JD' chip never fired on them; threshold now matches worker's JD_MIN_USABLE=2000).\n\nPENDING USER ACTION (next session must verify or guide user through):\n  (a) DEPLOY commit adc078b: `cd web && vercel deploy --prod` — fixes 'job lookup failed' on Letter download and 'Job has no contact email' on Send button (Quantium card)\n  (b) APPLY migrations 037 + 038 in Supabase SQL editor — 037 unblocks Phase E-2 from silently crashing, 038 makes thin-JD jobs visible in UI\n  (c) USER TESTING incomplete: Letter download retry, Send email retry to rashmipoudel756@gmail.com, end-to-end bulk send via H-3 confirmation modal, EditLetter modal save round-trip. The Quantium letter is the test fixture in /dashboard/applications → To review (already moved to email tab after user pasted email).\n\nNEXT PRIORITIES (after user verification passes):\n  (E-3) Per-profile daily_application_limit enforcement — Redis counter at worker autoAnalyzeBatch level. Currently letters auto-generate with no cap; if a scrape returns 50 matches all pass the gate, all 50 letters get queued. Default cap 10/day. Simple counter at worker pre-trigger.\n  (E-4) Dashboard banner — 'N new applications need review' complementing the sidebar badge so the signal is on the main dashboard too\n  (Analytics) Per-source funnel: scraped → analyzed → passed-gate → letter → sent → applied. Right now we have no view of which sources actually convert.\n  (Worker — separately) JD enrichment for thin-source teasers. Many SEEK/careerjet listings return 500-char teasers; worker could fetch the full listing page via curl_cffi (Phase 2 of careerjet already does this — extend pattern to other sources).\n\nMy recommendation: have the user verify (a)+(b)+(c) above first; once Letter + Send confirmed working, move to E-3 (single Redis counter, ~1h).\n\n---",
+    "next_action": "Session 2026-05-23 end state - SHIPPED: Dashboard tab bar removed + interactive KPI stat cards + BackButton on sub-pages. PipelineDonut analytics component (5 lenses, canvas animation, per-profile popups, navigation). Migration 040 (jobs_deduped in run_logs) + orchestrator dedup tracking.\n\nPENDING USER ACTION (must do before next pipeline run produces accurate sourcing breakdown):\n  (a) Apply migration 040 in Supabase: ALTER TABLE run_logs ADD COLUMN jobs_deduped integer DEFAULT 0\n\nALSO STILL PENDING from previous session (verify status):\n  (b) Deploy commit adc078b if not yet done - fixes job lookup + Send button errors\n  (c) Apply migrations 037 + 038 if not yet done\n\nNEXT PRIORITIES:\n  (E-3) Per-profile daily_application_limit enforcement - Redis counter at worker autoAnalyzeBatch level\n  (E-4) Dashboard banner - N new applications need review\n  (Analytics) Per-source funnel: scraped -> analyzed -> passed-gate -> letter -> sent -> applied\n",
     "completed": [
-      "Phase 0 — preview env verified",
-      "Phase 1 — migrations 010/011/012 applied; tables live + Realtime publication active",
-      "Phase 2 — cv-backend deployed; /health 200, signed /internal/analyze returns 202",
-      "Phase 3 — CV upload UI + flow working for PDF",
-      "Phase 4 — BYOK keys",
-      "Phase 5 — Analyze button wired end-to-end; JD analysis step runs live",
-      "Phase 5.5 — Manual JD edit + contact email",
-      "Phase 6 — Wire remaining steps + result cards",
-      "Phase 7 — Tailored CV PDF + viewer",
-      "Phase 7.5 — Profile settings",
-      "Phase 8 — Analyses tab + history view grouped by job",
-      "Phase 8.5 — Integrations page consolidated",
-      "Phase 8.6 — cv-magic detail layout parity: CvJdMatchingCard table + ATS named sub-scores + 4-bucket FeasibilityCard with",
-      "Phase 9.1 — 5-theme system: Default / Classic / Gilded Noir / Notion / Clay",
-      "Phase 9.2 — Sidebar redesigned to match cv-magic reference: brand-colour left-bar active indicator, lucide icons, per-th",
-      "Phase 9.3 — All Tools pages",
-      "Phase 9.4 — Job table: theme-aware hover, row actions collapsed to Analyze + tri-dot",
-      "Phase 9.5 — Job filter bar refactored: JobStatusTabs on own row + unified JobFilterBar",
-      "Phase 9.6 — ProviderPicker accordion replaces AiKeyCard on Integrations page. Each card: radio",
-      "Phase 9.7 — Theme-aware scrollbar: thumb uses color-mix",
-      "Phase 9.8 — Global hex color sweep: replaced all hardcoded #D0D7DE/border, #F6F8FA/surface-2, #0969DA/brand, #1F2328/tex",
-      "Phase 9.9 — ⋮ RowMenu dropdown fixed: createPortal + position:fixed so menu escapes overflow:hidden table wrapper and an",
-      "Phase 9.10 — Soft Skills layout fixed: SkillRow changed from flex-wrap",
-      "Phase 9.11 — Apply/Dismiss reliability: switched from startTransition",
-      "Phase 9.12 — CV re-categorise: added '↺ Categorise skills now' button to CvSkillsBlock + new POST /api/cv/[id]/recategor",
-      "Phase 9.13 — Sign out fixed: middleware was intercepting POST /auth/signout and redirecting to /dashboard because /auth/",
-      "Phase 9.14 — Analysis history shows final",
-      "Phase 9.15 — Active CV sorts to top of list immediately when Set Active clicked.",
-      "Phase 9.16 — OpenAI non-chat model fallback: cv-backend client.py detects 'not a chat model' error and retries with gpt-",
-      "Phase 9.17 — Brand-tinted theme borders: Clay --border #F5BECE",
-      "Phase 9.18 — ProviderPicker OpenAI models updated to real chat models: GPT-5.1",
-      "Session A cleanup (2026-05-16) — Pre-cover-letter hygiene:",
-      "Session B orchestration layer (2026-05-16) — Permanent subagent + slash command infrastructure.",
-      "Session C prompts.py modular split (2026-05-17) — Split cv-backend/app/services/ai/prompts.py",
-      "Session D documentation pass (2026-05-17) — Created docs/architecture.md",
-      "Phase 10.2.a — Story Extraction and Storage",
-      "Phase 10.3 — Company Research Pipeline",
-      "Phase 10.2.b — Story Matching and UI",
-      "Session E — Phase 10.1",
-      "Phase 10.4 — Cover Letter Generation",
-      "Phase 10.5 — Delivery Template + PDF Export",
-      "Worker curl_cffi infrastructure + SEEK direct + Careerjet integration (2026-05-20) — curl_cffi",
-      "Phase E-1 CODE — Worker auto-analyze on scrape",
-      "Phase D-2 — Final-ATS gate on cover-letter generation",
-      "Phase D-1 — Applications outbox shell",
-      "Phase C-3 CODE — HARD gates for manual runs",
-      "Phase C-2 CODE — cv-backend gate recording",
-      "Phase C-1 — Pipeline automation settings UI",
-      "Phase B — Visibility UI for the new schema",
-      "Phase A — Migration 031+032 applied + verified",
-      "Phase 11 — Voice-directed drafting: multi-variant opening paragraphs",
-      "Phase E-2 — Auto cover letter after passing automation run",
-      "D-1 revision — Applications pool with email-decision gate",
-      "Phase G — Cover letter PDF persistence + email attachment",
-      "Phase H-1 — Pool count badge on Applications sidebar item",
-      "Bug-fix pass — three real bugs surfaced during user testing",
-      "Phase H-3 — Bulk email send in Ready-to-email tab",
-      "Phase D-3 — Inline cover letter editing",
-      "Phase G-2 — Single PDF renderer for both outbox and CoverLetterPanel",
-      "Phase H-2 — Bulk pool actions",
-      "Phase F — Gmail / Outlook OAuth email dispatch"
+      "Phase 0 \u2014 preview env verified",
+      "Phase 1 \u2014 migrations 010/011/012 applied; tables live + Realtime publication active",
+      "Phase 2 \u2014 cv-backend deployed; /health 200, signed /internal/analyze returns 202",
+      "Phase 3 \u2014 CV upload UI + flow working for PDF",
+      "Phase 4 \u2014 BYOK keys",
+      "Phase 5 \u2014 Analyze button wired end-to-end; JD analysis step runs live",
+      "Phase 5.5 \u2014 Manual JD edit + contact email",
+      "Phase 6 \u2014 Wire remaining steps + result cards",
+      "Phase 7 \u2014 Tailored CV PDF + viewer",
+      "Phase 7.5 \u2014 Profile settings",
+      "Phase 8 \u2014 Analyses tab + history view grouped by job",
+      "Phase 8.5 \u2014 Integrations page consolidated",
+      "Phase 8.6 \u2014 cv-magic detail layout parity: CvJdMatchingCard table + ATS named sub-scores + 4-bucket FeasibilityCard with",
+      "Phase 9.1 \u2014 5-theme system: Default / Classic / Gilded Noir / Notion / Clay",
+      "Phase 9.2 \u2014 Sidebar redesigned to match cv-magic reference: brand-colour left-bar active indicator, lucide icons, per-th",
+      "Phase 9.3 \u2014 All Tools pages",
+      "Phase 9.4 \u2014 Job table: theme-aware hover, row actions collapsed to Analyze + tri-dot",
+      "Phase 9.5 \u2014 Job filter bar refactored: JobStatusTabs on own row + unified JobFilterBar",
+      "Phase 9.6 \u2014 ProviderPicker accordion replaces AiKeyCard on Integrations page. Each card: radio",
+      "Phase 9.7 \u2014 Theme-aware scrollbar: thumb uses color-mix",
+      "Phase 9.8 \u2014 Global hex color sweep: replaced all hardcoded #D0D7DE/border, #F6F8FA/surface-2, #0969DA/brand, #1F2328/tex",
+      "Phase 9.9 \u2014 \u22ee RowMenu dropdown fixed: createPortal + position:fixed so menu escapes overflow:hidden table wrapper and an",
+      "Phase 9.10 \u2014 Soft Skills layout fixed: SkillRow changed from flex-wrap",
+      "Phase 9.11 \u2014 Apply/Dismiss reliability: switched from startTransition",
+      "Phase 9.12 \u2014 CV re-categorise: added '\u21ba Categorise skills now' button to CvSkillsBlock + new POST /api/cv/[id]/recategor",
+      "Phase 9.13 \u2014 Sign out fixed: middleware was intercepting POST /auth/signout and redirecting to /dashboard because /auth/",
+      "Phase 9.14 \u2014 Analysis history shows final",
+      "Phase 9.15 \u2014 Active CV sorts to top of list immediately when Set Active clicked.",
+      "Phase 9.16 \u2014 OpenAI non-chat model fallback: cv-backend client.py detects 'not a chat model' error and retries with gpt-",
+      "Phase 9.17 \u2014 Brand-tinted theme borders: Clay --border #F5BECE",
+      "Phase 9.18 \u2014 ProviderPicker OpenAI models updated to real chat models: GPT-5.1",
+      "Session A cleanup (2026-05-16) \u2014 Pre-cover-letter hygiene:",
+      "Session B orchestration layer (2026-05-16) \u2014 Permanent subagent + slash command infrastructure.",
+      "Session C prompts.py modular split (2026-05-17) \u2014 Split cv-backend/app/services/ai/prompts.py",
+      "Session D documentation pass (2026-05-17) \u2014 Created docs/architecture.md",
+      "Phase 10.2.a \u2014 Story Extraction and Storage",
+      "Phase 10.3 \u2014 Company Research Pipeline",
+      "Phase 10.2.b \u2014 Story Matching and UI",
+      "Session E \u2014 Phase 10.1",
+      "Phase 10.4 \u2014 Cover Letter Generation",
+      "Phase 10.5 \u2014 Delivery Template + PDF Export",
+      "Worker curl_cffi infrastructure + SEEK direct + Careerjet integration (2026-05-20) \u2014 curl_cffi",
+      "Phase E-1 CODE \u2014 Worker auto-analyze on scrape",
+      "Phase D-2 \u2014 Final-ATS gate on cover-letter generation",
+      "Phase D-1 \u2014 Applications outbox shell",
+      "Phase C-3 CODE \u2014 HARD gates for manual runs",
+      "Phase C-2 CODE \u2014 cv-backend gate recording",
+      "Phase C-1 \u2014 Pipeline automation settings UI",
+      "Phase B \u2014 Visibility UI for the new schema",
+      "Phase A \u2014 Migration 031+032 applied + verified",
+      "Phase 11 \u2014 Voice-directed drafting: multi-variant opening paragraphs",
+      "Phase E-2 \u2014 Auto cover letter after passing automation run",
+      "D-1 revision \u2014 Applications pool with email-decision gate",
+      "Phase G \u2014 Cover letter PDF persistence + email attachment",
+      "Phase H-1 \u2014 Pool count badge on Applications sidebar item",
+      "Bug-fix pass \u2014 three real bugs surfaced during user testing",
+      "Phase H-3 \u2014 Bulk email send in Ready-to-email tab",
+      "Phase D-3 \u2014 Inline cover letter editing",
+      "Phase G-2 \u2014 Single PDF renderer for both outbox and CoverLetterPanel",
+      "Phase H-2 \u2014 Bulk pool actions",
+      "Phase F \u2014 Gmail / Outlook OAuth email dispatch",
+      "Dashboard refactor (2026-05-23) - Removed tab bar; replaced with interactive DashboardStatCards: Total scrolls to #jobs-board, New filters ?status=new, Applied -> /dashboard/applications?status=sent, Auto-scheduled -> /dashboard/profiles?autoScheduled=true. Added BackButton (sessionStorage lastDashboardTab) on /dashboard/applications and /dashboard/profiles. Added .pulse-highlight CSS keyframe.",
+      "PipelineDonut component (2026-05-23) - Animated HTML5 canvas donut with 5 switchable lenses (Sourcing, JD readiness, Analysis, ATS gates, Applied). RAF lerp morphing animation, hover lift, per-slice count in center, per-profile stacked-bar popup, SourceBreakdown. Legend items navigate to filtered dashboard views. ATS labels show thresholds (>=75 / 55-74 / <55). Callout strip links to thinJd/cvReady/applications.",
+      "Migration 040 + jobs_deduped (2026-05-23) - Added jobs_deduped column to run_logs. Orchestrator now accumulates earlyL1Dropped + crossProfile + l1Dropped + l2Dropped into jobsDeduped and writes it via finishRunLog. Dashboard derives filtered = fetched - deduped - saved. Old runs (NULL) fall back to filtered = fetched - saved."
     ],
     "in_progress": [],
     "blocked": []
@@ -234,37 +237,37 @@
       "phase": 0,
       "name": "Setup & infra",
       "status": "completed",
-      "gate": "PASSED 2026-05-14 — sign-in works, jobs visible on jobtrackr-cv.vercel.app, Run Now functional."
+      "gate": "PASSED 2026-05-14 \u2014 sign-in works, jobs visible on jobtrackr-cv.vercel.app, Run Now functional."
     },
     {
       "phase": 1,
       "name": "Data model",
       "status": "completed",
-      "gate": "PASSED 2026-05-14 — migrations applied cleanly."
+      "gate": "PASSED 2026-05-14 \u2014 migrations applied cleanly."
     },
     {
       "phase": 2,
       "name": "cv-backend skeleton",
       "status": "completed",
-      "gate": "PASSED 2026-05-14 — signed POST returns 202 with {run_id, status: accepted}; deployed at https://jobtrackr-cv-api.fly.dev"
+      "gate": "PASSED 2026-05-14 \u2014 signed POST returns 202 with {run_id, status: accepted}; deployed at https://jobtrackr-cv-api.fly.dev"
     },
     {
       "phase": 3,
       "name": "CV upload UI + flow",
       "status": "completed",
-      "gate": "PARTIAL PASS 2026-05-14 — PDF upload works end-to-end (upload, active toggle, delete modal, RLS-scoped storage). DOCX upload fails at the browser→Supabase Storage layer with ERR_TIMED_OUT (BUG-1, parked). PDF-only workflow is sufficient to unblock subsequent phases."
+      "gate": "PARTIAL PASS 2026-05-14 \u2014 PDF upload works end-to-end (upload, active toggle, delete modal, RLS-scoped storage). DOCX upload fails at the browser\u2192Supabase Storage layer with ERR_TIMED_OUT (BUG-1, parked). PDF-only workflow is sufficient to unblock subsequent phases."
     },
     {
       "phase": 4,
       "name": "AI key UI + flow",
       "status": "completed",
-      "gate": "PASSED 2026-05-14 — verified in incognito session. OpenAI key connected, known-bad key rejected with clear error, Replace key + Disconnect cards function correctly. Stale-browser-cache issue with regular browser session is unrelated to feature correctness."
+      "gate": "PASSED 2026-05-14 \u2014 verified in incognito session. OpenAI key connected, known-bad key rejected with clear error, Replace key + Disconnect cards function correctly. Stale-browser-cache issue with regular browser session is unrelated to feature correctness."
     },
     {
       "phase": 5,
       "name": "End-to-end with only step 1 wired",
       "status": "completed",
-      "gate": "Click Analyze on a SEEK job → land on /dashboard/jobs/[id]/analyze/[run_id] → step 1 (jd_analysis) ticks running → completed via Realtime → JSON output renders."
+      "gate": "Click Analyze on a SEEK job \u2192 land on /dashboard/jobs/[id]/analyze/[run_id] \u2192 step 1 (jd_analysis) ticks running \u2192 completed via Realtime \u2192 JSON output renders."
     },
     {
       "phase": 5.5,
@@ -276,13 +279,13 @@
       "phase": 6,
       "name": "Wire remaining steps + result cards",
       "status": "completed",
-      "gate": "PASSED — full pipeline wired; all result cards rendering."
+      "gate": "PASSED \u2014 full pipeline wired; all result cards rendering."
     },
     {
       "phase": 7,
       "name": "Tailored CV PDF + viewer",
       "status": "completed",
-      "gate": "PASSED — tailored CV renders inline; Download PDF triggers Supabase Storage download."
+      "gate": "PASSED \u2014 tailored CV renders inline; Download PDF triggers Supabase Storage download."
     },
     {
       "phase": 7.5,
@@ -314,7 +317,7 @@
       "id": "D2",
       "date": "2026-05-14",
       "decision": "Shared Supabase project with production JobTrackr.",
-      "rationale": "New tables are isolated from production code paths. FK from analysis_runs.job_id → jobs.id requires same DB."
+      "rationale": "New tables are isolated from production code paths. FK from analysis_runs.job_id \u2192 jobs.id requires same DB."
     },
     {
       "id": "D3",
@@ -380,13 +383,13 @@
       "id": "D13",
       "date": "2026-05-16",
       "decision": "OpenAI model list restricted to real chat-completions-compatible models: GPT-5.1, GPT-4o, GPT-4o mini, GPT-4 Turbo, o3-mini.",
-      "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded — they fail at the /v1/chat/completions endpoint."
+      "rationale": "Previous list had fictional gpt-5.2/gpt-5.2-pro/gpt-5-mini names that caused 404 API errors. Completions-only models (gpt-3.5-turbo-instruct etc.) excluded \u2014 they fail at the /v1/chat/completions endpoint."
     },
     {
       "id": "D14",
       "date": "2026-05-19",
       "decision": "Cover letter generation uses a single call to the user's chosen model (BYOK), not a hard-coded cheap/expensive tier split. Voice sample (verbatim) drives register; intent-based 4-paragraph rubric drives structure; anti-patterns list steers away from generic openers; one post-generation honesty gate (same model) with one retry on flag.",
-      "rationale": "Original 3-pass pipeline (skeleton→voice transfer→burstiness, with 3 deterministic gates) produced mechanical-feeling output: literal 'Worth it.' fragments copied verbatim from prompt examples, uniform 'I [verbed] X, which Y' sentence structures the burstiness gate did not catch, weak 'Hi, I admire' openers that survived multiple banned-phrase patches. Root cause: the pipeline was performing humanness rather than achieving it — pass-3 instructions to 'add a fragment' produce literal copies; pass-2 statistical voice fingerprint cannot replicate voice; pass-1 'hook → bridge' formula locks in cliché two-sentence openers. Replacing the pipeline with one rich call + verbatim voice sample + intent rubric + anti-patterns produced materially better output verified on Ampol and One51 letters. Trade-off: user's model choice determines quality ceiling (was previously masked by hard-coded expensive tier). Honest about what we can deliver; user controls the cost/quality dial via their integration settings."
+      "rationale": "Original 3-pass pipeline (skeleton\u2192voice transfer\u2192burstiness, with 3 deterministic gates) produced mechanical-feeling output: literal 'Worth it.' fragments copied verbatim from prompt examples, uniform 'I [verbed] X, which Y' sentence structures the burstiness gate did not catch, weak 'Hi, I admire' openers that survived multiple banned-phrase patches. Root cause: the pipeline was performing humanness rather than achieving it \u2014 pass-3 instructions to 'add a fragment' produce literal copies; pass-2 statistical voice fingerprint cannot replicate voice; pass-1 'hook \u2192 bridge' formula locks in clich\u00e9 two-sentence openers. Replacing the pipeline with one rich call + verbatim voice sample + intent rubric + anti-patterns produced materially better output verified on Ampol and One51 letters. Trade-off: user's model choice determines quality ceiling (was previously masked by hard-coded expensive tier). Honest about what we can deliver; user controls the cost/quality dial via their integration settings."
     }
   ],
   "tooling": {
@@ -428,10 +431,10 @@
         }
       },
       "slash_commands": {
-        "plan": ".claude/commands/plan.md — invokes planner subagent, stops for user approval",
-        "audit": ".claude/commands/audit.md — invokes auditor subagent, halts on FAIL",
-        "ship": ".claude/commands/ship.md — phase wrap-up: graph.json → commit → push → summary",
-        "handoff": ".claude/commands/handoff.md — generates copy-pasteable next-session block"
+        "plan": ".claude/commands/plan.md \u2014 invokes planner subagent, stops for user approval",
+        "audit": ".claude/commands/audit.md \u2014 invokes auditor subagent, halts on FAIL",
+        "ship": ".claude/commands/ship.md \u2014 phase wrap-up: graph.json \u2192 commit \u2192 push \u2192 summary",
+        "handoff": ".claude/commands/handoff.md \u2014 generates copy-pasteable next-session block"
       },
       "model_routing_policy": "Documented in CLAUDE.md ## Model Routing. Main=sonnet-4-6, Planning=haiku-4-5, Auditing=opus-4-7 (reviewer only, not executor), Migration=sonnet-4-6."
     }
@@ -441,9 +444,9 @@
       "id": "DEFERRED-1",
       "title": "Tier 4 user-initiated JD URL fetch",
       "file": "web/src/lib/scrapeJobUrl.ts",
-      "status": "built, not wired up — no API route or UI calls this",
-      "description": "User pastes a job URL into the manual JD edit flow; utility fetches and pre-populates the JD text field via JSON-LD → OpenGraph → HTML parse chain.",
-      "distinct_from": "cv-backend/services/scraping/jd_scraper.py — that runs during analysis from a known source; this is a pre-analysis, user-triggered fetch.",
+      "status": "built, not wired up \u2014 no API route or UI calls this",
+      "description": "User pastes a job URL into the manual JD edit flow; utility fetches and pre-populates the JD text field via JSON-LD \u2192 OpenGraph \u2192 HTML parse chain.",
+      "distinct_from": "cv-backend/services/scraping/jd_scraper.py \u2014 that runs during analysis from a known source; this is a pre-analysis, user-triggered fetch.",
       "to_activate": "Create POST /api/jobs/scrape-url calling scrapeJobUrl(), returning { jdText, source }. Wire to 'Fetch from URL' button on JobEditModal.",
       "reconsider": "When manual JD edit flow gets enhanced (e.g. Phase 10+ or cover letter feature needs richer JD input)."
     },
@@ -451,18 +454,18 @@
       "id": "DEFERRED-2",
       "title": "Multi-source job scraping architecture for scale (1000s of users)",
       "file": "cv-backend/services/scraping/ (does not exist yet)",
-      "status": "designed, not built — current MVP does naive per-search fetches; OK for test circle of 10-20 users, breaks at scale",
-      "description": "Current state: a fresh user search triggers live API calls to each source. At 1000 users this hits all rate limits within hours: Careerjet free tier 500/day, Adzuna 1000/month, SEEK Apify ~$225/day at 1000 users × 3 keywords × 3 sources. Designed solution: shared global jobs pool refreshed by scheduled crawler on popular keyword clusters (Tier 1 every 4h, Tier 2 daily, Tier 3 on-demand), user searches filter the pool instantly instead of triggering live fetches. Dedup priority: SEEK > Careerjet > Adzuna (match on normalize(title)+normalize(company)+city); always store all source URLs on the merged row so user sees 'Apply on SEEK · Also on Careerjet'. Visa keyword scan runs once at description-fetch time, stored on row, enables instant 'show sponsorship-friendly jobs only' filter — the JobTrackr differentiator.",
-      "distinct_from": "Current per-user live fetch in cv-backend — fine for 10-20 test users, will break at production scale.",
-      "to_activate": "After test circle (10-20 users) validates the AIN + Data Analyst flow: (1) add columns to jobs table — source, source_id, dedup_key, all_sources JSONB, visa_keywords, may_sponsor, requires_pr; index on dedup_key; (2) build Careerjet client module (no Apify needed — uses inline curl_cffi); (3) build description-time visa scanner (single regex pass); (4) build scheduled crawler on Fly cron (every 4h for Tier 1 keywords × major cities); (5) refactor search endpoint to read pool first, on-demand fetch only on cache miss; (6) evaluate decommissioning SEEK Apify actor in favour of inline curl_cffi (curl_cffi was proven 2026-05-20 to extract full descriptions from seek.com.au/job/{id} pages with no Apify dependency — would save ~$225/day at 1000 users if stable at volume).",
-      "reconsider": "When test circle (10-20 users) is validated AND user count starts approaching the free-tier rate limits — likely around 50-100 active daily users. Earlier triggers: any source returns 429 rate-limit error; Apify monthly bill exceeds budget."
+      "status": "designed, not built \u2014 current MVP does naive per-search fetches; OK for test circle of 10-20 users, breaks at scale",
+      "description": "Current state: a fresh user search triggers live API calls to each source. At 1000 users this hits all rate limits within hours: Careerjet free tier 500/day, Adzuna 1000/month, SEEK Apify ~$225/day at 1000 users \u00d7 3 keywords \u00d7 3 sources. Designed solution: shared global jobs pool refreshed by scheduled crawler on popular keyword clusters (Tier 1 every 4h, Tier 2 daily, Tier 3 on-demand), user searches filter the pool instantly instead of triggering live fetches. Dedup priority: SEEK > Careerjet > Adzuna (match on normalize(title)+normalize(company)+city); always store all source URLs on the merged row so user sees 'Apply on SEEK \u00b7 Also on Careerjet'. Visa keyword scan runs once at description-fetch time, stored on row, enables instant 'show sponsorship-friendly jobs only' filter \u2014 the JobTrackr differentiator.",
+      "distinct_from": "Current per-user live fetch in cv-backend \u2014 fine for 10-20 test users, will break at production scale.",
+      "to_activate": "After test circle (10-20 users) validates the AIN + Data Analyst flow: (1) add columns to jobs table \u2014 source, source_id, dedup_key, all_sources JSONB, visa_keywords, may_sponsor, requires_pr; index on dedup_key; (2) build Careerjet client module (no Apify needed \u2014 uses inline curl_cffi); (3) build description-time visa scanner (single regex pass); (4) build scheduled crawler on Fly cron (every 4h for Tier 1 keywords \u00d7 major cities); (5) refactor search endpoint to read pool first, on-demand fetch only on cache miss; (6) evaluate decommissioning SEEK Apify actor in favour of inline curl_cffi (curl_cffi was proven 2026-05-20 to extract full descriptions from seek.com.au/job/{id} pages with no Apify dependency \u2014 would save ~$225/day at 1000 users if stable at volume).",
+      "reconsider": "When test circle (10-20 users) is validated AND user count starts approaching the free-tier rate limits \u2014 likely around 50-100 active daily users. Earlier triggers: any source returns 429 rate-limit error; Apify monthly bill exceeds budget."
     }
   ],
   "operational_notes": [
     {
       "id": "OPS-1",
       "title": "Migration tracking is CLI-untracked",
-      "detail": "All migrations applied manually via Supabase SQL editor — supabase link has never been run, no config.toml exists. If supabase link is ever set up, run supabase migration repair to mark all 20 migrations as applied before using any CLI workflows (db push, branching, etc.). Renaming local migration files (as done 2026-05-16) has zero production impact while CLI-untracked.",
+      "detail": "All migrations applied manually via Supabase SQL editor \u2014 supabase link has never been run, no config.toml exists. If supabase link is ever set up, run supabase migration repair to mark all 20 migrations as applied before using any CLI workflows (db push, branching, etc.). Renaming local migration files (as done 2026-05-16) has zero production impact while CLI-untracked.",
       "logged": "2026-05-16"
     },
     {
@@ -473,38 +476,38 @@
     },
     {
       "id": "OPS-7",
-      "title": "Burstiness floor (0.40) may be calibrated slightly high — defer evaluation to 20+ real samples",
+      "title": "Burstiness floor (0.40) may be calibrated slightly high \u2014 defer evaluation to 20+ real samples",
       "detail": "Real production sample (848 chars, ~145 words) produced burstiness ratio (stddev/mean sentence length) of 0.36, just below the 0.40 human-writing floor specified in docs/cover-letter-spec.md Part 5. Two interpretations: (a) factual self-introduction is inherently uniform; cover-letter writing will naturally be more varied; (b) the 0.40 floor may be calibrated slightly high for short samples. Do not tune the floor yet. When voice_profiles contains 20+ real samples, evaluate whether 0.36 is an outlier or the norm, then adjust the threshold if needed.",
       "logged": "2026-05-18"
     },
     {
       "id": "OPS-8",
-      "title": "150-word minimum may be safely lowered to 120 — defer to multi-sample validation",
-      "detail": "Real production sample was 848 chars / ~145 words — right at the lower edge of the 150-word target — and fingerprint quality is strong across all 5 acceptance criteria. Suggests the floor could be lowered to 120 words without degrading output quality. Do not change yet. Collect more samples first and assess whether shorter samples consistently produce comparable fingerprint specificity.",
+      "title": "150-word minimum may be safely lowered to 120 \u2014 defer to multi-sample validation",
+      "detail": "Real production sample was 848 chars / ~145 words \u2014 right at the lower edge of the 150-word target \u2014 and fingerprint quality is strong across all 5 acceptance criteria. Suggests the floor could be lowered to 120 words without degrading output quality. Do not change yet. Collect more samples first and assess whether shorter samples consistently produce comparable fingerprint specificity.",
       "logged": "2026-05-18"
     },
     {
       "id": "OPS-10",
-      "title": "MatchStoriesStory TS interface must mirror Story Pydantic schema — all required fields",
-      "detail": "The TypeScript MatchStoriesStory interface (cvBackend.ts) maps directly to the Pydantic Story schema used in MatchStoriesRequest. FastAPI validates every field at deserialization — a missing required field produces HTTP 422 before the endpoint handler runs. Phase 10.2.b initial audit caught this: title and year were absent, causing every /internal/match-stories call to fail. When Story gains or loses required fields in a future phase, MatchStoriesStory must be updated in sync. A future improvement (noted for Phase 10.3): define a narrower MatchableStory Pydantic schema with only the fields score_stories actually uses, breaking the tight coupling.",
+      "title": "MatchStoriesStory TS interface must mirror Story Pydantic schema \u2014 all required fields",
+      "detail": "The TypeScript MatchStoriesStory interface (cvBackend.ts) maps directly to the Pydantic Story schema used in MatchStoriesRequest. FastAPI validates every field at deserialization \u2014 a missing required field produces HTTP 422 before the endpoint handler runs. Phase 10.2.b initial audit caught this: title and year were absent, causing every /internal/match-stories call to fail. When Story gains or loses required fields in a future phase, MatchStoriesStory must be updated in sync. A future improvement (noted for Phase 10.3): define a narrower MatchableStory Pydantic schema with only the fields score_stories actually uses, breaking the tight coupling.",
       "logged": "2026-05-18"
     },
     {
       "id": "OPS-12",
       "title": "Scrape pipeline observability layer (Session L)",
-      "detail": "run_logs gained three fields and one append-only stream over Session L: (1) current_stage text — written by setStage() at each pipeline transition, cleared to NULL on finishRunLog; powers the blue 'Pipeline running' banner. (2) sources_saved jsonb — captured from saveJobs() return; answers 'where did the N saved jobs come from?' without a join. (3) log_lines jsonb + append_run_log_line(rid, line) Postgres function — logContext.ts patches console.log/warn/error once at worker startup; orchestrator calls runLogContext.enterWith({ runLogId }) right after startRunLog so every console call inside the pipeline (orchestrator + adapters + AI helpers) mirrors to log_lines fire-and-forget. UI: LiveRunStatus banner (jobs + runs page), LiveLogConsole collapsible terminal-style scrollback (jobs + runs page), RunNotifier toast mounted in dashboard layout for cross-page run-complete notifications. Polling cadences: LiveRunStatus 3s when active / 12s idle, LiveLogConsole 4s discover + 1.5s tail, RunNotifier 3s. Three migrations land in order: 028 (current_stage), 029 (sources_saved), 030 (log_lines + RPC). Worker must redeploy AFTER 030 is applied or appendLog spams 'function does not exist' warnings.",
+      "detail": "run_logs gained three fields and one append-only stream over Session L: (1) current_stage text \u2014 written by setStage() at each pipeline transition, cleared to NULL on finishRunLog; powers the blue 'Pipeline running' banner. (2) sources_saved jsonb \u2014 captured from saveJobs() return; answers 'where did the N saved jobs come from?' without a join. (3) log_lines jsonb + append_run_log_line(rid, line) Postgres function \u2014 logContext.ts patches console.log/warn/error once at worker startup; orchestrator calls runLogContext.enterWith({ runLogId }) right after startRunLog so every console call inside the pipeline (orchestrator + adapters + AI helpers) mirrors to log_lines fire-and-forget. UI: LiveRunStatus banner (jobs + runs page), LiveLogConsole collapsible terminal-style scrollback (jobs + runs page), RunNotifier toast mounted in dashboard layout for cross-page run-complete notifications. Polling cadences: LiveRunStatus 3s when active / 12s idle, LiveLogConsole 4s discover + 1.5s tail, RunNotifier 3s. Three migrations land in order: 028 (current_stage), 029 (sources_saved), 030 (log_lines + RPC). Worker must redeploy AFTER 030 is applied or appendLog spams 'function does not exist' warnings.",
       "logged": "2026-05-20"
     },
     {
       "id": "OPS-13",
       "title": "curl_cffi bypasses Cloudflare from Fly datacenter IP without any proxy",
-      "detail": "Python curl_cffi impersonating Chrome 124 (JA3/ALPN TLS fingerprint) bypasses Cloudflare bot protection from Fly.io's datacenter IP (75.102.33.77) without routing through any residential proxy. Confirmed 2026-05-20 in production: SEEK search pages (22 jobs/page) and SEEK job detail pages return HTTP 200. Careerjet.com.au job pages also return HTTP 200 from Fly without proxy. The Apify residential proxy (APIFY_PROXY_PASSWORD env var) remains optional for extra resilience but is NOT required for either source. Architecture: TypeScript spawns python3 scripts/fetch_jd.py as subprocess; Python outputs single JSON line {status, body, url, location} to stdout; TypeScript parses it. Subprocess overhead ~200ms — negligible vs HTTP round-trip. Path resolution: path.resolve(__dirname, '../../scripts/fetch_jd.py') works from both src/lib/ (tsx dev) and dist/lib/ (container build).",
+      "detail": "Python curl_cffi impersonating Chrome 124 (JA3/ALPN TLS fingerprint) bypasses Cloudflare bot protection from Fly.io's datacenter IP (75.102.33.77) without routing through any residential proxy. Confirmed 2026-05-20 in production: SEEK search pages (22 jobs/page) and SEEK job detail pages return HTTP 200. Careerjet.com.au job pages also return HTTP 200 from Fly without proxy. The Apify residential proxy (APIFY_PROXY_PASSWORD env var) remains optional for extra resilience but is NOT required for either source. Architecture: TypeScript spawns python3 scripts/fetch_jd.py as subprocess; Python outputs single JSON line {status, body, url, location} to stdout; TypeScript parses it. Subprocess overhead ~200ms \u2014 negligible vs HTTP round-trip. Path resolution: path.resolve(__dirname, '../../scripts/fetch_jd.py') works from both src/lib/ (tsx dev) and dist/lib/ (container build).",
       "logged": "2026-05-20"
     },
     {
       "id": "OPS-14",
-      "title": "Careerjet jobviewtrack.com tracking URLs expire in ~1-2 minutes — resolve immediately in Phase 1",
-      "detail": "Careerjet's API returns one-time-use tracking URLs (jobviewtrack.com/v2/<hash>) that expire within ~1-2 minutes of generation. Fetching them later in Stage 7c (JD enrichment) produces 100% 404s regardless of HTTP client. Fix: resolve tracking URLs IMMEDIATELY after each page fetch using Node's native fetch() with redirect:'manual' to capture the Location header (stable careerjet.com.au/clk/<hash>) without downloading a body. Dispatch 5 resolves in parallel (CONCURRENCY=5) — adds only ~1-2s to each page fetch. Store the stable careerjet.com.au/clk URL in the database — never the jobviewtrack.com URL. JD enrichment in Stage 7c then fetches stable careerjet.com.au pages via curl_cffi. UI links are permanent and clickable. Key implementation: resolveTrackingUrl() uses AbortSignal.timeout(8000) + redirect:'manual'; resolveTrackingUrls() dispatches to concurrent promise pool. Guard in enrichWithCareerjetJDs: filter targets to hostname === 'careerjet.com.au' before fetching — rejects any residual tracking URLs that slipped through.",
+      "title": "Careerjet jobviewtrack.com tracking URLs expire in ~1-2 minutes \u2014 resolve immediately in Phase 1",
+      "detail": "Careerjet's API returns one-time-use tracking URLs (jobviewtrack.com/v2/<hash>) that expire within ~1-2 minutes of generation. Fetching them later in Stage 7c (JD enrichment) produces 100% 404s regardless of HTTP client. Fix: resolve tracking URLs IMMEDIATELY after each page fetch using Node's native fetch() with redirect:'manual' to capture the Location header (stable careerjet.com.au/clk/<hash>) without downloading a body. Dispatch 5 resolves in parallel (CONCURRENCY=5) \u2014 adds only ~1-2s to each page fetch. Store the stable careerjet.com.au/clk URL in the database \u2014 never the jobviewtrack.com URL. JD enrichment in Stage 7c then fetches stable careerjet.com.au pages via curl_cffi. UI links are permanent and clickable. Key implementation: resolveTrackingUrl() uses AbortSignal.timeout(8000) + redirect:'manual'; resolveTrackingUrls() dispatches to concurrent promise pool. Guard in enrichWithCareerjetJDs: filter targets to hostname === 'careerjet.com.au' before fetching \u2014 rejects any residual tracking URLs that slipped through.",
       "logged": "2026-05-20"
     }
   ],
@@ -512,40 +515,40 @@
     {
       "id": "PIPELINE-AUTOMATION-DESIGN",
       "logged": "2026-05-21",
-      "title": "Gated automation pipeline — design reference (the spine that A-F implement)",
-      "lifecycle_state_machine": "DISCOVERED → JD_CHECK (jd_quality=thin → NEEDS_JD_PASTE; else next) → ROLE_CHECK (role_match=mismatch → ROLE_MISMATCH; else next) → INITIAL_ATS_GATE (score < min_initial → BELOW_INITIAL; else next) → TAILORED_CV (AI call) → FINAL_ATS_GATE (score < min_final → BELOW_FINAL; else next) → COVER_LETTER + EMAIL (single AI call producing both — auto-picks hook variant) → APPLICATION_READY (creates applications row) → (has_email ? READY_TO_SEND → SENT/FAILED : READY_TO_APPLY → APPLIED). Every terminal state is visible in the UI; manual override is ALWAYS available regardless of gates.",
+      "title": "Gated automation pipeline \u2014 design reference (the spine that A-F implement)",
+      "lifecycle_state_machine": "DISCOVERED \u2192 JD_CHECK (jd_quality=thin \u2192 NEEDS_JD_PASTE; else next) \u2192 ROLE_CHECK (role_match=mismatch \u2192 ROLE_MISMATCH; else next) \u2192 INITIAL_ATS_GATE (score < min_initial \u2192 BELOW_INITIAL; else next) \u2192 TAILORED_CV (AI call) \u2192 FINAL_ATS_GATE (score < min_final \u2192 BELOW_FINAL; else next) \u2192 COVER_LETTER + EMAIL (single AI call producing both \u2014 auto-picks hook variant) \u2192 APPLICATION_READY (creates applications row) \u2192 (has_email ? READY_TO_SEND \u2192 SENT/FAILED : READY_TO_APPLY \u2192 APPLIED). Every terminal state is visible in the UI; manual override is ALWAYS available regardless of gates.",
       "cost_savings_per_gate": {
-        "JD_CHECK": "zero AI cost — pure SQL/regex pre-check; saves entire pipeline for stub listings",
-        "ROLE_CHECK": "zero AI cost — keyword overlap on title; saves entire pipeline for off-target jobs (Software Engineer in Data Analyst feed)",
+        "JD_CHECK": "zero AI cost \u2014 pure SQL/regex pre-check; saves entire pipeline for stub listings",
+        "ROLE_CHECK": "zero AI cost \u2014 keyword overlap on title; saves entire pipeline for off-target jobs (Software Engineer in Data Analyst feed)",
         "INITIAL_ATS_GATE": "1 AI call (JD analysis) spent, saves ~3 (tailoring + variants + cover letter)",
         "FINAL_ATS_GATE": "2 AI calls (JD + tailoring) spent, saves ~2 (variants + cover letter)",
-        "cover_letter_with_email": "co-generated in ONE AI call (cover letter + application email + subject) — no separate email call ever"
+        "cover_letter_with_email": "co-generated in ONE AI call (cover letter + application email + subject) \u2014 no separate email call ever"
       },
       "ui_principle": "Single jobs pool on dashboard. Per-profile pages stay for scoped management but de-emphasised. Notifications appear in exactly ONE place per signal: row-level state column + (optional) dashboard banner that links to the filtered view. No duplicate information.",
       "decided_open_questions": {
-        "Q1_email_provider": "email-send integration — Gmail OAuth (Phase F shipped 2026-05-22, Outlook OAuth shipped same session)",
-        "Q2_default_thresholds": "OK — compute actual distributions from analysis_runs first, then tune",
+        "Q1_email_provider": "email-send integration \u2014 Gmail OAuth (Phase F shipped 2026-05-22, Outlook OAuth shipped same session)",
+        "Q2_default_thresholds": "OK \u2014 compute actual distributions from analysis_runs first, then tune",
         "Q3_role_match_strictness": "keyword-based with 'uncertain' bucket that still processes (no silent drops)",
         "Q4_below_gate_behaviour": "visible in board with state badge (NOT auto-dismissed); manual override always available",
         "Q5_cover_letter_hook": "AI picks in the same generation call (no extra cost)",
         "Q6_per_profile_in_applications": "profile filter as a chip inside the Applications tab (no separate route)",
-        "Q7_single_jobs_pool": "confirmed — dashboard primary, per-profile secondary",
+        "Q7_single_jobs_pool": "confirmed \u2014 dashboard primary, per-profile secondary",
         "Q8_daily_limit_default": "10 applications/day per profile, user-configurable"
       },
-      "email_draft_always_on": "Every APPLICATION_READY job gets BOTH a cover letter AND an application email body+subject — co-generated in the same AI call. For non-email jobs the email is labelled 'Sample email — useful if you find a contact later'. If the user later edits the job and adds contact_email, the row auto-promotes to 'Ready to send' on next page load — no regeneration needed."
+      "email_draft_always_on": "Every APPLICATION_READY job gets BOTH a cover letter AND an application email body+subject \u2014 co-generated in the same AI call. For non-email jobs the email is labelled 'Sample email \u2014 useful if you find a contact later'. If the user later edits the job and adds contact_email, the row auto-promotes to 'Ready to send' on next page load \u2014 no regeneration needed."
     },
     {
       "id": "PHASE-11-STALE-VARIANTS",
       "logged": "2026-05-20",
-      "title": "Stale variants edge case — deferred",
-      "detail": "If a user closes the tab during status='picking' and returns later, the cover_letters row still has status='picking' and opening_variants is populated. CoverLetterPanel reconstructs the picker from the initial prop — same 4 variants are shown without re-generating. Decision: show old variants as-is (option a). The scenario where company research was refreshed between the original variant generation and the user's return (potentially producing better company facts) is acknowledged but rare enough not to build detection logic in Phase 11. Future improvement: add a variants_generated_at timestamp column and compare against company_research.last_researched_at — if research is fresher than variants, offer a 'Refresh options' button. Defer until Phase 12 or later."
+      "title": "Stale variants edge case \u2014 deferred",
+      "detail": "If a user closes the tab during status='picking' and returns later, the cover_letters row still has status='picking' and opening_variants is populated. CoverLetterPanel reconstructs the picker from the initial prop \u2014 same 4 variants are shown without re-generating. Decision: show old variants as-is (option a). The scenario where company research was refreshed between the original variant generation and the user's return (potentially producing better company facts) is acknowledged but rare enough not to build detection logic in Phase 11. Future improvement: add a variants_generated_at timestamp column and compare against company_research.last_researched_at \u2014 if research is fresher than variants, offer a 'Refresh options' button. Defer until Phase 12 or later."
     }
   ],
   "open_questions": [],
   "known_issues": [
     {
       "id": "BUG-2",
-      "title": "GPT-5* family forced to temperature=1 → noisier output than cv-magic intended",
+      "title": "GPT-5* family forced to temperature=1 \u2192 noisier output than cv-magic intended",
       "severity": "medium",
       "blocks": "Output quality on GPT-5+ models. Does not affect Anthropic, DeepSeek, or GPT-4o.",
       "symptoms": "JD analysis on GPT-5.x produces less precise / more varied output. cv-magic was designed for 0.1 temperature on analytical steps (JD analysis, CV-JD matching) but OpenAI enforces temperature=1 server-side on the entire gpt-5* family with HTTP 400 'unsupported_value' if anything else is sent.",
@@ -557,12 +560,12 @@
       "id": "BUG-1",
       "title": "DOCX upload fails with ERR_TIMED_OUT to Supabase Storage",
       "severity": "low",
-      "blocks": "DOCX-only — PDF uploads work fine",
+      "blocks": "DOCX-only \u2014 PDF uploads work fine",
       "symptoms": "Browser POST/PUT to ltcqqlfsomqxuwfcxxbe.supabase.co/storage/v1/object/cvs/... aborts at 186ms-2s with net::ERR_TIMED_OUT. Other Supabase requests to the same host (auth, REST) work normally.",
       "tried": [
-        "Direct supabase.storage.upload() — fails",
-        "Signed upload URL + uploadToSignedUrl — fails",
-        "Raw fetch PUT to signed URL — fails (assumed, user stopped testing)"
+        "Direct supabase.storage.upload() \u2014 fails",
+        "Signed upload URL + uploadToSignedUrl \u2014 fails",
+        "Raw fetch PUT to signed URL \u2014 fails (assumed, user stopped testing)"
       ],
       "next_steps": "Try a tiny <50KB DOCX to rule out size; inspect Supabase project's storage CORS config; try same upload from a different network/country; consider supabase-js TUS resumable upload as last resort.",
       "workaround": "Users can convert DOCX to PDF before uploading. PDF path is fully functional.",
@@ -573,8 +576,8 @@
       "title": "company_research distillation produces weak hooks for some employers",
       "severity": "low",
       "blocks": "Paragraph 2 quality in cover letters when research returns naming history or generic mission statements rather than strategic distinguishing facts.",
-      "symptoms": "Ampol research returned 'Ampol Limited (previously Caltex Australia Limited) returned to its iconic Australian name following shareholder approval on 14 May 2020...' as distinguishing_facts[0]. This is a real historical fact but not a strategic anchor for paragraph 2 — the generator stretched to bridge it ('brand transition → candidate's own career transitions'), producing a workable but slightly forced paragraph. One51 research returned 'Power BI Health Check service' (a specific service offering) and the resulting paragraph 2 was strong and natural. Quality of P2 scales directly with quality of company_research.distinguishing_facts[0].",
-      "current_workaround": "None at generator level — the generator does its job with whatever fact it receives. Users can manually re-run research, but the distillation prompt will likely return similar output.",
+      "symptoms": "Ampol research returned 'Ampol Limited (previously Caltex Australia Limited) returned to its iconic Australian name following shareholder approval on 14 May 2020...' as distinguishing_facts[0]. This is a real historical fact but not a strategic anchor for paragraph 2 \u2014 the generator stretched to bridge it ('brand transition \u2192 candidate's own career transitions'), producing a workable but slightly forced paragraph. One51 research returned 'Power BI Health Check service' (a specific service offering) and the resulting paragraph 2 was strong and natural. Quality of P2 scales directly with quality of company_research.distinguishing_facts[0].",
+      "current_workaround": "None at generator level \u2014 the generator does its job with whatever fact it receives. Users can manually re-run research, but the distillation prompt will likely return similar output.",
       "next_steps": "Tune the company_research distillation prompt to prefer strategic facts (product expansions, recent strategic moves, distinctive operational characteristics) over historical/naming events. Consider ranking facts by recency and strategic relevance before storing.",
       "logged": "2026-05-19"
     },
@@ -582,7 +585,7 @@
       "id": "BUG-4",
       "title": "Cover letter delivery layer (Phase 10.5) must fit on a single page",
       "severity": "low",
-      "blocks": "Phase 10.5 (delivery template + PDF export) scoping only — not the current generation pipeline.",
+      "blocks": "Phase 10.5 (delivery template + PDF export) scoping only \u2014 not the current generation pipeline.",
       "symptoms": "User pasted a 434-word generated letter into MS Word; the body alone filled the full page. Once the AU delivery template wraps it (header block ~5-7 lines, employer block ~4 lines, salutation, RE line, sign-off ~3-4 lines), the combined artefact will overflow a single A4 page.",
       "current_workaround": "Current word target in generate.py is 250-400 words. When Phase 10.5 is scoped, tighten target to ~280-340 words to leave room for template wrapper. Alternatively (and additively): set type sizing and margins in the PDF render so the wrapped artefact fits comfortably.",
       "next_steps": "When Phase 10.5 (delivery layer) is scoped: (1) measure actual rendered height of header + body + sign-off in the chosen PDF format; (2) decide whether to tighten word_count_target in generate.py or adjust rendering; (3) update generate.py word target if option 1.",
@@ -590,12 +593,12 @@
     },
     {
       "id": "BUG-5",
-      "title": "Jora adapter hangs Chromium on 512MB Fly worker — disabled until memory bump",
+      "title": "Jora adapter hangs Chromium on 512MB Fly worker \u2014 disabled until memory bump",
       "severity": "medium",
       "blocks": "Jora as a source. Adzuna + Greenhouse + Lever + SEEK (via Apify) still run, so coverage is reduced but not zero. Pipeline runs end-to-end.",
-      "symptoms": "Pipeline reached '[pipeline] stage 2 — fetching: jora' and produced no further [jora] log lines for 3+ minutes. Earlier diagnostic confirmed the await chain stalls inside chromium.launch / context.newPage — when SIGINT closed the browser, the dangling await rejected with 'Target page, context or browser has been closed'. Repro: predictable on jobtrackr-worker shared-cpu-1x:512MB even at worker concurrency=1. Node baseline (~100-150MB) + Playwright Chromium spawn (~200-400MB at load) pushes the VM into swap thrashing and the browser process never makes progress.",
+      "symptoms": "Pipeline reached '[pipeline] stage 2 \u2014 fetching: jora' and produced no further [jora] log lines for 3+ minutes. Earlier diagnostic confirmed the await chain stalls inside chromium.launch / context.newPage \u2014 when SIGINT closed the browser, the dangling await rejected with 'Target page, context or browser has been closed'. Repro: predictable on jobtrackr-worker shared-cpu-1x:512MB even at worker concurrency=1. Node baseline (~100-150MB) + Playwright Chromium spawn (~200-400MB at load) pushes the VM into swap thrashing and the browser process never makes progress.",
       "current_workaround": "joraAdapter commented out of worker/src/sources/index.ts. Re-enable when memory is bumped or fetch path is rewritten.",
-      "next_steps": "Pick one: (A) `fly scale memory 1024 -a jobtrackr-worker` (~$3-5/mo extra), uncomment joraAdapter in sources/index.ts, redeploy. (B) Rewrite jora.ts to fetch via undici/HTTP and parse the SSR HTML — Jora used to be fully SSR, may still be partially scrapable without a real browser. (C) Drop Jora entirely if Adzuna+Greenhouse+SEEK coverage is acceptable long-term.",
+      "next_steps": "Pick one: (A) `fly scale memory 1024 -a jobtrackr-worker` (~$3-5/mo extra), uncomment joraAdapter in sources/index.ts, redeploy. (B) Rewrite jora.ts to fetch via undici/HTTP and parse the SSR HTML \u2014 Jora used to be fully SSR, may still be partially scrapable without a real browser. (C) Drop Jora entirely if Adzuna+Greenhouse+SEEK coverage is acceptable long-term.",
       "logged": "2026-05-19"
     }
   ]
