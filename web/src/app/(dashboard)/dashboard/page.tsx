@@ -235,6 +235,8 @@ export default async function DashboardPage({
       x.pipelineState === "below_initial" || x.pipelineState === "below_final"
     ).length,
     hasEmail:       typedJobs.filter((x) => x.has_email === true).length,
+    thinJd:         typedJobs.filter((x) => x.jd_quality === "thin").length,
+    richJd:         typedJobs.filter((x) => x.jd_quality === "rich").length,
   };
 
   const railJobs: RailJob[] = [...typedJobs]
@@ -262,8 +264,10 @@ export default async function DashboardPage({
   // applied + dismissed are handled server-side above
 
   // ── Triage sub-filter ────────────────────────────────────────────────────
-  if (currentTriage === "needsJd") {
+  if (currentTriage === "needsJd" || currentTriage === "thinJd") {
     typedJobs = typedJobs.filter((x) => x.jd_quality === "thin");
+  } else if (currentTriage === "richJd") {
+    typedJobs = typedJobs.filter((x) => x.jd_quality === "rich");
   } else if (currentTriage === "roleMismatch") {
     typedJobs = typedJobs.filter((x) => x.role_match === "mismatch");
   } else if (currentTriage === "belowThreshold") {
@@ -360,7 +364,7 @@ export default async function DashboardPage({
 
           {/* Pipeline funnel */}
           <Suspense>
-            <PipelineFunnel counts={funnelCounts} />
+            <PipelineFunnel counts={funnelCounts} excludeStages={["all", "applied"]} />
           </Suspense>
 
           {/* Smart filter bar */}

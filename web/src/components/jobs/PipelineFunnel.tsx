@@ -11,7 +11,7 @@
  *
  * URL params:
  *   ?stage=analysed|cvReady|letterReady|applied|dismissed  (default: all)
- *   ?triage=needsJd|roleMismatch|belowThreshold|hasEmail   (sub-filter)
+ *   ?triage=thinJd|richJd|roleMismatch|belowThreshold|hasEmail   (sub-filter)
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -26,10 +26,12 @@ export interface FunnelCounts {
   applied: number;
   dismissed: number;
   newCount: number;
-  needsJd: number;
+  needsJd: number;      // kept for compat
   roleMismatch: number;
   belowThreshold: number;
   hasEmail: number;
+  thinJd: number;
+  richJd: number;
 }
 
 interface TriageItem {
@@ -51,7 +53,8 @@ const STAGES: StageConfig[] = [
     label: "Discovered",
     countKey: "discovered",
     triage: [
-      { key: "needsJd", label: "need JD", countKey: "needsJd" },
+      { key: "thinJd", label: "thin JD", countKey: "thinJd" },
+      { key: "richJd", label: "rich JD", countKey: "richJd" },
       { key: "roleMismatch", label: "role mismatch", countKey: "roleMismatch" },
     ],
   },
@@ -60,6 +63,8 @@ const STAGES: StageConfig[] = [
     label: "Analysed",
     countKey: "analysed",
     triage: [
+      { key: "thinJd", label: "thin JD", countKey: "thinJd" },
+      { key: "richJd", label: "rich JD", countKey: "richJd" },
       { key: "belowThreshold", label: "below ATS", countKey: "belowThreshold" },
     ],
   },
@@ -77,26 +82,39 @@ const STAGES: StageConfig[] = [
 
 /* Stage accent colors — blend with surface for theme compat */
 const STAGE_ACCENTS = [
-  "color-mix(in srgb, #6366f1 18%, var(--surface))",  // indigo
-  "color-mix(in srgb, #3b82f6 18%, var(--surface))",  // blue
-  "color-mix(in srgb, #06b6d4 18%, var(--surface))",  // cyan
-  "color-mix(in srgb, #10b981 18%, var(--surface))",  // emerald
-  "color-mix(in srgb, #22c55e 18%, var(--surface))",  // green
+  "color-mix(in srgb, #6366f1 18%, var(--surface))",  // indigo (discovered)
+  "color-mix(in srgb, #3b82f6 18%, var(--surface))",  // blue (analysed)
+  "color-mix(in srgb, #06b6d4 18%, var(--surface))",  // cyan (cvReady)
+  "color-mix(in srgb, #10b981 18%, var(--surface))",  // emerald (letterReady)
+  "color-mix(in srgb, #22c55e 18%, var(--surface))",  // green (applied)
 ];
 
 const STAGE_DOTS = ["#6366f1", "#3b82f6", "#06b6d4", "#10b981", "#22c55e"];
 
-export function PipelineFunnel({ counts }: { counts: FunnelCounts }) {
+export function PipelineFunnel({
+  counts,
+  excludeStages = [],
+}: {
+  counts: FunnelCounts;
+  excludeStages?: string[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
   const [, startTransition] = useTransition();
 
-  const currentStage = sp.get("stage") || "all";
+  const activeStages = STAGES.filter((s) => !excludeStages.includes(s.key));
+  // Default to first active stage if stage not set or not active
+  const currentStage = sp.get("stage") || (activeStages[0]?.key ?? "all");
   const currentTriage = sp.get("triage") || "";
 
   function selectStage(stageKey: string) {
     const params = new URLSearchParams(sp.toString());
+    if (stageKey === activeStages[0]?.key && !sp.get("stage")) {
+      // already at default
+      return;
+    }
+    // If it's the first active stage and it corresponds to "all", we delete stage param to keep URL clean
     if (stageKey === "all") {
       params.delete("stage");
     } else {
@@ -139,9 +157,13 @@ export function PipelineFunnel({ counts }: { counts: FunnelCounts }) {
     <div className="space-y-2">
       {/* ── Main funnel bar ──────────────────────────────── */}
       <div className="flex items-stretch gap-px rounded-lg overflow-hidden border border-[var(--border)]">
-        {STAGES.map((stage, i) => {
+        {activeStages.map((stage, i) => {
           const count = counts[stage.countKey];
           const isActive = currentStage === stage.key;
+          const origIdx = STAGES.findIndex((s) => s.key === stage.key);
+          const accentColor = STAGE_ACCENTS[origIdx] ?? STAGE_ACCENTS[0];
+          const dotColor = STAGE_DOTS[origIdx] ?? STAGE_DOTS[0];
+
           return (
             <button
               key={stage.key}
@@ -149,20 +171,20 @@ export function PipelineFunnel({ counts }: { counts: FunnelCounts }) {
               className="flex-1 flex flex-col items-center justify-center py-2.5 px-2 transition-all duration-200 relative cursor-pointer min-w-0"
               style={{
                 background: isActive
-                  ? `linear-gradient(135deg, ${STAGE_DOTS[i]}22, ${STAGE_DOTS[i]}11)`
-                  : STAGE_ACCENTS[i],
-                borderBottom: isActive ? `2px solid ${STAGE_DOTS[i]}` : "2px solid transparent",
+                  ? `linear-gradient(135deg, ${dotColor}22, ${dotColor}11)`
+                  : accentColor,
+                borderBottom: isActive ? `2px solid ${dotColor}` : "2px solid transparent",
               }}
               title={`Show ${count} ${stage.label.toLowerCase()} jobs`}
             >
               {/* Stage dot */}
               <span
                 className="w-1.5 h-1.5 rounded-full mb-1 shrink-0"
-                style={{ background: STAGE_DOTS[i], opacity: isActive ? 1 : 0.4 }}
+                style={{ background: dotColor, opacity: isActive ? 1 : 0.4 }}
               />
               <span
                 className="text-base font-bold leading-none"
-                style={{ color: isActive ? STAGE_DOTS[i] : "var(--text)" }}
+                style={{ color: isActive ? dotColor : "var(--text)" }}
               >
                 {count}
               </span>
@@ -170,7 +192,7 @@ export function PipelineFunnel({ counts }: { counts: FunnelCounts }) {
                 className={`text-[9px] font-semibold uppercase tracking-wider mt-0.5 truncate max-w-full ${
                   isActive ? "opacity-90" : "opacity-50"
                 }`}
-                style={{ color: isActive ? STAGE_DOTS[i] : "var(--text-2)" }}
+                style={{ color: isActive ? dotColor : "var(--text-2)" }}
               >
                 {stage.label}
               </span>
@@ -186,7 +208,7 @@ export function PipelineFunnel({ counts }: { counts: FunnelCounts }) {
               )}
 
               {/* Chevron separator (all except last) */}
-              {i < STAGES.length - 1 && (
+              {i < activeStages.length - 1 && (
                 <span
                   className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 text-[var(--border)] text-[10px] select-none"
                   aria-hidden

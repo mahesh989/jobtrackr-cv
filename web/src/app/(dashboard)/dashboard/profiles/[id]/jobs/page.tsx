@@ -216,6 +216,8 @@ export default async function JobsPage({
       j.pipelineState === "below_initial" || j.pipelineState === "below_final"
     ).length,
     hasEmail:       typedJobs.filter((j) => j.has_email === true).length,
+    thinJd:         typedJobs.filter((j) => j.jd_quality === "thin").length,
+    richJd:         typedJobs.filter((j) => j.jd_quality === "rich").length,
   };
 
   // ── Continue rail — top 3 by last_progress_at DESC ───────────────────────
@@ -244,8 +246,10 @@ export default async function JobsPage({
   // applied + dismissed are handled server-side above
 
   // ── Triage sub-filter ────────────────────────────────────────────────────
-  if (currentTriage === "needsJd") {
+  if (currentTriage === "needsJd" || currentTriage === "thinJd") {
     typedJobs = typedJobs.filter((j) => j.jd_quality === "thin");
+  } else if (currentTriage === "richJd") {
+    typedJobs = typedJobs.filter((j) => j.jd_quality === "rich");
   } else if (currentTriage === "roleMismatch") {
     typedJobs = typedJobs.filter((j) => j.role_match === "mismatch");
   } else if (currentTriage === "belowThreshold") {
