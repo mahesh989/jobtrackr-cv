@@ -222,13 +222,17 @@ export function ComposeEmailModal({
       onClick={() => !sending && onClose()}
     >
       <div
-        className="bg-surface border border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+        // h- (not max-h) + overflow-hidden guarantees the modal height is
+        // exactly bounded regardless of content. Browser zoom, mobile chrome
+        // hiding, weird vh quirks — none of it can make this exceed the
+        // viewport. The inner body div is the only thing that scrolls.
+        className="bg-surface border border-border rounded-lg shadow-2xl max-w-2xl w-full h-[min(90vh,720px)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
             <h2 className="text-[14px] font-semibold text-text">
               {isReview ? "Review email content" : "Review email before sending"}
@@ -319,8 +323,9 @@ export function ComposeEmailModal({
                   onChange={(e) => setBody(e.target.value)}
                   disabled={sending}
                   maxLength={20000}
-                  rows={10}
+                  rows={6}
                   className="w-full text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60"
+                  style={{ maxHeight: "40vh" }}
                   spellCheck
                 />
                 <p className="text-[10px] text-text-3 mt-1">
