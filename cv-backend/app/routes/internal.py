@@ -571,10 +571,7 @@ async def voice_rewrite_email_endpoint(
 
     user_prompt = VOICE_EMAIL_USER_TEMPLATE.format(
         voice_sample=body.voice_sample_text,
-        job_title=body.job_title,
-        company=body.company,
-        hiring_manager=body.hiring_manager or "(unknown — use a neutral greeting)",
-        user_name=body.user_name or "(unknown — omit name in signoff if not provided)",
+        boilerplate=body.boilerplate_body,
     )
 
     try:
@@ -582,7 +579,10 @@ async def voice_rewrite_email_endpoint(
             system=VOICE_EMAIL_SYSTEM,
             user=user_prompt,
             max_tokens=800,
-            temperature=0.5,    # warmer than 0.3 so the voice feels lived-in
+            # Style transfer is more constrained than free-form generation —
+            # we want the same meaning every time, just reshaped. Lower temp
+            # also makes the AI less likely to drift into autobiography.
+            temperature=0.3,
             no_training=True,
         )
     except AIClientError as exc:

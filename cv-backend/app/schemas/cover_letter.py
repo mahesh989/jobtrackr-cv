@@ -175,22 +175,31 @@ class VoiceRewriteEmailRequest(BaseModel):
     """
     Request body for POST /internal/voice-rewrite-email.
 
-    The web tier calls this once per cover_letter when the user first opens
-    the compose modal — the rewritten body is cached in
-    cover_letters.email_body so subsequent modal opens are instant.
+    This is a STYLE TRANSFER call. The web tier supplies both the voice
+    sample (style donor) and the boilerplate body to rewrite (content
+    source-of-truth). The AI is forbidden from importing content from the
+    voice sample — see voice_email.py prompt for the full ruleset.
 
-    PRIVACY: voice_sample_text must not appear in logs.
+    Cached in cover_letters.email_body so subsequent modal opens are instant.
+
+    PRIVACY: voice_sample_text and boilerplate_body must not appear in logs.
     """
 
     user_id:           str = Field(description="User UUID — logged for audit")
     letter_id:         str = Field(description="Cover letter UUID — logged for audit")
 
+    # Kept for prompt context + logging only; the AI does not invent against
+    # these — meaning lives in boilerplate_body.
     job_title:         str = Field(min_length=1)
     company:           str = Field(min_length=1)
     hiring_manager:    Optional[str] = Field(default=None)
     user_name:         Optional[str] = Field(default=None)
 
     voice_sample_text: str = Field(min_length=1, description="Verbatim writing sample. NEVER logged.")
+
+    # The boilerplate body to rewrite. The AI preserves its meaning, paragraph
+    # count, and order — only the rhythm/phrasing/formality changes.
+    boilerplate_body:  str = Field(min_length=1, description="Boilerplate email body. NEVER logged.")
 
     ai_provider: Provider
     ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")

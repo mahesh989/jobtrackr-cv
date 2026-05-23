@@ -119,24 +119,27 @@ export async function GET(
 
   // 5b. Body resolution. Three tiers, highest priority first:
   //
-  //   (1) letter.email_body — already cached. Either the user approved
-  //       it during review, or a previous email-draft load voice-rewrote
-  //       it. Either way we trust the cache and don't re-run the AI.
+  //   (1) letter.email_body — cached AND reviewed_at IS NOT NULL. The
+  //       user has approved this body. Always trust it; never re-run AI.
   //
   //   (2) voice-rewritten boilerplate. If a voice_sample_raw is on file
   //       AND the user has an AI key, ask cv-backend to rewrite the
-  //       default boilerplate in their voice. Cache in letter.email_body
-  //       so subsequent loads are instant. Failure here is non-fatal —
-  //       we silently drop to tier 3.
+  //       default boilerplate in their style (style transfer, NOT
+  //       free-form generation — meaning is preserved). Cache the
+  //       result in letter.email_body so subsequent loads are instant.
   //
-  //   (3) buildDefaultEmailDraft boilerplate — the generic professional
-  //       template. Used when no voice sample / no AI key, or when the
-  //       voice rewrite fails.
+  //   (3) buildDefaultEmailDraft boilerplate — used when no voice
+  //       sample / no AI key, or when the voice rewrite fails.
   //
-  // voice_sample_raw + ai keys are fetched ONLY when we'd actually use
-  // them (i.e. tier 1 missed). Keeps the happy-path load fast.
-  let body: string = letter.email_body ?? "";
-  let voiceRewritten = !!letter.email_body;  // assume cached implies rewritten
+  // KEY DIFFERENCE FROM PREVIOUS VERSION: an UN-reviewed cached body
+  // (email_body set but reviewed_at null) is NO LONGER trusted — it
+  // gets re-rewritten on every modal open. This auto-heals the bad
+  // rewrites left over from the old prompt that lifted content from
+  // the voice sample. Once the user approves a body (reviewed_at set),
+  // their approval is final and tier 1 takes over.
+  const hasApprovedBody = !!letter.email_body && !!letter.reviewed_at;
+  let body: string = hasApprovedBody ? letter.email_body! : "";
+  let voiceRewritten = hasApprovedBody;
 
   if (!body) {
     body = defaults.body;
@@ -181,6 +184,9 @@ export async function GET(
           hiring_manager:    job.hiring_manager ?? null,
           user_name:         userName,
           voice_sample_text: voiceSample,
+          // Style-transfer source-of-truth. The AI rewrites this in the
+          // user's voice without changing what it says.
+          boilerplate_body:  defaults.body,
           ai_provider:       chosen,
           ai_api_key:        apiKey,
           ai_model:          entry.model ?? undefined,

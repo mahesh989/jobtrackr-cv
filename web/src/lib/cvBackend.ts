@@ -461,6 +461,8 @@ export interface VoiceRewriteEmailPayload {
   user_name?:        string | null;
   /** Verbatim writing sample. Never log this field. */
   voice_sample_text: string;
+  /** Boilerplate body to style-transfer. Never log this field. */
+  boilerplate_body:  string;
   ai_provider:       "anthropic" | "openai" | "deepseek";
   ai_api_key:        string;
   ai_model?:         string;
