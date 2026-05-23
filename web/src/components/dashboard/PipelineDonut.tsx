@@ -45,7 +45,7 @@ type LensKey = "sourcing" | "jd" | "analysis" | "ats" | "applied";
 
 // ─── Lens config ──────────────────────────────────────────────────────────────
 
-interface SliceMeta { label: string; color: string }
+interface SliceMeta { label: string; color: string; href?: string }
 interface LensMeta {
   label: string;
   centerLabel: string;
@@ -66,8 +66,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "JD readiness",
     centerLabel: "jobs",
     slices: [
-      { label: "Full JD",      color: "#34d399" },
-      { label: "Thin JD",      color: "#fb923c" },
+      { label: "Full JD",      color: "#34d399", href: "/dashboard?triage=richJd" },
+      { label: "Thin JD",      color: "#fb923c", href: "/dashboard?triage=thinJd" },
       { label: "Unclassified", color: "#94a3b8" },
     ],
   },
@@ -75,8 +75,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "Analysis",
     centerLabel: "saved",
     slices: [
-      { label: "Complete",     color: "#34d399" },
-      { label: "CV only",      color: "#60a5fa" },
+      { label: "Complete",     color: "#34d399", href: "/dashboard?stage=letterReady" },
+      { label: "CV only",      color: "#60a5fa", href: "/dashboard?stage=cvReady" },
       { label: "Not tailored", color: "#94a3b8" },
     ],
   },
@@ -84,17 +84,17 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "ATS gates",
     centerLabel: "analysed",
     slices: [
-      { label: "Above final",   color: "#34d399" },
-      { label: "Below final",   color: "#f59e0b" },
-      { label: "Below initial", color: "#ef4444" },
+      { label: "Above final (≥ 75)",  color: "#34d399" },
+      { label: "Below final (55–74)", color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
+      { label: "Below initial (< 55)", color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
     ],
   },
   applied: {
     label: "Applied",
     centerLabel: "applied",
     slices: [
-      { label: "Applied",        color: "#ec4899" },
-      { label: "Ready to apply", color: "#60a5fa" },
+      { label: "Applied",        color: "#ec4899", href: "/dashboard/applications?status=sent" },
+      { label: "Ready to apply", color: "#60a5fa", href: "/dashboard/applications" },
       { label: "Not yet",        color: "#94a3b8" },
     ],
   },
@@ -386,20 +386,26 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           {meta.slices.map((s, i) => {
             const n   = counts[i];
             const pct = total > 0 ? Math.round((n / total) * 100) : 0;
-            return (
+            const cls = "flex items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors";
+            const inner = (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
+                <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
+                <span className="text-[13px] font-semibold text-text shrink-0">{n.toLocaleString()}</span>
+                <span className="text-[10px] text-text-3 w-7 text-right shrink-0">{pct}%</span>
+              </>
+            );
+            return s.href ? (
+              <Link key={i} href={s.href} className={cls}>{inner}</Link>
+            ) : (
               <div
                 key={i}
                 role="button"
                 tabIndex={0}
                 onClick={() => setPopup(i)}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPopup(i)}
-                className="flex items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors"
-              >
-                <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
-                <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
-                <span className="text-[13px] font-semibold text-text shrink-0">{n.toLocaleString()}</span>
-                <span className="text-[10px] text-text-3 w-7 text-right shrink-0">{pct}%</span>
-              </div>
+                className={cls}
+              >{inner}</div>
             );
           })}
 
@@ -533,28 +539,33 @@ function DonutPopup({
           )}
         </div>
 
-        {/* CTAs */}
-        {lens === "jd" && mode === 1 && data.jd.totals[1] > 0 && (
-          <div className="px-5 py-3 border-t border-border shrink-0">
-            <Link href="/dashboard?triage=thinJd" onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
-              View {data.jd.totals[1]} thin JD job{data.jd.totals[1] > 1 ? "s" : ""} →
-            </Link>
-          </div>
-        )}
-        {lens === "applied" && (mode === 0 || mode === "center") && (
-          <div className="px-5 py-3 border-t border-border shrink-0">
-            <Link href="/dashboard/applications?status=sent" onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
-              View applied jobs →
-            </Link>
-          </div>
-        )}
-        {lens === "applied" && mode === 1 && (
-          <div className="px-5 py-3 border-t border-border shrink-0">
-            <Link href="/dashboard/applications" onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
-              View ready to apply →
-            </Link>
-          </div>
-        )}
+        {/* CTAs — one per lens/slice combo that has a natural destination */}
+        {(() => {
+          let href = "";
+          let label = "";
+          if (lens === "jd" && mode === 0 && data.jd.totals[0] > 0)
+            { href = "/dashboard?triage=richJd"; label = "View full-JD jobs →"; }
+          else if (lens === "jd" && mode === 1 && data.jd.totals[1] > 0)
+            { href = "/dashboard?triage=thinJd"; label = `View ${data.jd.totals[1]} thin JD job${data.jd.totals[1] > 1 ? "s" : ""} →`; }
+          else if (lens === "analysis" && mode === 0)
+            { href = "/dashboard?stage=letterReady"; label = "View letter-ready jobs →"; }
+          else if (lens === "analysis" && mode === 1)
+            { href = "/dashboard?stage=cvReady"; label = "View CV-ready jobs →"; }
+          else if (lens === "ats" && (mode === 1 || mode === 2))
+            { href = "/dashboard?triage=belowThreshold"; label = "View below-threshold jobs →"; }
+          else if (lens === "applied" && (mode === 0 || mode === "center"))
+            { href = "/dashboard/applications?status=sent"; label = "View applied jobs →"; }
+          else if (lens === "applied" && mode === 1)
+            { href = "/dashboard/applications"; label = "View ready to apply →"; }
+          if (!href) return null;
+          return (
+            <div className="px-5 py-3 border-t border-border shrink-0">
+              <Link href={href} onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
+                {label}
+              </Link>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
