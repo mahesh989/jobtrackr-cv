@@ -263,7 +263,9 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
     if (!canvas) return;
     const meta = LENS_META[lensRef.current];
     const hi   = hovRef.current;
-    const val  = Math.round(dCenter.current);
+    const val  = hi !== null
+      ? getTotals(data, lensRef.current)[hi]
+      : Math.round(dCenter.current);
     const lbl  = hi !== null ? meta.slices[hi].label : meta.centerLabel;
     const col  = hi !== null ? meta.slices[hi].color : cssVar("--text", "#1e293b");
     paint(canvas, dFracs.current, meta.slices.map(s => s.color) as [string, string, string], hi, val, lbl, col);
