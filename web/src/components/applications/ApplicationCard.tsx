@@ -50,6 +50,46 @@ function relativeDate(d: string | null) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
+/**
+ * Copy text to the clipboard with a graceful fallback.
+ *
+ * navigator.clipboard.writeText is the modern API but throws
+ * "NotAllowedError" in several real-world situations even on HTTPS with a
+ * legitimate user gesture: Safari with the page out of focus, in-app
+ * browsers (Instagram / FB / Slack), certain extensions, and Chrome when
+ * the iframe permissions policy is restrictive. When that happens we fall
+ * back to the deprecated-but-universally-supported execCommand path via a
+ * hidden textarea. Returns true on success.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  // Modern path. May reject for the reasons above — swallow and try fallback.
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to execCommand
+    }
+  }
+  // Legacy path. Works in every browser that has document.execCommand.
+  try {
+    const ta = document.createElement("textarea");
+    ta.value          = text;
+    ta.style.position = "fixed";
+    ta.style.opacity  = "0";
+    ta.style.left     = "-9999px";
+    ta.setAttribute("readonly", "");
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export type CardTab = "pool" | "email" | "apply" | "sent" | "archived";
 
 export function ApplicationCard({
@@ -232,6 +272,16 @@ export function ApplicationCard({
     }
   }
 
+  function handleApplyNow() {
+    if (pending || localApplied) return;
+    // Open the job posting first — window.open MUST be called synchronously
+    // from the user gesture, otherwise the popup blocker swallows it.
+    window.open(row.job_url, "_blank", "noopener,noreferrer");
+    // Then mark applied. handleApply does the optimistic UI + server action
+    // + slides the card out toward the Sent/Applied tab.
+    handleApply();
+  }
+
   async function handleCopyEmail() {
     if (copied || pending) return;
     setActionError(null);
@@ -246,7 +296,12 @@ export function ApplicationCard({
       // Clipboard payload: Subject: ... / blank / body. Plain text is what
       // most users want when pasting into Gmail / Outlook / Apple Mail.
       const payload = `Subject: ${subject}\n\n${body}`;
-      await navigator.clipboard.writeText(payload);
+
+      const ok = await copyToClipboard(payload);
+      if (!ok) {
+        setActionError("Couldn't access the clipboard automatically — open the email in the Review modal and copy from there.");
+        return;
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
@@ -465,20 +520,22 @@ export function ApplicationCard({
           </button>
         )}
 
-        {/* Apply now (Ready to apply) — opens the job posting in a new tab.
+        {/* Apply now (Ready to apply) — opens the job posting in a new tab
+            AND marks the job applied so the card slides over to Sent/Applied.
             Shown for both email and no-email cards: it's always useful to
-            jump to the listing. */}
+            jump to the listing. window.open is called synchronously inside
+            the click handler so popup blockers don't eat it. */}
         {currentTab === "apply" && !localApplied && (
-          <a
-            href={row.job_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-            title="Open the job posting in a new tab"
+          <button
+            type="button"
+            onClick={handleApplyNow}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Open the job posting and mark this application as applied"
           >
             <ExternalLink className="w-3 h-3" />
             Apply now
-          </a>
+          </button>
         )}
 
         {/* Mark applied — available on apply, email (rare), and other non-pool tabs */}
