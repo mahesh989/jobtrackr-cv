@@ -14,6 +14,7 @@ export interface ApplicationRow {
   letter_id:                 string;
   letter_completed_at:       string | null;
   letter_preview:            string;
+  letter_reviewed_at:        string | null;
   job_id:                    string;
   job_title:                 string;
   job_company:               string;
@@ -49,7 +50,20 @@ function relativeDate(d: string | null) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; isPool?: boolean }) {
+export type CardTab = "pool" | "email" | "apply" | "sent" | "archived";
+
+export function ApplicationCard({
+  row,
+  tab = "apply",
+  isPool = false,
+}: {
+  row:     ApplicationRow;
+  tab?:    CardTab;
+  /** @deprecated kept for callers that haven't migrated; equivalent to tab="pool" */
+  isPool?: boolean;
+}) {
+  // Back-compat: callers that set isPool=true override the tab.
+  const currentTab: CardTab = isPool ? "pool" : tab;
   const [, startTransition]  = useTransition();
   const [pending, setPending]     = useState<"apply" | "archive" | "pool" | "send" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -57,6 +71,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
   const [composing, setComposing] = useState(false);
   const [cvPreviewing, setCvPreviewing] = useState(false);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
+  const [localReviewed, setLocalReviewed] = useState(!!row.letter_reviewed_at);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -148,11 +163,72 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
     }
   }
 
+  function handleReviewed() {
+    // Review modal stamped reviewed_at + saved subject/body. The card now
+    // belongs to the next stage (Ready to apply); slide it out of this tab.
+    setComposing(false);
+    setLocalReviewed(true);
+    setTimeout(() => setHidden(true), 500);
+  }
+
   function handleSent() {
     // Compose modal already posted successfully — close it and slide the card out.
     setComposing(false);
     setLocalApplied(true);
     setTimeout(() => setHidden(true), 700);
+  }
+
+  // Direct send — no modal — used by the Send button in the "Ready to apply"
+  // tab on reviewed email-channel cards. The CV is rendered fresh client-side
+  // so the attachment matches what users previewed.
+  async function handleDirectSend() {
+    if (pending) return;
+    if (!row.tailored_cv_storage_path) {
+      // No CV markdown to render — fall back to the compose modal which has
+      // the legacy server-PDF fallback baked in.
+      openCompose();
+      return;
+    }
+    setActionError(null);
+    setPending("send");
+    try {
+      const supabase = createSupabaseClient();
+      const [{ data: mdBlob, error: mdErr }, prefsRes] = await Promise.all([
+        supabase.storage.from("tailored-cvs").download(row.tailored_cv_storage_path),
+        fetch("/api/user/preferences"),
+      ]);
+      if (mdErr || !mdBlob) throw new Error(mdErr?.message ?? "Couldn't load CV markdown");
+      const markdown = await mdBlob.text();
+      let contactDetails: ContactDetails | null = null;
+      if (prefsRes.ok) {
+        const json = await prefsRes.json();
+        if (json?.contact_details) {
+          const cd = { ...json.contact_details };
+          delete cd.projects;
+          contactDetails = cd as ContactDetails;
+        }
+      }
+      const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
+
+      const form = new FormData();
+      const slug = (row.job_company || "company").replace(/[^a-zA-Z0-9]/g, "_");
+      form.set("cv_pdf", pdfBlob, `TailoredCV_${slug}.pdf`);
+      // No subject/body override — /send-email reads the approved values
+      // from cover_letters.email_subject/email_body (set during review).
+
+      const res  = await fetch(`/api/applications/${row.letter_id}/send-email`, {
+        method: "POST",
+        body:   form,
+      });
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error ?? "Send failed"); return; }
+      setLocalApplied(true);
+      setTimeout(() => setHidden(true), 700);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setPending(null);
+    }
   }
 
   if (hidden) return null;
@@ -211,7 +287,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
       </div>
 
       {/* Pool decision — only shown in the "To review" tab */}
-      {isPool ? (
+      {currentTab === "pool" ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 px-3 py-2.5 mb-3">
           <p className="text-[12px] font-medium text-amber-800 dark:text-amber-300 mb-2">
             Does this job have a contact email?
@@ -323,19 +399,50 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             Edit Letter
           </button>
         )}
-        {/* Send email — opens the compose/review modal first; nothing is sent
-            until the user confirms inside the modal. */}
-        {!isPool && !localApplied && row.job_contact_email && (
+        {/* Review (Ready to email tab) — opens the compose modal in review mode.
+            Approval saves subject/body + reviewed_at; no email is sent here. */}
+        {currentTab === "email" && !localApplied && !localReviewed && row.job_contact_email && (
           <button
             onClick={openCompose}
             disabled={pending !== null}
             className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
           >
             <Send className="w-3 h-3" />
-            Send email
+            Review
           </button>
         )}
-        {!isPool && !localApplied && (
+
+        {/* Send email (Ready to apply tab, reviewed email-channel cards) —
+            dispatches directly without re-opening the modal. */}
+        {currentTab === "apply" && !localApplied && row.job_contact_email && (localReviewed || !!row.letter_reviewed_at) && (
+          <button
+            onClick={handleDirectSend}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Send the approved email — renders CV PDF then dispatches"
+          >
+            {pending === "send" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {pending === "send" ? "Sending…" : "Send email"}
+          </button>
+        )}
+
+        {/* Apply now (Ready to apply tab, no-email cards) — opens the job
+            posting in a new tab; user applies manually then clicks Mark applied. */}
+        {currentTab === "apply" && !localApplied && !row.job_contact_email && (
+          <a
+            href={row.job_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1"
+            title="Open the job posting to apply manually"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Apply now
+          </a>
+        )}
+
+        {/* Mark applied — available on apply, email (rare), and other non-pool tabs */}
+        {currentTab !== "pool" && !localApplied && (
           <button
             onClick={handleApply}
             disabled={pending !== null}
@@ -345,7 +452,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             Mark applied
           </button>
         )}
-        {!isPool && !localArchived && (
+        {currentTab !== "pool" && !localArchived && (
           <button
             onClick={handleArchive}
             disabled={pending !== null}
@@ -355,7 +462,7 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
             Archive
           </button>
         )}
-        {isPool && (
+        {currentTab === "pool" && (
           <button
             onClick={handleArchive}
             disabled={pending !== null}
@@ -374,8 +481,10 @@ export function ApplicationCard({ row, isPool = false }: { row: ApplicationRow; 
         <ComposeEmailModal
           letterId={row.letter_id}
           jobLabel={`${row.job_title}${row.job_company ? ` @ ${row.job_company}` : ""}`}
+          mode={currentTab === "email" ? "review" : "send"}
           onClose={() => setComposing(false)}
           onSent={handleSent}
+          onReviewed={handleReviewed}
         />
       )}
     </div>

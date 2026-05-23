@@ -43,7 +43,7 @@ export async function GET(
   // 1. Letter (ownership gate + has-it-been-sent guard)
   const { data: letter } = await admin
     .from("cover_letters")
-    .select("id, user_id, job_id, email_sent_at")
+    .select("id, user_id, job_id, email_sent_at, reviewed_at, email_subject, email_body")
     .eq("id", letter_id)
     .maybeSingle();
 
@@ -106,13 +106,17 @@ export async function GET(
   }
   const hasTailoredCv = !!cvMarkdown;
 
-  // 5. Build the default draft
-  const { subject, body } = buildDefaultEmailDraft({
+  // 5. Build the default draft — but if the user has already reviewed and
+  //    saved a subject/body, prefer those so the modal shows what they
+  //    approved earlier rather than throwing it away on re-open.
+  const defaults = buildDefaultEmailDraft({
     jobTitle:      job.title,
     company:       job.company,
     hiringManager: job.hiring_manager,
     userName,
   });
+  const subject = (letter.email_subject ?? "").trim() || defaults.subject;
+  const body    = letter.email_body ?? defaults.body;
 
   const toDisplay = job.hiring_manager
     ? `${job.hiring_manager} <${job.contact_email}>`
@@ -133,6 +137,7 @@ export async function GET(
     body,
     attachments,
     has_tailored_cv: hasTailoredCv,
+    reviewed_at:     letter.reviewed_at,
     // Payload for client-side CV PDF render. Both null = modal sends with
     // cover letter only (no CV attached). Strips the projects sub-array
     // since it's not part of the contact block.

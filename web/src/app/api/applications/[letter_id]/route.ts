@@ -91,6 +91,9 @@ export async function PATCH(
 
   // Stamp the new body. Clear pdf_storage_path so the next Letter download
   // or Send-email lazy-regenerates the PDF from the edited text.
+  // Also clear reviewed_at: editing the letter invalidates the prior review
+  // (the approved email subject/body referenced the old text); the user
+  // should re-review before the card moves to Ready to apply again.
   // Note: we leave the existing Storage object in place — it will be
   // overwritten by ensureCoverLetterPdf's upsert on the next request.
   const { error: patchErr } = await admin
@@ -98,6 +101,7 @@ export async function PATCH(
     .update({
       pass_3_final:     newText,
       pdf_storage_path: null,
+      reviewed_at:      null,
     })
     .eq("id", letter_id);
 

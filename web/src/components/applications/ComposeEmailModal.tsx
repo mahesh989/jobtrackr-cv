@@ -28,10 +28,19 @@ type CvRenderState =
   | { state: "skipped" };  // no CV markdown available
 
 interface Props {
-  letterId:  string;
-  jobLabel?: string;       // optional summary shown in header e.g. "Category Analyst @ Minor DKL"
-  onClose:   () => void;
-  onSent:    (toEmail: string) => void;
+  letterId:    string;
+  jobLabel?:   string;       // optional summary shown in header e.g. "Category Analyst @ Minor DKL"
+  /**
+   * "review" — Ready to email stage. Terminal action is Approve; saves
+   *            subject/body + reviewed_at and the card moves to Ready to apply.
+   * "send"   — Ready to apply stage (or pre-migration callers). Terminal action
+   *            is Send now; dispatches the email.
+   * Defaults to "send" so existing callers keep working.
+   */
+  mode?:       "review" | "send";
+  onClose:     () => void;
+  onSent:      (toEmail: string) => void;
+  onReviewed?: () => void;    // required when mode="review"
 }
 
 /**
@@ -44,7 +53,10 @@ interface Props {
  * On 409 (letter already sent) the modal surfaces the error inline; the
  * Send button stays disabled.
  */
-export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props) {
+export function ComposeEmailModal({
+  letterId, jobLabel, mode = "send", onClose, onSent, onReviewed,
+}: Props) {
+  const isReview = mode === "review";
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const [draft,   setDraft]     = useState<Draft | null>(null);
@@ -74,10 +86,13 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
         setSubject(d.subject ?? "");
         setBody(d.body ?? "");
 
-        // Render the CV PDF in the background so it's ready by the time the
-        // user clicks Send. Same pipeline as TailoredCvCard so the attached
-        // PDF matches what they'd see on the analysis page.
-        if (d.cv_markdown) {
+        // CV PDF render only matters when this modal will actually dispatch
+        // the email (mode="send"). In review mode the user only approves the
+        // subject + body; the actual CV render happens later, at Send time,
+        // from the Ready-to-apply tab.
+        if (isReview) {
+          setCvRender({ state: "skipped" });
+        } else if (d.cv_markdown) {
           setCvRender({ state: "rendering" });
           try {
             const blob = await renderTailoredCvBlob({
@@ -120,6 +135,31 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
     if (!draft) return;
     setSubject(draft.subject);
     setBody(draft.body);
+  }
+
+  async function handleApprove() {
+    if (sending || loading || !draft) return;
+    if (!subject.trim()) { setError("Subject can't be empty"); return; }
+    if (!body.trim())    { setError("Body can't be empty"); return; }
+    setError(null);
+    setSending(true);
+    try {
+      const res = await fetch(`/api/applications/${letterId}/review`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ subject: subject.trim(), body }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? `Save failed (${res.status})`);
+        setSending(false);
+        return;
+      }
+      onReviewed?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+      setSending(false);
+    }
   }
 
   async function handleSend() {
@@ -166,6 +206,12 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
     }
   }
 
+  // Unified terminal action — Approve in review mode, Send in send mode.
+  function handleTerminal() {
+    if (isReview) return handleApprove();
+    return handleSend();
+  }
+
   const dirty = draft != null
     && (subject !== draft.subject || body !== draft.body);
 
@@ -183,9 +229,13 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
         {/* Header */}
         <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[14px] font-semibold text-text">Review email before sending</h2>
+            <h2 className="text-[14px] font-semibold text-text">
+              {isReview ? "Review email content" : "Review email before sending"}
+            </h2>
             <p className="text-[11px] text-text-3 mt-0.5 truncate">
-              {jobLabel ?? "Nothing leaves your account until you click Send."}
+              {jobLabel ?? (isReview
+                ? "Approving moves this to Ready to apply, where you can actually send."
+                : "Nothing leaves your account until you click Send.")}
             </p>
           </div>
           <button
@@ -246,7 +296,9 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
                   spellCheck
                 />
                 <p className="text-[10px] text-text-3 mt-1">
-                  The cover letter PDF is attached separately — keep this body short.
+                  {isReview
+                    ? "Approving saves the subject + body. Sending happens later from Ready to apply."
+                    : "The cover letter PDF is attached separately — keep this body short."}
                 </p>
               </div>
 
@@ -319,16 +371,22 @@ export function ComposeEmailModal({ letterId, jobLabel, onClose, onSent }: Props
             Cancel
           </button>
           <button
-            onClick={handleSend}
+            onClick={handleTerminal}
             disabled={
               sending || loading || !draft || !subject.trim() || !body.trim()
-              || cvRender.state === "rendering"
+              || (!isReview && cvRender.state === "rendering")
             }
             className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
-            title={cvRender.state === "rendering" ? "Waiting for the CV PDF to finish rendering" : undefined}
+            title={
+              !isReview && cvRender.state === "rendering"
+                ? "Waiting for the CV PDF to finish rendering"
+                : undefined
+            }
           >
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            {cvRender.state === "rendering" ? "Rendering CV…" : "Send now"}
+            {isReview
+              ? (sending ? "Saving…" : "Approve")
+              : (cvRender.state === "rendering" ? "Rendering CV…" : "Send now")}
           </button>
         </div>
       </div>

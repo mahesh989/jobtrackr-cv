@@ -48,7 +48,7 @@ export default async function ApplicationsPage({
   // ── 1. Cover letters ──────────────────────────────────────────────────────
   const { data: letters } = await supabase
     .from("cover_letters")
-    .select("id, job_id, pass_3_final, completed_at, created_at")
+    .select("id, job_id, pass_3_final, completed_at, created_at, reviewed_at")
     .eq("user_id", user.id)
     .eq("status", "completed")
     .eq("is_stale", false)
@@ -60,6 +60,7 @@ export default async function ApplicationsPage({
     pass_3_final:  string | null;
     completed_at:  string | null;
     created_at:    string;
+    reviewed_at:   string | null;
   }>;
 
   if (letterRows.length === 0) {
@@ -140,6 +141,7 @@ export default async function ApplicationsPage({
       letter_id:                 l.id,
       letter_completed_at:       l.completed_at,
       letter_preview:            letterPreview(l.pass_3_final),
+      letter_reviewed_at:        l.reviewed_at,
       job_id:                    j.id,
       job_title:                 j.title ?? "(untitled)",
       job_company:               j.company ?? "",
@@ -161,9 +163,17 @@ export default async function ApplicationsPage({
   }
 
   // ── 6. Bucket counts ──────────────────────────────────────────────────────
+  // Lifecycle (post-migration 039):
+  //   pool    — no channel decision yet
+  //   email   — has contact email, REVIEW STAGE: user hasn't approved the
+  //             outgoing subject/body yet
+  //   apply   — ACTION STAGE: either a reviewed-and-approved email (Send),
+  //             or a no-email card (Apply now via job link)
+  //   sent    — applied_at set
+  //   archived— dismissed
   const isPool     = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at === null;
-  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.job_contact_email;
-  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !r.job_contact_email;
+  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.job_contact_email && !r.letter_reviewed_at;
+  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && (!r.job_contact_email || !!r.letter_reviewed_at);
   const isSent     = (r: ApplicationRow) => !!r.job_applied_at;
   const isArchived = (r: ApplicationRow) => !!r.job_dismissed_at && !r.job_applied_at;
 
@@ -187,8 +197,8 @@ export default async function ApplicationsPage({
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool:     "Cover letter is ready — decide whether you have a contact email for each job. Add one to queue it for email, or skip to mark it as manual apply.",
-    email:    "Contact email on file. Click Send on a card to dispatch one, or select multiple and use 'Send N emails' for bulk dispatch via your connected Gmail/Outlook. Sending is always user-initiated — nothing leaves your account automatically.",
-    apply:    "No contact email — apply manually via the job link, then mark applied. The full analysis with CV PDF is available via View full.",
+    email:    "Review stage. Click Review on a card to preview the email, edit the subject/body if needed, then Approve. Approved cards move to Ready to apply where you actually send. Nothing leaves your account from this tab.",
+    apply:    "Send / Apply stage. Cards with a contact email show Send email (dispatches via your connected Gmail/Outlook). No-email cards show Apply now (opens the job link to apply manually) — then Mark applied when you're done.",
     sent:     "Jobs you've applied to. Track outcomes here.",
     archived: "Jobs you've dismissed after generating a letter.",
   };
@@ -246,10 +256,11 @@ export default async function ApplicationsPage({
             <EmailBulkBar rows={visible} />
           </div>
         ) : (
-          /* Apply / Sent / Archived render plain. */
+          /* Apply / Sent / Archived render plain. The card needs the current
+             tab so it can pick the right primary action (Send email vs Apply now). */
           <div className="space-y-3 anim-in anim-delay-2">
             {visible.map((row) => (
-              <ApplicationCard key={row.letter_id} row={row} isPool={false} />
+              <ApplicationCard key={row.letter_id} row={row} tab={validTab} />
             ))}
           </div>
         )}

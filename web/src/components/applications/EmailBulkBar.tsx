@@ -10,26 +10,27 @@ interface Props {
 }
 
 type LetterStatus =
-  | { state: "pending"  }
-  | { state: "sent"; to: string }
+  | { state: "pending" }
+  | { state: "reviewed" }
   | { state: "skipped" }
   | { state: "failed"; error: string };
 
 /**
- * Ready-to-email tab wrapper. Bulk-send opens the compose/review modal for
- * EACH selected letter in sequence so the user can edit subject+body before
- * dispatch — every email is reviewed individually (no batch-blind send).
+ * Ready-to-email tab wrapper. Bulk operation opens the compose modal in
+ * REVIEW mode for each selected card in sequence — no email is sent from
+ * this tab; approvals just stamp reviewed_at and push the card to the next
+ * stage (Ready to apply), where the actual Send button lives.
  *
  * Flow:
  *   1. User selects N cards
- *   2. Click "Review & send N emails" → confirmation modal lists recipients
- *   3. Confirm → first ComposeEmailModal opens with that letter's prefilled
- *      draft. User edits + clicks Send (POSTs /send-email) → next opens.
- *      Clicking Cancel/Close on a modal SKIPS that letter (advances without
- *      sending) so the user can drop individual rows mid-batch.
- *   4. After the last letter → batch summary card.
+ *   2. Click "Review N emails" → confirmation modal lists recipients
+ *   3. Confirm → first ComposeEmailModal opens (mode="review") with that
+ *      letter's prefilled draft. User edits + clicks Approve → POSTs
+ *      /api/applications/[letter_id]/review → next opens.
+ *      Clicking Cancel/Close on a modal SKIPS that card.
+ *   4. After the last card → review-complete summary.
  *
- * Per-card Send still works (also opens the compose modal — same component).
+ * Per-card "Review" still works (same component, same modal).
  */
 export function EmailBulkBar({ rows }: Props) {
   const [selected,   setSelected]   = useState<Set<string>>(new Set());
@@ -72,8 +73,9 @@ export function EmailBulkBar({ rows }: Props) {
     setQueueIdx((i) => i + 1);
   }
 
-  function handleSent(letterId: string, toEmail: string) {
-    setResults((prev) => new Map(prev).set(letterId, { state: "sent", to: toEmail }));
+  function handleReviewed(letterId: string) {
+    setResults((prev) => new Map(prev).set(letterId, { state: "reviewed" }));
+    // The card is now in the next stage (Ready to apply) — slide it out.
     setHidden((prev) => {
       const next = new Set(prev);
       next.add(letterId);
@@ -98,17 +100,17 @@ export function EmailBulkBar({ rows }: Props) {
   // left, OR (b) every row was hidden by successful sends.
   const batchDone = queue.length > 0 && queueIdx >= queue.length;
   if (batchDone && visibleRows.length === 0) {
-    const sent    = [...results.values()].filter((s) => s.state === "sent").length;
-    const skipped = [...results.values()].filter((s) => s.state === "skipped").length;
-    const failed  = [...results.values()].filter((s) => s.state === "failed").length;
+    const reviewed = [...results.values()].filter((s) => s.state === "reviewed").length;
+    const skipped  = [...results.values()].filter((s) => s.state === "skipped").length;
+    const failed   = [...results.values()].filter((s) => s.state === "failed").length;
     return (
       <div className="bg-surface border border-border rounded-md py-8 px-6 anim-in">
         <div className="flex items-center gap-2 mb-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-          <p className="text-[13px] font-semibold text-text">Batch complete</p>
+          <p className="text-[13px] font-semibold text-text">Review complete</p>
         </div>
         <p className="text-[12px] text-text-2">
-          {sent} email{sent === 1 ? "" : "s"} sent.
+          {reviewed} approved · now in Ready to apply.
           {skipped > 0 && ` · ${skipped} skipped.`}
           {failed  > 0 && ` · ${failed} failed.`}
         </p>
@@ -188,7 +190,7 @@ export function EmailBulkBar({ rows }: Props) {
                     )}
                   </div>
                 )}
-                <ApplicationCard row={row} isPool={false} />
+                <ApplicationCard row={row} tab="email" />
                 {status?.state === "failed" && (
                   <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">
                     {status.error}
@@ -219,10 +221,10 @@ export function EmailBulkBar({ rows }: Props) {
                 <button
                   onClick={() => setConfirming(true)}
                   className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1"
-                  title="Review and send each email one at a time"
+                  title="Open each card's review modal in sequence"
                 >
                   <Send className="w-3 h-3" />
-                  Review & send {selected.size} email{selected.size === 1 ? "" : "s"}
+                  Review {selected.size} email{selected.size === 1 ? "" : "s"}
                 </button>
                 <button
                   onClick={clearSelection}
@@ -246,13 +248,16 @@ export function EmailBulkBar({ rows }: Props) {
         />
       )}
 
-      {/* Per-letter compose modal — opens for each letter in sequence */}
+      {/* Per-letter compose modal — opens for each letter in sequence,
+          configured in review mode (Approve, not Send). */}
       {currentLetterId && currentRow && (
         <ComposeEmailModal
           key={currentLetterId}
           letterId={currentLetterId}
+          mode="review"
           jobLabel={`${currentRow.job_title}${currentRow.job_company ? ` @ ${currentRow.job_company}` : ""} · ${queueIdx + 1} of ${queue.length}`}
-          onSent={(toEmail) => handleSent(currentLetterId, toEmail)}
+          onReviewed={() => handleReviewed(currentLetterId)}
+          onSent={() => handleReviewed(currentLetterId)}   /* unused in review mode */
           onClose={() => handleSkip(currentLetterId)}
         />
       )}
@@ -282,11 +287,12 @@ function ConfirmModal({
       >
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-[14px] font-semibold text-text">
-            Review {rows.length} email{rows.length === 1 ? "" : "s"} before sending
+            Review {rows.length} email{rows.length === 1 ? "" : "s"}
           </h2>
           <p className="text-[12px] text-text-2 mt-1">
-            Each email opens in a compose window where you can edit the subject and
-            body. Closing a window skips that one without sending.
+            Each card opens in a review window where you can edit the subject and
+            body. Approving moves it to Ready to apply (where you'll actually send).
+            Closing skips that card. Nothing leaves your account from this flow.
           </p>
         </div>
         <div className="px-5 py-3 overflow-y-auto flex-1">

@@ -82,7 +82,7 @@ export async function POST(
   // ── 1. Fetch cover letter ────────────────────────────────────────────────
   const { data: letter, error: lErr } = await admin
     .from("cover_letters")
-    .select("id, user_id, job_id, pass_3_final, email_sent_at")
+    .select("id, user_id, job_id, pass_3_final, email_sent_at, email_subject, email_body")
     .eq("id", letter_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -190,8 +190,18 @@ export async function POST(
     hiringManager: job.hiring_manager,
     userName,
   });
-  const subject = override.subject?.trim() || defaults.subject;
-  const body    = override.body    ?? defaults.body;
+  // Resolution order for the outgoing subject + body:
+  //   1. multipart/JSON override from this request (compose modal still open)
+  //   2. cover_letters.email_subject/email_body (approved during review)
+  //   3. buildDefaultEmailDraft (zero-review fallback for older callers)
+  const subject =
+    override.subject?.trim()
+    || (letter.email_subject ?? "").trim()
+    || defaults.subject;
+  const body =
+    (override.body != null ? override.body : null)
+    ?? letter.email_body
+    ?? defaults.body;
 
   const toAddress = job.hiring_manager
     ? `${job.hiring_manager} <${job.contact_email}>`

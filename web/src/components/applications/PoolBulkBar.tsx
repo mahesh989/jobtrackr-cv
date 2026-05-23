@@ -107,7 +107,7 @@ export function PoolBulkBar({ rows }: Props) {
               {/* Always reserve space for the checkbox so the title doesn't
                   shift between selected/unselected states. */}
               <div className="pl-7">
-                <ApplicationCard row={row} isPool={true} />
+                <ApplicationCard row={row} tab="pool" />
               </div>
             </div>
           );
