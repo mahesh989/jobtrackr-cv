@@ -13,12 +13,20 @@ export interface ApplicationStatusCounts {
   archived: number;
 }
 
+// Tab semantics (post-039 + Review->Send unification):
+//   pool     — cover letter just generated; user accepts ("Queue for review")
+//              or archives. Contact email is optional here.
+//   email    — Review stage. Every queued card is reviewed here regardless of
+//              whether a contact email is on file. The tab label is "Ready to
+//              review" — kept "email" as the URL/key for backward compat.
+//   apply    — Action stage. Reviewed cards land here. Email-channel cards
+//              show Send email; no-email cards show Copy email + Apply now.
 const TABS: Array<{ value: ApplicationStatusKey; label: string }> = [
-  { value: "pool",     label: "To review"      },
-  { value: "email",    label: "Ready to email" },
-  { value: "apply",    label: "Ready to apply" },
-  { value: "sent",     label: "Sent / Applied" },
-  { value: "archived", label: "Archived"       },
+  { value: "pool",     label: "To review"       },
+  { value: "email",    label: "Ready to review" },
+  { value: "apply",    label: "Ready to apply"  },
+  { value: "sent",     label: "Sent / Applied"  },
+  { value: "archived", label: "Archived"        },
 ];
 
 export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCounts }) {

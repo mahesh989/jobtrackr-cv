@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, FileType, Pencil } from "lucide-react";
+import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, FileType, Pencil, Copy, Check } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 import { EditLetterModal } from "./EditLetterModal";
 import { ComposeEmailModal } from "./ComposeEmailModal";
@@ -72,6 +72,7 @@ export function ApplicationCard({
   const [cvPreviewing, setCvPreviewing] = useState(false);
   const [localApplied, setLocalApplied]   = useState(!!row.job_applied_at);
   const [localReviewed, setLocalReviewed] = useState(!!row.letter_reviewed_at);
+  const [copied, setCopied] = useState(false);
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -231,6 +232,28 @@ export function ApplicationCard({
     }
   }
 
+  async function handleCopyEmail() {
+    if (copied || pending) return;
+    setActionError(null);
+    try {
+      // Pull the approved subject + body via the same endpoint the modal uses,
+      // so users see exactly what they approved (not whatever the default is now).
+      const res  = await fetch(`/api/applications/${row.letter_id}/email-draft`);
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error ?? "Could not load draft"); return; }
+      const subject = json.subject ?? "";
+      const body    = json.body    ?? "";
+      // Clipboard payload: Subject: ... / blank / body. Plain text is what
+      // most users want when pasting into Gmail / Outlook / Apple Mail.
+      const payload = `Subject: ${subject}\n\n${body}`;
+      await navigator.clipboard.writeText(payload);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Copy failed");
+    }
+  }
+
   if (hidden) return null;
 
   return (
@@ -286,21 +309,25 @@ export function ApplicationCard({
         </p>
       </div>
 
-      {/* Pool decision — only shown in the "To review" tab */}
+      {/* Pool decision — only shown in the "To review" tab. The flow is the
+          same regardless of whether the job has a contact email; the email
+          field is optional and just gets saved to jobs.contact_email if filled.
+          When sending is later attempted from Ready to apply, the presence of
+          contact_email decides Send-vs-Copy. */}
       {currentTab === "pool" ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 px-3 py-2.5 mb-3">
           <p className="text-[12px] font-medium text-amber-800 dark:text-amber-300 mb-2">
-            Does this job have a contact email?
+            Queue this for review?
           </p>
           <div className="flex items-center gap-2">
             <input
               ref={emailRef}
               type="email"
-              placeholder="recruiter@company.com"
+              placeholder="Contact email (optional)"
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && emailInput.trim()) handlePoolDecision(emailInput.trim());
+                if (e.key === "Enter") handlePoolDecision(emailInput.trim() || undefined);
               }}
               className="flex-1 text-[12px] px-2.5 py-1.5 rounded border border-[var(--border)] bg-[var(--surface)] text-text placeholder:text-text-3 focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
             />
@@ -310,11 +337,11 @@ export function ApplicationCard({
               className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1.5 disabled:opacity-40 shrink-0"
             >
               {pending === "pool" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-              {emailInput.trim() ? "Add email" : "No email"}
+              Queue for review
             </button>
           </div>
           <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1.5">
-            Add an email to move it to "Ready to email", or click "No email" to queue it for manual application.
+            Adding an email enables one-click send later. Leave it blank to draft the email anyway — you'll be able to copy it for your own client.
           </p>
         </div>
       ) : (
@@ -328,7 +355,7 @@ export function ApplicationCard({
         ) : (
           <div className="flex items-center gap-1.5 mb-3 text-[12px] text-text-3">
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-            <span>No email on file — apply via the job link</span>
+            <span>No contact email — you'll copy the draft and apply via the job link</span>
           </div>
         )
       )}
@@ -396,12 +423,14 @@ export function ApplicationCard({
             title="Edit cover letter body"
           >
             <Pencil className="w-3 h-3" />
-            Edit Letter
+            Edit cover letter
           </button>
         )}
-        {/* Review (Ready to email tab) — opens the compose modal in review mode.
-            Approval saves subject/body + reviewed_at; no email is sent here. */}
-        {currentTab === "email" && !localApplied && !localReviewed && row.job_contact_email && (
+        {/* Review (Ready to review tab) — opens the compose modal in review
+            mode. Available for ALL cards in this stage, whether or not a
+            contact email is on file. Approval saves subject/body +
+            reviewed_at; nothing is sent here. */}
+        {currentTab === "email" && !localApplied && !localReviewed && (
           <button
             onClick={openCompose}
             disabled={pending !== null}
@@ -412,9 +441,9 @@ export function ApplicationCard({
           </button>
         )}
 
-        {/* Send email (Ready to apply tab, reviewed email-channel cards) —
+        {/* Send email (Ready to apply, reviewed cards WITH a contact email) —
             dispatches directly without re-opening the modal. */}
-        {currentTab === "apply" && !localApplied && row.job_contact_email && (localReviewed || !!row.letter_reviewed_at) && (
+        {currentTab === "apply" && !localApplied && row.job_contact_email && (
           <button
             onClick={handleDirectSend}
             disabled={pending !== null}
@@ -426,15 +455,31 @@ export function ApplicationCard({
           </button>
         )}
 
-        {/* Apply now (Ready to apply tab, no-email cards) — opens the job
-            posting in a new tab; user applies manually then clicks Mark applied. */}
+        {/* Copy email (Ready to apply, no contact email) — copies the
+            approved subject + body to clipboard so the user can paste into
+            their own client. */}
         {currentTab === "apply" && !localApplied && !row.job_contact_email && (
+          <button
+            onClick={handleCopyEmail}
+            disabled={pending !== null}
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Copy the approved subject + body to your clipboard"
+          >
+            {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+            {copied ? "Copied" : "Copy email"}
+          </button>
+        )}
+
+        {/* Apply now (Ready to apply) — opens the job posting in a new tab.
+            Shown for both email and no-email cards: it's always useful to
+            jump to the listing. */}
+        {currentTab === "apply" && !localApplied && (
           <a
             href={row.job_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1"
-            title="Open the job posting to apply manually"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+            title="Open the job posting in a new tab"
           >
             <ExternalLink className="w-3 h-3" />
             Apply now

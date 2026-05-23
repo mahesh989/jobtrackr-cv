@@ -64,12 +64,9 @@ export async function GET(
   if (!job) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
-  if (!job.contact_email) {
-    return NextResponse.json(
-      { error: "No contact email on the job — add one in the pool first" },
-      { status: 422 },
-    );
-  }
+  // Contact email is OPTIONAL. The review flow drafts an email regardless;
+  // when no contact_email is on file, the resulting draft is for the user
+  // to copy and paste into their own mail client.
 
   // 3. Contact details from preferences — name for the signoff AND the full
   //    contact block which the modal re-stamps onto the CV markdown before
@@ -118,9 +115,12 @@ export async function GET(
   const subject = (letter.email_subject ?? "").trim() || defaults.subject;
   const body    = letter.email_body ?? defaults.body;
 
-  const toDisplay = job.hiring_manager
-    ? `${job.hiring_manager} <${job.contact_email}>`
-    : job.contact_email;
+  // toDisplay is the human-readable "To:" string shown in the modal. When no
+  // contact_email is set, return a placeholder rather than the literal
+  // string "null" — the modal hides the recipient field for those cards.
+  const toDisplay = job.contact_email
+    ? (job.hiring_manager ? `${job.hiring_manager} <${job.contact_email}>` : job.contact_email)
+    : "(no recipient — copy & send from your own client)";
 
   const companySlug = (job.company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
   const attachments: string[] = [`CoverLetter_${companySlug}.pdf`];

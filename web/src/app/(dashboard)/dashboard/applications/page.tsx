@@ -163,17 +163,20 @@ export default async function ApplicationsPage({
   }
 
   // ── 6. Bucket counts ──────────────────────────────────────────────────────
-  // Lifecycle (post-migration 039):
-  //   pool    — no channel decision yet
-  //   email   — has contact email, REVIEW STAGE: user hasn't approved the
-  //             outgoing subject/body yet
-  //   apply   — ACTION STAGE: either a reviewed-and-approved email (Send),
-  //             or a no-email card (Apply now via job link)
-  //   sent    — applied_at set
-  //   archived— dismissed
+  // Lifecycle (post-039 + unified review):
+  //   pool    — user hasn't queued the card for review yet ("To review" tab).
+  //             pool_decision_at IS NULL.
+  //   email   — REVIEW STAGE ("Ready to review" tab). Every queued card —
+  //             email or no-email — is reviewed here. Filter: pool_decision_at
+  //             SET and reviewed_at NULL.
+  //   apply   — ACTION STAGE ("Ready to apply" tab). Email-channel cards show
+  //             Send email; no-email cards show Copy email + Apply now.
+  //             Filter: pool_decision_at SET and reviewed_at SET.
+  //   sent    — applied_at SET.
+  //   archived— dismissed_at SET.
   const isPool     = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at === null;
-  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.job_contact_email && !r.letter_reviewed_at;
-  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && (!r.job_contact_email || !!r.letter_reviewed_at);
+  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !r.letter_reviewed_at;
+  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.letter_reviewed_at;
   const isSent     = (r: ApplicationRow) => !!r.job_applied_at;
   const isArchived = (r: ApplicationRow) => !!r.job_dismissed_at && !r.job_applied_at;
 
@@ -196,9 +199,9 @@ export default async function ApplicationsPage({
   });
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
-    pool:     "Cover letter is ready — decide whether you have a contact email for each job. Add one to queue it for email, or skip to mark it as manual apply.",
-    email:    "Review stage. Click Review on a card to preview the email, edit the subject/body if needed, then Approve. Approved cards move to Ready to apply where you actually send. Nothing leaves your account from this tab.",
-    apply:    "Send / Apply stage. Cards with a contact email show Send email (dispatches via your connected Gmail/Outlook). No-email cards show Apply now (opens the job link to apply manually) — then Mark applied when you're done.",
+    pool:     "Cover letter is ready. Queue it for review (and optionally add a contact email), or archive it. The same review flow applies whether you have a contact email or not.",
+    email:    "Review stage. Click Review on a card to preview and edit the email (subject + body), then Approve. Approved cards move to Ready to apply. Nothing leaves your account from this tab.",
+    apply:    "Send / Apply stage. Cards with a contact email show Send email (dispatches via Gmail/Outlook). No-email cards show Copy email (paste into your own client) and Apply now (opens the job link). Mark applied when you're done.",
     sent:     "Jobs you've applied to. Track outcomes here.",
     archived: "Jobs you've dismissed after generating a letter.",
   };
@@ -238,9 +241,9 @@ export default async function ApplicationsPage({
           <div className="bg-surface border border-border rounded-md py-12 text-center anim-in anim-delay-2">
             <p className="text-[13px] font-medium text-text mb-1">Nothing here yet</p>
             <p className="text-[12px] text-text-2">
-              {validTab === "pool"     && "Cover letters waiting for your email decision will appear here."}
-              {validTab === "email"    && "Cover letters with a contact email will appear here."}
-              {validTab === "apply"    && "Cover letters for manual applications will appear here."}
+              {validTab === "pool"     && "Cover letters waiting to be queued for review will appear here."}
+              {validTab === "email"    && "Cards queued for review will appear here. Generate a cover letter on a job to start."}
+              {validTab === "apply"    && "Reviewed cards ready to be sent or applied to will appear here."}
               {validTab === "sent"     && "Jobs you mark as applied will appear here."}
               {validTab === "archived" && "Archived applications will appear here."}
             </p>

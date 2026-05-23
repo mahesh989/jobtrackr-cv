@@ -256,15 +256,25 @@ export function ComposeEmailModal({
             </div>
           ) : draft ? (
             <>
-              {/* To (read-only) */}
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">
-                  To
-                </label>
-                <div className="text-[12px] font-mono px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
-                  {draft.to}
+              {/* To (read-only). For no-email cards we show a subtle banner
+                  instead of a fake recipient line, so users know the draft is
+                  for their own copy-and-send flow. */}
+              {draft.to_email ? (
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">
+                    To
+                  </label>
+                  <div className="text-[12px] font-mono px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
+                    {draft.to}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300">
+                  No contact email on this job — there's no recipient field. You
+                  can still draft + approve the email here, then copy it from
+                  Ready to apply and send from your own client.
+                </div>
+              )}
 
               {/* Subject (editable) */}
               <div>

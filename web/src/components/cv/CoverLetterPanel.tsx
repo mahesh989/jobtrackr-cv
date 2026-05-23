@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 interface GenerationStatus {
@@ -638,7 +639,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
           })()}
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleCopy}
               className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
@@ -647,10 +648,21 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
             </button>
             <button
               onClick={() => setShowDownloadModal(true)}
-              className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"
+              className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
             >
               Download PDF
             </button>
+            {/* Jump to the Applications "To review" tab so the user can
+                queue this letter for review without hunting through the nav. */}
+            <Link
+              href="/dashboard/applications"
+              className="ml-auto inline-flex items-center gap-1 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"
+            >
+              Apply now
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </Link>
           </div>
 
           {/* Model provenance */}
