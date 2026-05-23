@@ -137,6 +137,8 @@ async def auto_generate_cover_letter(
             "analysis_run_id": run_id,
             "status":          "generating",
             "is_stale":        False,
+            "ai_provider":     ai_provider,   # NOT NULL — was missing, broke auto path
+            "ai_model":        ai_model,
         }).execute()
 
         # ── 7. Build payload and run pipeline ─────────────────────────────────
