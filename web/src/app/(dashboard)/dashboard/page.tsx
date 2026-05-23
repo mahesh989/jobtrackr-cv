@@ -21,6 +21,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
+import { SetupGuide } from "@/components/onboarding/SetupGuide";
+import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
@@ -87,8 +89,18 @@ export default async function DashboardPage({
   }>;
   const ids = profiles.map((p) => p.id);
 
-  if (ids.length === 0) {
-    return <EmptyState />;
+  // ── First-run gate ────────────────────────────────────────────────────────
+  // Show the SetupGuide until the first pipeline run produces data. Covers both
+  // a brand-new user (no profiles) and a user with a profile that hasn't run.
+  let hasAnyJob = false;
+  if (ids.length > 0) {
+    const { count } = await supabase
+      .from("jobs").select("id", { count: "exact", head: true }).in("profile_id", ids);
+    hasAnyJob = (count ?? 0) > 0;
+  }
+  if (!hasAnyJob) {
+    const status = await getSetupStatus(user.id, ids);
+    return <FirstRunScreen status={status} />;
   }
 
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
@@ -619,42 +631,28 @@ export default async function DashboardPage({
   );
 }
 
-function EmptyState() {
+/**
+ * First-run screen — shown until the first pipeline run produces data.
+ * Replaces the old single empty-state card with the full stepped SetupGuide.
+ */
+function FirstRunScreen({ status }: { status: SetupStatus }) {
   return (
-    <div className="flex-1 flex items-center justify-center p-12">
-      <div className="text-center max-w-sm anim-in">
-        <div className="w-16 h-16 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-5">
-          <svg className="w-8 h-8 text-[var(--brand)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497z"/>
-          </svg>
-        </div>
-
-        <h2 className="text-[18px] font-semibold text-text mb-2">Set up your first search profile</h2>
-        <p className="text-[13px] text-text-2 leading-relaxed mb-6">
-          A search profile tells JobTrackr what jobs to look for. Once created, it automatically scans 21+ Australian sources — government portals, ATS systems, healthcare boards — and AI-scores every result.
+    <div className="min-h-full">
+      <div className="border-b border-border bg-surface px-6 py-4">
+        <h1 className="text-[16px] font-semibold text-text">Welcome to JobTrackr</h1>
+        <p className="text-[12px] text-text-2 mt-0.5">
+          Let&apos;s get you set up — your job feed appears here after your first run.
         </p>
+      </div>
 
-        <div className="bg-surface border border-border rounded-md p-4 text-left mb-6 space-y-3">
-          {[
-            { n: "1", title: "Define keywords", desc: "e.g. \"Data Analyst, SQL, Power BI\"" },
-            { n: "2", title: "Set a schedule",   desc: "Daily, every 2 days, or weekly" },
-            { n: "3", title: "Review & track",   desc: "AI-scored feed, mark applied, export CSV" },
-          ].map((s) => (
-            <div key={s.n} className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full bg-[var(--brand)] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                {s.n}
-              </span>
-              <div>
-                <p className="text-[13px] font-medium text-text">{s.title}</p>
-                <p className="text-[12px] text-text-2">{s.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue w-full justify-center py-2 text-[13px]">
-          Create your first profile
-        </Link>
+      <div className="px-6 py-10">
+        <SetupGuide status={status} />
+        <p className="text-center text-[12px] text-text-3 mt-5">
+          Want the full picture?{" "}
+          <Link href="/dashboard/instructions" className="text-[var(--brand)] hover:underline">
+            Read the instructions →
+          </Link>
+        </p>
       </div>
     </div>
   );
