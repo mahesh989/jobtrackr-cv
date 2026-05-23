@@ -278,9 +278,6 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
     canvas.height       = C * dpr;
     canvas.style.width  = `${C}px`;
     canvas.style.height = `${C}px`;
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.scale(dpr, dpr);
-
     const f = toFracs(data.sourcing.totals);
     const c = data.sourcing.fetched;
     dFracs.current = tFracs.current = f;
