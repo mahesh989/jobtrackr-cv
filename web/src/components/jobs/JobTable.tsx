@@ -401,9 +401,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             <RowMenu
               job={job}
               pending={isPending}
-              localApplied={localApplied}
               onEdit={() => setShowEdit(true)}
-              onApply={handleApply}
               onDismiss={handleDismiss}
             />
           </div>
@@ -523,14 +521,12 @@ function ProgressIcons({ job, dimmed }: { job: Job; dimmed: boolean }) {
 
 // ── ⋮ overflow menu ──────────────────────────────────────────────────────────
 function RowMenu({
-  job, pending, localApplied, onEdit, onApply, onDismiss,
+  job, pending, onEdit, onDismiss,
 }: {
-  job:          Job;
-  pending:      boolean;
-  localApplied: boolean;
-  onEdit:       () => void;
-  onApply:      (e: React.MouseEvent) => void;
-  onDismiss:    (e: React.MouseEvent) => void;
+  job:       Job;
+  pending:   boolean;
+  onEdit:    () => void;
+  onDismiss: (e: React.MouseEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
@@ -591,18 +587,9 @@ function RowMenu({
 
       <div className="my-1 border-t border-[var(--border)]" />
 
-      <button
-        disabled={pending || localApplied}
-        className={`${itemCls} ${localApplied ? "opacity-40 cursor-default" : ""}`}
-        onClick={(e) => { setOpen(false); onApply(e); }}
-      >
-        <svg className="w-3.5 h-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-        </svg>
-        <span className={localApplied ? "text-green-600 font-medium" : ""}>
-          {localApplied ? "Applied ✓" : "Mark as applied"}
-        </span>
-      </button>
+      {/* "Mark as applied" intentionally removed from this menu — the
+          Applications tab is the single place to mark a job applied, via
+          Send email / Apply now / Mark applied on the dedicated card. */}
 
       <button
         disabled={pending}
