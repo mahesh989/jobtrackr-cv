@@ -116,6 +116,7 @@ export function ApplicationCard({
   const [localArchived, setLocalArchived] = useState(!!row.job_dismissed_at);
   const [hidden, setHidden] = useState(false);
   const [emailInput, setEmailInput] = useState("");
+  const [emailFallback, setEmailFallback] = useState<{ subject: string; body: string } | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
 
   const score        = formatScore(row.tailored_match_score);
@@ -299,7 +300,7 @@ export function ApplicationCard({
 
       const ok = await copyToClipboard(payload);
       if (!ok) {
-        setActionError("Couldn't access the clipboard automatically — open the email in the Review modal and copy from there.");
+        setEmailFallback({ subject, body });
         return;
       }
       setCopied(true);
@@ -337,19 +338,33 @@ export function ApplicationCard({
             {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
           </p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-[10px] uppercase tracking-wider text-text-3">Tailored score</p>
-          <p className={`text-[18px] font-bold tabular-nums ${
-            row.tailored_match_score == null
-              ? "text-text-3"
-              : row.tailored_match_score >= 75
-              ? "text-emerald-600"
-              : row.tailored_match_score >= 55
-              ? "text-amber-600"
-              : "text-red-600"
-          }`}>
-            {score}{score !== "—" && <span className="text-[12px] text-text-3 font-medium ml-0.5">/100</span>}
-          </p>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-wider text-text-3">Tailored score</p>
+            <p className={`text-[18px] font-bold tabular-nums ${
+              row.tailored_match_score == null
+                ? "text-text-3"
+                : row.tailored_match_score >= 75
+                ? "text-emerald-600"
+                : row.tailored_match_score >= 55
+                ? "text-amber-600"
+                : "text-red-600"
+            }`}>
+              {score}{score !== "—" && <span className="text-[12px] text-text-3 font-medium ml-0.5">/100</span>}
+            </p>
+          </div>
+          {/* Review button pinned top-right so it's always visible regardless
+              of how many secondary action buttons are in the bottom bar. */}
+          {currentTab === "email" && !localApplied && !localReviewed && (
+            <button
+              onClick={openCompose}
+              disabled={pending !== null}
+              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            >
+              <Send className="w-3 h-3" />
+              Review
+            </button>
+          )}
         </div>
       </div>
 
@@ -417,6 +432,30 @@ export function ApplicationCard({
         </div>
       )}
 
+      {/* Clipboard fallback — shown when both clipboard APIs are blocked.
+          Renders subject + body in a selectable textarea so the user can
+          Ctrl-A / Cmd-A and copy manually. */}
+      {emailFallback && (
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 mb-3">
+          <p className="text-[11px] text-text-2 mb-2">
+            Clipboard blocked — select all and copy manually:
+          </p>
+          <textarea
+            readOnly
+            rows={7}
+            className="w-full text-[11px] font-mono text-text bg-surface border border-[var(--border)] rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            value={`Subject: ${emailFallback.subject}\n\n${emailFallback.body}`}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <button
+            onClick={() => setEmailFallback(null)}
+            className="mt-1 text-[11px] text-text-3 hover:text-text transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {analysisHref && (
@@ -474,20 +513,6 @@ export function ApplicationCard({
           >
             <Pencil className="w-3 h-3" />
             Edit cover letter
-          </button>
-        )}
-        {/* Review (Ready to review tab) — opens the compose modal in review
-            mode. Available for ALL cards in this stage, whether or not a
-            contact email is on file. Approval saves subject/body +
-            reviewed_at; nothing is sent here. */}
-        {currentTab === "email" && !localApplied && !localReviewed && (
-          <button
-            onClick={openCompose}
-            disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
-          >
-            <Send className="w-3 h-3" />
-            Review
           </button>
         )}
 
