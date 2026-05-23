@@ -250,8 +250,12 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         logger.info("run %s: pipeline completed (score=%s lift=%s)",
                     run_id, ats.get("overall_score"), rescore["ats_lift"])
 
-        # ── Phase E-2 — auto cover letter (automation runs that passed final gate)
-        if payload.automation and final_score is not None and final_score >= payload.min_final_ats:
+        # ── Auto cover letter — ANY run (manual or automation) that cleared the
+        # final gate. Idempotent: auto_generate_cover_letter skips when the job
+        # already has a non-stale letter, and requires a voice profile + a story,
+        # so re-analysis won't duplicate and users without a voice profile are
+        # simply left to generate manually.
+        if final_score is not None and final_score >= payload.min_final_ats:
             jd_meta = payload.jd_meta or {}
             asyncio.create_task(auto_generate_cover_letter(
                 run_id=       str(payload.run_id),

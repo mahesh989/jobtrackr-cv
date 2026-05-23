@@ -48,7 +48,8 @@ async def auto_generate_cover_letter(
     ai_model:     Optional[str],
 ) -> None:
     """
-    Attempt to auto-generate a cover letter after a passing automation analysis.
+    Attempt to auto-generate a cover letter after a passing analysis run
+    (manual or automation) whose tailored score cleared the final gate.
     All failures are logged and silently swallowed — auto cover letter is
     best-effort and must never block or crash the main orchestrator.
     """
