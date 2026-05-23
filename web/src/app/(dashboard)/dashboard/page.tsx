@@ -376,7 +376,7 @@ export default async function DashboardPage({
 
   const { data: runLogData } = await supabase
     .from("run_logs")
-    .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, sources_saved")
+    .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
     .in("profile_id", ids);
 
   const { data: donutRunData } = allActiveJobIds.length > 0
@@ -404,19 +404,26 @@ export default async function DashboardPage({
     jobs_fetched: number | null;
     jobs_after_dedup: number | null;
     jobs_saved: number | null;
+    jobs_deduped: number | null;
     sources_saved: Record<string, number> | null;
   }
   const srcMap: Record<string, { saved: number; dupes: number; filtered: number; sourcesSaved: Record<string, number> }> = {};
   for (const r of (runLogData ?? []) as RunLogRow[]) {
-    const pid = r.profile_id;
+    const pid     = r.profile_id;
     if (!srcMap[pid]) srcMap[pid] = { saved: 0, dupes: 0, filtered: 0, sourcesSaved: {} };
-    const s        = srcMap[pid];
-    const fetched  = r.jobs_fetched    ?? 0;
-    const afterDed = r.jobs_after_dedup ?? 0;
-    const saved    = r.jobs_saved      ?? 0;
-    s.saved    += saved;
-    s.dupes    += Math.max(0, fetched - afterDed);
-    s.filtered += Math.max(0, afterDed - saved);
+    const s       = srcMap[pid];
+    const fetched = r.jobs_fetched  ?? 0;
+    const saved   = r.jobs_saved    ?? 0;
+    const deduped = r.jobs_deduped  ?? null;
+    s.saved += saved;
+    if (deduped !== null) {
+      // New runs: split accurately into deduped vs keyword/smart-filtered
+      s.dupes    += deduped;
+      s.filtered += Math.max(0, fetched - deduped - saved);
+    } else {
+      // Old runs (pre-migration): can't distinguish, lump into filtered
+      s.filtered += Math.max(0, fetched - saved);
+    }
     if (r.sources_saved) {
       for (const [src, n] of Object.entries(r.sources_saved)) {
         s.sourcesSaved[src] = (s.sourcesSaved[src] ?? 0) + n;

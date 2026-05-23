@@ -30,6 +30,7 @@ export async function finishRunLog(
     jobs_fetched: number;
     jobs_after_dedup: number;
     jobs_saved: number;
+    jobs_deduped?: number;
     sources_run: string[];
     sources_saved?: Record<string, number>;
     error_message?: string;
@@ -43,6 +44,7 @@ export async function finishRunLog(
       jobs_fetched: outcome.jobs_fetched,
       jobs_after_dedup: outcome.jobs_after_dedup,
       jobs_saved: outcome.jobs_saved,
+      jobs_deduped: outcome.jobs_deduped ?? 0,
       sources_run: outcome.sources_run,
       sources_saved: outcome.sources_saved ?? null,
       error_message: outcome.error_message ?? null,

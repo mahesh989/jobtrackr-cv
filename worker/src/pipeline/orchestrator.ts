@@ -242,6 +242,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   let jobsFetched = 0;
   let jobsAfterDedup = 0;
   let jobsSaved = 0;
+  let jobsDeduped = 0;
   let sourcesSaved: Record<string, number> = {};
 
   try {
@@ -372,6 +373,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
     
+    jobsDeduped += earlyL1Dropped;
     console.log(`[pipeline] stage 3 — L1 early drop: ${earlyL1Dropped} duplicates removed, ${uniqueRawJobs.length} remaining`);
 
     // Stage 3b — cross-profile dedup (skip)
@@ -413,6 +415,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         }
       }
 
+      jobsDeduped += droppedCrossProfile;
       console.log(
         `[pipeline] stage 3b — cross-profile dedup: ${droppedCrossProfile} dropped ` +
         `(already in sibling profile), ${newRawJobs.length} remain`
@@ -447,6 +450,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Stages 5+6: dedup L1 + L2 (strong drop + weak flag)
     const { kept: dedupKept, l1Dropped, l2Dropped, l2WeakMarked } = await dedup(smartFiltered, profileId);
     jobsAfterDedup = dedupKept.length;
+    jobsDeduped += l1Dropped + l2Dropped;
     console.log(
       `[pipeline] stage 5+6 — dedup: ${dedupKept.length} kept ` +
       `(L1 ${l1Dropped} + L2-strong ${l2Dropped} dropped, ${l2WeakMarked} marked possible_duplicate)`
@@ -630,6 +634,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       jobs_fetched: jobsFetched,
       jobs_after_dedup: jobsAfterDedup,
       jobs_saved: jobsSaved,
+      jobs_deduped: jobsDeduped,
       sources_run: sourcesRun,
       sources_saved: sourcesSaved,
     });
@@ -647,6 +652,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         jobs_fetched: jobsFetched,
         jobs_after_dedup: jobsAfterDedup,
         jobs_saved: jobsSaved,
+        jobs_deduped: jobsDeduped,
         sources_run: sourcesRun,
         sources_saved: sourcesSaved,
         error_message: msg,

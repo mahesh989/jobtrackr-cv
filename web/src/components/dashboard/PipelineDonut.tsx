@@ -57,9 +57,9 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "Sourcing",
     centerLabel: "fetched",
     slices: [
-      { label: "Saved",               color: "#34d399" },
-      { label: "Filtered & deduped",  color: "#94a3b8" },
-      { label: "Already in DB",       color: "#fb923c" },
+      { label: "Saved",         color: "#34d399" },
+      { label: "Duplicates",    color: "#94a3b8" },
+      { label: "Filtered out",  color: "#fb923c" },
     ],
   },
   jd: {
