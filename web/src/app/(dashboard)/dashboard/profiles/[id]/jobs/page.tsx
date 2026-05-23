@@ -380,7 +380,7 @@ export default async function JobsPage({
         {/* Pipeline funnel (replaces StatusTabs + ProgressChips + TriageBanner) */}
         <div className="anim-in">
           <Suspense>
-            <PipelineFunnel counts={funnelCounts} />
+            <PipelineFunnel counts={funnelCounts} currentStage={currentStage} />
           </Suspense>
         </div>
 

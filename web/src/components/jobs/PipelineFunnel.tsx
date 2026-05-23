@@ -53,18 +53,19 @@ const STAGES: StageConfig[] = [
     label: "Discovered",
     countKey: "discovered",
     triage: [
-      { key: "thinJd", label: "thin JD", countKey: "thinJd" },
-      { key: "richJd", label: "rich JD", countKey: "richJd" },
       { key: "roleMismatch", label: "role mismatch", countKey: "roleMismatch" },
     ],
+  },
+  {
+    key: "thinJd",
+    label: "Thin JD",
+    countKey: "thinJd",
   },
   {
     key: "analysed",
     label: "Analysed",
     countKey: "analysed",
     triage: [
-      { key: "thinJd", label: "thin JD", countKey: "thinJd" },
-      { key: "richJd", label: "rich JD", countKey: "richJd" },
       { key: "belowThreshold", label: "below ATS", countKey: "belowThreshold" },
     ],
   },
@@ -83,19 +84,22 @@ const STAGES: StageConfig[] = [
 /* Stage accent colors — blend with surface for theme compat */
 const STAGE_ACCENTS = [
   "color-mix(in srgb, #6366f1 18%, var(--surface))",  // indigo (discovered)
+  "color-mix(in srgb, #f59e0b 18%, var(--surface))",  // amber (thinJd)
   "color-mix(in srgb, #3b82f6 18%, var(--surface))",  // blue (analysed)
   "color-mix(in srgb, #06b6d4 18%, var(--surface))",  // cyan (cvReady)
   "color-mix(in srgb, #10b981 18%, var(--surface))",  // emerald (letterReady)
   "color-mix(in srgb, #22c55e 18%, var(--surface))",  // green (applied)
 ];
 
-const STAGE_DOTS = ["#6366f1", "#3b82f6", "#06b6d4", "#10b981", "#22c55e"];
+const STAGE_DOTS = ["#6366f1", "#f59e0b", "#3b82f6", "#06b6d4", "#10b981", "#22c55e"];
 
 export function PipelineFunnel({
   counts,
+  currentStage,
   excludeStages = [],
 }: {
   counts: FunnelCounts;
+  currentStage: string;
   excludeStages?: string[];
 }) {
   const router = useRouter();
@@ -104,18 +108,12 @@ export function PipelineFunnel({
   const [, startTransition] = useTransition();
 
   const activeStages = STAGES.filter((s) => !excludeStages.includes(s.key));
-  // Default to first active stage if stage not set or not active
-  const currentStage = sp.get("stage") || (activeStages[0]?.key ?? "all");
   const currentTriage = sp.get("triage") || "";
 
   function selectStage(stageKey: string) {
     const params = new URLSearchParams(sp.toString());
-    if (stageKey === activeStages[0]?.key && !sp.get("stage")) {
-      // already at default
-      return;
-    }
-    // If it's the first active stage and it corresponds to "all", we delete stage param to keep URL clean
-    if (stageKey === "all") {
+    const defaultStage = activeStages[0]?.key ?? "all";
+    if (stageKey === defaultStage) {
       params.delete("stage");
     } else {
       params.set("stage", stageKey);

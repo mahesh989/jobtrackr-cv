@@ -364,7 +364,7 @@ export default async function DashboardPage({
 
           {/* Pipeline funnel */}
           <Suspense>
-            <PipelineFunnel counts={funnelCounts} excludeStages={["all", "applied"]} />
+            <PipelineFunnel counts={funnelCounts} currentStage={currentStage} excludeStages={["all", "applied"]} />
           </Suspense>
 
           {/* Smart filter bar */}
