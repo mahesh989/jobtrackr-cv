@@ -249,8 +249,10 @@ export function ComposeEmailModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+        {/* Body — min-h-0 lets the flex child actually shrink (without it,
+            flex-1's min-content height pushes the modal past max-h-[90vh],
+            hiding the footer + Approve/Send button below the viewport). */}
+        <div className="px-5 py-4 flex-1 min-h-0 overflow-y-auto space-y-3">
           {loading ? (
             <div className="py-10 flex items-center justify-center text-text-3 text-[12px]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -376,8 +378,9 @@ export function ComposeEmailModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
+        {/* Footer — shrink-0 belt-and-braces so it can never collapse,
+            even on very tall content with the body fully scrolled. */}
+        <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2 shrink-0">
           {dirty && (
             <button
               onClick={resetDefaults}
