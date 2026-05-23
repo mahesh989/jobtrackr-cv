@@ -22,6 +22,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
+import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { JobTable, type Job } from "@/components/jobs/JobTable";
 import { PipelineFunnel, type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { SmartFilterBar } from "@/components/jobs/SmartFilterBar";
@@ -260,6 +261,8 @@ export default async function DashboardPage({
     typedJobs = typedJobs.filter((x) => x.progress.has_tailored_cv);
   } else if (currentStage === "letterReady") {
     typedJobs = typedJobs.filter((x) => x.progress.has_cover_letter);
+  } else if (currentStage === "thinJd") {
+    typedJobs = typedJobs.filter((x) => x.jd_quality === "thin");
   }
   // applied + dismissed are handled server-side above
 
@@ -305,12 +308,20 @@ export default async function DashboardPage({
   // Status-tab counts — aggregated across profiles
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at")
+    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  const allRows         = countRows ?? [];
+  interface AllCountRow {
+    id: string;
+    seen_at: string | null;
+    applied_at: string | null;
+    dismissed_at: string | null;
+    profile_id: string;
+    jd_quality: string | null;
+  }
+  const allRows = (countRows ?? []) as AllCountRow[];
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
   const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
   const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
@@ -318,6 +329,169 @@ export default async function DashboardPage({
   funnelCounts.applied = tabAppliedCount;
   funnelCounts.dismissed = tabDismissedCount;
   funnelCounts.newCount = totalNew;
+
+  // ── Pipeline donut: additional queries ───────────────────────────────────────
+  interface DonutRunRow {
+    job_id: string;
+    passed_initial_gate: boolean | null;
+    passed_final_gate: boolean | null;
+    ats_lift: number | null;
+    tailored_pdf_storage_path: string | null;
+    tailored_cv_storage_path: string | null;
+    created_at: string | null;
+  }
+  interface DonutLetterRow { job_id: string }
+
+  const activeJobRows   = allRows.filter((j) => !j.dismissed_at);
+  const allActiveJobIds = activeJobRows.map((j) => j.id);
+
+  const { data: runLogData } = await supabase
+    .from("run_logs")
+    .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, sources_saved")
+    .in("profile_id", ids);
+
+  const { data: donutRunData } = allActiveJobIds.length > 0
+    ? await supabase
+        .from("analysis_runs")
+        .select("job_id, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+        .in("job_id", allActiveJobIds)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false })
+    : { data: [] as DonutRunRow[] };
+
+  const { data: donutLetterData } = allActiveJobIds.length > 0
+    ? await supabase
+        .from("cover_letters")
+        .select("job_id")
+        .in("job_id", allActiveJobIds)
+        .eq("is_stale", false)
+    : { data: [] as DonutLetterRow[] };
+
+  // ── Lens data computation ─────────────────────────────────────────────────────
+
+  // Sourcing: aggregate run_logs lifetime totals per profile
+  interface RunLogRow {
+    profile_id: string;
+    jobs_fetched: number | null;
+    jobs_after_dedup: number | null;
+    jobs_saved: number | null;
+    sources_saved: Record<string, number> | null;
+  }
+  const srcMap: Record<string, { saved: number; dupes: number; filtered: number; sourcesSaved: Record<string, number> }> = {};
+  for (const r of (runLogData ?? []) as RunLogRow[]) {
+    const pid = r.profile_id;
+    if (!srcMap[pid]) srcMap[pid] = { saved: 0, dupes: 0, filtered: 0, sourcesSaved: {} };
+    const s        = srcMap[pid];
+    const fetched  = r.jobs_fetched    ?? 0;
+    const afterDed = r.jobs_after_dedup ?? 0;
+    const saved    = r.jobs_saved      ?? 0;
+    s.saved    += saved;
+    s.dupes    += Math.max(0, fetched - afterDed);
+    s.filtered += Math.max(0, afterDed - saved);
+    if (r.sources_saved) {
+      for (const [src, n] of Object.entries(r.sources_saved)) {
+        s.sourcesSaved[src] = (s.sourcesSaved[src] ?? 0) + n;
+      }
+    }
+  }
+  const srcVals          = Object.values(srcMap);
+  const sourcingFetched  = (runLogData ?? []).reduce<number>((a, r) => a + ((r as RunLogRow).jobs_fetched ?? 0), 0);
+  const sourcingTotals: [number, number, number] = [
+    srcVals.reduce((a, s) => a + s.saved,    0),
+    srcVals.reduce((a, s) => a + s.dupes,    0),
+    srcVals.reduce((a, s) => a + s.filtered, 0),
+  ];
+  const sourcingByProfile = ids
+    .filter((id) => srcMap[id])
+    .map((id) => ({
+      profileId:    id,
+      profileName:  profileNameById.get(id) ?? id,
+      counts:       [srcMap[id].saved, srcMap[id].dupes, srcMap[id].filtered] as [number, number, number],
+      sourcesSaved: srcMap[id].sourcesSaved,
+    }));
+
+  // JD readiness: from activeJobRows (already includes jd_quality)
+  const jdMap: Record<string, [number, number, number]> = {};
+  for (const j of activeJobRows) {
+    const pid = j.profile_id;
+    if (!jdMap[pid]) jdMap[pid] = [0, 0, 0];
+    if (j.jd_quality === "rich") jdMap[pid][0]++;
+    else if (j.jd_quality === "thin") jdMap[pid][1]++;
+    else jdMap[pid][2]++;
+  }
+  const jdTotals: [number, number, number] = [0, 0, 0];
+  for (const c of Object.values(jdMap)) { jdTotals[0] += c[0]; jdTotals[1] += c[1]; jdTotals[2] += c[2]; }
+  const jdByProfile = ids
+    .filter((id) => jdMap[id] && (jdMap[id][0] + jdMap[id][1] + jdMap[id][2]) > 0)
+    .map((id) => ({ profileId: id, profileName: profileNameById.get(id) ?? id, counts: jdMap[id] }));
+
+  // Analysis + ATS gates: from donut analysis_runs (all active jobs)
+  const latestDonutRunByJob = new Map<string, DonutRunRow>();
+  for (const r of (donutRunData ?? []) as DonutRunRow[]) {
+    if (!latestDonutRunByJob.has(r.job_id)) latestDonutRunByJob.set(r.job_id, r);
+  }
+  const letterJobIds = new Set(((donutLetterData ?? []) as DonutLetterRow[]).map((l) => l.job_id));
+
+  const analysisMap: Record<string, [number, number, number]> = {};
+  const atsMap:      Record<string, [number, number, number]> = {};
+  const appliedMap:  Record<string, [number, number, number]> = {};
+  for (const id of ids) { analysisMap[id] = [0, 0, 0]; atsMap[id] = [0, 0, 0]; appliedMap[id] = [0, 0, 0]; }
+
+  let atsLiftSum = 0, atsLiftCount = 0, passedButNoLetterCount = 0;
+
+  for (const j of activeJobRows) {
+    const pid      = j.profile_id;
+    const run      = latestDonutRunByJob.get(j.id);
+    const hasLetter = letterJobIds.has(j.id);
+    const hasCv    = !!(run?.tailored_pdf_storage_path || run?.tailored_cv_storage_path);
+
+    // Analysis lens
+    if (hasCv && hasLetter) analysisMap[pid][0]++;
+    else if (hasCv)         analysisMap[pid][1]++;
+    else                    analysisMap[pid][2]++;
+
+    // ATS lens (only jobs with runs)
+    if (run) {
+      if (run.passed_final_gate)        atsMap[pid][0]++;
+      else if (run.passed_initial_gate) atsMap[pid][1]++;
+      else                              atsMap[pid][2]++;
+      if (run.ats_lift !== null) { atsLiftSum += run.ats_lift; atsLiftCount++; }
+      if (run.passed_final_gate && !hasLetter && !j.applied_at) passedButNoLetterCount++;
+    }
+
+    // Applied lens
+    if (j.applied_at)      appliedMap[pid][0]++;
+    else if (hasLetter)    appliedMap[pid][1]++;
+    else                   appliedMap[pid][2]++;
+  }
+
+  const analysisTotals: [number, number, number] = [0, 0, 0];
+  for (const c of Object.values(analysisMap)) { analysisTotals[0] += c[0]; analysisTotals[1] += c[1]; analysisTotals[2] += c[2]; }
+  const atsTotals: [number, number, number] = [0, 0, 0];
+  for (const c of Object.values(atsMap)) { atsTotals[0] += c[0]; atsTotals[1] += c[1]; atsTotals[2] += c[2]; }
+  const appliedTotals: [number, number, number] = [0, 0, 0];
+  for (const c of Object.values(appliedMap)) { appliedTotals[0] += c[0]; appliedTotals[1] += c[1]; appliedTotals[2] += c[2]; }
+
+  const avgAtsLift = atsLiftCount > 0 ? Math.round(atsLiftSum / atsLiftCount) : null;
+
+  function mkProfiles(map: Record<string, [number, number, number]>) {
+    return ids
+      .filter((id) => map[id] && (map[id][0] + map[id][1] + map[id][2]) > 0)
+      .map((id) => ({ profileId: id, profileName: profileNameById.get(id) ?? id, counts: map[id] }));
+  }
+
+  const lensData: PipelineLensData = {
+    sourcing: { fetched: sourcingFetched, totals: sourcingTotals, byProfile: sourcingByProfile },
+    jd:       { totals: jdTotals, byProfile: jdByProfile },
+    analysis: { totals: analysisTotals, avgAtsLift, byProfile: mkProfiles(analysisMap) },
+    ats:      { totals: atsTotals, byProfile: mkProfiles(atsMap) },
+    applied:  { totals: appliedTotals, byProfile: mkProfiles(appliedMap) },
+    callouts: {
+      thinJdCount:        jdTotals[1],
+      passedButNoLetter:  passedButNoLetterCount,
+      readyToApply:       appliedTotals[1],
+    },
+  };
 
   const currentTab = currentStage;
 
@@ -352,6 +526,9 @@ export default async function DashboardPage({
           totalApplied={totalApplied}
           activeCount={activeCount}
         />
+
+        {/* ── Pipeline analytics donut ── */}
+        <PipelineDonut data={lensData} />
 
         {/* ── Unified jobs board ── */}
         <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2">

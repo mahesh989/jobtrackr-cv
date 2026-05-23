@@ -242,6 +242,8 @@ export default async function JobsPage({
     typedJobs = typedJobs.filter((j) => j.progress.has_tailored_cv);
   } else if (currentStage === "letterReady") {
     typedJobs = typedJobs.filter((j) => j.progress.has_cover_letter);
+  } else if (currentStage === "thinJd") {
+    typedJobs = typedJobs.filter((j) => j.jd_quality === "thin");
   }
   // applied + dismissed are handled server-side above
 
