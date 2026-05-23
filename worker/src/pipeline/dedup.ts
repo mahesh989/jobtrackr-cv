@@ -55,8 +55,6 @@ async function fetchExistingJobsForProfile(profileId: string): Promise<ExistingJ
     .from("jobs")
     .select("id, url_hash, title, company, location, source, description")
     .eq("profile_id", profileId)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false)
     .neq("dedup_status", "duplicate")  // already-dropped rows shouldn't influence new dedup
     .limit(5000);
   return (data ?? []) as ExistingJob[];
