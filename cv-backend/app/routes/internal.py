@@ -70,6 +70,12 @@ from app.schemas.cover_letter import (
     GenerateCoverLetterResponse,
     GenerateOpeningVariantsRequest,
     GenerateOpeningVariantsResponse,
+    VoiceRewriteEmailRequest,
+    VoiceRewriteEmailResponse,
+)
+from app.services.ai.prompts.cover_letter.voice_email import (
+    VOICE_EMAIL_SYSTEM,
+    VOICE_EMAIL_USER_TEMPLATE,
 )
 from app.services.cover_letter.generator import run_cover_letter_pipeline
 from app.services.cover_letter.variants import generate_opening_variants
@@ -527,3 +533,69 @@ async def generate_cover_letter(
     )
     background_tasks.add_task(run_cover_letter_pipeline, body)
     return GenerateCoverLetterResponse(letter_id=body.letter_id)
+
+
+# ── /internal/voice-rewrite-email ─────────────────────────────────────────────
+
+@router.post(
+    "/voice-rewrite-email",
+    response_model=VoiceRewriteEmailResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def voice_rewrite_email_endpoint(
+    body: VoiceRewriteEmailRequest,
+) -> VoiceRewriteEmailResponse:
+    """
+    Rewrite the SHORT email cover note that ships an application, in the
+    candidate's voice. Synchronous — one AI call, returns the body text.
+
+    The web tier calls this from /api/applications/[letter_id]/email-draft
+    when the cached email_body is null and a voice_sample_raw exists. The
+    result is cached in cover_letters.email_body so subsequent draft loads
+    are instant.
+
+    PRIVACY: body.voice_sample_text must not appear in logs.
+    """
+    logger.info(
+        "voice-rewrite-email: user=%s letter=%s provider=%s job_title=%r company=%r",
+        body.user_id, body.letter_id, body.ai_provider, body.job_title, body.company,
+    )
+
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid AI client configuration: {exc}",
+        ) from exc
+
+    user_prompt = VOICE_EMAIL_USER_TEMPLATE.format(
+        voice_sample=body.voice_sample_text,
+        job_title=body.job_title,
+        company=body.company,
+        hiring_manager=body.hiring_manager or "(unknown — use a neutral greeting)",
+        user_name=body.user_name or "(unknown — omit name in signoff if not provided)",
+    )
+
+    try:
+        rewritten = await ai_client.complete(
+            system=VOICE_EMAIL_SYSTEM,
+            user=user_prompt,
+            max_tokens=800,
+            temperature=0.5,    # warmer than 0.3 so the voice feels lived-in
+            no_training=True,
+        )
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Voice rewrite failed: {exc}",
+        ) from exc
+
+    cleaned = rewritten.strip()
+    if not cleaned:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Voice rewrite returned empty body",
+        )
+
+    return VoiceRewriteEmailResponse(body=cleaned)

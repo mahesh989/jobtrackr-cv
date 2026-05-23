@@ -449,3 +449,34 @@ export function generateCoverLetter(
     { timeoutMs: 30_000 },
   );
 }
+
+// ── Voice-rewrite email body ──────────────────────────────────────────────────
+
+export interface VoiceRewriteEmailPayload {
+  user_id:           string;
+  letter_id:         string;
+  job_title:         string;
+  company:           string;
+  hiring_manager?:   string | null;
+  user_name?:        string | null;
+  /** Verbatim writing sample. Never log this field. */
+  voice_sample_text: string;
+  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_api_key:        string;
+  ai_model?:         string;
+}
+
+export interface VoiceRewriteEmailResult {
+  body: string;
+}
+
+export function voiceRewriteEmail(
+  payload: VoiceRewriteEmailPayload,
+): Promise<VoiceRewriteEmailResult> {
+  return callCvBackend<VoiceRewriteEmailResult>(
+    "/internal/voice-rewrite-email",
+    payload,
+    // Synchronous AI call — single short body. Typical latency 3-8 s.
+    { timeoutMs: 30_000 },
+  );
+}

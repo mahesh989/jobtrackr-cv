@@ -166,3 +166,38 @@ class GenerateOpeningVariantsResponse(BaseModel):
     variants: List[OpeningVariant] = Field(
         description="3-4 structurally distinct P1 openers, one per named pattern"
     )
+
+
+# ── /internal/voice-rewrite-email ─────────────────────────────────────────────
+
+
+class VoiceRewriteEmailRequest(BaseModel):
+    """
+    Request body for POST /internal/voice-rewrite-email.
+
+    The web tier calls this once per cover_letter when the user first opens
+    the compose modal — the rewritten body is cached in
+    cover_letters.email_body so subsequent modal opens are instant.
+
+    PRIVACY: voice_sample_text must not appear in logs.
+    """
+
+    user_id:           str = Field(description="User UUID — logged for audit")
+    letter_id:         str = Field(description="Cover letter UUID — logged for audit")
+
+    job_title:         str = Field(min_length=1)
+    company:           str = Field(min_length=1)
+    hiring_manager:    Optional[str] = Field(default=None)
+    user_name:         Optional[str] = Field(default=None)
+
+    voice_sample_text: str = Field(min_length=1, description="Verbatim writing sample. NEVER logged.")
+
+    ai_provider: Provider
+    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
+    ai_model:    Optional[str] = Field(default=None)
+
+
+class VoiceRewriteEmailResponse(BaseModel):
+    """Response from POST /internal/voice-rewrite-email."""
+
+    body: str = Field(min_length=1, description="The rewritten email body text. No subject line, no markdown.")

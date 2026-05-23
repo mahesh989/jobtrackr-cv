@@ -13,6 +13,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
+import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { voiceRewriteEmail }         from "@/lib/cvBackend";
+
+const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
+type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 interface ContactDetails {
   name?: string;
@@ -103,9 +108,7 @@ export async function GET(
   }
   const hasTailoredCv = !!cvMarkdown;
 
-  // 5. Build the default draft — but if the user has already reviewed and
-  //    saved a subject/body, prefer those so the modal shows what they
-  //    approved earlier rather than throwing it away on re-open.
+  // 5. Build the default subject/body.
   const defaults = buildDefaultEmailDraft({
     jobTitle:      job.title,
     company:       job.company,
@@ -113,7 +116,92 @@ export async function GET(
     userName,
   });
   const subject = (letter.email_subject ?? "").trim() || defaults.subject;
-  const body    = letter.email_body ?? defaults.body;
+
+  // 5b. Body resolution. Three tiers, highest priority first:
+  //
+  //   (1) letter.email_body — already cached. Either the user approved
+  //       it during review, or a previous email-draft load voice-rewrote
+  //       it. Either way we trust the cache and don't re-run the AI.
+  //
+  //   (2) voice-rewritten boilerplate. If a voice_sample_raw is on file
+  //       AND the user has an AI key, ask cv-backend to rewrite the
+  //       default boilerplate in their voice. Cache in letter.email_body
+  //       so subsequent loads are instant. Failure here is non-fatal —
+  //       we silently drop to tier 3.
+  //
+  //   (3) buildDefaultEmailDraft boilerplate — the generic professional
+  //       template. Used when no voice sample / no AI key, or when the
+  //       voice rewrite fails.
+  //
+  // voice_sample_raw + ai keys are fetched ONLY when we'd actually use
+  // them (i.e. tier 1 missed). Keeps the happy-path load fast.
+  let body: string = letter.email_body ?? "";
+  let voiceRewritten = !!letter.email_body;  // assume cached implies rewritten
+
+  if (!body) {
+    body = defaults.body;
+    voiceRewritten = false;
+
+    // Try the voice rewrite.
+    const [{ data: voiceRow }, { data: keyRows }] = await Promise.all([
+      admin
+        .from("voice_profiles")
+        .select("voice_sample_raw")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      admin
+        .from("user_integrations")
+        .select("provider, encrypted_api_key, config")
+        .eq("user_id", user.id)
+        .eq("status", "valid")
+        .eq("is_enabled", true)
+        .in("provider", PROVIDER_PRIORITY as unknown as string[]),
+    ]);
+
+    const voiceSample = (voiceRow?.voice_sample_raw ?? "").trim();
+    const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
+    for (const row of (keyRows ?? []) as Array<{
+      provider: Provider;
+      encrypted_api_key: string;
+      config: { model?: string } | null;
+    }>) {
+      keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
+    }
+    const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
+    if (voiceSample && chosen) {
+      try {
+        const entry  = keyByProvider.get(chosen)!;
+        const apiKey = decryptApiKey(entry.encrypted);
+        const result = await voiceRewriteEmail({
+          user_id:           user.id,
+          letter_id:         letter.id,
+          job_title:         job.title ?? "the role",
+          company:           job.company ?? "your organisation",
+          hiring_manager:    job.hiring_manager ?? null,
+          user_name:         userName,
+          voice_sample_text: voiceSample,
+          ai_provider:       chosen,
+          ai_api_key:        apiKey,
+          ai_model:          entry.model ?? undefined,
+        });
+        const rewritten = (result.body ?? "").trim();
+        if (rewritten) {
+          body = rewritten;
+          voiceRewritten = true;
+          // Cache it. We DO NOT touch reviewed_at — the user hasn't
+          // approved yet; this is just a smarter default.
+          await admin
+            .from("cover_letters")
+            .update({ email_body: rewritten })
+            .eq("id", letter.id);
+        }
+      } catch (err) {
+        // Non-fatal — boilerplate fallback is already loaded above.
+        console.warn("[email-draft] voice rewrite failed, falling back to boilerplate:", err);
+      }
+    }
+  }
 
   // toDisplay is the human-readable "To:" string shown in the modal. When no
   // contact_email is set, return a placeholder rather than the literal
@@ -137,6 +225,7 @@ export async function GET(
     body,
     attachments,
     has_tailored_cv: hasTailoredCv,
+    voice_rewritten: voiceRewritten,
     reviewed_at:     letter.reviewed_at,
     // Payload for client-side CV PDF render. Both null = modal sends with
     // cover letter only (no CV attached). Strips the projects sub-array

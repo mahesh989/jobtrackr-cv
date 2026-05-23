@@ -16,6 +16,7 @@ interface Draft {
   body:            string;
   attachments:     string[];
   has_tailored_cv: boolean;
+  voice_rewritten: boolean;
   cv_markdown:     string | null;
   contact_details: ContactDetails | null;
 }
@@ -252,7 +253,12 @@ export function ComposeEmailModal({
         <div className="px-5 py-4 flex-1 overflow-y-auto space-y-3">
           {loading ? (
             <div className="py-10 flex items-center justify-center text-text-3 text-[12px]">
-              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading draft…
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              {/* First-time load triggers an AI voice rewrite on the server.
+                  We don't know in advance whether the rewrite will run
+                  (depends on whether a voice sample + AI key exist), so the
+                  copy is intentionally general. */}
+              Loading draft (personalising in your voice if possible)…
             </div>
           ) : draft ? (
             <>
@@ -293,9 +299,19 @@ export function ComposeEmailModal({
 
               {/* Body (editable) */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">
-                  Message
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3">
+                    Message
+                  </label>
+                  {draft.voice_rewritten && (
+                    <span
+                      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      title="The default body has been rewritten to match the voice sample you saved in Settings"
+                    >
+                      Personalised in your voice
+                    </span>
+                  )}
+                </div>
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
