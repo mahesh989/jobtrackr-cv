@@ -142,6 +142,8 @@ export default async function DashboardPage({
 
   if (sp.location) q = q.ilike("location", `%${sp.location}%`);
 
+  if (sp.source) q = q.eq("source", sp.source);
+
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
     if (!isNaN(days)) {
@@ -571,6 +573,15 @@ export default async function DashboardPage({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
+              {sp.source && (
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2 hover:text-text transition-colors"
+                >
+                  <span className="capitalize">Source: {sp.source}</span>
+                  <span aria-hidden>✕</span>
+                </Link>
+              )}
             </div>
           </div>
 

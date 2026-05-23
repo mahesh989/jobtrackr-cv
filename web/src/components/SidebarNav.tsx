@@ -113,6 +113,7 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
         </div>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
+        <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>
 
         {/* My profiles — single nav entry (NOT a per-profile list anymore).
             The full table with each profile's stats / Run / Jobs / Copy /
