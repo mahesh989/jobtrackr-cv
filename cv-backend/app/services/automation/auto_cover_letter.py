@@ -137,6 +137,15 @@ async def auto_generate_cover_letter(
             pass  # generic fallback is fine
 
         # ── 6. Create cover_letters row ───────────────────────────────────────
+        # Column list MUST match the cover_letters schema (migration 025 +
+        # subsequent ALTERs). Notably:
+        #   • ai_provider — NOT NULL, required.
+        #   • There is NO `ai_model` column on this table. The chosen model is
+        #     forwarded via the payload below and written by the generator into
+        #     pass_1_model / pass_2_model / pass_3_model after each pass runs.
+        #     Adding "ai_model" here causes PostgreSQL 42703 ("column does not
+        #     exist") on every auto attempt, swallowed by the broad try/except,
+        #     so the symptom is "passed final gate but no letter ever appears".
         letter_id = str(uuid.uuid4())
         sb.table(_COVER_LETTERS).insert({
             "id":              letter_id,
@@ -145,8 +154,7 @@ async def auto_generate_cover_letter(
             "analysis_run_id": run_id,
             "status":          "generating",
             "is_stale":        False,
-            "ai_provider":     ai_provider,   # NOT NULL — was missing, broke auto path
-            "ai_model":        ai_model,
+            "ai_provider":     ai_provider,
         }).execute()
 
         # ── 7. Build payload and run pipeline ─────────────────────────────────
