@@ -676,20 +676,30 @@ export default async function DashboardPage({
           {/* Smoothly scrolls here whenever a filter/sort changes. */}
           <Suspense><ScrollToJobsOnFilter /></Suspense>
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-[14px] font-semibold text-text">
-                {activeFilters.length > 0 ? `Jobs · ${activeFilters.join(" · ")}` : "All jobs across profiles"}
-              </h2>
-              <span className="text-[12px] text-text-3">{typedJobs.length}</span>
-              {activeFilters.length > 0 && (
-                <Link
-                  href="/dashboard"
-                  scroll={false}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2 hover:text-text transition-colors"
-                >
-                  <span>Clear filter</span>
-                  <span aria-hidden>✕</span>
-                </Link>
+            <div className="flex items-baseline gap-2.5 flex-wrap">
+              {activeFilters.length > 0 ? (
+                <>
+                  <h2 className="text-[24px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
+                    {activeFilters.join(" · ")}
+                  </h2>
+                  <span className="text-[20px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
+                    {typedJobs.length}
+                  </span>
+                  <Link
+                    href="/dashboard"
+                    scroll={false}
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/40 px-2.5 py-0.5 text-[12px] font-medium hover:bg-[var(--surface-2)] transition-colors"
+                    style={{ color: "var(--brand)" }}
+                  >
+                    <span>Clear filter</span>
+                    <span aria-hidden>✕</span>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
+                  <span className="text-[12px] text-text-3">{typedJobs.length}</span>
+                </>
               )}
               {sp.source && (
                 <Link
