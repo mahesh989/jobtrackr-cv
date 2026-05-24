@@ -37,10 +37,10 @@ import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 
 interface FullProfile extends SearchProfile {
   user_id: string;
-  // Phase A automation config (Migration 031 column defaults: false / 55 / 75)
+  // Phase A automation config. min_initial_ats / min_final_ats were dropped
+  // from search_profiles in migration 041 — global constants now (60 / 70)
+  // enforced by cv-backend AnalyzeRequest defaults.
   automation_enabled:      boolean;
-  min_initial_ats:         number;
-  min_final_ats:           number;
 }
 
 // ── Integration types ──────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, min_initial_ats, min_final_ats, enabled_sources, seek_method")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, enabled_sources, seek_method")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -627,9 +627,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 13 — auto-analyze ${savedIds.length} jobs (automation_enabled=true)`);
       try {
         const result = await autoAnalyzeBatch(savedIds, {
-          user_id:         profile.user_id,
-          min_initial_ats: profile.min_initial_ats,
-          min_final_ats:   profile.min_final_ats,
+          user_id: profile.user_id,
+          // Gate thresholds are global (60/70 since migration 041) —
+          // enforced by cv-backend defaults, not passed per-profile.
         });
         console.log(`[pipeline] stage 13 — triggered ${result.triggered}, skipped ${result.skipped}`);
       } catch (err) {

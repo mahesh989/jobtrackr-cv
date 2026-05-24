@@ -44,12 +44,13 @@ class AnalyzeRequest(BaseModel):
     # canonical contact info.
     contact_details: Optional[Dict[str, Any]] = None
 
-    # Pipeline-automation gate thresholds (Phase A / C-2). Per-profile,
-    # forwarded by /api/jobs/[id]/analyze from the search_profiles row.
-    # Defaults mirror Migration 031 column defaults so older callers and
-    # backward-compat tests continue to work.
-    min_initial_ats: float = 55
-    min_final_ats:   float = 75
+    # Pipeline-automation gate thresholds. Globally fixed by migration 041
+    # (was per-profile, now uniform 60 / 70). Web and worker no longer send
+    # these in the payload — the defaults below ARE the rule. Kept as
+    # optional fields for backward compat with any caller that still sends
+    # them, but the value should always be 60 / 70.
+    min_initial_ats: float = 60
+    min_final_ats:   float = 70
 
     # Phase C-3 — override flag. When False (default), the orchestrator
     # STOPS before tailoring if the initial ATS score is below

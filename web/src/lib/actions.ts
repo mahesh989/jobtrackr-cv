@@ -49,10 +49,10 @@ function extractAutomationFields(formData: FormData) {
     return Math.min(max, Math.max(min, n));
   }
 
+  // min_initial_ats / min_final_ats are no longer per-profile (migration 041);
+  // global constants in lib/atsThresholds. Do not include them in writes.
   return {
     automation_enabled:      formData.get("automation_enabled") === "on",
-    min_initial_ats:         clampInt(formData.get("min_initial_ats"),       55,  0, 100),
-    min_final_ats:           clampInt(formData.get("min_final_ats"),         75,  0, 100),
     role_match_strict:       formData.get("role_match_strict") === "on",
     auto_send_emails:        allowedSend.has(autoSend) ? autoSend : "never",
     daily_application_limit: clampInt(formData.get("daily_application_limit"), 10, 0, 1000),

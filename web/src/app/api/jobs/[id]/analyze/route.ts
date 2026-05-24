@@ -94,11 +94,12 @@ export async function POST(
     );
   }
 
-  // Ownership: job → profile → user. Also pull the gate thresholds so we
-  // can forward them to cv-backend (Phase C-2 — record-only gates).
+  // Ownership: job → profile → user. Per-profile gate thresholds were
+  // removed in migration 041 — the rule is now globally 60/70 enforced
+  // by cv-backend defaults + lib/atsThresholds.
   const { data: profile } = await admin
     .from("search_profiles")
-    .select("user_id, min_initial_ats, min_final_ats")
+    .select("user_id")
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
@@ -288,8 +289,8 @@ export async function POST(
       ai_api_key:     aiApiKey,
       ai_model:       aiModel,
       contact_details: contactForBackend,
-      min_initial_ats: profile.min_initial_ats as number | undefined,
-      min_final_ats:   profile.min_final_ats   as number | undefined,
+      // Gate thresholds are global 60/70 since migration 041 — defined by
+      // cv-backend's AnalyzeRequest defaults. We omit them here on purpose.
       // Phase C-3 — override forces tailoring even if initial gate fails.
       skip_initial_gate: override === "initial_gate" || override === "all",
     });

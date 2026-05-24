@@ -19,6 +19,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SetupGuide } from "@/components/onboarding/SetupGuide";
@@ -81,25 +82,23 @@ export default async function DashboardPage({
 
   const { data: profileRows } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, location, schedule_cron, min_initial_ats, min_final_ats")
+    .select("id, name, is_active, keywords, location, schedule_cron")
     .order("created_at", { ascending: false });
 
   const profiles = (profileRows ?? []) as Array<{
     id: string; name: string; is_active: boolean;
     keywords: string[]; location: string; schedule_cron: string;
-    min_initial_ats: number | null; min_final_ats: number | null;
   }>;
   const ids = profiles.map((p) => p.id);
 
-  // Per-profile ATS thresholds, used to recompute gate buckets LIVE from stored
-  // scores (so changing a threshold updates the graph/chips without re-analysis).
-  const DEFAULT_MIN_INITIAL = 55;
-  const DEFAULT_MIN_FINAL   = 75;
+  // ATS thresholds are global (migration 041). Same value for every profile.
+  // The threshold map remains in shape so downstream code that looked up
+  // per-profile values keeps working without restructuring; values are
+  // identical for every entry.
+  const DEFAULT_MIN_INITIAL = MIN_INITIAL_ATS;
+  const DEFAULT_MIN_FINAL   = MIN_FINAL_ATS;
   const threshByProfile = new Map<string, { initial: number; final: number }>(
-    profiles.map((p) => [p.id, {
-      initial: p.min_initial_ats ?? DEFAULT_MIN_INITIAL,
-      final:   p.min_final_ats   ?? DEFAULT_MIN_FINAL,
-    }]),
+    profiles.map((p) => [p.id, { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS }]),
   );
 
   // ── First-run gate ────────────────────────────────────────────────────────
@@ -579,18 +578,9 @@ export default async function DashboardPage({
       .map((id) => ({ profileId: id, profileName: profileNameById.get(id) ?? id, counts: map[id] }));
   }
 
-  // Representative thresholds for the ATS-gate labels: the most common value
-  // across profiles (so the labels read e.g. "≥ 70" / "50–69" / "< 50").
-  function mode(nums: number[], fallback: number): number {
-    if (nums.length === 0) return fallback;
-    const counts = new Map<number, number>();
-    for (const n of nums) counts.set(n, (counts.get(n) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  }
-  const atsThresholds = {
-    initial: mode(profiles.map((p) => p.min_initial_ats ?? DEFAULT_MIN_INITIAL), DEFAULT_MIN_INITIAL),
-    final:   mode(profiles.map((p) => p.min_final_ats   ?? DEFAULT_MIN_FINAL),   DEFAULT_MIN_FINAL),
-  };
+  // Global thresholds since migration 041. Previously this was computed as
+  // the mode across per-profile values; now it's a constant.
+  const atsThresholds = { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
 
   const lensData: PipelineLensData = {
     sourcing: { fetched: sourcingFetched, totals: sourcingTotals, byProfile: sourcingByProfile },

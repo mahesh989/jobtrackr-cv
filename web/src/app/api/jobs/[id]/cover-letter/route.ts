@@ -35,6 +35,7 @@ import { NextRequest, NextResponse }                      from "next/server";
 import { createClient }                                    from "@/lib/supabase/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
 import { decryptApiKey }                                   from "@/lib/integrations/crypto";
+import { MIN_FINAL_ATS }                                   from "@/lib/atsThresholds";
 import {
   generateCoverLetter,
   generateOpeningVariants,
@@ -145,19 +146,13 @@ export async function POST(
       .maybeSingle();
 
     if (latestRun?.passed_final_gate === false) {
-      // Fetch the profile threshold so the UI message can show the user
-      // the actual number they configured (not the default 75).
-      const { data: profileThresholdRow } = await admin
-        .from("search_profiles")
-        .select("min_final_ats")
-        .eq("id", job.profile_id)
-        .maybeSingle();
-      const threshold      = (profileThresholdRow?.min_final_ats as number | undefined) ?? 75;
+      // Global threshold since migration 041 — see lib/atsThresholds.
+      const threshold      = MIN_FINAL_ATS;
       const tailoredScore  = latestRun.tailored_match_score as number | null;
       return NextResponse.json(
         {
           error:
-            `Tailored CV scored ${tailoredScore ?? "—"}, below your final-ATS threshold of ${threshold}. ` +
+            `Tailored CV scored ${tailoredScore ?? "—"}, below the final-ATS threshold of ${threshold}. ` +
             `A cover letter built on a low tailored score rarely wins interviews. Generate anyway?`,
           action:         "below_final_gate",
           tailored_score: tailoredScore,

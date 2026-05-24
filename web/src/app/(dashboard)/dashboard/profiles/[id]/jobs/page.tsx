@@ -19,6 +19,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
 import { RunNowButton } from "@/components/RunNowButton";
@@ -85,16 +86,12 @@ export default async function JobsPage({
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, schedule_cron, min_initial_ats, min_final_ats")
+    .select("id, name, is_active, keywords, schedule_cron")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
 
-  // ATS thresholds for live gate recompute (so badges/chip reflect changes
-  // without re-analysis). Single profile here.
-  const th = {
-    initial: (profile.min_initial_ats as number | null) ?? 55,
-    final:   (profile.min_final_ats   as number | null) ?? 75,
-  };
+  // Global ATS thresholds since migration 041.
+  const th = { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
 
   const { data: activeRun } = await supabase
     .from("run_logs")

@@ -29,8 +29,7 @@ interface Props {
     seek_method?: string;
     // Phase A automation config (defaults match Migration 031 column defaults)
     automation_enabled?:       boolean;
-    min_initial_ats?:          number;
-    min_final_ats?:            number;
+    // min_initial_ats / min_final_ats removed in migration 041 — global now.
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
     daily_application_limit?:  number;
@@ -308,41 +307,15 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         {automationOn && (
           <div className="pt-4 border-t border-[var(--border)] space-y-4">
 
-            {/* Initial ATS gate */}
-            <div>
-              <label className="block text-[12px] font-semibold text-text mb-1.5">
-                Initial ATS threshold <span className="font-normal text-text-2">(skip tailoring below this score)</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number" name="min_initial_ats"
-                  min="0" max="100" step="1"
-                  defaultValue={defaults?.min_initial_ats ?? 55}
-                  className="field text-center w-20"
-                />
-                <span className="text-[12px] text-text-2">/ 100</span>
-              </div>
-              <p className="text-[11px] text-text-2 mt-1.5">
-                After JD analysis, if the match score is below this, the pipeline stops. Saves the tailored-CV + cover-letter AI calls (~3 calls per job). Default <strong>55</strong>.
-              </p>
-            </div>
-
-            {/* Final ATS gate */}
-            <div>
-              <label className="block text-[12px] font-semibold text-text mb-1.5">
-                Final ATS threshold <span className="font-normal text-text-2">(skip cover letter below this score)</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number" name="min_final_ats"
-                  min="0" max="100" step="1"
-                  defaultValue={defaults?.min_final_ats ?? 75}
-                  className="field text-center w-20"
-                />
-                <span className="text-[12px] text-text-2">/ 100</span>
-              </div>
-              <p className="text-[11px] text-text-2 mt-1.5">
-                After tailoring, if the new score is below this, no cover letter is generated. Saves the cover-letter AI calls (~2 calls per job). Default <strong>75</strong>.
+            {/* ATS thresholds are global since migration 041 (initial 60,
+                final 70). The per-profile inputs were removed to keep the
+                rule predictable across the whole app — set in lib/atsThresholds. */}
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
+              <p className="text-[12px] font-semibold text-text mb-1">ATS gates</p>
+              <p className="text-[11px] text-text-2 leading-relaxed">
+                Initial gate <strong>60</strong> — runs below this score stop before tailoring (saves ~3 AI calls).<br/>
+                Final gate <strong>70</strong> — tailored CVs at or above this auto-trigger cover letter generation.<br/>
+                <span className="text-text-3">These thresholds are global; the per-profile sliders were retired in May 2026.</span>
               </p>
             </div>
 
@@ -410,11 +383,11 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         )}
 
         {/* When the toggle is OFF we still submit the hidden fields so
-            edits don't clobber existing values. */}
+            edits don't clobber existing values. min_initial_ats / min_final_ats
+            were dropped from search_profiles in migration 041 — they're global
+            constants now (see lib/atsThresholds). */}
         {!automationOn && (
           <>
-            <input type="hidden" name="min_initial_ats"         value={defaults?.min_initial_ats         ?? 55} />
-            <input type="hidden" name="min_final_ats"           value={defaults?.min_final_ats           ?? 75} />
             <input type="hidden" name="auto_send_emails"        value={defaults?.auto_send_emails        ?? "never"} />
             <input type="hidden" name="daily_application_limit" value={defaults?.daily_application_limit ?? 10} />
             {(defaults?.role_match_strict ?? false) && (

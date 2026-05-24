@@ -32,9 +32,9 @@ const JD_MIN_USABLE = 2000;  // chars — below this, JD is too thin for reliabl
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
 
 interface ProfileThresholds {
-  user_id:         string;
-  min_initial_ats: number;
-  min_final_ats:   number;
+  user_id: string;
+  // min_initial_ats / min_final_ats removed in migration 041 — global now,
+  // enforced by cv-backend AnalyzeRequest defaults (60 / 70).
 }
 
 /**
@@ -190,8 +190,8 @@ export async function triggerAutoAnalyze(
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
       contact_details:   null,
-      min_initial_ats:   profile.min_initial_ats,
-      min_final_ats:     profile.min_final_ats,
+      // Gate thresholds are globally fixed at 60 / 70 since migration 041
+      // — cv-backend AnalyzeRequest defaults match. Omit here on purpose.
       skip_initial_gate: false,
       automation:        true,
     });

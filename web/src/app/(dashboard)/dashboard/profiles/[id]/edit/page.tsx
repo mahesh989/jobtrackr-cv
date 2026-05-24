@@ -35,8 +35,6 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     enabled_sources?:          string[] | null;
     seek_method?:              string;
     automation_enabled?:       boolean;
-    min_initial_ats?:          number;
-    min_final_ats?:            number;
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
     daily_application_limit?:  number;
@@ -98,8 +96,6 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 enabled_sources:         profile.enabled_sources,
                 seek_method:             profile.seek_method,
                 automation_enabled:      profile.automation_enabled,
-                min_initial_ats:         profile.min_initial_ats,
-                min_final_ats:           profile.min_final_ats,
                 role_match_strict:       profile.role_match_strict,
                 auto_send_emails:        profile.auto_send_emails,
                 daily_application_limit: profile.daily_application_limit,
