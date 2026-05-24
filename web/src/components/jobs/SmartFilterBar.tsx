@@ -11,6 +11,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition, useState } from "react";
 import { X, ShieldCheck, ArrowUpDown, Loader2 } from "lucide-react";
+import { shallowSetParams } from "./shallowNav";
 
 const SORT_OPTIONS = [
   { value: "posted_at",           label: "Date posted" },
@@ -42,22 +43,37 @@ const ATS_OPTIONS = [
   { value: "no_ats",        label: "No ATS" },
 ] as const;
 
+// View filters that can be applied instantly client-side on the dashboard
+// (no server refetch). Everything else (location / time / source) narrows the
+// fetched dataset and must hit the server.
+const SHALLOW_KEYS = new Set(["ats", "sort", "dir", "min_keywords", "visa_toggle"]);
+
 export function SmartFilterBar({
   total,
   showKeywords = true,
   showAtsFilter = false,
+  shallow = false,
 }: {
   total: number;
   /** Show the "min keywords matched" dropdown (per-profile board). */
   showKeywords?: boolean;
   /** Show the ATS-score band dropdown (main dashboard). */
   showAtsFilter?: boolean;
+  /** Dashboard board: apply view filters instantly via the History API. */
+  shallow?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
   const spStr = sp.toString();
   const [isPending, startTransition] = useTransition();
+
+  // Commit params either shallow (client-only, instant) for view filters, or
+  // via the router (server refetch) for dataset-narrowing filters.
+  function commit(params: URLSearchParams, key: string) {
+    if (shallow && SHALLOW_KEYS.has(key)) shallowSetParams(pathname, params);
+    else startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+  }
 
   // Optimistic control values. A controlled <select value={urlParam}> only
   // updates after the server round-trip lands the new searchParams, so the
@@ -85,7 +101,7 @@ export function SmartFilterBar({
     else params.delete(key);
     // scroll:false — let ScrollToJobsOnFilter handle the smooth move to the
     // results table instead of Next's default jump-to-top.
-    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    commit(params, key);
   }
 
   function setSort(sort: string) {
@@ -94,7 +110,7 @@ export function SmartFilterBar({
     const params = new URLSearchParams(spStr);
     params.set("sort", sort);
     params.set("dir", nextDir);
-    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    commit(params, "sort");
   }
 
   function removeFilter(key: string) {

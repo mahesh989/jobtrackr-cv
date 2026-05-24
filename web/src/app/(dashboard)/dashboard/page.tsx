@@ -24,14 +24,14 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { SetupGuide } from "@/components/onboarding/SetupGuide";
 import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
-import { BulkThinJdButton, type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
+import { type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
-import { JobTable, type Job } from "@/components/jobs/JobTable";
-import { PipelineFunnel, type FunnelCounts } from "@/components/jobs/PipelineFunnel";
-import { SmartFilterBar } from "@/components/jobs/SmartFilterBar";
+import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
-import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
+import { type RailJob } from "@/components/jobs/ContinueRail";
+import { JobBoard } from "@/components/jobs/JobBoard";
+import { atsBandFor, type BoardJob } from "@/components/jobs/jobFilters";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
 import {
   deriveProgress,
@@ -151,8 +151,9 @@ export default async function DashboardPage({
   const activeCount  = profiles.filter((p) => p.is_active).length;
 
   // ── Resolve stage from URL params ─────────────────────────────────────────
+  // Only the dismissed/non-dismissed split is server-relevant now; the rest of
+  // the view filters are applied client-side in <JobBoard>.
   const currentStage = resolveStage(sp);
-  const currentTriage = sp.triage || "";
 
   // ── Unified jobs board: data fetch ───────────────────────────────────────
   let q = supabase
@@ -162,14 +163,15 @@ export default async function DashboardPage({
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  // Stage-based server-side filtering
-  if (currentStage === "applied")        q = q.not("applied_at", "is", null);
-  else if (currentStage === "dismissed") q = q.not("dismissed_at", "is", null);
-  else                                   q = q.is("dismissed_at", null);
+  // Stage-based server-side filtering. Only the dismissed/non-dismissed split
+  // changes WHICH jobs are fetched; "applied" and every other stage/triage/ATS
+  // filter is now applied instantly client-side in <JobBoard>.
+  if (currentStage === "dismissed") q = q.not("dismissed_at", "is", null);
+  else                              q = q.is("dismissed_at", null);
 
+  // Dataset-narrowing filters stay server-side (they decide the capped set).
   if (sp.location) q = q.ilike("location", `%${sp.location}%`);
-
-  if (sp.source) q = q.eq("source", sp.source);
+  if (sp.source)   q = q.eq("source", sp.source);
 
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
@@ -180,25 +182,12 @@ export default async function DashboardPage({
     }
   }
 
-  const sortCol = sp.sort ?? "posted_at";
-  const sortDir = sp.dir === "asc";
-  const allowed = ["title", "company", "location", "posted_at", "created_at", "visa_likelihood"];
-  q = allowed.includes(sortCol)
-    ? q.order(sortCol, { ascending: sortDir, nullsFirst: false })
-    : q.order("posted_at", { ascending: false, nullsFirst: false });
-
-  q = q.limit(200);
+  // Stable cap ordering — the client sorts the loaded set per the user's choice.
+  q = q.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
   const { data: jobs } = await q;
-  let jobList = (jobs ?? []) as Array<{
+  const jobList = (jobs ?? []) as Array<{
     id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
   }>;
-
-  if (sp.min_keywords) {
-    const minK = parseInt(sp.min_keywords, 10);
-    if (!isNaN(minK)) {
-      jobList = jobList.filter((j) => ((j.keywords_matched as string[] | null)?.length ?? 0) >= minK);
-    }
-  }
 
   const jobIds = jobList.map((j) => j.id);
 
@@ -223,7 +212,7 @@ export default async function DashboardPage({
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
 
-  let typedJobs: Job[] = jobList.map((j) => {
+  const typedJobs: BoardJob[] = jobList.map((j) => {
     const run    = runByJob.get(j.id);
     const letter = letterByJob.get(j.id);
     const progress = deriveProgress(
@@ -234,11 +223,9 @@ export default async function DashboardPage({
     // Recompute gates LIVE from stored scores vs this profile's current
     // thresholds, so state badges reflect threshold changes without re-analysis.
     const th = threshByProfile.get(j.profile_id) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
-    const liveRun = run
-      ? (() => {
-          const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
-          return { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal };
-        })()
+    const g = run ? recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final) : null;
+    const liveRun = run && g
+      ? { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal }
       : run;
     const pipelineState = derivePipelineState({
       job: {
@@ -251,11 +238,15 @@ export default async function DashboardPage({
       latestRun:    liveRun,
       latestLetter: letter,
     });
+    // Precompute the ATS band so the client can filter by it without re-deriving
+    // gates (mirrors the donut's ATS lens buckets exactly).
+    const atsBand = atsBandFor(!!run, g?.passedInitial ?? null, g?.passedFinal ?? null);
     return {
-      ...(j as unknown as Job),
+      ...(j as unknown as BoardJob),
       profile_name: profileNameById.get(j.profile_id) ?? null,
       progress,
       pipelineState,
+      atsBand,
     };
   });
 
@@ -291,77 +282,10 @@ export default async function DashboardPage({
       progress:   x.progress,
     }));
 
-  // ── Stage filter (replaces old chip filter) ──────────────────────────────
-  if (currentStage === "analysed") {
-    typedJobs = typedJobs.filter((x) => x.progress.has_analysis);
-  } else if (currentStage === "cvReady") {
-    typedJobs = typedJobs.filter((x) => x.progress.has_tailored_cv);
-  } else if (currentStage === "letterReady") {
-    typedJobs = typedJobs.filter((x) => x.progress.has_cover_letter);
-  } else if (currentStage === "thinJd") {
-    typedJobs = typedJobs.filter((x) => x.jd_quality === "thin");
-  }
-  // applied + dismissed are handled server-side above
-
-  // ── Triage sub-filter ────────────────────────────────────────────────────
-  if (currentTriage === "needsJd" || currentTriage === "thinJd") {
-    typedJobs = typedJobs.filter((x) => x.jd_quality === "thin");
-  } else if (currentTriage === "richJd") {
-    typedJobs = typedJobs.filter((x) => x.jd_quality === "rich");
-  } else if (currentTriage === "roleMismatch") {
-    typedJobs = typedJobs.filter((x) => x.role_match === "mismatch");
-  } else if (currentTriage === "belowThreshold") {
-    typedJobs = typedJobs.filter((x) =>
-      x.pipelineState === "below_initial" || x.pipelineState === "below_final"
-    );
-  } else if (currentTriage === "hasEmail") {
-    typedJobs = typedJobs.filter((x) => x.has_email === true);
-  } else if (currentTriage === "notTailored") {
-    // Analysis lens "Not tailored" slice — jobs without a tailored CV yet
-    // (includes un-analysed jobs), mirroring the donut's analysis bucket 2.
-    typedJobs = typedJobs.filter((x) => !x.progress.has_tailored_cv);
-  }
-
-  // ── ATS-score band filter (SmartFilterBar dropdown + donut CTAs) ──────────
-  // Recompute gates LIVE from stored scores vs the profile's current thresholds
-  // so bands match the ATS donut exactly (and respond to threshold changes).
-  if (sp.ats) {
-    typedJobs = typedJobs.filter((x) => {
-      const run = runByJob.get(x.id);
-      if (sp.ats === "no_ats") return !run;
-      if (!run) return false;
-      const th = threshByProfile.get(x.profile_id) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
-      const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
-      if (sp.ats === "above_final")   return g.passedFinal === true;
-      if (sp.ats === "below_final")   return g.passedFinal !== true && !!g.passedInitial;
-      if (sp.ats === "below_initial") return g.passedFinal !== true && !g.passedInitial;
-      return true;
-    });
-  }
-
-  if (sortCol === "rich_jd_first") {
-    const rank: Record<string, number> = { rich: 1, unknown: 2, thin: 3 };
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const aR = rank[a.jd_quality ?? ""] ?? 4;
-      const bR = rank[b.jd_quality ?? ""] ?? 4;
-      if (aR !== bR) return sortDir ? bR - aR : aR - bR;
-      return (b.posted_at ?? "").localeCompare(a.posted_at ?? "");
-    });
-  } else if (sortCol === "recently_progressed") {
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const aT = a.progress.last_progress_at ?? "";
-      const bT = b.progress.last_progress_at ?? "";
-      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
-    });
-  } else if (sortCol === "most_progressed") {
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const ds = b.progress.progress_score - a.progress.progress_score;
-      if (ds !== 0) return sortDir ? -ds : ds;
-      const aT = a.progress.last_progress_at ?? "";
-      const bT = b.progress.last_progress_at ?? "";
-      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
-    });
-  }
+  // View filtering (stage / triage / ATS band / min-keywords) and sorting now
+  // happen instantly client-side in <JobBoard> from this full loaded set — no
+  // server round-trip per filter change. The counts below are global (not
+  // filter-dependent), so they stay correct without recomputation.
 
   // Status-tab counts — aggregated across profiles
   const { data: countRows } = await supabase
@@ -619,23 +543,6 @@ export default async function DashboardPage({
     },
   };
 
-  const currentTab = currentStage;
-
-  // Human labels for the active filter, so the job board can announce what
-  // it's showing (e.g. after a donut "View full-JD jobs" click).
-  const FILTER_LABELS: Record<string, string> = {
-    analysed: "Analysed", cvReady: "CV ready", letterReady: "Letter ready",
-    thinJd: "Thin JD", applied: "Applied", dismissed: "Archived",
-    richJd: "Full JD", roleMismatch: "Role mismatch", belowThreshold: "Below threshold",
-    hasEmail: "Has email", notTailored: "Not tailored", needsJd: "Thin JD",
-    above_final: "Above final", below_final: "Below final",
-    below_initial: "Below initial", no_ats: "No ATS",
-  };
-  const activeFilters: string[] = [];
-  if (currentStage !== "all") activeFilters.push(FILTER_LABELS[currentStage] ?? currentStage);
-  if (currentTriage)          activeFilters.push(FILTER_LABELS[currentTriage] ?? currentTriage);
-  if (sp.ats)                 activeFilters.push(FILTER_LABELS[sp.ats] ?? sp.ats);
-
   return (
     <div className="min-h-full">
       {/* Page header */}
@@ -669,71 +576,21 @@ export default async function DashboardPage({
         />
 
         {/* ── Pipeline analytics donut ── */}
-        <PipelineDonut data={lensData} />
+        <PipelineDonut data={lensData} shallow />
 
-        {/* ── Unified jobs board ── */}
+        {/* ── Unified jobs board (client-side instant filtering) ── */}
         <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2 scroll-mt-4">
           {/* Smoothly scrolls here whenever a filter/sort changes. */}
           <Suspense><ScrollToJobsOnFilter /></Suspense>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-baseline gap-2.5 flex-wrap">
-              {activeFilters.length > 0 ? (
-                <>
-                  <h2 className="text-[24px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
-                    {activeFilters.join(" · ")}
-                  </h2>
-                  <span className="text-[20px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
-                    {typedJobs.length}
-                  </span>
-                  <Link
-                    href="/dashboard"
-                    scroll={false}
-                    className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/40 px-2.5 py-0.5 text-[12px] font-medium hover:bg-[var(--surface-2)] transition-colors"
-                    style={{ color: "var(--brand)" }}
-                  >
-                    <span>Clear filter</span>
-                    <span aria-hidden>✕</span>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
-                  <span className="text-[12px] text-text-3">{typedJobs.length}</span>
-                </>
-              )}
-              {sp.source && (
-                <Link
-                  href="/dashboard"
-                  scroll={false}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2 hover:text-text transition-colors"
-                >
-                  <span className="capitalize">Source: {sp.source}</span>
-                  <span aria-hidden>✕</span>
-                </Link>
-              )}
-            </div>
-            <BulkThinJdButton jobs={thinJdJobs} />
-          </div>
-
-          {/* Pipeline funnel */}
           <Suspense>
-            <PipelineFunnel counts={funnelCounts} currentStage={currentStage} excludeStages={["all", "applied"]} />
+            <JobBoard
+              jobs={typedJobs}
+              counts={funnelCounts}
+              railJobs={railJobs}
+              thinJdJobs={thinJdJobs}
+              sourceParam={sp.source}
+            />
           </Suspense>
-
-          {/* Smart filter bar */}
-          <Suspense>
-            <SmartFilterBar total={typedJobs.length} showKeywords={false} showAtsFilter />
-          </Suspense>
-
-          {/* Continue rail */}
-          <ContinueRail jobs={railJobs} currentTab={currentTab} />
-
-          {/* Job table */}
-          <JobTable
-            jobs={typedJobs}
-            showVisa={sp.visa_toggle === "1"}
-            currentTab={currentTab}
-          />
         </div>
 
         {/* Quick links */}

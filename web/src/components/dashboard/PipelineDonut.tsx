@@ -1,7 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { shallowSetParams } from "../jobs/shallowNav";
+
+/**
+ * Renders a donut filter target as an instant client-side filter (button +
+ * History API) on the dashboard board, or a normal <Link> elsewhere / for
+ * cross-route destinations.
+ */
+function FilterAnchor({
+  href, shallow, apply, className, onClick, children,
+}: {
+  href: string;
+  shallow: boolean;
+  apply?: (href: string) => void;
+  className: string;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  const internal = href.startsWith("/dashboard?");
+  if (shallow && internal && apply) {
+    return (
+      <button type="button" onClick={() => { onClick?.(); apply(href); }} className={className}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} scroll={!internal} onClick={onClick} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+// View-filter params the donut can set; cleared before applying a new one so
+// the chosen slice is shown cleanly (dataset filters like location are kept).
+const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -284,7 +320,23 @@ function hitCenter(mx: number, my: number) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function PipelineDonut({ data }: { data: PipelineLensData }) {
+export function PipelineDonut({ data, shallow = false }: { data: PipelineLensData; shallow?: boolean }) {
+  const pathname = usePathname();
+  const sp       = useSearchParams();
+
+  // Dashboard board: apply a donut filter instantly client-side (History API)
+  // + scroll to the results, instead of a full server navigation.
+  function applyFilter(href: string) {
+    try {
+      const u = new URL(href, window.location.origin);
+      const params = new URLSearchParams(sp.toString());
+      DONUT_VIEW_KEYS.forEach((k) => params.delete(k));
+      u.searchParams.forEach((val, key) => params.set(key, val));
+      shallowSetParams(pathname, params);
+      document.getElementById("jobs-board")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch { /* noop */ }
+  }
+
   const [activeLens, setActiveLens] = useState<LensKey>("sourcing");
   const [hovered,    setHovered]    = useState<number | null>(null);
   const [popup,      setPopup]      = useState<"center" | number | null>(null);
@@ -440,7 +492,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
               </>
             );
             return s.href ? (
-              <Link key={i} href={s.href} scroll={false} className={cls}>{inner}</Link>
+              <FilterAnchor key={i} href={s.href} shallow={shallow} apply={applyFilter} className={cls}>{inner}</FilterAnchor>
             ) : (
               <div
                 key={i}
@@ -466,14 +518,15 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
 
           {/* Thin JD nudge — JD lens */}
           {activeLens === "jd" && counts[1] > 0 && (
-            <Link
+            <FilterAnchor
               href="/dashboard?triage=thinJd"
-              scroll={false}
+              shallow={shallow}
+              apply={applyFilter}
               className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-amber-600 hover:text-amber-700 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
               {counts[1]} thin JD{counts[1] > 1 ? "s" : ""} — paste full text to unlock analysis
-            </Link>
+            </FilterAnchor>
           )}
         </div>
       </div>
@@ -482,14 +535,14 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
       {(data.callouts.thinJdCount > 0 || data.callouts.passedButNoLetter > 0 || data.callouts.readyToApply > 0) && (
         <div className="flex flex-wrap gap-2 px-5 pb-4 pt-1 border-t border-border">
           {data.callouts.thinJdCount > 0 && (
-            <Link href="/dashboard?triage=thinJd" scroll={false} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+            <FilterAnchor href="/dashboard?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
               ⚠ {data.callouts.thinJdCount} thin JD{data.callouts.thinJdCount > 1 ? "s" : ""} need attention
-            </Link>
+            </FilterAnchor>
           )}
           {data.callouts.passedButNoLetter > 0 && (
-            <Link href="/dashboard?stage=cvReady" scroll={false} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+            <FilterAnchor href="/dashboard?stage=cvReady" shallow={shallow} apply={applyFilter} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
               → {data.callouts.passedButNoLetter} passed ATS, no letter yet
-            </Link>
+            </FilterAnchor>
           )}
           {data.callouts.readyToApply > 0 && (
             <Link href="/dashboard/applications" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
@@ -500,7 +553,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
       )}
 
       {popup !== null && (
-        <DonutPopup mode={popup} lens={activeLens} data={data} onClose={() => setPopup(null)} />
+        <DonutPopup mode={popup} lens={activeLens} data={data} shallow={shallow} apply={applyFilter} onClose={() => setPopup(null)} />
       )}
     </div>
   );
@@ -509,12 +562,14 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
 // ─── Popup ────────────────────────────────────────────────────────────────────
 
 function DonutPopup({
-  mode, lens, data, onClose,
+  mode, lens, data, onClose, shallow = false, apply,
 }: {
   mode: "center" | number;
   lens: LensKey;
   data: PipelineLensData;
   onClose: () => void;
+  shallow?: boolean;
+  apply?: (href: string) => void;
 }) {
   const [filter, setFilter] = useState<string | null>(null);
   const meta     = resolveLensMeta(lens, data.ats.thresholds);
@@ -611,9 +666,9 @@ function DonutPopup({
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">
-              <Link href={href} scroll={!href.startsWith("/dashboard?")} onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
+              <FilterAnchor href={href} shallow={shallow} apply={apply} onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
                 {label}
-              </Link>
+              </FilterAnchor>
             </div>
           );
         })()}

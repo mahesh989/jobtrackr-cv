@@ -17,6 +17,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { Archive } from "lucide-react";
+import { shallowSetParams } from "./shallowNav";
 
 export interface FunnelCounts {
   discovered: number;
@@ -94,10 +95,15 @@ export function PipelineFunnel({
   counts,
   currentStage,
   excludeStages = [],
+  shallow = false,
 }: {
   counts: FunnelCounts;
   currentStage: string;
   excludeStages?: string[];
+  /** Dashboard board: apply stage/triage as instant client-side filters via
+   *  the History API (no server round-trip). Dismissed always hits the server
+   *  (it changes which jobs are fetched). */
+  shallow?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -106,6 +112,13 @@ export function PipelineFunnel({
 
   const activeStages = STAGES.filter((s) => !excludeStages.includes(s.key));
   const currentTriage = sp.get("triage") || "";
+
+  // Commit a param change either shallow (client-only, instant) or via the
+  // router (server refetch). `forceServer` is used for dataset-changing moves.
+  function commit(params: URLSearchParams, forceServer = false) {
+    if (shallow && !forceServer) shallowSetParams(pathname, params);
+    else startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+  }
 
   function selectStage(stageKey: string) {
     const params = new URLSearchParams(sp.toString());
@@ -118,7 +131,8 @@ export function PipelineFunnel({
     params.delete("triage");
     params.delete("status");
     params.delete("chips");
-    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    // Crossing the dismissed boundary changes the fetched dataset → server.
+    commit(params, stageKey === "dismissed" || currentStage === "dismissed");
   }
 
   function selectTriage(triageKey: string) {
@@ -128,7 +142,7 @@ export function PipelineFunnel({
     } else {
       params.set("triage", triageKey);
     }
-    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    commit(params);
   }
 
   function toggleDismissed() {
@@ -139,7 +153,7 @@ export function PipelineFunnel({
       params.set("stage", "dismissed");
       params.delete("triage");
     }
-    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    commit(params, true);
   }
 
   /* Active stage's triage sub-labels */
