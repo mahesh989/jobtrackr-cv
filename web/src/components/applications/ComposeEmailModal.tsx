@@ -231,9 +231,11 @@ export function ComposeEmailModal({
         role="dialog"
         aria-modal="true"
       >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 shrink-0">
-          <div className="min-w-0">
+        {/* Header — primary action mirrored in the top-right so the
+            Approve/Send button is always visible without scrolling.
+            Footer keeps the same buttons too; either one works. */}
+        <div className="px-5 py-3 border-b border-border flex items-start justify-between gap-3 shrink-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-[14px] font-semibold text-text">
               {isReview ? "Review email content" : "Review email before sending"}
             </h2>
@@ -243,14 +245,41 @@ export function ComposeEmailModal({
                 : "Nothing leaves your account until you click Send.")}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            disabled={sending}
-            className="text-text-3 hover:text-text disabled:opacity-40 shrink-0"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              disabled={sending}
+              className="text-[12px] text-text-2 hover:text-text disabled:opacity-40 px-2 py-1 rounded"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleTerminal}
+              disabled={
+                sending || loading || !draft || !subject.trim() || !body.trim()
+                || (!isReview && cvRender.state === "rendering")
+              }
+              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
+              title={
+                !isReview && cvRender.state === "rendering"
+                  ? "Waiting for the CV PDF to finish rendering"
+                  : undefined
+              }
+            >
+              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {isReview
+                ? (sending ? "Saving…" : "Approve")
+                : (cvRender.state === "rendering" ? "Rendering CV…" : "Send now")}
+            </button>
+            <button
+              onClick={onClose}
+              disabled={sending}
+              className="text-text-3 hover:text-text disabled:opacity-40 px-1"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Body — min-h-0 lets the flex child actually shrink (without it,
@@ -281,7 +310,7 @@ export function ComposeEmailModal({
                   </div>
                 </div>
               ) : (
-                <div className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300">
+                <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/30 px-3 py-2 text-[12px] text-amber-950 dark:text-amber-100 leading-relaxed">
                   No contact email on this job — there's no recipient field. You
                   can still draft + approve the email here, then copy it from
                   Ready to apply and send from your own client.
@@ -311,7 +340,7 @@ export function ComposeEmailModal({
                   </label>
                   {draft.voice_rewritten && (
                     <span
-                      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white dark:bg-emerald-500"
                       title="The default body has been rewritten to match the voice sample you saved in Settings"
                     >
                       Personalised in your voice

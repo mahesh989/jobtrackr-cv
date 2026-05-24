@@ -18,6 +18,26 @@ export default async function AnalyzeRunPage({ params }: Props) {
   if (!user) redirect("/auth/login");
 
   const admin = createAdminClient();
+
+  // Verify ownership via the job's profile chain (job -> search_profile -> user)
+  // rather than analysis_runs.user_id directly. Old worker-created rows can
+  // have user_id NULL on analysis_runs, which would otherwise 404 cards in
+  // the Applications tab whose Full Analysis link points to such a run.
+  const { data: job } = await admin
+    .from("jobs")
+    .select("title, company, location, url, manual_jd_text, description, hiring_manager, profile_id")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (!job) notFound();
+
+  const { data: profile } = await admin
+    .from("search_profiles")
+    .select("user_id")
+    .eq("id", (job as { profile_id: string }).profile_id)
+    .maybeSingle();
+  if (!profile || (profile as { user_id: string }).user_id !== user.id) notFound();
+
   const { data: run } = await admin
     .from("analysis_runs")
     .select(
@@ -29,17 +49,10 @@ export default async function AnalyzeRunPage({ params }: Props) {
       "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at",
     )
     .eq("id", runId)
-    .eq("user_id", user.id)
     .eq("job_id", jobId)
     .maybeSingle();
 
   if (!run) notFound();
-
-  const { data: job } = await admin
-    .from("jobs")
-    .select("title, company, location, url, manual_jd_text, description, hiring_manager")
-    .eq("id", jobId)
-    .maybeSingle();
 
   // Look up the CV label that was used so the diagnostic shows
   // "Master CV 2026" rather than a UUID.

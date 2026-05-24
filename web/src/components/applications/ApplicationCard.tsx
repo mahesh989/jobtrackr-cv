@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ExternalLink, FileText, Mail, CheckCircle2, Archive, Loader2, Send, FileType, Pencil, Copy, Check } from "lucide-react";
 import { markJobApplied, markJobDismissed, markPoolDecision } from "@/lib/actions";
 import { EditLetterModal } from "./EditLetterModal";
@@ -102,6 +103,7 @@ export function ApplicationCard({
   /** @deprecated kept for callers that haven't migrated; equivalent to tab="pool" */
   isPool?: boolean;
 }) {
+  const router = useRouter();
   // Back-compat: callers that set isPool=true override the tab.
   const currentTab: CardTab = isPool ? "pool" : tab;
   const [, startTransition]  = useTransition();
@@ -128,7 +130,7 @@ export function ApplicationCard({
     if (localApplied || pending) return;
     setPending("apply");
     setLocalApplied(true);
-    setTimeout(() => setHidden(true), 700);
+    setTimeout(() => { setHidden(true); router.refresh(); }, 700);
     startTransition(async () => {
       try { await markJobApplied(row.job_id, row.profile_id); }
       catch (e) { console.error(e); setLocalApplied(false); setHidden(false); }
@@ -208,16 +210,19 @@ export function ApplicationCard({
   function handleReviewed() {
     // Review modal stamped reviewed_at + saved subject/body. The card now
     // belongs to the next stage (Ready to apply); slide it out of this tab.
+    // router.refresh re-fetches the server component so the tab's empty
+    // state renders immediately when the last card leaves — otherwise the
+    // page sits with a stale "had-rows" layout until the user reloads.
     setComposing(false);
     setLocalReviewed(true);
-    setTimeout(() => setHidden(true), 500);
+    setTimeout(() => { setHidden(true); router.refresh(); }, 500);
   }
 
   function handleSent() {
     // Compose modal already posted successfully — close it and slide the card out.
     setComposing(false);
     setLocalApplied(true);
-    setTimeout(() => setHidden(true), 700);
+    setTimeout(() => { setHidden(true); router.refresh(); }, 700);
   }
 
   // Direct send — no modal — used by the Send button in the "Ready to apply"
@@ -265,7 +270,7 @@ export function ApplicationCard({
       const json = await res.json();
       if (!res.ok) { setActionError(json.error ?? "Send failed"); return; }
       setLocalApplied(true);
-      setTimeout(() => setHidden(true), 700);
+      setTimeout(() => { setHidden(true); router.refresh(); }, 700);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Network error");
     } finally {
@@ -380,8 +385,8 @@ export function ApplicationCard({
           When sending is later attempted from Ready to apply, the presence of
           contact_email decides Send-vs-Copy. */}
       {currentTab === "pool" ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 px-3 py-2.5 mb-3">
-          <p className="text-[12px] font-medium text-amber-800 dark:text-amber-300 mb-2">
+        <div className="rounded-md border border-amber-300 bg-amber-100 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2.5 mb-3">
+          <p className="text-[13px] font-semibold text-amber-950 dark:text-amber-100 mb-2">
             Queue this for review?
           </p>
           <div className="flex items-center gap-2">
@@ -405,7 +410,7 @@ export function ApplicationCard({
               Queue for review
             </button>
           </div>
-          <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1.5">
+          <p className="text-[11px] text-amber-900 dark:text-amber-200 mt-1.5">
             Adding an email enables one-click send later. Leave it blank to draft the email anyway — you'll be able to copy it for your own client.
           </p>
         </div>
@@ -547,15 +552,14 @@ export function ApplicationCard({
 
         {/* Apply now (Ready to apply) — opens the job posting in a new tab
             AND marks the job applied so the card slides over to Sent/Applied.
-            Shown for both email and no-email cards: it's always useful to
-            jump to the listing. window.open is called synchronously inside
-            the click handler so popup blockers don't eat it. */}
+            Filled-green (primary) so it reads as the dominant action on
+            no-email cards, matching the Copy email button next to it. */}
         {currentTab === "apply" && !localApplied && (
           <button
             type="button"
             onClick={handleApplyNow}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
             title="Open the job posting and mark this application as applied"
           >
             <ExternalLink className="w-3 h-3" />
