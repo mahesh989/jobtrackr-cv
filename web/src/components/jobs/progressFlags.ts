@@ -26,6 +26,7 @@ export interface AnalysisRunRef {
   // Phase A gate columns — null until Phase C populates them on
   // user-initiated or automated runs.
   initial_ats_score?:          number  | null;
+  tailored_match_score?:       number  | null;
   passed_initial_gate?:        boolean | null;
   passed_final_gate?:          boolean | null;
   automation?:                 boolean | null;

@@ -37,7 +37,7 @@ import {
   type AnalysisRunRef,
   type CoverLetterRef,
 } from "@/components/jobs/progressFlags";
-import { derivePipelineState } from "@/components/jobs/pipelineState";
+import { derivePipelineState, recomputeGates } from "@/components/jobs/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -81,14 +81,26 @@ export default async function DashboardPage({
 
   const { data: profileRows } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, location, schedule_cron")
+    .select("id, name, is_active, keywords, location, schedule_cron, min_initial_ats, min_final_ats")
     .order("created_at", { ascending: false });
 
   const profiles = (profileRows ?? []) as Array<{
     id: string; name: string; is_active: boolean;
     keywords: string[]; location: string; schedule_cron: string;
+    min_initial_ats: number | null; min_final_ats: number | null;
   }>;
   const ids = profiles.map((p) => p.id);
+
+  // Per-profile ATS thresholds, used to recompute gate buckets LIVE from stored
+  // scores (so changing a threshold updates the graph/chips without re-analysis).
+  const DEFAULT_MIN_INITIAL = 55;
+  const DEFAULT_MIN_FINAL   = 75;
+  const threshByProfile = new Map<string, { initial: number; final: number }>(
+    profiles.map((p) => [p.id, {
+      initial: p.min_initial_ats ?? DEFAULT_MIN_INITIAL,
+      final:   p.min_final_ats   ?? DEFAULT_MIN_FINAL,
+    }]),
+  );
 
   // ── First-run gate ────────────────────────────────────────────────────────
   // Show the SetupGuide until the first pipeline run produces data. Covers both
@@ -191,7 +203,7 @@ export default async function DashboardPage({
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, passed_initial_gate, passed_final_gate, automation")
+        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
         .in("job_id", jobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
@@ -217,6 +229,15 @@ export default async function DashboardPage({
       run,
       letter,
     );
+    // Recompute gates LIVE from stored scores vs this profile's current
+    // thresholds, so state badges reflect threshold changes without re-analysis.
+    const th = threshByProfile.get(j.profile_id) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
+    const liveRun = run
+      ? (() => {
+          const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
+          return { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal };
+        })()
+      : run;
     const pipelineState = derivePipelineState({
       job: {
         applied_at:   j.applied_at,
@@ -225,7 +246,7 @@ export default async function DashboardPage({
         jd_quality:   (j.jd_quality   as string  | null) ?? null,
         role_match:   (j.role_match   as string  | null) ?? null,
       },
-      latestRun:    run,
+      latestRun:    liveRun,
       latestLetter: letter,
     });
     return {
@@ -344,7 +365,7 @@ export default async function DashboardPage({
     ? await Promise.all([
         supabase
           .from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, passed_initial_gate, passed_final_gate")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
           .eq("is_stale", false)
           .eq("status", "completed")
           .in("job_id", jobIdsForCounts),
@@ -360,9 +381,20 @@ export default async function DashboardPage({
   const analysedSet = new Set((runsRes.data ?? []).map((r) => r.job_id));
   const cvReadySet = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
   const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
+  // "Below ATS" = failed either gate, recomputed LIVE from stored scores vs the
+  // job's profile thresholds (not the frozen passed_*_gate booleans).
+  const profileByJobId = new Map(allRows.map((j) => [j.id, j.profile_id]));
   const belowThresholdSet = new Set(
     (runsRes.data ?? [])
-      .filter((r) => r.passed_initial_gate === false || r.passed_final_gate === false)
+      .filter((r) => {
+        const th = threshByProfile.get(profileByJobId.get(r.job_id) ?? "") ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
+        const g = recomputeGates(
+          (r as { initial_ats_score?: number | null }).initial_ats_score,
+          (r as { tailored_match_score?: number | null }).tailored_match_score,
+          th.initial, th.final,
+        );
+        return g.passedInitial === false || g.passedFinal === false;
+      })
       .map((r) => r.job_id)
   );
 
@@ -389,6 +421,8 @@ export default async function DashboardPage({
   // ── Pipeline donut: additional queries ───────────────────────────────────────
   interface DonutRunRow {
     job_id: string;
+    initial_ats_score: number | null;
+    tailored_match_score: number | null;
     passed_initial_gate: boolean | null;
     passed_final_gate: boolean | null;
     ats_lift: number | null;
@@ -409,7 +443,7 @@ export default async function DashboardPage({
   const { data: donutRunData } = allActiveJobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("job_id, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+        .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
         .in("job_id", allActiveJobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
@@ -513,13 +547,15 @@ export default async function DashboardPage({
     else if (hasCv)         analysisMap[pid][1]++;
     else                    analysisMap[pid][2]++;
 
-    // ATS lens (only jobs with runs)
+    // ATS lens (only jobs with runs) — gates recomputed LIVE vs current thresholds
     if (run) {
-      if (run.passed_final_gate)        atsMap[pid][0]++;
-      else if (run.passed_initial_gate) atsMap[pid][1]++;
-      else                              atsMap[pid][2]++;
+      const th = threshByProfile.get(pid) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
+      const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
+      if (g.passedFinal)        atsMap[pid][0]++;
+      else if (g.passedInitial) atsMap[pid][1]++;
+      else                      atsMap[pid][2]++;
       if (run.ats_lift !== null) { atsLiftSum += run.ats_lift; atsLiftCount++; }
-      if (run.passed_final_gate && !hasLetter && !j.applied_at) passedButNoLetterCount++;
+      if (g.passedFinal && !hasLetter && !j.applied_at) passedButNoLetterCount++;
     }
 
     // Applied lens
@@ -543,11 +579,24 @@ export default async function DashboardPage({
       .map((id) => ({ profileId: id, profileName: profileNameById.get(id) ?? id, counts: map[id] }));
   }
 
+  // Representative thresholds for the ATS-gate labels: the most common value
+  // across profiles (so the labels read e.g. "≥ 70" / "50–69" / "< 50").
+  function mode(nums: number[], fallback: number): number {
+    if (nums.length === 0) return fallback;
+    const counts = new Map<number, number>();
+    for (const n of nums) counts.set(n, (counts.get(n) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+  const atsThresholds = {
+    initial: mode(profiles.map((p) => p.min_initial_ats ?? DEFAULT_MIN_INITIAL), DEFAULT_MIN_INITIAL),
+    final:   mode(profiles.map((p) => p.min_final_ats   ?? DEFAULT_MIN_FINAL),   DEFAULT_MIN_FINAL),
+  };
+
   const lensData: PipelineLensData = {
     sourcing: { fetched: sourcingFetched, totals: sourcingTotals, byProfile: sourcingByProfile },
     jd:       { totals: jdTotals, byProfile: jdByProfile },
     analysis: { totals: analysisTotals, avgAtsLift, byProfile: mkProfiles(analysisMap) },
-    ats:      { totals: atsTotals, byProfile: mkProfiles(atsMap) },
+    ats:      { totals: atsTotals, byProfile: mkProfiles(atsMap), thresholds: atsThresholds },
     applied:  { totals: appliedTotals, byProfile: mkProfiles(appliedMap) },
     callouts: {
       thinJdCount:        jdTotals[1],

@@ -29,6 +29,32 @@
 
 import type { AnalysisRunRef, CoverLetterRef } from "./progressFlags";
 
+/**
+ * Recompute the two ATS gates LIVE from the run's stored scores against the
+ * profile's CURRENT thresholds — instead of trusting passed_initial_gate /
+ * passed_final_gate, which were frozen at analysis time. This makes the donut,
+ * the "below ATS" chip, and the state badges respond immediately when a user
+ * changes min_initial_ats / min_final_ats, with no re-analysis.
+ *
+ * A gate is null when its score is absent (a run with no tailored score has
+ * passedFinal = null). A run that produced a tailored score necessarily passed
+ * the initial gate (tailoring runs after it, barring the "force" override).
+ */
+export function recomputeGates(
+  initialScore:  number | null | undefined,
+  tailoredScore: number | null | undefined,
+  minInitial:    number,
+  minFinal:      number,
+): { passedInitial: boolean | null; passedFinal: boolean | null } {
+  const passedInitial =
+    initialScore  != null ? initialScore  >= minInitial
+    : tailoredScore != null ? true
+    : null;
+  const passedFinal =
+    tailoredScore != null ? tailoredScore >= minFinal : null;
+  return { passedInitial, passedFinal };
+}
+
 export type PipelineState =
   | "archived"
   | "applied"

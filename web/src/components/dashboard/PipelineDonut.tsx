@@ -29,6 +29,7 @@ export interface PipelineLensData {
   ats: {
     totals: [number, number, number]; // aboveFinal · belowFinal · belowInitial
     byProfile: ProfileCount[];
+    thresholds: { initial: number; final: number }; // drive the gate labels
   };
   applied: {
     totals: [number, number, number]; // applied · readyToApply · notYet
@@ -42,6 +43,22 @@ export interface PipelineLensData {
 }
 
 type LensKey = "sourcing" | "jd" | "analysis" | "ats" | "applied";
+
+/**
+ * Resolve a lens's metadata, injecting the user's live ATS thresholds into the
+ * gate labels (e.g. "Above final (≥ 70)", "Below final (50–69)", "< 50").
+ */
+function resolveLensMeta(lens: LensKey, t: { initial: number; final: number }): LensMeta {
+  if (lens !== "ats") return LENS_META[lens];
+  return {
+    ...LENS_META.ats,
+    slices: [
+      { label: `Above final (≥ ${t.final})`, color: "#34d399" },
+      { label: `Below final (${t.initial}–${t.final - 1})`, color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
+      { label: `Below initial (< ${t.initial})`, color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
+    ],
+  };
+}
 
 // ─── Lens config ──────────────────────────────────────────────────────────────
 
@@ -83,10 +100,12 @@ const LENS_META: Record<LensKey, LensMeta> = {
   ats: {
     label: "ATS gates",
     centerLabel: "analysed",
+    // Placeholder labels — resolveLensMeta() overrides these with the user's
+    // actual thresholds at render time.
     slices: [
-      { label: "Above final (≥ 75)",  color: "#34d399" },
-      { label: "Below final (55–74)", color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
-      { label: "Below initial (< 55)", color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
+      { label: "Above final",  color: "#34d399" },
+      { label: "Below final",  color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
+      { label: "Below initial", color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
     ],
   },
   applied: {
@@ -261,7 +280,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
   function draw() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const meta = LENS_META[lensRef.current];
+    const meta = resolveLensMeta(lensRef.current, data.ats.thresholds);
     const hi   = hovRef.current;
     const val  = hi !== null
       ? getTotals(data, lensRef.current)[hi]
@@ -336,7 +355,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
     if (hitCenter(mx, my)) setPopup("center");
   }
 
-  const meta   = LENS_META[activeLens];
+  const meta   = resolveLensMeta(activeLens, data.ats.thresholds);
   const counts = getTotals(data, activeLens);
   const total  = counts[0] + counts[1] + counts[2];
 
@@ -472,7 +491,7 @@ function DonutPopup({
   onClose: () => void;
 }) {
   const [filter, setFilter] = useState<string | null>(null);
-  const meta     = LENS_META[lens];
+  const meta     = resolveLensMeta(lens, data.ats.thresholds);
   const allProfs = data[lens].byProfile as ProfileCount[];
   const profs    = filter ? allProfs.filter((p) => p.profileId === filter) : allProfs;
   const title    = mode === "center"

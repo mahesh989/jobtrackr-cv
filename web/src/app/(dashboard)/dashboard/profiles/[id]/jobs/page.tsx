@@ -37,7 +37,7 @@ import {
   type AnalysisRunRef,
   type CoverLetterRef,
 } from "@/components/jobs/progressFlags";
-import { derivePipelineState } from "@/components/jobs/pipelineState";
+import { derivePipelineState, recomputeGates } from "@/components/jobs/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -85,9 +85,16 @@ export default async function JobsPage({
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, schedule_cron")
+    .select("id, name, is_active, keywords, schedule_cron, min_initial_ats, min_final_ats")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
+
+  // ATS thresholds for live gate recompute (so badges/chip reflect changes
+  // without re-analysis). Single profile here.
+  const th = {
+    initial: (profile.min_initial_ats as number | null) ?? 55,
+    final:   (profile.min_final_ats   as number | null) ?? 75,
+  };
 
   const { data: activeRun } = await supabase
     .from("run_logs")
@@ -159,7 +166,7 @@ export default async function JobsPage({
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, passed_initial_gate, passed_final_gate, automation")
+        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
         .in("job_id", jobIds)
         .eq("is_stale", false)
         .order("created_at", { ascending: false })
@@ -187,6 +194,12 @@ export default async function JobsPage({
       run,
       letter,
     );
+    const liveRun = run
+      ? (() => {
+          const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
+          return { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal };
+        })()
+      : run;
     const pipelineState = derivePipelineState({
       job: {
         applied_at:   j.applied_at,
@@ -195,7 +208,7 @@ export default async function JobsPage({
         jd_quality:   (j.jd_quality   as string  | null) ?? null,
         role_match:   (j.role_match   as string  | null) ?? null,
       },
-      latestRun:    run,
+      latestRun:    liveRun,
       latestLetter: letter,
     });
     return { ...(j as unknown as Job), progress, pipelineState };
@@ -299,7 +312,7 @@ export default async function JobsPage({
     ? await Promise.all([
         supabase
           .from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, passed_initial_gate, passed_final_gate")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
           .eq("is_stale", false)
           .eq("status", "completed")
           .in("job_id", jobIdsForCounts),
@@ -317,7 +330,14 @@ export default async function JobsPage({
   const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
   const belowThresholdSet = new Set(
     (runsRes.data ?? [])
-      .filter((r) => r.passed_initial_gate === false || r.passed_final_gate === false)
+      .filter((r) => {
+        const g = recomputeGates(
+          (r as { initial_ats_score?: number | null }).initial_ats_score,
+          (r as { tailored_match_score?: number | null }).tailored_match_score,
+          th.initial, th.final,
+        );
+        return g.passedInitial === false || g.passedFinal === false;
+      })
       .map((r) => r.job_id)
   );
 
