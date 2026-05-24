@@ -28,6 +28,12 @@ export interface SearchProfile {
   //                   days-since-last-run + 1, capped 30).
   is_first_run?: boolean;
   lookback_days?: number;
+
+  // Per-profile source selection (Migration 041).
+  //   enabled_sources — adapter names to run; null/empty = all active sources.
+  //   seek_method      — 'direct' (free curl_cffi) or 'actor' (Apify, paid).
+  enabled_sources?: string[] | null;
+  seek_method?: "direct" | "actor";
 }
 
 export interface RawJob {

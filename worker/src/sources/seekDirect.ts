@@ -27,8 +27,7 @@ import { curlFetch } from "../lib/curlfetch.js";
 // Match seek.ts cap so behaviour is interchangeable.
 export const SEEK_DIRECT_JD_FETCH_CAP = 20;
 
-// One page returns 22 jobs. We cap per-keyword to ~9 pages for safety.
-const PAGE_SIZE = 22;
+// SEEK returns ~30+ jobs per page; we page until an empty/no-new page, capped.
 const MAX_PAGES_PER_KEYWORD = 9;       // → up to ~200 jobs per keyword
 const MAX_JOBS_PER_KEYWORD  = 200;     // hard cap (matches actor maxResults)
 const DATE_RANGE_DAYS       = 14;      // fallback when the orchestrator sets no window
@@ -225,9 +224,8 @@ export const seekDirectAdapter: SourceAdapter = {
 
     for (const keyword of profile.keywords) {
       let keywordCount = 0;
-      let totalPages = MAX_PAGES_PER_KEYWORD;
 
-      for (let page = 1; page <= totalPages && keywordCount < MAX_JOBS_PER_KEYWORD; page++) {
+      for (let page = 1; page <= MAX_PAGES_PER_KEYWORD && keywordCount < MAX_JOBS_PER_KEYWORD; page++) {
         const url = buildSearchUrl(keyword, profile.location, page, dateRange);
         let status = 0;
         let body = "";
@@ -256,9 +254,6 @@ export const seekDirectAdapter: SourceAdapter = {
 
         anyPageSucceeded = true;
 
-        const totalCount = redux.results?.results?.totalCount ?? 0;
-        totalPages = Math.min(MAX_PAGES_PER_KEYWORD, Math.max(1, Math.ceil(totalCount / PAGE_SIZE)));
-
         let pageAdded = 0;
         for (const job of jobs) {
           if (job.isFeatured) { featuredSkipped++; continue; }
@@ -274,13 +269,15 @@ export const seekDirectAdapter: SourceAdapter = {
         }
 
         console.log(
-          `[seek-direct] ${keyword} page ${page}/${totalPages}: added ${pageAdded}, kw total ${keywordCount}, all total ${allJobs.length}`,
+          `[seek-direct] ${keyword} page ${page}: found ${jobs.length}, added ${pageAdded}, kw total ${keywordCount}, all total ${allJobs.length}`,
         );
 
-        // Last page heuristic: SEEK page returned fewer than a full set OR we've
-        // hit our cap.
-        if (jobs.length < PAGE_SIZE) break;
-        if (page < totalPages) await sleep(PAGE_DELAY_MS);
+        // Stop when SEEK returns an empty page or no NEW jobs (pagination
+        // exhausted, or SEEK isn't advancing the page param). We deliberately
+        // don't trust totalCount — its redux path is unreliable and was capping
+        // the fetch to a single page.
+        if (jobs.length === 0 || pageAdded === 0) break;
+        if (page < MAX_PAGES_PER_KEYWORD) await sleep(PAGE_DELAY_MS);
       }
     }
 

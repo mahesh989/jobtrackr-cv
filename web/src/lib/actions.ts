@@ -78,6 +78,20 @@ function extractAdzunaFields(formData: FormData) {
   };
 }
 
+/**
+ * Per-profile source selection (Migration 041). enabled_sources holds the
+ * adapter names the user ticked; null = all active sources. seek_method picks
+ * the free direct scrape vs the paid Apify actor.
+ */
+function extractSourceFields(formData: FormData) {
+  const selected = formData.getAll("enabled_sources").map(String).filter(Boolean);
+  const seekMethod = formData.get("seek_method") === "actor" ? "actor" : "direct";
+  return {
+    enabled_sources: selected.length > 0 ? selected : null,
+    seek_method:     seekMethod,
+  };
+}
+
 // ── profile actions ───────────────────────────────────────────────────────────
 
 export async function createProfile(formData: FormData) {
@@ -107,6 +121,7 @@ export async function createProfile(formData: FormData) {
     target_verticals: formData.getAll("target_verticals") as string[],
     ...extractAdzunaFields(formData),
     ...extractAutomationFields(formData),
+    ...extractSourceFields(formData),
   });
 
   if (error) throw new Error(error.message);
@@ -143,6 +158,7 @@ export async function updateProfile(profileId: string, formData: FormData) {
       target_verticals: formData.getAll("target_verticals") as string[],
       ...extractAdzunaFields(formData),
       ...extractAutomationFields(formData),
+      ...extractSourceFields(formData),
     })
     .eq("id", profileId)
     .eq("user_id", user.id);
@@ -187,6 +203,8 @@ export async function copyProfile(profileId: string) {
       adzuna_distance_km: orig.adzuna_distance_km,
       adzuna_max_days_old: orig.adzuna_max_days_old,
       exclude_title_keywords: orig.exclude_title_keywords,
+      enabled_sources: orig.enabled_sources,
+      seek_method: orig.seek_method,
     })
     .select("id")
     .single();

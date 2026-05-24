@@ -24,6 +24,9 @@ interface Props {
     adzuna_distance_km?: number;
     adzuna_max_days_old?: number;
     exclude_title_keywords?: string[];
+    // Per-profile source selection (Migration 041)
+    enabled_sources?: string[] | null;
+    seek_method?: string;
     // Phase A automation config (defaults match Migration 031 column defaults)
     automation_enabled?:       boolean;
     min_initial_ats?:          number;
@@ -149,6 +152,70 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
               {v}
             </label>
           ))}
+        </div>
+      </div>
+
+      {/* Sources */}
+      <div>
+        <label className="block text-[12px] font-semibold text-text mb-1.5">
+          Sources <span className="font-normal text-text-2">(which job boards to scan)</span>
+        </label>
+        <div className="space-y-3 rounded-md border border-border bg-[var(--surface-2)] p-3">
+          {[
+            { group: "Aggregators", items: [
+              { id: "adzuna",    label: "Adzuna" },
+              { id: "seek",      label: "SEEK" },
+              { id: "careerjet", label: "Careerjet" },
+            ] },
+            { group: "ATS boards", items: [
+              { id: "greenhouse", label: "Greenhouse" },
+              { id: "lever",      label: "Lever" },
+            ] },
+          ].map((grp) => (
+            <div key={grp.group}>
+              <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wide mb-1.5">{grp.group}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {grp.items.map((s) => {
+                  const enabledSet = defaults?.enabled_sources ? new Set(defaults.enabled_sources) : null;
+                  const on = enabledSet ? enabledSet.has(s.id) : true; // null = all on
+                  return (
+                    <label key={s.id} className="flex items-center gap-2 text-[13px] text-text cursor-pointer font-medium">
+                      <input
+                        type="checkbox" name="enabled_sources" value={s.id}
+                        defaultChecked={on}
+                        className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
+                      />
+                      {s.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* SEEK fetch method */}
+          <div className="pt-1 border-t border-border">
+            <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wide mb-1.5">SEEK fetch method</p>
+            <div className="flex flex-col gap-1.5">
+              {[
+                { value: "direct", label: "Direct (free)", desc: "Scrapes SEEK directly — no cost." },
+                { value: "actor",  label: "Apify actor (~$0.42/run)", desc: "Uses your Apify integration — more reliable depth, costs per run." },
+              ].map((opt) => (
+                <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio" name="seek_method" value={opt.value}
+                    defaultChecked={(defaults?.seek_method ?? "direct") === opt.value}
+                    className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                  />
+                  <span>
+                    <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                    <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-text-3 mt-1.5">Applies only when SEEK is ticked above.</p>
+          </div>
         </div>
       </div>
 

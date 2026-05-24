@@ -93,7 +93,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, min_initial_ats, min_final_ats")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, min_initial_ats, min_final_ats, enabled_sources, seek_method")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -254,10 +254,20 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   let sourcesSaved: Record<string, number> = {};
 
   try {
+    // Per-profile source selection (Migration 041): null/empty = all sources.
+    const enabledSources = profile.enabled_sources ?? null;
+    const sourceEnabled = (name: string): boolean =>
+      !enabledSources || enabledSources.length === 0 || enabledSources.includes(name);
+
     // Stage 2: source layer
     const rawJobs: RawJob[] = [];
     for (const adapter of adapters) {
       await checkCancellation(runLogId);
+
+      if (!sourceEnabled(adapter.name)) {
+        console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (not in enabled_sources)`);
+        continue;
+      }
 
       // Apply vertical filter (default to all if not set).
       // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
@@ -292,53 +302,52 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
     // ── SEEK ──────────────────────────────────────────────────────────────────
-    // Primary: seekDirect (got-scraping → seek.com.au HTML, zero cost).
-    // Fallback: createSeekAdapter (Apify actor) — only runs if direct THROWS.
-    // A direct fetch that returns 0 jobs successfully is a valid result for
-    // small markets (e.g. Darwin) and must NOT trigger fallback.
-    //
-    // Override: SEEK_FORCE_ACTOR=1 skips the direct path entirely and uses the
-    // Apify actor as the ACTIVE source (temporary diagnostic toggle — unset the
-    // secret to restore direct-primary behaviour, no code change needed).
-    const FORCE_SEEK_ACTOR = process.env.SEEK_FORCE_ACTOR === "1"
-      || process.env.SEEK_FORCE_ACTOR === "true";
+    // Direct (got-scraping → seek.com.au HTML, free) vs Apify actor (paid),
+    // chosen per profile via seek_method (Migration 041). 'direct' still falls
+    // back to the actor if it throws. SEEK runs only if it's an enabled source.
+    const seekEnabled = sourceEnabled("seek");
+    const useActor = profile.seek_method === "actor";
     let seekDirectFailed = false;
-    await checkCancellation(runLogId);
-    await setStage(runLogId, "Fetching from SEEK");
-    if (FORCE_SEEK_ACTOR) {
-      seekDirectFailed = true; // route straight to the actor block below
-      if (seekAdapter && seekIntegration) {
-        console.warn(`[pipeline] SEEK_FORCE_ACTOR set — skipping seek-direct, using Apify actor as the active SEEK source`);
-      } else {
-        console.warn(`[pipeline] SEEK_FORCE_ACTOR set but no working Apify integration — SEEK will be skipped`);
-      }
+    if (!seekEnabled) {
+      console.log(`[pipeline] stage 2 — seek: skipped (not in enabled_sources)`);
     } else {
-      try {
-        const seekJobs = await seekDirectAdapter.fetchJobs(profile);
-        rawJobs.push(...seekJobs);
-        sourcesRun.push("seek");
-        console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
-      } catch (err) {
-        seekDirectFailed = true;
-        console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
+      await checkCancellation(runLogId);
+      await setStage(runLogId, "Fetching from SEEK");
+      if (useActor) {
+        seekDirectFailed = true; // route straight to the actor block below
         if (seekAdapter && seekIntegration) {
-          console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor`);
+          console.log(`[pipeline] seek: method=actor — using Apify actor`);
         } else {
-          console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
+          console.warn(`[pipeline] seek: method=actor but no working Apify integration — SEEK will be skipped`);
+        }
+      } else {
+        try {
+          const seekJobs = await seekDirectAdapter.fetchJobs(profile);
+          rawJobs.push(...seekJobs);
+          sourcesRun.push("seek");
+          console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
+        } catch (err) {
+          seekDirectFailed = true;
+          console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
+          if (seekAdapter && seekIntegration) {
+            console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor`);
+          } else {
+            console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
+          }
         }
       }
     }
 
-    // Runs if the direct path threw (or was force-skipped) AND the user has a
-    // working Apify integration.
-    if (seekDirectFailed && seekAdapter && seekIntegration) {
+    // Actor: runs when method=actor or direct threw, and the user has a working
+    // Apify integration.
+    if (seekEnabled && seekDirectFailed && seekAdapter && seekIntegration) {
       await checkCancellation(runLogId);
-      await setStage(runLogId, FORCE_SEEK_ACTOR ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
+      await setStage(runLogId, useActor ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
       try {
         const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
         rawJobs.push(...seekJobs);
         if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
-        console.log(`[pipeline]   seek (apify ${FORCE_SEEK_ACTOR ? "active" : "fallback"}): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
+        console.log(`[pipeline]   seek (apify ${useActor ? "active" : "fallback"}): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
 
         // Persist updated spend immediately — even if rest of pipeline fails
         const newSpend = seekIntegration.quota_used_usd + costUsd;
