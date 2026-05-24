@@ -250,18 +250,21 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         logger.info("run %s: pipeline completed (score=%s lift=%s)",
                     run_id, ats.get("overall_score"), rescore["ats_lift"])
 
-        # ── Auto cover letter — ANY run (manual or automation) that cleared the
-        # final gate. Idempotent: auto_generate_cover_letter skips when the job
-        # already has a non-stale letter, and requires a voice profile + a story,
-        # so re-analysis won't duplicate and users without a voice profile are
-        # simply left to generate manually.
+        # ── Auto cover letter ────────────────────────────────────────────────
+        # Triggered when the tailored score clears the user's final gate.
+        # AWAITED (not fire-and-forget) so the outcome is recorded on the
+        # analysis_run row before this function returns — see
+        # auto_generate_cover_letter for the cover_letter_status state
+        # machine. The 3-pass generation pipeline IS still detached as a
+        # background task inside that function; only the trigger + INSERT
+        # are awaited here (~200ms overhead, predictable).
         if final_score is not None and final_score >= payload.min_final_ats:
             logger.info(
                 "auto-cover-letter: run %s — tailored score %s >= final gate %s — triggering",
                 run_id, final_score, payload.min_final_ats,
             )
             jd_meta = payload.jd_meta or {}
-            asyncio.create_task(auto_generate_cover_letter(
+            await auto_generate_cover_letter(
                 run_id=       str(payload.run_id),
                 user_id=      str(payload.user_id),
                 jd_text=      payload.jd_text,
@@ -271,15 +274,23 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 ai_provider=  payload.ai_provider,
                 ai_api_key=   payload.ai_api_key,
                 ai_model=     payload.ai_model,
-            ))
+            )
         else:
-            # Visible reason when no letter is auto-generated: the gate compares
-            # the TAILORED score (not the initial/displayed one).
+            # Visible reason recorded on the run so the UI can show
+            # "Cover letter skipped: below threshold (62 < 70)" instead of
+            # silent absence. NOTE: the gate compares the TAILORED score
+            # (not the initial/displayed one).
             logger.info(
                 "auto-cover-letter: run %s — NO letter: tailored score %s below final gate %s "
                 "(gate uses the tailored score, not the initial ATS score)",
                 run_id, final_score, payload.min_final_ats,
             )
+            try:
+                get_supabase().table("analysis_runs").update(
+                    {"cover_letter_status": "skipped:below_gate"}
+                ).eq("id", run_id).execute()
+            except Exception as exc:  # noqa: BLE001 — best effort
+                logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
 
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)
