@@ -320,7 +320,7 @@ export function ComposeEmailModal({
                   </div>
                 </div>
               ) : (
-                <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/30 px-3 py-2 text-[12px] text-amber-950 dark:text-amber-100 leading-relaxed">
+                <div className="rounded border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[12px] text-text-2 leading-relaxed">
                   No contact email on this job — there's no recipient field. You
                   can still draft + approve the email here, then copy it from
                   Ready to apply and send from your own client.

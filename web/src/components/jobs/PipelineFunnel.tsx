@@ -118,7 +118,7 @@ export function PipelineFunnel({
     params.delete("triage");
     params.delete("status");
     params.delete("chips");
-    startTransition(() => router.replace(`${pathname}?${params}`));
+    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   }
 
   function selectTriage(triageKey: string) {
@@ -128,7 +128,7 @@ export function PipelineFunnel({
     } else {
       params.set("triage", triageKey);
     }
-    startTransition(() => router.replace(`${pathname}?${params}`));
+    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   }
 
   function toggleDismissed() {
@@ -139,7 +139,7 @@ export function PipelineFunnel({
       params.set("stage", "dismissed");
       params.delete("triage");
     }
-    startTransition(() => router.replace(`${pathname}?${params}`));
+    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   }
 
   /* Active stage's triage sub-labels */

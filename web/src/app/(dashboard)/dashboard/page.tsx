@@ -30,6 +30,7 @@ import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/Pip
 import { JobTable, type Job } from "@/components/jobs/JobTable";
 import { PipelineFunnel, type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { SmartFilterBar } from "@/components/jobs/SmartFilterBar";
+import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
 import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
 import {
@@ -620,6 +621,21 @@ export default async function DashboardPage({
 
   const currentTab = currentStage;
 
+  // Human labels for the active filter, so the job board can announce what
+  // it's showing (e.g. after a donut "View full-JD jobs" click).
+  const FILTER_LABELS: Record<string, string> = {
+    analysed: "Analysed", cvReady: "CV ready", letterReady: "Letter ready",
+    thinJd: "Thin JD", applied: "Applied", dismissed: "Archived",
+    richJd: "Full JD", roleMismatch: "Role mismatch", belowThreshold: "Below threshold",
+    hasEmail: "Has email", notTailored: "Not tailored", needsJd: "Thin JD",
+    above_final: "Above final", below_final: "Below final",
+    below_initial: "Below initial", no_ats: "No ATS",
+  };
+  const activeFilters: string[] = [];
+  if (currentStage !== "all") activeFilters.push(FILTER_LABELS[currentStage] ?? currentStage);
+  if (currentTriage)          activeFilters.push(FILTER_LABELS[currentTriage] ?? currentTriage);
+  if (sp.ats)                 activeFilters.push(FILTER_LABELS[sp.ats] ?? sp.ats);
+
   return (
     <div className="min-h-full">
       {/* Page header */}
@@ -656,13 +672,29 @@ export default async function DashboardPage({
         <PipelineDonut data={lensData} />
 
         {/* ── Unified jobs board ── */}
-        <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2">
+        <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2 scroll-mt-4">
+          {/* Smoothly scrolls here whenever a filter/sort changes. */}
+          <Suspense><ScrollToJobsOnFilter /></Suspense>
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[14px] font-semibold text-text">All jobs across profiles</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-[14px] font-semibold text-text">
+                {activeFilters.length > 0 ? `Jobs · ${activeFilters.join(" · ")}` : "All jobs across profiles"}
+              </h2>
+              <span className="text-[12px] text-text-3">{typedJobs.length}</span>
+              {activeFilters.length > 0 && (
+                <Link
+                  href="/dashboard"
+                  scroll={false}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2 hover:text-text transition-colors"
+                >
+                  <span>Clear filter</span>
+                  <span aria-hidden>✕</span>
+                </Link>
+              )}
               {sp.source && (
                 <Link
                   href="/dashboard"
+                  scroll={false}
                   className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2 hover:text-text transition-colors"
                 >
                   <span className="capitalize">Source: {sp.source}</span>

@@ -440,7 +440,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
               </>
             );
             return s.href ? (
-              <Link key={i} href={s.href} className={cls}>{inner}</Link>
+              <Link key={i} href={s.href} scroll={false} className={cls}>{inner}</Link>
             ) : (
               <div
                 key={i}
@@ -468,6 +468,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           {activeLens === "jd" && counts[1] > 0 && (
             <Link
               href="/dashboard?triage=thinJd"
+              scroll={false}
               className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-amber-600 hover:text-amber-700 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
@@ -481,12 +482,12 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
       {(data.callouts.thinJdCount > 0 || data.callouts.passedButNoLetter > 0 || data.callouts.readyToApply > 0) && (
         <div className="flex flex-wrap gap-2 px-5 pb-4 pt-1 border-t border-border">
           {data.callouts.thinJdCount > 0 && (
-            <Link href="/dashboard?triage=thinJd" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+            <Link href="/dashboard?triage=thinJd" scroll={false} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
               ⚠ {data.callouts.thinJdCount} thin JD{data.callouts.thinJdCount > 1 ? "s" : ""} need attention
             </Link>
           )}
           {data.callouts.passedButNoLetter > 0 && (
-            <Link href="/dashboard?stage=cvReady" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+            <Link href="/dashboard?stage=cvReady" scroll={false} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
               → {data.callouts.passedButNoLetter} passed ATS, no letter yet
             </Link>
           )}
@@ -610,7 +611,7 @@ function DonutPopup({
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">
-              <Link href={href} onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
+              <Link href={href} scroll={!href.startsWith("/dashboard?")} onClick={onClose} className="gh-btn gh-btn-blue text-[12px] w-full justify-center">
                 {label}
               </Link>
             </div>

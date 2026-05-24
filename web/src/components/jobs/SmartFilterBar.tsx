@@ -9,8 +9,8 @@
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useTransition } from "react";
-import { X, ShieldCheck, ArrowUpDown } from "lucide-react";
+import { useTransition, useState } from "react";
+import { X, ShieldCheck, ArrowUpDown, Loader2 } from "lucide-react";
 
 const SORT_OPTIONS = [
   { value: "posted_at",           label: "Date posted" },
@@ -56,7 +56,19 @@ export function SmartFilterBar({
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const [, startTransition] = useTransition();
+  const spStr = sp.toString();
+  const [isPending, startTransition] = useTransition();
+
+  // Optimistic control values. A controlled <select value={urlParam}> only
+  // updates after the server round-trip lands the new searchParams, so the
+  // dropdown visibly lags by a second or two. We mirror the chosen value
+  // locally (keyed to the params string it was chosen against) for instant
+  // feedback; once the URL catches up, spStr no longer matches `base` and the
+  // override is discarded so the URL value takes over again — no effect, no
+  // cascading render.
+  const [opt, setOpt] = useState<{ base: string; vals: Record<string, string> }>({ base: spStr, vals: {} });
+  const optVals = opt.base === spStr ? opt.vals : {};
+  const v = (key: string, fallback: string) => (key in optVals ? optVals[key] : fallback);
 
   const postedWithin = sp.get("posted_within") || "";
   const minKeywords = sp.get("min_keywords") || "";
@@ -67,21 +79,22 @@ export function SmartFilterBar({
   const currentDir = sp.get("dir") || "desc";
 
   function update(key: string, value: string) {
-    const params = new URLSearchParams(sp.toString());
+    setOpt({ base: spStr, vals: { ...optVals, [key]: value } });
+    const params = new URLSearchParams(spStr);
     if (value) params.set(key, value);
     else params.delete(key);
-    startTransition(() => router.replace(`${pathname}?${params}`));
+    // scroll:false — let ScrollToJobsOnFilter handle the smooth move to the
+    // results table instead of Next's default jump-to-top.
+    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   }
 
   function setSort(sort: string) {
-    const params = new URLSearchParams(sp.toString());
-    if (sort === currentSort) {
-      params.set("dir", currentDir === "desc" ? "asc" : "desc");
-    } else {
-      params.set("sort", sort);
-      params.set("dir", "desc");
-    }
-    startTransition(() => router.replace(`${pathname}?${params}`));
+    const nextDir = sort === currentSort ? (currentDir === "desc" ? "asc" : "desc") : "desc";
+    setOpt({ base: spStr, vals: { ...optVals, sort, dir: nextDir } });
+    const params = new URLSearchParams(spStr);
+    params.set("sort", sort);
+    params.set("dir", nextDir);
+    startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   }
 
   function removeFilter(key: string) {
@@ -130,7 +143,7 @@ export function SmartFilterBar({
 
         {/* Time range */}
         <select
-          value={postedWithin || ""}
+          value={v("posted_within", postedWithin)}
           onChange={(e) => update("posted_within", e.target.value)}
           className={`${ctrlCls} min-w-[100px]`}
         >
@@ -142,7 +155,7 @@ export function SmartFilterBar({
         {/* Keywords (per-profile board only) */}
         {showKeywords && (
           <select
-            value={minKeywords || ""}
+            value={v("min_keywords", minKeywords)}
             onChange={(e) => update("min_keywords", e.target.value)}
             className={`${ctrlCls} min-w-[110px]`}
           >
@@ -155,7 +168,7 @@ export function SmartFilterBar({
         {/* ATS score band (main dashboard only) */}
         {showAtsFilter && (
           <select
-            value={atsBand || ""}
+            value={v("ats", atsBand)}
             onChange={(e) => update("ats", e.target.value)}
             className={`${ctrlCls} min-w-[120px]`}
           >
@@ -181,15 +194,16 @@ export function SmartFilterBar({
         {/* Spacer */}
         <div className="flex-1 min-w-2" />
 
-        {/* Result count */}
-        <span className="text-[11px] text-text-3 whitespace-nowrap shrink-0">
-          {total} job{total !== 1 ? "s" : ""}
+        {/* Result count (shows a spinner while the filtered list is loading) */}
+        <span className="inline-flex items-center gap-1 text-[11px] text-text-3 whitespace-nowrap shrink-0">
+          {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+          {isPending ? "Updating…" : `${total} job${total !== 1 ? "s" : ""}`}
         </span>
 
         {/* Sort dropdown */}
         <div className="relative shrink-0">
           <select
-            value={currentSort}
+            value={v("sort", currentSort)}
             onChange={(e) => setSort(e.target.value)}
             className={`${ctrlCls} pl-7 pr-2 appearance-none cursor-pointer min-w-[140px]`}
           >
@@ -203,13 +217,18 @@ export function SmartFilterBar({
         </div>
 
         {/* Sort direction toggle */}
-        <button
-          onClick={() => update("dir", currentDir === "desc" ? "asc" : "desc")}
-          className="shrink-0 inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-[var(--border)] bg-[var(--surface)] text-text-2 hover:text-text text-xs transition-colors"
-          title={currentDir === "desc" ? "Descending" : "Ascending"}
-        >
-          {currentDir === "desc" ? "↓" : "↑"}
-        </button>
+        {(() => {
+          const dirNow = v("dir", currentDir);
+          return (
+            <button
+              onClick={() => update("dir", dirNow === "desc" ? "asc" : "desc")}
+              className="shrink-0 inline-flex items-center justify-center w-[30px] h-[30px] rounded-md border border-[var(--border)] bg-[var(--surface)] text-text-2 hover:text-text text-xs transition-colors"
+              title={dirNow === "desc" ? "Descending" : "Ascending"}
+            >
+              {dirNow === "desc" ? "↓" : "↑"}
+            </button>
+          );
+        })()}
       </div>
 
       {/* ── Active filter pills ────────────────────────── */}
