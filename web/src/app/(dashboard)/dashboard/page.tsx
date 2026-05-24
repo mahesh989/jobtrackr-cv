@@ -55,6 +55,8 @@ interface SearchParams {
   source?:        string;
   location?:      string;
   posted_within?: string;
+  /** ATS-score band filter: above_final | below_final | below_initial | no_ats */
+  ats?:           string;
 }
 
 /** Map the new ?stage= param (or legacy ?status=) to a stage key */
@@ -313,6 +315,27 @@ export default async function DashboardPage({
     );
   } else if (currentTriage === "hasEmail") {
     typedJobs = typedJobs.filter((x) => x.has_email === true);
+  } else if (currentTriage === "notTailored") {
+    // Analysis lens "Not tailored" slice — jobs without a tailored CV yet
+    // (includes un-analysed jobs), mirroring the donut's analysis bucket 2.
+    typedJobs = typedJobs.filter((x) => !x.progress.has_tailored_cv);
+  }
+
+  // ── ATS-score band filter (SmartFilterBar dropdown + donut CTAs) ──────────
+  // Recompute gates LIVE from stored scores vs the profile's current thresholds
+  // so bands match the ATS donut exactly (and respond to threshold changes).
+  if (sp.ats) {
+    typedJobs = typedJobs.filter((x) => {
+      const run = runByJob.get(x.id);
+      if (sp.ats === "no_ats") return !run;
+      if (!run) return false;
+      const th = threshByProfile.get(x.profile_id) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
+      const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
+      if (sp.ats === "above_final")   return g.passedFinal === true;
+      if (sp.ats === "below_final")   return g.passedFinal !== true && !!g.passedInitial;
+      if (sp.ats === "below_initial") return g.passedFinal !== true && !g.passedInitial;
+      return true;
+    });
   }
 
   if (sortCol === "rich_jd_first") {
@@ -657,7 +680,7 @@ export default async function DashboardPage({
 
           {/* Smart filter bar */}
           <Suspense>
-            <SmartFilterBar total={typedJobs.length} />
+            <SmartFilterBar total={typedJobs.length} showKeywords={false} showAtsFilter />
           </Suspense>
 
           {/* Continue rail */}

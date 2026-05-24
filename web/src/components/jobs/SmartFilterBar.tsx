@@ -34,7 +34,25 @@ const KEYWORD_OPTIONS = [
   { value: "3", label: "≥ 3 keywords" },
 ] as const;
 
-export function SmartFilterBar({ total }: { total: number }) {
+const ATS_OPTIONS = [
+  { value: "",              label: "Any ATS score" },
+  { value: "above_final",   label: "Above final" },
+  { value: "below_final",   label: "Below final" },
+  { value: "below_initial", label: "Below initial" },
+  { value: "no_ats",        label: "No ATS" },
+] as const;
+
+export function SmartFilterBar({
+  total,
+  showKeywords = true,
+  showAtsFilter = false,
+}: {
+  total: number;
+  /** Show the "min keywords matched" dropdown (per-profile board). */
+  showKeywords?: boolean;
+  /** Show the ATS-score band dropdown (main dashboard). */
+  showAtsFilter?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -42,6 +60,7 @@ export function SmartFilterBar({ total }: { total: number }) {
 
   const postedWithin = sp.get("posted_within") || "";
   const minKeywords = sp.get("min_keywords") || "";
+  const atsBand = sp.get("ats") || "";
   const locationVal = sp.get("location") || "";
   const visaOn = sp.get("visa_toggle") === "1";
   const currentSort = sp.get("sort") || "posted_at";
@@ -76,9 +95,13 @@ export function SmartFilterBar({ total }: { total: number }) {
     const tl = TIME_OPTIONS.find((t) => t.value === postedWithin);
     pills.push({ key: "posted_within", label: `🕐 ${tl?.label ?? postedWithin}` });
   }
-  if (minKeywords) {
+  if (showKeywords && minKeywords) {
     const kl = KEYWORD_OPTIONS.find((k) => k.value === minKeywords);
     pills.push({ key: "min_keywords", label: `🔑 ${kl?.label ?? minKeywords}` });
+  }
+  if (showAtsFilter && atsBand) {
+    const al = ATS_OPTIONS.find((a) => a.value === atsBand);
+    pills.push({ key: "ats", label: `📊 ${al?.label ?? atsBand}` });
   }
   if (visaOn) pills.push({ key: "visa_toggle", label: "🛡 Visa" });
 
@@ -116,16 +139,31 @@ export function SmartFilterBar({ total }: { total: number }) {
           ))}
         </select>
 
-        {/* Keywords */}
-        <select
-          value={minKeywords || ""}
-          onChange={(e) => update("min_keywords", e.target.value)}
-          className={`${ctrlCls} min-w-[110px]`}
-        >
-          {KEYWORD_OPTIONS.map((k) => (
-            <option key={k.value} value={k.value}>{k.label}</option>
-          ))}
-        </select>
+        {/* Keywords (per-profile board only) */}
+        {showKeywords && (
+          <select
+            value={minKeywords || ""}
+            onChange={(e) => update("min_keywords", e.target.value)}
+            className={`${ctrlCls} min-w-[110px]`}
+          >
+            {KEYWORD_OPTIONS.map((k) => (
+              <option key={k.value} value={k.value}>{k.label}</option>
+            ))}
+          </select>
+        )}
+
+        {/* ATS score band (main dashboard only) */}
+        {showAtsFilter && (
+          <select
+            value={atsBand || ""}
+            onChange={(e) => update("ats", e.target.value)}
+            className={`${ctrlCls} min-w-[120px]`}
+          >
+            {ATS_OPTIONS.map((a) => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+        )}
 
         {/* Visa toggle */}
         <button

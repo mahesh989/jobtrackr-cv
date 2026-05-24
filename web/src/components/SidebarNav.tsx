@@ -14,7 +14,6 @@ import {
   Lock,
   Users,
   BarChart3,
-  Plus,
   LogOut,
   Sparkles,
   Send,
@@ -113,8 +112,6 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
           </p>
         </div>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
-        <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
-        <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>
         <NavItem href="/dashboard/instructions" icon={BookOpen}>Instructions</NavItem>
 
         {/* My profiles — single nav entry (NOT a per-profile list anymore).
@@ -130,15 +127,8 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
           My profiles
         </NavItem>
 
-        <div className="px-3 pt-1">
-          <Link
-            href="/dashboard/profiles/new"
-            className="flex items-center gap-1.5 text-[12px] text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors py-1"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New profile
-          </Link>
-        </div>
+        <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
+        <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>
 
         {/* Tools */}
         <div className="px-1 pt-4 pb-1">

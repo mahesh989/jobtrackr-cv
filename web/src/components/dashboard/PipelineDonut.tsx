@@ -67,6 +67,14 @@ interface LensMeta {
   label: string;
   centerLabel: string;
   slices: [SliceMeta, SliceMeta, SliceMeta];
+  /** How many of the 3 slices to actually show (default 3). The Applied lens
+      uses 2 — the third ("Not yet") is noise and dwarfs the rest. */
+  visibleSlices?: number;
+}
+
+/** Visible slice count for a lens (defaults to all 3). */
+function visN(meta: LensMeta): number {
+  return meta.visibleSlices ?? 3;
 }
 
 const LENS_META: Record<LensKey, LensMeta> = {
@@ -111,6 +119,7 @@ const LENS_META: Record<LensKey, LensMeta> = {
   applied: {
     label: "Applied",
     centerLabel: "applied",
+    visibleSlices: 2,
     slices: [
       { label: "Applied",        color: "#ec4899", href: "/dashboard/applications?status=sent" },
       { label: "Ready to apply", color: "#60a5fa", href: "/dashboard/applications" },
@@ -148,6 +157,21 @@ function lerp3(
 function toFracs(c: [number, number, number]): [number, number, number] {
   const s = c[0] + c[1] + c[2];
   return s === 0 ? [1 / 3, 1 / 3, 1 / 3] : [c[0] / s, c[1] / s, c[2] / s];
+}
+
+/**
+ * Like toFracs but only counts the first `n` slices — the rest get frac 0 so
+ * the donut ring and hit detection ignore them (used by lenses that hide a
+ * slice, e.g. Applied hides "Not yet").
+ */
+function toFracsN(c: [number, number, number], n: number): [number, number, number] {
+  if (n >= 3) return toFracs(c);
+  const vis = c.slice(0, n);
+  const s = vis.reduce((a, b) => a + b, 0);
+  const out: [number, number, number] = [0, 0, 0];
+  if (s === 0) { for (let i = 0; i < n; i++) out[i] = 1 / n; return out; }
+  for (let i = 0; i < n; i++) out[i] = c[i] / s;
+  return out;
 }
 
 function cssVar(name: string, fb: string) {
@@ -328,7 +352,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
     setActiveLens(lens);
     hovRef.current = null;
     setHovered(null);
-    tFracs.current  = toFracs(getTotals(data, lens));
+    tFracs.current  = toFracsN(getTotals(data, lens), visN(LENS_META[lens]));
     tCenter.current = centerTarget(data, lens);
     runAnim();
   }
@@ -357,7 +381,8 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
 
   const meta   = resolveLensMeta(activeLens, data.ats.thresholds);
   const counts = getTotals(data, activeLens);
-  const total  = counts[0] + counts[1] + counts[2];
+  const vis    = visN(meta);
+  const total  = counts.slice(0, vis).reduce((a, b) => a + b, 0);
 
   return (
     <div className="bg-surface border border-border rounded-lg overflow-hidden">
@@ -402,7 +427,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
 
         <div className="flex-1 min-w-0 space-y-2">
           <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wider mb-3">Breakdown</p>
-          {meta.slices.map((s, i) => {
+          {meta.slices.slice(0, vis).map((s, i) => {
             const n   = counts[i];
             const pct = total > 0 ? Math.round((n / total) * 100) : 0;
             const cls = "flex items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors";
@@ -492,6 +517,7 @@ function DonutPopup({
 }) {
   const [filter, setFilter] = useState<string | null>(null);
   const meta     = resolveLensMeta(lens, data.ats.thresholds);
+  const vis      = visN(meta);
   const allProfs = data[lens].byProfile as ProfileCount[];
   const profs    = filter ? allProfs.filter((p) => p.profileId === filter) : allProfs;
   const title    = mode === "center"
@@ -517,8 +543,9 @@ function DonutPopup({
           >×</button>
         </div>
 
-        {/* Profile filter */}
-        {allProfs.length > 1 && (
+        {/* Profile filter — only on Sourcing. Other lenses show the All view
+            (every profile listed) without the per-profile narrowing chips. */}
+        {lens === "sourcing" && allProfs.length > 1 && (
           <div className="flex gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto shrink-0">
             {([{ profileId: null, profileName: "All" }, ...allProfs] as Array<{ profileId: string | null; profileName: string }>).map((p) => (
               <button
@@ -542,7 +569,7 @@ function DonutPopup({
             <p className="text-[13px] text-text-2 text-center py-8">No data yet</p>
           )}
           {mode === "center"
-            ? profs.map((p) => <StackedBar key={p.profileId} profile={p} meta={meta} />)
+            ? profs.map((p) => <StackedBar key={p.profileId} profile={p} meta={meta} vis={vis} />)
             : (() => {
                 const idx      = mode as number;
                 const maxCount = Math.max(...profs.map((p) => p.counts[idx]), 1);
@@ -570,6 +597,10 @@ function DonutPopup({
             { href = "/dashboard?stage=letterReady"; label = "View letter-ready jobs →"; }
           else if (lens === "analysis" && mode === 1)
             { href = "/dashboard?stage=cvReady"; label = "View CV-ready jobs →"; }
+          else if (lens === "analysis" && mode === 2 && data.analysis.totals[2] > 0)
+            { href = "/dashboard?triage=notTailored"; label = "View not-tailored jobs →"; }
+          else if (lens === "ats" && mode === 0 && data.ats.totals[0] > 0)
+            { href = "/dashboard?ats=above_final"; label = "View above-threshold jobs →"; }
           else if (lens === "ats" && (mode === 1 || mode === 2))
             { href = "/dashboard?triage=belowThreshold"; label = "View below-threshold jobs →"; }
           else if (lens === "applied" && (mode === 0 || mode === "center"))
@@ -590,8 +621,8 @@ function DonutPopup({
   );
 }
 
-function StackedBar({ profile, meta }: { profile: ProfileCount; meta: LensMeta }) {
-  const total = profile.counts[0] + profile.counts[1] + profile.counts[2];
+function StackedBar({ profile, meta, vis = 3 }: { profile: ProfileCount; meta: LensMeta; vis?: number }) {
+  const total = profile.counts.slice(0, vis).reduce((a, b) => a + b, 0);
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1.5">
@@ -599,7 +630,7 @@ function StackedBar({ profile, meta }: { profile: ProfileCount; meta: LensMeta }
         <span className="text-[12px] text-text-2 shrink-0">{total}</span>
       </div>
       <div className="h-5 w-full rounded-md overflow-hidden flex bg-[var(--surface-2)]">
-        {meta.slices.map((s, i) => {
+        {meta.slices.slice(0, vis).map((s, i) => {
           const pct = total > 0 ? (profile.counts[i] / total) * 100 : 33;
           return (
             <div key={i} style={{ width: `${pct}%`, background: s.color }} title={`${s.label}: ${profile.counts[i]}`} />
@@ -607,7 +638,7 @@ function StackedBar({ profile, meta }: { profile: ProfileCount; meta: LensMeta }
         })}
       </div>
       <div className="flex gap-3 mt-1.5">
-        {meta.slices.map((s, i) => (
+        {meta.slices.slice(0, vis).map((s, i) => (
           <span key={i} className="text-[10px] text-text-3 flex items-center gap-0.5">
             <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ background: s.color }} />
             {s.label}: {profile.counts[i]}
