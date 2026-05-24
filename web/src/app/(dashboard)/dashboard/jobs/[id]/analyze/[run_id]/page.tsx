@@ -19,10 +19,6 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   const admin = createAdminClient();
 
-  // Verify ownership via the job's profile chain (job -> search_profile -> user)
-  // rather than analysis_runs.user_id directly. Old worker-created rows can
-  // have user_id NULL on analysis_runs, which would otherwise 404 cards in
-  // the Applications tab whose Full Analysis link points to such a run.
   const { data: job } = await admin
     .from("jobs")
     .select("title, company, location, url, manual_jd_text, description, hiring_manager, profile_id")
@@ -30,13 +26,6 @@ export default async function AnalyzeRunPage({ params }: Props) {
     .maybeSingle();
 
   if (!job) notFound();
-
-  const { data: profile } = await admin
-    .from("search_profiles")
-    .select("user_id")
-    .eq("id", (job as { profile_id: string }).profile_id)
-    .maybeSingle();
-  if (!profile || (profile as { user_id: string }).user_id !== user.id) notFound();
 
   const { data: run } = await admin
     .from("analysis_runs")
@@ -46,13 +35,40 @@ export default async function AnalyzeRunPage({ params }: Props) {
       "input_recommendations, keyword_feasibility, ai_recommendations, " +
       "tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, " +
       "match_score, tailored_match_score, ats_lift, " +
-      "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at",
+      "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at, user_id",
     )
     .eq("id", runId)
     .eq("job_id", jobId)
     .maybeSingle();
 
   if (!run) notFound();
+
+  // Ownership — allow if the user owns ANY artifact tied to this job: its
+  // search_profile, this analysis run, OR a cover letter for the job. A single
+  // chain produces false 404s: worker rows can leave analysis_runs.user_id
+  // NULL, and a job's search_profile.user_id can diverge from the id that owns
+  // its cover letters (the auth migration re-owned cover_letters but not
+  // search_profiles). Each signal independently proves ownership, so OR-ing
+  // them can never expose another user's data. The cover-letter signal is what
+  // rescues Application-pool cards (which by definition have an owned letter).
+  const [{ data: profile }, { count: ownedLetters }] = await Promise.all([
+    admin
+      .from("search_profiles")
+      .select("user_id")
+      .eq("id", (job as { profile_id: string }).profile_id)
+      .maybeSingle(),
+    admin
+      .from("cover_letters")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", jobId)
+      .eq("user_id", user.id),
+  ]);
+
+  const ownsJob =
+    (profile as { user_id?: string } | null)?.user_id === user.id ||
+    (run as unknown as { user_id?: string | null }).user_id === user.id ||
+    (ownedLetters ?? 0) > 0;
+  if (!ownsJob) notFound();
 
   // Look up the CV label that was used so the diagnostic shows
   // "Master CV 2026" rather than a UUID.
