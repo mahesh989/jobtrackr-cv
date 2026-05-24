@@ -70,18 +70,26 @@ async def auto_generate_cover_letter(
         job_id: str = run_row.data["job_id"]
 
         # ── 2. Idempotency check ──────────────────────────────────────────────
+        # Skip only if a non-stale letter exists that is NOT failed. A previously
+        # failed attempt must not permanently block regeneration (that left jobs
+        # "passed gate but no letter" with no way to recover except manual delete).
         existing = (
             sb.table(_COVER_LETTERS)
-            .select("id")
+            .select("id, status")
             .eq("job_id", job_id)
             .eq("user_id", user_id)
             .eq("is_stale", False)
-            .limit(1)
             .execute()
         )
-        if existing.data:
-            logger.info("auto-cover-letter: job %s already has a letter — skipping", job_id)
+        active = [r for r in (existing.data or []) if r.get("status") != "failed"]
+        if active:
+            logger.info("auto-cover-letter: job %s already has a non-failed letter — skipping", job_id)
             return
+        # Mark any prior failed letters stale so they don't accumulate / re-block.
+        for r in (existing.data or []):
+            if r.get("status") == "failed":
+                sb.table(_COVER_LETTERS).update({"is_stale": True}).eq("id", r["id"]).execute()
+                logger.info("auto-cover-letter: job %s — retiring prior failed letter %s, regenerating", job_id, r["id"])
 
         # ── 3. Fetch voice profile ────────────────────────────────────────────
         voice_row = (

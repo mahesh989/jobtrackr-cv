@@ -256,6 +256,10 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # so re-analysis won't duplicate and users without a voice profile are
         # simply left to generate manually.
         if final_score is not None and final_score >= payload.min_final_ats:
+            logger.info(
+                "auto-cover-letter: run %s — tailored score %s >= final gate %s — triggering",
+                run_id, final_score, payload.min_final_ats,
+            )
             jd_meta = payload.jd_meta or {}
             asyncio.create_task(auto_generate_cover_letter(
                 run_id=       str(payload.run_id),
@@ -268,6 +272,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 ai_api_key=   payload.ai_api_key,
                 ai_model=     payload.ai_model,
             ))
+        else:
+            # Visible reason when no letter is auto-generated: the gate compares
+            # the TAILORED score (not the initial/displayed one).
+            logger.info(
+                "auto-cover-letter: run %s — NO letter: tailored score %s below final gate %s "
+                "(gate uses the tailored score, not the initial ATS score)",
+                run_id, final_score, payload.min_final_ats,
+            )
 
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)
