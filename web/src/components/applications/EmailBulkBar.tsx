@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Send, Loader2, X, CheckCircle2, AlertCircle, SkipForward } from "lucide-react";
 import { ApplicationCard, type ApplicationRow } from "./ApplicationCard";
 import { ComposeEmailModal } from "./ComposeEmailModal";
 
 interface Props {
-  rows: ApplicationRow[];   // already filtered to Ready-to-email tab rows
+  rows:  ApplicationRow[];   // already filtered to Ready-to-email tab rows
+  empty: ReactNode;          // rendered instantly when the last card leaves
 }
 
 type LetterStatus =
@@ -32,7 +33,7 @@ type LetterStatus =
  *
  * Per-card "Review" still works (same component, same modal).
  */
-export function EmailBulkBar({ rows }: Props) {
+export function EmailBulkBar({ rows, empty }: Props) {
   const [selected,   setSelected]   = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [queue,      setQueue]      = useState<string[]>([]);
@@ -124,7 +125,7 @@ export function EmailBulkBar({ rows }: Props) {
     );
   }
 
-  if (visibleRows.length === 0) return null;
+  if (visibleRows.length === 0) return <>{empty}</>;
 
   const allSelected = selected.size === visibleRows.length && visibleRows.length > 0;
   const currentLetterId = inBatch ? queue[queueIdx] : null;
@@ -190,7 +191,13 @@ export function EmailBulkBar({ rows }: Props) {
                     )}
                   </div>
                 )}
-                <ApplicationCard row={row} tab="email" />
+                <ApplicationCard
+                  row={row}
+                  tab="email"
+                  onActioned={() =>
+                    setHidden((prev) => new Set(prev).add(row.letter_id))
+                  }
+                />
                 {status?.state === "failed" && (
                   <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">
                     {status.error}

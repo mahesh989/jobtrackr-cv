@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { Archive, Loader2, X, MailX } from "lucide-react";
 import { bulkMarkPoolNoEmail, bulkArchiveJobs } from "@/lib/actions";
 import { ApplicationCard, type ApplicationRow } from "./ApplicationCard";
 
 interface Props {
-  rows: ApplicationRow[];   // already filtered to pool-tab rows
+  rows:   ApplicationRow[];   // already filtered to pool-tab rows
+  empty:  ReactNode;          // rendered instantly when the last card leaves
 }
 
 /**
@@ -19,11 +20,20 @@ interface Props {
  * "Same email for all" is intentionally NOT offered — too risky if companies
  * differ. For email-required cases, decide per-card.
  */
-export function PoolBulkBar({ rows }: Props) {
+export function PoolBulkBar({ rows, empty }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending]   = useState<"noemail" | "archive" | null>(null);
   const [error, setError]       = useState<string | null>(null);
+  const [removed, setRemoved]   = useState<Set<string>>(new Set());
   const [, startTransition]     = useTransition();
+
+  // Cards a per-card action has slid out (queued for review / archived). Drop
+  // them locally so the empty state shows instantly, without waiting for the
+  // card's router.refresh() round-trip.
+  const visibleRows = useMemo(
+    () => rows.filter((r) => !removed.has(r.letter_id)),
+    [rows, removed],
+  );
 
   function toggle(jobId: string) {
     setError(null);
@@ -36,7 +46,7 @@ export function PoolBulkBar({ rows }: Props) {
   }
 
   function selectAll() {
-    setSelected(new Set(rows.map((r) => r.job_id)));
+    setSelected(new Set(visibleRows.map((r) => r.job_id)));
   }
   function clearSelection() {
     setSelected(new Set());
@@ -60,9 +70,9 @@ export function PoolBulkBar({ rows }: Props) {
     });
   }
 
-  if (rows.length === 0) return null;
+  if (visibleRows.length === 0) return <>{empty}</>;
 
-  const allSelected = selected.size === rows.length && rows.length > 0;
+  const allSelected = selected.size === visibleRows.length && visibleRows.length > 0;
 
   return (
     <div className="space-y-3">
@@ -78,16 +88,16 @@ export function PoolBulkBar({ rows }: Props) {
             onChange={() => {}}                /* handled by button click */
             className="w-3.5 h-3.5 accent-[var(--brand)] pointer-events-none"
           />
-          <span>{allSelected ? "Deselect all" : "Select all"} ({rows.length})</span>
+          <span>{allSelected ? "Deselect all" : "Select all"} ({visibleRows.length})</span>
         </button>
-        {selected.size > 0 && selected.size < rows.length && (
+        {selected.size > 0 && selected.size < visibleRows.length && (
           <span className="text-text-3">· {selected.size} selected</span>
         )}
       </div>
 
       {/* Cards */}
       <div className="space-y-3">
-        {rows.map((row) => {
+        {visibleRows.map((row) => {
           const isSelected = selected.has(row.job_id);
           return (
             <div key={row.letter_id} className="relative">
@@ -107,7 +117,13 @@ export function PoolBulkBar({ rows }: Props) {
               {/* Always reserve space for the checkbox so the title doesn't
                   shift between selected/unselected states. */}
               <div className="pl-7">
-                <ApplicationCard row={row} tab="pool" />
+                <ApplicationCard
+                  row={row}
+                  tab="pool"
+                  onActioned={() =>
+                    setRemoved((prev) => new Set(prev).add(row.letter_id))
+                  }
+                />
               </div>
             </div>
           );

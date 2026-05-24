@@ -97,11 +97,19 @@ export function ApplicationCard({
   row,
   tab = "apply",
   isPool = false,
+  onActioned,
 }: {
   row:     ApplicationRow;
   tab?:    CardTab;
   /** @deprecated kept for callers that haven't migrated; equivalent to tab="pool" */
   isPool?: boolean;
+  /**
+   * Called the moment this card leaves its tab (applied / archived / queued /
+   * reviewed / sent). Lets a client list parent drop the row from its own
+   * state and render the empty state instantly, instead of waiting for the
+   * router.refresh() server round-trip.
+   */
+  onActioned?: () => void;
 }) {
   const router = useRouter();
   // Back-compat: callers that set isPool=true override the tab.
@@ -130,7 +138,7 @@ export function ApplicationCard({
     if (localApplied || pending) return;
     setPending("apply");
     setLocalApplied(true);
-    setTimeout(() => { setHidden(true); router.refresh(); }, 700);
+    setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 700);
     startTransition(async () => {
       try { await markJobApplied(row.job_id, row.profile_id); }
       catch (e) { console.error(e); setLocalApplied(false); setHidden(false); }
@@ -142,7 +150,7 @@ export function ApplicationCard({
     if (localArchived || pending) return;
     setPending("archive");
     setLocalArchived(true);
-    setTimeout(() => setHidden(true), 450);
+    setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 450);
     startTransition(async () => {
       try { await markJobDismissed(row.job_id, row.profile_id); }
       catch (e) { console.error(e); setLocalArchived(false); setHidden(false); }
@@ -158,7 +166,7 @@ export function ApplicationCard({
       try {
         await markPoolDecision(row.job_id, row.profile_id, email);
         // Success — slide the card out of the pool tab
-        setTimeout(() => setHidden(true), 300);
+        setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 300);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to save decision";
         setActionError(msg);
@@ -215,14 +223,14 @@ export function ApplicationCard({
     // page sits with a stale "had-rows" layout until the user reloads.
     setComposing(false);
     setLocalReviewed(true);
-    setTimeout(() => { setHidden(true); router.refresh(); }, 500);
+    setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 500);
   }
 
   function handleSent() {
     // Compose modal already posted successfully — close it and slide the card out.
     setComposing(false);
     setLocalApplied(true);
-    setTimeout(() => { setHidden(true); router.refresh(); }, 700);
+    setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 700);
   }
 
   // Direct send — no modal — used by the Send button in the "Ready to apply"
@@ -270,7 +278,7 @@ export function ApplicationCard({
       const json = await res.json();
       if (!res.ok) { setActionError(json.error ?? "Send failed"); return; }
       setLocalApplied(true);
-      setTimeout(() => { setHidden(true); router.refresh(); }, 700);
+      setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 700);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Network error");
     } finally {
@@ -385,8 +393,8 @@ export function ApplicationCard({
           When sending is later attempted from Ready to apply, the presence of
           contact_email decides Send-vs-Copy. */}
       {currentTab === "pool" ? (
-        <div className="rounded-md border border-amber-300 bg-amber-100 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2.5 mb-3">
-          <p className="text-[13px] font-semibold text-amber-950 dark:text-amber-100 mb-2">
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 mb-3">
+          <p className="text-[13px] font-semibold text-text mb-2">
             Queue this for review?
           </p>
           <div className="flex items-center gap-2">
@@ -410,7 +418,7 @@ export function ApplicationCard({
               Queue for review
             </button>
           </div>
-          <p className="text-[11px] text-amber-900 dark:text-amber-200 mt-1.5">
+          <p className="text-[11px] text-text-2 mt-1.5">
             Adding an email enables one-click send later. Leave it blank to draft the email anyway — you'll be able to copy it for your own client.
           </p>
         </div>

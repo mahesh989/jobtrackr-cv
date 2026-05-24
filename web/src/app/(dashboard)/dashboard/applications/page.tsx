@@ -16,7 +16,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Inbox } from "lucide-react";
 import { ApplicationStatusTabs, type ApplicationStatusCounts, type ApplicationStatusKey } from "@/components/applications/ApplicationStatusTabs";
-import { ApplicationCard, type ApplicationRow } from "@/components/applications/ApplicationCard";
+import { type ApplicationRow } from "@/components/applications/ApplicationCard";
+import { ApplicationCardList } from "@/components/applications/ApplicationCardList";
 import { BackButton } from "@/components/dashboard/BackButton";
 import { PoolBulkBar } from "@/components/applications/PoolBulkBar";
 import { EmailBulkBar } from "@/components/applications/EmailBulkBar";
@@ -199,6 +200,22 @@ export default async function ApplicationsPage({
     return false;
   });
 
+  // Shared empty-state node. Passed into the client list wrappers so they can
+  // render it the instant the last card actions out (without a server refresh),
+  // and also used directly for the initial server-rendered empty case.
+  const tabEmpty = (
+    <div className="bg-surface border border-border rounded-md py-12 text-center anim-in anim-delay-2">
+      <p className="text-[13px] font-medium text-text mb-1">Nothing here yet</p>
+      <p className="text-[12px] text-text-2">
+        {validTab === "pool"     && "Cover letters waiting to be queued for review will appear here."}
+        {validTab === "email"    && "Cards queued for review will appear here. Generate a cover letter on a job to start."}
+        {validTab === "apply"    && "Reviewed cards ready to be sent or applied to will appear here."}
+        {validTab === "sent"     && "Jobs you mark as applied will appear here."}
+        {validTab === "archived" && "Archived applications will appear here."}
+      </p>
+    </div>
+  );
+
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool:     "Cover letter is ready. Queue it for review (and optionally add a contact email), or archive it. The same review flow applies whether you have a contact email or not.",
     email:    "Review stage. Click Review on a card to preview and edit the email (subject + body), then Approve. Approved cards move to Ready to apply. Nothing leaves your account from this tab.",
@@ -242,33 +259,22 @@ export default async function ApplicationsPage({
         </p>
 
         {visible.length === 0 ? (
-          <div className="bg-surface border border-border rounded-md py-12 text-center anim-in anim-delay-2">
-            <p className="text-[13px] font-medium text-text mb-1">Nothing here yet</p>
-            <p className="text-[12px] text-text-2">
-              {validTab === "pool"     && "Cover letters waiting to be queued for review will appear here."}
-              {validTab === "email"    && "Cards queued for review will appear here. Generate a cover letter on a job to start."}
-              {validTab === "apply"    && "Reviewed cards ready to be sent or applied to will appear here."}
-              {validTab === "sent"     && "Jobs you mark as applied will appear here."}
-              {validTab === "archived" && "Archived applications will appear here."}
-            </p>
-          </div>
+          tabEmpty
         ) : validTab === "pool" ? (
           /* Pool tab uses the pool-bulk wrapper. */
           <div className="anim-in anim-delay-2">
-            <PoolBulkBar rows={visible} />
+            <PoolBulkBar rows={visible} empty={tabEmpty} />
           </div>
         ) : validTab === "email" ? (
           /* Ready-to-email uses the send-bulk wrapper (still allows per-card Send). */
           <div className="anim-in anim-delay-2">
-            <EmailBulkBar rows={visible} />
+            <EmailBulkBar rows={visible} empty={tabEmpty} />
           </div>
         ) : (
           /* Apply / Sent / Archived render plain. The card needs the current
              tab so it can pick the right primary action (Send email vs Apply now). */
-          <div className="space-y-3 anim-in anim-delay-2">
-            {visible.map((row) => (
-              <ApplicationCard key={row.letter_id} row={row} tab={validTab} />
-            ))}
+          <div className="anim-in anim-delay-2">
+            <ApplicationCardList rows={visible} tab={validTab} empty={tabEmpty} />
           </div>
         )}
       </div>

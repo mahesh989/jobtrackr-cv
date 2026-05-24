@@ -231,9 +231,8 @@ export function ComposeEmailModal({
         role="dialog"
         aria-modal="true"
       >
-        {/* Header — primary action mirrored in the top-right so the
-            Approve/Send button is always visible without scrolling.
-            Footer keeps the same buttons too; either one works. */}
+        {/* Header — the only action row. Approve/Send lives top-right so it's
+            always visible without scrolling, no matter how tall the body grows. */}
         <div className="px-5 py-3 border-b border-border flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0 flex-1">
             <h2 className="text-[14px] font-semibold text-text">
@@ -246,6 +245,17 @@ export function ComposeEmailModal({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {dirty && (
+              <button
+                onClick={resetDefaults}
+                disabled={sending}
+                className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40"
+                title="Restore the default subject + body"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset
+              </button>
+            )}
             <button
               onClick={onClose}
               disabled={sending}
@@ -410,47 +420,6 @@ export function ComposeEmailModal({
               <p className="text-[12px] text-red-700 dark:text-red-400">{error}</p>
             </div>
           )}
-        </div>
-
-        {/* Footer — shrink-0 belt-and-braces so it can never collapse,
-            even on very tall content with the body fully scrolled. */}
-        <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2 shrink-0">
-          {dirty && (
-            <button
-              onClick={resetDefaults}
-              disabled={sending}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40 mr-auto"
-              title="Restore the default subject + body"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Reset to default
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            disabled={sending}
-            className="text-[12px] text-text-2 hover:text-text px-3 py-1.5 transition-colors disabled:opacity-40"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleTerminal}
-            disabled={
-              sending || loading || !draft || !subject.trim() || !body.trim()
-              || (!isReview && cvRender.state === "rendering")
-            }
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
-            title={
-              !isReview && cvRender.state === "rendering"
-                ? "Waiting for the CV PDF to finish rendering"
-                : undefined
-            }
-          >
-            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            {isReview
-              ? (sending ? "Saving…" : "Approve")
-              : (cvRender.state === "rendering" ? "Rendering CV…" : "Send now")}
-          </button>
         </div>
       </div>
     </div>
