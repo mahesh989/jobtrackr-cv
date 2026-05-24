@@ -14,10 +14,12 @@ export default async function VoicePage() {
 
   const admin = createAdminClient();
 
-  // Voice profile — deliberately exclude voice_sample_raw.
+  // Writing voice profile — includes voice_sample_raw so the client can
+  // render a view-and-edit panel. Was deliberately stripped in earlier
+  // versions but it's the user's own writing, no reason to hide it.
   const { data: profile } = await admin
     .from("voice_profiles")
-    .select("id, fingerprint, voice_sample_trust_score, voice_sample_source, created_at, updated_at")
+    .select("id, fingerprint, voice_sample_raw, voice_sample_trust_score, voice_sample_source, created_at, updated_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -44,12 +46,18 @@ export default async function VoicePage() {
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-2xl mx-auto space-y-8">
 
-        {/* Voice capture section */}
+        {/* Writing voice section — HOW you write */}
         <div className="space-y-4">
           <div>
-            <h1 className="page-title text-text">My Voice</h1>
+            <h1 className="page-title text-text">Writing voice</h1>
             <p className="page-subtitle">
-              Teach JobTrackr your writing style. Your voice fingerprint is used to make cover letters sound like you, not like AI.
+              A short sample of your writing style — sentence rhythm, word choices, level of formality.
+              We use this to rewrite outgoing emails and the body of generated cover letters so they sound
+              like you, not like a template.
+            </p>
+            <p className="page-subtitle mt-1 text-[12px] text-[var(--sidebar-text-dim)]">
+              Note: this is about <span className="font-semibold">style</span>. Concrete achievements and
+              metrics from your CV live in the <em>Stories</em> section below — different thing.
             </p>
           </div>
           <VoiceCaptureClient initialProfile={profile ?? null} />
@@ -57,13 +65,14 @@ export default async function VoicePage() {
 
         <hr className="border-[var(--card-border)]" />
 
-        {/* Story library section */}
+        {/* Story library section — WHAT you've done */}
         <div className="space-y-4">
           <div>
-            <h2 className="page-title text-text" style={{ fontSize: "1.125rem" }}>Your Stories</h2>
+            <h2 className="page-title text-text" style={{ fontSize: "1.125rem" }}>Stories from your CV</h2>
             <p className="page-subtitle">
-              Achievement stories extracted from your CV — used to personalise cover letter body paragraphs.
-              Each story can be tagged and expanded. Detailed paragraphs are 100–200 words, ready to use as-is.
+              Concrete achievements with metrics, extracted from your CV — used as the substance of cover
+              letter body paragraphs. Different from your writing voice above: this is <span className="font-semibold">what</span> you've done,
+              that section is <span className="font-semibold">how</span> you write about it.
             </p>
           </div>
           <StoriesClient initialStories={initialStories} />

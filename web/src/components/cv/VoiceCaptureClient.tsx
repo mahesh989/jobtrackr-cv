@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Mic, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, PenLine, Plus, Eye, Pencil } from "lucide-react";
 
 interface TrustComponents {
   ai_pattern_score:             number;
@@ -20,6 +20,7 @@ interface SubmitResult {
 interface VoiceProfile {
   id:                       string;
   fingerprint:              Record<string, unknown>;
+  voice_sample_raw:         string | null;
   voice_sample_trust_score: number;
   voice_sample_source:      string;
   created_at:               string;
@@ -30,8 +31,10 @@ interface Props {
   initialProfile: VoiceProfile | null;
 }
 
+type SourceTag = "in_app_capture" | "pasted_cover_letter";
+
 const WORD_MIN = 150;
-const WORD_MAX = 300;
+const WORD_MAX = 600;
 
 function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -64,20 +67,46 @@ function formalityLabel(score: number): string {
   return "Casual";
 }
 
+function sourceLabel(s: string): string {
+  if (s === "pasted_cover_letter") return "From a pasted cover letter";
+  return "Typed sample";
+}
+
 export function VoiceCaptureClient({ initialProfile }: Props) {
-  const [text,        setText]        = useState("");
+  // Editing state — the tab the user is currently typing into. Either tab
+  // can be active; only the active one's text gets submitted.
+  const [activeTab,  setActiveTab]  = useState<SourceTag>("in_app_capture");
+  const [writtenText, setWrittenText] = useState("");
+  const [pastedText,  setPastedText]  = useState("");
+
   const [status,      setStatus]      = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [result,      setResult]      = useState<SubmitResult | null>(null);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  // Hide the textarea by default when a profile already exists — users
-  // explicitly click "Add another voice sample" to record over it.
+  const [showCurrent, setShowCurrent] = useState(false);   // Reveal stored sample text
+  // First-time users see the form immediately. Existing users see their
+  // current sample first and click Edit to open the form.
   const [showForm,    setShowForm]    = useState<boolean>(!initialProfile);
 
-  const words      = countWords(text);
-  const canSubmit  = words >= WORD_MIN && status !== "submitting";
-  const inRange    = words >= WORD_MIN && words <= WORD_MAX;
-  const tooShort   = words > 0 && words < WORD_MIN;
+  const text = activeTab === "in_app_capture" ? writtenText : pastedText;
+  const setText = activeTab === "in_app_capture" ? setWrittenText : setPastedText;
+
+  const words     = countWords(text);
+  const canSubmit = words >= WORD_MIN && status !== "submitting";
+  const inRange   = words >= WORD_MIN && words <= WORD_MAX;
+  const tooShort  = words > 0 && words < WORD_MIN;
+
+  function startEditing(prefill?: string) {
+    // Load the existing sample into whichever tab matches its source — so
+    // pasted-cover-letter samples don't get edited under the typed-sample
+    // pasting-disabled textarea (and vice versa).
+    const source = (initialProfile?.voice_sample_source ?? "in_app_capture") as SourceTag;
+    setActiveTab(source);
+    if (source === "in_app_capture") setWrittenText(prefill ?? initialProfile?.voice_sample_raw ?? "");
+    else                              setPastedText(prefill  ?? initialProfile?.voice_sample_raw ?? "");
+    setErrorMsg(null);
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,7 +121,11 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
       const res  = await fetch("/api/user/voice-profile", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ voice_sample_text: text, provider: provider ?? undefined }),
+        body:    JSON.stringify({
+          voice_sample_text: text,
+          provider:          provider ?? undefined,
+          source:            activeTab,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -102,7 +135,9 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
       }
       setResult(data as SubmitResult);
       setStatus("success");
-      setText("");
+      // Clear both tabs after a successful save.
+      setWrittenText("");
+      setPastedText("");
     } catch {
       setErrorMsg("Network error. Please try again.");
       setStatus("error");
@@ -112,47 +147,82 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
   return (
     <div className="space-y-6">
 
-      {/* Existing profile banner */}
+      {/* Current profile card — visible when one exists and we're not
+          in the post-submit success state. Now shows the actual stored
+          sample text (collapsed by default) + Edit button. */}
       {initialProfile && status !== "success" && (
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 space-y-2">
+        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm font-medium text-[var(--text)]">Current voice profile</p>
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium text-[var(--text)]">Current writing sample</p>
+              <p className="text-[11px] text-[var(--sidebar-text-dim)]">
+                {sourceLabel(initialProfile.voice_sample_source)}
+                {" · Last updated "}
+                {new Date(initialProfile.updated_at).toLocaleDateString("en-GB", {
+                  day: "numeric", month: "short", year: "numeric",
+                })}
+              </p>
+            </div>
             <TrustBadge score={initialProfile.voice_sample_trust_score} />
           </div>
-          <p className="text-xs text-[var(--sidebar-text-dim)]">
-            Last updated{" "}
-            {new Date(initialProfile.updated_at).toLocaleDateString("en-GB", {
-              day: "numeric", month: "short", year: "numeric",
-            })}
-          </p>
+
+          {/* Show / hide the raw sample text. */}
+          {initialProfile.voice_sample_raw && (
+            <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowCurrent((v) => !v)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5" />
+                  {showCurrent ? "Hide saved sample" : "View saved sample"}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCurrent ? "rotate-180" : ""}`} />
+              </button>
+              {showCurrent && (
+                <div className="border-t border-[var(--card-border)] px-3 py-3 bg-[var(--surface-2)]">
+                  <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-[var(--text-2)] font-sans">
+                    {initialProfile.voice_sample_raw}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit / Replace controls — only shown when the form isn't already open. */}
+          {!showForm && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => startEditing(initialProfile.voice_sample_raw ?? "")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--brand)] text-[var(--brand)] text-xs font-semibold hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit current sample
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveTab("in_app_capture"); setWrittenText(""); setPastedText(""); setShowForm(true); setErrorMsg(null); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-[var(--text-2)] text-xs font-semibold hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Replace with a new sample
+              </button>
+              <span className="text-[11px] text-[var(--sidebar-text-dim)] ml-auto">
+                Saving any new text replaces the current sample.
+              </span>
+            </div>
+          )}
         </div>
       )}
 
-      {/* "Add another voice sample" affordance — only when a profile
-          already exists and the form is hidden. Recording a new sample
-          OVERWRITES the previous one (voice_profiles is unique per user). */}
-      {initialProfile && status !== "success" && !showForm && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-[var(--sidebar-text-dim)]">
-            Recording a new sample will replace your current voice profile.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--brand)] text-[var(--brand)] text-sm font-semibold hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add another voice sample
-          </button>
-        </div>
-      )}
-
-      {/* Success result */}
+      {/* Success result (unchanged structure, just kept on this tier) */}
       {status === "success" && result && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <p className="text-sm font-semibold text-emerald-800">Voice profile saved</p>
+            <p className="text-sm font-semibold text-emerald-800">Writing voice saved</p>
           </div>
           <TrustBadge score={result.trust_score} />
 
@@ -179,7 +249,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
             Submit another sample
           </button>
 
-          {/* Transparency affordance */}
           <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
             <button
               type="button"
@@ -194,8 +263,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
               const fp = result.fingerprint as Record<string, unknown>;
               return (
                 <div className="border-t border-[var(--card-border)] px-3 py-3 space-y-4 text-xs text-[var(--text-2)]">
-
-                  {/* Trust score breakdown */}
                   <div>
                     <p className="font-semibold text-[var(--text)] mb-2">Trust score</p>
                     <div className="space-y-1.5">
@@ -218,7 +285,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                     </div>
                   </div>
 
-                  {/* Formality */}
                   {typeof fp.formality_score === "number" && (
                     <div>
                       <p className="font-semibold text-[var(--text)] mb-1">Formality</p>
@@ -229,7 +295,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                     </div>
                   )}
 
-                  {/* Tells */}
                   {Array.isArray(fp.tells) && fp.tells.length > 0 && (
                     <div>
                       <p className="font-semibold text-[var(--text)] mb-1.5">Your writing tells</p>
@@ -241,7 +306,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                     </div>
                   )}
 
-                  {/* Matched AI-tell phrases */}
                   {result.matched_ai_phrases.length > 0 && (
                     <div>
                       <p className="font-semibold text-[var(--text)] mb-1.5">AI-pattern phrases detected</p>
@@ -257,7 +321,6 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                       </div>
                     </div>
                   )}
-
                 </div>
               );
             })()}
@@ -265,30 +328,78 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
         </div>
       )}
 
-      {/* Capture form — hidden when a profile already exists and the user
-          hasn't clicked "Add another". Always shown for first-time users. */}
+      {/* Capture form — dual-input tabs. */}
       {status !== "success" && showForm && (
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <label
-              htmlFor="voice-sample"
-              className="text-sm font-medium text-[var(--text)]"
+
+          {/* Tabs */}
+          <div className="flex border-b border-[var(--card-border)]" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "in_app_capture"}
+              onClick={() => setActiveTab("in_app_capture")}
+              className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === "in_app_capture"
+                  ? "border-[var(--brand)] text-[var(--brand)]"
+                  : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]"
+              }`}
             >
-              Write a short sample in your own voice
-            </label>
-            <p className="text-xs text-[var(--sidebar-text-dim)]">
-              {WORD_MIN}–{WORD_MAX} words works best. Write about a project, a challenge you solved,
-              or anything you&apos;d say in a cover letter.
-              Type directly — pasting is disabled to capture your natural style.
-            </p>
+              Write a sample
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "pasted_cover_letter"}
+              onClick={() => setActiveTab("pasted_cover_letter")}
+              className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === "pasted_cover_letter"
+                  ? "border-[var(--brand)] text-[var(--brand)]"
+                  : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]"
+              }`}
+            >
+              Paste a cover letter
+            </button>
+            <span className="ml-auto px-2 text-[11px] text-[var(--sidebar-text-dim)] self-center">
+              Use whichever feels easier — you only need one.
+            </span>
           </div>
 
+          {/* Tab guidance — different copy per tab */}
+          {activeTab === "in_app_capture" ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+              <p className="text-[12px] font-semibold text-emerald-800 mb-0.5">
+                Recommended — writing fresh in your own voice gives the cleanest signal.
+              </p>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                Type {WORD_MIN}+ words about a project, a problem you've solved, or anything you'd naturally
+                talk about. Don't polish, don't proof, don't paraphrase — typos and casual phrasing are
+                what give us your real voice. Pasting is disabled on this tab on purpose.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-2)] px-3 py-2.5">
+              <p className="text-[12px] font-semibold text-[var(--text)] mb-0.5">
+                Works fine — but pasted text tends to be more polished than your real voice.
+              </p>
+              <p className="text-[11px] text-[var(--text-2)] leading-relaxed">
+                Paste a cover letter <span className="font-semibold">you wrote yourself</span> (not one AI generated
+                or someone else drafted for you). {WORD_MIN}+ words. We'll still learn from it, but the rewrites
+                may come out a bit more buttoned-up than how you actually sound. If you want the warmest result,
+                switch to the other tab.
+              </p>
+            </div>
+          )}
+
           <textarea
+            key={activeTab}  /* Force a fresh textarea when switching tabs so paste rules reset */
             id="voice-sample"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onPaste={(e) => e.preventDefault()}
-            placeholder="Start typing here…"
+            onPaste={activeTab === "in_app_capture" ? (e) => e.preventDefault() : undefined}
+            placeholder={activeTab === "in_app_capture"
+              ? "Start typing here…"
+              : "Paste your cover letter here…"}
             rows={10}
             className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2.5 text-sm text-black placeholder:text-[var(--sidebar-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)] resize-y"
           />
@@ -299,7 +410,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
               tooShort  ? "text-amber-600"   :
                           "text-[var(--sidebar-text-dim)]"
             }`}>
-              {words} / {WORD_MIN}–{WORD_MAX} words
+              {words} / {WORD_MIN}+ words
             </span>
             {tooShort && (
               <span className="text-xs text-[var(--sidebar-text-dim)]">
@@ -328,18 +439,16 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                 </>
               ) : (
                 <>
-                  <Mic className="w-4 h-4" />
-                  Save voice profile
+                  <PenLine className="w-4 h-4" />
+                  {initialProfile ? "Save changes" : "Save writing voice"}
                 </>
               )}
             </button>
 
-            {/* Cancel — only visible when a current profile exists, since
-                first-time users have nowhere to "cancel" back to. */}
             {initialProfile && status !== "submitting" && (
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setText(""); setErrorMsg(null); }}
+                onClick={() => { setShowForm(false); setWrittenText(""); setPastedText(""); setErrorMsg(null); }}
                 className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
               >
                 Cancel

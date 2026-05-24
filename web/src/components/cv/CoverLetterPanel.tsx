@@ -495,11 +495,11 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
       {!letter && !loading && !error && !researching && (
         <div className="px-5 py-8 text-center">
           <p className="text-[13px] text-text-2">
-            Generate a personalised cover letter using your voice profile, story library,
+            Generate a personalised cover letter using your writing voice, story library,
             and company research.
           </p>
           <p className="mt-1 text-[11px] text-text-3">
-            Requires: active CV · voice profile · extracted stories · JD text
+            Requires: active CV · writing voice · extracted stories · JD text
           </p>
           <button
             onClick={() => handleGenerate(false)}
