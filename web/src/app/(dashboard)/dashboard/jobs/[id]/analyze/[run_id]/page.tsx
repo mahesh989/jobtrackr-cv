@@ -21,7 +21,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
   const { data: run } = await admin
     .from("analysis_runs")
     .select(
-      "id, status, step_status, " +
+      "id, job_id, status, step_status, cover_letter_status, " +
       "jd_analysis_result, cv_jd_matching_result, ats_scoring_result, " +
       "input_recommendations, keyword_feasibility, ai_recommendations, " +
       "tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, " +

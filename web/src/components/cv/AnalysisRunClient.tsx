@@ -12,8 +12,13 @@ import { TailoredScoreCard }    from "@/components/cv/TailoredScoreCard";
 
 interface AnalysisRunRow {
   id:                          string;
+  job_id?:                     string;
   status:                      "pending" | "running" | "completed" | "failed";
   step_status:                 Record<string, string>;
+  /** Auto cover-letter outcome (migration 040). NULL = not attempted yet.
+   *  See cv-backend auto_cover_letter.py for the value domain:
+   *    'triggered' | 'skipped:<reason>' | 'failed:<reason>' */
+  cover_letter_status:         string | null;
   jd_analysis_result:          Record<string, unknown> | null;
   cv_jd_matching_result:       Record<string, unknown> | null;
   ats_scoring_result:          Record<string, unknown> | null;
@@ -39,6 +44,12 @@ interface AnalysisRunRow {
   created_at:                  string;
 }
 
+interface CoverLetterRow {
+  id:           string;
+  status:       string;   // 'pending' | 'running' | 'picking' | 'completed' | 'failed'
+  completed_at: string | null;
+}
+
 interface CategorisedSkills {
   technical?:        string[];
   soft_skills?:      string[];
@@ -53,7 +64,9 @@ interface Props {
   cvCategorisedSkills?: CategorisedSkills | null;
 }
 
-// Step labels match cv-magic's AnalysisProgress wording verbatim.
+// Step labels match cv-magic's AnalysisProgress wording verbatim, plus the
+// auto cover-letter step (synthetic — not from step_status JSONB, derived
+// from analysis_runs.cover_letter_status + the cover_letters row).
 const STEPS: { key: string; label: string }[] = [
   { key: "jd_analysis",           label: "Analysing job description" },
   { key: "cv_jd_matching",        label: "Matching CV to JD" },
@@ -63,61 +76,149 @@ const STEPS: { key: string; label: string }[] = [
   { key: "ai_recommendations",    label: "Generating AI advice" },
   { key: "tailored_cv",           label: "Creating tailored CV" },
 ];
+const COVER_LETTER_STEP = { key: "cover_letter", label: "Generating cover letter" };
+
+type StepState = "pending" | "running" | "completed" | "failed" | "skipped";
 
 function StepRow({
-  label, state, scoreBadge,
+  label, state, scoreBadge, subLabel, trailingNode,
 }: {
-  label:       string;
-  state:       string;
-  scoreBadge?: number | null;       // shown inline after ATS scoring step
+  label:         string;
+  state:         StepState;
+  scoreBadge?:   number | null;       // shown inline after ATS scoring step
+  subLabel?:     string;              // small italic line under the main label
+  trailingNode?: React.ReactNode;     // e.g. "View letter" link
 }) {
   const dot =
     state === "completed" ? "bg-green" :
     state === "running"   ? "bg-blue animate-pulse" :
     state === "failed"    ? "bg-red" :
+    state === "skipped"   ? "bg-amber-400" :
                             "bg-text-3/30";
   const color =
     state === "running"   ? "text-text" :
     state === "completed" ? "text-text-2" :
     state === "failed"    ? "text-red" :
+    state === "skipped"   ? "text-amber-700" :
                             "text-text-3";
   return (
-    <div className="flex items-center gap-3 py-2">
-      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-      <span className={`text-[13px] ${color}`}>{label}</span>
-      {typeof scoreBadge === "number" && state === "completed" && (
-        <span className="text-[11px] font-semibold text-[var(--brand)] bg-[#DDF4FF] border border-[var(--brand)]/20 rounded px-1.5 py-0.5 tabular-nums">
-          {Math.round(scoreBadge)}%
-        </span>
-      )}
-      <span className="text-[11px] text-text-3 ml-auto uppercase tracking-wide">{state}</span>
+    <div className="flex items-start gap-3 py-2">
+      <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${dot} ${state === "running" ? "ring-2 ring-blue/30" : ""}`} />
+      <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+        <span className={`text-[13px] ${color}`}>{label}</span>
+        {typeof scoreBadge === "number" && state === "completed" && (
+          <span className="text-[11px] font-semibold text-[var(--brand)] bg-[#DDF4FF] border border-[var(--brand)]/20 rounded px-1.5 py-0.5 tabular-nums">
+            {Math.round(scoreBadge)}%
+          </span>
+        )}
+        {subLabel && (
+          <span className="text-[11px] text-text-3 italic w-full">{subLabel}</span>
+        )}
+      </div>
+      {trailingNode}
+      <span className="text-[11px] text-text-3 uppercase tracking-wide shrink-0">{state}</span>
     </div>
   );
 }
 
+/**
+ * Derive the cover-letter step's display state + sub-label from the two
+ * sources of truth:
+ *   - analysis_runs.cover_letter_status (set by the orchestrator)
+ *   - cover_letters.status (set by the generator pipeline)
+ */
+function deriveCoverLetterStep(
+  cls: string | null,
+  coverLetter: CoverLetterRow | null,
+  runIsTerminal: boolean,
+): { state: StepState; subLabel?: string } {
+  // Pipeline still running, no decision yet
+  if (cls == null) {
+    return { state: runIsTerminal ? "pending" : "pending" };
+  }
+  if (cls === "triggered") {
+    if (!coverLetter) return { state: "running", subLabel: "Starting generator…" };
+    const s = coverLetter.status;
+    if (s === "completed") return { state: "completed" };
+    if (s === "failed")    return { state: "failed", subLabel: "Generator failed — check Application pool" };
+    if (s === "picking")   return { state: "running", subLabel: "Generating opening variants…" };
+    return { state: "running", subLabel: "Drafting in your voice…" };
+  }
+  if (cls.startsWith("skipped:")) {
+    const reason = cls.slice("skipped:".length);
+    const human: Record<string, string> = {
+      below_gate: "Tailored score below threshold",
+      no_voice:   "No writing voice saved yet — add one in Writing voice",
+      no_story:   "No stories extracted from your CV yet",
+      duplicate:  "A letter for this job already exists",
+    };
+    return { state: "skipped", subLabel: human[reason] ?? reason };
+  }
+  if (cls.startsWith("failed:")) {
+    return { state: "failed", subLabel: cls.slice("failed:".length) };
+  }
+  return { state: "pending" };
+}
+
 export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
+  const [coverLetter, setCoverLetter] = useState<CoverLetterRow | null>(null);
   const [showInput, setShowInput] = useState(false);
 
-  // Ref so the polling interval can read the latest status without restarting
-  // the effect each render.
-  const statusRef = useRef(run.status);
-  statusRef.current = run.status;
+  // Refs so the polling interval can read the latest state without
+  // restarting the effect each render.
+  const statusRef       = useRef(run.status);
+  const clsRef          = useRef<string | null>(run.cover_letter_status ?? null);
+  const coverLetterRef  = useRef<CoverLetterRow | null>(null);
+  statusRef.current      = run.status;
+  clsRef.current         = run.cover_letter_status ?? null;
+  coverLetterRef.current = coverLetter;
 
   useEffect(() => {
     const supabase = createClient();
     let active = true;
 
+    /**
+     * Stop polling only when EVERYTHING the UI cares about is settled:
+     *   - analysis_run is terminal AND
+     *   - cover_letter_status is set (any value), AND
+     *   - if it's 'triggered', the cover_letters row is itself terminal.
+     */
+    function settled(): boolean {
+      const runTerminal = statusRef.current === "completed" || statusRef.current === "failed";
+      if (!runTerminal) return false;
+      const cls = clsRef.current;
+      if (cls == null) return false;            // outcome not recorded yet
+      if (cls !== "triggered") return true;     // skipped:* or failed:* → done
+      // 'triggered' — must wait for the cover_letters row to finish
+      const cl = coverLetterRef.current;
+      return !!cl && (cl.status === "completed" || cl.status === "failed");
+    }
+
     async function fetchOnce() {
-      // Stop fetching once the run is terminal.
-      if (statusRef.current === "completed" || statusRef.current === "failed") return;
+      if (settled()) return;
+
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, status, step_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
+        .select("id, job_id, status, step_status, cover_letter_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
         setRun(data as AnalysisRunRow);
+      }
+
+      // If the auto-letter was triggered, poll the cover_letters row tied
+      // to this run so we can show its 'running → completed/failed' state.
+      const cls = (data as AnalysisRunRow | null)?.cover_letter_status ?? null;
+      if (active && cls === "triggered") {
+        const { data: cl } = await supabase
+          .from("cover_letters")
+          .select("id, status, completed_at")
+          .eq("analysis_run_id", runId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (active && cl) setCoverLetter(cl as CoverLetterRow);
       }
     }
 
@@ -175,10 +276,36 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
             <StepRow
               key={s.key}
               label={s.label}
-              state={run.step_status?.[s.key] ?? "pending"}
+              state={(run.step_status?.[s.key] ?? "pending") as StepState}
               scoreBadge={s.key === "ats_scoring" ? run.match_score ?? null : null}
             />
           ))}
+          {/* Cover-letter step — synthetic, derived from cover_letter_status
+              + the cover_letters row. Shows pending until the pipeline
+              completes, then 'running' (pulsing blue dot) while the
+              generator drafts, then 'completed' / 'failed' / 'skipped'. */}
+          {(() => {
+            const cl = deriveCoverLetterStep(run.cover_letter_status, coverLetter, isTerminal);
+            const trailing = cl.state === "completed" && coverLetter
+              ? (
+                <a
+                  href="/dashboard/applications?status=email"
+                  className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
+                >
+                  View letter →
+                </a>
+              )
+              : null;
+            return (
+              <StepRow
+                key={COVER_LETTER_STEP.key}
+                label={COVER_LETTER_STEP.label}
+                state={cl.state}
+                subLabel={cl.subLabel}
+                trailingNode={trailing}
+              />
+            );
+          })()}
         </div>
         {run.error_message && (
           <div className="px-5 py-3 border-t border-border bg-red-light/30 text-[12px] text-red">
