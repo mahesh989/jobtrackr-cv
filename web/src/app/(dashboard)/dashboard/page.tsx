@@ -621,7 +621,7 @@ function FirstRunScreen({ status }: { status: SetupStatus }) {
       </div>
 
       <div className="px-6 py-10">
-        <SetupGuide status={status} />
+        <SetupGuide status={status} returnTo="/dashboard" />
         <p className="text-center text-[12px] text-text-3 mt-5">
           Want the full picture?{" "}
           <Link href="/dashboard/instructions" className="text-[var(--brand)] hover:underline">

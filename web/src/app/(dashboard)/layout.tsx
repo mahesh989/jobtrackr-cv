@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
+import { SetupReturnBar } from "@/components/onboarding/SetupReturnBar";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -98,6 +100,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </form>
           </div>
         </div>
+
+        <Suspense fallback={null}>
+          <SetupReturnBar />
+        </Suspense>
 
         {children}
       </div>

@@ -72,7 +72,7 @@ const STEPS: Step[] = [
 
 const TAG_CLASS: Record<Tag, string> = {
   required:    "text-[var(--brand)] bg-[var(--brand)]/10 border-[var(--brand)]/20",
-  recommended: "text-amber-700 bg-amber-50 border-amber-200",
+  recommended: "text-[var(--amber)] bg-[var(--amber-light)] border-[var(--amber)]/30",
   optional:    "text-text-2 bg-[var(--surface-2)] border-border",
 };
 
@@ -80,12 +80,30 @@ const TAG_LABEL: Record<Tag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",
 };
 
-export function SetupGuide({ status }: { status: SetupStatus }) {
-  const [i, setI] = useState(0);
+/** Number of setup steps — shared with SetupReturnBar for the "Step N of X" label. */
+export const SETUP_STEP_COUNT = STEPS.length;
+
+export function SetupGuide({
+  status,
+  initialStep = 0,
+  returnTo = "/dashboard/instructions",
+}: {
+  status: SetupStatus;
+  /** Zero-based card to open on first render (used by the instructions round-trip). */
+  initialStep?: number;
+  /** Where the "Back to setup" bar should return after a CTA is followed. */
+  returnTo?: string;
+}) {
+  const [i, setI] = useState(initialStep);
   const step = STEPS[i];
   const Icon = step.icon;
   const done = status[step.key];
   const doneCount = STEPS.filter((s) => status[s.key]).length;
+
+  // The CTA carries its origin so the shared SetupReturnBar can offer a
+  // one-click way back to the exact step the user left from.
+  const backHref = returnTo.includes("?") ? `${returnTo}&step=${i + 1}` : `${returnTo}?step=${i + 1}`;
+  const ctaHref  = `${step.href}?from=setup&step=${i + 1}&return=${encodeURIComponent(backHref)}`;
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -106,8 +124,8 @@ export function SetupGuide({ status }: { status: SetupStatus }) {
             <Icon className="w-7 h-7 text-[var(--brand)]" />
           </div>
           {done && (
-            <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-emerald-500 border-2 border-surface flex items-center justify-center">
-              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+            <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-[var(--green)] border-2 border-surface flex items-center justify-center">
+              <Check className="w-3.5 h-3.5 text-surface" strokeWidth={3} />
             </span>
           )}
         </div>
@@ -121,7 +139,7 @@ export function SetupGuide({ status }: { status: SetupStatus }) {
             {TAG_LABEL[step.tag]}
           </span>
           {done && (
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-200">
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border text-[var(--green)] bg-[var(--green-light)] border-[var(--green)]/30">
               Done
             </span>
           )}
@@ -132,7 +150,7 @@ export function SetupGuide({ status }: { status: SetupStatus }) {
         </p>
 
         <Link
-          href={step.href}
+          href={ctaHref}
           className="gh-btn gh-btn-blue text-[13px] px-4 py-2 inline-flex items-center gap-1.5"
         >
           {done ? "Review" : step.cta}
@@ -159,7 +177,7 @@ export function SetupGuide({ status }: { status: SetupStatus }) {
               className={
                 "h-2 rounded-full transition-all " +
                 (idx === i ? "w-5 bg-[var(--brand)]" : "w-2 ") +
-                (idx !== i ? (status[s.key] ? "bg-emerald-400" : "bg-border hover:bg-text-3") : "")
+                (idx !== i ? (status[s.key] ? "bg-[var(--green)]" : "bg-border hover:bg-text-3") : "")
               }
             />
           ))}
