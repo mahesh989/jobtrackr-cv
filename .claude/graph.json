@@ -35,8 +35,8 @@
   },
   "build_state": {
     "current_phase": "post-12 — polish + UX",
-    "last_shipped": "2026-05-25 — instructions tab redesign (two sub-tabs: guided setup wizard + 'How it works' swipe deck, trimmed glossary, flowcharts); password-only login (magic link removed); admin sidebar nav (Users & Invites, Beta Metrics) removed; PipelineDonut legend alignment; sidebar reorder.",
-    "next_session": "Open — instructions tab done. Cleanup nit: login + landing marketing copy still says '21+ Australian sources' but only 5 are active (SEEK/Adzuna/Careerjet/Greenhouse/Lever); trim when convenient.",
+    "last_shipped": "2026-05-25 — Notion is now the DEFAULT theme; landing + auth + privacy pages restyled to the Notion palette/fonts; dashboard empty state split into Mode A (Get-set-up wizard) / Mode B ('Ready to scan' + How-it-works deck); instructions tab redesign (Get set up wizard + How-it-works swipe deck); password-only login; admin sidebar nav removed; copy fixed to the 5 real sources; PipelineDonut legend alignment; sidebar reorder.",
+    "next_session": "Open. Known caveat: signup still creates accounts via email OTP but login is password-only, so a freshly signed-up user has no password — reconcile signup with password auth (or add a set-password step).",
     "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–041), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF, cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFilterBar, PipelineFunnel, 5-theme system, per-profile source selection, client-side instant filtering on both boards."
   },
   "architecture": {
@@ -57,7 +57,9 @@
     },
     "css_theming": {
       "rule": "Always use var(--brand), border-border, text-text, bg-surface. NEVER hardcode hex.",
-      "themes": ["Default (#0969DA)", "Classic (#3B82F6)", "Gilded Noir (gold)", "Notion (purple)", "Clay (#FF4D8B)"]
+      "default": "Notion is the project default (getStoredTheme() + the FOUC script in app/layout.tsx fall back to 'notion' when nothing is stored; an explicit 'default' choice is still honoured).",
+      "themes": ["Default (#0969DA)", "Classic (#3B82F6)", "Gilded Noir (gold)", "Notion (purple #5645D4) — DEFAULT", "Clay (#FF4D8B)"],
+      "public_pages": "Landing (app/landing.css scoped to .landing), auth (login/signup inline styles) and privacy do NOT consume theme tokens — they were hand-restyled to the Notion palette (lavender canvas #E6E0F5 / surface #F4EEFB, purple #5645D4 accent, deep purple/navy #241A5C dark sections) + Manrope/Noto Serif. Changing the Notion theme later won't auto-update these."
     }
   },
   "bridge_contract": {
@@ -134,6 +136,11 @@
       "id": "OPS-16",
       "title": "Never import runtime values from a 'use client' module into a server component",
       "detail": "Next.js returns a client-reference proxy (not the real value), so arithmetic → NaN and the render crashes. This caused the instructions ?step=N 'This page couldn't load' bug. Fix pattern: keep shared constants/data in a neutral plain module (e.g. web/src/lib/setupSteps.ts) that both server and client import."
+    },
+    {
+      "id": "OPS-17",
+      "title": "Dashboard empty state has two modes (gate = !hasAnyJob)",
+      "detail": "web/src/app/(dashboard)/dashboard/page.tsx: when no jobs exist, coreComplete = status.profile && status.cv && status.aiKey. !coreComplete → FirstRunScreen (Get-set-up wizard / SetupCards). coreComplete → ReadyToScanScreen (create/run a search-profile CTA + the How-it-works deck). The How-it-works deck is the shared component web/src/components/onboarding/HowItWorksDeck.tsx (built on SwipeDeck.tsx) reused by both this screen and the instructions 'How it works' tab."
     }
   ],
   "known_issues": [
