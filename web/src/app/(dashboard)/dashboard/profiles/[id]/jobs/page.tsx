@@ -1,20 +1,17 @@
 /**
- * Job board — canonical route at /dashboard/profiles/[id]/jobs.
+ * Per-profile job board — /dashboard/profiles/[id]/jobs.
  *
- * Data fetch: three queries + JS stitching.
- *   1. jobs              (filtered by stage / location / posted_within)
- *   2. analysis_runs     (latest non-stale per job — for "Analysed" + tailored CV)
- *   3. cover_letters     (latest non-stale per job — for "Cover letter ready")
+ * Server responsibilities (unchanged after refactor):
+ *   1. Auth + profile ownership check.
+ *   2. Fetch the capped (≤200) non-dismissed job set, filtered by:
+ *        location, posted_within   ← dataset filters (change which rows arrive)
+ *      Applied / dismissed switch still goes through the server too.
+ *   3. Fetch analysis_runs + cover_letters to derive progress/pipeline state.
+ *   4. Compute funnelCounts from a separate lightweight query.
+ *   5. Attach atsBand to each job (needed for the shared filterJobs helper).
  *
- * Progress derivation runs in JS (progressFlags.deriveProgress). At
- * million-user scale, replace with denormalised flags on `jobs` +
- * indexed scan (migration 031 — designed, not built).
- *
- * URL params:
- *   stage        (all|analysed|cvReady|letterReady|applied|dismissed)
- *   triage       (needsJd|roleMismatch|belowThreshold|hasEmail)
- *   sort, dir, location, posted_within, min_keywords, visa_toggle
- *   sort=recently_progressed | most_progressed   (JS-side sort modes)
+ * Everything else (stage / triage / sort / keywords) is now handled
+ * client-side in ProfileJobBoard — clicking a funnel tab is instant.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -27,11 +24,12 @@ import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
 import { LiveRunStatus } from "@/components/LiveRunStatus";
 import { LiveLogConsole } from "@/components/LiveLogConsole";
-import { JobTable, type Job } from "@/components/jobs/JobTable";
-import { PipelineFunnel, type FunnelCounts } from "@/components/jobs/PipelineFunnel";
-import { SmartFilterBar } from "@/components/jobs/SmartFilterBar";
-import { ContinueRail, type RailJob } from "@/components/jobs/ContinueRail";
+import { type Job } from "@/components/jobs/JobTable";
+import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
+import { type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
+import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
+import { atsBandFor, type BoardJob } from "@/components/jobs/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -57,19 +55,6 @@ interface SearchParams {
   posted_within?: string;
 }
 
-/** Map the new ?stage= param (or legacy ?status=) to a stage key */
-function resolveStage(sp: SearchParams): string {
-  if (sp.stage) return sp.stage;
-  // Backward compat: map old ?status= to new stages
-  if (sp.status === "applied") return "applied";
-  if (sp.status === "dismissed") return "dismissed";
-  // Old chips backward compat
-  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasLetter")) return "letterReady";
-  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasCv")) return "cvReady";
-  if (sp.chips?.includes("analysed")) return "analysed";
-  return "all";
-}
-
 export default async function JobsPage({
   params,
   searchParams,
@@ -90,7 +75,6 @@ export default async function JobsPage({
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
 
-  // Global ATS thresholds since migration 041.
   const th = { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
 
   const { data: activeRun } = await supabase
@@ -106,11 +90,13 @@ export default async function JobsPage({
     keywords: string[]; schedule_cron: string;
   };
 
-  // ── Resolve stage from URL params ─────────────────────────────────────────
-  const currentStage = resolveStage(sp);
-  const currentTriage = sp.triage || "";
+  // ── Determine whether we're showing dismissed jobs ───────────────────────
+  // Dismissed is the only dataset filter for stage — it changes which rows
+  // are fetched so it stays server-side. Everything else (analysed, cvReady,
+  // letterReady, thinJd) is a view filter applied client-side.
+  const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
 
-  // ── Build filtered jobs query ────────────────────────────────────────────
+  // ── Build job query ──────────────────────────────────────────────────────
   let query = supabase
     .from("jobs")
     .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email")
@@ -118,13 +104,10 @@ export default async function JobsPage({
     .eq("is_expired", false)
     .eq("is_dead_link", false);
 
-  // Stage-based server-side filtering
-  if (currentStage === "applied")        query = query.not("applied_at", "is", null);
-  else if (currentStage === "dismissed") query = query.not("dismissed_at", "is", null);
-  else                                   query = query.is("dismissed_at", null);
+  if (isDismissedView) query = query.not("dismissed_at", "is", null);
+  else                 query = query.is("dismissed_at", null);
 
-  if (sp.location) query = query.ilike("location", `%${sp.location}%`);
-
+  if (sp.location)      query = query.ilike("location", `%${sp.location}%`);
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
     if (!isNaN(days)) {
@@ -134,32 +117,16 @@ export default async function JobsPage({
     }
   }
 
-  // Server-side sort applies only for the column sort modes. The two
-  // progress sorts (recently_progressed, most_progressed) are JS-side
-  // because they depend on derived data.
-  const sortCol = sp.sort ?? "posted_at";
-  const sortDir = sp.dir === "asc";
-  const allowed = ["title", "company", "location", "posted_at", "created_at", "visa_likelihood"];
-  query = allowed.includes(sortCol)
-    ? query.order(sortCol, { ascending: sortDir, nullsFirst: false })
-    : query.order("posted_at", { ascending: false, nullsFirst: false });
+  // Default server sort so the initial paint is in a sensible order.
+  // Client-side re-sorts happen instantly after hydration.
+  query = query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
 
-  query = query.limit(200);
   const { data: jobs } = await query;
-  let jobList = (jobs ?? []) as Array<{
-    id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
-  }>;
-
-  if (sp.min_keywords) {
-    const minK = parseInt(sp.min_keywords, 10);
-    if (!isNaN(minK)) {
-      jobList = jobList.filter((j) => ((j.keywords_matched as string[] | null)?.length ?? 0) >= minK);
-    }
-  }
+  const jobList = (jobs ?? []) as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
 
   const jobIds = jobList.map((j) => j.id);
 
-  // ── Latest non-stale analysis_runs row per job ───────────────────────────
+  // ── Latest non-stale analysis_runs + cover_letters ───────────────────────
   const { data: recentRuns } = jobIds.length > 0
     ? await supabase
         .from("analysis_runs")
@@ -169,7 +136,6 @@ export default async function JobsPage({
         .order("created_at", { ascending: false })
     : { data: [] as AnalysisRunRef[] };
 
-  // ── Latest non-stale cover_letters row per job ───────────────────────────
   const { data: recentLetters } = jobIds.length > 0
     ? await supabase
         .from("cover_letters")
@@ -182,15 +148,11 @@ export default async function JobsPage({
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
 
-  // ── Derive progress + pipeline state + attach to each job ────────────────
-  let typedJobs: Job[] = jobList.map((j) => {
+  // ── Derive progress + pipeline state + ATS band ──────────────────────────
+  const boardJobs: BoardJob[] = jobList.map((j) => {
     const run    = runByJob.get(j.id);
     const letter = letterByJob.get(j.id);
-    const progress = deriveProgress(
-      { applied_at: j.applied_at },
-      run,
-      letter,
-    );
+    const progress = deriveProgress({ applied_at: j.applied_at }, run, letter);
     const liveRun = run
       ? (() => {
           const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
@@ -208,17 +170,16 @@ export default async function JobsPage({
       latestRun:    liveRun,
       latestLetter: letter,
     });
-    return { ...(j as unknown as Job), progress, pipelineState };
+    const atsBand = atsBandFor(
+      !!run,
+      liveRun?.passed_initial_gate ?? null,
+      liveRun?.passed_final_gate   ?? null,
+    );
+    return { ...(j as unknown as Job), progress, pipelineState, atsBand };
   });
 
-  // Declare funnelCounts as a mutable variable, populated below using the global countRows query
-  let funnelCounts: FunnelCounts = {
-    discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, newCount: 0,
-    needsJd: 0, roleMismatch: 0, belowThreshold: 0, hasEmail: 0, thinJd: 0, richJd: 0
-  };
-
-  // ── Continue rail — top 3 by last_progress_at DESC ───────────────────────
-  const railJobs: RailJob[] = [...typedJobs]
+  // ── Continue rail — top 3 most recently progressed ───────────────────────
+  const railJobs: RailJob[] = [...boardJobs]
     .filter((j) => j.progress.last_progress_at !== null && !j.dismissed_at)
     .sort((a, b) =>
       (b.progress.last_progress_at ?? "").localeCompare(a.progress.last_progress_at ?? ""),
@@ -232,59 +193,7 @@ export default async function JobsPage({
       progress:   j.progress,
     }));
 
-  // ── Stage filter (replaces old chip filter) ──────────────────────────────
-  if (currentStage === "analysed") {
-    typedJobs = typedJobs.filter((j) => j.progress.has_analysis);
-  } else if (currentStage === "cvReady") {
-    typedJobs = typedJobs.filter((j) => j.progress.has_tailored_cv);
-  } else if (currentStage === "letterReady") {
-    typedJobs = typedJobs.filter((j) => j.progress.has_cover_letter);
-  } else if (currentStage === "thinJd") {
-    typedJobs = typedJobs.filter((j) => j.jd_quality === "thin");
-  }
-  // applied + dismissed are handled server-side above
-
-  // ── Triage sub-filter ────────────────────────────────────────────────────
-  if (currentTriage === "needsJd" || currentTriage === "thinJd") {
-    typedJobs = typedJobs.filter((j) => j.jd_quality === "thin");
-  } else if (currentTriage === "richJd") {
-    typedJobs = typedJobs.filter((j) => j.jd_quality === "rich");
-  } else if (currentTriage === "roleMismatch") {
-    typedJobs = typedJobs.filter((j) => j.role_match === "mismatch");
-  } else if (currentTriage === "belowThreshold") {
-    typedJobs = typedJobs.filter((j) =>
-      j.pipelineState === "below_initial" || j.pipelineState === "below_final"
-    );
-  } else if (currentTriage === "hasEmail") {
-    typedJobs = typedJobs.filter((j) => j.has_email === true);
-  }
-
-  // ── JS-side sort modes ───────────────────────────────────────────────────
-  if (sortCol === "rich_jd_first") {
-    const rank: Record<string, number> = { rich: 1, unknown: 2, thin: 3 };
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const aR = rank[a.jd_quality ?? ""] ?? 4;
-      const bR = rank[b.jd_quality ?? ""] ?? 4;
-      if (aR !== bR) return sortDir ? bR - aR : aR - bR;
-      return (b.posted_at ?? "").localeCompare(a.posted_at ?? "");
-    });
-  } else if (sortCol === "recently_progressed") {
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const aT = a.progress.last_progress_at ?? "";
-      const bT = b.progress.last_progress_at ?? "";
-      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
-    });
-  } else if (sortCol === "most_progressed") {
-    typedJobs = [...typedJobs].sort((a, b) => {
-      const ds = b.progress.progress_score - a.progress.progress_score;
-      if (ds !== 0) return sortDir ? -ds : ds;
-      const aT = a.progress.last_progress_at ?? "";
-      const bT = b.progress.last_progress_at ?? "";
-      return sortDir ? aT.localeCompare(bT) : bT.localeCompare(aT);
-    });
-  }
-
-  // ── Global counts for funnel (always against unfiltered list) ────────────
+  // ── Global counts for funnel ─────────────────────────────────────────────
   const { data: countRows } = await supabase
     .from("jobs")
     .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, role_match, has_email")
@@ -293,14 +202,9 @@ export default async function JobsPage({
     .eq("is_dead_link", false);
 
   interface AllCountRow {
-    id: string;
-    seen_at: string | null;
-    applied_at: string | null;
-    dismissed_at: string | null;
-    profile_id: string;
-    jd_quality: string | null;
-    role_match: string | null;
-    has_email: boolean | null;
+    id: string; seen_at: string | null; applied_at: string | null;
+    dismissed_at: string | null; profile_id: string;
+    jd_quality: string | null; role_match: string | null; has_email: boolean | null;
   }
   const allRows = (countRows ?? []) as AllCountRow[];
   const jobIdsForCounts = allRows.map((r) => r.id);
@@ -310,20 +214,18 @@ export default async function JobsPage({
         supabase
           .from("analysis_runs")
           .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("is_stale", false)
-          .eq("status", "completed")
+          .eq("is_stale", false).eq("status", "completed")
           .in("job_id", jobIdsForCounts),
         supabase
           .from("cover_letters")
           .select("job_id")
-          .eq("is_stale", false)
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
+          .eq("is_stale", false).eq("status", "completed")
+          .in("job_id", jobIdsForCounts),
       ])
     : [{ data: [] }, { data: [] }];
 
-  const analysedSet = new Set((runsRes.data ?? []).map((r) => r.job_id));
-  const cvReadySet = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
+  const analysedSet    = new Set((runsRes.data ?? []).map((r) => r.job_id));
+  const cvReadySet     = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
   const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
   const belowThresholdSet = new Set(
     (runsRes.data ?? [])
@@ -335,7 +237,7 @@ export default async function JobsPage({
         );
         return g.passedInitial === false || g.passedFinal === false;
       })
-      .map((r) => r.job_id)
+      .map((r) => r.job_id),
   );
 
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
@@ -343,14 +245,14 @@ export default async function JobsPage({
   const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
   const newCount        = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
 
-  funnelCounts = {
+  const funnelCounts: FunnelCounts = {
     discovered:     tabTotalCount,
     analysed:       allRows.filter((j) => !j.dismissed_at && analysedSet.has(j.id)).length,
     cvReady:        allRows.filter((j) => !j.dismissed_at && cvReadySet.has(j.id)).length,
     letterReady:    allRows.filter((j) => !j.dismissed_at && letterReadySet.has(j.id)).length,
     applied:        tabAppliedCount,
     dismissed:      tabDismissedCount,
-    newCount:       newCount,
+    newCount,
     needsJd:        allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
     roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,
     belowThreshold: allRows.filter((j) => !j.dismissed_at && belowThresholdSet.has(j.id)).length,
@@ -358,8 +260,6 @@ export default async function JobsPage({
     thinJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
     richJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "rich").length,
   };
-
-  const currentTab = currentStage;
 
   const exportParams = new URLSearchParams();
   if (sp.sort) exportParams.set("sort", sp.sort);
@@ -410,16 +310,10 @@ export default async function JobsPage({
               </svg>
               Export CSV
             </Link>
-            <Link
-              href={`/dashboard/profiles/${id}/runs`}
-              className="gh-btn text-[12px] px-2.5 py-1"
-            >
+            <Link href={`/dashboard/profiles/${id}/runs`} className="gh-btn text-[12px] px-2.5 py-1">
               Run history
             </Link>
-            <Link
-              href={`/dashboard/profiles/${id}/edit`}
-              className="gh-btn text-[12px] px-2.5 py-1"
-            >
+            <Link href={`/dashboard/profiles/${id}/edit`} className="gh-btn text-[12px] px-2.5 py-1">
               Edit
             </Link>
             <JobBoardSettingsPanel />
@@ -433,31 +327,14 @@ export default async function JobsPage({
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
         <LiveLogConsole profileId={id} />
 
-        {/* Pipeline funnel (replaces StatusTabs + ProgressChips + TriageBanner) */}
-        <div className="anim-in">
-          <Suspense>
-            <PipelineFunnel counts={funnelCounts} currentStage={currentStage} />
-          </Suspense>
-        </div>
-
-        {/* Smart filter bar (replaces JobFilterBar) */}
-        <div className="anim-in">
-          <Suspense>
-            <SmartFilterBar total={typedJobs.length} />
-          </Suspense>
-        </div>
-
-        {/* Continue rail — gated by tab + settings */}
-        <ContinueRail jobs={railJobs} currentTab={currentTab} />
-
-        {/* Job table */}
-        <div className="anim-in anim-delay-1">
-          <JobTable
-            jobs={typedJobs}
-            showVisa={sp.visa_toggle === "1"}
-            currentTab={currentTab}
+        {/* Client-side board — instant stage/triage/sort/keyword filtering */}
+        <Suspense>
+          <ProfileJobBoard
+            jobs={boardJobs}
+            counts={funnelCounts}
+            railJobs={railJobs}
           />
-        </div>
+        </Suspense>
 
         {/* Footer */}
         <div className="flex items-center gap-3 text-[11px] text-text-3 pt-2 anim-in anim-delay-2">
