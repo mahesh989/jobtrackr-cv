@@ -15,6 +15,8 @@ from typing import Optional
 import httpx
 from bs4 import BeautifulSoup
 
+from app.security.ssrf import SSRFError, safe_get
+
 logger = logging.getLogger(__name__)
 
 _USER_AGENT = "Mozilla/5.0 (compatible; CVMagicBot/1.0; +https://cvmagic.app)"
@@ -52,13 +54,13 @@ async def scrape_jd(url: str) -> ScrapedJD:
         raise JDScrapeError("URL must start with http:// or https://")
 
     try:
+        # follow_redirects=False so safe_get can SSRF-validate every hop.
         async with httpx.AsyncClient(
             headers={"User-Agent": _USER_AGENT, "Accept": "text/html,*/*;q=0.8"},
             timeout=_TIMEOUT,
-            follow_redirects=True,
-            max_redirects=5,
+            follow_redirects=False,
         ) as client:
-            resp = await client.get(url)
+            resp = await safe_get(client, url, max_redirects=5)
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")
             if "html" not in content_type.lower():
@@ -66,6 +68,9 @@ async def scrape_jd(url: str) -> ScrapedJD:
             raw = resp.content[:_MAX_BYTES]
             html = raw.decode(resp.encoding or "utf-8", errors="ignore")
             final_url = str(resp.url)
+    except SSRFError as e:
+        logger.warning("JD scrape blocked (SSRF guard) for %s: %s", url, e)
+        raise JDScrapeError("URL is not allowed") from e
     except httpx.HTTPError as e:
         logger.warning("JD scrape HTTP error for %s: %s", url, e)
         raise JDScrapeError(f"Failed to fetch URL: {e}") from e

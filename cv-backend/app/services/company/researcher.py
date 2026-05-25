@@ -48,6 +48,7 @@ from app.services.ai.prompts.cover_letter.company_research import (
 )
 from app.services.company.quality_scorer import compute_quality_score
 from app.services.company.slug import make_company_slug
+from app.security.ssrf import SSRFError, safe_get
 
 logger = logging.getLogger(__name__)
 
@@ -139,13 +140,15 @@ async def _scrape_homepage(url: str) -> str:
     Returns empty string on any failure — scraping is best-effort.
     """
     try:
+        # follow_redirects=False so safe_get can SSRF-validate every hop.
+        # company_domain is user-influenced, so this fetch must not be allowed
+        # to reach internal/metadata addresses.
         async with httpx.AsyncClient(
             headers={"User-Agent": _USER_AGENT, "Accept": "text/html,*/*;q=0.8"},
             timeout=_SCRAPE_TIMEOUT,
-            follow_redirects=True,
-            max_redirects=3,
+            follow_redirects=False,
         ) as client:
-            resp = await client.get(url)
+            resp = await safe_get(client, url, max_redirects=3)
             if resp.status_code != 200:
                 logger.info("homepage scrape: status=%d url=%s", resp.status_code, url)
                 return ""

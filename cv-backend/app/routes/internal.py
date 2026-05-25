@@ -172,13 +172,33 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
             detail=f"Could not fetch CV file: {exc}",
         ) from exc
 
-    # Dispatch by extension. The Storage bucket only allows PDF + DOCX
-    # (enforced at migration 013), so a stray .doc/.txt would be rejected
-    # at upload time — but we still defensively check here.
+    # Size cap — the signed-upload flow doesn't enforce one at the edge, so a
+    # huge/crafted file could otherwise be handed straight to pypdf/python-docx.
+    _MAX_CV_BYTES = 10 * 1024 * 1024  # 10 MB — generous; real CVs are ~80-300 KB
+    if len(file_bytes) > _MAX_CV_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="CV file is too large.",
+        )
+
+    # Dispatch by extension AND verify the content actually matches that type
+    # by its magic bytes. The extension alone is attacker-controllable (the
+    # browser PUTs bytes directly to Storage via the signed URL), so a non-PDF
+    # payload could arrive as .pdf. PDF → "%PDF"; DOCX is a ZIP → "PK\x03\x04".
     lower = storage_key.lower()
     if lower.endswith(".pdf"):
+        if not file_bytes.startswith(b"%PDF"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="File is not a valid PDF.",
+            )
         cv_text = await asyncio.to_thread(_extract_pdf_text_sync, file_bytes)
     elif lower.endswith(".docx"):
+        if not file_bytes.startswith(b"PK\x03\x04"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="File is not a valid DOCX.",
+            )
         cv_text = await asyncio.to_thread(_extract_docx_text_sync, file_bytes)
     else:
         raise HTTPException(
