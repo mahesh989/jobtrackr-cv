@@ -32,7 +32,6 @@ interface Props {
     // min_initial_ats / min_final_ats removed in migration 041 — global now.
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
-    daily_application_limit?:  number;
   };
 }
 
@@ -48,6 +47,13 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
   // Pipeline automation — gate the dependent fields behind the on/off
   // toggle so the form clearly signals "off does nothing".
   const [automationOn, setAutomationOn] = useState<boolean>(defaults?.automation_enabled ?? false);
+
+  // Track whether SEEK is selected — email-sending mode is SEEK-specific
+  // (SEEK jobs can have a recruiter email attached; Adzuna/Greenhouse etc. don't).
+  const defaultSeekOn = defaults?.enabled_sources
+    ? defaults.enabled_sources.includes("seek")
+    : true; // null = all sources on
+  const [seekEnabled, setSeekEnabled] = useState<boolean>(defaultSeekOn);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -182,6 +188,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
                       <input
                         type="checkbox" name="enabled_sources" value={s.id}
                         defaultChecked={on}
+                        onChange={s.id === "seek" ? (e) => setSeekEnabled(e.target.checked) : undefined}
                         className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
                       />
                       {s.label}
@@ -336,48 +343,37 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
               </label>
             </div>
 
-            {/* Email sending mode */}
-            <div>
-              <label className="block text-[12px] font-semibold text-text mb-2">Email sending mode</label>
-              <div className="flex flex-col gap-2">
-                {[
-                  { value: "never",         label: "Never auto-send",          desc: "Cover letters and email drafts are generated; you click Send manually." },
-                  { value: "after_review",  label: "Auto-send after I verify", desc: "Drafts wait in the outbox until you click Verify, then send automatically." },
-                  { value: "auto",          label: "Auto-send without review", desc: "Drafts go straight to send (respects the daily cap below). Use with caution." },
-                ].map((opt) => (
-                  <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="radio" name="auto_send_emails" value={opt.value}
-                      defaultChecked={(defaults?.auto_send_emails ?? "never") === opt.value}
-                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
-                    />
-                    <span>
-                      <span className="block text-[12px] font-medium text-text">{opt.label}</span>
-                      <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">{opt.desc}</span>
-                    </span>
-                  </label>
-                ))}
+            {/* Email sending mode — only relevant when SEEK is enabled, since
+                SEEK jobs can carry a recruiter email for direct applications. */}
+            {seekEnabled && (
+              <div>
+                <label className="block text-[12px] font-semibold text-text mb-2">
+                  Email sending mode
+                  <span className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--surface)] border border-[var(--border)] text-text-3">
+                    SEEK only
+                  </span>
+                </label>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { value: "never",         label: "Never auto-send",          desc: "Cover letters and email drafts are generated; you click Send manually." },
+                    { value: "after_review",  label: "Auto-send after I verify", desc: "Drafts wait in the outbox until you click Verify, then send automatically." },
+                    { value: "auto",          label: "Auto-send without review", desc: "Drafts go straight to send without any review step. Use with caution." },
+                  ].map((opt) => (
+                    <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="radio" name="auto_send_emails" value={opt.value}
+                        defaultChecked={(defaults?.auto_send_emails ?? "never") === opt.value}
+                        className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                      />
+                      <span>
+                        <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                        <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">{opt.desc}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {/* Daily cap */}
-            <div>
-              <label className="block text-[12px] font-semibold text-text mb-1.5">
-                Daily application cap
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number" name="daily_application_limit"
-                  min="0" max="1000" step="1"
-                  defaultValue={defaults?.daily_application_limit ?? 10}
-                  className="field text-center w-20"
-                />
-                <span className="text-[12px] text-text-2">applications / day</span>
-              </div>
-              <p className="text-[11px] text-text-2 mt-1.5">
-                Hard guardrail so an automated pipeline can&apos;t spam. Default <strong>10</strong>; 0 = no auto-applications today (you can still review/send manually).
-              </p>
-            </div>
+            )}
 
           </div>
         )}
@@ -388,8 +384,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
             constants now (see lib/atsThresholds). */}
         {!automationOn && (
           <>
-            <input type="hidden" name="auto_send_emails"        value={defaults?.auto_send_emails        ?? "never"} />
-            <input type="hidden" name="daily_application_limit" value={defaults?.daily_application_limit ?? 10} />
+            <input type="hidden" name="auto_send_emails" value={defaults?.auto_send_emails ?? "never"} />
             {(defaults?.role_match_strict ?? false) && (
               <input type="hidden" name="role_match_strict" value="on" />
             )}
