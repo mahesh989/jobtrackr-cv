@@ -35,7 +35,7 @@
   },
   "build_state": {
     "current_phase": "post-12 — polish + UX",
-    "last_shipped": "2026-05-25 — Notion is now the DEFAULT theme; landing + auth + privacy pages restyled to the Notion palette/fonts; dashboard empty state split into Mode A (Get-set-up wizard) / Mode B ('Ready to scan' + How-it-works deck); instructions tab redesign (Get set up wizard + How-it-works swipe deck); password-only login; admin sidebar nav removed; copy fixed to the 5 real sources; PipelineDonut legend alignment; sidebar reorder.",
+    "last_shipped": "2026-05-25 — Google Places autocomplete on the profile Location field (server-side proxy, AU cities); Notion is now the DEFAULT theme; landing + auth + privacy pages restyled to the Notion palette/fonts; dashboard empty state split into Mode A (Get-set-up wizard) / Mode B ('Ready to scan' + How-it-works deck); instructions tab redesign (Get set up wizard + How-it-works swipe deck); password-only login; admin sidebar nav removed; copy fixed to the 5 real sources; PipelineDonut legend alignment; sidebar reorder.",
     "next_session": "Open. Known caveat: signup still creates accounts via email OTP but login is password-only, so a freshly signed-up user has no password — reconcile signup with password auth (or add a set-password step).",
     "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–041), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF, cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFilterBar, PipelineFunnel, 5-theme system, per-profile source selection, client-side instant filtering on both boards."
   },
@@ -141,6 +141,11 @@
       "id": "OPS-17",
       "title": "Dashboard empty state has two modes (gate = !hasAnyJob)",
       "detail": "web/src/app/(dashboard)/dashboard/page.tsx: when no jobs exist, coreComplete = status.profile && status.cv && status.aiKey. !coreComplete → FirstRunScreen (Get-set-up wizard / SetupCards). coreComplete → ReadyToScanScreen (create/run a search-profile CTA + the How-it-works deck). The How-it-works deck is the shared component web/src/components/onboarding/HowItWorksDeck.tsx (built on SwipeDeck.tsx) reused by both this screen and the instructions 'How it works' tab."
+    },
+    {
+      "id": "OPS-18",
+      "title": "Profile Location field uses Google Places via a server-side proxy",
+      "detail": "web/src/app/api/places/autocomplete/route.ts (auth-gated GET ?q=) calls the Places Autocomplete API (New) at places.googleapis.com/v1/places:autocomplete, restricted includedRegionCodes:['au'] + includedPrimaryTypes:['(cities)']. Key is PLACES_API_KEY (server-only, NOT NEXT_PUBLIC_) so it never reaches the browser. UI: web/src/components/LocationAutocomplete.tsx — controlled input + 300ms-debounced dropdown, still free-typeable (Remote etc.), strips trailing ', Australia' on select to keep the 'Sydney NSW' shape the worker sources expect; replaces the plain input in ProfileForm.tsx. Requires 'Places API (New)' enabled in GCP (distinct from legacy Places API) + billing. Do NOT add an HTTP-referrer key restriction — calls are server→Google from Vercel IPs; an API restriction (limit to Places API New) is fine."
     }
   ],
   "known_issues": [
