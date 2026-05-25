@@ -48,8 +48,8 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
   // toggle so the form clearly signals "off does nothing".
   const [automationOn, setAutomationOn] = useState<boolean>(defaults?.automation_enabled ?? false);
 
-  // Track whether SEEK is selected — email-sending mode is SEEK-specific
-  // (SEEK jobs can have a recruiter email attached; Adzuna/Greenhouse etc. don't).
+  // Track whether SEEK is selected — the SEEK fetch method block only
+  // makes sense when SEEK is actually enabled.
   const defaultSeekOn = defaults?.enabled_sources
     ? defaults.enabled_sources.includes("seek")
     : true; // null = all sources on
@@ -199,29 +199,30 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
             </div>
           ))}
 
-          {/* SEEK fetch method */}
-          <div className="pt-1 border-t border-border">
-            <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wide mb-1.5">SEEK fetch method</p>
-            <div className="flex flex-col gap-1.5">
-              {[
-                { value: "direct", label: "Direct (free)", desc: "Scrapes SEEK directly — no cost." },
-                { value: "actor",  label: "Apify actor (~$0.42/run)", desc: "Uses your Apify integration — more reliable depth, costs per run." },
-              ].map((opt) => (
-                <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="radio" name="seek_method" value={opt.value}
-                    defaultChecked={(defaults?.seek_method ?? "direct") === opt.value}
-                    className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
-                  />
-                  <span>
-                    <span className="block text-[12px] font-medium text-text">{opt.label}</span>
-                    <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
-                  </span>
-                </label>
-              ))}
+          {/* SEEK fetch method — only shown when SEEK is enabled */}
+          {seekEnabled && (
+            <div className="pt-1 border-t border-border">
+              <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wide mb-1.5">SEEK fetch method</p>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  { value: "direct", label: "Direct (free)", desc: "Scrapes SEEK directly — no cost." },
+                  { value: "actor",  label: "Apify actor (~$0.42/run)", desc: "Uses your Apify integration — more reliable depth, costs per run." },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio" name="seek_method" value={opt.value}
+                      defaultChecked={(defaults?.seek_method ?? "direct") === opt.value}
+                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                      <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <p className="text-[11px] text-text-3 mt-1.5">Applies only when SEEK is ticked above.</p>
-          </div>
+          )}
         </div>
       </div>
 
@@ -343,37 +344,29 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
               </label>
             </div>
 
-            {/* Email sending mode — only relevant when SEEK is enabled, since
-                SEEK jobs can carry a recruiter email for direct applications. */}
-            {seekEnabled && (
-              <div>
-                <label className="block text-[12px] font-semibold text-text mb-2">
-                  Email sending mode
-                  <span className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--surface)] border border-[var(--border)] text-text-3">
-                    SEEK only
-                  </span>
-                </label>
-                <div className="flex flex-col gap-2">
-                  {[
-                    { value: "never",         label: "Never auto-send",          desc: "Cover letters and email drafts are generated; you click Send manually." },
-                    { value: "after_review",  label: "Auto-send after I verify", desc: "Drafts wait in the outbox until you click Verify, then send automatically." },
-                    { value: "auto",          label: "Auto-send without review", desc: "Drafts go straight to send without any review step. Use with caution." },
-                  ].map((opt) => (
-                    <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="radio" name="auto_send_emails" value={opt.value}
-                        defaultChecked={(defaults?.auto_send_emails ?? "never") === opt.value}
-                        className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
-                      />
-                      <span>
-                        <span className="block text-[12px] font-medium text-text">{opt.label}</span>
-                        <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">{opt.desc}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+            {/* Email sending mode */}
+            <div>
+              <label className="block text-[12px] font-semibold text-text mb-2">Email sending mode</label>
+              <div className="flex flex-col gap-2">
+                {[
+                  { value: "never",         label: "Never auto-send",          desc: "Cover letters and email drafts are generated; you click Send manually." },
+                  { value: "after_review",  label: "Auto-send after I verify", desc: "Drafts wait in the outbox until you click Verify, then send automatically." },
+                  { value: "auto",          label: "Auto-send without review", desc: "Drafts go straight to send without any review step. Use with caution." },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="radio" name="auto_send_emails" value={opt.value}
+                      defaultChecked={(defaults?.auto_send_emails ?? "never") === opt.value}
+                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                      <span className="block text-[11px] text-text-2 leading-relaxed mt-0.5">{opt.desc}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
-            )}
+            </div>
 
           </div>
         )}
