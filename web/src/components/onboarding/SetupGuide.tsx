@@ -11,7 +11,7 @@
  * always available on /dashboard/instructions.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   UserCircle2, FileText, PenLine, Plug, Mail, Cloud, Briefcase,
@@ -95,6 +95,12 @@ export function SetupGuide({
   returnTo?: string;
 }) {
   const [i, setI] = useState(initialStep);
+
+  // Sync step index when the parent navigates back with a different ?step=N param.
+  // useState only reads `initialStep` on first mount; useEffect keeps it in sync
+  // when the component is reused across soft-navigations on the same route.
+  useEffect(() => { setI(initialStep); }, [initialStep]);
+
   const step = STEPS[i];
   const Icon = step.icon;
   const done = status[step.key];

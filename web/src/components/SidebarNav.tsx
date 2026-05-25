@@ -129,6 +129,7 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
 
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
         <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>
+        <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
 
         {/* Tools */}
         <div className="px-1 pt-4 pb-1">
@@ -136,10 +137,9 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
             Tools
           </p>
         </div>
+        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>Profile</NavItem>
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
-        <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
-        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>Profile</NavItem>
         <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
