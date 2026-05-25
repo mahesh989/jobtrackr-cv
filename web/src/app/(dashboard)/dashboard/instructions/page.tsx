@@ -1,12 +1,12 @@
 /**
  * /dashboard/instructions — the in-app guide, split into two sub-tabs:
  *
+ *   How it works  — the educational swipe deck (HowItWorksDeck): key terms +
+ *                   the end-to-end pipeline explanation.
  *   Get set up    — the guided wizard: cards while in progress, a clickable
  *                   completed checklist once the required steps are done.
- *   How it works  — key terms glossary + the end-to-end pipeline explanation.
  *
- * Server-rendered. Reachable any time from the sidebar; also what new users see
- * on the dashboard until their first run produces data. `?tab=` picks the
+ * Server-rendered. Reachable any time from the sidebar. `?tab=` picks the
  * default sub-tab and `?step=N` opens the wizard on a specific card (used by the
  * SetupStepperBar round-trip).
  */
@@ -15,172 +15,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { InstructionsTabs } from "@/components/onboarding/InstructionsTabs";
-import { SwipeDeck } from "@/components/onboarding/SwipeDeck";
+import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
 import { getSetupStatus } from "@/lib/setupStatus";
 import { clampStepIndex, firstIncompleteStep, isSetupComplete } from "@/lib/setupSteps";
-import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 
 export const metadata = { title: "Instructions — JobTrackr" };
-
-const TERMS: Array<{ term: string; def: string }> = [
-  { term: "JD", def: "Job description." },
-  { term: "Full JD / Rich JD", def: "A complete description was fetched — enough to analyse. (Two names for the same thing.)" },
-  { term: "Thin JD", def: "The description is too short to analyse reliably. Paste the full JD to continue." },
-  { term: "ATS", def: "Applicant Tracking System — the software employers use to screen CVs." },
-  { term: "ATS score / match score", def: "A 0–100 estimate of how well a CV matches the job's keywords and requirements." },
-  { term: "Initial gate", def: `Starting ATS threshold (${MIN_INITIAL_ATS}). Below it, a run stops before tailoring to save AI cost.` },
-  { term: "Final gate", def: `Post-tailoring ATS threshold (${MIN_FINAL_ATS}). At or above this, a cover letter is auto-generated.` },
-  { term: "Below initial / Below final", def: "Scored under the initial / final gate threshold." },
-  { term: "ATS lift", def: "Points gained from your original CV to the tailored CV." },
-  { term: "Tailored CV", def: "Your CV rewritten by the AI for one specific job (markdown + PDF)." },
-  { term: "BYOK", def: "Bring Your Own Key — you supply your own AI provider API key." },
-  { term: "Saved / Duplicates / Filtered out", def: "Sourcing outcomes: Saved = new jobs added; Duplicates = already in your feed (by URL or near-identical text); Filtered out = dropped by keyword/smart-filter rules." },
-  { term: "Has email", def: "A hiring contact email was found for the job — enables Send email." },
-];
-
-function FlowBox({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "gate" | "end" }) {
-  const cls =
-    tone === "gate"
-      ? "border-[var(--amber)]/40 bg-[var(--amber-light)] text-[var(--amber)]"
-      : tone === "end"
-      ? "border-[var(--green)]/40 bg-[var(--green-light)] text-[var(--green)]"
-      : "border-border bg-[var(--surface-2)] text-text";
-  return (
-    <div className={`rounded-md border px-3 py-2 text-[12px] font-medium text-center ${cls}`}>
-      {children}
-    </div>
-  );
-}
-
-function Arrow({ label }: { label?: string }) {
-  return (
-    <div className="flex flex-col items-center py-1 text-text-3">
-      {label && <span className="text-[10px] mb-0.5">{label}</span>}
-      <span className="text-[14px] leading-none">↓</span>
-    </div>
-  );
-}
-
-function HowItWorks() {
-  const cards = [
-    {
-      id: "terms",
-      title: "Key terms",
-      body: (
-        <dl className="divide-y divide-border">
-          {TERMS.map((t) => (
-            <div key={t.term} className="py-2.5 first:pt-0 sm:flex sm:gap-4">
-              <dt className="text-[13px] font-semibold text-text sm:w-48 sm:shrink-0">{t.term}</dt>
-              <dd className="text-[12px] text-text-2 leading-relaxed mt-0.5 sm:mt-0">{t.def}</dd>
-            </div>
-          ))}
-        </dl>
-      ),
-    },
-    {
-      id: "discovery",
-      title: "Running a profile",
-      body: (
-        <>
-          <p className="text-[12px] text-text-2 mb-3 text-center">What happens in one run of your profile:</p>
-          <div className="max-w-sm mx-auto">
-            <FlowBox>Fetch — every enabled source for your keywords + location</FlowBox>
-            <Arrow />
-            <FlowBox>De-duplicate — drop same-URL, cross-profile &amp; near-identical jobs</FlowBox>
-            <Arrow />
-            <FlowBox>Filter — remove keyword mismatches &amp; smart-filter hits</FlowBox>
-            <Arrow />
-            <FlowBox>Enrich — fetch full JDs where possible (SEEK, Careerjet)</FlowBox>
-            <Arrow />
-            <FlowBox tone="end">Save &amp; score — survivors land in your feed, AI-scored (~1–2 min)</FlowBox>
-          </div>
-          <p className="text-[11px] text-text-3 mt-3 text-center">If scheduled, this repeats automatically.</p>
-        </>
-      ),
-    },
-    {
-      id: "analysis",
-      title: "How analysis runs",
-      body: (
-        <>
-          <p className="text-[12px] text-text-2 mb-3 text-center">
-            Per job, when you click <span className="font-medium text-text">Analyze</span>:
-          </p>
-          <div className="max-w-sm mx-auto">
-            <FlowBox>Analyse job description</FlowBox>
-            <Arrow />
-            <FlowBox>Match CV to JD</FlowBox>
-            <Arrow />
-            <FlowBox>ATS scoring (initial score)</FlowBox>
-            <Arrow />
-            <FlowBox tone="gate">Initial gate (≥ {MIN_INITIAL_ATS}?) — below can stop here</FlowBox>
-            <Arrow label="passes" />
-            <FlowBox>Build recommendations</FlowBox>
-            <Arrow />
-            <FlowBox>Classify keyword feasibility</FlowBox>
-            <Arrow />
-            <FlowBox>Generate AI advice</FlowBox>
-            <Arrow />
-            <FlowBox>Create tailored CV → re-score (ATS lift)</FlowBox>
-            <Arrow />
-            <FlowBox tone="gate">Final gate (≥ {MIN_FINAL_ATS}?)</FlowBox>
-            <Arrow />
-            <FlowBox tone="end">Generate cover letter (always your choice)</FlowBox>
-          </div>
-        </>
-      ),
-    },
-    {
-      id: "applying",
-      title: "How to apply (email vs non-email)",
-      body: (
-        <>
-          <p className="text-[12px] text-text-2 mb-2">
-            When a cover letter is ready, the job enters your <span className="font-medium text-text">Applications</span> outbox:
-          </p>
-          <ul className="space-y-1.5 text-[12px] text-text-2 list-disc pl-5">
-            <li><span className="font-medium text-text">Pool</span> → queue it for review.</li>
-            <li><span className="font-medium text-text">Review</span> → preview and edit the letter (and email subject/body), then approve.</li>
-            <li>
-              <span className="font-medium text-text">Ready to apply:</span>
-              <ul className="mt-1 space-y-1 list-[circle] pl-5">
-                <li><span className="font-medium text-text">Email jobs</span> (contact found) → <span className="font-medium text-text">Send email</span> dispatches via your connected Gmail/Outlook.</li>
-                <li><span className="font-medium text-text">No-email jobs</span> → <span className="font-medium text-text">Copy email</span> (paste into your own client) + <span className="font-medium text-text">Apply now</span> (opens the job link).</li>
-              </ul>
-            </li>
-            <li><span className="font-medium text-text">Mark applied</span> → moves to <span className="font-medium text-text">Sent</span>.</li>
-          </ul>
-          <p className="text-[12px] text-text-3 mt-2">Nothing leaves your account until you press Send or Apply.</p>
-        </>
-      ),
-    },
-    {
-      id: "tracking",
-      title: "How a job is tracked",
-      body: (
-        <>
-          <p className="text-[12px] text-text-2 mb-3">
-            Each job carries one <span className="font-medium text-text">state</span> badge showing where it is:
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            {["Discovered", "Analysing", "Below initial / final", "Ready to apply / send", "Applied", "Archived"].map((s, idx, arr) => (
-              <span key={s} className="flex items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-full border border-border bg-[var(--surface-2)] text-text-2">{s}</span>
-                {idx < arr.length - 1 && <span className="text-text-3">→</span>}
-              </span>
-            ))}
-          </div>
-          <p className="text-[12px] text-text-2 mt-3">
-            You can <span className="font-medium text-text">Mark applied</span> or <span className="font-medium text-text">Dismiss</span> a job at any time. The dashboard funnel and{" "}
-            <Link href="/dashboard/analytics" className="text-[var(--brand)] hover:underline">Analytics</Link> roll these states up.
-          </p>
-        </>
-      ),
-    },
-  ];
-
-  return <SwipeDeck cards={cards} />;
-}
 
 export default async function InstructionsPage({
   searchParams,
@@ -227,7 +66,7 @@ export default async function InstructionsPage({
           setupComplete={setupComplete}
           status={status}
           initialStep={initialStep}
-          howItWorks={<HowItWorks />}
+          howItWorks={<HowItWorksDeck />}
         />
       </div>
     </div>

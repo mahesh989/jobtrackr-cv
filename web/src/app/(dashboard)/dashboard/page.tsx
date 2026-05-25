@@ -23,6 +23,7 @@ import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SetupCards } from "@/components/onboarding/SetupCards";
+import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
 import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
 import { firstIncompleteStep } from "@/lib/setupSteps";
 import { type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
@@ -116,7 +117,13 @@ export default async function DashboardPage({
   }
   if (!hasAnyJob) {
     const status = await getSetupStatus(user.id, ids);
-    return <FirstRunScreen status={status} />;
+    // Mode A — core setup unfinished (personal profile + CV + AI key): guided wizard.
+    // Mode B — core done but no jobs yet (no search profile, or profiles/runs
+    //          deleted): "ready to scan" screen with a create-profile CTA + the
+    //          How-it-works deck so the empty dashboard still teaches.
+    const coreComplete = status.profile && status.cv && status.aiKey;
+    if (!coreComplete) return <FirstRunScreen status={status} />;
+    return <ReadyToScanScreen hasProfiles={ids.length > 0} />;
   }
 
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
@@ -629,6 +636,59 @@ function FirstRunScreen({ status }: { status: SetupStatus }) {
             Read the instructions →
           </Link>
         </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Ready to scan" empty state — core setup is done but there are no jobs yet
+ * (no search profile created, or all profiles/runs were deleted). Surfaces the
+ * one action that produces jobs, with the How-it-works deck below so the empty
+ * dashboard teaches instead of sitting blank.
+ */
+function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
+  return (
+    <div className="min-h-full">
+      <div className="border-b border-border bg-surface px-6 py-4">
+        <h1 className="text-[16px] font-semibold text-text">Ready to scan</h1>
+        <p className="text-[12px] text-text-2 mt-0.5">
+          {hasProfiles
+            ? "Your setup is done — run a search profile and your AI-ranked feed appears here."
+            : "Your setup is done — create a search profile and your AI-ranked feed appears here."}
+        </p>
+      </div>
+
+      <div className="px-6 py-8 max-w-5xl mx-auto space-y-8">
+        {/* Primary action */}
+        <div className="bg-surface border border-border rounded-xl p-6 sm:p-8 text-center anim-in">
+          <h2 className="text-[18px] font-semibold text-text mb-1.5">
+            {hasProfiles ? "Run a scan to fill your feed" : "Create your first search profile"}
+          </h2>
+          <p className="text-[13px] text-text-2 leading-relaxed mb-5 max-w-md mx-auto">
+            {hasProfiles
+              ? "You have a search profile but no jobs yet. Run it to pull listings from every source for your keywords + location."
+              : "Your job radar: keywords + location + schedule. Save it, then run it — your first AI-scored results land in a minute or two."}
+          </p>
+          <Link
+            href={hasProfiles ? "/dashboard/profiles" : "/dashboard/profiles/new"}
+            className="gh-btn gh-btn-blue text-[14px] px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold"
+          >
+            {hasProfiles ? "Go to your profiles" : "Create a search profile"}
+          </Link>
+          <p className="text-[12px] text-text-3 mt-4">
+            Need to change your details?{" "}
+            <Link href="/dashboard/instructions?tab=setup" className="text-[var(--brand)] hover:underline">
+              Revisit setup →
+            </Link>
+          </p>
+        </div>
+
+        {/* Educational deck */}
+        <div>
+          <h2 className="text-[13px] font-semibold text-text mb-3 text-center">How it works</h2>
+          <HowItWorksDeck />
+        </div>
       </div>
     </div>
   );
