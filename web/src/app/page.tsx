@@ -44,7 +44,7 @@ export default async function Home() {
           Find your next role<br /><em>while you sleep.</em>
         </h1>
         <p className="land-sub">
-          JobTrackr scans 21+ Australian job sources every night, scores each
+          JobTrackr scans Australia&apos;s major job sources every night, scores each
           listing with AI, flags visa sponsorship, and surfaces only what
           actually matches you. Wake up to a ranked feed — not an inbox of noise.
         </p>
@@ -190,10 +190,10 @@ export default async function Home() {
       <section className="land-sources-band" id="sources">
         <div className="land-section land-sources-head">
           <div className="land-eyebrow">Sources</div>
-          <h2 className="land-h2">21+ sources.<br />One clean feed.</h2>
+          <h2 className="land-h2">Five sources.<br />One clean feed.</h2>
           <p className="land-section-sub">
-            We scan every job platform that Australian employers actually use.
-            New sources added every month.
+            We scan the job platforms Australian employers actually use —
+            with more added over time.
           </p>
         </div>
         <div className="land-marquee" aria-hidden="true">
@@ -249,11 +249,10 @@ export default async function Home() {
         <details className="land-faq">
           <summary>How is this different from Seek alerts?</summary>
           <p>
-            Seek alerts only know about Seek. JobTrackr watches 21+ sources at
-            once — Seek, LinkedIn, Adzuna, Jora, APS, state government portals,
-            Greenhouse, Lever, and more. Every listing is AI-ranked against your
-            profile and tagged with a visa-sponsorship signal. You get a clean
-            dashboard, not an inbox.
+            Seek alerts only know about Seek. JobTrackr watches several sources
+            at once — SEEK, Adzuna, Careerjet, Greenhouse and Lever. Every
+            listing is AI-ranked against your profile and tagged with a
+            visa-sponsorship signal. You get a clean dashboard, not an inbox.
           </p>
         </details>
         <details className="land-faq">
@@ -341,7 +340,6 @@ export default async function Home() {
           <li><a href="#features">Features</a></li>
           <li><a href="#faq">FAQ</a></li>
           <li><Link href="/privacy">Privacy</Link></li>
-          <li><Link href="/terms">Terms</Link></li>
         </ul>
         <span className="land-footer-copy">© {new Date().getFullYear()} JobTrackr</span>
       </footer>
@@ -352,15 +350,15 @@ export default async function Home() {
 // ───────── Static content ─────────
 const DEMO_JOBS = [
   { source: "SEEK",      title: "Senior Data Analyst",       company: "Atlassian",         location: "Sydney NSW",    score: 94, visa: "Sponsored" },
-  { source: "LinkedIn",  title: "ML Engineer",                company: "Canva",             location: "Sydney NSW",    score: 91, visa: "Sponsored" },
+  { source: "Careerjet", title: "ML Engineer",                company: "Canva",             location: "Sydney NSW",    score: 91, visa: "Sponsored" },
   { source: "Adzuna",    title: "Analytics Manager",          company: "Commonwealth Bank", location: "Sydney CBD",    score: 88, visa: null },
-  { source: "Jora",      title: "Data Engineer",              company: "REA Group",         location: "Melbourne VIC", score: 86, visa: "Sponsored" },
+  { source: "Lever",     title: "Data Engineer",              company: "REA Group",         location: "Melbourne VIC", score: 86, visa: "Sponsored" },
   { source: "SEEK",      title: "Business Intelligence Lead", company: "Telstra",           location: "Sydney NSW",    score: 84, visa: null },
   { source: "Greenhouse",title: "Senior Data Engineer",       company: "Stripe",            location: "Remote AU",     score: 82, visa: "Sponsored" },
 ];
 
 const STATS = [
-  { value: "21+",       label: "AU sources scanned" },
+  { value: "5",         label: "Live AU sources" },
   { value: "Nightly",   label: "Automatic scan cadence" },
   { value: "AI-ranked", label: "Relevance scoring" },
   { value: "60s",       label: "Setup time" },
@@ -368,13 +366,13 @@ const STATS = [
 
 const STEPS = [
   { title: "Create your profile",  desc: "Add keywords, locations, salary, and visa preferences in under two minutes." },
-  { title: "We scan everything",   desc: "21+ Australian sources — Seek, LinkedIn, Adzuna, government portals, ATS APIs." },
+  { title: "We scan everything",   desc: "Australia's major sources — SEEK, Adzuna, Careerjet, plus Greenhouse & Lever ATS feeds." },
   { title: "AI scores each match", desc: "Relevance, freshness, salary fit, visa likelihood. Best matches rise to the top." },
   { title: "You apply, not hunt",  desc: "Review the ranked feed in five minutes. Mark applied. Move on with your day." },
 ];
 
 const FEATURES = [
-  { title: "Multi-source scanning",   desc: "Seek, LinkedIn, Adzuna, Jora, Greenhouse, Lever, APS, state portals — all checked nightly.", icon: "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zm5 12l5 5" },
+  { title: "Multi-source scanning",   desc: "SEEK, Adzuna, Careerjet, Greenhouse and Lever — all checked nightly.", icon: "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zm5 12l5 5" },
   { title: "AI relevance scoring",    desc: "Each listing scored against your profile. Best matches surface to the top automatically.",  icon: "M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" },
   { title: "Visa sponsorship signal", desc: "Sponsorship language, 482 visa mentions, and PR-only constraints flagged at a glance.",   icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { title: "Cross-source dedup",      desc: "Same role on Seek + LinkedIn + Adzuna? Collapsed to one — the richest version.",          icon: "M8 3h8M8 21h8M3 8v8M21 8v8M7 7h10v10H7z" },
@@ -404,20 +402,9 @@ const TESTIMONIALS = [
 ];
 
 const SOURCES = [
-  { name: "SEEK",            featured: true  },
-  { name: "LinkedIn",        featured: true  },
-  { name: "Adzuna",          featured: true  },
-  { name: "Jora",            featured: true  },
-  { name: "APS Jobs",        featured: false },
-  { name: "NSW Government",  featured: false },
-  { name: "VIC Government",  featured: false },
-  { name: "QLD Health",      featured: false },
-  { name: "Ethical Jobs",    featured: false },
-  { name: "Greenhouse",      featured: false },
-  { name: "Lever",           featured: false },
-  { name: "Workday",         featured: false },
-  { name: "SmartRecruiters", featured: false },
-  { name: "JobAdder",        featured: false },
-  { name: "Mercury",         featured: false },
-  { name: "Scout Talent",    featured: false },
+  { name: "SEEK",       featured: true  },
+  { name: "Adzuna",     featured: true  },
+  { name: "Careerjet",  featured: true  },
+  { name: "Greenhouse", featured: true  },
+  { name: "Lever",      featured: true  },
 ];

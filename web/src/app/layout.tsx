@@ -40,7 +40,7 @@ const notoSerif = Noto_Serif({
 
 export const metadata: Metadata = {
   title: "JobTrackr — Stop hunting. Start tracking.",
-  description: "Find your next role while you sleep. JobTrackr scans 21+ Australian job sources daily, scores each listing with AI, and flags visa sponsorship — so you only review what matters.",
+  description: "Find your next role while you sleep. JobTrackr scans Australia's major job sources daily, scores each listing with AI, and flags visa sponsorship — so you only review what matters.",
 };
 
 export default function RootLayout({
@@ -64,8 +64,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var t = localStorage.getItem('jobtrackr-theme');
-                if (t && t !== 'default' && /^(classic|gilded-noir|notion|clay)$/.test(t)) {
+                var t = localStorage.getItem('jobtrackr-theme') || 'notion';
+                if (t !== 'default' && /^(classic|gilded-noir|notion|clay)$/.test(t)) {
                   document.documentElement.classList.add('theme-' + t);
                 }
               } catch (e) {}
@@ -73,7 +73,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-canvas text-ink">{children}</body>
+      <body className="min-h-full flex flex-col bg-bg text-text">{children}</body>
     </html>
   );
 }

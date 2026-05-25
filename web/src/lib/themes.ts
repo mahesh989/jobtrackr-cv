@@ -89,14 +89,14 @@ const VALID_IDS = new Set<Theme>(["default", "classic", "gilded-noir", "notion",
 const THEMED_CLASSES = ["theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "default";
+  if (typeof window === "undefined") return "notion";
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
   if (stored === "classic" || stored === "gilded-noir" || stored === "notion" || stored === "clay" || stored === "default") {
     return stored;
   }
-  // Migrate old 'classic' value from Phase 1 — used to be the default name.
-  // Now default is its own theme. Unrecognised values fall through to default.
-  return "default";
+  // No saved preference → Notion is the project default. An explicit 'default'
+  // choice is still honoured above; only unset/unrecognised values land here.
+  return "notion";
 }
 
 export function applyTheme(theme: Theme) {

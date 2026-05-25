@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const BRAND_PANEL_FEATURES = [
-  "21+ Australian sources scanned every night",
+  "Australia's major sources scanned every night",
   "AI relevance scoring — best matches at the top",
   "Visa sponsorship signal on every listing",
   "Duplicates collapsed across all boards",
@@ -45,12 +45,12 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex"
-      style={{ fontFamily: "var(--font-marketing), system-ui, sans-serif", color: "#0f0f0e" }}
+      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#0A1530" }}
     >
       {/* ── Brand panel (desktop only) ── */}
       <aside
         className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10"
-        style={{ background: "#0f0f0e", color: "#f5f3ef" }}
+        style={{ background: "#241A5C", color: "#F4EEFB" }}
       >
         <Link href="/" className="flex items-center gap-2.5">
           <span
@@ -60,26 +60,26 @@ export default function LoginPage() {
           >
             {LOGO_SVG}
           </span>
-          <span style={{ fontFamily: "var(--font-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
+          <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
         </Link>
 
         <div>
           <h2
             style={{
-              fontFamily: "var(--font-serif)",
+              fontFamily: "var(--font-cv-serif)",
               fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)",
               lineHeight: 1.15,
               letterSpacing: "-0.6px",
-              color: "#f5f3ef",
+              color: "#F4EEFB",
               marginBottom: 12,
               fontWeight: 400,
             }}
           >
             Find your next role<br />
-            <em style={{ fontStyle: "italic", color: "#2d9e6e" }}>while you sleep.</em>
+            <em style={{ fontStyle: "italic", color: "#8250DF" }}>while you sleep.</em>
           </h2>
-          <p style={{ color: "rgba(245,243,239,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
-            21+ Australian sources scanned nightly, AI-ranked and ready in your feed every morning.
+          <p style={{ color: "rgba(244,238,251,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+            Australia's major sources scanned nightly, AI-ranked and ready in your feed every morning.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {BRAND_PANEL_FEATURES.map((f) => (
@@ -89,12 +89,12 @@ export default function LoginPage() {
                   display: "flex", alignItems: "flex-start", gap: 10,
                   padding: "10px 0",
                   borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  color: "rgba(245,243,239,0.7)",
+                  color: "rgba(244,238,251,0.7)",
                   fontSize: 13, lineHeight: 1.5,
                 }}
               >
                 <span
-                  style={{ width: 5, height: 5, background: "#2d9e6e", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
+                  style={{ width: 5, height: 5, background: "#8250DF", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
                 />
                 {f}
               </li>
@@ -102,36 +102,36 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        <p style={{ fontSize: 11, color: "rgba(245,243,239,0.25)", letterSpacing: 0.3 }}>
+        <p style={{ fontSize: 11, color: "rgba(244,238,251,0.25)", letterSpacing: 0.3 }}>
           Built for Australian job seekers
         </p>
       </aside>
 
       {/* ── Form panel ── */}
-      <div className="flex-1 flex flex-col" style={{ background: "#faf9f7" }}>
+      <div className="flex-1 flex flex-col" style={{ background: "#ECE7FB" }}>
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
           <Link href="/" className="flex items-center gap-2.5">
             <span
               className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "#0f0f0e" }}
+              style={{ background: "#241A5C" }}
               aria-hidden="true"
             >
               {LOGO_SVG}
             </span>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
+            <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
           </Link>
-          <Link href="/auth/signup" className="text-[13px]" style={{ color: "#6b6b68" }}>
+          <Link href="/auth/signup" className="text-[13px]" style={{ color: "#6B6A8C" }}>
             Need an account?{" "}
-            <span style={{ color: "#1a6b4a", fontWeight: 500 }}>Sign up</span>
+            <span style={{ color: "#5645D4", fontWeight: 500 }}>Sign up</span>
           </Link>
         </header>
 
         {/* Desktop top-right link */}
         <div className="hidden lg:flex justify-end px-10 py-6">
-          <Link href="/auth/signup" className="text-[13px]" style={{ color: "#6b6b68" }}>
+          <Link href="/auth/signup" className="text-[13px]" style={{ color: "#6B6A8C" }}>
             Need an account?{" "}
-            <span style={{ color: "#1a6b4a", fontWeight: 500 }}>Sign up</span>
+            <span style={{ color: "#5645D4", fontWeight: 500 }}>Sign up</span>
           </Link>
         </div>
 
@@ -141,13 +141,13 @@ export default function LoginPage() {
             className="w-full max-w-md rounded-2xl px-10 py-12"
             style={{
               background: "#ffffff",
-              border: "1px solid rgba(15, 15, 14, 0.08)",
-              boxShadow: "0 30px 60px -30px rgba(15, 15, 14, 0.12), 0 1px 0 rgba(15, 15, 14, 0.02)",
+              border: "1px solid rgba(10, 21, 48, 0.08)",
+              boxShadow: "0 30px 60px -30px rgba(10, 21, 48, 0.12), 0 1px 0 rgba(10, 21, 48, 0.02)",
             }}
           >
                 <h1
                   style={{
-                    fontFamily: "var(--font-serif)",
+                    fontFamily: "var(--font-cv-serif)",
                     fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
                     lineHeight: 1.12,
                     letterSpacing: "-0.8px",
@@ -156,7 +156,7 @@ export default function LoginPage() {
                 >
                   Welcome back.
                 </h1>
-                <p style={{ color: "#6b6b68", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+                <p style={{ color: "#6B6A8C", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
                   Sign in with your email and password.
                 </p>
 
@@ -175,14 +175,14 @@ export default function LoginPage() {
                       autoFocus
                       className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
                       style={{
-                        background: "#faf9f7",
-                        border: "1px solid rgba(15, 15, 14, 0.12)",
+                        background: "#F4EEFB",
+                        border: "1px solid rgba(10, 21, 48, 0.12)",
                         fontSize: 14,
-                        fontFamily: "var(--font-marketing), system-ui, sans-serif",
-                        color: "#0f0f0e",
+                        fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
+                        color: "#0A1530",
                       }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "#1a6b4a"; e.currentTarget.style.background = "#ffffff"; }}
-                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(15, 15, 14, 0.12)"; e.currentTarget.style.background = "#faf9f7"; }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
                     />
                   </div>
 
@@ -199,14 +199,14 @@ export default function LoginPage() {
                       placeholder="Your password"
                       className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
                       style={{
-                        background: "#faf9f7",
-                        border: "1px solid rgba(15, 15, 14, 0.12)",
+                        background: "#F4EEFB",
+                        border: "1px solid rgba(10, 21, 48, 0.12)",
                         fontSize: 14,
-                        fontFamily: "var(--font-marketing), system-ui, sans-serif",
-                        color: "#0f0f0e",
+                        fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
+                        color: "#0A1530",
                       }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "#1a6b4a"; e.currentTarget.style.background = "#ffffff"; }}
-                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(15, 15, 14, 0.12)"; e.currentTarget.style.background = "#faf9f7"; }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
                     />
                   </div>
 
@@ -228,8 +228,8 @@ export default function LoginPage() {
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity"
                     style={{
-                      background: "#0f0f0e",
-                      color: "#faf9f7",
+                      background: "#5645D4",
+                      color: "#F4EEFB",
                       fontSize: 14,
                       fontWeight: 500,
                       opacity: loading ? 0.7 : 1,
@@ -255,9 +255,9 @@ export default function LoginPage() {
                   </div>
                 </form>
 
-                <p className="text-center mt-6" style={{ fontSize: 12, color: "#9a9a96" }}>
+                <p className="text-center mt-6" style={{ fontSize: 12, color: "#938FB8" }}>
                   No account yet?{" "}
-                  <Link href="/auth/signup" style={{ color: "#1a6b4a", fontWeight: 500, textDecoration: "none" }}>
+                  <Link href="/auth/signup" style={{ color: "#5645D4", fontWeight: 500, textDecoration: "none" }}>
                     Sign up with invite code
                   </Link>
                 </p>
@@ -267,9 +267,9 @@ export default function LoginPage() {
         {/* Trust strip */}
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
-            {["21+ AU sources", "AI-ranked feed", "Visa signal", "Free plan"].map((label) => (
-              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#9a9a96" }}>
-                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#1a6b4a" }} />
+            {["5 AU sources", "AI-ranked feed", "Visa signal", "Free plan"].map((label) => (
+              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#938FB8" }}>
+                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#5645D4" }} />
                 {label}
               </li>
             ))}
