@@ -14,11 +14,24 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Explicit ownership check (defence-in-depth on top of run_logs RLS) — keeps
+  // this route consistent with its DELETE handler and the per-run logs route.
+  const { data: profile } = await supabase
+    .from("search_profiles")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   let query = supabase.from("run_logs").select("id, status, current_stage, started_at").eq("profile_id", id);
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/profiles/:id/runs] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ runs: data });
 }
@@ -61,7 +74,10 @@ export async function DELETE(
     .eq("status", "running")
     .select("id");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/profiles/:id/runs] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ cancelled: cancelled?.length ?? 0 });
 }

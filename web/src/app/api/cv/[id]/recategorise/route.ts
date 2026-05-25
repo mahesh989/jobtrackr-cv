@@ -112,7 +112,8 @@ export async function POST(
     .eq("id", id);
 
   if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    console.error("[/api/cv/:id/recategorise] update error:", updateErr.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 
   return NextResponse.json({ categorised_skills: categorised });

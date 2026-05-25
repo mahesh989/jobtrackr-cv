@@ -122,6 +122,9 @@ export async function PATCH(req: NextRequest) {
       { onConflict: "user_id" },
     );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/user/preferences] upsert error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   return NextResponse.json({ contact_details: result.value });
 }

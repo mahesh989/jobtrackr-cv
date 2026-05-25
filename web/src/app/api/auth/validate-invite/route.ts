@@ -1,8 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export async function POST(request: NextRequest) {
+  // This endpoint is unauthenticated — rate limit by client IP to stop invite
+  // code brute-force / enumeration.
+  const ip = (request.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+  const rl = await rateLimit(`invite:${ip}`, 20, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+
   const { code } = await request.json();
 
   if (!code || typeof code !== "string") {

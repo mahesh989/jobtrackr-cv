@@ -34,7 +34,10 @@ export async function GET(
     .eq("id", letter_id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/applications/:letter_id GET] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   if (!letter || letter.user_id !== user.id) {
     return NextResponse.json({ error: "Letter not found" }, { status: 404 });
   }
@@ -105,7 +108,10 @@ export async function PATCH(
     })
     .eq("id", letter_id);
 
-  if (patchErr) return NextResponse.json({ error: patchErr.message }, { status: 500 });
+  if (patchErr) {
+    console.error("[/api/applications/:letter_id PATCH] db error:", patchErr.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ updated: true, length: newText.length });
 }

@@ -101,12 +101,15 @@ export async function createProfile(formData: FormData) {
     .split(",").map((k) => k.trim()).filter(Boolean);
 
   const runMode = formData.get("run_mode");
-  const autoDays = formData.get("auto_days");
-  
-  let scheduleCron = "0 21 */2 * *"; 
-  if (runMode === "auto" && autoDays) {
-    scheduleCron = `0 21 */${autoDays} * *`;
-  }
+  // auto_days drives the cron day-of-month interval. Parse + clamp to a bounded
+  // integer so a hand-edited form value can't inject arbitrary cron syntax into
+  // schedule_cron (stored in the DB and registered with BullMQ by the worker).
+  const autoDaysParsed = parseInt(String(formData.get("auto_days") ?? ""), 10);
+  const autoDays = Number.isFinite(autoDaysParsed)
+    ? Math.min(30, Math.max(1, autoDaysParsed))
+    : 2;
+
+  const scheduleCron = runMode === "auto" ? `0 21 */${autoDays} * *` : "0 21 */2 * *";
   const isActive = runMode === "auto";
 
   const { error } = await supabase.from("search_profiles").insert({
@@ -137,12 +140,15 @@ export async function updateProfile(profileId: string, formData: FormData) {
     .split(",").map((k) => k.trim()).filter(Boolean);
 
   const runMode = formData.get("run_mode");
-  const autoDays = formData.get("auto_days");
-  
-  let scheduleCron = "0 21 */2 * *"; 
-  if (runMode === "auto" && autoDays) {
-    scheduleCron = `0 21 */${autoDays} * *`;
-  }
+  // auto_days drives the cron day-of-month interval. Parse + clamp to a bounded
+  // integer so a hand-edited form value can't inject arbitrary cron syntax into
+  // schedule_cron (stored in the DB and registered with BullMQ by the worker).
+  const autoDaysParsed = parseInt(String(formData.get("auto_days") ?? ""), 10);
+  const autoDays = Number.isFinite(autoDaysParsed)
+    ? Math.min(30, Math.max(1, autoDaysParsed))
+    : 2;
+
+  const scheduleCron = runMode === "auto" ? `0 21 */${autoDays} * *` : "0 21 */2 * *";
   const isActive = runMode === "auto";
 
   const { error } = await supabase

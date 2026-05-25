@@ -105,8 +105,8 @@ export async function POST(
     .maybeSingle();
 
   if (jobErr) {
-    console.error("[send-email] job lookup failed:", jobErr);
-    return NextResponse.json({ error: `Job lookup failed: ${jobErr.message}` }, { status: 500 });
+    console.error("[send-email] job lookup failed:", jobErr.message);
+    return NextResponse.json({ error: "Job lookup failed" }, { status: 500 });
   }
   if (!job) {
     return NextResponse.json({ error: "Job not found for this letter" }, { status: 404 });
@@ -225,7 +225,23 @@ export async function POST(
     });
   }
 
-  // ── 7. Send ───────────────────────────────────────────────────────────────
+  // ── 7. Claim the send atomically ─────────────────────────────────────────
+  // Stamp email_sent_at only if it is still null. Two concurrent requests would
+  // otherwise both pass the step-1 check and both dispatch — this conditional
+  // update lets exactly one win. We roll it back below if the send itself fails.
+  const claimAt = new Date().toISOString();
+  const { data: claimed } = await admin
+    .from("cover_letters")
+    .update({ email_sent_at: claimAt })
+    .eq("id", letter_id)
+    .is("email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) {
+    return NextResponse.json({ error: "Email already sent" }, { status: 409 });
+  }
+
+  // ── 8. Send ───────────────────────────────────────────────────────────────
   try {
     if (tokenInfo.provider === "google") {
       await sendViaGmail(tokenInfo.access_token, {
@@ -244,12 +260,16 @@ export async function POST(
       });
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[send-email] send failed:", msg);
-    return NextResponse.json({ error: `Send failed: ${msg}` }, { status: 502 });
+    // Send failed — release the claim so the user can retry.
+    await admin
+      .from("cover_letters")
+      .update({ email_sent_at: null })
+      .eq("id", letter_id);
+    console.error("[send-email] send failed:", err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: "Send failed — please try again." }, { status: 502 });
   }
 
-  // ── 8. Record + mark applied ─────────────────────────────────────────────
+  // ── 9. Record recipient + mark applied ───────────────────────────────────
   const now = new Date().toISOString();
 
   await Promise.all([

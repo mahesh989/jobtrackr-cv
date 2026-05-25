@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { encryptApiKey }             from "@/lib/integrations/crypto";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 type Provider = "anthropic" | "openai" | "deepseek";
 
@@ -142,6 +143,11 @@ export async function POST(
   }
   if (!key) return NextResponse.json({ error: "Key is required" }, { status: 400 });
 
+  // Rate limit: POST validates the key against the provider's API — without a
+  // cap this endpoint is a free credential-validation oracle.
+  const rl = await rateLimit(`ai-key-validate:${user.id}`, 10, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+
   const { valid, error: validationError } = await validateKey(provider, key);
   if (!valid) {
     return NextResponse.json({ valid: false, error: validationError }, { status: 422 });
@@ -222,7 +228,10 @@ export async function PATCH(
     .eq("user_id", user.id)
     .eq("provider", provider);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/integrations/ai-keys] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   return NextResponse.json({ model });
 }
 
@@ -246,6 +255,9 @@ export async function DELETE(
     .eq("user_id", user.id)
     .eq("provider", provider);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/integrations/ai-keys] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   return NextResponse.json({ disconnected: true });
 }

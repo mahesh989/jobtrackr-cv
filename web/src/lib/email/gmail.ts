@@ -18,6 +18,12 @@ export interface GmailSendOptions {
   attachments?: EmailAttachment[];
 }
 
+// Strip CR/LF from any value interpolated into a raw email header. Without
+// this, a field like hiring_manager ("Name\r\nBcc: victim@x.com") in the To
+// header would inject additional headers (header/recipient injection). The
+// body is base64-encoded below, so it is unaffected and not sanitised here.
+const stripHeader = (v: string): string => v.replace(/[\r\n]+/g, " ").trim();
+
 export async function sendViaGmail(
   accessToken: string,
   opts:        GmailSendOptions,
@@ -26,9 +32,9 @@ export async function sendViaGmail(
 
   const lines: string[] = [
     `MIME-Version: 1.0`,
-    `From: ${opts.from}`,
-    `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
+    `From: ${stripHeader(opts.from)}`,
+    `To: ${stripHeader(opts.to)}`,
+    `Subject: ${stripHeader(opts.subject)}`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     ``,
     `--${boundary}`,
@@ -39,10 +45,12 @@ export async function sendViaGmail(
   ];
 
   for (const att of opts.attachments ?? []) {
+    const filename    = stripHeader(att.filename);
+    const contentType = stripHeader(att.contentType);
     lines.push(
       `--${boundary}`,
-      `Content-Type: ${att.contentType}; name="${att.filename}"`,
-      `Content-Disposition: attachment; filename="${att.filename}"`,
+      `Content-Type: ${contentType}; name="${filename}"`,
+      `Content-Disposition: attachment; filename="${filename}"`,
       `Content-Transfer-Encoding: base64`,
       ``,
       att.data.toString("base64"),

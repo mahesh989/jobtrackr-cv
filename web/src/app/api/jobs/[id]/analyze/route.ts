@@ -20,6 +20,7 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { decryptApiKey }             from "@/lib/integrations/crypto";
 import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
+import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -63,6 +64,10 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: each analysis triggers a multi-call AI pipeline (BYOK) + scrape.
+  const rl = await rateLimit(`analyze:${user.id}`, 20, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   const admin = createAdminClient();
 

@@ -44,6 +44,7 @@ import {
   MatchStoriesStory,
   OpeningVariant,
 } from "@/lib/cvBackend";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
@@ -87,6 +88,10 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: opening-variant generation is a synchronous multi-call AI step.
+  const rl = await rateLimit(`cover-letter:${user.id}`, 20, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { regenerate?: unknown; tone_target?: unknown; provider?: unknown } = {};

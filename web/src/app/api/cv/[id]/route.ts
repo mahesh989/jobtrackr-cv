@@ -41,7 +41,10 @@ export async function GET(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/cv/:id] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   if (!data)  return NextResponse.json({ error: "CV not found" }, { status: 404 });
 
   // Generate a short-lived signed URL so the browser can render the PDF.
@@ -93,7 +96,8 @@ export async function PATCH(
       .eq("user_id", user.id)
       .eq("is_active", true);
     if (deactivateErr) {
-      return NextResponse.json({ error: deactivateErr.message }, { status: 500 });
+      console.error("[/api/cv/:id] deactivate error:", deactivateErr.message);
+      return NextResponse.json({ error: "Request failed" }, { status: 500 });
     }
   }
 
@@ -101,7 +105,10 @@ export async function PATCH(
     .from("cv_versions")
     .update({ is_active: body.is_active })
     .eq("id", id);
-  if (setErr) return NextResponse.json({ error: setErr.message }, { status: 500 });
+  if (setErr) {
+    console.error("[/api/cv/:id] set-active error:", setErr.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ id, is_active: body.is_active });
 }
@@ -137,7 +144,10 @@ export async function DELETE(
   }
 
   const { error } = await admin.from("cv_versions").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/cv/:id] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ deleted: true });
 }

@@ -65,8 +65,8 @@ export async function POST(
     .eq("id", letter_id);
 
   if (updErr) {
-    console.error("[review] update failed:", updErr);
-    return NextResponse.json({ error: `Save failed: ${updErr.message}` }, { status: 500 });
+    console.error("[review] update failed:", updErr.message);
+    return NextResponse.json({ error: "Save failed" }, { status: 500 });
   }
 
   // Refresh the applications listing so the card moves tabs immediately.

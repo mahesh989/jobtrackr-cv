@@ -23,6 +23,7 @@ import { createClient }                                from "@/lib/supabase/serv
 import { createAdminClient }                           from "@/lib/supabase/admin";
 import { decryptApiKey }                               from "@/lib/integrations/crypto";
 import { researchCompany, CompanyResearch, CvBackendError } from "@/lib/cvBackend";
+import { rateLimit, RATE_LIMIT_MESSAGE }                from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;  // Tavily + scrape + AI distill
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
   ]);
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: company research spends the system Tavily key + an AI call and
+  // triggers an outbound homepage fetch — cap per-user request volume.
+  const rl = await rateLimit(`company-research:${user.id}`, 15, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   if (lookupErr) {
     console.error("[/api/company-research] lookup error:", lookupErr.message);

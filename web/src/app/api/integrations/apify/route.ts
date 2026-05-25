@@ -13,6 +13,7 @@ import { NextResponse }              from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { encryptApiKey, decryptApiKey } from "@/lib/integrations/crypto";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 const MONTHLY_BUDGET = 5.0;
 
@@ -97,6 +98,11 @@ export async function POST(req: Request) {
 
   if (!token) return NextResponse.json({ error: "Token is required" }, { status: 400 });
 
+  // Rate limit: POST validates the token against Apify's API — cap to prevent
+  // using this endpoint as a token-validation oracle.
+  const rl = await rateLimit(`apify-validate:${user.id}`, 10, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+
   // Validate with Apify before storing anything
   const { valid, error: validationError } = await validateApifyToken(token);
   if (!valid) {
@@ -152,7 +158,10 @@ export async function GET() {
     .eq("provider", "apify")
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/integrations/apify] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
   if (!data)  return NextResponse.json({ connected: false });
 
   // ── Sync real usage from Apify ────────────────────────────────────────────
@@ -225,7 +234,10 @@ export async function DELETE() {
     .eq("user_id", user.id)
     .eq("provider", "apify");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[/api/integrations/apify] db error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ disconnected: true });
 }

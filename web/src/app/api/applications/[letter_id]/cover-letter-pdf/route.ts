@@ -53,7 +53,7 @@ export async function GET(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cover-letter-pdf] generation failed:", msg);
-    return NextResponse.json({ error: `PDF generation failed: ${msg}` }, { status: 500 });
+    return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
   }
 
   return new NextResponse(new Uint8Array(bytes), {
