@@ -15,7 +15,7 @@
     "web": {
       "path": "web/",
       "host": "Vercel (jobtrackr-cv)",
-      "stack": "Next.js 14 App Router, Tailwind v4, Supabase browser client",
+      "stack": "Next.js 16 (Turbopack) App Router, Tailwind v4, Supabase browser client",
       "deploy": "git push origin main — auto-deploys to production"
     },
     "worker": {
@@ -35,8 +35,8 @@
   },
   "build_state": {
     "current_phase": "post-12 — polish + UX",
-    "last_shipped": "2026-05-25 — client-side filtering on both dashboard and profile boards; loading.tsx nav skeletons; ProfileForm SEEK gating + daily-cap removal.",
-    "next_session": "Fix instructions tab — review the /dashboard/instructions page for content accuracy, visual issues, and UX problems. See known issues: hardcoded hex colours may have crept in; SetupGuide steps may reference stale flows; the page currently re-queries Supabase for setup status on every load which could be cached or streamlined.",
+    "last_shipped": "2026-05-25 — instructions tab redesign (two sub-tabs: guided setup wizard + 'How it works' swipe deck, trimmed glossary, flowcharts); password-only login (magic link removed); admin sidebar nav (Users & Invites, Beta Metrics) removed; PipelineDonut legend alignment; sidebar reorder.",
+    "next_session": "Open — instructions tab done. Cleanup nit: login + landing marketing copy still says '21+ Australian sources' but only 5 are active (SEEK/Adzuna/Careerjet/Greenhouse/Lever); trim when convenient.",
     "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–041), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF, cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFilterBar, PipelineFunnel, 5-theme system, per-profile source selection, client-side instant filtering on both boards."
   },
   "architecture": {
@@ -124,6 +124,16 @@
       "id": "OPS-14",
       "title": "Careerjet jobviewtrack.com URLs expire in ~1-2 min — resolve immediately",
       "detail": "Careerjet API returns one-time tracking URLs that expire fast. Fix: resolve immediately via Node fetch(redirect:'manual') to get stable careerjet.com.au/clk URLs. Store stable URL in DB — never the jobviewtrack URL. 5 parallel resolves per page fetch."
+    },
+    {
+      "id": "OPS-15",
+      "title": "Auth is password-only; master admin account",
+      "detail": "Magic-link (signInWithOtp) removed from /auth/login 2026-05-25 — email+password only. Master admin: admin@jobtrackr.com (role 'founder' in public.users). Password NOT stored here; set/rotate via Supabase Dashboard → Authentication → Users (Add user, Auto Confirm). New auth users get a public.users row automatically via the on_auth_user_created trigger (default role 'beta'); promote with: update public.users set role='founder' where id=(select id from auth.users where email='admin@jobtrackr.com'). Admin route pages (/dashboard/admin, /dashboard/admin/metrics) still exist but are unlinked from the sidebar."
+    },
+    {
+      "id": "OPS-16",
+      "title": "Never import runtime values from a 'use client' module into a server component",
+      "detail": "Next.js returns a client-reference proxy (not the real value), so arithmetic → NaN and the render crashes. This caused the instructions ?step=N 'This page couldn't load' bug. Fix pattern: keep shared constants/data in a neutral plain module (e.g. web/src/lib/setupSteps.ts) that both server and client import."
     }
   ],
   "known_issues": [
