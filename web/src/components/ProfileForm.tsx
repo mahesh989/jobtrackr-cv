@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from "react";
 import { createProfile, updateProfile } from "@/lib/actions";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 
 interface Props {
   mode: "create" | "edit";
@@ -97,11 +98,10 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
       {/* Location */}
       <div>
         <label className="block text-[12px] font-semibold text-text mb-1.5">Location</label>
-        <input
+        <LocationAutocomplete
           name="location"
           defaultValue={defaults?.location}
           placeholder="Sydney NSW"
-          className="field"
         />
       </div>
 
