@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
-import { SetupReturnBar } from "@/components/onboarding/SetupReturnBar";
+import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -102,7 +102,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         <Suspense fallback={null}>
-          <SetupReturnBar />
+          <SetupStepperBar />
         </Suspense>
 
         {children}

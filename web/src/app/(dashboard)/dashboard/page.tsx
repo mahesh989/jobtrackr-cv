@@ -22,8 +22,9 @@ import { redirect } from "next/navigation";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
-import { SetupGuide } from "@/components/onboarding/SetupGuide";
+import { SetupCards } from "@/components/onboarding/SetupCards";
 import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
+import { firstIncompleteStep } from "@/lib/setupSteps";
 import { type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
@@ -105,7 +106,7 @@ export default async function DashboardPage({
   );
 
   // ── First-run gate ────────────────────────────────────────────────────────
-  // Show the SetupGuide until the first pipeline run produces data. Covers both
+  // Show the setup wizard until the first pipeline run produces data. Covers both
   // a brand-new user (no profiles) and a user with a profile that hasn't run.
   let hasAnyJob = false;
   if (ids.length > 0) {
@@ -607,8 +608,8 @@ export default async function DashboardPage({
 }
 
 /**
- * First-run screen — shown until the first pipeline run produces data.
- * Replaces the old single empty-state card with the full stepped SetupGuide.
+ * First-run screen — shown until the first pipeline run produces data. Drops
+ * the user into the guided-setup wizard at the first incomplete step.
  */
 function FirstRunScreen({ status }: { status: SetupStatus }) {
   return (
@@ -621,10 +622,10 @@ function FirstRunScreen({ status }: { status: SetupStatus }) {
       </div>
 
       <div className="px-6 py-10">
-        <SetupGuide status={status} returnTo="/dashboard" />
+        <SetupCards status={status} initialStep={firstIncompleteStep(status)} />
         <p className="text-center text-[12px] text-text-3 mt-5">
           Want the full picture?{" "}
-          <Link href="/dashboard/instructions" className="text-[var(--brand)] hover:underline">
+          <Link href="/dashboard/instructions?tab=howitworks" className="text-[var(--brand)] hover:underline">
             Read the instructions →
           </Link>
         </p>

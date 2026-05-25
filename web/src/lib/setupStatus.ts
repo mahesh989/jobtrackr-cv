@@ -1,6 +1,6 @@
 /**
  * getSetupStatus — server-side detection of how far a user has progressed
- * through first-run setup. Powers the SetupGuide (✓ per step) and the
+ * through first-run setup. Powers the setup wizard (✓ per step) and the
  * dashboard gate (show the guide until the first pipeline run produces data).
  *
  * RLS-scoped tables (user_preferences, cv_versions, voice_profiles, jobs) use
