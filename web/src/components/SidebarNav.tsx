@@ -12,7 +12,6 @@ import {
   Plug,
   Palette,
   Lock,
-  Users,
   BarChart3,
   LogOut,
   Sparkles,
@@ -30,7 +29,6 @@ interface Profile {
 interface Props {
   email: string;
   profiles: Profile[];
-  isAdmin: boolean;
   /** Count of completed-letter jobs awaiting the To-review pool decision. */
   poolCount?: number;
 }
@@ -87,7 +85,7 @@ function NavItem({
   );
 }
 
-export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
+export function SidebarNav({ email, profiles, poolCount = 0 }: Props) {
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
@@ -143,19 +141,6 @@ export function SidebarNav({ email, profiles, isAdmin, poolCount = 0 }: Props) {
         <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
-
-        {/* Admin */}
-        {isAdmin && (
-          <>
-            <div className="px-1 pt-4 pb-1">
-              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-                Admin
-              </p>
-            </div>
-            <NavItem href="/dashboard/admin" icon={Users}>Users &amp; Invites</NavItem>
-            <NavItem href="/dashboard/admin/metrics" icon={BarChart3}>Beta Metrics</NavItem>
-          </>
-        )}
       </nav>
 
       {/* User footer */}

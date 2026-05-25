@@ -11,10 +11,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: userData } = await supabase
-    .from("users").select("role").eq("id", user.id).single();
-  const isAdmin = !!userData && ["founder", "admin"].includes(userData.role as string);
-
   // Fetch profiles with new-job counts for sidebar badges
   const { data: profileRows } = await supabase
     .from("search_profiles")
@@ -78,7 +74,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <SidebarNav
           email={user.email!}
           profiles={sidebarProfiles}
-          isAdmin={isAdmin}
           poolCount={poolCount ?? 0}
         />
       </div>
