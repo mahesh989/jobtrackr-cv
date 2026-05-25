@@ -487,8 +487,8 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
               <>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
                 <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
-                <span className="text-[13px] font-semibold text-text shrink-0">{n.toLocaleString()}</span>
-                <span className="text-[10px] text-text-3 w-7 text-right shrink-0">{pct}%</span>
+                <span className="text-[13px] font-semibold text-text w-12 text-right shrink-0 tabular-nums">{n.toLocaleString()}</span>
+                <span className="text-[10px] text-text-3 w-7 text-right shrink-0 tabular-nums">{pct}%</span>
               </>
             );
             return s.href ? (
