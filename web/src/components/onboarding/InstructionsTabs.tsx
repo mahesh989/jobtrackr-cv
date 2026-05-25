@@ -41,8 +41,8 @@ export function InstructionsTabs({
   }
 
   const TABS: Array<{ key: Tab; label: string }> = [
-    { key: "setup",      label: "Get set up" },
     { key: "howitworks", label: "How it works" },
+    { key: "setup",      label: "Get set up" },
   ];
 
   return (
