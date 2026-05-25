@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 const BRAND_PANEL_FEATURES = [
@@ -30,29 +29,23 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const validateRes = await fetch("/api/auth/validate-invite", {
+    // Account creation is enforced server-side: the route atomically claims the
+    // invite and creates the user via the service-role admin API. The invite is
+    // NOT validated/consumed in the browser, so the gate can't be bypassed by
+    // calling Supabase signup directly with the public anon key.
+    const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: inviteCode.trim().toUpperCase() }),
+      body: JSON.stringify({ email, code: inviteCode.trim().toUpperCase() }),
     });
 
-    if (!validateRes.ok) {
-      const { error: msg } = await validateRes.json();
-      setError(msg ?? "Invalid invite code");
+    if (!res.ok) {
+      const { error: msg } = await res.json().catch(() => ({ error: null }));
+      setError(msg ?? "Signup failed — please try again.");
       setLoading(false);
       return;
     }
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?invite=${encodeURIComponent(inviteCode.trim().toUpperCase())}`,
-        shouldCreateUser: true,
-      },
-    });
-
-    if (authError) { setError(authError.message); setLoading(false); return; }
     setSubmitted(true);
   }
 

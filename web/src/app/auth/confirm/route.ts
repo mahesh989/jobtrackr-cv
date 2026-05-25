@@ -11,9 +11,11 @@ type AnyClient = ReturnType<typeof createServerClient<any>>;
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const otpType = searchParams.get("type"); // 'invite' | 'magiclink' | 'signup' | 'recovery' | 'email'
   const inviteCode = searchParams.get("invite");
 
-  if (!code) {
+  if (!code && !tokenHash) {
     return NextResponse.redirect(`${origin}/auth/login?error=missing_code`);
   }
 
@@ -32,12 +34,22 @@ export async function GET(request: NextRequest) {
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  // Establish the session from whichever link format Supabase produced:
+  //  - PKCE / OTP magic links carry `code`     → exchangeCodeForSession
+  //  - invite / email links carry `token_hash` → verifyOtp
+  const { error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+        token_hash: tokenHash!,
+        type: (otpType as "invite" | "magiclink" | "signup" | "recovery" | "email") ?? "email",
+      });
   if (error) {
     return NextResponse.redirect(`${origin}/auth/login?error=exchange_failed`);
   }
 
-  // If this is a signup (invite code present), mark code used
+  // If this is a signup (invite code present), stamp who used the code.
+  // The code was already consumed (is_active=false) when /api/auth/signup
+  // claimed it, so match on used_by IS NULL to record the user id now.
   if (inviteCode) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -45,7 +57,7 @@ export async function GET(request: NextRequest) {
         .from("invite_codes")
         .update({ used_by: user.id, used_at: new Date().toISOString(), is_active: false })
         .eq("code", inviteCode)
-        .eq("is_active", true);
+        .is("used_by", null);
 
       await supabase
         .from("users")
