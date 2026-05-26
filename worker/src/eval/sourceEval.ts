@@ -406,8 +406,25 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   counts.after_url_dedup = newRaw.length;
 
   // Stage 3 — normalise + keyword filter
+  //
+  // Search-based sources (Adzuna, Careerjet, SEEK direct, SEEK Apify) already
+  // did smart server-side keyword matching with synonym + relevance ranking
+  // (e.g. SEEK expands "Assistant in Nursing" to include AIN/PCA/Care Worker).
+  // Our literal word-boundary filter at this stage was throwing away ~99% of
+  // SEEK's already-matched results because the teaser doesn't echo the search
+  // term. So trust them and skip the filter.
+  //
+  // Generic ATS sources (Greenhouse, Lever) fetch every posting from a fixed
+  // company slug list, so they MUST still be filtered or the result becomes
+  // every tech job at PEXA/Deputy regardless of query.
+  const SEARCH_BASED = new Set<EvalSourceKey>([
+    "adzuna", "careerjet", "seek_direct", "seek_apify",
+  ]);
   const normalised = newRaw.map(normalise);
-  const keptByKeyword = keywordFilter(normalised, profile.keywords);
+  const keptByKeyword = SEARCH_BASED.has(input.source)
+    // Keep all jobs as-is. `keywords_matched` defaults to [] from normalise().
+    ? normalised
+    : keywordFilter(normalised, profile.keywords);
   counts.after_keyword = keptByKeyword.length;
 
   // Stage 4 — smart filter (no-op in ad-hoc mode; rules are empty)
