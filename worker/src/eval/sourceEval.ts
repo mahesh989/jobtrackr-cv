@@ -38,10 +38,10 @@ import { postFetchFilter } from "../pipeline/postFetchFilter.js";
 import { dedup } from "../pipeline/dedup.js";
 import { decryptApiKey } from "../lib/crypto.js";
 
-// JD-quality threshold. Adzuna/Greenhouse/Lever return their full JD in the
-// adapter response, so a low-ish bar catches teaser-only edge cases without
-// being too strict on naturally short postings.
-const FULL_JD_MIN_CHARS = 500;
+// JD-quality threshold. 2000 chars demands a real job description, not a
+// teaser. SEEK/Careerjet enrichment fetches ~3-5k char bodies; Adzuna teasers
+// run ~200-1500 chars; Greenhouse/Lever return full JDs inline (~1.5-8k).
+const FULL_JD_MIN_CHARS = 2000;
 
 export type EvalSourceKey =
   | "adzuna"

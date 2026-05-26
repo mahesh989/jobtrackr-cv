@@ -34,7 +34,6 @@ import { curlFetch, curlRedirect } from "../lib/curlfetch.js";
 const API_BASE        = "https://search.api.careerjet.net/v4/query";
 const REFERER         = "https://jobtrackr-cv.vercel.app/";
 const USER_AGENT      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const FRAGMENT_SIZE   = 500;            // API excerpt size in chars
 const PAGE_SIZE       = 50;             // Careerjet supports up to 100
 const MAX_PAGES       = 4;              // → up to 200 jobs per keyword (incremental)
 const FIRST_RUN_MAX_PAGES = 6;          // → up to 300 jobs per keyword (cold start)
@@ -256,8 +255,10 @@ async function fetchPage(
     location,
     sort:          "date",
     page:          String(page),
-    page_size:     String(PAGE_SIZE),
-    fragment_size: String(FRAGMENT_SIZE),
+    // Careerjet API uses `pagesize` (no underscore). Sending `page_size`
+    // silently falls back to their default of 20 results — was capping every
+    // run at 20 jobs/page instead of the intended 50.
+    pagesize:      String(PAGE_SIZE),
     user_ip:       userIp,
     user_agent:    USER_AGENT,
   });
