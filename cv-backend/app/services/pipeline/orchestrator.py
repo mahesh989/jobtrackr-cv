@@ -47,6 +47,29 @@ from app.services.pipeline.steps.tailored_structural_validation import (
 logger = logging.getLogger(__name__)
 
 
+async def _load_cached_results(run_id) -> dict:
+    """Fetch the already-saved early-step outputs for a resume.
+
+    Returns the run row's jd_analysis_result / cv_jd_matching_result /
+    ats_scoring_result / match_score. Missing or null values are simply
+    absent from the dict, so the caller recomputes that step defensively.
+    """
+    def _do() -> dict:
+        resp = (
+            get_supabase()
+            .table("analysis_runs")
+            .select("jd_analysis_result, cv_jd_matching_result, ats_scoring_result, match_score")
+            .eq("id", str(run_id))
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0] if rows else {}
+
+    raw = await asyncio.to_thread(_do)
+    return {k: v for k, v in raw.items() if v is not None}
+
+
 async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
     """Top-level pipeline entry. Owns its own error handling — never raises."""
     run_id      = payload.run_id
@@ -81,23 +104,42 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             len(payload.jd_text), len(payload.cv_text),
         )
 
+        # On resume, reuse the early-step outputs already saved on the run so
+        # the user isn't charged again for the JD analysis + CV↔JD matching AI
+        # calls. Missing values fall through to a recompute (defensive).
+        cached = await _load_cached_results(run_id) if payload.resume else {}
+
         # ── Step 1 — JD analysis ───────────────────────────────────────────────
-        await mark_step(run_id, step_status, "jd_analysis", "running")
-        jd_analysis = await run_jd_analysis(ai_client, payload.jd_text)
-        await save_step_result(run_id, "jd_analysis_result", jd_analysis)
-        await mark_step(run_id, step_status, "jd_analysis", "completed")
+        jd_analysis = cached.get("jd_analysis_result")
+        if jd_analysis is not None:
+            logger.info("run %s: reusing cached JD analysis (resume)", run_id)
+            await mark_step(run_id, step_status, "jd_analysis", "completed")
+        else:
+            await mark_step(run_id, step_status, "jd_analysis", "running")
+            jd_analysis = await run_jd_analysis(ai_client, payload.jd_text)
+            await save_step_result(run_id, "jd_analysis_result", jd_analysis)
+            await mark_step(run_id, step_status, "jd_analysis", "completed")
 
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
-        await mark_step(run_id, step_status, "cv_jd_matching", "running")
-        matching = await run_cv_jd_matching(ai_client, payload.cv_text, jd_analysis)
-        await save_step_result(run_id, "cv_jd_matching_result", matching)
-        await mark_step(run_id, step_status, "cv_jd_matching", "completed")
+        matching = cached.get("cv_jd_matching_result")
+        if matching is not None:
+            logger.info("run %s: reusing cached CV↔JD matching (resume)", run_id)
+            await mark_step(run_id, step_status, "cv_jd_matching", "completed")
+        else:
+            await mark_step(run_id, step_status, "cv_jd_matching", "running")
+            matching = await run_cv_jd_matching(ai_client, payload.cv_text, jd_analysis)
+            await save_step_result(run_id, "cv_jd_matching_result", matching)
+            await mark_step(run_id, step_status, "cv_jd_matching", "completed")
 
         # ── Step 3 — ATS scoring (deterministic) ───────────────────────────────
-        await mark_step(run_id, step_status, "ats_scoring", "running")
-        ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
-        await save_step_result(run_id, "ats_scoring_result", ats)
-        await save_step_result(run_id, "match_score", ats.get("overall_score"))
+        ats = cached.get("ats_scoring_result")
+        if ats is not None:
+            await mark_step(run_id, step_status, "ats_scoring", "completed")
+        else:
+            await mark_step(run_id, step_status, "ats_scoring", "running")
+            ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
+            await save_step_result(run_id, "ats_scoring_result", ats)
+            await save_step_result(run_id, "match_score", ats.get("overall_score"))
 
         # ── Initial-ATS gate (Phase C-2 record + Phase C-3 early-stop) ────────
         # Mirror match_score into initial_ats_score so Phase B's UI doesn't
@@ -114,7 +156,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # Saves the tailored-CV + downstream AI calls (~3 calls per job).
         # Manual override path: the web layer sets skip_initial_gate=True
         # when the user clicks "Force tailoring anyway".
-        if passed_initial_gate is False and not payload.skip_initial_gate:
+        if passed_initial_gate is False and not (payload.skip_initial_gate or payload.resume):
             logger.info(
                 "run %s: initial gate failed (%s < %s) — stopping before tailoring "
                 "(skip_initial_gate=false). Saves ~3 AI calls.",

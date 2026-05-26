@@ -60,6 +60,15 @@ class AnalyzeRequest(BaseModel):
     # gate result is always recorded — only the early-stop is gated.
     skip_initial_gate: bool = False
 
+    # Resume marker. True ONLY when the web layer re-triggers an existing
+    # run that previously stopped at the initial-ATS gate (user clicked
+    # "Tailor CV anyway"). The orchestrator reuses the already-saved
+    # jd_analysis / cv_jd_matching / ats_scoring results on that run row
+    # and continues from input_recommendations onward — saving the two AI
+    # calls those early steps would otherwise repeat. Implies the initial
+    # gate is bypassed regardless of skip_initial_gate.
+    resume: bool = False
+
     # Phase E-1 — automation marker. True ONLY when the run was triggered
     # by the worker's auto-analyze step (scheduled pipeline). The web
     # /api/jobs/[id]/analyze route always sends False so manual runs stay

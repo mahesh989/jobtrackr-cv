@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Zap, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { AnalyzeJobButton }     from "@/components/cv/AnalyzeJobButton";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import { JdAnalysisCard }       from "@/components/cv/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/components/cv/CvJdMatchingCard";
@@ -167,6 +166,44 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
   const [run, setRun] = useState<AnalysisRunRow>(initial);
   const [coverLetter, setCoverLetter] = useState<CoverLetterRow | null>(null);
   const [showInput, setShowInput] = useState(false);
+  const [resuming, setResuming]   = useState(false);
+  const [resumeErr, setResumeErr] = useState<string | null>(null);
+
+  // Resume a gate-stopped run in place. The backend reuses the cached
+  // jd_analysis / cv_jd_matching / ats_scoring on this same run row and
+  // continues from input_recommendations. We optimistically flip status →
+  // running + reset the four downstream steps to pending so the existing
+  // poll/Realtime effect starts streaming again without a reload.
+  async function handleResume() {
+    if (!run.job_id || resuming) return;
+    setResuming(true);
+    setResumeErr(null);
+    try {
+      const res  = await fetch(`/api/jobs/${run.job_id}/analyze/${runId}/resume`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResumeErr((json.error as string) ?? `Failed (${res.status})`);
+        setResuming(false);
+        return;
+      }
+      setRun((prev) => ({
+        ...prev,
+        status: "running",
+        error_message: null,
+        step_status: {
+          ...prev.step_status,
+          input_recommendations: "pending",
+          keyword_feasibility:   "pending",
+          ai_recommendations:    "pending",
+          tailored_cv:           "pending",
+        },
+      }));
+    } catch {
+      setResumeErr("Network error — try again.");
+    } finally {
+      setResuming(false);
+    }
+  }
 
   // Refs so the polling interval can read the latest state without
   // restarting the effect each render.
@@ -331,9 +368,9 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         )}
       </div>
 
-      {/* Initial-gate early-stop — offer a manual override to tailor anyway.
-          Re-runs the pipeline with skip_initial_gate=true (creates a fresh
-          run that produces the tailored CV despite the low initial score). */}
+      {/* Initial-gate early-stop — resume the SAME run past the gate. The
+          backend reuses the cached JD analysis / matching / scoring and
+          continues from recommendations onward, so no early step re-runs. */}
       {stoppedAtInitialGate && (
         <div className="bg-amber-50 border border-amber-200 rounded-md px-5 py-4">
           <div className="flex items-start gap-3">
@@ -347,15 +384,20 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                   ? `The initial ATS score (${Math.round(run.match_score)}%) is below the ${MIN_INITIAL_ATS}% gate, `
                   : `The initial ATS score is below the ${MIN_INITIAL_ATS}% gate, `}
                 so the pipeline stopped before generating a tailored CV to save AI calls.
-                You can override the gate and generate the tailored CV anyway.
+                You can continue from here — it picks up where it left off and tailors the CV anyway.
               </p>
-              <div className="mt-3">
-                <AnalyzeJobButton
-                  jobId={run.job_id!}
-                  hasAnalysis
-                  override="initial_gate"
-                  label="Tailor CV anyway"
-                />
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleResume}
+                  disabled={resuming}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                  title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
+                >
+                  {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                  {resuming ? "Resuming…" : "Continue & tailor anyway"}
+                </button>
+                {resumeErr && <span className="text-[11px] text-red">{resumeErr}</span>}
               </div>
             </div>
           </div>

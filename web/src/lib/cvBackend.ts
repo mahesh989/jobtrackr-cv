@@ -147,6 +147,12 @@ export interface AnalyzePayload {
   // anyway" on a job that failed the initial ATS gate. Default false:
   // gate is hard, pipeline stops before tailoring on low-match jobs.
   skip_initial_gate?: boolean;
+  // Resume — true ONLY when re-triggering an existing run that stopped at
+  // the initial-ATS gate. cv-backend reuses the run's already-saved
+  // jd_analysis / cv_jd_matching / ats_scoring results and continues from
+  // input_recommendations, avoiding the two early AI calls. Implies the
+  // initial gate is bypassed.
+  resume?: boolean;
   // Phase E-1 — true ONLY when the worker's auto-analyze fires this
   // request. The /api/jobs/[id]/analyze route always sends false (or
   // omits) so manual runs stay distinguishable.

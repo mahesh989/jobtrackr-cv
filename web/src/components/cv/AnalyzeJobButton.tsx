@@ -18,8 +18,6 @@ interface Props {
   override?: "thin_jd" | "initial_gate" | "all";
   /** Compact mode — small "Force →" link instead of the full primary button. */
   compact?: boolean;
-  /** Override the primary (non-compact) button label. Defaults to Analyze/Re-analyze. */
-  label?: string;
 }
 
 type OverrideKey = "thin_jd" | "initial_gate" | "all";
@@ -39,7 +37,7 @@ interface AnalyzeError {
  * toast also offers a "Run analysis anyway" button that retries with
  * ?override=thin_jd.
  */
-export function AnalyzeJobButton({ jobId, hasAnalysis = false, override, compact, label }: Props) {
+export function AnalyzeJobButton({ jobId, hasAnalysis = false, override, compact }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [err, setErr]              = useState<AnalyzeError | null>(null);
@@ -177,7 +175,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, override, compact
           title={hasAnalysis ? "Run a fresh analysis to update the tailored CV and scores" : "Run a CV-tailoring analysis against this job"}
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          <span>{pending ? "…" : label ?? (hasAnalysis ? "Re-analyze" : "Analyze")}</span>
+          <span>{pending ? "…" : hasAnalysis ? "Re-analyze" : "Analyze"}</span>
         </button>
       )}
       {typeof document !== "undefined" && toast && createPortal(toast, document.body)}
