@@ -17,6 +17,8 @@ export interface SourceEvalJobData {
   keywords:         string[];
   location:         string;
   postedWithinDays: number;
+  // Optional radius (km) for Adzuna. Ignored by other adapters.
+  distanceKm?:      number;
 }
 
 // Lazy connection — web app reuses this module from its API routes. Building

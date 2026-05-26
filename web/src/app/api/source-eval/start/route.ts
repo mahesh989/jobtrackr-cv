@@ -45,6 +45,7 @@ interface StartBody {
   location?:         unknown;
   postedWithinDays?: unknown;
   sources?:          unknown;
+  distanceKm?:       unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -88,6 +89,11 @@ export async function POST(request: NextRequest) {
   const sources = Array.isArray(body.sources)
     ? body.sources.filter((s): s is string => typeof s === "string" && SUPPORTED.has(s))
     : [];
+  const distanceKm = typeof body.distanceKm === "number"
+    && Number.isFinite(body.distanceKm)
+    && body.distanceKm >= 1 && body.distanceKm <= 500
+      ? Math.round(body.distanceKm)
+      : 50;
 
   if (keywords.length === 0) {
     return NextResponse.json({ error: "At least one keyword is required." }, { status: 400 });
@@ -140,6 +146,7 @@ export async function POST(request: NextRequest) {
             keywords,
             location,
             postedWithinDays,
+            distanceKm,
           },
           { attempts: 1 },     // one shot — surfacing the error matters more than retry here
         )

@@ -46,6 +46,12 @@ async function fetchPage(params: URLSearchParams, page: number): Promise<AdzunaR
   });
   if (!res.ok) throw new Error(`Adzuna HTTP ${res.status}: ${await res.text()}`);
   const body = (await res.json()) as AdzunaResponse;
+  // Log the API-reported total once per page-1 call so the source-eval beta
+  // can show "API says N match, we fetched M". `count` reflects all matches
+  // ignoring pagination — very different from `results.length`.
+  if (page === 1 && typeof body.count === "number") {
+    console.log(`[adzuna] api reports total count=${body.count}`);
+  }
   return body.results ?? [];
 }
 

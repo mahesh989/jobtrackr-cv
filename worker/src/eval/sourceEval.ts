@@ -58,6 +58,43 @@ export interface SourceEvalInput {
   keywords:         string[];
   location:         string;
   postedWithinDays: number;
+  // Adzuna-specific radius (km). Only Adzuna's API uses this; SEEK/Careerjet
+  // don't take a radius param. Default 50 — the Adzuna API's own default of
+  // ~5 km is the single biggest recall killer for greater-Sydney searches.
+  distanceKm?:      number;
+}
+
+// AU state aliases — used by `normaliseEvalLocation` to strip state suffixes
+// so all adapters receive the same bare city. Adzuna's split-on-first-token
+// already strips these for its API, but SEEK and Careerjet pass the raw input
+// downstream where ", NSW 2000"-style strings hurt recall.
+const AU_STATE_RE = new RegExp(
+  "[,\\s]+(" + [
+    "NSW", "VIC", "QLD", "WA", "SA", "TAS", "NT", "ACT",
+    "New South Wales", "Victoria", "Queensland", "Western Australia",
+    "South Australia", "Tasmania", "Northern Territory",
+    "Australian Capital Territory",
+  ].join("|") + ")\\b",
+  "i",
+);
+const AU_POSTCODE_RE = /[,\s]+\d{4}\b/;
+const AUSTRALIA_SUFFIX_RE = /[,\s]+australia\s*$/i;
+
+/**
+ * Normalise a user-typed location into the bare-city form every adapter
+ * handles best. Strips trailing ", Australia", postcodes (4 digits), and
+ * state codes/names. "Sydney NSW 2000" → "Sydney". "North Sydney, NSW" →
+ * "North Sydney". Multi-word city names are preserved.
+ */
+export function normaliseEvalLocation(input: string): string {
+  let loc = input.trim();
+  // Strip trailing " Australia" repeatedly (in case the user wrote it twice).
+  while (AUSTRALIA_SUFFIX_RE.test(loc)) loc = loc.replace(AUSTRALIA_SUFFIX_RE, "").trim();
+  loc = loc.replace(AU_POSTCODE_RE, "").trim();
+  loc = loc.replace(AU_STATE_RE, "").trim();
+  // Trailing comma cleanup
+  loc = loc.replace(/[,\s]+$/, "").trim();
+  return loc;
 }
 
 export interface SourceEvalCounts {
@@ -137,10 +174,16 @@ function buildSyntheticProfile(input: SourceEvalInput): SearchProfile {
   // Synthetic profile feeds every adapter the same shape the orchestrator
   // would. id is a fresh UUID so dedup() doesn't match any real profile's
   // existing rows (we handle URL dedup against the user's full set above).
+  //
+  // Coverage mode: we run every adapter in their "first run" deep configuration
+  // because a beta test wants the biggest haystack, not an incremental top-up.
+  //   - Adzuna  → 10 pages (500/keyword)  vs the 4-page incremental default
+  //   - Careerjet → 6 pages (300/keyword) vs the 4-page incremental default
+  //   - SEEK direct → no change (always 9 pages)
   return {
     id:                randomUUID(),
     keywords:          input.keywords,
-    location:          input.location,
+    location:          normaliseEvalLocation(input.location),
     visa_filter_mode:  "any",
     working_rights:    "any",
     target_verticals:  [],
@@ -148,8 +191,11 @@ function buildSyntheticProfile(input: SourceEvalInput): SearchProfile {
     // every adapter applies the same recency cutoff.
     adzuna_max_days_old: input.postedWithinDays,
     lookback_days:       input.postedWithinDays,
-    is_first_run:        false,
+    is_first_run:        true,
     is_manual_run:       true,
+    // Adzuna radius. Default 50 km — Adzuna's own default is ~5 km, which is
+    // why bare-city searches return only postings inside the CBD.
+    adzuna_distance_km:  input.distanceKm ?? 50,
     // Smart-filter rules left empty in ad-hoc mode → postFetchFilter is a no-op.
     exclude_title_keywords: [],
     enabled_sources:        null,

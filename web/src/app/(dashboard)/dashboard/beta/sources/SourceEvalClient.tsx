@@ -116,9 +116,24 @@ export function SourceEvalClient() {
   const [keywords, setKeywords] = useState("Data Analyst");
   const [location, setLocation] = useState("Sydney NSW");
   const [days, setDays]         = useState(14);
+  const [distanceKm, setDistanceKm] = useState(50);
   const [selected, setSelected] = useState<Set<SourceKey>>(
     new Set(SOURCES.map((s) => s.key))
   );
+
+  // Mirror of the worker's normaliser — strip ", Australia", postcode, state
+  // suffix. Shown under the location input so the user can see what each
+  // adapter will actually receive.
+  const normalisedLocation = useMemo(() => {
+    let loc = location.trim();
+    loc = loc.replace(/[,\s]+australia\s*$/i, "").trim();
+    loc = loc.replace(/[,\s]+\d{4}\b/, "").trim();
+    loc = loc.replace(
+      /[,\s]+(NSW|VIC|QLD|WA|SA|TAS|NT|ACT|New South Wales|Victoria|Queensland|Western Australia|South Australia|Tasmania|Northern Territory|Australian Capital Territory)\b/i,
+      "",
+    ).trim();
+    return loc.replace(/[,\s]+$/, "").trim();
+  }, [location]);
 
   // ── Eval state ────────────────────────────────────────────────────────────
   const [evalId, setEvalId]   = useState<string | null>(null);
@@ -189,6 +204,7 @@ export function SourceEvalClient() {
           keywords:         kwList,
           location,
           postedWithinDays: days,
+          distanceKm,
           sources:          Array.from(selected),
         }),
       });
@@ -203,7 +219,7 @@ export function SourceEvalClient() {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
-  }, [keywords, location, days, selected, loadRecent]);
+  }, [keywords, location, days, distanceKm, selected, loadRecent]);
 
   const openRecent = (item: RecentItem) => {
     setEvalId(item.id);
@@ -320,8 +336,8 @@ export function SourceEvalClient() {
 
       {/* ── Form ────────────────────────────────────────────────────────── */}
       <section className="rounded-md border border-border bg-surface p-4 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="block">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <label className="block md:col-span-2">
             <span className="block text-xs text-text-2 mb-1">Keywords (comma-separated)</span>
             <input
               className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
@@ -337,20 +353,37 @@ export function SourceEvalClient() {
               className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="Sydney NSW"
+              placeholder="Sydney NSW 2000"
               disabled={busy}
             />
+            {normalisedLocation !== location.trim() && normalisedLocation && (
+              <span className="block text-[10px] text-text-3 mt-0.5">
+                → sent to adapters as <b>{normalisedLocation}</b>
+              </span>
+            )}
           </label>
-          <label className="block">
-            <span className="block text-xs text-text-2 mb-1">Posted within (days)</span>
-            <input
-              type="number" min={1} max={60}
-              className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              disabled={busy}
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="block text-xs text-text-2 mb-1">Days</span>
+              <input
+                type="number" min={1} max={60}
+                className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                disabled={busy}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-xs text-text-2 mb-1" title="Adzuna only">Radius km</span>
+              <input
+                type="number" min={1} max={500}
+                className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
+                value={distanceKm}
+                onChange={(e) => setDistanceKm(Number(e.target.value))}
+                disabled={busy}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
