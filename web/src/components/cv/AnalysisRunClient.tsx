@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AnalyzeJobButton }     from "@/components/cv/AnalyzeJobButton";
+import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import { JdAnalysisCard }       from "@/components/cv/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/components/cv/CvJdMatchingCard";
 import { AtsScoreCard }         from "@/components/cv/AtsScoreCard";
@@ -257,6 +260,15 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
   const isTerminal = run.status === "completed" || run.status === "failed";
 
+  // Early-stop signal: the orchestrator marks the four downstream steps
+  // 'skipped' (not 'pending'/'failed') only when the initial-ATS gate fails
+  // and the user hasn't overridden it. tailored_cv === 'skipped' on a
+  // completed run is the precise marker — surface a "tailor anyway" CTA.
+  const stoppedAtInitialGate =
+    run.status === "completed" &&
+    run.step_status?.tailored_cv === "skipped" &&
+    !!run.job_id;
+
   return (
     <div className="space-y-6">
       {/* Steps */}
@@ -318,6 +330,37 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           </div>
         )}
       </div>
+
+      {/* Initial-gate early-stop — offer a manual override to tailor anyway.
+          Re-runs the pipeline with skip_initial_gate=true (creates a fresh
+          run that produces the tailored CV despite the low initial score). */}
+      {stoppedAtInitialGate && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[13px] font-semibold text-amber-900">
+                Tailoring skipped — initial ATS below the gate
+              </h3>
+              <p className="text-[12px] text-amber-800 mt-1 leading-relaxed">
+                {typeof run.match_score === "number"
+                  ? `The initial ATS score (${Math.round(run.match_score)}%) is below the ${MIN_INITIAL_ATS}% gate, `
+                  : `The initial ATS score is below the ${MIN_INITIAL_ATS}% gate, `}
+                so the pipeline stopped before generating a tailored CV to save AI calls.
+                You can override the gate and generate the tailored CV anyway.
+              </p>
+              <div className="mt-3">
+                <AnalyzeJobButton
+                  jobId={run.job_id!}
+                  hasAnalysis
+                  override="initial_gate"
+                  label="Tailor CV anyway"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Run details — exactly what the AI saw. Useful for debugging quality. */}
       <div className="bg-surface border border-border rounded-md overflow-hidden">
