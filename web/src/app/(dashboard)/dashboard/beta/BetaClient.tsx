@@ -11,14 +11,14 @@ type VariantOpt = { id: string; label: string; available: boolean; note?: string
 
 const WRITERS: VariantOpt[] = [
   { id: "w1_current",     label: "W1 — Current Production", available: true },
-  { id: "w2_general",     label: "W2 — Generalised (de-biased)", available: false, note: "Phase 3" },
+  { id: "w2_general",     label: "W2 — Generalised (de-biased)", available: true },
   { id: "w3_composition", label: "W3 — Composition (universal + pack + seniority)", available: false, note: "Phase 4" },
-  { id: "w4_chat",        label: "W4 — Chat Single-Call", available: false, note: "Phase 3" },
+  { id: "w4_chat",        label: "W4 — Chat Single-Call", available: true },
 ];
 
 const SCORERS: VariantOpt[] = [
   { id: "s1_current",    label: "S1 — Current ATS (50/35/15)", available: true },
-  { id: "s2_grounded",   label: "S2 — Grounded (only CV-traceable keywords)", available: false, note: "Phase 3" },
+  { id: "s2_grounded",   label: "S2 — Grounded (only CV-traceable keywords)", available: true },
   { id: "s3_reweighted", label: "S3 — Reweighted", available: false, note: "Phase 4" },
   { id: "s4_llm",        label: "S4 — LLM-estimated", available: false, note: "Phase 4" },
 ];

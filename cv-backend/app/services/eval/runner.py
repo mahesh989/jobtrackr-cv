@@ -68,7 +68,13 @@ async def compute_eval(
 
     t1 = time.perf_counter()
     initial_ats = scorer(cv_text, wr.jd_analysis, wr.matching)
-    final_ats = scorer(wr.tailored_md, wr.jd_analysis, tailored_matching)
+    # For the TAILORED score we hand the scorer the original CV so grounding-
+    # aware scorers (S2) can verify each matched keyword is CV-traceable.
+    # S1 ignores this kwarg.
+    final_ats = scorer(
+        wr.tailored_md, wr.jd_analysis, tailored_matching,
+        original_cv_text=cv_text,
+    )
     t_scorer = time.perf_counter() - t1
 
     initial_score = int(initial_ats.get("overall_score") or 0)
