@@ -404,8 +404,9 @@ export function SourceEvalClient() {
             disabled={busy}
           />
           <span className="block text-[10px] text-text-3 mt-0.5">
-            After fetch, only keep jobs whose title or description contains any of these phrases.
-            Leave empty to keep every job each source returns (will include noise like off-topic results).
+            Word-boundary match against title + description. Acronyms like <code>AIN</code> match
+            only standalone (won&apos;t match &ldquo;Maintaining&rdquo;).
+            Leave empty to fall back to the search keywords above.
           </span>
         </label>
 

@@ -411,37 +411,27 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   }
   counts.after_url_dedup = newRaw.length;
 
-  // Stage 3 — normalise + smart filter
+  // Stage 3 — normalise + smart filter (always applied)
   //
   // Two-stage matching:
-  //   - The user's `keywords` drive what each source SEARCHES for. We trust
-  //     each source's own server-side keyword matching (with synonym/relevance
-  //     ranking) for what's fetched — re-filtering literally was destroying
-  //     SEEK's recall (200 → 2).
+  //   - The user's `keywords` drive what each source SEARCHES for.
   //   - The user's `mustInclude` (optional) is a LOCAL post-fetch filter that
   //     drops noise that slipped through the source's broad search. Jobs pass
   //     if their title+description contains ANY of the mustInclude phrases.
   //
-  // Generic ATS sources (Greenhouse, Lever) fetch ALL postings from a fixed
-  // company slug list (keyword-agnostic), so they always need a literal filter.
-  // If mustInclude is empty, we fall back to the `keywords` themselves for
-  // Greenhouse/Lever — otherwise we'd include every tech job at PEXA/Deputy
-  // regardless of query.
-  const GENERIC_ATS = new Set<EvalSourceKey>(["greenhouse", "lever"]);
+  // If mustInclude is empty we default to filtering by the search `keywords`
+  // themselves — same word-boundary matching, just no extra typing. This
+  // catches false positives like Adzuna's fuzzy relevance returning a truck-
+  // driver posting for `AIN` (the JD has "Maintaining" / "aine@..." but no
+  // standalone "ain" — \bain\b correctly drops it).
+  //
+  // For broader recall, fill the smart filter with variants:
+  //   keyword: AIN
+  //   smart filter: AIN, Assistant in Nursing, PCA, Care Worker, Care Provider
   const normalised = newRaw.map(normalise);
-  const mustInclude = (input.mustInclude ?? []).filter((s) => s.trim().length > 0);
-
-  let keptByKeyword;
-  if (mustInclude.length > 0) {
-    keptByKeyword = keywordFilter(normalised, mustInclude);
-  } else if (GENERIC_ATS.has(input.source)) {
-    // No smart filter set — fall back to the search keywords so we don't
-    // dump every Greenhouse/Lever posting into the result.
-    keptByKeyword = keywordFilter(normalised, profile.keywords);
-  } else {
-    // Search-based source + no smart filter = trust server-side match.
-    keptByKeyword = normalised;
-  }
+  const mustIncludeRaw = (input.mustInclude ?? []).filter((s) => s.trim().length > 0);
+  const filterPhrases = mustIncludeRaw.length > 0 ? mustIncludeRaw : profile.keywords;
+  const keptByKeyword = keywordFilter(normalised, filterPhrases);
   counts.after_keyword = keptByKeyword.length;
 
   // Stage 4 — smart filter (no-op in ad-hoc mode; rules are empty)
