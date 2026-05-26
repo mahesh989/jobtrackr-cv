@@ -117,6 +117,10 @@ export function SourceEvalClient() {
   const [location, setLocation] = useState("Sydney NSW");
   const [days, setDays]         = useState(14);
   const [distanceKm, setDistanceKm] = useState(50);
+  // Optional smart filter — comma-separated. Empty = trust each source's
+  // own search. When set, drop jobs whose title+description doesn't contain
+  // any of these phrases.
+  const [mustInclude, setMustInclude] = useState("");
   const [selected, setSelected] = useState<Set<SourceKey>>(
     new Set(SOURCES.map((s) => s.key))
   );
@@ -196,6 +200,7 @@ export function SourceEvalClient() {
     setBusy(true);
     setRow(null);
     setEvalId(null);
+    const mustIncludeList = mustInclude.split(",").map((s) => s.trim()).filter(Boolean);
     try {
       const res = await fetch("/api/source-eval/start", {
         method: "POST",
@@ -205,6 +210,7 @@ export function SourceEvalClient() {
           location,
           postedWithinDays: days,
           distanceKm,
+          mustInclude:      mustIncludeList,
           sources:          Array.from(selected),
         }),
       });
@@ -219,7 +225,7 @@ export function SourceEvalClient() {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
-  }, [keywords, location, days, distanceKm, selected, loadRecent]);
+  }, [keywords, location, days, distanceKm, mustInclude, selected, loadRecent]);
 
   const openRecent = (item: RecentItem) => {
     setEvalId(item.id);
@@ -385,6 +391,23 @@ export function SourceEvalClient() {
             </label>
           </div>
         </div>
+
+        <label className="block">
+          <span className="block text-xs text-text-2 mb-1">
+            Smart filter — must include any of <span className="text-text-3">(optional, comma-separated)</span>
+          </span>
+          <input
+            className="w-full rounded border border-border bg-bg text-text px-3 py-2 text-sm"
+            value={mustInclude}
+            onChange={(e) => setMustInclude(e.target.value)}
+            placeholder="AIN, Assistant in Nursing, PCA, Care Worker"
+            disabled={busy}
+          />
+          <span className="block text-[10px] text-text-3 mt-0.5">
+            After fetch, only keep jobs whose title or description contains any of these phrases.
+            Leave empty to keep every job each source returns (will include noise like off-topic results).
+          </span>
+        </label>
 
         <div className="flex flex-wrap gap-2">
           {SOURCES.map((s) => (

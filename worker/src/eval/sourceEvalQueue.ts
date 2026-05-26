@@ -19,6 +19,9 @@ export interface SourceEvalJobData {
   postedWithinDays: number;
   // Optional radius (km) for Adzuna. Ignored by other adapters.
   distanceKm?:      number;
+  // Optional smart filter — keep only jobs whose title+description contains
+  // any of these phrases. Applied locally after the source's own search.
+  mustInclude?:     string[];
 }
 
 // Lazy connection — web app reuses this module from its API routes. Building
