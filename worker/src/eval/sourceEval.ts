@@ -51,6 +51,49 @@ export type EvalSourceKey =
   | "greenhouse"
   | "lever";
 
+/**
+ * Title-only word-boundary filter. Returns the subset of `jobs` whose TITLE
+ * contains any of `phrases`, with the matched phrases attached to
+ * `keywords_matched`. Mirrors keywordFilter's matching rules but ignores the
+ * description (which is noisy — research/admin roles at hospitals leak
+ * "nursing"/"care" words and trigger false positives for AIN searches).
+ *
+ * - Single word phrase   → \bword\b match (case-insensitive)
+ * - Multi-word phrase    → exact substring OR all words present with \b
+ */
+function titleOnlyFilter(
+  jobs:    NormalisedJob[],
+  phrases: string[],
+): NormalisedJob[] {
+  if (phrases.length === 0) return jobs;
+  const matchers = phrases.map((kw) => {
+    const lower = kw.toLowerCase().trim();
+    const words = lower.split(/\s+/);
+    if (words.length === 1) {
+      const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`\\b${escaped}\\b`, "i");
+      return { kw, match: (title: string) => re.test(title) };
+    }
+    const wordRes = words.map((w) => {
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`, "i");
+    });
+    return {
+      kw,
+      match: (title: string) =>
+        title.toLowerCase().includes(lower) ||
+        wordRes.every((re) => re.test(title)),
+    };
+  });
+  const out: NormalisedJob[] = [];
+  for (const job of jobs) {
+    const title = job.title || "";
+    const matched = matchers.filter(({ match }) => match(title)).map((m) => m.kw);
+    if (matched.length > 0) out.push({ ...job, keywords_matched: matched });
+  }
+  return out;
+}
+
 export interface SourceEvalInput {
   evalId:           string;       // source_eval_runs.id — for writeback
   userId:           string;       // RLS isolation + user-scoped URL dedup
@@ -68,6 +111,11 @@ export interface SourceEvalInput {
   // drop noise that survives a broad search like SEEK ranking a truck-driver
   // role for the keyword "Care Worker".
   mustInclude?:     string[];
+  // Match scope for the smart filter. Default 'title' — title is a much
+  // cleaner signal than description (which leaks "nursing"/"care" words from
+  // research/admin jobs at hospitals → false positives for AIN searches).
+  // 'title+description' = legacy behaviour, broader recall, more noise.
+  filterScope?:     "title" | "title+description";
 }
 
 // AU state aliases — used by `normaliseEvalLocation` to strip state suffixes
@@ -123,6 +171,7 @@ export interface SourceEvalSample {
   posted_at: string | null;
   full_jd:   boolean;
   desc_len:  number;
+  matched:   string[];   // which smart-filter phrases matched this job's title
 }
 
 export interface SourceEvalResult {
@@ -436,7 +485,10 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   const normalised = newRaw.map(normalise);
   const mustIncludeRaw = (input.mustInclude ?? []).filter((s) => s.trim().length > 0);
   const filterPhrases = mustIncludeRaw.length > 0 ? mustIncludeRaw : profile.keywords;
-  const keptByKeyword = keywordFilter(normalised, filterPhrases);
+  const scope = input.filterScope ?? "title";
+  const keptByKeyword = scope === "title"
+    ? titleOnlyFilter(normalised, filterPhrases)
+    : keywordFilter(normalised, filterPhrases);
   counts.after_keyword = keptByKeyword.length;
 
   // Stage 4 — smart filter (no-op in ad-hoc mode; rules are empty)
@@ -524,21 +576,30 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
     }
   }
 
-  // Pick top-5 samples by description length (most informative for manual
-  // verification of SEEK results).
-  const samples: SourceEvalSample[] = [...enrichedJobs]
-    .sort((a, b) => (b.description?.length ?? 0) - (a.description?.length ?? 0))
-    .slice(0, 5)
-    .map((j) => ({
-      title:     j.title,
-      company:   j.company,
-      location:  j.location,
-      url:       j.url,
-      url_hash:  j.url_hash,
-      posted_at: j.posted_at,
-      full_jd:   (j.description ?? "").length >= FULL_JD_MIN_CHARS,
-      desc_len:  (j.description ?? "").length,
-    }));
+  // Pick 5 samples weighted toward auditability: 3 by JD length (longest
+  // descriptions = easiest to eyeball) + 2 RANDOM (so false positives don't
+  // hide behind a "top by length" sort).
+  const sortedByLen = [...enrichedJobs].sort(
+    (a, b) => (b.description?.length ?? 0) - (a.description?.length ?? 0)
+  );
+  const topByLen = sortedByLen.slice(0, 3);
+  const remaining = sortedByLen.slice(3);
+  const shuffled = remaining
+    .map((j) => ({ j, r: Math.random() }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.j)
+    .slice(0, 2);
+  const samples: SourceEvalSample[] = [...topByLen, ...shuffled].map((j) => ({
+    title:     j.title,
+    company:   j.company,
+    location:  j.location,
+    url:       j.url,
+    url_hash:  j.url_hash,
+    posted_at: j.posted_at,
+    full_jd:   (j.description ?? "").length >= FULL_JD_MIN_CHARS,
+    desc_len:  (j.description ?? "").length,
+    matched:   j.keywords_matched ?? [],
+  }));
 
   return {
     status: "done",

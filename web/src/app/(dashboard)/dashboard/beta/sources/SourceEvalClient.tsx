@@ -42,6 +42,7 @@ interface Sample {
   posted_at: string | null;
   full_jd:   boolean;
   desc_len:  number;
+  matched?:  string[];
 }
 
 interface IntegrationDiag {
@@ -122,6 +123,10 @@ export function SourceEvalClient() {
   // own search. When set, drop jobs whose title+description doesn't contain
   // any of these phrases.
   const [mustInclude, setMustInclude] = useState("");
+  // Filter scope. Default = title — much cleaner signal than title+description.
+  // Description leaks "nursing"/"care" words from research/admin roles at
+  // hospitals and produces false positives for narrow searches like AIN.
+  const [filterScope, setFilterScope] = useState<"title" | "title+description">("title");
   const [selected, setSelected] = useState<Set<SourceKey>>(
     new Set(SOURCES.map((s) => s.key))
   );
@@ -212,6 +217,7 @@ export function SourceEvalClient() {
           postedWithinDays: days,
           distanceKm,
           mustInclude:      mustIncludeList,
+          filterScope,
           sources:          Array.from(selected),
         }),
       });
@@ -226,7 +232,7 @@ export function SourceEvalClient() {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
-  }, [keywords, location, days, distanceKm, mustInclude, selected, loadRecent]);
+  }, [keywords, location, days, distanceKm, mustInclude, filterScope, selected, loadRecent]);
 
   const openRecent = (item: RecentItem) => {
     setEvalId(item.id);
@@ -405,11 +411,37 @@ export function SourceEvalClient() {
             disabled={busy}
           />
           <span className="block text-[10px] text-text-3 mt-0.5">
-            Word-boundary match against title + description. Acronyms like <code>AIN</code> match
-            only standalone (won&apos;t match &ldquo;Maintaining&rdquo;).
-            Leave empty to fall back to the search keywords above.
+            Word-boundary match. Acronyms like <code>AIN</code> match only standalone
+            (won&apos;t match &ldquo;Maintaining&rdquo;). Leave empty to fall back to the search
+            keywords above.
           </span>
         </label>
+
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-text-2">Match scope:</span>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="radio"
+              name="filterScope"
+              checked={filterScope === "title"}
+              onChange={() => setFilterScope("title")}
+              disabled={busy}
+            />
+            <span className="text-text">Title only</span>
+            <span className="text-text-3">(strictest, recommended)</span>
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="radio"
+              name="filterScope"
+              checked={filterScope === "title+description"}
+              onChange={() => setFilterScope("title+description")}
+              disabled={busy}
+            />
+            <span className="text-text">Title + description</span>
+            <span className="text-text-3">(broader, more noise)</span>
+          </label>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           {SOURCES.map((s) => (
@@ -682,6 +714,18 @@ function SourceCard({
                 <span className="text-text-3">
                   {" "}· {s.full_jd ? "full" : "thin"} ({s.desc_len} chars)
                 </span>
+                {s.matched && s.matched.length > 0 && (
+                  <div className="mt-0.5">
+                    {s.matched.map((m) => (
+                      <span
+                        key={m}
+                        className="inline-block mr-1 px-1.5 py-0.5 rounded bg-green-50 text-green-800 text-[10px]"
+                      >
+                        ✓ {m}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

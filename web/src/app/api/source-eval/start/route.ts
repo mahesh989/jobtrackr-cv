@@ -47,6 +47,7 @@ interface StartBody {
   sources?:          unknown;
   distanceKm?:       unknown;
   mustInclude?:      unknown;
+  filterScope?:      unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -100,6 +101,9 @@ export async function POST(request: NextRequest) {
         .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
         .slice(0, 20)
     : [];
+  const filterScope = body.filterScope === "title+description"
+    ? "title+description"
+    : "title";
 
   if (keywords.length === 0) {
     return NextResponse.json({ error: "At least one keyword is required." }, { status: 400 });
@@ -154,6 +158,7 @@ export async function POST(request: NextRequest) {
             postedWithinDays,
             distanceKm,
             mustInclude,
+            filterScope,
           },
           { attempts: 1 },     // one shot — surfacing the error matters more than retry here
         )
