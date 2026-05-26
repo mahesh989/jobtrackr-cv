@@ -429,11 +429,16 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   let jdMs = 0;
   let jdEnrichSummary: { fetched: number; merged: number; cost_usd: number } | undefined;
 
+  // Eval JD-enrichment cap. Production caps every JD enricher at 20 because a
+  // real pipeline run has ~10-30 survivors, but the eval can produce 200+ and
+  // we want to see actual JD coverage, not a 20-job slice. Beta tool only.
+  const EVAL_JD_CAP = 200;
+
   if (keptByDedup.length > 0) {
     const jdStart = Date.now();
     try {
       if (input.source === "seek_direct") {
-        const r = await enrichWithDirectJDs(keptByDedup);
+        const r = await enrichWithDirectJDs(keptByDedup, EVAL_JD_CAP);
         enrichedJobs    = r.jobs;
         jdEnrichSummary = { fetched: r.fetched, merged: r.merged, cost_usd: r.costUsd };
       } else if (input.source === "seek_apify") {
@@ -446,13 +451,13 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
           .maybeSingle();
         if (integ && integ.is_enabled && integ.status === "valid") {
           const token = decryptApiKey(integ.encrypted_api_key as string);
-          const r = await enrichWithFullJDs(keptByDedup, token);
+          const r = await enrichWithFullJDs(keptByDedup, token, EVAL_JD_CAP);
           enrichedJobs    = r.jobs;
           jdEnrichSummary = { fetched: r.fetched, merged: r.merged, cost_usd: r.costUsd };
           cost_usd += r.costUsd;
         }
       } else if (input.source === "careerjet") {
-        const r = await enrichWithCareerjetJDs(keptByDedup);
+        const r = await enrichWithCareerjetJDs(keptByDedup, EVAL_JD_CAP);
         enrichedJobs    = r.jobs;
         jdEnrichSummary = { fetched: r.fetched, merged: r.merged, cost_usd: r.costUsd };
       }
