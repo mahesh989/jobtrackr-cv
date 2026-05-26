@@ -44,6 +44,20 @@ interface Sample {
   desc_len:  number;
 }
 
+interface IntegrationDiag {
+  provider:    string;
+  present:     boolean;
+  is_enabled?: boolean;
+  status?:     string;
+  reason?:     string;
+}
+
+interface Diagnostics {
+  env:          Record<string, boolean>;
+  integration?: IntegrationDiag;
+  logs:         string[];
+}
+
 interface SourceResult {
   status:           "pending" | "running" | "done" | "error";
   error?:           string;
@@ -55,6 +69,19 @@ interface SourceResult {
   samples?:         Sample[];
   kept_url_hashes?: string[];
   jd_enrich?:       { fetched: number; merged: number; cost_usd: number };
+  diagnostics?:     Diagnostics;
+}
+
+interface RecentItem {
+  id:                 string;
+  keywords:           string[];
+  location:           string | null;
+  posted_within_days: number;
+  sources_requested:  string[];
+  status:             "running" | "completed" | "failed";
+  unique_total:       number | null;
+  created_at:         string;
+  finished_at:        string | null;
 }
 
 interface EvalRow {
@@ -98,7 +125,39 @@ export function SourceEvalClient() {
   const [row, setRow]         = useState<EvalRow | null>(null);
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [recent, setRecent]   = useState<RecentItem[]>([]);
   const pollTimer             = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mirror the current eval id into ?id=<uuid> via the History API so a refresh
+  // doesn't lose context. Pop state (back/forward) re-hydrates.
+  const writeIdToUrl = (id: string | null) => {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    if (id) u.searchParams.set("id", id);
+    else    u.searchParams.delete("id");
+    window.history.replaceState(null, "", u.toString());
+  };
+
+  // ── Initial hydrate from URL ?id= ─────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URL(window.location.href).searchParams.get("id");
+    if (id) {
+      setEvalId(id);
+      setBusy(true);  // poll will flip this off when status terminal
+    }
+  }, []);
+
+  // ── Recent evals (last 10) ───────────────────────────────────────────────
+  const loadRecent = useCallback(async () => {
+    try {
+      const res = await fetch("/api/source-eval/list?limit=10");
+      if (!res.ok) return;
+      const body = await res.json();
+      setRecent(body.items ?? []);
+    } catch { /* swallow — non-critical */ }
+  }, []);
+  useEffect(() => { void loadRecent(); }, [loadRecent]);
 
   const toggle = (k: SourceKey) => {
     setSelected((prev) => {
@@ -135,12 +194,28 @@ export function SourceEvalClient() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Start failed (${res.status})`);
-      setEvalId(body.id as string);
+      const id = body.id as string;
+      setEvalId(id);
+      writeIdToUrl(id);
+      // Refresh the "Recent" list — the new run shows up immediately as running.
+      void loadRecent();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
-  }, [keywords, location, days, selected]);
+  }, [keywords, location, days, selected, loadRecent]);
+
+  const openRecent = (item: RecentItem) => {
+    setEvalId(item.id);
+    writeIdToUrl(item.id);
+    setBusy(item.status === "running");
+    setError(null);
+    // Pre-populate the form from the past run so re-running with tweaks is easy.
+    setKeywords(item.keywords.join(", "));
+    setLocation(item.location ?? "");
+    setDays(item.posted_within_days);
+    setSelected(new Set(item.sources_requested as SourceKey[]));
+  };
 
   // ── Polling ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -155,6 +230,7 @@ export function SourceEvalClient() {
         setRow(data);
         if (data.status === "completed" || data.status === "failed") {
           setBusy(false);
+          void loadRecent();   // surface the final unique_total in the sidebar
           return;
         }
       } catch (err) {
@@ -168,7 +244,7 @@ export function SourceEvalClient() {
       cancelled = true;
       if (pollTimer.current) clearTimeout(pollTimer.current);
     };
-  }, [evalId]);
+  }, [evalId, loadRecent]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const overlapStats = useMemo(() => {
@@ -201,8 +277,46 @@ export function SourceEvalClient() {
         <h1 className="text-2xl font-semibold text-text">Source coverage — A/B/C/D test</h1>
         <p className="text-sm text-text-2">
           Runs each source independently against the same query. Dry-run — no jobs are saved.
+          Results survive refresh (the URL carries the eval id).
         </p>
       </header>
+
+      {/* ── Recent evals ────────────────────────────────────────────────── */}
+      {recent.length > 0 && (
+        <section className="rounded-md border border-border bg-surface p-4 space-y-2">
+          <h2 className="text-sm font-semibold text-text">Recent evals</h2>
+          <ul className="divide-y divide-border">
+            {recent.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => openRecent(r)}
+                  className={`w-full text-left text-xs py-2 hover:bg-bg rounded px-2 flex items-center justify-between gap-3 ${
+                    r.id === evalId ? "bg-bg" : ""
+                  }`}
+                >
+                  <span className="flex-1 truncate">
+                    <span className="text-text">{r.keywords.join(", ")}</span>
+                    <span className="text-text-3"> · {r.location ?? "—"} · {r.posted_within_days}d</span>
+                    <span className="text-text-3"> · {r.sources_requested.length} sources</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] ${
+                    r.status === "completed" ? "bg-green-100 text-green-800" :
+                    r.status === "failed"    ? "bg-red-100 text-red-800"     :
+                                               "bg-blue-100 text-blue-800"
+                  }`}>
+                    {r.status}
+                    {r.unique_total != null && ` · ${r.unique_total}`}
+                  </span>
+                  <span className="text-text-3 w-32 text-right">
+                    {new Date(r.created_at).toLocaleString()}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ── Form ────────────────────────────────────────────────────────── */}
       <section className="rounded-md border border-border bg-surface p-4 space-y-3">
@@ -426,6 +540,54 @@ function SourceCard({
         <div className="text-xs text-amber-800 rounded border border-amber-300 bg-amber-50 px-2 py-1">
           {result.note}
         </div>
+      )}
+
+      {result?.diagnostics && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-text-2">Diagnostics</summary>
+          <div className="mt-2 space-y-2">
+            {/* Env vars */}
+            {Object.keys(result.diagnostics.env).length > 0 && (
+              <div>
+                <div className="text-text-3 mb-0.5">Env vars on worker:</div>
+                <ul className="ml-2">
+                  {Object.entries(result.diagnostics.env).map(([k, v]) => (
+                    <li key={k} className={v ? "text-green-700" : "text-red-700"}>
+                      {v ? "✓" : "✗"} {k}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {/* Integration state */}
+            {result.diagnostics.integration && (
+              <div>
+                <div className="text-text-3 mb-0.5">Integration ({result.diagnostics.integration.provider}):</div>
+                <ul className="ml-2 text-text-2">
+                  <li>present: {String(result.diagnostics.integration.present)}</li>
+                  {result.diagnostics.integration.is_enabled != null && (
+                    <li>is_enabled: {String(result.diagnostics.integration.is_enabled)}</li>
+                  )}
+                  {result.diagnostics.integration.status && (
+                    <li>status: {result.diagnostics.integration.status}</li>
+                  )}
+                  {result.diagnostics.integration.reason && (
+                    <li className="text-amber-700">reason: {result.diagnostics.integration.reason}</li>
+                  )}
+                </ul>
+              </div>
+            )}
+            {/* Captured logs */}
+            {result.diagnostics.logs.length > 0 && (
+              <div>
+                <div className="text-text-3 mb-0.5">Logs ({result.diagnostics.logs.length}):</div>
+                <pre className="max-h-48 overflow-auto text-[10px] bg-bg border border-border rounded p-2 whitespace-pre-wrap">
+                  {result.diagnostics.logs.join("\n")}
+                </pre>
+              </div>
+            )}
+          </div>
+        </details>
       )}
 
       {result?.samples && result.samples.length > 0 && (

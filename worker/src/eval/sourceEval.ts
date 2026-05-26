@@ -105,6 +105,19 @@ export interface SourceEvalResult {
   };
   // Convenience: free-form note (e.g. "Apify integration missing").
   note?: string;
+  // Per-source diagnostics for the beta UI — env vars present, integration
+  // state, captured console output. Lets you see WHY a source returned 0.
+  diagnostics?: {
+    env:         Record<string, boolean>;   // e.g. { ADZUNA_APP_ID: true }
+    integration?: {
+      provider:    string;
+      present:     boolean;
+      is_enabled?: boolean;
+      status?:     string;
+      reason?:     string;                   // why integration was rejected (if rejected)
+    };
+    logs: string[];                          // console.log/warn/error captured during fetch
+  };
 }
 
 function emptyCounts(): SourceEvalCounts {
@@ -161,11 +174,87 @@ async function fetchUserUrlHashes(userId: string): Promise<Set<string>> {
   return new Set((rows ?? []).map((r) => r.url_hash as string));
 }
 
+// Env vars each adapter reads. Surfaced in diagnostics so a missing key
+// shows up directly in the UI instead of as a generic "0 results".
+const SOURCE_ENV_VARS: Record<EvalSourceKey, string[]> = {
+  adzuna:      ["ADZUNA_APP_ID", "ADZUNA_APP_KEY"],
+  careerjet:   ["CAREERJET_API_KEY"],
+  greenhouse:  [],
+  lever:       [],
+  seek_direct: [],
+  seek_apify:  [],
+};
+
+function checkEnv(source: EvalSourceKey): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  for (const k of SOURCE_ENV_VARS[source]) {
+    result[k] = !!process.env[k];
+  }
+  return result;
+}
+
+interface IntegrationDiag {
+  provider:    string;
+  present:     boolean;
+  is_enabled?: boolean;
+  status?:     string;
+  reason?:     string;
+}
+
+async function loadApifyIntegrationForEval(userId: string): Promise<{
+  token: string | null;
+  diag:  IntegrationDiag;
+}> {
+  const { data: integ } = await db
+    .from("user_integrations")
+    .select("encrypted_api_key, is_enabled, status, status_reason")
+    .eq("user_id", userId)
+    .eq("provider", "apify")
+    .maybeSingle();
+
+  if (!integ) {
+    return {
+      token: null,
+      diag: { provider: "apify", present: false, reason: "No Apify integration row found — connect a token in Settings." },
+    };
+  }
+  if (!integ.is_enabled) {
+    return {
+      token: null,
+      diag: {
+        provider: "apify", present: true, is_enabled: false, status: integ.status as string,
+        reason: "Apify integration is disabled — toggle it on in Settings.",
+      },
+    };
+  }
+  if (integ.status !== "valid") {
+    return {
+      token: null,
+      diag: {
+        provider: "apify", present: true, is_enabled: true, status: integ.status as string,
+        reason: `Integration status is "${integ.status}"${integ.status_reason ? ` — ${integ.status_reason}` : ""}.`,
+      },
+    };
+  }
+  const token = decryptApiKey(integ.encrypted_api_key as string);
+  return {
+    token,
+    diag: { provider: "apify", present: true, is_enabled: true, status: "valid" },
+  };
+}
+
+interface AdapterCallResult {
+  raw:         RawJob[];
+  cost_usd:    number;
+  note?:       string;
+  integration?: IntegrationDiag;
+}
+
 async function callAdapter(
   source:  EvalSourceKey,
   profile: SearchProfile,
   userId:  string,
-): Promise<{ raw: RawJob[]; cost_usd: number; note?: string }> {
+): Promise<AdapterCallResult> {
   switch (source) {
     case "adzuna":     return { raw: await adzunaAdapter.fetchJobs(profile),     cost_usd: 0 };
     case "careerjet":  return { raw: await careerjetAdapter.fetchJobs(profile),  cost_usd: 0 };
@@ -173,26 +262,46 @@ async function callAdapter(
     case "lever":      return { raw: await leverAdapter.fetchJobs(profile),      cost_usd: 0 };
     case "seek_direct":return { raw: await seekDirectAdapter.fetchJobs(profile), cost_usd: 0 };
     case "seek_apify": {
-      // Apify needs the user's encrypted token from user_integrations.
-      const { data: integ } = await db
-        .from("user_integrations")
-        .select("encrypted_api_key, is_enabled, status")
-        .eq("user_id", userId)
-        .eq("provider", "apify")
-        .maybeSingle();
-      if (!integ || !integ.is_enabled || integ.status !== "valid") {
-        return {
-          raw: [],
-          cost_usd: 0,
-          note: "Apify integration missing or not valid — connect a token in Settings to test seek_apify.",
-        };
+      const { token, diag } = await loadApifyIntegrationForEval(userId);
+      if (!token) {
+        return { raw: [], cost_usd: 0, note: diag.reason, integration: diag };
       }
-      const token = decryptApiKey(integ.encrypted_api_key as string);
+      console.log(`[source-eval] seek_apify — calling actor with token (length=${token.length})`);
       const adapter = createSeekAdapter(token);
       const { jobs, costUsd } = await adapter.fetchJobs(profile);
-      return { raw: jobs, cost_usd: costUsd };
+      return { raw: jobs, cost_usd: costUsd, integration: diag };
     }
   }
+}
+
+// Capture console.log/warn/error from inside the adapter call so the UI can
+// surface them. We patch globally for the duration of the call — safe inside
+// a single bullmq job (concurrency 3 → up to 3 captures interleaved, but each
+// log line carries its own job's id from the worker's logger, so we just
+// collect everything during this call window and let cross-contamination be
+// extremely rare in practice).
+function withCapturedLogs<T>(fn: () => Promise<T>): Promise<{ value: T; logs: string[] }> {
+  const logs: string[] = [];
+  const originalLog   = console.log;
+  const originalWarn  = console.warn;
+  const originalError = console.error;
+  const push = (level: string, args: unknown[]) => {
+    const line = `[${level}] ` + args.map((a) => {
+      if (typeof a === "string") return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(" ");
+    if (logs.length < 200) logs.push(line);
+  };
+  console.log   = (...args: unknown[]) => { push("log",   args); originalLog(...args); };
+  console.warn  = (...args: unknown[]) => { push("warn",  args); originalWarn(...args); };
+  console.error = (...args: unknown[]) => { push("error", args); originalError(...args); };
+  return fn()
+    .then((value) => ({ value, logs }))
+    .finally(() => {
+      console.log   = originalLog;
+      console.warn  = originalWarn;
+      console.error = originalError;
+    });
 }
 
 export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalResult> {
@@ -204,14 +313,21 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   let cost_usd = 0;
   let note: string | undefined;
   let fetchMs = 0;
+  let fetchLogs: string[] = [];
+  let integration: IntegrationDiag | undefined;
+  const envCheck = checkEnv(input.source);
 
   try {
     const adapterStart = Date.now();
-    const result = await callAdapter(input.source, profile, input.userId);
-    fetchMs = Date.now() - adapterStart;
-    raw      = result.raw;
-    cost_usd = result.cost_usd;
-    note     = result.note;
+    const { value: result, logs } = await withCapturedLogs(() =>
+      callAdapter(input.source, profile, input.userId)
+    );
+    fetchMs   = Date.now() - adapterStart;
+    raw       = result.raw;
+    cost_usd  = result.cost_usd;
+    note      = result.note;
+    fetchLogs = logs;
+    integration = result.integration;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
@@ -223,6 +339,7 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
       counts:  emptyCounts(),
       samples: [],
       kept_url_hashes: [],
+      diagnostics: { env: envCheck, integration, logs: [] },
     };
   }
 
@@ -334,5 +451,6 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
     kept_url_hashes: enrichedJobs.map((j) => j.url_hash),
     jd_enrich: jdEnrichSummary,
     note,
+    diagnostics: { env: envCheck, integration, logs: fetchLogs },
   };
 }
