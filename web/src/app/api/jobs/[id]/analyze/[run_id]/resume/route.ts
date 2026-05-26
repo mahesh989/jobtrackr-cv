@@ -51,19 +51,23 @@ export async function POST(
   const admin = createAdminClient();
 
   // ── 1. Load the run + verify it stopped at the initial gate ──────────────
-  const { data: run } = await admin
+  const { data: run, error: runErr } = await admin
     .from("analysis_runs")
-    .select("id, job_id, user_id, status, step_status, cv_version_id, jd_text, jd_source_url, ai_provider, ai_model")
+    .select("id, job_id, user_id, status, step_status, cv_version_id, jd_text, ai_provider, ai_model")
     .eq("id", runId)
     .eq("job_id", jobId)
     .maybeSingle();
 
+  if (runErr) {
+    console.error("[/api/jobs/:id/analyze/:run_id/resume] run lookup failed:", runErr.message);
+    return NextResponse.json({ error: "Could not load the run." }, { status: 500 });
+  }
   if (!run) return NextResponse.json({ error: "Run not found" }, { status: 404 });
 
   // ── Ownership: job → profile → user ──────────────────────────────────────
   const { data: job } = await admin
     .from("jobs")
-    .select("profile_id, title, company, location, source")
+    .select("profile_id, title, company, location, source, url")
     .eq("id", jobId)
     .maybeSingle();
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
@@ -185,7 +189,7 @@ export async function POST(
       user_id:         user.id,
       cv_version_id:   run.cv_version_id,
       jd_text:         run.jd_text,
-      jd_source_url:   run.jd_source_url,
+      jd_source_url:   (job.url as string | null) ?? null,
       jd_meta:         {
         title:    job.title,
         company:  job.company,
