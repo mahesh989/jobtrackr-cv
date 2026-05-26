@@ -146,6 +146,11 @@ export interface SourceEvalResult {
     merged:  number;
     cost_usd: number;
   };
+  // For sources whose API reports a global match count (Adzuna's `count`),
+  // surface it on the card so the user can see "API thinks N match, we
+  // fetched M" — closes the loop on why Adzuna often returns fewer than the
+  // website (API does strict AND across `what` words; website is fuzzier).
+  api_reported_count?: number;
   // Convenience: free-form note (e.g. "Apify integration missing").
   note?: string;
   // Per-source diagnostics for the beta UI — env vars present, integration
@@ -484,6 +489,14 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
         const r = await enrichWithCareerjetJDs(keptByDedup, EVAL_JD_CAP);
         enrichedJobs    = r.jobs;
         jdEnrichSummary = { fetched: r.fetched, merged: r.merged, cost_usd: r.costUsd };
+        // The enricher returns fetched=0 when all URLs resolved to employer
+        // sites (Canva/Arcadis/Okta etc.) — its hostname check rejects them.
+        // Surface that explicitly so "Full JD: 0" doesn't look like a bug.
+        if (r.fetched === 0 && keptByDedup.length > 0) {
+          note = note
+            ? `${note}; JD enrichment skipped — Careerjet's tracking URLs resolved to employer sites (not careerjet.com.au), and the enricher only fetches from careerjet.com.au.`
+            : `JD enrichment skipped — Careerjet's tracking URLs resolved to employer sites (not careerjet.com.au), and the enricher only fetches from careerjet.com.au. Description is the API teaser (~200-300 chars).`;
+        }
       }
     } catch (err) {
       // JD enrichment failure is non-fatal for the eval — counts are still
@@ -498,6 +511,17 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   for (const j of enrichedJobs) {
     if ((j.description ?? "").length >= FULL_JD_MIN_CHARS) counts.full_jd++;
     else counts.thin_jd++;
+  }
+
+  // Pull the Adzuna API's reported total `count` out of the captured logs and
+  // attach it as a structured field. Lets the UI show "API says N match, we
+  // fetched M" without the user having to expand Diagnostics → Logs.
+  let apiReportedCount: number | undefined;
+  if (input.source === "adzuna") {
+    for (const line of fetchLogs) {
+      const m = line.match(/api reports total count=(\d+)/);
+      if (m) { apiReportedCount = Number(m[1]); break; }
+    }
   }
 
   // Pick top-5 samples by description length (most informative for manual
@@ -525,6 +549,7 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
     samples,
     kept_url_hashes: enrichedJobs.map((j) => j.url_hash),
     jd_enrich: jdEnrichSummary,
+    api_reported_count: apiReportedCount,
     note,
     diagnostics: { env: envCheck, integration, logs: fetchLogs },
   };

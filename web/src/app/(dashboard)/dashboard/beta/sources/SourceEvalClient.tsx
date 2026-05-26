@@ -59,17 +59,18 @@ interface Diagnostics {
 }
 
 interface SourceResult {
-  status:           "pending" | "running" | "done" | "error";
-  error?:           string;
-  note?:            string;
-  started_at?:      string;
-  finished_at?:     string;
-  timing_ms?:       { fetch: number; dedup: number; jd_enrich: number };
-  counts?:          Counts;
-  samples?:         Sample[];
-  kept_url_hashes?: string[];
-  jd_enrich?:       { fetched: number; merged: number; cost_usd: number };
-  diagnostics?:     Diagnostics;
+  status:               "pending" | "running" | "done" | "error";
+  error?:               string;
+  note?:                string;
+  started_at?:          string;
+  finished_at?:         string;
+  timing_ms?:           { fetch: number; dedup: number; jd_enrich: number };
+  counts?:              Counts;
+  samples?:             Sample[];
+  kept_url_hashes?:     string[];
+  jd_enrich?:           { fetched: number; merged: number; cost_usd: number };
+  api_reported_count?:  number;
+  diagnostics?:         Diagnostics;
 }
 
 interface RecentItem {
@@ -584,6 +585,16 @@ function SourceCard({
             <> · merged {result.jd_enrich.merged}/{result.jd_enrich.fetched}
               {result.jd_enrich.cost_usd > 0 && <> · ${result.jd_enrich.cost_usd.toFixed(4)}</>}
             </>
+          )}
+        </div>
+      )}
+
+      {result?.api_reported_count != null && result.counts && (
+        <div className="text-xs text-text-2 rounded border border-border bg-bg px-2 py-1">
+          API reports <b>{result.api_reported_count}</b> total matches for this query;
+          we fetched <b>{result.counts.fetched}</b>.
+          {result.api_reported_count > result.counts.fetched + 50 && (
+            <span className="text-text-3"> Adzuna&apos;s `what` does strict AND across all words — the website is fuzzier, which is why its count can be higher.</span>
           )}
         </div>
       )}
