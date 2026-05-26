@@ -33,7 +33,7 @@ function getQueue() {
   if (!url) throw new Error("REDIS_URL is required");
   const connection = new Redis(url, {
     maxRetriesPerRequest: null,
-    tls: {},
+    tls: url.startsWith("rediss://") ? {} : undefined,
     connectTimeout: 5000,
     retryStrategy: () => null,
   });
@@ -167,13 +167,14 @@ export async function POST(request: NextRequest) {
     ]);
     await queue.close();
   } catch (err) {
-    console.error("[source-eval/start] enqueue failed:", err instanceof Error ? err.message : String(err));
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("[source-eval/start] enqueue failed:", errorMsg);
     if (queue) await queue.close().catch(() => {});
     await supabase
       .from("source_eval_runs")
       .update({ status: "failed", finished_at: new Date().toISOString() })
       .eq("id", row.id);
-    return NextResponse.json({ error: "Failed to enqueue eval. Please try again." }, { status: 500 });
+    return NextResponse.json({ error: `Failed to enqueue eval: ${errorMsg}` }, { status: 500 });
   }
 
   return NextResponse.json({ id: row.id });
