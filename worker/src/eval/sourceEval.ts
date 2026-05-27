@@ -38,10 +38,13 @@ import { postFetchFilter } from "../pipeline/postFetchFilter.js";
 import { dedup } from "../pipeline/dedup.js";
 import { decryptApiKey } from "../lib/crypto.js";
 
-// JD-quality threshold. 2000 chars demands a real job description, not a
-// teaser. SEEK/Careerjet enrichment fetches ~3-5k char bodies; Adzuna teasers
-// run ~200-1500 chars; Greenhouse/Lever return full JDs inline (~1.5-8k).
-const FULL_JD_MIN_CHARS = 2000;
+// JD-quality threshold (lowered 2000 → 1400 on 2026-05-27). 1400 chars is
+// past the Adzuna API teaser ceiling (~1500 chars max, typically 600-1200)
+// without demanding the full ~3-5k char body from SEEK/Careerjet enrichment.
+// SEEK/Careerjet enrichment fetches ~3-5k char bodies; Adzuna API teasers
+// run ~200-1500 chars; Adzuna /details/ scrape ~2-3k; Greenhouse/Lever
+// return full JDs inline (~1.5-8k).
+const FULL_JD_MIN_CHARS = 1400;
 
 export type EvalSourceKey =
   | "adzuna"
