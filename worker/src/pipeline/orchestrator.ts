@@ -503,12 +503,13 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       let directMerged = 0;
       let directFetched = 0;
       let directThrew = false;
+      const jdCap = profile.is_first_run ? 100 : 20;
       try {
-        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept);
+        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
         kept = enriched;
         directMerged = merged;
         directFetched = fetched;
-        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0)`);
+        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
         directThrew = true;
         console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}`);
@@ -551,10 +552,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
     if (careerjetSurvivors) {
       await setStage(runLogId, "Fetching full Careerjet descriptions");
+      const jdCap = profile.is_first_run ? 100 : 20;
       try {
-        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept);
+        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept, jdCap);
         kept = enriched;
-        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0)`);
+        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
         console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
       }
