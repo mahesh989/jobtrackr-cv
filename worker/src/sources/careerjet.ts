@@ -198,16 +198,26 @@ function sleep(ms: number): Promise<void> {
  * Returns the original URL unchanged if ALL resolution attempts fail so
  * callers can detect it and substitute a fallback search URL.
  */
-async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
+/**
+ * Result of one resolution attempt — lets the caller (resolveTrackingUrls)
+ * implement a circuit breaker that bails out after sustained 429s.
+ */
+type ResolveOutcome =
+  | { ok: true;  url: string }                 // resolved successfully
+  | { ok: false; reason: "rate_limited" }      // saw 429s after retries exhausted
+  | { ok: false; reason: "other" };            // other failure (4xx non-429, 5xx, timeout)
+
+async function resolveTrackingUrl(trackingUrl: string): Promise<ResolveOutcome> {
   const isTrackingUrl =
     trackingUrl.includes("careerjet.com.au/clk/") ||
     trackingUrl.includes("jobviewtrack.com");
-  if (!isTrackingUrl) return trackingUrl;
+  if (!isTrackingUrl) return { ok: true, url: trackingUrl }; // not a tracking URL
 
-  // Up to 3 attempts with exponential backoff on 429 (rate limit). The token
-  // is valid ~1-2 min, so retries are cheap and stay within the window.
-  const delays = [300, 900, 2_500];
-  for (let attempt = 0; attempt < delays.length; attempt++) {
+  // Long backoffs because jobviewtrack.com's rate-limit window is much wider
+  // than 1-2s. Tokens are valid ~1-2 min so we have headroom for one slow retry.
+  const delays = [4_000, 12_000];
+  let saw429 = false;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {
       const res = await gotScraping({
         url:     trackingUrl,
@@ -220,18 +230,21 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
       });
       if (res.statusCode >= 300 && res.statusCode < 400) {
         const loc = res.headers["location"];
-        if (typeof loc === "string" && loc.length > 0) return loc;
+        if (typeof loc === "string" && loc.length > 0) return { ok: true, url: loc };
       }
-      if (res.statusCode === 429 && attempt < delays.length - 1) {
-        await sleep(delays[attempt]);
-        continue;
+      if (res.statusCode === 429) {
+        saw429 = true;
+        if (attempt < delays.length) {
+          await sleep(delays[attempt]);
+          continue;
+        }
       }
-      // 4xx (non-429) or 5xx — log and fall through to proxy/fallback
+      // 4xx (non-429) or 5xx — log and break
       console.log(`[careerjet] resolveTrackingUrl status=${res.statusCode} attempt=${attempt + 1} url=${trackingUrl.slice(0, 80)}`);
       break;
     } catch (err) {
       console.log(`[careerjet] resolveTrackingUrl threw (attempt=${attempt + 1}): ${err instanceof Error ? err.message : err}`);
-      if (attempt < delays.length - 1) {
+      if (attempt < delays.length) {
         await sleep(delays[attempt]);
         continue;
       }
@@ -244,14 +257,12 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
     if (proxyUrl) {
       try {
         const { status, location } = await curlRedirect(trackingUrl, proxyUrl, 10_000);
-        if (status >= 300 && status < 400 && location) return location;
+        if (status >= 300 && status < 400 && location) return { ok: true, url: location };
       } catch { /* proxy unavailable or timeout */ }
     }
   }
 
-  // All resolution attempts failed — return original so caller can substitute
-  // a Careerjet search URL (better UX than a dead tracking link).
-  return trackingUrl;
+  return saw429 ? { ok: false, reason: "rate_limited" } : { ok: false, reason: "other" };
 }
 
 /**
@@ -274,47 +285,89 @@ function careerjetSearchFallback(title: string, location: string): string {
 }
 
 /**
- * Resolve tracking URLs for a batch of jobs in parallel.
- * Called immediately after each API page is fetched while URLs are fresh.
+ * Process-wide cooldown after sustained 429s. jobviewtrack.com's rate-limit
+ * window is wider than per-request backoff can paper over — once we trip it,
+ * even spaced requests keep returning 429 for a while. Track when we got the
+ * last 429 and skip resolution attempts for COOLDOWN_MS after.
+ */
+let rateLimitedUntil = 0;
+const COOLDOWN_MS = 90_000; // 90s — empirically longer than the token TTL,
+                            // so once we cool down we're past the live window
+                            // for in-flight tokens anyway. Subsequent pages
+                            // get fresh tokens AND a fresh rate-limit bucket.
+
+/**
+ * Resolve tracking URLs serially. Called immediately after each API page is
+ * fetched while URLs are fresh.
  *
- * Concurrency is intentionally low (2) and we pause between batches —
- * jobviewtrack.com rate-limits aggressive parallel resolution (HTTP 429) and
- * a 1-2 min token window means we'd rather take 10s and resolve 100% than
- * burst-fire in 2s and lose them all to 429s + fallback URLs.
+ * Strategy:
+ * - Strictly serial (concurrency=1) with 1.5s spacing between requests.
+ *   jobviewtrack.com rate-limits per-IP aggressively — burst-fire = 100% 429s.
+ * - Circuit breaker: after CIRCUIT_BREAK consecutive 429s on the same page,
+ *   stop trying for the rest of THIS batch and substitute search fallbacks.
+ *   The wider cooldown timer also kicks in so subsequent pages skip too,
+ *   letting the bucket recover.
  */
 async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
-  const CONCURRENCY = 2;
-  const BATCH_DELAY = 250;
+  const REQUEST_SPACING = 1_500;
+  const CIRCUIT_BREAK   = 3;       // 3 consecutive 429s → stop trying
   const out = [...jobs];
 
-  for (let i = 0; i < jobs.length; i += CONCURRENCY) {
-    if (i > 0) await sleep(BATCH_DELAY);
-    const batch = jobs.slice(i, i + CONCURRENCY);
-    await Promise.all(
-      batch.map(async (job, bi) => {
-        const realUrl = await resolveTrackingUrl(job.url);
-        if (realUrl !== job.url) {
-          // Successfully resolved to a stable destination URL
-          out[i + bi] = {
-            ...job,
-            url: realUrl,
-            raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
-          };
-        } else if (
-          job.url.includes("jobviewtrack.com") ||
-          job.url.includes("careerjet.com.au/clk/")
-        ) {
-          // Resolution failed — substitute a Careerjet search URL so the link
-          // is usable instead of a dead 404.
-          const fallback = careerjetSearchFallback(job.title, job.location);
-          out[i + bi] = {
-            ...job,
-            url: fallback,
-            raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
-          };
-        }
-      }),
-    );
+  let consecutive429 = 0;
+  let circuitOpen    = Date.now() < rateLimitedUntil;
+
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const isTracking =
+      job.url.includes("jobviewtrack.com") ||
+      job.url.includes("careerjet.com.au/clk/");
+
+    if (!isTracking) continue;
+
+    if (circuitOpen) {
+      // Skip resolution — go straight to fallback to save time.
+      if (job.url.includes("jobviewtrack.com") || job.url.includes("careerjet.com.au/clk/")) {
+        const fallback = careerjetSearchFallback(job.title, job.location);
+        out[i] = {
+          ...job,
+          url: fallback,
+          raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
+        };
+      }
+      continue;
+    }
+
+    if (i > 0) await sleep(REQUEST_SPACING);
+
+    const outcome = await resolveTrackingUrl(job.url);
+    if (outcome.ok && outcome.url !== job.url) {
+      out[i] = {
+        ...job,
+        url: outcome.url,
+        raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
+      };
+      consecutive429 = 0;
+      continue;
+    }
+
+    // Resolution failed — substitute a search-URL fallback.
+    const fallback = careerjetSearchFallback(job.title, job.location);
+    out[i] = {
+      ...job,
+      url: fallback,
+      raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
+    };
+
+    if (!outcome.ok && outcome.reason === "rate_limited") {
+      consecutive429++;
+      if (consecutive429 >= CIRCUIT_BREAK) {
+        rateLimitedUntil = Date.now() + COOLDOWN_MS;
+        circuitOpen = true;
+        console.log(`[careerjet] rate-limit circuit open — ${consecutive429} consecutive 429s, skipping resolution for ${COOLDOWN_MS / 1000}s`);
+      }
+    } else {
+      consecutive429 = 0;
+    }
   }
 
   return out;
