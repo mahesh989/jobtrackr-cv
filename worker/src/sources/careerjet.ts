@@ -204,27 +204,38 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
     trackingUrl.includes("jobviewtrack.com");
   if (!isTrackingUrl) return trackingUrl;
 
-  // ── gotScraping with Chrome TLS fingerprinting (same approach as the API
-  //    call). jobviewtrack.com appears to check TLS fingerprints and rejects
-  //    plain Node fetch; gotScraping passes its bot guard.
-  try {
-    const res = await gotScraping({
-      url:     trackingUrl,
-      method:  "GET",
-      followRedirect: false,
-      timeout: { request: 8_000 },
-      retry:   { limit: 0 },
-      headers: { "Referer": REFERER, "Accept": "text/html" },
-      throwHttpErrors: false,
-    });
-    if (res.statusCode >= 300 && res.statusCode < 400) {
-      const loc = res.headers["location"];
-      if (typeof loc === "string" && loc.length > 0) return loc;
-    } else {
-      console.log(`[careerjet] resolveTrackingUrl status=${res.statusCode} url=${trackingUrl.slice(0, 80)}`);
+  // Up to 3 attempts with exponential backoff on 429 (rate limit). The token
+  // is valid ~1-2 min, so retries are cheap and stay within the window.
+  const delays = [300, 900, 2_500];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    try {
+      const res = await gotScraping({
+        url:     trackingUrl,
+        method:  "GET",
+        followRedirect: false,
+        timeout: { request: 8_000 },
+        retry:   { limit: 0 },
+        headers: { "Referer": REFERER, "Accept": "text/html" },
+        throwHttpErrors: false,
+      });
+      if (res.statusCode >= 300 && res.statusCode < 400) {
+        const loc = res.headers["location"];
+        if (typeof loc === "string" && loc.length > 0) return loc;
+      }
+      if (res.statusCode === 429 && attempt < delays.length - 1) {
+        await sleep(delays[attempt]);
+        continue;
+      }
+      // 4xx (non-429) or 5xx — log and fall through to proxy/fallback
+      console.log(`[careerjet] resolveTrackingUrl status=${res.statusCode} attempt=${attempt + 1} url=${trackingUrl.slice(0, 80)}`);
+      break;
+    } catch (err) {
+      console.log(`[careerjet] resolveTrackingUrl threw (attempt=${attempt + 1}): ${err instanceof Error ? err.message : err}`);
+      if (attempt < delays.length - 1) {
+        await sleep(delays[attempt]);
+        continue;
+      }
     }
-  } catch (err) {
-    console.log(`[careerjet] resolveTrackingUrl threw: ${err instanceof Error ? err.message : err}`);
   }
 
   // ── Proxy fallback for jobviewtrack.com (if Apify proxy is available) ─────
@@ -263,14 +274,21 @@ function careerjetSearchFallback(title: string, location: string): string {
 }
 
 /**
- * Resolve tracking URLs for a batch of jobs in parallel (max 5 concurrent).
+ * Resolve tracking URLs for a batch of jobs in parallel.
  * Called immediately after each API page is fetched while URLs are fresh.
+ *
+ * Concurrency is intentionally low (2) and we pause between batches —
+ * jobviewtrack.com rate-limits aggressive parallel resolution (HTTP 429) and
+ * a 1-2 min token window means we'd rather take 10s and resolve 100% than
+ * burst-fire in 2s and lose them all to 429s + fallback URLs.
  */
 async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
-  const CONCURRENCY = 5;
+  const CONCURRENCY = 2;
+  const BATCH_DELAY = 250;
   const out = [...jobs];
 
   for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+    if (i > 0) await sleep(BATCH_DELAY);
     const batch = jobs.slice(i, i + CONCURRENCY);
     await Promise.all(
       batch.map(async (job, bi) => {
