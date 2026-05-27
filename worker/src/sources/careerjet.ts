@@ -18,9 +18,9 @@ import { curlFetch } from "../lib/curlfetch.js";
 
 const MAX_PAGES = 4;
 const FIRST_RUN_MAX_PAGES = 6;
-const KEYWORD_DELAY = 800;
-const JD_DELAY = 600;
-const PAGE_DELAY = 800;
+const KEYWORD_DELAY = 3000;
+const JD_DELAY = 2500;
+const PAGE_DELAY = 3000;
 const JD_FETCH_CAP = 20;
 
 function sleep(ms: number): Promise<void> {

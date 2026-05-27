@@ -503,7 +503,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       let directMerged = 0;
       let directFetched = 0;
       let directThrew = false;
-      const jdCap = profile.is_first_run ? 100 : 20;
+      const jdCap = 20;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
         kept = enriched;
@@ -552,7 +552,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
     if (careerjetSurvivors) {
       await setStage(runLogId, "Fetching full Careerjet descriptions");
-      const jdCap = profile.is_first_run ? 100 : 20;
+      const jdCap = 20;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept, jdCap);
         kept = enriched;
