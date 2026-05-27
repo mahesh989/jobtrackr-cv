@@ -478,16 +478,23 @@ const CAREERJET_HOST = "www.careerjet.com.au";
 async function fetchJobadHtml(
   url: string,
 ): Promise<{ status: number; body: string; finalUrl: string } | null> {
-  // Only fetch careerjet.com.au pages — we have an extractor for those.
-  // Employer sites and expired tracking URLs are skipped silently.
+  // Only fetch careerjet.com.au/jobad/ pages — we have an extractor for those.
+  // Skip employer sites, expired tracking URLs, and the search-fallback URLs
+  // (careerjet.com.au/jobs-in-*.html) that are substituted when jobviewtrack.com
+  // tokens can't be resolved — those are search results pages, not job pages.
   try {
-    const { hostname } = new URL(url);
-    if (hostname === "jobviewtrack.com") {
+    const parsed = new URL(url);
+    if (parsed.hostname === "jobviewtrack.com") {
       // Phase 1 resolution failed — URL never got resolved, skip it
       return null;
     }
-    if (hostname !== CAREERJET_HOST) {
+    if (parsed.hostname !== CAREERJET_HOST) {
       // Resolved to an employer site — we don't know its page structure
+      return null;
+    }
+    if (!parsed.pathname.startsWith("/jobad/")) {
+      // Search fallback URL (jobs-in-*.html) or other careerjet page —
+      // only /jobad/ pages have the description HTML we can extract
       return null;
     }
   } catch {
@@ -550,18 +557,23 @@ export async function enrichWithCareerjetJDs(
     (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
   );
 
-  // Count how many targets actually point to careerjet.com.au (resolved in Phase 1)
+  // Count how many targets actually point to careerjet.com.au/jobad/ (resolved in Phase 1).
+  // Exclude search-fallback URLs (jobs-in-*.html) substituted when jobviewtrack.com
+  // tokens couldn't be resolved — those are search pages, not job detail pages.
   const careerjetTargets = targets.filter((j) => {
-    try { return new URL(j.url).hostname === CAREERJET_HOST; } catch { return false; }
+    try {
+      const p = new URL(j.url);
+      return p.hostname === CAREERJET_HOST && p.pathname.startsWith("/jobad/");
+    } catch { return false; }
   });
 
   if (careerjetTargets.length === 0) {
-    console.log(`[careerjet-jd] no careerjet.com.au URLs to enrich (Phase 1 resolution failed or all employer sites)`);
+    console.log(`[careerjet-jd] no careerjet.com.au/jobad/ URLs to enrich (Phase 1 resolution failed or all employer/fallback sites)`);
     return { jobs, costUsd: 0, merged: 0, fetched: 0 };
   }
 
   console.log(
-    `[careerjet-jd] enriching ${careerjetTargets.length}/${targets.length} careerjet.com.au survivors` +
+    `[careerjet-jd] enriching ${careerjetTargets.length}/${targets.length} careerjet.com.au/jobad/ survivors` +
     ` · curl_cffi` +
     (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
   );
