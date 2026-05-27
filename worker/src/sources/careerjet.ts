@@ -204,19 +204,28 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
     trackingUrl.includes("jobviewtrack.com");
   if (!isTrackingUrl) return trackingUrl;
 
-  // ── Native fetch (works while token is fresh, same approach as main branch) ─
+  // ── gotScraping with Chrome TLS fingerprinting (same approach as the API
+  //    call). jobviewtrack.com appears to check TLS fingerprints and rejects
+  //    plain Node fetch; gotScraping passes its bot guard.
   try {
-    const res = await fetch(trackingUrl, {
-      method:   "GET",
-      redirect: "manual",
-      headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
-      signal:   AbortSignal.timeout(8_000),
+    const res = await gotScraping({
+      url:     trackingUrl,
+      method:  "GET",
+      followRedirect: false,
+      timeout: { request: 8_000 },
+      retry:   { limit: 0 },
+      headers: { "Referer": REFERER, "Accept": "text/html" },
+      throwHttpErrors: false,
     });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (loc) return loc;
+    if (res.statusCode >= 300 && res.statusCode < 400) {
+      const loc = res.headers["location"];
+      if (typeof loc === "string" && loc.length > 0) return loc;
+    } else {
+      console.log(`[careerjet] resolveTrackingUrl status=${res.statusCode} url=${trackingUrl.slice(0, 80)}`);
     }
-  } catch { /* timeout or network error — try proxy below */ }
+  } catch (err) {
+    console.log(`[careerjet] resolveTrackingUrl threw: ${err instanceof Error ? err.message : err}`);
+  }
 
   // ── Proxy fallback for jobviewtrack.com (if Apify proxy is available) ─────
   if (trackingUrl.includes("jobviewtrack.com")) {
