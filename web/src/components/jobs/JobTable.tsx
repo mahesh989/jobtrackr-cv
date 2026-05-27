@@ -146,14 +146,35 @@ function sourceBadge(source: string) {
 
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
-export function JobTable({ jobs, showVisa, currentTab }: {
+/** A named group of jobs rendered with a banner row inside the table. Used by
+ *  the dashboard's smart-feed view to interleave headings like "Today's picks"
+ *  / "Closest to you" between rows without losing the table chrome. When the
+ *  table is called without `sections` (the per-profile board, every other
+ *  caller) the rendering is byte-identical to the pre-2026-05-28 behaviour. */
+export interface JobTableSection {
+  /** Short label for the banner. */
+  label: string;
+  /** Short caption beneath/right of the label (e.g. "Within 15 km"). */
+  caption?: string;
+  /** Visual accent — picks the icon and the tinted banner colour. */
+  tone?: "brand" | "green" | "amber" | "muted";
+  /** Lucide icon component. */
+  icon?: typeof BarChart3;
+  /** Jobs in this section, already in display order. */
+  jobs: Job[];
+}
+
+export function JobTable({ jobs, showVisa, currentTab, sections }: {
   jobs:       Job[];
   showVisa:   boolean;
   currentTab: string;
+  /** Optional grouped view — see JobTableSection. When omitted, renders flat. */
+  sections?:  JobTableSection[];
 }) {
   const settings = useJobBoardSettings();
 
-  if (jobs.length === 0) {
+  // Flat-mode empty state (preserves the original behaviour).
+  if (!sections && jobs.length === 0) {
     return (
       <div className="bg-surface border border-border rounded-md">
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -169,6 +190,10 @@ export function JobTable({ jobs, showVisa, currentTab }: {
     );
   }
 
+  // Anim-delay must keep counting across section banners so the cascade reads
+  // top→bottom regardless of how the rows are grouped.
+  let animCursor = 0;
+
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
@@ -182,15 +207,66 @@ export function JobTable({ jobs, showVisa, currentTab }: {
         <div className={`${showVisa ? "col-span-2" : "col-span-3"} text-right`}>Actions</div>
       </div>
 
-      {jobs.map((job, i) => (
-        <JobRow
-          key={job.id}
-          job={job}
-          showVisa={showVisa}
-          animDelay={Math.min(i, 5)}
-          currentTab={currentTab}
-        />
-      ))}
+      {sections
+        ? sections.flatMap((sec, sIdx) => {
+            const items: React.ReactNode[] = [];
+            if (sec.jobs.length === 0) return items;
+            items.push(
+              <SectionBanner key={`sec-hdr-${sIdx}`} section={sec} />,
+            );
+            for (const job of sec.jobs) {
+              const i = animCursor++;
+              items.push(
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  showVisa={showVisa}
+                  animDelay={Math.min(i, 5)}
+                  currentTab={currentTab}
+                />,
+              );
+            }
+            return items;
+          })
+        : jobs.map((job, i) => (
+            <JobRow
+              key={job.id}
+              job={job}
+              showVisa={showVisa}
+              animDelay={Math.min(i, 5)}
+              currentTab={currentTab}
+            />
+          ))}
+    </div>
+  );
+}
+
+/** Section header rendered inline between rows. Spans the full table width so
+ *  it visually breaks the list without disturbing column alignment. */
+function SectionBanner({ section }: { section: JobTableSection }) {
+  const tone = section.tone ?? "muted";
+  const toneCls: Record<typeof tone, { bg: string; text: string; dot: string }> = {
+    brand: { bg: "bg-[#DDF4FF]",         text: "text-[var(--brand)]", dot: "bg-[var(--brand)]" },
+    green: { bg: "bg-green-50",          text: "text-green-700",       dot: "bg-green-500"     },
+    amber: { bg: "bg-amber-50",          text: "text-amber-700",       dot: "bg-amber-500"     },
+    muted: { bg: "bg-[var(--surface-2)]", text: "text-text-2",         dot: "bg-text-3"        },
+  };
+  const t = toneCls[tone];
+  const Icon = section.icon;
+  return (
+    <div className={`flex items-center gap-2 px-4 py-2 border-b border-border ${t.bg}`}>
+      {Icon
+        ? <Icon className={`w-3.5 h-3.5 ${t.text}`} />
+        : <span className={`w-1.5 h-1.5 rounded-full ${t.dot}`} />}
+      <span className={`text-[12px] font-semibold uppercase tracking-wider ${t.text}`}>
+        {section.label}
+      </span>
+      <span className="text-[11px] font-medium text-text-3 tabular-nums">
+        {section.jobs.length}
+      </span>
+      {section.caption && (
+        <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+      )}
     </div>
   );
 }
