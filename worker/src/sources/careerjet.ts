@@ -34,6 +34,7 @@ import { curlFetch, curlRedirect } from "../lib/curlfetch.js";
 const API_BASE        = "https://search.api.careerjet.net/v4/query";
 const REFERER         = "https://jobtrackr-cv.vercel.app/";
 const USER_AGENT      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const FRAGMENT_SIZE   = 500;            // API excerpt size in chars
 const PAGE_SIZE       = 50;             // Careerjet supports up to 100
 const MAX_PAGES       = 4;              // → up to 200 jobs per keyword (incremental)
 const FIRST_RUN_MAX_PAGES = 6;          // → up to 300 jobs per keyword (cold start)
@@ -184,190 +185,59 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Resolve a Careerjet tracking URL to the stable final job URL.
+ * Resolve a jobviewtrack.com tracking URL to the real job URL.
  *
- * Two URL formats — both expire quickly (one-time-use tokens, ~1–2 min):
- *   • jobviewtrack.com/v2/<hash>              – newer format
- *   • careerjet.com.au/clk/<hash>.html?affid= – affiliate format
+ * jobviewtrack.com tracking URLs expire in ~1-2 minutes (one-time-use tokens).
+ * We resolve them immediately after the API call — before they expire — using
+ * a lightweight redirect-only fetch (no body, no Cloudflare bypass needed).
  *
- * Strategy for both: native fetch with redirect:manual first (works from
- * Fly's IP while the token is fresh). jobviewtrack.com/v2/ also gets a
- * curlRedirect + Apify residential proxy fallback for the rare case where
- * native fetch is blocked.
- *
- * Returns the original URL unchanged if ALL resolution attempts fail so
- * callers can detect it and substitute a fallback search URL.
+ * Returns the original URL unchanged if resolution fails (expired, blocked,
+ * or non-tracking URL).
  */
-/**
- * Result of one resolution attempt — lets the caller (resolveTrackingUrls)
- * implement a circuit breaker that bails out after sustained 429s.
- */
-type ResolveOutcome =
-  | { ok: true;  url: string }                 // resolved successfully
-  | { ok: false; reason: "rate_limited" }      // saw 429s after retries exhausted
-  | { ok: false; reason: "other" };            // other failure (4xx non-429, 5xx, timeout)
-
-async function resolveTrackingUrl(trackingUrl: string): Promise<ResolveOutcome> {
-  const isTrackingUrl =
-    trackingUrl.includes("careerjet.com.au/clk/") ||
-    trackingUrl.includes("jobviewtrack.com");
-  if (!isTrackingUrl) return { ok: true, url: trackingUrl }; // not a tracking URL
-
-  // Long backoffs because jobviewtrack.com's rate-limit window is much wider
-  // than 1-2s. Tokens are valid ~1-2 min so we have headroom for one slow retry.
-  const delays = [4_000, 12_000];
-  let saw429 = false;
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
-    try {
-      const res = await gotScraping({
-        url:     trackingUrl,
-        method:  "GET",
-        followRedirect: false,
-        timeout: { request: 8_000 },
-        retry:   { limit: 0 },
-        headers: { "Referer": REFERER, "Accept": "text/html" },
-        throwHttpErrors: false,
-      });
-      if (res.statusCode >= 300 && res.statusCode < 400) {
-        const loc = res.headers["location"];
-        if (typeof loc === "string" && loc.length > 0) return { ok: true, url: loc };
-      }
-      if (res.statusCode === 429) {
-        saw429 = true;
-        if (attempt < delays.length) {
-          await sleep(delays[attempt]);
-          continue;
-        }
-      }
-      // 4xx (non-429) or 5xx — log and break
-      console.log(`[careerjet] resolveTrackingUrl status=${res.statusCode} attempt=${attempt + 1} url=${trackingUrl.slice(0, 80)}`);
-      break;
-    } catch (err) {
-      console.log(`[careerjet] resolveTrackingUrl threw (attempt=${attempt + 1}): ${err instanceof Error ? err.message : err}`);
-      if (attempt < delays.length) {
-        await sleep(delays[attempt]);
-        continue;
-      }
+async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
+  if (!trackingUrl.includes("jobviewtrack.com")) return trackingUrl;
+  try {
+    // redirect: "manual" gets us the 302 Location without following the chain
+    const res = await fetch(trackingUrl, {
+      method:   "GET",
+      redirect: "manual",
+      headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
+      signal:   AbortSignal.timeout(8_000),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (loc) return loc;
     }
+    // 404 / other — tracking URL already expired or IP-blocked
+  } catch {
+    // timeout or network error — return original
   }
-
-  // ── Proxy fallback for jobviewtrack.com (if Apify proxy is available) ─────
-  if (trackingUrl.includes("jobviewtrack.com")) {
-    const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
-    if (proxyUrl) {
-      try {
-        const { status, location } = await curlRedirect(trackingUrl, proxyUrl, 10_000);
-        if (status >= 300 && status < 400 && location) return { ok: true, url: location };
-      } catch { /* proxy unavailable or timeout */ }
-    }
-  }
-
-  return saw429 ? { ok: false, reason: "rate_limited" } : { ok: false, reason: "other" };
+  return trackingUrl;
 }
 
 /**
- * Build a Careerjet search URL for a job title + location.
- * Used as a fallback when the jobviewtrack.com tracking token can't be
- * resolved — opens the search results page for that role instead of 404.
- *
- * Uses the first 4 words of the title to keep the URL clean and avoid
- * Careerjet's slug parser choking on special characters (–, &, parentheses).
- * Correct format: /search/jobs?s=KEYWORDS&l=LOCATION
- */
-function careerjetSearchFallback(title: string, location: string): string {
-  const shortTitle = title
-    .split(/\s+/)
-    .slice(0, 4)
-    .join(" ");
-  const q = encodeURIComponent(shortTitle);
-  const l = encodeURIComponent(location.split(",")[0].trim());
-  return `https://www.careerjet.com.au/search/jobs?s=${q}&l=${l}`;
-}
-
-/**
- * Process-wide cooldown after sustained 429s. jobviewtrack.com's rate-limit
- * window is wider than per-request backoff can paper over — once we trip it,
- * even spaced requests keep returning 429 for a while. Track when we got the
- * last 429 and skip resolution attempts for COOLDOWN_MS after.
- */
-let rateLimitedUntil = 0;
-const COOLDOWN_MS = 90_000; // 90s — empirically longer than the token TTL,
-                            // so once we cool down we're past the live window
-                            // for in-flight tokens anyway. Subsequent pages
-                            // get fresh tokens AND a fresh rate-limit bucket.
-
-/**
- * Resolve tracking URLs serially. Called immediately after each API page is
- * fetched while URLs are fresh.
- *
- * Strategy:
- * - Strictly serial (concurrency=1) with 1.5s spacing between requests.
- *   jobviewtrack.com rate-limits per-IP aggressively — burst-fire = 100% 429s.
- * - Circuit breaker: after CIRCUIT_BREAK consecutive 429s on the same page,
- *   stop trying for the rest of THIS batch and substitute search fallbacks.
- *   The wider cooldown timer also kicks in so subsequent pages skip too,
- *   letting the bucket recover.
+ * Resolve tracking URLs for a batch of jobs in parallel (max 5 concurrent).
+ * Called immediately after each API page is fetched while URLs are fresh.
  */
 async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
-  const REQUEST_SPACING = 1_500;
-  const CIRCUIT_BREAK   = 3;       // 3 consecutive 429s → stop trying
+  const CONCURRENCY = 5;
   const out = [...jobs];
 
-  let consecutive429 = 0;
-  let circuitOpen    = Date.now() < rateLimitedUntil;
-
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i];
-    const isTracking =
-      job.url.includes("jobviewtrack.com") ||
-      job.url.includes("careerjet.com.au/clk/");
-
-    if (!isTracking) continue;
-
-    if (circuitOpen) {
-      // Skip resolution — go straight to fallback to save time.
-      if (job.url.includes("jobviewtrack.com") || job.url.includes("careerjet.com.au/clk/")) {
-        const fallback = careerjetSearchFallback(job.title, job.location);
-        out[i] = {
-          ...job,
-          url: fallback,
-          raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
-        };
-      }
-      continue;
-    }
-
-    if (i > 0) await sleep(REQUEST_SPACING);
-
-    const outcome = await resolveTrackingUrl(job.url);
-    if (outcome.ok && outcome.url !== job.url) {
-      out[i] = {
-        ...job,
-        url: outcome.url,
-        raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
-      };
-      consecutive429 = 0;
-      continue;
-    }
-
-    // Resolution failed — substitute a search-URL fallback.
-    const fallback = careerjetSearchFallback(job.title, job.location);
-    out[i] = {
-      ...job,
-      url: fallback,
-      raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
-    };
-
-    if (!outcome.ok && outcome.reason === "rate_limited") {
-      consecutive429++;
-      if (consecutive429 >= CIRCUIT_BREAK) {
-        rateLimitedUntil = Date.now() + COOLDOWN_MS;
-        circuitOpen = true;
-        console.log(`[careerjet] rate-limit circuit open — ${consecutive429} consecutive 429s, skipping resolution for ${COOLDOWN_MS / 1000}s`);
-      }
-    } else {
-      consecutive429 = 0;
-    }
+  for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+    const batch = jobs.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      batch.map(async (job, bi) => {
+        const realUrl = await resolveTrackingUrl(job.url);
+        if (realUrl !== job.url) {
+          out[i + bi] = {
+            ...job,
+            url: realUrl,
+            // Keep original tracking URL in raw for debugging
+            raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
+          };
+        }
+      }),
+    );
   }
 
   return out;
@@ -386,10 +256,8 @@ async function fetchPage(
     location,
     sort:          "date",
     page:          String(page),
-    // Careerjet API uses `pagesize` (no underscore). Sending `page_size`
-    // silently falls back to their default of 20 results — was capping every
-    // run at 20 jobs/page instead of the intended 50.
-    pagesize:      String(PAGE_SIZE),
+    page_size:     String(PAGE_SIZE),
+    fragment_size: String(FRAGMENT_SIZE),
     user_ip:       userIp,
     user_agent:    USER_AGENT,
   });
@@ -567,23 +435,16 @@ const CAREERJET_HOST = "www.careerjet.com.au";
 async function fetchJobadHtml(
   url: string,
 ): Promise<{ status: number; body: string; finalUrl: string } | null> {
-  // Only fetch careerjet.com.au/jobad/ pages — we have an extractor for those.
-  // Skip employer sites, expired tracking URLs, and the search-fallback URLs
-  // (careerjet.com.au/jobs-in-*.html) that are substituted when jobviewtrack.com
-  // tokens can't be resolved — those are search results pages, not job pages.
+  // Only fetch careerjet.com.au pages — we have an extractor for those.
+  // Employer sites and expired tracking URLs are skipped silently.
   try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "jobviewtrack.com") {
+    const { hostname } = new URL(url);
+    if (hostname === "jobviewtrack.com") {
       // Phase 1 resolution failed — URL never got resolved, skip it
       return null;
     }
-    if (parsed.hostname !== CAREERJET_HOST) {
+    if (hostname !== CAREERJET_HOST) {
       // Resolved to an employer site — we don't know its page structure
-      return null;
-    }
-    if (!parsed.pathname.startsWith("/jobad/")) {
-      // Search fallback URL (jobs-in-*.html) or other careerjet page —
-      // only /jobad/ pages have the description HTML we can extract
       return null;
     }
   } catch {
@@ -646,23 +507,18 @@ export async function enrichWithCareerjetJDs(
     (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
   );
 
-  // Count how many targets actually point to careerjet.com.au/jobad/ (resolved in Phase 1).
-  // Exclude search-fallback URLs (jobs-in-*.html) substituted when jobviewtrack.com
-  // tokens couldn't be resolved — those are search pages, not job detail pages.
+  // Count how many targets actually point to careerjet.com.au (resolved in Phase 1)
   const careerjetTargets = targets.filter((j) => {
-    try {
-      const p = new URL(j.url);
-      return p.hostname === CAREERJET_HOST && p.pathname.startsWith("/jobad/");
-    } catch { return false; }
+    try { return new URL(j.url).hostname === CAREERJET_HOST; } catch { return false; }
   });
 
   if (careerjetTargets.length === 0) {
-    console.log(`[careerjet-jd] no careerjet.com.au/jobad/ URLs to enrich (Phase 1 resolution failed or all employer/fallback sites)`);
+    console.log(`[careerjet-jd] no careerjet.com.au URLs to enrich (Phase 1 resolution failed or all employer sites)`);
     return { jobs, costUsd: 0, merged: 0, fetched: 0 };
   }
 
   console.log(
-    `[careerjet-jd] enriching ${careerjetTargets.length}/${targets.length} careerjet.com.au/jobad/ survivors` +
+    `[careerjet-jd] enriching ${careerjetTargets.length}/${targets.length} careerjet.com.au survivors` +
     ` · curl_cffi` +
     (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
   );
