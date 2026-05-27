@@ -51,9 +51,6 @@ export function ProfileFormBetaClient() {
   const [name, setName] = useState("Data Analyst — Sydney");
   const [keywords, setKeywords] = useState("Data Analyst, BI Analyst, Analytics Engineer");
   const [location, setLocation] = useState("Sydney NSW");
-  const [salaryMin, setSalaryMin] = useState("");
-  const [salaryMax, setSalaryMax] = useState("");
-
   const [visa, setVisa] = useState<"any" | "needs_sponsorship">("any");
   const [titleMustInclude, setTitleMustInclude] = useState("analyst");
   const [titleRescue, setTitleRescue] = useState(true);
@@ -143,17 +140,6 @@ export function ProfileFormBetaClient() {
                 className="field"
                 placeholder="Sydney NSW"
               />
-            </div>
-            <div>
-              <label className="block text-[12px] font-semibold text-text mb-1.5">
-                Salary range (optional)
-                <Hint text="Passed to sources that support salary filtering. Not all sources provide salary data." />
-              </label>
-              <div className="flex items-center gap-3">
-                <input type="number" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} placeholder="Min AU$" className="field" />
-                <span className="text-text-3 shrink-0">–</span>
-                <input type="number" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} placeholder="Max AU$" className="field" />
-              </div>
             </div>
           </div>
         </section>
