@@ -32,6 +32,7 @@ import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichWithCareerjetJDs } from "../sources/careerjet.js";
+import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 
@@ -562,7 +563,21 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
-    if (seekSurvivors || careerjetSurvivors) {
+    // ── Stage 7d: Adzuna full-JD enrichment ────────────────────────────────────
+    const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
+    if (adzunaSurvivors) {
+      await setStage(runLogId, "Fetching full Adzuna descriptions");
+      const jdCap = 20;
+      try {
+        const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
+        kept = enriched;
+        console.log(`[pipeline] stage 7d — Adzuna JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+      } catch (err) {
+        console.warn(`[pipeline] stage 7d — Adzuna JD threw: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    if (seekSurvivors || careerjetSurvivors || adzunaSurvivors) {
       // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
       // The first pass at stage 4c could only see teasers for SEEK. Now that we
       // have full JDs, dropped phrases that lived deep in the description are

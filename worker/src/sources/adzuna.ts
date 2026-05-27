@@ -1,4 +1,7 @@
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import type { NormalisedJob } from "../pipeline/types.js";
+import * as cheerio from "cheerio";
+import { curlFetch } from "../lib/curlfetch.js";
 
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
@@ -216,3 +219,55 @@ export const adzunaAdapter: SourceAdapter = {
     }
   },
 };
+
+export async function enrichWithAdzunaJDs(
+  jobs: NormalisedJob[],
+  cap: number = 20,
+): Promise<{ jobs: NormalisedJob[]; costUsd: number; merged: number; fetched: number }> {
+  const adzunaJobs = jobs.filter((j) => j.source === "adzuna" && j.url);
+  const targets = adzunaJobs.slice(0, cap);
+
+  if (targets.length === 0) {
+    return { jobs, costUsd: 0, merged: 0, fetched: 0 };
+  }
+
+  let mergedCount = 0;
+  let fetchedCount = 0;
+  console.log(`[adzuna-jd] enriching ${targets.length}/${adzunaJobs.length} adzuna survivors · HTML Scrape`);
+
+  for (const job of targets) {
+    // Extract adzuna ID from redirect URL (e.g. https://www.adzuna.com.au/land/ad/5699680690?se=...)
+    const idMatch = job.url.match(/\/land\/ad\/(\d+)/);
+    if (!idMatch) {
+      console.warn(`[adzuna-jd] could not extract Adzuna ID from ${job.url}`);
+      continue;
+    }
+    
+    const adzunaId = idMatch[1];
+    const detailsUrl = `https://www.adzuna.com.au/details/${adzunaId}`;
+
+    try {
+      fetchedCount++;
+      const html = await curlFetch(detailsUrl);
+      const $ = cheerio.load(html);
+
+      // The JD is wrapped in a section with class 'adp-body'
+      const description = $("section.adp-body").text().trim();
+
+      if (description && description.length > 500) {
+        job.description = description;
+        mergedCount++;
+        console.log(`[adzuna-jd] ${detailsUrl}: ${description.length} chars ✓`);
+      } else {
+        console.warn(`[adzuna-jd] ${detailsUrl}: Could not find JD content in .adp-body`);
+      }
+    } catch (err) {
+      console.error(`[adzuna-jd] ${detailsUrl} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Delay 2.5 seconds between fetches to mimic human speed and avoid rate limits
+    await delay(2500);
+  }
+
+  return { jobs, costUsd: 0, merged: mergedCount, fetched: fetchedCount };
+}
