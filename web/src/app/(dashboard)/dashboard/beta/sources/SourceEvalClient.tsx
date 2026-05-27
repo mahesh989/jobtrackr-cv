@@ -193,6 +193,20 @@ export function SourceEvalClient() {
     });
   };
 
+  const stop = useCallback(async () => {
+    if (!evalId) return;
+    try {
+      await fetch(`/api/source-eval/${evalId}/stop`, { method: "POST" });
+    } catch { /* swallow */ }
+    setBusy(false);
+    void loadRecent();
+    // Re-fetch the row so the UI reflects the cancelled state immediately.
+    try {
+      const res = await fetch(`/api/source-eval/${evalId}`);
+      if (res.ok) setRow(await res.json());
+    } catch { /* swallow */ }
+  }, [evalId, loadRecent]);
+
   const start = useCallback(async () => {
     setError(null);
     const kwList = keywords.split(",").map((s) => s.trim()).filter(Boolean);
@@ -471,6 +485,15 @@ export function SourceEvalClient() {
           >
             {busy ? "Running…" : "Start eval"}
           </button>
+          {busy && evalId && (
+            <button
+              type="button"
+              onClick={stop}
+              className="rounded border border-red-300 text-red-600 px-3 py-2 text-sm font-medium hover:bg-red-50"
+            >
+              Stop
+            </button>
+          )}
           {error && <span className="text-sm text-red-600">{error}</span>}
           {row && (
             <span className="text-xs text-text-3">
