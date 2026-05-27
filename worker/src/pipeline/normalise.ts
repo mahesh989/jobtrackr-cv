@@ -77,5 +77,7 @@ export function normalise(job: RawJob): NormalisedJob {
     sponsorship_status: "not_mentioned",
     citizen_pr_only: null,
     visa_extracted_text: null,
+    distance_km: null,
+    distance_method: null,
   };
 }

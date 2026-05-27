@@ -12,6 +12,7 @@
 // Stage  9: expiry check (inside save)
 // Stage 10: visa extraction — regex-first, AI fallback for ambiguous (gpt-4o-mini or claude-haiku)
 // Stage 11: active link validation — HEAD requests top 50
+// Stage 11b: distance — Nominatim geocode + OSRM driving distance per survivor
 // Stage 12: idempotent upsert
 // Stage 13: notify — Phase 6
 
@@ -35,6 +36,7 @@ import { enrichWithCareerjetJDs } from "../sources/careerjet.js";
 import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
+import { geocode, distanceFor, type LatLng } from "../lib/distance.js";
 
 interface FullProfile extends SearchProfile {
   user_id: string;
@@ -42,6 +44,12 @@ interface FullProfile extends SearchProfile {
   // from search_profiles in migration 041 — global constants now (60 / 70)
   // enforced by cv-backend AnalyzeRequest defaults.
   automation_enabled:      boolean;
+  // Migration 048 — distance origin. home_address is what the user typed.
+  // home_lat/home_lng are filled lazily on the next run after the address
+  // changes (the actions layer resets them to null on edit).
+  home_address: string | null;
+  home_lat:     number | null;
+  home_lng:     number | null;
 }
 
 // ── Integration types ──────────────────────────────────────────────────────────
@@ -94,7 +102,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -644,6 +652,55 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 10b — working rights filter: ${droppedWR} dropped (explicit no-sponsorship / PR-citizen-only), ${toSave.length} remaining`);
     } else {
       console.log(`[pipeline] stage 10b — working rights: "${profile.working_rights ?? "any"}" — no filter applied`);
+    }
+
+    // Stage 11b: distance computation (Migration 048).
+    //   - Skip entirely when the profile has no home_address.
+    //   - On the first run after the user enters/changes their address,
+    //     home_lat/home_lng are null — geocode it once and persist.
+    //   - Then resolve a driving distance for each survivor via Nominatim +
+    //     OSRM (free public endpoints, 1 req/sec to Nominatim, in-process
+    //     cache dedupes repeated location strings). OSRM "no route" falls
+    //     back to Haversine — flagged on the row via distance_method so the
+    //     UI can show a tilde.
+    let homeOrigin: LatLng | null = null;
+    if (profile.home_address && profile.home_address.trim()) {
+      if (profile.home_lat != null && profile.home_lng != null) {
+        homeOrigin = { lat: profile.home_lat, lng: profile.home_lng };
+      } else {
+        const hit = await geocode(profile.home_address);
+        if (hit) {
+          homeOrigin = hit;
+          await db
+            .from("search_profiles")
+            .update({ home_lat: hit.lat, home_lng: hit.lng })
+            .eq("id", profileId);
+          console.log(`[pipeline] stage 11b — home geocoded: ${profile.home_address} → ${hit.lat},${hit.lng}`);
+        } else {
+          console.warn(`[pipeline] stage 11b — could not geocode home_address "${profile.home_address}" — distance disabled this run`);
+        }
+      }
+    }
+
+    if (homeOrigin && toSave.length > 0) {
+      await setStage(runLogId, `Computing distances (${toSave.length} jobs)`);
+      let resolved = 0;
+      let fallback = 0;
+      const enriched: typeof toSave = [];
+      for (const job of toSave) {
+        const d = job.location ? await distanceFor(homeOrigin, job.location) : null;
+        if (d) {
+          resolved++;
+          if (d.method === "haversine") fallback++;
+          enriched.push({ ...job, distance_km: d.km, distance_method: d.method });
+        } else {
+          enriched.push(job);
+        }
+      }
+      toSave = enriched;
+      console.log(`[pipeline] stage 11b — distances: ${resolved}/${toSave.length} resolved (${fallback} haversine fallback)`);
+    } else if (profile.home_address) {
+      console.log(`[pipeline] stage 11b — distance skipped (no home origin or no jobs)`);
     }
 
     // Stage 12: save with visa info included

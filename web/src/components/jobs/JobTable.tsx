@@ -66,6 +66,12 @@ export interface Job {
   jd_quality?:         "rich" | "thin" | "unknown" | null;
   role_match?:         "match" | "mismatch" | "uncertain" | null;
   has_email?:          boolean | null;
+  /** Driving distance from the profile's home_address. Null when no
+   *  home_address is set, or the job location couldn't be geocoded. */
+  distance_km?:        number | null;
+  /** 'driving' = OSRM route; 'haversine' = straight-line fallback (UI
+   *  renders ~ prefix and a tooltip explaining the approximation). */
+  distance_method?:    "driving" | "haversine" | null;
   /** Derived in page.tsx via progressFlags.deriveProgress(). */
   progress:            JobProgress;
   /** Derived in page.tsx via pipelineState.derivePipelineState(). */
@@ -105,6 +111,27 @@ function formatSalary(min?: number | null, max?: number | null) {
     period === "/yr" ? `$${Math.round(v / 1000)}k` : `$${Math.round(v).toLocaleString()}`;
   if (min && max && min !== max) return `${fmt(min)}–${fmt(max)}${period}`;
   return `${fmt((min || max)!)}${period}`;
+}
+
+/** Banded colour for the distance chip — green ≤10, neutral ≤25, amber ≤50, red >50. */
+function distanceTone(km: number): string {
+  if (km <= 10) return "text-green-600";
+  if (km <= 25) return "text-text-2";
+  if (km <= 50) return "text-amber-600";
+  return "text-red-600";
+}
+
+function DistanceChip({ km, method }: { km: number; method: "driving" | "haversine" | null | undefined }) {
+  const approx = method === "haversine";
+  const display = `${approx ? "~" : ""}${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+  const title = approx
+    ? "Straight-line estimate — OSRM had no driving route for this address"
+    : "Driving distance from your home address";
+  return (
+    <span title={title} className={`inline-flex items-center text-[10px] font-medium tabular-nums shrink-0 ${distanceTone(km)}`}>
+      · {display}
+    </span>
+  );
 }
 
 function sourceBadge(source: string) {
@@ -297,6 +324,9 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
               {(job.location || job.jd_quality === "thin" || job.jd_quality === "unknown") && (
                 <p className="text-[11px] text-text-3 truncate mt-0.5 flex items-center gap-1.5">
                   {job.location && <span className="truncate">{job.location}</span>}
+                  {typeof job.distance_km === "number" && (
+                    <DistanceChip km={job.distance_km} method={job.distance_method ?? null} />
+                  )}
                   {/* JD-quality indicator — only shown for problems, not for 'rich' */}
                   {job.jd_quality === "thin" && (
                     <span

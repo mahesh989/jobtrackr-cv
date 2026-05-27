@@ -19,6 +19,16 @@ const SORT_OPTIONS = [
   { value: "rich_jd_first",       label: "Rich JD first" },
   { value: "recently_progressed", label: "Recently progressed" },
   { value: "most_progressed",     label: "Most progressed" },
+  { value: "distance",            label: "Distance (nearest)" },
+] as const;
+
+const DISTANCE_OPTIONS = [
+  { value: "",    label: "Any distance" },
+  { value: "5",   label: "Within 5 km" },
+  { value: "10",  label: "Within 10 km" },
+  { value: "25",  label: "Within 25 km" },
+  { value: "50",  label: "Within 50 km" },
+  { value: "100", label: "Within 100 km" },
 ] as const;
 
 const TIME_OPTIONS = [
@@ -46,13 +56,14 @@ const ATS_OPTIONS = [
 // View filters that can be applied instantly client-side on the dashboard
 // (no server refetch). Everything else (location / time / source) narrows the
 // fetched dataset and must hit the server.
-const SHALLOW_KEYS = new Set(["ats", "sort", "dir", "min_keywords", "visa_toggle"]);
+const SHALLOW_KEYS = new Set(["ats", "sort", "dir", "min_keywords", "visa_toggle", "max_distance"]);
 
 export function SmartFilterBar({
   total,
   showKeywords = true,
   showAtsFilter = false,
   shallow = false,
+  homeAddress = null,
 }: {
   total: number;
   /** Show the "min keywords matched" dropdown (per-profile board). */
@@ -61,6 +72,10 @@ export function SmartFilterBar({
   showAtsFilter?: boolean;
   /** Dashboard board: apply view filters instantly via the History API. */
   shallow?: boolean;
+  /** When set, render the "Within X km" distance filter and show the
+   *  origin indicator. Omit (or pass null) for profiles without a
+   *  home_address — the distance controls are hidden entirely. */
+  homeAddress?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,8 +106,10 @@ export function SmartFilterBar({
   const atsBand = sp.get("ats") || "";
   const locationVal = sp.get("location") || "";
   const visaOn = sp.get("visa_toggle") === "1";
+  const maxDistance = sp.get("max_distance") || "";
   const currentSort = sp.get("sort") || "posted_at";
   const currentDir = sp.get("dir") || "desc";
+  const showDistance = !!homeAddress && homeAddress.trim().length > 0;
 
   function update(key: string, value: string) {
     setOpt({ base: spStr, vals: { ...optVals, [key]: value } });
@@ -133,6 +150,10 @@ export function SmartFilterBar({
     pills.push({ key: "ats", label: `📊 ${al?.label ?? atsBand}` });
   }
   if (visaOn) pills.push({ key: "visa_toggle", label: "🛡 Visa" });
+  if (showDistance && maxDistance) {
+    const dl = DISTANCE_OPTIONS.find((d) => d.value === maxDistance);
+    pills.push({ key: "max_distance", label: `🚗 ${dl?.label ?? `Within ${maxDistance} km`}` });
+  }
 
   const sortLabel = SORT_OPTIONS.find((s) => s.value === currentSort)?.label ?? "Date posted";
 
@@ -190,6 +211,20 @@ export function SmartFilterBar({
           >
             {ATS_OPTIONS.map((a) => (
               <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Distance filter — only shown when the profile has a home address. */}
+        {showDistance && (
+          <select
+            value={v("max_distance", maxDistance)}
+            onChange={(e) => update("max_distance", e.target.value)}
+            className={`${ctrlCls} min-w-[130px]`}
+            title={`Distances from: ${homeAddress}`}
+          >
+            {DISTANCE_OPTIONS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
             ))}
           </select>
         )}
@@ -274,6 +309,14 @@ export function SmartFilterBar({
             Clear all
           </button>
         </div>
+      )}
+
+      {/* Origin indicator — only shown when distances are active so the user
+          always knows where "X km" is measured from. */}
+      {showDistance && (
+        <p className="text-[10px] text-text-3 mt-0.5">
+          Distances from <span className="text-text-2 font-medium">{homeAddress}</span>
+        </p>
       )}
     </div>
   );

@@ -21,4 +21,9 @@ export interface NormalisedJob {
   sponsorship_status: "yes" | "no" | "not_mentioned";
   citizen_pr_only: boolean | null;    // null = not mentioned
   visa_extracted_text: string | null; // sentences used, for transparency
+  // Driving distance from the profile's home_address — set by the distance
+  // stage (between working-rights filter and save). Both null when the
+  // profile has no home_address or the job location can't be geocoded.
+  distance_km: number | null;
+  distance_method: "driving" | "haversine" | null;
 }

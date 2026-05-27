@@ -39,6 +39,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     automation_enabled?:       boolean;
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
+    home_address?:             string | null;
   };
 
   return (
@@ -101,6 +102,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 automation_enabled:      profile.automation_enabled,
                 role_match_strict:       profile.role_match_strict,
                 auto_send_emails:        profile.auto_send_emails,
+                home_address:            profile.home_address ?? "",
               }}
             />
           </div>

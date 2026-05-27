@@ -56,7 +56,10 @@ export function JobBoard({
   const showVisa    = sp.get("visa_toggle") === "1";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords }), sortCol, asc),
+    // Unified dashboard spans multiple profiles, each with its own home_address —
+    // no single origin makes sense here, so the distance filter is always off
+    // (passed empty). The chip still renders per-job for context.
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance: "" }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, sortCol, asc],
   );
 

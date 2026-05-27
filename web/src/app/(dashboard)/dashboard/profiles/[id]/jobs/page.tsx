@@ -71,7 +71,7 @@ export default async function JobsPage({
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, schedule_cron")
+    .select("id, name, is_active, keywords, schedule_cron, home_address")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
 
@@ -88,6 +88,7 @@ export default async function JobsPage({
   const p = profile as {
     id: string; name: string; is_active: boolean;
     keywords: string[]; schedule_cron: string;
+    home_address: string | null;
   };
 
   // ── Determine whether we're showing dismissed jobs ───────────────────────
@@ -99,7 +100,7 @@ export default async function JobsPage({
   // ── Build job query ──────────────────────────────────────────────────────
   let query = supabase
     .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email")
+    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -333,6 +334,7 @@ export default async function JobsPage({
             jobs={boardJobs}
             counts={funnelCounts}
             railJobs={railJobs}
+            homeAddress={p.home_address}
           />
         </Suspense>
 

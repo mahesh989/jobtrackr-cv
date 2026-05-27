@@ -47,6 +47,8 @@ export async function saveJobs(
       sponsorship_status: job.sponsorship_status,
       citizen_pr_only: job.citizen_pr_only,
       visa_extracted_text: job.visa_extracted_text,
+      distance_km: job.distance_km,
+      distance_method: job.distance_method,
     };
   });
 

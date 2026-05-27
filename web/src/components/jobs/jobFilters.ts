@@ -24,6 +24,9 @@ export interface ViewFilters {
   triage:      string;   // needsJd | thinJd | richJd | roleMismatch | belowThreshold | hasEmail | notTailored
   ats:         string;   // above_final | below_final | below_initial | no_ats
   minKeywords: string;   // numeric string
+  /** "Within X km" — numeric string. Jobs with null distance_km are kept
+   *  (we don't punish unresolved jobs by hiding them). Empty = no filter. */
+  maxDistance: string;
 }
 
 /**
@@ -74,6 +77,15 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
     if (!isNaN(minK)) out = out.filter((x) => (x.keywords_matched?.length ?? 0) >= minK);
   }
 
+  // Distance cap. Jobs with unresolved distance (null) pass through — they
+  // sort to the bottom by default and the chip is simply absent.
+  if (f.maxDistance) {
+    const maxKm = parseFloat(f.maxDistance);
+    if (!isNaN(maxKm)) {
+      out = out.filter((x) => x.distance_km == null || x.distance_km <= maxKm);
+    }
+  }
+
   return out;
 }
 
@@ -108,8 +120,21 @@ export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): Board
   }
 
   // Standard column sorts (title / company / location / posted_at / created_at /
-  // visa_likelihood). Default falls back to posted_at desc.
+  // visa_likelihood / distance). Default falls back to posted_at desc.
   const dir = asc ? 1 : -1;
+  if (sortCol === "distance") {
+    // Resolved distances first, sorted ascending by default (closest at top).
+    // Null distance always sorts to the bottom regardless of direction so an
+    // unresolved location can't accidentally claim a top slot.
+    return arr.sort((a, b) => {
+      const aNull = a.distance_km == null;
+      const bNull = b.distance_km == null;
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      return dir * ((a.distance_km as number) - (b.distance_km as number));
+    });
+  }
   if (sortCol === "visa_likelihood") {
     return arr.sort((a, b) => dir * ((a.visa_likelihood ?? -1) - (b.visa_likelihood ?? -1)));
   }

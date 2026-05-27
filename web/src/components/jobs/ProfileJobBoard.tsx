@@ -38,23 +38,29 @@ export function ProfileJobBoard({
   jobs,
   counts,
   railJobs,
+  homeAddress = null,
 }: {
   jobs:     BoardJob[];
   counts:   FunnelCounts;
   railJobs: RailJob[];
+  /** Profile's home_address (Migration 048). When set, the SmartFilterBar
+   *  shows the "Within X km" filter, the Distance sort option, and an
+   *  origin indicator. */
+  homeAddress?: string | null;
 }) {
   const sp = useSearchParams();
 
   const stage       = resolveStage(sp);
   const triage      = sp.get("triage") || "";
   const minKeywords = sp.get("min_keywords") || "";
+  const maxDistance = sp.get("max_distance") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
   const showVisa    = sp.get("visa_toggle") === "1";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats: "", minKeywords }), sortCol, asc),
-    [jobs, stage, triage, minKeywords, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance }), sortCol, asc),
+    [jobs, stage, triage, minKeywords, maxDistance, sortCol, asc],
   );
 
   // Scroll to the table section whenever the stage changes (i.e. after clicking
@@ -78,7 +84,7 @@ export function ProfileJobBoard({
     <>
       <PipelineFunnel counts={counts} currentStage={stage} shallow />
 
-      <SmartFilterBar total={filtered.length} showKeywords showAtsFilter={false} shallow />
+      <SmartFilterBar total={filtered.length} showKeywords showAtsFilter={false} shallow homeAddress={homeAddress} />
 
       <ContinueRail jobs={railJobs} currentTab={stage} />
 

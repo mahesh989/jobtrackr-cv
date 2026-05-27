@@ -36,6 +36,8 @@ interface Props {
     // min_initial_ats / min_final_ats removed in migration 041 — global now.
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
+    // Migration 048 — origin for driving-distance display on the job board.
+    home_address?:             string | null;
   };
 }
 
@@ -112,6 +114,22 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
           defaultValue={defaults?.location}
           placeholder="Sydney NSW"
         />
+      </div>
+
+      {/* Home address — origin for driving-distance display on the job board */}
+      <div>
+        <label className="block text-[12px] font-semibold text-text mb-1.5">
+          Your address <span className="font-normal text-text-2">(optional — used for distance display)</span>
+        </label>
+        <input
+          name="home_address"
+          defaultValue={defaults?.home_address ?? ""}
+          placeholder="e.g. 123 Pitt Street, Sydney NSW 2000"
+          className="field"
+        />
+        <p className="text-[11px] text-text-2 mt-1.5">
+          When set, each job shows the driving distance from here to the listing's suburb. Free public geocoding (Nominatim) and routing (OSRM) — no API keys, no cost. Leave empty to hide distance.
+        </p>
       </div>
 
       {/* Working rights */}

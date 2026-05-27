@@ -127,6 +127,9 @@ export async function createProfile(formData: FormData) {
     schedule_cron: scheduleCron,
     is_active: isActive,
     target_verticals: formData.getAll("target_verticals") as string[],
+    home_address: ((formData.get("home_address") as string) ?? "").trim() || null,
+    // home_lat/home_lng intentionally left null — the worker geocodes on the
+    // next run via Nominatim.
     ...extractAdzunaFields(formData),
     ...extractAutomationFields(formData),
     ...extractSourceFields(formData),
@@ -156,6 +159,17 @@ export async function updateProfile(profileId: string, formData: FormData) {
   const scheduleCron = runMode === "auto" ? `0 21 */${autoDays} * *` : "0 21 */2 * *";
   const isActive = runMode === "auto";
 
+  // Detect home_address change so we can invalidate the cached lat/lng and let
+  // the worker re-geocode on the next run.
+  const newHome = ((formData.get("home_address") as string) ?? "").trim() || null;
+  const { data: prev } = await supabase
+    .from("search_profiles")
+    .select("home_address")
+    .eq("id", profileId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const homeChanged = (prev?.home_address ?? null) !== newHome;
+
   const { error } = await supabase
     .from("search_profiles")
     .update({
@@ -167,6 +181,8 @@ export async function updateProfile(profileId: string, formData: FormData) {
       schedule_cron: scheduleCron,
       is_active: isActive,
       target_verticals: formData.getAll("target_verticals") as string[],
+      home_address: newHome,
+      ...(homeChanged ? { home_lat: null, home_lng: null } : {}),
       ...extractAdzunaFields(formData),
       ...extractAutomationFields(formData),
       ...extractSourceFields(formData),
@@ -218,6 +234,9 @@ export async function copyProfile(profileId: string) {
       enabled_sources: orig.enabled_sources,
       seek_method: orig.seek_method,
       adzuna_method: orig.adzuna_method,
+      home_address: orig.home_address,
+      home_lat: orig.home_lat,
+      home_lng: orig.home_lng,
     })
     .select("id")
     .single();
