@@ -198,15 +198,10 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
   if (!trackingUrl.includes("jobviewtrack.com")) return trackingUrl;
   try {
     // redirect: "manual" gets us the 302 Location without following the chain
-    const res = await fetch(trackingUrl, {
-      method:   "GET",
-      redirect: "manual",
-      headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
-      signal:   AbortSignal.timeout(8_000),
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (loc) return loc;
+    const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
+    const res = await curlRedirect(trackingUrl, proxyUrl, 8_000);
+    if (res.status >= 300 && res.status < 400 && res.location) {
+      return res.location;
     }
     // 404 / other — tracking URL already expired or IP-blocked
   } catch {
