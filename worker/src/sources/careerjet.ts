@@ -237,14 +237,22 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
 }
 
 /**
- * Build a Careerjet search-results URL for a job title + location.
+ * Build a Careerjet search URL for a job title + location.
  * Used as a fallback when the jobviewtrack.com tracking token can't be
- * resolved — at least opens the right search page instead of a 404.
+ * resolved — opens the search results page for that role instead of 404.
+ *
+ * Uses the first 4 words of the title to keep the URL clean and avoid
+ * Careerjet's slug parser choking on special characters (–, &, parentheses).
+ * Correct format: /search/jobs?s=KEYWORDS&l=LOCATION
  */
 function careerjetSearchFallback(title: string, location: string): string {
-  const q = encodeURIComponent(title.slice(0, 80));
+  const shortTitle = title
+    .split(/\s+/)
+    .slice(0, 4)
+    .join(" ");
+  const q = encodeURIComponent(shortTitle);
   const l = encodeURIComponent(location.split(",")[0].trim());
-  return `https://www.careerjet.com.au/jobs-in-${l.toLowerCase().replace(/%20/g, "-")}.html?s=${q}`;
+  return `https://www.careerjet.com.au/search/jobs?s=${q}&l=${l}`;
 }
 
 /**
