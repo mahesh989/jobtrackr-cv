@@ -726,14 +726,21 @@ function SourceCard({
           <ul className="mt-2 space-y-1">
             {result.samples.map((s) => (
               <li key={s.url_hash} className="border-l-2 border-border pl-2">
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-brand underline decoration-dotted hover:decoration-solid"
-                >
-                  {s.title}
-                </a>{" "}
+                {s.url && !s.url.includes("careerjet.com.au/search/jobs") ? (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand underline decoration-dotted hover:decoration-solid"
+                  >
+                    {s.title}
+                  </a>
+                ) : (
+                  <span className="text-text" title="Direct link unavailable — tracking URL expired before it could be resolved">
+                    {s.title}
+                    <span className="ml-1 text-[10px] text-amber-700">(link expired)</span>
+                  </span>
+                )}{" "}
                 · <span className="text-text-2">{s.company}</span>
                 <span className="text-text-3"> · {s.location}</span>
                 {s.posted_at && (
