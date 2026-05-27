@@ -236,20 +236,26 @@ export async function enrichWithAdzunaJDs(
   console.log(`[adzuna-jd] enriching ${targets.length}/${adzunaJobs.length} adzuna survivors · HTML Scrape`);
 
   for (const job of targets) {
-    // Extract adzuna ID from redirect URL (e.g. https://www.adzuna.com.au/land/ad/5699680690?se=...)
-    const idMatch = job.url.match(/\/land\/ad\/(\d+)/);
+    // Adzuna's API returns the job URL in either of two formats, sometimes
+    // mixed within a single search response:
+    //   • https://www.adzuna.com.au/land/ad/<id>?se=…   (legacy redirect tracker)
+    //   • https://www.adzuna.com.au/details/<id>        (direct deep link)
+    // We accept both. Previously this regex only matched /land/ad/, so jobs
+    // whose API URL was already /details/<id> silently fell through and kept
+    // their ~600 char API teaser instead of the full ~3-8k char HTML JD.
+    const idMatch = job.url.match(/\/(?:land\/ad|details)\/(\d+)/);
     if (!idMatch) {
       console.warn(`[adzuna-jd] could not extract Adzuna ID from ${job.url}`);
       continue;
     }
-    
+
     const adzunaId = idMatch[1];
     const detailsUrl = `https://www.adzuna.com.au/details/${adzunaId}`;
 
     try {
       fetchedCount++;
       const result = await curlFetch(detailsUrl);
-      
+
       if (result.status !== 200) {
         console.warn(`[adzuna-jd] ${detailsUrl} failed with HTTP ${result.status}`);
         continue;
@@ -257,15 +263,22 @@ export async function enrichWithAdzunaJDs(
 
       const $ = cheerio.load(result.body);
 
-      // The JD is wrapped in a section with class 'adp-body'
-      const description = $("section.adp-body").text().trim();
+      // The JD is wrapped in a section with class 'adp-body'. We also try a
+      // couple of historical selectors as a defensive fallback — Adzuna has
+      // rotated class names before and a single-selector parser silently
+      // returns "" if the markup changes.
+      let description = $("section.adp-body").text().trim();
+      if (description.length < 500) {
+        const fallback = $("[data-aut-id='jobDescription'], .job-description, article").first().text().trim();
+        if (fallback.length > description.length) description = fallback;
+      }
 
       if (description && description.length > 500) {
         job.description = description;
         mergedCount++;
         console.log(`[adzuna-jd] ${detailsUrl}: ${description.length} chars ✓`);
       } else {
-        console.warn(`[adzuna-jd] ${detailsUrl}: Could not find JD content in .adp-body`);
+        console.warn(`[adzuna-jd] ${detailsUrl}: JD too short (${description.length} chars) — markup may have changed, keeping API teaser`);
       }
     } catch (err) {
       console.error(`[adzuna-jd] ${detailsUrl} failed: ${err instanceof Error ? err.message : String(err)}`);
