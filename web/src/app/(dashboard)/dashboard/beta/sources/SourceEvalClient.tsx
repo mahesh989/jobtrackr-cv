@@ -23,14 +23,15 @@ const SOURCES = [
 type SourceKey = (typeof SOURCES)[number]["key"];
 
 interface Counts {
-  fetched:         number;
-  after_url_dedup: number;
-  after_keyword:   number;
-  after_smart:     number;
-  after_dedup:     number;
-  would_save:      number;
-  full_jd:         number;
-  thin_jd:         number;
+  fetched:          number;
+  after_url_dedup:  number;
+  after_keyword:    number;
+  after_smart:      number;
+  after_dedup:      number;
+  would_save:       number;
+  full_jd:          number;
+  thin_jd:          number;
+  teaser_rescued?:  number;
 }
 
 interface Sample {
@@ -592,7 +593,11 @@ function SourceCard({
       <div className="grid grid-cols-3 gap-2 text-xs">
         <Funnel n={counts.fetched}         lbl="Fetched"            />
         <Funnel n={counts.after_url_dedup} lbl="After URL dedup"    />
-        <Funnel n={counts.after_keyword}   lbl="After keyword"      />
+        <Funnel
+          n={counts.after_keyword}
+          lbl="After keyword"
+          sub={counts.teaser_rescued ? `+${counts.teaser_rescued} teaser` : undefined}
+        />
         <Funnel n={counts.after_smart}     lbl="After smart filter" />
         <Funnel n={counts.after_dedup}     lbl="After content dedup"/>
         <Funnel n={counts.would_save}      lbl="Would save"  bold   />
@@ -745,11 +750,12 @@ function SourceCard({
   );
 }
 
-function Funnel({ n, lbl, bold }: { n: number; lbl: string; bold?: boolean }) {
+function Funnel({ n, lbl, bold, sub }: { n: number; lbl: string; bold?: boolean; sub?: string }) {
   return (
     <div className={`rounded border border-border bg-bg p-2 ${bold ? "ring-1 ring-brand" : ""}`}>
       <div className="text-text-3">{lbl}</div>
       <div className={`text-lg ${bold ? "font-bold text-text" : "font-semibold text-text"}`}>{n}</div>
+      {sub && <div className="text-[10px] text-green-700 mt-0.5">{sub}</div>}
     </div>
   );
 }

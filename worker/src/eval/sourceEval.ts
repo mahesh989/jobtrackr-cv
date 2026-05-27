@@ -51,6 +51,29 @@ export type EvalSourceKey =
   | "greenhouse"
   | "lever";
 
+/** Build word-boundary matchers for a list of phrases (shared by title + teaser filters). */
+function buildMatchers(phrases: string[]) {
+  return phrases.map((kw) => {
+    const lower = kw.toLowerCase().trim();
+    const words = lower.split(/\s+/);
+    if (words.length === 1) {
+      const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`\\b${escaped}\\b`, "i");
+      return { kw, match: (text: string) => re.test(text) };
+    }
+    const wordRes = words.map((w) => {
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`, "i");
+    });
+    return {
+      kw,
+      match: (text: string) =>
+        text.toLowerCase().includes(lower) ||
+        wordRes.every((re) => re.test(text)),
+    };
+  });
+}
+
 /**
  * Title-only word-boundary filter. Returns the subset of `jobs` whose TITLE
  * contains any of `phrases`, with the matched phrases attached to
@@ -66,29 +89,41 @@ function titleOnlyFilter(
   phrases: string[],
 ): NormalisedJob[] {
   if (phrases.length === 0) return jobs;
-  const matchers = phrases.map((kw) => {
-    const lower = kw.toLowerCase().trim();
-    const words = lower.split(/\s+/);
-    if (words.length === 1) {
-      const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp(`\\b${escaped}\\b`, "i");
-      return { kw, match: (title: string) => re.test(title) };
-    }
-    const wordRes = words.map((w) => {
-      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`\\b${escaped}\\b`, "i");
-    });
-    return {
-      kw,
-      match: (title: string) =>
-        title.toLowerCase().includes(lower) ||
-        wordRes.every((re) => re.test(title)),
-    };
-  });
+  const matchers = buildMatchers(phrases);
   const out: NormalisedJob[] = [];
   for (const job of jobs) {
     const title = job.title || "";
     const matched = matchers.filter(({ match }) => match(title)).map((m) => m.kw);
+    if (matched.length > 0) out.push({ ...job, keywords_matched: matched });
+  }
+  return out;
+}
+
+/**
+ * Teaser rescue pass — for jobs that FAILED the title filter, check the
+ * first TEASER_CHARS of their description for any of the smart-filter phrases.
+ *
+ * This catches legitimate role variants whose title doesn't contain the exact
+ * keyword (e.g. "Business Analyst (Data & Reporting)" rescued by smart filter
+ * "Data Analyst") while keeping the noise resistance of title-only matching
+ * (a "Senior Test Engineer" teaser that mentions "data analysis" in passing
+ * won't contain the exact phrase "Data Analyst" — it passes only if the exact
+ * phrase appears in the first 500 chars).
+ *
+ * Only activated in title-only scope when mustInclude terms are explicitly set.
+ */
+const TEASER_CHARS = 500;
+
+function teaserRescueFilter(
+  jobs:    NormalisedJob[],
+  phrases: string[],
+): NormalisedJob[] {
+  if (phrases.length === 0) return [];
+  const matchers = buildMatchers(phrases);
+  const out: NormalisedJob[] = [];
+  for (const job of jobs) {
+    const teaser = (job.description ?? "").slice(0, TEASER_CHARS);
+    const matched = matchers.filter(({ match }) => match(teaser)).map((m) => m.kw);
     if (matched.length > 0) out.push({ ...job, keywords_matched: matched });
   }
   return out;
@@ -160,6 +195,10 @@ export interface SourceEvalCounts {
   would_save:       number;
   full_jd:          number;
   thin_jd:          number;
+  // How many of the `after_keyword` survivors were rescued from the title
+  // reject pile by finding a smart-filter phrase in the first 500 chars of
+  // their description. Only set when scope=title + mustInclude is non-empty.
+  teaser_rescued?:  number;
 }
 
 export interface SourceEvalSample {
@@ -227,6 +266,7 @@ function emptyCounts(): SourceEvalCounts {
     would_save: 0,
     full_jd: 0,
     thin_jd: 0,
+    teaser_rescued: 0,
   };
 }
 
@@ -465,13 +505,13 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   }
   counts.after_url_dedup = newRaw.length;
 
-  // Stage 3 — normalise + smart filter (always applied)
+  // Stage 3 — normalise + filter (always applied)
   //
   // Two-stage matching:
   //   - The user's `keywords` drive what each source SEARCHES for.
   //   - The user's `mustInclude` (optional) is a LOCAL post-fetch filter that
   //     drops noise that slipped through the source's broad search. Jobs pass
-  //     if their title+description contains ANY of the mustInclude phrases.
+  //     if their title contains ANY of the mustInclude phrases.
   //
   // If mustInclude is empty we default to filtering by the search `keywords`
   // themselves — same word-boundary matching, just no extra typing. This
@@ -479,16 +519,35 @@ export async function runSourceEval(input: SourceEvalInput): Promise<SourceEvalR
   // driver posting for `AIN` (the JD has "Maintaining" / "aine@..." but no
   // standalone "ain" — \bain\b correctly drops it).
   //
-  // For broader recall, fill the smart filter with variants:
-  //   keyword: AIN
-  //   smart filter: AIN, Assistant in Nursing, PCA, Care Worker, Care Provider
+  // Title-only + smart filter set → also runs a TEASER RESCUE pass on
+  // title-rejects: if the first 500 chars of the description contain any
+  // mustInclude phrase exactly, the job is rescued. This catches legitimate
+  // role variants whose title doesn't carry the exact phrase (e.g.
+  // "Business Analyst (Data & Reporting)" rescued by "Data Analyst") without
+  // opening up the noise of full-description matching.
   const normalised = newRaw.map(normalise);
   const mustIncludeRaw = (input.mustInclude ?? []).filter((s) => s.trim().length > 0);
   const filterPhrases = mustIncludeRaw.length > 0 ? mustIncludeRaw : profile.keywords;
   const scope = input.filterScope ?? "title";
-  const keptByKeyword = scope === "title"
-    ? titleOnlyFilter(normalised, filterPhrases)
-    : keywordFilter(normalised, filterPhrases);
+
+  let keptByKeyword: NormalisedJob[];
+  if (scope === "title") {
+    const titlePassed = titleOnlyFilter(normalised, filterPhrases);
+    // Teaser rescue — only when the user explicitly set smart filter terms
+    // (not the keyword fallback). No rescue for title+description scope
+    // (the full description is already being searched).
+    if (mustIncludeRaw.length > 0) {
+      const titlePassedHashes = new Set(titlePassed.map((j) => j.url_hash));
+      const titleFailed = normalised.filter((j) => !titlePassedHashes.has(j.url_hash));
+      const rescued = teaserRescueFilter(titleFailed, mustIncludeRaw);
+      counts.teaser_rescued = rescued.length;
+      keptByKeyword = [...titlePassed, ...rescued];
+    } else {
+      keptByKeyword = titlePassed;
+    }
+  } else {
+    keptByKeyword = keywordFilter(normalised, filterPhrases);
+  }
   counts.after_keyword = keptByKeyword.length;
 
   // Stage 4 — smart filter (no-op in ad-hoc mode; rules are empty)
