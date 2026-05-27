@@ -117,6 +117,27 @@ const VISA_COLOR: Record<VisaStatus, string> = {
 
 type SortId = "match" | "distance" | "posted" | "added" | "recently_analysed" | "progress" | "ats";
 
+// ── ATS bands ───────────────────────────────────────────────────────────
+// Mirrors web/src/lib/atsThresholds.ts in production (60 / 70).
+const ATS_INITIAL = 60;
+const ATS_FINAL   = 70;
+
+type AtsBand = "above_final" | "below_final" | "below_initial" | "not_analysed";
+
+function atsBand(score: number | null): AtsBand {
+  if (score === null) return "not_analysed";
+  if (score >= ATS_FINAL)   return "above_final";
+  if (score >= ATS_INITIAL) return "below_final";
+  return "below_initial";
+}
+
+const ATS_BAND_META: { id: AtsBand; label: string; tip: string; dot: string; chipBg: string; chipText: string }[] = [
+  { id: "above_final",   label: `ATS ≥ ${ATS_FINAL}`,                  tip: `Above the final gate (${ATS_FINAL}) — auto cover letter`,        dot: "bg-green-500", chipBg: "bg-green-100", chipText: "text-green-800" },
+  { id: "below_final",   label: `ATS ${ATS_INITIAL}–${ATS_FINAL - 1}`, tip: `Between gates — tailored CV, no auto cover letter`,             dot: "bg-amber-500", chipBg: "bg-amber-100", chipText: "text-amber-800" },
+  { id: "below_initial", label: `ATS < ${ATS_INITIAL}`,                tip: `Below the initial gate (${ATS_INITIAL}) — pipeline stops here`, dot: "bg-red-500",   chipBg: "bg-red-100",   chipText: "text-red-800"   },
+  { id: "not_analysed",  label: "Not analysed",                        tip: "No ATS score yet — click Analyze on the card",                  dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2" },
+];
+
 const SORT_LABEL: Record<SortId, string> = {
   match:             "Match score",
   distance:          "Distance",
@@ -126,6 +147,12 @@ const SORT_LABEL: Record<SortId, string> = {
   progress:          "Most progressed",
   ats:               "ATS score",
 };
+
+function atsBandCounts(jobs: MockJob[]): Record<AtsBand, number> {
+  const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, not_analysed: 0 };
+  for (const j of jobs) out[atsBand(j.ats_score)]++;
+  return out;
+}
 
 function progressLevel(j: MockJob): number {
   return (j.progress.analysed ? 1 : 0) + (j.progress.tailored ? 1 : 0) +
@@ -154,6 +181,7 @@ function sortJobs(jobs: MockJob[], sort: SortId): MockJob[] {
 export function JobFeedBetaClient() {
   const [sort,           setSort]          = useState<SortId>("match");
   const [stageFilters,   setStageFilters]  = useState<Set<StageId>>(new Set());
+  const [atsBandFilters, setAtsBandFilters] = useState<Set<AtsBand>>(new Set());
   const [visaFilters,    setVisaFilters]   = useState<Set<VisaStatus>>(new Set());
   const [locationQuery,  setLocationQuery] = useState("");
   const [distRange,      setDistRange]     = useState<[number, number]>([0, 50]);
@@ -178,6 +206,9 @@ export function JobFeedBetaClient() {
     if (visaFilters.size > 0) {
       xs = xs.filter((j) => visaFilters.has(j.visa));
     }
+    if (atsBandFilters.size > 0) {
+      xs = xs.filter((j) => atsBandFilters.has(atsBand(j.ats_score)));
+    }
     if (locationQuery.trim()) {
       const q = locationQuery.trim().toLowerCase();
       xs = xs.filter((j) => j.location.toLowerCase().includes(q) || j.company.toLowerCase().includes(q));
@@ -186,10 +217,10 @@ export function JobFeedBetaClient() {
       xs = xs.filter((j) => j.distance_km >= distRange[0] && j.distance_km <= distRange[1]);
     }
     return xs;
-  }, [stageFilters, visaFilters, locationQuery, distRange]);
+  }, [stageFilters, visaFilters, atsBandFilters, locationQuery, distRange]);
 
   const anyFilterActive =
-    stageFilters.size > 0 || visaFilters.size > 0 ||
+    stageFilters.size > 0 || visaFilters.size > 0 || atsBandFilters.size > 0 ||
     locationQuery.trim().length > 0 || distRange[0] > 0 || distRange[1] < 50;
 
   // Buckets for the smart view (only computed when no filter is active)
@@ -273,6 +304,14 @@ export function JobFeedBetaClient() {
       return next;
     });
   }
+  function toggleAtsBand(b: AtsBand) {
+    setAtsBandFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(b)) next.delete(b);
+      else next.add(b);
+      return next;
+    });
+  }
   function toggleVisa(v: VisaStatus) {
     setVisaFilters((prev) => {
       const next = new Set(prev);
@@ -283,6 +322,7 @@ export function JobFeedBetaClient() {
   }
   function resetAll() {
     setStageFilters(new Set());
+    setAtsBandFilters(new Set());
     setVisaFilters(new Set());
     setLocationQuery("");
     setDistRange([0, 50]);
@@ -336,6 +376,8 @@ export function JobFeedBetaClient() {
       <Toolbar
         sort={sort} setSort={setSort}
         stageFilters={stageFilters} toggleStage={toggleStage}
+        atsBandFilters={atsBandFilters} toggleAtsBand={toggleAtsBand}
+        atsCounts={atsBandCounts(JOBS)}
         locationQuery={locationQuery} setLocationQuery={setLocationQuery}
       />
 
@@ -521,31 +563,39 @@ function RangeHandle({ pos, onMouseDown, label }: { pos: number; onMouseDown: ()
 // ── toolbar ─────────────────────────────────────────────────────────────
 
 function Toolbar({
-  sort, setSort, stageFilters, toggleStage, locationQuery, setLocationQuery,
+  sort, setSort,
+  stageFilters, toggleStage,
+  atsBandFilters, toggleAtsBand, atsCounts,
+  locationQuery, setLocationQuery,
 }: {
   sort: SortId;
   setSort: (s: SortId) => void;
   stageFilters: Set<StageId>;
   toggleStage: (s: StageId) => void;
+  atsBandFilters: Set<AtsBand>;
+  toggleAtsBand: (b: AtsBand) => void;
+  atsCounts: Record<AtsBand, number>;
   locationQuery: string;
   setLocationQuery: (q: string) => void;
 }) {
   return (
     <div className="mt-3 rounded-md border border-border bg-surface p-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* Location search */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3" />
+        {/* Location search — pl-9 leaves clean space for the lens; pointer-events-none
+            on the icon means it never blocks clicks/typing in the input */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3 pointer-events-none" />
           <input
             value={locationQuery}
             onChange={(e) => setLocationQuery(e.target.value)}
             placeholder="Filter by location or company…"
-            className="field pl-8 text-[12px]"
+            className="field pl-9 pr-8 text-[12px]"
           />
           {locationQuery && (
             <button
               onClick={() => setLocationQuery("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text"
+              aria-label="Clear search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -568,7 +618,7 @@ function Toolbar({
 
       {/* Stage filter chips */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1">Stage</span>
+        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Stage</span>
         {STAGE_META.map((s) => {
           const active = stageFilters.has(s.id);
           return (
@@ -583,6 +633,41 @@ function Toolbar({
               }`}
             >
               {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ATS band filter chips — colour-coded per band so the gates are
+          legible at a glance. Counts shown so you don't tap an empty band. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span
+          className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0"
+          title={`Global ATS gates: initial ${ATS_INITIAL} (must pass to tailor), final ${ATS_FINAL} (auto cover letter)`}
+        >
+          ATS
+        </span>
+        {ATS_BAND_META.map((b) => {
+          const active = atsBandFilters.has(b.id);
+          const count  = atsCounts[b.id];
+          return (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => toggleAtsBand(b.id)}
+              title={b.tip}
+              disabled={count === 0}
+              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                active
+                  ? `${b.chipBg} ${b.chipText} border-current font-medium`
+                  : count === 0
+                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
+              {b.label}
+              <span className="text-text-3 tabular-nums">{count}</span>
             </button>
           );
         })}
@@ -732,6 +817,7 @@ function HeroCard({ job, refSetter, focused }: { job: MockJob; refSetter: (el: H
       <div className="flex items-center gap-2 mb-2">
         <VisaDot visa={job.visa} />
         <SourcePill source={job.source} />
+        {job.ats_score !== null && <AtsChip score={job.ats_score} />}
         <span className="text-[10px] text-text-3 ml-auto">{job.posted_label}</span>
       </div>
       <a href="#" onClick={(e) => e.preventDefault()} className="block text-[13px] font-semibold text-text hover:text-[var(--brand)] leading-snug mb-1.5">
@@ -772,7 +858,7 @@ function Card({
             <SourcePill source={job.source} />
             {job.jd_quality === "thin" && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
             {job.possible_duplicate && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
-            {showSort === "ats" && job.ats_score !== null && <ChipInfo label={`ATS ${job.ats_score}`} tooltip="ATS score" />}
+            {job.ats_score !== null && <AtsChip score={job.ats_score} />}
             {showSort === "progress" && (
               <ChipInfo label={`Progress ${(job.progress.analysed ? 1 : 0) + (job.progress.tailored ? 1 : 0) + (job.progress.cover ? 1 : 0) + (job.progress.applied ? 1 : 0)}/4`} tooltip="Pipeline progress" />
             )}
@@ -826,6 +912,20 @@ function ChipWarn({ label, tooltip }: { label: string; tooltip: string }) {
 
 function ChipInfo({ label, tooltip }: { label: string; tooltip: string }) {
   return <span title={tooltip} className="text-[10px] font-medium px-1.5 py-px rounded shrink-0 bg-[var(--surface-2)] text-text-2 border border-border">{label}</span>;
+}
+
+/** Coloured by ATS band so the user can see at a glance whether a job
+ *  cleared the initial / final gate. Same colours as the toolbar chips. */
+function AtsChip({ score }: { score: number }) {
+  const band = ATS_BAND_META.find((b) => b.id === atsBand(score))!;
+  return (
+    <span
+      title={`ATS ${score} — ${band.tip}`}
+      className={`text-[10px] font-semibold px-1.5 py-px rounded shrink-0 tabular-nums ${band.chipBg} ${band.chipText}`}
+    >
+      ATS {score}
+    </span>
+  );
 }
 
 function Distance({ km }: { km: number }) {
