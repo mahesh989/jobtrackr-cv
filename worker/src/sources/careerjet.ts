@@ -184,42 +184,67 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Resolve a jobviewtrack.com tracking URL to the real job URL.
+ * Resolve a Careerjet tracking URL to the stable final job URL.
  *
- * jobviewtrack.com tracking URLs expire in ~1-2 minutes (one-time-use tokens).
- * We resolve them immediately after the API call — before they expire — using
- * a lightweight redirect-only fetch (no body, no Cloudflare bypass needed).
+ * Two URL formats — both expire quickly (one-time-use tokens, ~1–2 min):
+ *   • jobviewtrack.com/v2/<hash>              – newer format
+ *   • careerjet.com.au/clk/<hash>.html?affid= – affiliate format
  *
- * Returns the original URL unchanged if resolution fails (expired, blocked,
- * or non-tracking URL).
+ * Strategy:
+ *   careerjet.com.au/clk/  → native fetch (redirect endpoint, no bot guard)
+ *   jobviewtrack.com/v2/   → curlRedirect + Apify residential proxy
+ *                            (Fly datacenter IP is IP-blocked by jobviewtrack.com;
+ *                             Chrome TLS impersonation alone is not enough)
+ *
+ * Returns the original URL unchanged if resolution fails so callers can
+ * detect it and substitute a fallback search URL.
  */
 async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
-  // Two known Careerjet tracking URL formats — both expire quickly:
-  //   • jobviewtrack.com/v2/<hash>              (newer format)
-  //   • careerjet.com.au/clk/<hash>.html?affid= (affiliate format)
-  // Both are single 302 redirects to a stable final URL (careerjet.com.au/jobad/
-  // or the employer's own site). Resolve immediately after fetch while fresh.
-  const isTracking =
-    trackingUrl.includes("jobviewtrack.com") ||
-    trackingUrl.includes("careerjet.com.au/clk/");
-  if (!isTracking) return trackingUrl;
-  try {
-    // redirect: "manual" gets us the 302 Location without following the chain
-    const res = await fetch(trackingUrl, {
-      method:   "GET",
-      redirect: "manual",
-      headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
-      signal:   AbortSignal.timeout(8_000),
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (loc) return loc;
-    }
-    // 404 / other — tracking URL already expired or IP-blocked
-  } catch {
-    // timeout or network error — return original
+  // ── careerjet.com.au/clk/ ─────────────────────────────────────────────────
+  if (trackingUrl.includes("careerjet.com.au/clk/")) {
+    try {
+      const res = await fetch(trackingUrl, {
+        method:   "GET",
+        redirect: "manual",
+        headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
+        signal:   AbortSignal.timeout(8_000),
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (loc) return loc;
+      }
+    } catch { /* timeout or network error */ }
+    return trackingUrl;
   }
-  return trackingUrl;
+
+  // ── jobviewtrack.com/v2/ ──────────────────────────────────────────────────
+  if (trackingUrl.includes("jobviewtrack.com")) {
+    // Fly's datacenter IP is blocked by jobviewtrack.com regardless of TLS
+    // fingerprint. Route through an Apify residential AU proxy when available.
+    const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
+    if (proxyUrl) {
+      try {
+        const { status, location } = await curlRedirect(trackingUrl, proxyUrl, 10_000);
+        if (status >= 300 && status < 400 && location) return location;
+      } catch { /* proxy unavailable or timeout */ }
+    }
+    // No proxy — token will expire; return original so caller can substitute
+    // a Careerjet search URL (better UX than a dead jobviewtrack link).
+    return trackingUrl;
+  }
+
+  return trackingUrl; // not a tracking URL
+}
+
+/**
+ * Build a Careerjet search-results URL for a job title + location.
+ * Used as a fallback when the jobviewtrack.com tracking token can't be
+ * resolved — at least opens the right search page instead of a 404.
+ */
+function careerjetSearchFallback(title: string, location: string): string {
+  const q = encodeURIComponent(title.slice(0, 80));
+  const l = encodeURIComponent(location.split(",")[0].trim());
+  return `https://www.careerjet.com.au/jobs-in-${l.toLowerCase().replace(/%20/g, "-")}.html?s=${q}`;
 }
 
 /**
@@ -236,11 +261,20 @@ async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
       batch.map(async (job, bi) => {
         const realUrl = await resolveTrackingUrl(job.url);
         if (realUrl !== job.url) {
+          // Successfully resolved to a stable destination URL
           out[i + bi] = {
             ...job,
             url: realUrl,
-            // Keep original tracking URL in raw for debugging
             raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
+          };
+        } else if (job.url.includes("jobviewtrack.com")) {
+          // Resolution failed (no proxy or proxy unavailable). Substitute a
+          // Careerjet search URL so the link is usable instead of a dead 404.
+          const fallback = careerjetSearchFallback(job.title, job.location);
+          out[i + bi] = {
+            ...job,
+            url: fallback,
+            raw: { ...(job.raw as object ?? {}), _tracking_url: job.url, _url_fallback: true },
           };
         }
       }),
