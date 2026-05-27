@@ -69,3 +69,7 @@ worker/src/scripts/test*.ts
 supabase/migrations/ain_jobs*.json
 supabase/migrations/scrape_*.py
 .env*.local
+
+# Local Scraper Tests
+supabase/migrations/careerjet_data_analyst_melbourne.json
+supabase/migrations/careerjet_sample.html
