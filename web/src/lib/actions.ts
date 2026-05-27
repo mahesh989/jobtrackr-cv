@@ -88,9 +88,12 @@ function extractAdzunaFields(formData: FormData) {
 function extractSourceFields(formData: FormData) {
   const selected = formData.getAll("enabled_sources").map(String).filter(Boolean);
   const seekMethod = formData.get("seek_method") === "actor" ? "actor" : "direct";
+  // Adzuna defaults to 'api' (fast). 'direct' is opt-in for full JDs.
+  const adzunaMethod = formData.get("adzuna_method") === "direct" ? "direct" : "api";
   return {
     enabled_sources: selected.length > 0 ? selected : null,
     seek_method:     seekMethod,
+    adzuna_method:   adzunaMethod,
   };
 }
 
@@ -214,6 +217,7 @@ export async function copyProfile(profileId: string) {
       must_include_phrases: orig.must_include_phrases,
       enabled_sources: orig.enabled_sources,
       seek_method: orig.seek_method,
+      adzuna_method: orig.adzuna_method,
     })
     .select("id")
     .single();

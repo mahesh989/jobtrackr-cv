@@ -40,6 +40,12 @@ export interface SearchProfile {
   //   seek_method      — 'direct' (free curl_cffi) or 'actor' (Apify, paid).
   enabled_sources?: string[] | null;
   seek_method?: "direct" | "actor";
+
+  // Per-profile Adzuna fetch strategy (Migration 047).
+  //   'api'    → API teasers only (~600 char descriptions). Fast, default.
+  //   'direct' → also scrape /details/<id> HTML for full ~8k char JDs.
+  //              Slower, opt-in. Worker is background so user UI is unaffected.
+  adzuna_method?: "api" | "direct";
 }
 
 export interface RawJob {

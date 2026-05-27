@@ -35,6 +35,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     must_include_phrases?: string[];
     enabled_sources?:          string[] | null;
     seek_method?:              string;
+    adzuna_method?:            string;
     automation_enabled?:       boolean;
     role_match_strict?:        boolean;
     auto_send_emails?:         string;
@@ -96,6 +97,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 must_include_phrases:    profile.must_include_phrases,
                 enabled_sources:         profile.enabled_sources,
                 seek_method:             profile.seek_method,
+                adzuna_method:           profile.adzuna_method,
                 automation_enabled:      profile.automation_enabled,
                 role_match_strict:       profile.role_match_strict,
                 auto_send_emails:        profile.auto_send_emails,

@@ -94,7 +94,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -571,21 +571,31 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
-    // ── Stage 7d: Adzuna full-JD enrichment ────────────────────────────────────
+    // ── Stage 7d: Adzuna full-JD enrichment (opt-in via adzuna_method) ─────────
+    // 'api' (default) → skip entirely; teasers carry forward (~600 char each).
+    // 'direct'        → scrape /details/<id> HTML for full JD, cap 50.
+    //                   Adds ~2.5–5 min to the run (BullMQ background, UI unaffected).
     const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
-    if (adzunaSurvivors) {
+    const useAdzunaDirect = profile.adzuna_method === "direct";
+    if (adzunaSurvivors && useAdzunaDirect) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
-      const jdCap = 20;
+      const jdCap = 50;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
         kept = enriched;
-        console.log(`[pipeline] stage 7d — Adzuna JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+        console.log(`[pipeline] stage 7d — Adzuna JD (direct): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
         console.warn(`[pipeline] stage 7d — Adzuna JD threw: ${err instanceof Error ? err.message : err}`);
       }
+    } else if (adzunaSurvivors) {
+      console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='${profile.adzuna_method ?? 'api'}', using API teasers only)`);
     }
 
-    if (seekSurvivors || careerjetSurvivors || adzunaSurvivors) {
+    // Adzuna only contributes new desc text to re-scan when 'direct' mode
+    // actually enriched something — under 'api' mode the teaser is unchanged
+    // and we'd just re-run the same scan stage 4c did.
+    const adzunaEnriched = adzunaSurvivors && useAdzunaDirect;
+    if (seekSurvivors || careerjetSurvivors || adzunaEnriched) {
       // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
       // The first pass at stage 4c could only see teasers for SEEK. Now that we
       // have full JDs, dropped phrases that lived deep in the description are

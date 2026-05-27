@@ -29,6 +29,8 @@ interface Props {
     // Per-profile source selection (Migration 041)
     enabled_sources?: string[] | null;
     seek_method?: string;
+    // Per-profile Adzuna fetch strategy (Migration 047)
+    adzuna_method?: string;
     // Phase A automation config (defaults match Migration 031 column defaults)
     automation_enabled?:       boolean;
     // min_initial_ats / min_final_ats removed in migration 041 — global now.
@@ -56,6 +58,12 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
     ? defaults.enabled_sources.includes("seek")
     : true; // null = all sources on
   const [seekEnabled, setSeekEnabled] = useState<boolean>(defaultSeekOn);
+
+  // Same idea for Adzuna — fetch-method block only shows when Adzuna is on.
+  const defaultAdzunaOn = defaults?.enabled_sources
+    ? defaults.enabled_sources.includes("adzuna")
+    : true;
+  const [adzunaEnabled, setAdzunaEnabled] = useState<boolean>(defaultAdzunaOn);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -189,7 +197,11 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
                       <input
                         type="checkbox" name="enabled_sources" value={s.id}
                         defaultChecked={on}
-                        onChange={s.id === "seek" ? (e) => setSeekEnabled(e.target.checked) : undefined}
+                        onChange={
+                          s.id === "seek"   ? (e) => setSeekEnabled(e.target.checked)   :
+                          s.id === "adzuna" ? (e) => setAdzunaEnabled(e.target.checked) :
+                          undefined
+                        }
                         className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
                       />
                       {s.label}
@@ -213,6 +225,31 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
                     <input
                       type="radio" name="seek_method" value={opt.value}
                       defaultChecked={(defaults?.seek_method ?? "direct") === opt.value}
+                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="block text-[12px] font-medium text-text">{opt.label}</span>
+                      <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Adzuna fetch method — only shown when Adzuna is enabled */}
+          {adzunaEnabled && (
+            <div className="pt-1 border-t border-border">
+              <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wide mb-1.5">Adzuna fetch method</p>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  { value: "api",    label: "API (fast, partial descriptions)",   desc: "Uses Adzuna's API — quick, but each job's description is truncated to ~600 chars." },
+                  { value: "direct", label: "Direct (slower, full descriptions)", desc: "Also scrapes the Adzuna details page for each survivor (~8k char JDs). Adds 2–5 min to the run; free. Better visa extraction + smart-filter signal." },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio" name="adzuna_method" value={opt.value}
+                      defaultChecked={(defaults?.adzuna_method ?? "api") === opt.value}
                       className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
                     />
                     <span>
