@@ -194,7 +194,15 @@ function sleep(ms: number): Promise<void> {
  * or non-tracking URL).
  */
 async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
-  if (!trackingUrl.includes("jobviewtrack.com")) return trackingUrl;
+  // Two known Careerjet tracking URL formats — both expire quickly:
+  //   • jobviewtrack.com/v2/<hash>              (newer format)
+  //   • careerjet.com.au/clk/<hash>.html?affid= (affiliate format)
+  // Both are single 302 redirects to a stable final URL (careerjet.com.au/jobad/
+  // or the employer's own site). Resolve immediately after fetch while fresh.
+  const isTracking =
+    trackingUrl.includes("jobviewtrack.com") ||
+    trackingUrl.includes("careerjet.com.au/clk/");
+  if (!isTracking) return trackingUrl;
   try {
     // redirect: "manual" gets us the 302 Location without following the chain
     const res = await fetch(trackingUrl, {
