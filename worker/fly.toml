@@ -3,8 +3,6 @@ primary_region = 'syd'
 
 [build]
 
-[deploy]
-  release_command = 'node --version'
 
 [processes]
   worker = 'node dist/index.js'

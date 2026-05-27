@@ -25,6 +25,7 @@ interface Props {
     adzuna_distance_km?: number;
     adzuna_max_days_old?: number;
     exclude_title_keywords?: string[];
+    must_include_phrases?: string[];
     // Per-profile source selection (Migration 041)
     enabled_sources?: string[] | null;
     seek_method?: string;
@@ -415,6 +416,15 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
             <p className="text-[11px] text-text-2 mt-1">
               Any job whose title does <em>not</em> contain this word is dropped. Use it to enforce role type — e.g. <strong>"analyst"</strong> removes project managers, coordinators, and other roles that sneak in through broad keywords.
             </p>
+          </div>
+
+          {/* Smart filter — must include any of (title only) */}
+          <div>
+            <label className="block text-[12px] font-semibold text-text mb-1.5">
+              Smart filter — must include any of <span className="font-normal text-text-2">(optional, comma-separated)</span>
+            </label>
+            <input name="must_include_phrases" defaultValue={defaults?.must_include_phrases?.join(", ")} placeholder="e.g. Data Analyst, BI Analyst, Business Analyst, Analytics Analyst" className="field" />
+            <p className="text-[11px] text-text-2 mt-1">A job passes if its <strong>title</strong> contains any of these phrases. Leave empty to filter by your search keywords above. Setting this also enables a one-shot rescue check on the first 500 chars of the description for title-rejects, recovering legit variants like &quot;Business Analyst (Data &amp; Reporting)&quot;.</p>
           </div>
 
           {/* Exclude from title */}

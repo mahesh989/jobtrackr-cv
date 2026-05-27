@@ -19,6 +19,12 @@ export interface SearchProfile {
   adzuna_distance_km?: number;
   adzuna_max_days_old?: number;
   exclude_title_keywords?: string[];
+  // Optional "smart filter — must include any of" (promoted from beta).
+  // A job passes the keyword filter if its TITLE contains any of these
+  // phrases. Empty/undefined → fall back to filtering by `keywords` above.
+  // When non-empty, also activates teaser rescue (first 500 chars of
+  // description scanned for title-rejects).
+  must_include_phrases?: string[];
   is_manual_run?: boolean;
 
   // Set by the orchestrator per run, read by date-aware adapters (Adzuna, SEEK,

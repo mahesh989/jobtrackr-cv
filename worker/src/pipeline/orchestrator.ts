@@ -20,7 +20,7 @@ import { db } from "../db/client.js";
 import { adapters } from "../sources/index.js";
 import type { RawJob, SearchProfile } from "../sources/types.js";
 import { normalise, canonicalUrl } from "./normalise.js";
-import { keywordFilter } from "./keywordFilter.js";
+import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
 import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
@@ -32,6 +32,7 @@ import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichWithCareerjetJDs } from "../sources/careerjet.js";
+import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 
@@ -93,7 +94,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, enabled_sources, seek_method")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -463,9 +464,17 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Stage 4a: normalise — only truly new URLs from here on
     const normalised = newRawJobs.map(normalise);
 
-    // Stage 4b: keyword filter — keep only jobs matching at least one profile keyword
-    const filtered = keywordFilter(normalised, profile.keywords);
-    console.log(`[pipeline] stage 4b — keyword filter: ${filtered.length} kept, ${normalised.length - filtered.length} dropped`);
+    // Stage 4b: keyword filter — title-only with optional smart-filter rescue.
+    // Phrase source: profile.must_include_phrases if set, else profile.keywords.
+    // Teaser rescue activates only when must_include_phrases is non-empty.
+    const filtered = applyKeywordFilter(normalised, profile);
+    const usingSmartFilter = (profile.must_include_phrases ?? []).filter((s) => s && s.trim()).length > 0;
+    console.log(
+      `[pipeline] stage 4b — keyword filter (title-only` +
+      `${usingSmartFilter ? " + teaser rescue" : ""}): ` +
+      `${filtered.length} kept, ${normalised.length - filtered.length} dropped` +
+      `${usingSmartFilter ? ` (smart filter: ${(profile.must_include_phrases ?? []).join(", ")})` : ""}`,
+    );
 
     // Stage 4c: post-fetch smart filter — applies user's title/description rules
     // universally across ALL sources (not just Adzuna).
@@ -503,12 +512,13 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       let directMerged = 0;
       let directFetched = 0;
       let directThrew = false;
+      const jdCap = 20;
       try {
-        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept);
+        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
         kept = enriched;
         directMerged = merged;
         directFetched = fetched;
-        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0)`);
+        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
         directThrew = true;
         console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}`);
@@ -551,16 +561,31 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
     if (careerjetSurvivors) {
       await setStage(runLogId, "Fetching full Careerjet descriptions");
+      const jdCap = 20;
       try {
-        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept);
+        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept, jdCap);
         kept = enriched;
-        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0)`);
+        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
         console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
       }
     }
 
-    if (seekSurvivors || careerjetSurvivors) {
+    // ── Stage 7d: Adzuna full-JD enrichment ────────────────────────────────────
+    const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
+    if (adzunaSurvivors) {
+      await setStage(runLogId, "Fetching full Adzuna descriptions");
+      const jdCap = 20;
+      try {
+        const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
+        kept = enriched;
+        console.log(`[pipeline] stage 7d — Adzuna JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+      } catch (err) {
+        console.warn(`[pipeline] stage 7d — Adzuna JD threw: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    if (seekSurvivors || careerjetSurvivors || adzunaSurvivors) {
       // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
       // The first pass at stage 4c could only see teasers for SEEK. Now that we
       // have full JDs, dropped phrases that lived deep in the description are
