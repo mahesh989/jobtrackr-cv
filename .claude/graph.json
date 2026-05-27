@@ -23,7 +23,7 @@
       "host": "Fly.io (jobtrackr-worker)",
       "stack": "Node.js 22, TypeScript, BullMQ, curl_cffi subprocess",
       "deploy": "flyctl deploy --config /Users/mahesh/Documents/Github/jobtrackr-cv/worker/fly.toml",
-      "notes": "Primary SEEK: seekDirect (curl_cffi Chrome-124 TLS, no proxy). Apify actor: fallback only. Careerjet: two-phase (API + immediate tracking-URL resolution). Jora: disabled (OOM on 512MB VM)."
+      "notes": "Primary SEEK: seekDirect (curl_cffi Chrome-124 TLS, no proxy). Apify actor: fallback only. Careerjet: direct HTML scraping via curl_cffi (API abandoned to avoid tracking URL IP-blocks). Jora: disabled (OOM on 512MB VM)."
     },
     "cv_backend": {
       "path": "cv-backend/",
@@ -124,8 +124,8 @@
     },
     {
       "id": "OPS-14",
-      "title": "Careerjet jobviewtrack.com URLs expire in ~1-2 min — resolve immediately",
-      "detail": "Careerjet API returns one-time tracking URLs that expire fast. Fix: resolve immediately via Node fetch(redirect:'manual') to get stable careerjet.com.au/clk URLs. Store stable URL in DB — never the jobviewtrack URL. 5 parallel resolves per page fetch."
+      "title": "Careerjet API replaced with direct HTML scraping due to jobviewtrack.com blocks",
+      "detail": "Careerjet's API uses jobviewtrack.com for click tracking, which strictly blocks Fly.io Datacenter IPs with 404s. To avoid relying on an Apify residential proxy, the adapter was rewritten (2026-05-27) to scrape careerjet.com.au HTML directly using curl_cffi. WARNING: HTML scraping is fragile. If the DOM changes or Careerjet strictly rate-limits Fly's IP under high load, the documented fallback plan is to revert to the API adapter and use an Apify Residential proxy."
     },
     {
       "id": "OPS-15",
