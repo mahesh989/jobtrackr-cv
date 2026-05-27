@@ -2,3 +2,6 @@
 # Local Scraper Tests
 careerjet_test.json
 scripts/careerjet_local.py
+scripts/adzuna_html_test.py
+scripts/adzuna_id_test.py
+scripts/adzuna_test.py
