@@ -64,6 +64,7 @@ function extractAdzunaFields(formData: FormData) {
   const adzuna_hours = formData.get("adzuna_hours") as string;
   const max_days = formData.get("adzuna_max_days_old") as string;
   const rawExcludeTitles = formData.get("exclude_title_keywords") as string;
+  const rawMustInclude = formData.get("must_include_phrases") as string;
 
   return {
     adzuna_title_keywords: (formData.get("adzuna_title_keywords") as string) || "",
@@ -75,6 +76,7 @@ function extractAdzunaFields(formData: FormData) {
     adzuna_distance_km: formData.get("adzuna_distance_km") ? parseInt(formData.get("adzuna_distance_km") as string, 10) : 25,
     adzuna_max_days_old: max_days === "any" ? null : (max_days ? parseInt(max_days, 10) : 14),
     exclude_title_keywords: rawExcludeTitles ? rawExcludeTitles.split(",").map(k => k.trim()).filter(Boolean) : [],
+    must_include_phrases: rawMustInclude ? rawMustInclude.split(",").map(k => k.trim()).filter(Boolean) : [],
   };
 }
 
@@ -209,6 +211,7 @@ export async function copyProfile(profileId: string) {
       adzuna_distance_km: orig.adzuna_distance_km,
       adzuna_max_days_old: orig.adzuna_max_days_old,
       exclude_title_keywords: orig.exclude_title_keywords,
+      must_include_phrases: orig.must_include_phrases,
       enabled_sources: orig.enabled_sources,
       seek_method: orig.seek_method,
     })

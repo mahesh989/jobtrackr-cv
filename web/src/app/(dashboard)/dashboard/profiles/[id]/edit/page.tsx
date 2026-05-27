@@ -32,6 +32,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     adzuna_distance_km?: number;
     adzuna_max_days_old?: number;
     exclude_title_keywords?: string[];
+    must_include_phrases?: string[];
     enabled_sources?:          string[] | null;
     seek_method?:              string;
     automation_enabled?:       boolean;
@@ -92,6 +93,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 adzuna_distance_km: profile.adzuna_distance_km,
                 adzuna_max_days_old: profile.adzuna_max_days_old,
                 exclude_title_keywords: profile.exclude_title_keywords,
+                must_include_phrases:    profile.must_include_phrases,
                 enabled_sources:         profile.enabled_sources,
                 seek_method:             profile.seek_method,
                 automation_enabled:      profile.automation_enabled,

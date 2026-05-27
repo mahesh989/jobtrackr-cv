@@ -20,7 +20,7 @@ import { db } from "../db/client.js";
 import { adapters } from "../sources/index.js";
 import type { RawJob, SearchProfile } from "../sources/types.js";
 import { normalise, canonicalUrl } from "./normalise.js";
-import { keywordFilter } from "./keywordFilter.js";
+import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
 import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
@@ -94,7 +94,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, automation_enabled, enabled_sources, seek_method")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -464,9 +464,17 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Stage 4a: normalise — only truly new URLs from here on
     const normalised = newRawJobs.map(normalise);
 
-    // Stage 4b: keyword filter — keep only jobs matching at least one profile keyword
-    const filtered = keywordFilter(normalised, profile.keywords);
-    console.log(`[pipeline] stage 4b — keyword filter: ${filtered.length} kept, ${normalised.length - filtered.length} dropped`);
+    // Stage 4b: keyword filter — title-only with optional smart-filter rescue.
+    // Phrase source: profile.must_include_phrases if set, else profile.keywords.
+    // Teaser rescue activates only when must_include_phrases is non-empty.
+    const filtered = applyKeywordFilter(normalised, profile);
+    const usingSmartFilter = (profile.must_include_phrases ?? []).filter((s) => s && s.trim()).length > 0;
+    console.log(
+      `[pipeline] stage 4b — keyword filter (title-only` +
+      `${usingSmartFilter ? " + teaser rescue" : ""}): ` +
+      `${filtered.length} kept, ${normalised.length - filtered.length} dropped` +
+      `${usingSmartFilter ? ` (smart filter: ${(profile.must_include_phrases ?? []).join(", ")})` : ""}`,
+    );
 
     // Stage 4c: post-fetch smart filter — applies user's title/description rules
     // universally across ALL sources (not just Adzuna).
