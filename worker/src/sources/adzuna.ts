@@ -248,8 +248,14 @@ export async function enrichWithAdzunaJDs(
 
     try {
       fetchedCount++;
-      const html = await curlFetch(detailsUrl);
-      const $ = cheerio.load(html);
+      const result = await curlFetch(detailsUrl);
+      
+      if (result.status !== 200) {
+        console.warn(`[adzuna-jd] ${detailsUrl} failed with HTTP ${result.status}`);
+        continue;
+      }
+
+      const $ = cheerio.load(result.body);
 
       // The JD is wrapped in a section with class 'adp-body'
       const description = $("section.adp-body").text().trim();
