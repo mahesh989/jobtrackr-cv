@@ -190,37 +190,36 @@ function sleep(ms: number): Promise<void> {
  *   • jobviewtrack.com/v2/<hash>              – newer format
  *   • careerjet.com.au/clk/<hash>.html?affid= – affiliate format
  *
- * Strategy:
- *   careerjet.com.au/clk/  → native fetch (redirect endpoint, no bot guard)
- *   jobviewtrack.com/v2/   → curlRedirect + Apify residential proxy
- *                            (Fly datacenter IP is IP-blocked by jobviewtrack.com;
- *                             Chrome TLS impersonation alone is not enough)
+ * Strategy for both: native fetch with redirect:manual first (works from
+ * Fly's IP while the token is fresh). jobviewtrack.com/v2/ also gets a
+ * curlRedirect + Apify residential proxy fallback for the rare case where
+ * native fetch is blocked.
  *
- * Returns the original URL unchanged if resolution fails so callers can
- * detect it and substitute a fallback search URL.
+ * Returns the original URL unchanged if ALL resolution attempts fail so
+ * callers can detect it and substitute a fallback search URL.
  */
 async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
-  // ── careerjet.com.au/clk/ ─────────────────────────────────────────────────
-  if (trackingUrl.includes("careerjet.com.au/clk/")) {
-    try {
-      const res = await fetch(trackingUrl, {
-        method:   "GET",
-        redirect: "manual",
-        headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
-        signal:   AbortSignal.timeout(8_000),
-      });
-      if (res.status >= 300 && res.status < 400) {
-        const loc = res.headers.get("location");
-        if (loc) return loc;
-      }
-    } catch { /* timeout or network error */ }
-    return trackingUrl;
-  }
+  const isTrackingUrl =
+    trackingUrl.includes("careerjet.com.au/clk/") ||
+    trackingUrl.includes("jobviewtrack.com");
+  if (!isTrackingUrl) return trackingUrl;
 
-  // ── jobviewtrack.com/v2/ ──────────────────────────────────────────────────
+  // ── Native fetch (works while token is fresh, same approach as main branch) ─
+  try {
+    const res = await fetch(trackingUrl, {
+      method:   "GET",
+      redirect: "manual",
+      headers:  { "User-Agent": USER_AGENT, "Accept": "text/html" },
+      signal:   AbortSignal.timeout(8_000),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (loc) return loc;
+    }
+  } catch { /* timeout or network error — try proxy below */ }
+
+  // ── Proxy fallback for jobviewtrack.com (if Apify proxy is available) ─────
   if (trackingUrl.includes("jobviewtrack.com")) {
-    // Fly's datacenter IP is blocked by jobviewtrack.com regardless of TLS
-    // fingerprint. Route through an Apify residential AU proxy when available.
     const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
     if (proxyUrl) {
       try {
@@ -228,12 +227,11 @@ async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
         if (status >= 300 && status < 400 && location) return location;
       } catch { /* proxy unavailable or timeout */ }
     }
-    // No proxy — token will expire; return original so caller can substitute
-    // a Careerjet search URL (better UX than a dead jobviewtrack link).
-    return trackingUrl;
   }
 
-  return trackingUrl; // not a tracking URL
+  // All resolution attempts failed — return original so caller can substitute
+  // a Careerjet search URL (better UX than a dead tracking link).
+  return trackingUrl;
 }
 
 /**
@@ -275,9 +273,12 @@ async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
             url: realUrl,
             raw: { ...(job.raw as object ?? {}), _tracking_url: job.url },
           };
-        } else if (job.url.includes("jobviewtrack.com")) {
-          // Resolution failed (no proxy or proxy unavailable). Substitute a
-          // Careerjet search URL so the link is usable instead of a dead 404.
+        } else if (
+          job.url.includes("jobviewtrack.com") ||
+          job.url.includes("careerjet.com.au/clk/")
+        ) {
+          // Resolution failed — substitute a Careerjet search URL so the link
+          // is usable instead of a dead 404.
           const fallback = careerjetSearchFallback(job.title, job.location);
           out[i + bi] = {
             ...job,
