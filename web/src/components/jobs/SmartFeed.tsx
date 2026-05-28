@@ -89,6 +89,17 @@ function clampInt(raw: string | null, lo: number, hi: number, fallback: number):
   return Math.min(hi, Math.max(lo, n));
 }
 
+/** A job still "needs a JD" only when it's thin AND the user hasn't already
+ *  pasted a usable manual JD (≥200 chars — the same bar the analyze route
+ *  uses to unblock). Once they have, the "thin JD" nag is stale, so we hide
+ *  it even if the DB jd_quality is still 'thin' (a sub-2000-char paste stays
+ *  'thin' by the length classifier but is perfectly analysable). */
+function needsJd(j: BoardJob): boolean {
+  if (j.jd_quality !== "thin") return false;
+  const manual = (j.manual_jd_text ?? "").trim();
+  return manual.length < 200;
+}
+
 function isPostedToday(j: BoardJob): boolean {
   if (!j.posted_at) return false;
   const d = new Date(j.posted_at);
@@ -162,7 +173,7 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   const fresh = active.filter((j) => !placed.has(j.id) && isPostedToday(j));
   fresh.forEach((j) => placed.add(j.id));
 
-  const attention = active.filter((j) => !placed.has(j.id) && j.jd_quality === "thin");
+  const attention = active.filter((j) => !placed.has(j.id) && needsJd(j));
   attention.forEach((j) => placed.add(j.id));
 
   const rest = jobs.filter((j) => !placed.has(j.id));
@@ -547,7 +558,7 @@ function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: st
             <CardTitle job={job} inline />
             <SourcePill source={job.source} />
             {job.profile_name && <ProfileChip name={job.profile_name} />}
-            {job.jd_quality === "thin" && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
+            {needsJd(job) && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
             {job.dedup_status === "possible_duplicate" && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
           </div>
           <CardMeta job={job} compact />
@@ -732,7 +743,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
           </span>
         </>
       )}
-      {job.jd_quality === "thin" && (
+      {needsJd(job) && (
         <span className="ml-2 inline-flex items-center gap-0.5 text-amber-600 align-middle">
           <FileWarning className="w-3 h-3 inline" /> <span className="text-[10px]">thin JD</span>
         </span>

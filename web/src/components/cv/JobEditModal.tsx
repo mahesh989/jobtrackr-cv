@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 
 interface Props {
   jobId:              string;
@@ -33,6 +34,7 @@ export function JobEditModal({
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const router = useRouter();
 
   // Track whether the field has been edited so we know how to interpret it.
   const wasOriginallyEdited = initialManual !== null && initialManual !== "";
@@ -89,6 +91,10 @@ export function JobEditModal({
         hiring_manager:  json.hiring_manager ?? null,
         company_address: json.company_address ?? null,
       });
+      // Re-fetch server data so the board reflects the DB trigger's recomputed
+      // jd_quality (a full paste ≥2000 chars flips thin → rich), clearing the
+      // stale "thin JD" badge without a manual page reload.
+      router.refresh();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
