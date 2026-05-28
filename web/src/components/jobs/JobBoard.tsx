@@ -214,12 +214,13 @@ export function JobBoard({
           renders smart sections (Today's picks · Closest · Fresh · Needs
           attention · Everything else). When filtered, renders a flat card
           list sorted by the toolbar's sort dropdown. */}
-      {/* When the user explicitly sorts by distance, skip the smart-section
-          grouping (Today's picks / Closest / Fresh / …) and just render a
-          single sorted list — the chosen sort order is the whole point. */}
+      {/* When the user picks any sort other than the default "Date posted",
+          skip the smart-section grouping (Today's picks / Closest / Fresh /
+          …) and just render a single sorted list — the chosen sort order
+          is the whole point. */}
       <SmartFeed
         jobs={filtered}
-        hasActiveFilter={hasActiveFilter || sortCol === "distance"}
+        hasActiveFilter={hasActiveFilter || sortCol !== "posted_at"}
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
