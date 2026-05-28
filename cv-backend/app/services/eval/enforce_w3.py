@@ -21,6 +21,7 @@ import re
 from typing import Any, Dict, List, Set
 
 from app.services.eval.enforce import _split_items, _norm
+from app.services.eval.grounding import compute_grounding
 
 # ---------------------------------------------------------------------------
 # AI-signal detection (mirrors the prompt's scan)
@@ -276,6 +277,38 @@ def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Strip ungrounded tool parentheticals from bullets (SharePoint-class)
+# ---------------------------------------------------------------------------
+
+_BULLET_PREFIXES = ("- ", "* ", "• ")
+
+
+def strip_ungrounded_bullet_parentheticals(md: str, original_cv_text: str) -> str:
+    """
+    Remove parenthetical clauses that name an ungrounded entity from EXPERIENCE
+    / PROJECT bullets, e.g. "...dashboards (integrated with SharePoint)..." when
+    SharePoint isn't in the CV. Scoped to bullet lines only, so legitimate
+    Skills inferences like "Power BI (DAX, M language)" are untouched.
+    """
+    report = compute_grounding(md, original_cv_text)
+    toks = sorted(
+        {t.strip() for t in (report.get("ungrounded") or []) if len(t.strip()) >= 3},
+        key=len, reverse=True,
+    )
+    if not toks:
+        return md
+    alt = "|".join(re.escape(t) for t in toks)
+    paren_re = re.compile(r"\s*\([^)]*(?:" + alt + r")[^)]*\)", re.IGNORECASE)
+
+    out: List[str] = []
+    for line in md.split("\n"):
+        if line.lstrip().startswith(_BULLET_PREFIXES):
+            line = paren_re.sub("", line)
+        out.append(line)
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
 # Convenience: run all W3 gates in order
 # ---------------------------------------------------------------------------
 
@@ -286,9 +319,12 @@ def apply_w3_gates(
     jd_text: str,
     jd_analysis: Dict[str, Any],
     suppress: bool,
+    original_cv_text: str = "",
 ) -> str:
     if suppress:
         md = suppress_ai_identity(md, jd_text)
     md = clamp_two_sentences(md)
     md = enforce_degree_relevance(md, jd_analysis)
+    if original_cv_text:
+        md = strip_ungrounded_bullet_parentheticals(md, original_cv_text)
     return md

@@ -64,10 +64,18 @@ OUTPUT SHAPE
   have NO bullets.
 - Every bullet is a full sentence ending in a period: action verb + method +
   context + (quantified) result. 18-30 words.
-- Career-style summary section (when present): 2 sentences of prose, 35-50
-  words, no bullets, no tool names, no generic openers ("Results-driven",
-  "Passionate"). Include a quantified achievement with a company anchor when
-  the CV supports one.
+- Career-style summary section (when present): EXACTLY TWO sentences of prose,
+  35-50 words total. NOT one sentence — one sentence is a failure. Structure:
+    Sentence 1 (positioning): role title + relevant years + 1-2 specialisations
+      from the JD + who you deliver for.
+    Sentence 2 (achievement): a DISTINCT second sentence carrying a quantified
+      result and a company anchor (e.g. "Improved forecasting accuracy 25% at
+      The Bitrates; cut reporting time 30% at iBuild.").
+  No bullets, no tool names, no generic openers ("Results-driven", "Passionate").
+- EDUCATION: keep 1-3 entries. ALWAYS keep the candidate's most recent
+  Bachelor's degree as a baseline credential — never drop it, even if its
+  field differs from the JD. Drop only graduate degrees (Master's/PhD) whose
+  field shares neither the JD's domain nor its methodology.
 
 SENIORITY WORDS
 Use "Senior / Lead / Principal / Manager / Director" only when that exact

@@ -291,6 +291,7 @@ async def _writer_w3_composition(
         jd_analysis=up["jd_analysis"],
         # Suppression no-ops when the JD has AI signal; harmless for non-tech.
         suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
     )
     # drop_ungrounded only for the strictest policy (manual = "none") to avoid
     # pruning legitimate methodology terms in tech/master.
