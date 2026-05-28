@@ -52,6 +52,7 @@ from app.services.ai.prompts.variants.composition import (
 )
 from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
+from app.services.eval.enforce_w8 import to_canonical, restore_and_order
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
@@ -510,6 +511,98 @@ async def _writer_w7_converged(
     )
 
 
+# ---------------------------------------------------------------------------
+# W8 — production-contract integration of the role-family engine.
+#
+# The deliverable of the "document production → integrate into the new engine →
+# adapt for nursing" task. It is the role-family COMPOSITION writer (W3's
+# architecture: [universal engine] + [role-family pack] + [seniority overlay],
+# correct per-family section order and skills taxonomy) run through the EXACT
+# FROZEN production presentation contract — reproduced 1:1 via the canonical
+# sandwich (enforce_w8): rename the family's section headings to the production
+# canonical names, run the verbatim production post-processors + the proven W3
+# gates + skills hygiene, rename back, then reorder to the family's section
+# order. No production code is forked or re-implemented, so the PDF format,
+# bullet-writing method, bullet counts, and the 2-sentence/35-50-word summary
+# method are identical to production. Fixes W7's one residual: W8 leads nursing
+# with "Registration & Licences" and honours every family's section order.
+#
+# Honesty stack (same as W7): domain_knowledge restricted to direct-only,
+# suppression for tech/master, degree relevance, ungrounded-strip, skills caps.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w8_integrated(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    up = await _run_upstream(client, cv_text, jd_text)
+    up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
+
+    role_family = resolve_role_family(vertical, up["jd_analysis"])
+    seniority = resolve_seniority(up["jd_analysis"])
+    system_prompt = build_composition_system(role_family, seniority)
+
+    plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
+    user_prompt = COMPOSITION_USER_TEMPLATE.format(
+        cv_text=cv_text,
+        jd_text=jd_text,
+        feasibility_json=json.dumps(plan_for_prompt, indent=2),
+    )
+    raw = await client.complete(
+        system=system_prompt,
+        user=user_prompt,
+        max_tokens=6144,
+        temperature=0.35,
+    )
+    if not raw or len(raw.strip()) < 200:
+        raise ValueError("W8 tailored CV: response too short")
+
+    # ── Canonical sandwich — reproduce the FROZEN production contract 1:1 ──
+    # 1. Rename the family's section headings to the production canonical names.
+    md = to_canonical(raw.strip(), role_family)
+    # 2. Run the VERBATIM production post-processors (structural caps, bullet
+    #    method, summary clamp, education rules, skills safety-net injector).
+    md = _enforce_structure(md)
+    md = _inject_missing_skills(md, up["feasibility"])
+    md = stamp_contact_line(md, contact_details)
+    # 3. Proven W3 deterministic gates (suppression / degree relevance /
+    #    ungrounded-strip) + skills hygiene — all expect canonical names.
+    md = apply_w3_gates(
+        md,
+        jd_text=jd_text,
+        jd_analysis=up["jd_analysis"],
+        suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
+    )
+    md = enforce_skills_section(
+        md,
+        original_cv_text=cv_text,
+        drop_ungrounded=(role_family.injection_policy == "none"),
+    )
+    # 4. Rename canonical headings back to the family's names and apply the
+    #    family's section order (fixes W7's nursing section-order residual).
+    final_md = restore_and_order(md, role_family)
+
+    return WriterResult(
+        tailored_md=final_md,
+        jd_analysis=up["jd_analysis"],
+        matching=up["matching"],
+        initial_ats_internal=up["ats"],
+        feasibility=up["feasibility"],
+        extras={
+            "input_recommendations": up["input_recs"],
+            "role_family": role_family.id,
+            "seniority": seniority,
+            "section_order": role_family.section_order,
+        },
+    )
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
@@ -518,6 +611,7 @@ WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w5_surfacing":   _writer_w5_surfacing,
     "w6_general":     _writer_w6_general,
     "w7_converged":   _writer_w7_converged,
+    "w8_integrated":  _writer_w8_integrated,
 }
 
 

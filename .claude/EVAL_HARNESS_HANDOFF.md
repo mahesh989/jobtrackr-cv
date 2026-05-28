@@ -29,7 +29,27 @@ variants on the same CV+JD and iterate with evidence, not guesses.
 ## Variants
 Writers: **W1** current prod · **W2** generalised-lean · **W3** composition (role-pack +
 gates) · **W4** chat single-call · **W5** lexical-surfacing · **W6** re-engineered general
-W1 prompt · **W7** = W6 prompt + W3 gates (THE WINNER).
+W1 prompt · **W7** = W6 prompt + W3 gates (validated winner pre-W8) · **W8** = the
+production-integration writer (role-family composition engine + the FROZEN production
+presentation contract reproduced 1:1 via the canonical sandwich + W7's full gate stack +
+family section ordering). W8 is the deliverable of the "document production → integrate
+into new engine → adapt for nursing" task; it fixes W7's one residual (nursing now leads
+with "Registration & Licences" and every family's section order is honoured).
+
+### W8 mechanism (`cv-backend/app/services/eval/enforce_w8.py`)
+The frozen production contract (`steps/tailored_cv._enforce_structure` +
+`_inject_missing_skills`, `contact_line.stamp_contact_line`) and the W3 gates are all
+hard-wired to the TECH/master canonical section names. W8 reuses them VERBATIM for any
+family via a **canonical sandwich**: `to_canonical` renames family headings →
+canonical (nursing: Professional Summary→Career Highlights, Clinical Experience→
+Professional Experience; manual: Summary→Career Highlights, Work Experience→Professional
+Experience, Certifications & Checks→Certifications), run the whole frozen production +
+gate stack, then `restore_and_order` renames back and reorders to `rf.section_order`.
+Zero reimplementation of production logic = guaranteed 1:1 fidelity (PDF format,
+bullet-writing method, bullet counts, 2-sentence/35-50-word summary method all identical).
+Config-driven only — no per-case tokens (anti-overfit). Smoke-tested: bullet caps (4→3)
+and role caps (4→3) fire on the renamed sections; nursing output leads with Registration
+& Licences. Compile + functional smoke OK.
 Scorers: **S1** current ATS · **S2** grounded · **S5** ATS-readiness (parseability +
 grounded lexical coverage — the honest, demonstrable lift). S3/S4 deferred (skip — S2/S5
 answer the scorer question; real validation needs callback data, not more scorers).
