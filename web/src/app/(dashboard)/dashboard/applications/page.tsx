@@ -21,6 +21,7 @@ import { ApplicationCardList } from "@/components/applications/ApplicationCardLi
 import { BackButton } from "@/components/dashboard/BackButton";
 import { PoolBulkBar } from "@/components/applications/PoolBulkBar";
 import { EmailBulkBar } from "@/components/applications/EmailBulkBar";
+import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
 
 const LETTER_PREVIEW_CHARS = 180;
 
@@ -226,6 +227,9 @@ export default async function ApplicationsPage({
 
   return (
     <div className="min-h-full">
+      {/* Clears the sidebar Applications badge on view (persists via
+          users.applications_seen_at). */}
+      <MarkApplicationsSeenOnLoad />
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
           <div>

@@ -20,6 +20,32 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profiles = (profileRows ?? []) as { id: string; name: string }[];
   const profileIds = profiles.map((p) => p.id);
 
+  // When did the user last open the Applications outbox? The badge only counts
+  // pool items that completed after this, so once they view the page the badge
+  // clears and stays cleared until a new cover letter lands.
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("applications_seen_at")
+    .eq("id", user.id)
+    .single();
+  const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
+
+  // Applications pool count: completed non-stale cover letters whose job is
+  // still awaiting the email/no-email decision. RLS scopes to user_id. We only
+  // count those that completed *after* the user last viewed the outbox.
+  let poolQuery = supabase.from("cover_letters")
+    .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
+      count: "exact",
+      head:  true,
+    })
+    .eq("user_id", user.id)
+    .eq("status", "completed")
+    .eq("is_stale", false)
+    .is("jobs.pool_decision_at", null)
+    .is("jobs.applied_at", null)
+    .is("jobs.dismissed_at", null);
+  if (applicationsSeenAt) poolQuery = poolQuery.gt("completed_at", applicationsSeenAt);
+
   const [{ data: unseenRows }, { data: runRows }, { count: poolCount }] = await Promise.all([
     supabase.from("jobs")
       .select("profile_id")
@@ -32,19 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       .select("profile_id, status")
       .in("profile_id", profileIds)
       .eq("status", "running"),
-    // Applications pool count: completed non-stale cover letters whose job
-    // is still awaiting the email/no-email decision. RLS scopes to user_id.
-    supabase.from("cover_letters")
-      .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
-        count: "exact",
-        head:  true,
-      })
-      .eq("user_id", user.id)
-      .eq("status", "completed")
-      .eq("is_stale", false)
-      .is("jobs.pool_decision_at", null)
-      .is("jobs.applied_at", null)
-      .is("jobs.dismissed_at", null),
+    poolQuery,
   ]);
 
   const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
