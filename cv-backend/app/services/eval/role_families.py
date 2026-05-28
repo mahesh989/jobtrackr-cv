@@ -196,14 +196,25 @@ def resolve_role_family(
     if hint in ROLE_FAMILIES:
         return ROLE_FAMILIES[hint]
 
-    # Keyword match against the JD.
+    # Keyword match against the JD. We search the structured skill arrays AND
+    # the free-text fields (job_title / summary / responsibilities) because the
+    # JD analyser often returns a title like "Assistant in Nursing" whose alias
+    # ("ain", "aged care") never appears verbatim in the skill arrays — the
+    # signal lives in the summary/responsibilities prose instead.
     haystack_parts: List[str] = []
     if jd_analysis:
         haystack_parts.append(str(jd_analysis.get("job_title") or ""))
-        req = jd_analysis.get("required_skills") or {}
-        if isinstance(req, dict):
-            for cat in ("technical", "soft_skills", "domain_knowledge"):
-                haystack_parts.extend(str(x) for x in (req.get(cat) or []))
+        haystack_parts.append(str(jd_analysis.get("summary") or ""))
+        resp = jd_analysis.get("responsibilities") or []
+        if isinstance(resp, list):
+            haystack_parts.extend(str(x) for x in resp)
+        else:
+            haystack_parts.append(str(resp))
+        for block in ("required_skills", "preferred_skills"):
+            skills = jd_analysis.get(block) or {}
+            if isinstance(skills, dict):
+                for cat in ("technical", "soft_skills", "domain_knowledge"):
+                    haystack_parts.extend(str(x) for x in (skills.get(cat) or []))
     haystack = " ".join(haystack_parts).lower()
 
     if haystack.strip():
