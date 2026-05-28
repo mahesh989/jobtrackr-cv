@@ -255,7 +255,10 @@ export async function deleteProfile(profileId: string) {
     .eq("user_id", user.id);
   triggerScheduleSync();
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath("/dashboard/profiles");
+  // Land back on the profiles list (where the delete was initiated), not the
+  // dashboard — the user was managing profiles, so keep them in that context.
+  redirect("/dashboard/profiles");
 }
 
 export async function toggleProfileActive(profileId: string, newActive: boolean) {
