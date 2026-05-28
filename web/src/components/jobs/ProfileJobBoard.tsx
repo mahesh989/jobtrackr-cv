@@ -184,9 +184,12 @@ export function ProfileJobBoard({
 
       <ContinueRail jobs={railJobs} currentTab={stage} />
 
+      {/* When the user explicitly sorts by distance, skip the smart-section
+          grouping (Today's picks / Closest / Fresh / …) and just render a
+          single sorted list — the chosen sort order is the whole point. */}
       <SmartFeed
         jobs={filtered}
-        hasActiveFilter={hasActiveFilter}
+        hasActiveFilter={hasActiveFilter || sortCol === "distance"}
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
