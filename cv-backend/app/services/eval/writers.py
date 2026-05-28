@@ -441,6 +441,72 @@ async def _writer_w6_general(
     )
 
 
+# ---------------------------------------------------------------------------
+# W7 — convergence. W6's generation prompt (best writing: clean 2-sentence
+# Highlights, honest lift, fast, general) run through W3's deterministic gates
+# (suppression / degree relevance / ungrounded-strip / skills hygiene) — the
+# things proven not to hold as prompt prose. Best of both, in one variant.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w7_converged(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    up = await _run_upstream(client, cv_text, jd_text)
+    recs_md = await run_ai_recommendations(
+        client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
+    )
+    plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
+    user_prompt = TAILORED_CV_USER_TEMPLATE.format(
+        cv_text=cv_text,
+        jd_analysis_json=json.dumps(up["jd_analysis"], indent=2),
+        ai_recommendations_md=recs_md,
+        feasibility_json=json.dumps(plan_for_prompt, indent=2),
+    )
+    raw = await client.complete(
+        system=TAILORED_CV_W6_SYSTEM,   # W6's generation prompt
+        user=user_prompt,
+        max_tokens=6144,
+        temperature=0.3,
+    )
+    if not raw or len(raw.strip()) < 200:
+        raise ValueError("W7 tailored CV: response too short")
+
+    role_family = resolve_role_family(vertical, up["jd_analysis"])
+
+    # Production post-processors → W3 deterministic gates → skills hygiene.
+    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = apply_w3_gates(
+        final_md,
+        jd_text=jd_text,
+        jd_analysis=up["jd_analysis"],
+        suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
+    )
+    final_md = enforce_skills_section(
+        final_md,
+        original_cv_text=cv_text,
+        drop_ungrounded=(role_family.injection_policy == "none"),
+    )
+    return WriterResult(
+        tailored_md=final_md,
+        jd_analysis=up["jd_analysis"],
+        matching=up["matching"],
+        initial_ats_internal=up["ats"],
+        feasibility=up["feasibility"],
+        extras={
+            "input_recommendations": up["input_recs"],
+            "role_family": role_family.id,
+            "ai_recommendations_md": recs_md,
+        },
+    )
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
@@ -448,6 +514,7 @@ WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w4_chat":        _writer_w4_chat,
     "w5_surfacing":   _writer_w5_surfacing,
     "w6_general":     _writer_w6_general,
+    "w7_converged":   _writer_w7_converged,
 }
 
 
