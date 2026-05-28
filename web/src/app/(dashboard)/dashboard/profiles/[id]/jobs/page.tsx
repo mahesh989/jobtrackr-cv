@@ -333,8 +333,9 @@ export default async function JobsPage({
         </div>
       </div>
 
-      <div className="px-6 py-4">
-       <div className="max-w-5xl mx-auto space-y-4">
+      {/* Single wrapper matches /dashboard/beta/job-feed exactly:
+          max-w-5xl mx-auto px-4 py-6 — same left/right margins as the beta. */}
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
         <LiveLogConsole profileId={id} />
 
@@ -362,7 +363,6 @@ export default async function JobsPage({
             Edit profile
           </Link>
         </div>
-       </div>
       </div>
     </div>
   );

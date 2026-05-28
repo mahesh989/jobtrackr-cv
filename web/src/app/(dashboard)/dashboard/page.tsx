@@ -574,8 +574,10 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="px-6 py-5">
-       <div className="max-w-5xl mx-auto space-y-6">
+      {/* Single wrapper matches /dashboard/beta/job-feed exactly:
+          max-w-5xl mx-auto px-4 py-6 — no outer px-6 so the left/right
+          margins line up byte-for-byte with the beta. */}
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* ── KPI bar (interactive) ── */}
         <DashboardStatCards
           totalJobs={totalJobs}
@@ -610,7 +612,6 @@ export default async function DashboardPage({
           <span>·</span>
           <Link href="/privacy" className="hover:text-text transition-colors">Privacy policy</Link>
         </div>
-       </div>
       </div>
     </div>
   );
