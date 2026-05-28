@@ -4,12 +4,11 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
-import { PipelineFunnel, type FunnelCounts } from "./PipelineFunnel";
-import { SmartFilterBar } from "./SmartFilterBar";
+import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { BulkThinJdButton, type ThinJdJob } from "./BulkThinJdButton";
-import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob } from "./jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
@@ -97,6 +96,14 @@ export function JobBoard({
     () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance: "" }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, sortCol, asc],
   );
+
+  // ATS-band counts derived from the *unfiltered* loaded set — used by the
+  // toolbar's chip badges so users see what they can filter to.
+  const atsCounts = useMemo<Record<AtsBand, number>>(() => {
+    const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
+    for (const j of jobs) out[j.atsBand]++;
+    return out;
+  }, [jobs]);
 
   // Active view-filter labels for the heading (dismissed = a server tab, not a
   // view filter, so it isn't shown as a removable chip here).
@@ -197,21 +204,20 @@ export function JobBoard({
         <BulkThinJdButton jobs={thinJdJobs} />
       </div>
 
-      <PipelineFunnel counts={counts} currentStage={stage} excludeStages={["all", "applied"]} shallow />
-
-      <SmartFilterBar total={filtered.length} showKeywords={false} showAtsFilter shallow />
-
       <ContinueRail jobs={railJobs} currentTab={stage} />
 
-      {/* Card-based smart feed. When no view filter is active, renders
-          smart sections (Today's picks · Closest · Fresh · Needs attention ·
-          Everything else). When filtered, renders a flat card list sorted
-          by SmartFilterBar. Reuses AnalyzeJobButton + JobEditModal +
-          markJobApplied/Dismissed for full action parity with JobTable. */}
+      {/* Card-based smart feed with embedded SmartToolbar (location search,
+          sort dropdown, stage chips, ATS band chips — replaces the old
+          PipelineFunnel + SmartFilterBar). When no view filter is active,
+          renders smart sections (Today's picks · Closest · Fresh · Needs
+          attention · Everything else). When filtered, renders a flat card
+          list sorted by the toolbar's sort dropdown. */}
       <SmartFeed
         jobs={filtered}
         hasActiveFilter={hasActiveFilter}
         currentTab={stage}
+        counts={counts}
+        atsCounts={atsCounts}
       />
     </>
   );

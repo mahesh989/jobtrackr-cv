@@ -37,6 +37,8 @@ import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { BoardJob, AtsBand } from "./jobFilters";
+import type { FunnelCounts } from "./PipelineFunnel";
+import { SmartToolbar } from "./SmartToolbar";
 
 // ── scoring ─────────────────────────────────────────────────────────────
 
@@ -170,14 +172,24 @@ export function SmartFeed({
   jobs,
   hasActiveFilter,
   currentTab,
+  counts,
+  atsCounts,
+  homeAddress = null,
 }: {
-  /** Pre-filtered + pre-sorted by the parent JobBoard. */
+  /** Pre-filtered + pre-sorted by the parent board. */
   jobs:            BoardJob[];
   /** True when stage/triage/ATS view filters are active. Switches the feed
    *  from smart-section mode to flat-list mode. */
   hasActiveFilter: boolean;
   /** Current stage — passed to JobEditModal-aware children. */
   currentTab:      string;
+  /** Stage counts for the toolbar's chip badges. */
+  counts:          FunnelCounts;
+  /** ATS-band counts derived from the *unfiltered* loaded set — drives the
+   *  toolbar chip badges so users see what they can filter to. */
+  atsCounts:       Record<AtsBand, number>;
+  /** When set, the toolbar renders the "Within X km" distance select. */
+  homeAddress?:    string | null;
 }) {
   // Ref map per job id so the distance ribbon can scroll to a card.
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -190,11 +202,6 @@ export function SmartFeed({
     setTimeout(() => el.classList.remove("ring-2", "ring-[var(--brand)]"), 1500);
   }
 
-  const sections = useMemo(
-    () => (hasActiveFilter ? null : bucketJobs(jobs)),
-    [hasActiveFilter, jobs],
-  );
-
   // Distance ribbon — only render when at least one job has a resolved
   // distance. The bucketing is profile-agnostic, but the chart still helps
   // spot clusters.
@@ -204,12 +211,44 @@ export function SmartFeed({
     return max;
   }, [jobs]);
 
-  if (jobs.length === 0) {
-    return <EmptyState />;
-  }
-
   return (
     <div className="space-y-5">
+      {/* Unified filter + sort toolbar — replaces PipelineFunnel + SmartFilterBar */}
+      <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} />
+
+      {jobs.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <SmartFeedBody
+          jobs={jobs}
+          hasActiveFilter={hasActiveFilter}
+          currentTab={currentTab}
+          distanceMax={distanceMax}
+          cardRefs={cardRefs}
+          scrollToJob={scrollToJob}
+        />
+      )}
+    </div>
+  );
+}
+
+function SmartFeedBody({
+  jobs, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
+}: {
+  jobs: BoardJob[];
+  hasActiveFilter: boolean;
+  currentTab: string;
+  distanceMax: number;
+  cardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
+  scrollToJob: (id: string) => void;
+}) {
+  const sections = useMemo(
+    () => (hasActiveFilter ? null : bucketJobs(jobs)),
+    [hasActiveFilter, jobs],
+  );
+
+  return (
+    <>
       {distanceMax > 0 && (
         <DistanceRibbon jobs={jobs} maxKm={Math.max(50, Math.ceil(distanceMax / 10) * 10)} onJobClick={scrollToJob} />
       )}
@@ -237,7 +276,7 @@ export function SmartFeed({
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

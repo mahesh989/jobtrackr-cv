@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { PipelineFunnel, type FunnelCounts } from "./PipelineFunnel";
-import { SmartFilterBar } from "./SmartFilterBar";
+import { useSearchParams, usePathname } from "next/navigation";
+import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
+import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
-import { JobTable } from "./JobTable";
-import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob } from "./jobFilters";
+import { SmartFeed } from "./SmartFeed";
+import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
+import { shallowSetParams } from "./shallowNav";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
 function resolveStage(sp: URLSearchParams): string {
@@ -23,16 +24,40 @@ function resolveStage(sp: URLSearchParams): string {
   return "all";
 }
 
+// Suggested sort per stage — same as the dashboard JobBoard.
+const SUGGESTED_SORT: Record<string, { col: string; label: string } | undefined> = {
+  analysed:     { col: "most_progressed",     label: "Most progressed" },
+  cvReady:      { col: "most_progressed",     label: "Most progressed" },
+  letterReady:  { col: "most_progressed",     label: "Most progressed" },
+  thinJd:       { col: "created_at",          label: "Date added (newest)" },
+  applied:      { col: "recently_progressed", label: "Recently progressed" },
+};
+
+const STAGE_ICON: Record<string, typeof BarChart3> = {
+  analysed:    BarChart3,
+  cvReady:     FileText,
+  letterReady: Mail,
+  applied:     CheckCircle2,
+  thinJd:      FileWarning,
+  dismissed:   Archive,
+};
+
+const SORT_LABEL_FOR_COL: Record<string, string> = {
+  posted_at:           "Date posted",
+  created_at:          "Date added",
+  rich_jd_first:       "Rich JD first",
+  recently_progressed: "Recently progressed",
+  most_progressed:     "Most progressed",
+  distance:            "Distance (nearest)",
+};
+
 /**
- * Client-side profile job board.
- *
- * The server fetches the (capped) non-dismissed job set once and passes it
- * here with each job's precomputed ATS band. Stage / triage / sort /
- * keywords filters are applied in-memory and driven by the URL via the
- * History API — clicking a funnel stage is instant with no server round-trip.
- *
- * Dataset filters (location / posted_within / dismissed) still go through
- * the server (they change which jobs are fetched).
+ * Per-profile job board — same SmartFeed + SmartToolbar combo as the
+ * dashboard. Differences:
+ *   - homeAddress is passed through, so the toolbar renders the "Within X km"
+ *     distance dropdown.
+ *   - On stage change, scrolls the feed back into view (carry-over from the
+ *     pre-redesign behaviour: a funnel click should move focus to the list).
  */
 export function ProfileJobBoard({
   jobs,
@@ -40,38 +65,45 @@ export function ProfileJobBoard({
   railJobs,
   homeAddress = null,
 }: {
-  jobs:     BoardJob[];
-  counts:   FunnelCounts;
-  railJobs: RailJob[];
-  /** Profile's home_address (Migration 048). When set, the SmartFilterBar
-   *  shows the "Within X km" filter, the Distance sort option, and an
-   *  origin indicator. */
+  jobs:        BoardJob[];
+  counts:      FunnelCounts;
+  railJobs:    RailJob[];
+  /** Profile's home_address (Migration 048). When set, the toolbar shows the
+   *  "Within X km" distance filter and the distance ribbon renders. */
   homeAddress?: string | null;
 }) {
   const sp = useSearchParams();
+  const pathname = usePathname();
 
   const stage       = resolveStage(sp);
   const triage      = sp.get("triage") || "";
+  const ats         = sp.get("ats") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
-  const showVisa    = sp.get("visa_toggle") === "1";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance }), sortCol, asc),
-    [jobs, stage, triage, minKeywords, maxDistance, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance }), sortCol, asc),
+    [jobs, stage, triage, ats, minKeywords, maxDistance, sortCol, asc],
   );
 
-  // Scroll to the table section whenever the stage changes (i.e. after clicking
-  // a funnel segment). Because the filter is client-side and instant, the DOM
-  // update is synchronous and the scroll fires on the same frame.
-  const tableRef   = useRef<HTMLDivElement>(null);
+  const atsCounts = useMemo<Record<AtsBand, number>>(() => {
+    const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
+    for (const j of jobs) out[j.atsBand]++;
+    return out;
+  }, [jobs]);
+
+  // Scroll to the feed whenever the stage changes (carries over from the
+  // pre-redesign behaviour where clicking a funnel stage scrolled to the
+  // table). Now the SmartFeed handles in-card scrolling via the distance
+  // ribbon, so this only fires on stage transitions.
+  const feedRef    = useRef<HTMLDivElement>(null);
   const prevStage  = useRef(stage);
   useEffect(() => {
     if (prevStage.current !== stage) {
       prevStage.current = stage;
-      tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [stage]);
 
@@ -79,25 +111,56 @@ export function ProfileJobBoard({
   const activeFilters: string[] = [];
   if (stage !== "all" && stage !== "dismissed") activeFilters.push(FILTER_LABELS[stage] ?? stage);
   if (triage) activeFilters.push(FILTER_LABELS[triage] ?? triage);
+  if (ats)    activeFilters.push(FILTER_LABELS[ats] ?? ats);
+
+  const hasActiveFilter = activeFilters.length > 0;
+
+  const suggestion = hasActiveFilter ? SUGGESTED_SORT[stage] : undefined;
+  const showSuggestion = !!suggestion && suggestion.col !== sortCol;
+
+  function applySuggestion() {
+    if (!suggestion) return;
+    const params = new URLSearchParams(Array.from(sp.entries()));
+    params.set("sort", suggestion.col);
+    params.delete("dir");
+    shallowSetParams(pathname, params);
+  }
+
+  const sortLabel = sortCol === "posted_at" ? null : (SORT_LABEL_FOR_COL[sortCol] ?? sortCol);
+  const StageIcon = STAGE_ICON[stage];
 
   return (
     <>
-      <PipelineFunnel counts={counts} currentStage={stage} shallow />
-
-      <SmartFilterBar total={filtered.length} showKeywords showAtsFilter={false} shallow homeAddress={homeAddress} />
-
-      <ContinueRail jobs={railJobs} currentTab={stage} />
-
-      {/* Table section — scrolled to when a funnel stage is clicked */}
-      <div ref={tableRef}>
-        {activeFilters.length > 0 ? (
-          <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
-            <h2 className="text-[24px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
+      {/* Headline row — same big-title treatment as the dashboard */}
+      <div ref={feedRef} className="flex items-baseline gap-2.5 flex-wrap mb-3">
+        {hasActiveFilter ? (
+          <>
+            {StageIcon && (
+              <StageIcon className="w-6 h-6 self-center" style={{ color: "var(--brand)" }} strokeWidth={2.5} />
+            )}
+            <h2 className="text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
               {activeFilters.join(" · ")}
             </h2>
-            <span className="text-[20px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
+            <span className="text-[22px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
               {filtered.length}
             </span>
+            {sortLabel && (
+              <span className="text-[12px] text-text-2 font-medium">
+                · sorted by <span className="text-text">{sortLabel}</span>
+              </span>
+            )}
+            {showSuggestion && (
+              <button
+                type="button"
+                onClick={applySuggestion}
+                title={`Recommended sort for ${activeFilters[0]}`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-0.5 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors"
+              >
+                <Sparkles className="w-3 h-3" />
+                Suggest sort: {suggestion!.label}
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            )}
             <Link
               href="?"
               className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/40 px-2.5 py-0.5 text-[12px] font-medium hover:bg-[var(--surface-2)] transition-colors"
@@ -106,16 +169,28 @@ export function ProfileJobBoard({
               <span>Clear filter</span>
               <span aria-hidden>✕</span>
             </Link>
-          </div>
+          </>
         ) : (
-          <div className="flex items-baseline gap-2 mb-3">
+          <>
             <span className="text-[14px] font-semibold text-text">All jobs</span>
             <span className="text-[12px] text-text-3">{filtered.length}</span>
-          </div>
+            {sortLabel && (
+              <span className="text-[11px] text-text-3">· sorted by {sortLabel}</span>
+            )}
+          </>
         )}
-
-        <JobTable jobs={filtered} showVisa={showVisa} currentTab={stage} />
       </div>
+
+      <ContinueRail jobs={railJobs} currentTab={stage} />
+
+      <SmartFeed
+        jobs={filtered}
+        hasActiveFilter={hasActiveFilter}
+        currentTab={stage}
+        counts={counts}
+        atsCounts={atsCounts}
+        homeAddress={homeAddress}
+      />
     </>
   );
 }
