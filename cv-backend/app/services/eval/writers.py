@@ -53,6 +53,7 @@ from app.services.ai.prompts.variants.composition import (
 from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order
+from app.services.eval.verify import verify_claims
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
@@ -603,6 +604,32 @@ async def _writer_w8_integrated(
     )
 
 
+# ---------------------------------------------------------------------------
+# W8-verified — W8 + Stage-6 per-claim entailment verification (W8.1).
+# Identical to w8_integrated, then runs one focused entailment pass that repairs
+# or drops any tailored bullet not entailed by the source CV. Shipped as a
+# separate variant so the beta screen can A/B the honesty lift (W8 vs W8+verify)
+# and prove it before the verifier is promoted into the single production path.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w8_verified(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    result = await _writer_w8_integrated(
+        client, cv_text, jd_text, contact_details, vertical=vertical,
+    )
+    verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
+    result.tailored_md = verified_md
+    result.extras["verify"] = vreport
+    return result
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
@@ -612,6 +639,7 @@ WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w6_general":     _writer_w6_general,
     "w7_converged":   _writer_w7_converged,
     "w8_integrated":  _writer_w8_integrated,
+    "w8_verified":    _writer_w8_verified,
 }
 
 
