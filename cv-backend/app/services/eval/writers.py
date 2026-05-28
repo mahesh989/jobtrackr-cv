@@ -46,6 +46,7 @@ from app.services.ai.prompts.variants.composition import (
     COMPOSITION_USER_TEMPLATE,
 )
 from app.services.eval.enforce import enforce_skills_section
+from app.services.eval.enforce_w3 import apply_w3_gates
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
@@ -281,10 +282,18 @@ async def _writer_w3_composition(
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W3 tailored CV: response too short")
 
-    # Production post-processors + skills hygiene. drop_ungrounded only for the
-    # strictest policy (manual = "none") to avoid pruning legitimate
-    # methodology terms in tech/master.
+    # Production post-processors, then deterministic W3 gates (the rules that
+    # kept failing as prompt prose), then skills hygiene.
     final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = apply_w3_gates(
+        final_md,
+        jd_text=jd_text,
+        jd_analysis=up["jd_analysis"],
+        # Suppression no-ops when the JD has AI signal; harmless for non-tech.
+        suppress=role_family.id in ("tech", "master"),
+    )
+    # drop_ungrounded only for the strictest policy (manual = "none") to avoid
+    # pruning legitimate methodology terms in tech/master.
     final_md = enforce_skills_section(
         final_md,
         original_cv_text=cv_text,
