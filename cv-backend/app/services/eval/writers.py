@@ -51,7 +51,7 @@ from app.services.ai.prompts.variants.composition import (
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import apply_w3_gates
+from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
@@ -267,6 +267,7 @@ async def _writer_w3_composition(
     vertical: Optional[str] = None,
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
+    up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])
     seniority = resolve_seniority(up["jd_analysis"])
@@ -412,6 +413,7 @@ async def _writer_w6_general(
     vertical: Optional[str] = None,  # not needed — the prompt is field-agnostic
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
+    up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
     )
@@ -458,6 +460,7 @@ async def _writer_w7_converged(
     vertical: Optional[str] = None,
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
+    up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
     )

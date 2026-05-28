@@ -309,6 +309,54 @@ def strip_ungrounded_bullet_parentheticals(md: str, original_cv_text: str) -> st
 
 
 # ---------------------------------------------------------------------------
+# Domain-knowledge = direct-only (universal honesty rule)
+#
+# Confirmed systematic across two different JDs (CAE "financial analysis";
+# MONEYME "transaction monitoring"): the feasibility classifier approves
+# gray-zone DOMAIN-KNOWLEDGE terms as injectable, and the writer surfaces a
+# domain competency the candidate doesn't have. You can infer a TOOL
+# (SQL->PostgreSQL) and reframe a SOFT skill, but you cannot infer DOMAIN
+# EXPERTISE — you either have fraud/AML/clinical experience or you don't.
+#
+# This demotes every domain_knowledge entry out of inject_as_extension /
+# inject_with_inference into cannot_inject, for ALL verticals. inject_directly
+# domain entries (literally anchored in the CV) are kept.
+# ---------------------------------------------------------------------------
+
+
+def restrict_domain_to_direct(feasibility: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(feasibility, dict):
+        return feasibility
+    plan = feasibility.get("feasibility_plan")
+    if not isinstance(plan, dict):
+        return feasibility
+
+    new_plan: Dict[str, Any] = {
+        k: (list(v) if isinstance(v, list) else v) for k, v in plan.items()
+    }
+    demoted: List[Dict[str, Any]] = []
+    for bucket in ("inject_as_extension", "inject_with_inference"):
+        kept: List[Any] = []
+        for entry in (new_plan.get(bucket) or []):
+            if isinstance(entry, dict) and str(entry.get("category", "")).strip() == "domain_knowledge":
+                demoted.append({
+                    "keyword": entry.get("keyword"),
+                    "category": "domain_knowledge",
+                    "bucket": entry.get("bucket"),
+                    "reason": "domain expertise cannot be inferred — surfaced only when literally in the CV",
+                })
+            else:
+                kept.append(entry)
+        new_plan[bucket] = kept
+    if demoted:
+        new_plan["cannot_inject"] = list(new_plan.get("cannot_inject") or []) + demoted
+
+    out = dict(feasibility)
+    out["feasibility_plan"] = new_plan
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Convenience: run all W3 gates in order
 # ---------------------------------------------------------------------------
 
