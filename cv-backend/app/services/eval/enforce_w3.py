@@ -266,7 +266,12 @@ def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
     if all(keep):
         return md
     if not any(keep):
-        return md  # safety: never empty Education
+        # Every entry is an irrelevant grad degree (the model dropped the
+        # Bachelor before the gate ran). Never empty Education — but don't keep
+        # the whole pile of irrelevant degrees either. Keep only the FIRST
+        # entry (CVs list education most-recent-first), so a data CV applying
+        # to nursing shows one degree, not three off-topic physics degrees.
+        keep[0] = True
 
     out: List[str] = lines[: start + 1]
     for idx, (s, e) in enumerate(entries):
