@@ -50,11 +50,21 @@ answer the scorer question; real validation needs callback data, not more scorer
    W3/W6/W7. Technical inference (SQL→PostgreSQL) and soft-skill reframing stay allowed.
    Philosophy: infer a TOOL, reframe/add a SOFT skill with anchor, NEVER claim a DOMAIN.
 
-## Validation status
-- **W7 validated honestly** on 3 tech JDs (CAE, Mercor, MONEYME) + **nursing** (wife's CV,
-  licensed vertical): 0 fabricated clinical skills, "Clinical Skills" taxonomy, kept
-  Bachelor, +10 honest lift, no AI-suppression misfire. **W7 is the production winner.**
-- **Still untested**: cleaner/admin (`none` injection policy). Run before promotion.
+## Validation status — COMPREHENSIVE, W7 confirmed across the spectrum
+- Strong tech match (CAE): AI suppressed, honest lift.
+- AI-forward (Mercor): kept AI identity correctly.
+- Poor tech match (MONEYME fraud/AML): all fraud/AML/credit-card → honest gaps, 0 fabrication.
+- Strong nursing match (wife's CV, AIN JD): "Clinical Skills" taxonomy, 0 fabrication,
+  honest gaps = the specific nursing enrolments she lacks, kept Bachelor, +12 honest lift (S5).
+- Total mismatch (Mahesh data CV → nursing JD): 0 fabrication, honest "career-changer"
+  reframe on transferable soft skills, correct LOW score (22→27). Honesty held under max pressure.
+- **W7 is the validated production winner.**
+- **Still untested**: cleaner/admin (`none` injection policy). Optional before promotion.
+- **Test artifact noted**: running someone else's CV under your account stamps YOUR
+  contact_details on the H1 (e.g. "Maheshwor Tiwari" on the wife's nursing CV). Not a bug —
+  production uses each user's own contact. The missing-H1 in the data→nursing run was the
+  same cause. If a real missing-H1 recurs with the correct user, add a deterministic
+  header-stamp fallback.
 
 ## Known residuals (NOT fixed — judged variance or low-value; revisit only if systematic)
 - 1-sentence Highlights = model variance (W6 got 2, W7 got 1 same prompt) — don't chase.
