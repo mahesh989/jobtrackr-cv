@@ -3,11 +3,11 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
-import { Sparkles, MapPin, Clock, AlertTriangle, Inbox, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
+import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { PipelineFunnel, type FunnelCounts } from "./PipelineFunnel";
 import { SmartFilterBar } from "./SmartFilterBar";
 import { ContinueRail, type RailJob } from "./ContinueRail";
-import { JobTable, type JobTableSection } from "./JobTable";
+import { SmartFeed } from "./SmartFeed";
 import { BulkThinJdButton, type ThinJdJob } from "./BulkThinJdButton";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
@@ -24,75 +24,6 @@ function resolveStage(sp: URLSearchParams): string {
   if (chips.includes("analysed") && chips.includes("hasCv")) return "cvReady";
   if (chips.includes("analysed")) return "analysed";
   return "all";
-}
-
-// ── Smart sections (only used when no view filter is active) ────────────
-
-/** Tiny opinionated score used to pick "Today's picks". Higher = better.
- *  Distance closer wins, fresher wins, jobs with completed analysis
- *  (especially passing the final gate) bubble up. Already-applied jobs are
- *  hard-demoted because they're not actionable in the picks rail. */
-function pickScore(j: BoardJob): number {
-  let s = 50;
-  if (j.distance_km != null) s += Math.max(0, 30 - j.distance_km * 0.7);
-  if (j.atsBand === "above_final")   s += 25;
-  else if (j.atsBand === "below_final")   s += 5;
-  else if (j.atsBand === "below_initial") s -= 12;
-  if (j.jd_quality === "thin") s -= 8;
-  // Freshness from posted_at
-  const posted = j.posted_at ? new Date(j.posted_at).getTime() : 0;
-  if (posted) {
-    const days = (Date.now() - posted) / 86400000;
-    if (days < 1)  s += 10;
-    else if (days > 21) s -= 8;
-  }
-  if (j.applied_at)   s -= 100;
-  if (j.dismissed_at) s -= 100;
-  return s;
-}
-
-function isPostedToday(j: BoardJob): boolean {
-  if (!j.posted_at) return false;
-  const d = new Date(j.posted_at);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear()
-      && d.getMonth()    === now.getMonth()
-      && d.getDate()     === now.getDate();
-}
-
-/** Bucket the loaded jobs into 5 disjoint sections with priority:
- *    picks > closest (≤15km) > fresh today > thin JD > everything else
- *  Each job appears in exactly one section. */
-function bucketJobs(jobs: BoardJob[]): JobTableSection[] {
-  if (jobs.length === 0) return [];
-  const active = jobs.filter((j) => !j.applied_at && !j.dismissed_at);
-  const placed = new Set<string>();
-
-  const picks = [...active]
-    .sort((a, b) => pickScore(b) - pickScore(a))
-    .slice(0, 3);
-  picks.forEach((j) => placed.add(j.id));
-
-  const closest = active
-    .filter((j) => !placed.has(j.id) && j.distance_km != null && j.distance_km <= 15)
-    .sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0));
-  closest.forEach((j) => placed.add(j.id));
-
-  const fresh = active.filter((j) => !placed.has(j.id) && isPostedToday(j));
-  fresh.forEach((j) => placed.add(j.id));
-
-  const attention = active.filter((j) => !placed.has(j.id) && j.jd_quality === "thin");
-  attention.forEach((j) => placed.add(j.id));
-
-  const rest = jobs.filter((j) => !placed.has(j.id));
-
-  const sections: JobTableSection[] = [];
-  if (picks.length     > 0) sections.push({ label: "Today's picks",   caption: "Best matches across distance, ATS band, and freshness", tone: "brand", icon: Sparkles,         jobs: picks });
-  if (closest.length   > 0) sections.push({ label: "Closest to you",  caption: "Within 15 km of your profile's home address",            tone: "green", icon: MapPin,           jobs: closest });
-  if (fresh.length     > 0) sections.push({ label: "Fresh today",     caption: "Posted in the last 24 hours",                            tone: "brand", icon: Clock,            jobs: fresh });
-  if (attention.length > 0) sections.push({ label: "Needs attention", caption: "Thin JDs — open and paste the full description",         tone: "amber", icon: AlertTriangle,    jobs: attention });
-  if (rest.length      > 0) sections.push({ label: "Everything else", caption: "Older, further away, applied, or dismissed",             tone: "muted", icon: Inbox,            jobs: rest });
-  return sections;
 }
 
 // ── Suggested sort per stage ────────────────────────────────────────────
@@ -156,7 +87,8 @@ export function JobBoard({
   const minKeywords = sp.get("min_keywords") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
-  const showVisa    = sp.get("visa_toggle") === "1";
+  // SmartFeed surfaces visa as an always-visible coloured dot on every card,
+  // so the legacy ?visa_toggle= column flag is no longer read here.
 
   const filtered = useMemo(
     // Unified dashboard spans multiple profiles, each with its own home_address —
@@ -174,14 +106,6 @@ export function JobBoard({
   if (ats)    activeFilters.push(FILTER_LABELS[ats] ?? ats);
 
   const hasActiveFilter = activeFilters.length > 0;
-
-  // Smart sections — only when nothing is filtered (stage=all + no triage/ats
-  // chips). The bucketing runs on the loaded, sorted set so user sort choices
-  // still influence within-section ordering for the "rest" bucket.
-  const sections = useMemo<JobTableSection[] | undefined>(
-    () => (hasActiveFilter ? undefined : bucketJobs(filtered)),
-    [filtered, hasActiveFilter],
-  );
 
   // Suggested sort pill for the active stage. Only shown when:
   //   - a stage filter is active
@@ -279,13 +203,15 @@ export function JobBoard({
 
       <ContinueRail jobs={railJobs} currentTab={stage} />
 
-      {/* Smart-section view kicks in only when no view filter is active.
-          When filtered, the table renders flat — exactly as before. */}
-      <JobTable
+      {/* Card-based smart feed. When no view filter is active, renders
+          smart sections (Today's picks · Closest · Fresh · Needs attention ·
+          Everything else). When filtered, renders a flat card list sorted
+          by SmartFilterBar. Reuses AnalyzeJobButton + JobEditModal +
+          markJobApplied/Dismissed for full action parity with JobTable. */}
+      <SmartFeed
         jobs={filtered}
-        showVisa={showVisa}
+        hasActiveFilter={hasActiveFilter}
         currentTab={stage}
-        sections={sections}
       />
     </>
   );
