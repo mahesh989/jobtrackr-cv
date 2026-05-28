@@ -302,7 +302,7 @@ function SmartFeedBody({
           ))}
         </div>
       ) : (
-        <div className="grid gap-2">
+        <div className="grid gap-2.5">
           {jobs.map((job) => (
             <JobCard
               key={job.id}
@@ -349,7 +349,7 @@ function FeedSectionView({
           ))}
         </div>
       ) : (
-        <div className="grid gap-2">
+        <div className="grid gap-2.5">
           {section.jobs.map((job) => (
             <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} />
           ))}
@@ -537,7 +537,7 @@ function HeroCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: s
 function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void }) {
   return (
     <CardShell job={job} currentTab={currentTab} refSetter={refSetter}>
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-3.5 min-w-0">
         <span
           className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${ATS_BAND_META[job.atsBand].dot}`}
           title={`ATS ${ATS_BAND_META[job.atsBand].label} — ${ATS_BAND_META[job.atsBand].tip}`}
@@ -551,7 +551,7 @@ function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: st
             {job.dedup_status === "possible_duplicate" && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
           </div>
           <CardMeta job={job} compact />
-          <div className="mt-1.5"><MatchBar job={job} compact /></div>
+          <div className="mt-2.5"><MatchBar job={job} compact /></div>
         </div>
         <CardActions job={job} compact />
       </div>
@@ -624,7 +624,7 @@ function CardShell({
         <div
           ref={refSetter}
           className={`rounded-md border transition-all ${
-            hero ? "border-2 border-[var(--brand)]/30 bg-surface p-3.5 hover:shadow-md" : "border-border bg-surface px-3.5 py-2.5 hover:bg-[var(--surface-2)]/60"
+            hero ? "border-2 border-[var(--brand)]/30 bg-surface p-4 hover:shadow-md" : "border-border bg-surface px-4 py-3.5 hover:bg-[var(--surface-2)]/60"
           } ${isFlash ? "bg-green-light border-green-500" : ""} ${
             localApplied ? "border-l-2 border-l-green-500" : ""
           }`}
@@ -706,7 +706,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-0.5 text-[11px]" : "text-[11px]"} text-text-2 truncate`}>
+    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2 truncate`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}

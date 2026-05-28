@@ -38,13 +38,15 @@ const SORT_OPTIONS = [
   { value: "distance",            label: "Distance (nearest)" },
 ] as const;
 
+// "over50" is a sentinel — it filters to jobs *farther* than 50 km by setting
+// min_distance=50 and clearing max_distance, rather than the usual within-X cap.
 const DISTANCE_OPTIONS = [
-  { value: "",    label: "Any distance" },
-  { value: "5",   label: "Within 5 km" },
-  { value: "10",  label: "Within 10 km" },
-  { value: "25",  label: "Within 25 km" },
-  { value: "50",  label: "Within 50 km" },
-  { value: "100", label: "Within 100 km" },
+  { value: "",       label: "Any distance" },
+  { value: "5",      label: "Within 5 km" },
+  { value: "10",     label: "Within 10 km" },
+  { value: "25",     label: "Within 25 km" },
+  { value: "50",     label: "Within 50 km" },
+  { value: "over50", label: "Over 50 km" },
 ] as const;
 
 // Stage chips — combination of stage + triage URL params so we can render the
@@ -79,7 +81,7 @@ const ATS_BANDS: { id: AtsBand; label: string; tip: string; dot: string; chipBg:
 
 // View-filter URL keys → committed via the History API for instant feedback.
 // Dataset narrowers (location / posted_within / source) hit the real router.
-const SHALLOW_KEYS = new Set(["stage", "triage", "ats", "sort", "dir", "min_keywords", "max_distance"]);
+const SHALLOW_KEYS = new Set(["stage", "triage", "ats", "sort", "dir", "min_keywords", "max_distance", "min_distance"]);
 
 export function SmartToolbar({
   counts,
@@ -102,7 +104,12 @@ export function SmartToolbar({
   const currentAts      = sp.get("ats")          || "";
   const currentSort     = sp.get("sort")         || "posted_at";
   const currentLocation = sp.get("location")     || "";
-  const currentDistance = sp.get("max_distance") || "";
+  const currentMaxDistance = sp.get("max_distance") || "";
+  const currentMinDistance = sp.get("min_distance") || "";
+  // What the Distance dropdown shows: "over50" when a lower bound ≥50 is set
+  // with no upper cap, otherwise the within-X value (or "" for Any).
+  const distanceValue =
+    !currentMaxDistance && Number(currentMinDistance) >= 50 ? "over50" : currentMaxDistance;
 
   function commit(params: URLSearchParams, key: string) {
     if (SHALLOW_KEYS.has(key)) shallowSetParams(pathname, params);
@@ -113,6 +120,23 @@ export function SmartToolbar({
     const next = new URLSearchParams(Array.from(sp.entries()));
     if (value) next.set(key, value); else next.delete(key);
     commit(next, key);
+  }
+
+  /** Distance dropdown — maps the within-X / over-50 choices onto the
+   *  min_distance + max_distance URL pair (shared with the ribbon slider). */
+  function setDistance(value: string) {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    if (value === "over50") {
+      next.set("min_distance", "50");
+      next.delete("max_distance");
+    } else if (value) {
+      next.set("max_distance", value);
+      next.delete("min_distance");
+    } else {
+      next.delete("max_distance");
+      next.delete("min_distance");
+    }
+    commit(next, "max_distance");
   }
 
   function selectStageChip(chip: StageChip) {
@@ -208,8 +232,8 @@ export function SmartToolbar({
         <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
           Distance
           <select
-            value={currentDistance}
-            onChange={(e) => setOne("max_distance", e.target.value)}
+            value={distanceValue}
+            onChange={(e) => setDistance(e.target.value)}
             className="field text-[12px] py-1 pr-7"
             title={homeAddress ? `Distance from ${homeAddress}` : "Distance from each profile's home address"}
           >
