@@ -54,6 +54,7 @@ from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order
 from app.services.eval.verify import verify_claims
+from app.services.eval.knockout import detect_knockouts
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
@@ -589,6 +590,10 @@ async def _writer_w8_integrated(
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
 
+    # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
+    # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
+    knockouts = detect_knockouts(jd_text, up["jd_analysis"], cv_text)
+
     return WriterResult(
         tailored_md=final_md,
         jd_analysis=up["jd_analysis"],
@@ -600,6 +605,7 @@ async def _writer_w8_integrated(
             "role_family": role_family.id,
             "seniority": seniority,
             "section_order": role_family.section_order,
+            "knockouts": knockouts,
         },
     )
 
