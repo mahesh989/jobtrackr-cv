@@ -298,6 +298,15 @@ export default async function JobsPage({
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}
               </span>
             </div>
+            {p.home_address && (
+              <p className="text-[12px] text-text-2 flex items-center gap-1.5 mt-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                {p.home_address}
+              </p>
+            )}
           </div>
 
           {/* Actions */}
@@ -324,7 +333,8 @@ export default async function JobsPage({
         </div>
       </div>
 
-      <div className="px-6 py-4 space-y-4">
+      <div className="px-6 py-4">
+       <div className="max-w-5xl mx-auto space-y-4">
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
         <LiveLogConsole profileId={id} />
 
@@ -352,6 +362,7 @@ export default async function JobsPage({
             Edit profile
           </Link>
         </div>
+       </div>
       </div>
     </div>
   );

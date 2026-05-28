@@ -33,12 +33,14 @@ import {
   BarChart3, FileText, Mail, CheckCircle2, MoreHorizontal, Sparkles, MapPin,
   Clock, AlertTriangle, Inbox, FileWarning, FileQuestion,
 } from "lucide-react";
+import { useSearchParams, usePathname } from "next/navigation";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { BoardJob, AtsBand } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
+import { shallowSetParams } from "./shallowNav";
 
 // ── scoring ─────────────────────────────────────────────────────────────
 
@@ -77,6 +79,14 @@ function relativeDate(d: string | null): string | null {
   if (days < 7)   return `${days}d ago`;
   if (days < 30)  return `${Math.floor(days / 7)}w ago`;
   return `${Math.floor(days / 30)}mo ago`;
+}
+
+/** Parse a string param to an int, clamp to [lo, hi], fall back to default. */
+function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
+  if (raw == null) return fallback;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(hi, Math.max(lo, n));
 }
 
 function isPostedToday(j: BoardJob): boolean {
@@ -242,15 +252,39 @@ function SmartFeedBody({
   cardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
   scrollToJob: (id: string) => void;
 }) {
+  const sp       = useSearchParams();
+  const pathname = usePathname();
+
   const sections = useMemo(
     () => (hasActiveFilter ? null : bucketJobs(jobs)),
     [hasActiveFilter, jobs],
   );
 
+  // Distance-range URL state for the ribbon's draggable handles. min_distance
+  // and max_distance are both read by jobFilters, so dragging filters the
+  // feed live without a server round-trip.
+  const ribbonMax = Math.max(50, Math.ceil(distanceMax / 10) * 10);
+  const minDist   = clampInt(sp.get("min_distance"), 0, ribbonMax, 0);
+  const maxDist   = clampInt(sp.get("max_distance"), 0, ribbonMax, ribbonMax);
+  const range: [number, number] = [minDist, maxDist];
+
+  function setRange(r: [number, number]) {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    if (r[0] > 0)         next.set("min_distance", String(r[0])); else next.delete("min_distance");
+    if (r[1] < ribbonMax) next.set("max_distance", String(r[1])); else next.delete("max_distance");
+    shallowSetParams(pathname, next);
+  }
+
   return (
     <>
       {distanceMax > 0 && (
-        <DistanceRibbon jobs={jobs} maxKm={Math.max(50, Math.ceil(distanceMax / 10) * 10)} onJobClick={scrollToJob} />
+        <DistanceRibbon
+          jobs={jobs}
+          maxKm={ribbonMax}
+          range={range}
+          onRangeChange={setRange}
+          onJobClick={scrollToJob}
+        />
       )}
 
       {sections ? (
@@ -324,63 +358,135 @@ function FeedSectionView({
 
 // ── distance ribbon ─────────────────────────────────────────────────────
 
-function DistanceRibbon({ jobs, maxKm, onJobClick }: {
+/** "Distance from home" ribbon. Dots coloured by visa status (matches the
+ *  beta — Sponsored / Unknown / PR only / No sponsor). Hover for the job
+ *  title; click jumps to the matching card. Range handles let you bracket
+ *  by km, writing min_distance + max_distance URL params (shallow nav so
+ *  the feed re-filters instantly). */
+function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
   jobs: BoardJob[];
   maxKm: number;
+  range: [number, number];
+  onRangeChange: (r: [number, number]) => void;
   onJobClick: (id: string) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState<"min" | "max" | null>(null);
   const ticks = Array.from({ length: maxKm / 10 + 1 }, (_, i) => i * 10);
 
+  useEffect(() => {
+    if (!dragging) return;
+    function onMove(e: MouseEvent | TouchEvent) {
+      if (!trackRef.current) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const km = Math.round(pct * maxKm);
+      if (dragging === "min") onRangeChange([Math.min(km, range[1] - 1), range[1]]);
+      else                    onRangeChange([range[0], Math.max(km, range[0] + 1)]);
+    }
+    function onUp() { setDragging(null); }
+    window.addEventListener("mousemove",  onMove);
+    window.addEventListener("mouseup",    onUp);
+    window.addEventListener("touchmove",  onMove);
+    window.addEventListener("touchend",   onUp);
+    return () => {
+      window.removeEventListener("mousemove",  onMove);
+      window.removeEventListener("mouseup",    onUp);
+      window.removeEventListener("touchmove",  onMove);
+      window.removeEventListener("touchend",   onUp);
+    };
+  }, [dragging, range, maxKm, onRangeChange]);
+
+  const rangeActive = range[0] > 0 || range[1] < maxKm;
+
   return (
-    <div className="rounded-md border border-border bg-[var(--surface-2)] p-3.5">
+    <div className="rounded-md border border-border bg-[var(--surface-2)] p-4">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">Distance to each job</p>
+        <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+          Distance from home
+          {rangeActive && (
+            <span className="text-text font-normal normal-case ml-1">
+              · {range[0]}–{range[1]} km
+              <button
+                onClick={() => onRangeChange([0, maxKm])}
+                className="ml-1 text-[var(--brand)] hover:underline"
+              >clear</button>
+            </span>
+          )}
+        </p>
         <div className="flex items-center gap-3 text-[10px] text-text-2">
-          <Legend dot="bg-green-500" label="ATS ≥ 70" />
-          <Legend dot="bg-amber-500" label="ATS 60–69" />
-          <Legend dot="bg-red-500"   label="ATS < 60" />
-          <Legend dot="bg-gray-300"  label="Not analysed" />
+          <Legend color={VISA_COLOR.yes}     label="Sponsored" />
+          <Legend color={VISA_COLOR.unknown} label="Unknown" />
+          <Legend color={VISA_COLOR.pr_only} label="PR only" />
+          <Legend color={VISA_COLOR.no}      label="No sponsor" />
         </div>
       </div>
 
-      <div className="relative h-12">
-        <div className="absolute left-0 right-0 top-6 h-px bg-border" />
+      <div ref={trackRef} className="relative h-14 select-none">
+        <div className="absolute left-0 right-0 top-7 h-px bg-border" />
+        <div
+          className="absolute top-[26px] h-[3px] bg-[var(--brand)]/40 rounded"
+          style={{
+            left:  `${(range[0] / maxKm) * 100}%`,
+            width: `${((range[1] - range[0]) / maxKm) * 100}%`,
+          }}
+        />
         {ticks.map((t) => (
-          <div key={t} className="absolute top-6" style={{ left: `${(t / maxKm) * 100}%` }}>
+          <div key={t} className="absolute top-7" style={{ left: `${(t / maxKm) * 100}%` }}>
             <div className="w-px h-1.5 bg-border" />
             <div className="text-[9px] text-text-3 mt-1 -translate-x-1/2 whitespace-nowrap">{t} km</div>
           </div>
         ))}
         {jobs.filter((j) => j.distance_km != null).map((j, i) => {
-          const x = (Math.min((j.distance_km as number), maxKm) / maxKm) * 100;
-          const y = 24 + ((i % 3) - 1) * 3;
-          const color = ATS_BAND_META[j.atsBand].dot;
+          const km = j.distance_km as number;
+          const x = (Math.min(km, maxKm) / maxKm) * 100;
+          const y = 28 + ((i % 3) - 1) * 3;
+          const muted = km < range[0] || km > range[1];
+          const vk = visaKey(j);
           return (
             <button
               key={j.id}
               type="button"
               onClick={() => onJobClick(j.id)}
-              title={`${j.title}\n${j.company ?? "—"} · ${j.location} · ${(j.distance_km as number).toFixed(1)} km · ATS ${ATS_BAND_META[j.atsBand].label}`}
-              className={`absolute w-2.5 h-2.5 rounded-full hover:scale-150 transition-transform shadow-sm ${color}`}
+              title={`${j.title}\n${j.company ?? "—"} · ${j.location} · ${km.toFixed(1)} km · ${VISA_LABEL[vk]}`}
+              className="absolute w-2.5 h-2.5 rounded-full hover:scale-150 transition-all shadow-sm"
               style={{
                 left: `calc(${x}% - 5px)`,
-                top: `${y - 5}px`,
+                top:  `${y - 5}px`,
+                background: VISA_COLOR[vk],
                 borderColor: "white",
                 borderWidth: 1,
                 borderStyle: "solid",
+                opacity: muted ? 0.25 : 1,
               }}
             />
           );
         })}
+        <RangeHandle pos={(range[0] / maxKm) * 100} onStart={() => setDragging("min")} label={`${range[0]} km`} />
+        <RangeHandle pos={(range[1] / maxKm) * 100} onStart={() => setDragging("max")} label={`${range[1]} km`} />
       </div>
     </div>
   );
 }
 
-function Legend({ dot, label }: { dot: string; label: string }) {
+function RangeHandle({ pos, onStart, label }: { pos: number; onStart: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      title={`Drag — ${label}`}
+      onMouseDown={onStart}
+      onTouchStart={onStart}
+      className="absolute top-[20px] w-3 h-3 rounded-sm bg-white border-2 border-[var(--brand)] cursor-ew-resize hover:scale-125 transition-transform shadow"
+      style={{ left: `calc(${pos}% - 6px)` }}
+    />
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={`w-2 h-2 rounded-full ${dot}`} />
+      <span className="w-2 h-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );

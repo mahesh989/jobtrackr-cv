@@ -26,7 +26,10 @@ import type { AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 
 // Sort options — mirror the legacy SmartFilterBar so URLs stay compatible.
+// `match` is new (a beta carry-over) and falls back to posted_at server-side
+// since jobFilters.sortJobs doesn't know it — the SmartFeed re-sorts client-side.
 const SORT_OPTIONS = [
+  { value: "match",               label: "Match score" },
   { value: "posted_at",           label: "Date posted" },
   { value: "created_at",          label: "Date added" },
   { value: "rich_jd_first",       label: "Rich JD first" },
@@ -128,6 +131,17 @@ export function SmartToolbar({
     commit(next, chip.kind);
   }
 
+  /** "All jobs" reset — clears both stage and triage so the feed falls back
+   *  to the smart-section default view. */
+  function clearStageAndTriage() {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    next.delete("stage");
+    next.delete("triage");
+    commit(next, "stage");
+  }
+
+  const allJobsActive = !currentStage && !currentTriage;
+
   function selectAtsChip(band: AtsBand) {
     const next = new URLSearchParams(Array.from(sp.entries()));
     if (currentAts === band) next.delete("ats");
@@ -202,9 +216,27 @@ export function SmartToolbar({
         )}
       </div>
 
-      {/* Row 2 — stage chips with live counts */}
+      {/* Row 2 — "All jobs" reset chip + stage chips with live counts.
+          Zero counts render without the badge to keep chips clean. */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Stage</span>
+
+        <button
+          type="button"
+          onClick={clearStageAndTriage}
+          title="Clear stage filter — show everything"
+          className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+            allJobsActive
+              ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+              : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+          }`}
+        >
+          All jobs
+          <span className={`tabular-nums ${allJobsActive ? "text-white/80" : "text-text-3"}`}>
+            {counts.discovered}
+          </span>
+        </button>
+
         {STAGE_CHIPS.map((chip) => {
           const active = isStageActive(chip);
           const count  = counts[chip.countKey] ?? 0;
@@ -223,13 +255,16 @@ export function SmartToolbar({
               }`}
             >
               {chip.label}
-              <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+              {count > 0 && (
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Row 3 — ATS band chips with counts, colour-coded per band */}
+      {/* Row 3 — ATS band chips with counts, colour-coded per band.
+          Same rule: hide the count when zero. */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0"
@@ -257,7 +292,9 @@ export function SmartToolbar({
             >
               <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
               {b.label}
-              <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
+              {count > 0 && (
+                <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
+              )}
             </button>
           );
         })}

@@ -27,6 +27,9 @@ export interface ViewFilters {
   /** "Within X km" — numeric string. Jobs with null distance_km are kept
    *  (we don't punish unresolved jobs by hiding them). Empty = no filter. */
   maxDistance: string;
+  /** Lower bound for distance, used by the DistanceRibbon's range slider.
+   *  Jobs with null distance_km are kept. Empty = no lower bound. */
+  minDistance?: string;
 }
 
 /**
@@ -83,6 +86,15 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
     const maxKm = parseFloat(f.maxDistance);
     if (!isNaN(maxKm)) {
       out = out.filter((x) => x.distance_km == null || x.distance_km <= maxKm);
+    }
+  }
+
+  // Distance lower bound — paired with maxDistance to form the
+  // DistanceRibbon range slider. Same null-keeps-it semantics.
+  if (f.minDistance) {
+    const minKm = parseFloat(f.minDistance);
+    if (!isNaN(minKm) && minKm > 0) {
+      out = out.filter((x) => x.distance_km == null || x.distance_km >= minKm);
     }
   }
 

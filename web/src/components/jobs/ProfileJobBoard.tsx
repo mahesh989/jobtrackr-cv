@@ -80,12 +80,13 @@ export function ProfileJobBoard({
   const ats         = sp.get("ats") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
+  const minDistance = sp.get("min_distance") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance }), sortCol, asc),
-    [jobs, stage, triage, ats, minKeywords, maxDistance, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance }), sortCol, asc),
+    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {

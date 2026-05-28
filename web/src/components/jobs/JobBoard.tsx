@@ -84,17 +84,19 @@ export function JobBoard({
   const triage      = sp.get("triage") || "";
   const ats         = sp.get("ats") || "";
   const minKeywords = sp.get("min_keywords") || "";
+  const maxDistance = sp.get("max_distance") || "";
+  const minDistance = sp.get("min_distance") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
   // SmartFeed surfaces visa as an always-visible coloured dot on every card,
   // so the legacy ?visa_toggle= column flag is no longer read here.
 
   const filtered = useMemo(
-    // Unified dashboard spans multiple profiles, each with its own home_address —
-    // no single origin makes sense here, so the distance filter is always off
-    // (passed empty). The chip still renders per-job for context.
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance: "" }), sortCol, asc),
-    [jobs, stage, triage, ats, minKeywords, sortCol, asc],
+    // Dashboard spans multiple profiles but each job carries its own
+    // distance_km from its profile's home_address, so the range filter
+    // (min/max km) still applies meaningfully across the global feed.
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance }), sortCol, asc),
+    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 
   // ATS-band counts derived from the *unfiltered* loaded set — used by the

@@ -574,7 +574,8 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="px-6 py-5 space-y-6">
+      <div className="px-6 py-5">
+       <div className="max-w-5xl mx-auto space-y-6">
         {/* ── KPI bar (interactive) ── */}
         <DashboardStatCards
           totalJobs={totalJobs}
@@ -609,6 +610,7 @@ export default async function DashboardPage({
           <span>·</span>
           <Link href="/privacy" className="hover:text-text transition-colors">Privacy policy</Link>
         </div>
+       </div>
       </div>
     </div>
   );
