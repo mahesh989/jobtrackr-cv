@@ -14,13 +14,15 @@ const WRITERS: VariantOpt[] = [
   { id: "w2_general",     label: "W2 — Generalised (de-biased)", available: true },
   { id: "w3_composition", label: "W3 — Composition (universal + pack + seniority)", available: true },
   { id: "w4_chat",        label: "W4 — Chat Single-Call", available: true },
+  { id: "w5_surfacing",   label: "W5 — Lexical Surfacing (grounded, ATS-optimised)", available: true },
 ];
 
 const SCORERS: VariantOpt[] = [
-  { id: "s1_current",    label: "S1 — Current ATS (50/35/15)", available: true },
-  { id: "s2_grounded",   label: "S2 — Grounded (only CV-traceable keywords)", available: true },
-  { id: "s3_reweighted", label: "S3 — Reweighted", available: false, note: "Phase 4" },
-  { id: "s4_llm",        label: "S4 — LLM-estimated", available: false, note: "Phase 4" },
+  { id: "s1_current",       label: "S1 — Current ATS (50/35/15)", available: true },
+  { id: "s2_grounded",      label: "S2 — Grounded (only CV-traceable keywords)", available: true },
+  { id: "s5_ats_readiness", label: "S5 — ATS Readiness (parseability + grounded coverage)", available: true },
+  { id: "s3_reweighted",    label: "S3 — Reweighted", available: false, note: "later" },
+  { id: "s4_llm",           label: "S4 — LLM-estimated", available: false, note: "later" },
 ];
 
 const VERTICALS = ["it", "nursing", "cleaner", "admin", "master", "other"] as const;

@@ -44,6 +44,8 @@ from app.services.ai.prompts.variants.tailored_cv_chat import (
 from app.services.ai.prompts.variants.composition import (
     build_composition_system,
     COMPOSITION_USER_TEMPLATE,
+    build_surfacing_system,
+    COMPOSITION_SURFACING_USER_TEMPLATE,
 )
 from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates
@@ -314,11 +316,88 @@ async def _writer_w3_composition(
     )
 
 
+# ---------------------------------------------------------------------------
+# W5 — lexical surfacing: W3 architecture, but the inject list is the
+# deterministically-grounded set of JD terms the candidate genuinely has
+# (matched, per step 2), surfaced VERBATIM. Replaces reliance on the
+# over-permissive feasibility classifier. Implements the ATS research:
+# surface exact terms you honestly have; add nothing else.
+# ---------------------------------------------------------------------------
+
+_SURFACE_BUCKETS = ("required", "preferred")
+_SURFACE_CATS = ("technical", "soft_skills", "domain_knowledge")
+
+
+def _matched_surface_terms(matching: Dict[str, Any]) -> list[str]:
+    """Grounded JD terms to surface verbatim = everything the matcher matched."""
+    out: list[str] = []
+    matched = (matching or {}).get("matched") or {}
+    for bucket in _SURFACE_BUCKETS:
+        b = matched.get(bucket) or {}
+        for cat in _SURFACE_CATS:
+            out.extend(str(x).strip() for x in (b.get(cat) or []) if str(x).strip())
+    seen: set[str] = set()
+    return [t for t in out if not (t.lower() in seen or seen.add(t.lower()))]
+
+
+async def _writer_w5_surfacing(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    up = await _run_upstream(client, cv_text, jd_text)
+
+    role_family = resolve_role_family(vertical, up["jd_analysis"])
+    seniority = resolve_seniority(up["jd_analysis"])
+    system_prompt = build_surfacing_system(role_family, seniority)
+
+    terms = _matched_surface_terms(up["matching"])
+    surface_block = ", ".join(terms) if terms else "(none — surface only what the CV already states)"
+    user_prompt = COMPOSITION_SURFACING_USER_TEMPLATE.format(
+        cv_text=cv_text, jd_text=jd_text, surface_terms=surface_block,
+    )
+    raw = await client.complete(
+        system=system_prompt, user=user_prompt, max_tokens=6144, temperature=0.3,
+    )
+    if not raw or len(raw.strip()) < 200:
+        raise ValueError("W5 tailored CV: response too short")
+
+    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = apply_w3_gates(
+        final_md,
+        jd_text=jd_text,
+        jd_analysis=up["jd_analysis"],
+        suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
+    )
+    final_md = enforce_skills_section(
+        final_md,
+        original_cv_text=cv_text,
+        drop_ungrounded=(role_family.injection_policy == "none"),
+    )
+    return WriterResult(
+        tailored_md=final_md,
+        jd_analysis=up["jd_analysis"],
+        matching=up["matching"],
+        initial_ats_internal=up["ats"],
+        feasibility=up["feasibility"],
+        extras={
+            "role_family": role_family.id,
+            "seniority": seniority,
+            "surfaced_terms": len(terms),
+        },
+    )
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
     "w3_composition": _writer_w3_composition,
     "w4_chat":        _writer_w4_chat,
+    "w5_surfacing":   _writer_w5_surfacing,
 }
 
 

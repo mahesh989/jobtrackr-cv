@@ -204,3 +204,50 @@ the injection policy in your instructions):
 
 Write the tailored CV now.
 """
+
+
+# ---------------------------------------------------------------------------
+# W5 — lexical surfacing. Same role-pack system + an addendum that ties the
+# writer to a deterministic, grounded MUST-SURFACE list (the JD terms the
+# candidate genuinely has, per the matching step) instead of the feasibility
+# classifier. Implements the ATS research: real ATS rank + recruiters boolean-
+# search on EXACT terms, so make the terms you honestly have appear verbatim.
+# ---------------------------------------------------------------------------
+
+COMPOSITION_SURFACING_ADDENDUM = """
+── LEXICAL SURFACING (this variant) ─────────────────────────────────────
+Real ATS rank candidates and recruiters boolean-search on EXACT terms. You are
+given a MUST-SURFACE list: JD terms the candidate GENUINELY has (verified
+against their CV). For each term on that list, ensure the term appears VERBATIM
+(exact wording) somewhere natural — the Skills section, an experience bullet,
+or the summary. Do not force more than one natural placement per term.
+
+HARD: Do NOT add any JD term that is NOT on the MUST-SURFACE list. If the JD
+wants something not on the list, it is an honest gap — leave it out. Fabricate
+nothing. The MUST-SURFACE list overrides any temptation to add keywords.
+"""
+
+
+def build_surfacing_system(rf: RoleFamilyProfile, seniority: str) -> str:
+    """W5 system = the composition system + the lexical-surfacing addendum."""
+    return build_composition_system(rf, seniority) + "\n" + COMPOSITION_SURFACING_ADDENDUM
+
+
+COMPOSITION_SURFACING_USER_TEMPLATE = """Original CV:
+
+\"\"\"
+{cv_text}
+\"\"\"
+
+Target job description (read it directly):
+
+\"\"\"
+{jd_text}
+\"\"\"
+
+MUST-SURFACE TERMS (the candidate genuinely has these — make each appear
+VERBATIM and naturally; add NO other JD terms):
+{surface_terms}
+
+Write the tailored CV now.
+"""

@@ -145,13 +145,124 @@ def _scorer_s2_grounded(
 
 
 # ---------------------------------------------------------------------------
+# S5 — ATS-readiness (research-grounded)
+#
+# Reflects how real ATS actually gate candidates (see the ATS research):
+#   • Keyword coverage (55) — fraction of JD required/preferred terms present
+#     LEXICALLY in the CV (exact/word-boundary — what recruiter boolean search
+#     and ranking actually key on), and GROUNDED in the original CV so
+#     fabrications earn nothing. Required weighted 3:1 over preferred.
+#   • Parseability (30) — the #1 mechanical risk: standard section headings,
+#     contact info present, sane length. (A clean tailored CV beats a styled,
+#     column-heavy original here — the honest, demonstrable lift.)
+#   • Section completeness (15) — the expected sections exist.
+# ---------------------------------------------------------------------------
+
+import re as _re  # already imported at top; alias kept local-safe
+
+_STD_SECTIONS = ("experience", "education", "skills")
+_EMAIL_RE = _re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+_PHONE_RE = _re.compile(r"(\+?\d[\d\s\-().]{6,}\d)")
+
+
+def _collect_jd_terms(jd_analysis: Dict[str, Any], block: str) -> List[str]:
+    out: List[str] = []
+    cats = (jd_analysis or {}).get(block) or {}
+    if isinstance(cats, dict):
+        for cat in _CATEGORIES:
+            out.extend(str(x).lower().strip() for x in (cats.get(cat) or []) if str(x).strip())
+    # dedupe preserve order
+    seen: set[str] = set()
+    return [t for t in out if not (t in seen or seen.add(t))]
+
+
+def _coverage_rate(
+    terms: List[str], cv_lower: str, orig_lower: Optional[str], ev: Dict[str, str],
+) -> float:
+    if not terms:
+        return 1.0  # JD asked for nothing in this bucket — don't penalise
+    hit = 0
+    for t in terms:
+        if not _kw_present(t, cv_lower):
+            continue
+        # Ground against the original so fabricated terms earn no coverage.
+        if orig_lower is not None and not _is_grounded(t, orig_lower, ev):
+            continue
+        hit += 1
+    return hit / len(terms)
+
+
+def _parseability(cv_text: str) -> float:
+    """0-30: standard headings (15) + contact (8) + sane length (7)."""
+    low = (cv_text or "").lower()
+    pts = 0.0
+    pts += 5.0 * sum(1 for s in _STD_SECTIONS if s in low)        # up to 15
+    if _EMAIL_RE.search(cv_text or ""):
+        pts += 4.0
+    if _PHONE_RE.search(cv_text or ""):
+        pts += 4.0
+    wc = len((cv_text or "").split())
+    if 150 <= wc <= 1200:
+        pts += 7.0
+    elif 80 <= wc < 150 or 1200 < wc <= 2000:
+        pts += 4.0
+    return min(pts, 30.0)
+
+
+def _scorer_s5_ats_readiness(
+    cv_text: str,
+    jd_analysis: Dict[str, Any],
+    matching: Dict[str, Any],
+    *,
+    original_cv_text: Optional[str] = None,
+) -> Dict[str, Any]:
+    cv_lower = (cv_text or "").lower()
+    orig_lower = (original_cv_text or "").lower() if original_cv_text is not None else None
+
+    raw_ev = (matching.get("match_evidence") or {}) if isinstance(matching, dict) else {}
+    ev = {
+        str(k).lower().strip(): str(v).lower().strip()
+        for k, v in (raw_ev.items() if isinstance(raw_ev, dict) else [])
+        if str(k).strip() and str(v).strip()
+    }
+
+    req = _collect_jd_terms(jd_analysis, "required_skills")
+    pref = _collect_jd_terms(jd_analysis, "preferred_skills")
+    req_rate = _coverage_rate(req, cv_lower, orig_lower, ev)
+    pref_rate = _coverage_rate(pref, cv_lower, orig_lower, ev)
+
+    coverage_pts = (req_rate * 0.75 + pref_rate * 0.25) * 55.0
+    parse_pts = _parseability(cv_text)
+    sections_present = sum(1 for s in _STD_SECTIONS if s in cv_lower)
+    completeness_pts = (sections_present / len(_STD_SECTIONS)) * 15.0
+
+    overall = int(round(coverage_pts + parse_pts + completeness_pts))
+    overall = max(0, min(100, overall))
+
+    return {
+        "overall_score": overall,
+        "ats_readiness_breakdown": {
+            "keyword_coverage": {
+                "earned": round(coverage_pts, 1), "max": 55,
+                "required_rate_pct": round(req_rate * 100, 1),
+                "preferred_rate_pct": round(pref_rate * 100, 1),
+                "required_total": len(req), "preferred_total": len(pref),
+            },
+            "parseability": {"earned": round(parse_pts, 1), "max": 30},
+            "section_completeness": {"earned": round(completeness_pts, 1), "max": 15},
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 
 SCORER_VARIANTS: Dict[str, ScorerFn] = {
-    "s1_current":   _scorer_s1_current,
-    "s2_grounded":  _scorer_s2_grounded,
+    "s1_current":      _scorer_s1_current,
+    "s2_grounded":     _scorer_s2_grounded,
+    "s5_ats_readiness": _scorer_s5_ats_readiness,
 }
 
 
