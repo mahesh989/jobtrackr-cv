@@ -41,6 +41,15 @@ from app.services.ai.prompts.variants.tailored_cv_chat import (
     TAILORED_CV_CHAT_SYSTEM,
     TAILORED_CV_CHAT_USER_TEMPLATE,
 )
+from app.services.ai.prompts.variants.composition import (
+    build_composition_system,
+    COMPOSITION_USER_TEMPLATE,
+)
+from app.services.eval.enforce import enforce_skills_section
+from app.services.eval.role_families import (
+    resolve_role_family,
+    resolve_seniority,
+)
 from app.services.cv.contact_line import stamp_contact_line
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
@@ -67,7 +76,10 @@ class WriterResult:
     extras: Dict[str, Any] = field(default_factory=dict)
 
 
-WriterFn = Callable[[AIClient, str, str, Optional[Dict[str, Any]]], Awaitable[WriterResult]]
+# Writers are called as: writer(client, cv_text, jd_text, contact_details, vertical=...)
+# The `vertical` hint (from the beta screen) is used only by W3's router; the
+# other writers accept and ignore it.
+WriterFn = Callable[..., Awaitable[WriterResult]]
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +128,8 @@ async def _writer_w1_current(
     cv_text: str,
     jd_text: str,
     contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,  # ignored by W1
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
     recs_md = await run_ai_recommendations(
@@ -153,6 +167,8 @@ async def _writer_w2_general(
     cv_text: str,
     jd_text: str,
     contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,  # ignored by W2
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
     recs_md = await run_ai_recommendations(
@@ -195,6 +211,8 @@ async def _writer_w4_chat(
     cv_text: str,
     jd_text: str,
     contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,  # ignored by W4
 ) -> WriterResult:
     up = await _run_upstream(client, cv_text, jd_text)
     user_prompt = TAILORED_CV_CHAT_USER_TEMPLATE.format(
@@ -227,10 +245,70 @@ async def _writer_w4_chat(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# W3 — composition: role-family-aware single rich call + deterministic enforcement
+# Combines W4's lean single-call writer (best prose) with a role-family pack
+# (restores the honesty guardrails W2 lost) and deterministic skills hygiene.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w3_composition(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    up = await _run_upstream(client, cv_text, jd_text)
+
+    role_family = resolve_role_family(vertical, up["jd_analysis"])
+    seniority = resolve_seniority(up["jd_analysis"])
+    system_prompt = build_composition_system(role_family, seniority)
+
+    plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
+    user_prompt = COMPOSITION_USER_TEMPLATE.format(
+        cv_text=cv_text,
+        jd_text=jd_text,
+        feasibility_json=json.dumps(plan_for_prompt, indent=2),
+    )
+    raw = await client.complete(
+        system=system_prompt,
+        user=user_prompt,
+        max_tokens=6144,
+        temperature=0.35,
+    )
+    if not raw or len(raw.strip()) < 200:
+        raise ValueError("W3 tailored CV: response too short")
+
+    # Production post-processors + skills hygiene. drop_ungrounded only for the
+    # strictest policy (manual = "none") to avoid pruning legitimate
+    # methodology terms in tech/master.
+    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = enforce_skills_section(
+        final_md,
+        original_cv_text=cv_text,
+        drop_ungrounded=(role_family.injection_policy == "none"),
+    )
+    return WriterResult(
+        tailored_md=final_md,
+        jd_analysis=up["jd_analysis"],
+        matching=up["matching"],
+        initial_ats_internal=up["ats"],
+        feasibility=up["feasibility"],
+        extras={
+            "input_recommendations": up["input_recs"],
+            "role_family": role_family.id,
+            "seniority": seniority,
+        },
+    )
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
-    "w1_current":  _writer_w1_current,
-    "w2_general":  _writer_w2_general,
-    "w4_chat":     _writer_w4_chat,
+    "w1_current":     _writer_w1_current,
+    "w2_general":     _writer_w2_general,
+    "w3_composition": _writer_w3_composition,
+    "w4_chat":        _writer_w4_chat,
 }
 
 

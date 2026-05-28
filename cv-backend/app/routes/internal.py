@@ -180,6 +180,7 @@ async def analyze_eval(
         writer_variant=body.writer_variant,
         scorer_variant=body.scorer_variant,
         contact_details=body.contact_details,
+        vertical=body.vertical,
     )
 
     return AnalyzeEvalResponse(eval_run_id=eval_run_id)

@@ -51,13 +51,14 @@ async def compute_eval(
     writer_variant: str,
     scorer_variant: str,
     contact_details: Optional[Dict[str, Any]] = None,
+    vertical: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compute one eval; never touches the DB. Raises ValueError / AIClientError."""
     writer = get_writer(writer_variant)
     scorer = get_scorer(scorer_variant)
 
     t0 = time.perf_counter()
-    wr = await writer(client, cv_text, jd_text, contact_details)
+    wr = await writer(client, cv_text, jd_text, contact_details, vertical=vertical)
     t_writer = time.perf_counter() - t0
 
     rescore = run_tailored_rescoring(
@@ -178,6 +179,7 @@ async def run_eval_background(
     writer_variant: str,
     scorer_variant: str,
     contact_details: Optional[Dict[str, Any]] = None,
+    vertical: Optional[str] = None,
 ) -> None:
     """
     Background task: compute one eval, then UPDATE its eval_runs row with the
@@ -192,6 +194,7 @@ async def run_eval_background(
             writer_variant=writer_variant,
             scorer_variant=scorer_variant,
             contact_details=contact_details,
+            vertical=vertical,
         )
         _update_row(eval_run_id, {**result, "status": "completed"})
         logger.info(

@@ -12,7 +12,7 @@ type VariantOpt = { id: string; label: string; available: boolean; note?: string
 const WRITERS: VariantOpt[] = [
   { id: "w1_current",     label: "W1 — Current Production", available: true },
   { id: "w2_general",     label: "W2 — Generalised (de-biased)", available: true },
-  { id: "w3_composition", label: "W3 — Composition (universal + pack + seniority)", available: false, note: "Phase 4" },
+  { id: "w3_composition", label: "W3 — Composition (universal + pack + seniority)", available: true },
   { id: "w4_chat",        label: "W4 — Chat Single-Call", available: true },
 ];
 
