@@ -15,6 +15,7 @@ const WRITERS: VariantOpt[] = [
   { id: "w3_composition", label: "W3 — Composition (universal + pack + seniority)", available: true },
   { id: "w4_chat",        label: "W4 — Chat Single-Call", available: true },
   { id: "w5_surfacing",   label: "W5 — Lexical Surfacing (grounded, ATS-optimised)", available: true },
+  { id: "w6_general",     label: "W6 — Re-engineered W1 (general, research-informed)", available: true },
 ];
 
 const SCORERS: VariantOpt[] = [

@@ -37,6 +37,9 @@ from app.services.ai.prompts import (
 from app.services.ai.prompts.variants.tailored_cv_general import (
     TAILORED_CV_GENERAL_SYSTEM,
 )
+from app.services.ai.prompts.variants.tailored_cv_w6 import (
+    TAILORED_CV_W6_SYSTEM,
+)
 from app.services.ai.prompts.variants.tailored_cv_chat import (
     TAILORED_CV_CHAT_SYSTEM,
     TAILORED_CV_CHAT_USER_TEMPLATE,
@@ -392,12 +395,59 @@ async def _writer_w5_surfacing(
     )
 
 
+# ---------------------------------------------------------------------------
+# W6 — re-engineered general W1. SAME pipeline + SAME post-processors as W1/W2;
+# only the system prompt changes (de-biased, generalised, ATS-research-informed).
+# No role-pack machinery, no extra gates — this tests whether a single well-
+# crafted general prompt fixes W1 without the W3 architecture.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w6_general(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,  # not needed — the prompt is field-agnostic
+) -> WriterResult:
+    up = await _run_upstream(client, cv_text, jd_text)
+    recs_md = await run_ai_recommendations(
+        client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
+    )
+    plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
+    user_prompt = TAILORED_CV_USER_TEMPLATE.format(
+        cv_text=cv_text,
+        jd_analysis_json=json.dumps(up["jd_analysis"], indent=2),
+        ai_recommendations_md=recs_md,
+        feasibility_json=json.dumps(plan_for_prompt, indent=2),
+    )
+    raw = await client.complete(
+        system=TAILORED_CV_W6_SYSTEM,
+        user=user_prompt,
+        max_tokens=6144,
+        temperature=0.3,
+    )
+    if not raw or len(raw.strip()) < 200:
+        raise ValueError("W6 tailored CV: response too short")
+    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    return WriterResult(
+        tailored_md=final_md,
+        jd_analysis=up["jd_analysis"],
+        matching=up["matching"],
+        initial_ats_internal=up["ats"],
+        feasibility=up["feasibility"],
+        extras={"input_recommendations": up["input_recs"], "ai_recommendations_md": recs_md},
+    )
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
     "w3_composition": _writer_w3_composition,
     "w4_chat":        _writer_w4_chat,
     "w5_surfacing":   _writer_w5_surfacing,
+    "w6_general":     _writer_w6_general,
 }
 
 
