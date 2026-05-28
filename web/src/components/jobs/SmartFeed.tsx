@@ -263,7 +263,10 @@ function SmartFeedBody({
   // Distance-range URL state for the ribbon's draggable handles. min_distance
   // and max_distance are both read by jobFilters, so dragging filters the
   // feed live without a server round-trip.
-  const ribbonMax = Math.max(50, Math.ceil(distanceMax / 10) * 10);
+  // Axis is fixed at 50 km — outlier jobs (e.g., 900 km away) pin to the right
+  // edge instead of stretching the tick scale into illegible overlap. Matches
+  // the beta /dashboard/beta/job-feed prototype.
+  const ribbonMax = 50;
   const minDist   = clampInt(sp.get("min_distance"), 0, ribbonMax, 0);
   const maxDist   = clampInt(sp.get("max_distance"), 0, ribbonMax, ribbonMax);
   const range: [number, number] = [minDist, maxDist];
@@ -372,7 +375,25 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState<"min" | "max" | null>(null);
-  const ticks = Array.from({ length: maxKm / 10 + 1 }, (_, i) => i * 10);
+
+  // While dragging we keep the range in local state so the handles + dot-mute
+  // update at 60fps without pushing every mousemove into the URL (which would
+  // re-render every job card and could crash the tab). The URL is committed
+  // once on mouseup.
+  const [localRange, setLocalRange] = useState<[number, number]>(range);
+  const localRangeRef = useRef(localRange);
+  localRangeRef.current = localRange;
+
+  // Sync local state when the URL changes from somewhere else (e.g. "clear").
+  useEffect(() => { if (!dragging) setLocalRange(range); }, [range, dragging]);
+
+  // Tick step adapts to the axis so we don't render 100 overlapping labels.
+  // At 50 km we get 0/10/20/30/40/50 — same as the beta.
+  const tickStep = maxKm <= 60 ? 10 : maxKm <= 200 ? 25 : 50;
+  const ticks = Array.from(
+    { length: Math.floor(maxKm / tickStep) + 1 },
+    (_, i) => i * tickStep,
+  );
 
   useEffect(() => {
     if (!dragging) return;
@@ -382,10 +403,14 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
       const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
       const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const km = Math.round(pct * maxKm);
-      if (dragging === "min") onRangeChange([Math.min(km, range[1] - 1), range[1]]);
-      else                    onRangeChange([range[0], Math.max(km, range[0] + 1)]);
+      const [lo, hi] = localRangeRef.current;
+      if (dragging === "min") setLocalRange([Math.min(km, hi - 1), hi]);
+      else                    setLocalRange([lo, Math.max(km, lo + 1)]);
     }
-    function onUp() { setDragging(null); }
+    function onUp() {
+      setDragging(null);
+      onRangeChange(localRangeRef.current);
+    }
     window.addEventListener("mousemove",  onMove);
     window.addEventListener("mouseup",    onUp);
     window.addEventListener("touchmove",  onMove);
@@ -396,9 +421,10 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
       window.removeEventListener("touchmove",  onMove);
       window.removeEventListener("touchend",   onUp);
     };
-  }, [dragging, range, maxKm, onRangeChange]);
+  }, [dragging, maxKm, onRangeChange]);
 
-  const rangeActive = range[0] > 0 || range[1] < maxKm;
+  const displayRange = dragging ? localRange : range;
+  const rangeActive  = displayRange[0] > 0 || displayRange[1] < maxKm;
 
   return (
     <div className="rounded-md border border-border bg-[var(--surface-2)] p-4">
@@ -407,7 +433,7 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
           Distance from home
           {rangeActive && (
             <span className="text-text font-normal normal-case ml-1">
-              · {range[0]}–{range[1]} km
+              · {displayRange[0]}–{displayRange[1]} km
               <button
                 onClick={() => onRangeChange([0, maxKm])}
                 className="ml-1 text-[var(--brand)] hover:underline"
@@ -428,8 +454,8 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
         <div
           className="absolute top-[26px] h-[3px] bg-[var(--brand)]/40 rounded"
           style={{
-            left:  `${(range[0] / maxKm) * 100}%`,
-            width: `${((range[1] - range[0]) / maxKm) * 100}%`,
+            left:  `${(displayRange[0] / maxKm) * 100}%`,
+            width: `${((displayRange[1] - displayRange[0]) / maxKm) * 100}%`,
           }}
         />
         {ticks.map((t) => (
@@ -442,7 +468,7 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
           const km = j.distance_km as number;
           const x = (Math.min(km, maxKm) / maxKm) * 100;
           const y = 28 + ((i % 3) - 1) * 3;
-          const muted = km < range[0] || km > range[1];
+          const muted = km < displayRange[0] || km > displayRange[1];
           const vk = visaKey(j);
           return (
             <button
@@ -463,8 +489,8 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
             />
           );
         })}
-        <RangeHandle pos={(range[0] / maxKm) * 100} onStart={() => setDragging("min")} label={`${range[0]} km`} />
-        <RangeHandle pos={(range[1] / maxKm) * 100} onStart={() => setDragging("max")} label={`${range[1]} km`} />
+        <RangeHandle pos={(displayRange[0] / maxKm) * 100} onStart={() => setDragging("min")} label={`${displayRange[0]} km`} />
+        <RangeHandle pos={(displayRange[1] / maxKm) * 100} onStart={() => setDragging("max")} label={`${displayRange[1]} km`} />
       </div>
     </div>
   );
