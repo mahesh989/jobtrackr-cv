@@ -76,7 +76,9 @@ function NavItem({
         <Icon className="h-4 w-4 shrink-0" />
         <span className="truncate">{children}</span>
       </span>
-      {badge !== undefined && badge > 0 && (
+      {/* Hide the badge once the user is on the page — the "unread" cue is
+          no longer useful when they're already looking at the content. */}
+      {badge !== undefined && badge > 0 && !active && (
         <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-[10px] font-bold flex items-center justify-center">
           {badge > 99 ? "99+" : badge}
         </span>
@@ -85,7 +87,7 @@ function NavItem({
   );
 }
 
-export function SidebarNav({ email, profiles, poolCount = 0 }: Props) {
+export function SidebarNav({ email, poolCount = 0 }: Props) {
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
@@ -114,14 +116,10 @@ export function SidebarNav({ email, profiles, poolCount = 0 }: Props) {
 
         {/* My profiles — single nav entry (NOT a per-profile list anymore).
             The full table with each profile's stats / Run / Jobs / Copy /
-            Delete lives on the /dashboard/profiles page. Badge is the
-            aggregate "new across all profiles" count so the user still
-            sees there's something fresh without expanding. */}
-        <NavItem
-          href="/dashboard/profiles"
-          icon={Briefcase}
-          badge={profiles.reduce((sum, p) => sum + (p.newCount ?? 0), 0) || undefined}
-        >
+            Delete lives on the /dashboard/profiles page. Per-profile "new"
+            counts are surfaced on the profile cards themselves, so we don't
+            need a (potentially stale) aggregate badge in the sidebar. */}
+        <NavItem href="/dashboard/profiles" icon={Briefcase}>
           My profiles
         </NavItem>
 

@@ -20,7 +20,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
@@ -160,7 +160,6 @@ export function SmartToolbar({
       {/* Row 1 — location search, sort, optional distance */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3 pointer-events-none" />
           <input
             type="text"
             defaultValue={currentLocation}
@@ -172,7 +171,7 @@ export function SmartToolbar({
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
             placeholder="Filter by location or company…"
-            className="field pl-9 pr-8 text-[12px]"
+            className="field pl-3 pr-8 text-[12px]"
           />
           {currentLocation && (
             <button
@@ -200,11 +199,12 @@ export function SmartToolbar({
         </label>
       </div>
 
-      {/* Distance row — sits directly below Sort. Always visible: the
-          dashboard spans multiple profiles (no single homeAddress) but
-          each job still carries its own distance_km from its profile's
-          home, so the cap filter is meaningful there too. */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Distance row — sits directly below Sort (right-aligned so the
+          two dropdowns line up vertically). Always visible: the dashboard
+          spans multiple profiles (no single homeAddress) but each job
+          still carries its own distance_km from its profile's home, so
+          the cap filter is meaningful there too. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
           Distance
           <select
