@@ -36,6 +36,31 @@ family section ordering). W8 is the deliverable of the "document production → 
 into new engine → adapt for nursing" task; it fixes W7's one residual (nursing now leads
 with "Registration & Licences" and every family's section order is honoured).
 
+### W8 sophistication stack (W8.0–W8.3, all additive)
+- **W8.0 structural hardening** (`enforce_w8.py` + `enforce_w3.py`): merge same-named
+  sections (fixes duplicate "Clinical Experience" the mismatch case dumped at the end),
+  drop empty placeholder sections, relabel a filler nursing "Registration & Licences" →
+  "Checks & Clearances" for unregistered care roles (AINs hold no AHPRA reg). Degree gate:
+  when every entry is an irrelevant grad (model dropped the Bachelor), keep only the FIRST
+  instead of the whole pile.
+- **W8.1 per-claim entailment verify** (`verify.py`, Stage 6): one focused field-agnostic
+  AI call (temp 0) checks each Experience/Projects bullet is entailed by the source CV;
+  repairs or drops the rest. Catches reframed/inflated claims entity-grounding misses.
+  Best-effort (never crashes). Shipped as **`w8_verified`** = `w8_integrated` + verify so
+  the beta can A/B the honesty lift.
+- **W8.2 knockout pass** (`knockout.py`, Stage 3): deterministic regex over raw JD+CV +
+  `experience_years_required` → mandatory licence/registration, min years, work-rights.
+  Per-domain curated config. Surfaced in `WriterResult.extras["knockouts"]` (both W8
+  variants). data-CV→nursing = 4 hard fails.
+- **W8.3 equivalence table** (`role_families.py` `equivalences` + `apply_equivalences`,
+  Stage 1): per-family verified synonym/child→parent table. Promotes a JD term to
+  inject_directly only when JD wants it AND the CV literally has a justifying term AND
+  policy≠none. Replaces over-permissive AI guessing for these terms. tech: SQL↔db engines,
+  Data Visualisation←Power BI/Tableau, PostgreSQL←SQL. nursing: Aged Care←Ageing Support
+  (true synonyms only). manual: none (policy none).
+- **Deferred (Phase C, not built):** Stage 4 production ensemble + Stage 8 auto-judge/
+  ATS-parser-sim. Knowledge corpus + Learning Flywheel remain out of scope.
+
 ### W8 mechanism (`cv-backend/app/services/eval/enforce_w8.py`)
 The frozen production contract (`steps/tailored_cv._enforce_structure` +
 `_inject_missing_skills`, `contact_line.stamp_contact_line`) and the W3 gates are all

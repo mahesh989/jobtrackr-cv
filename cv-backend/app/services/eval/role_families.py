@@ -32,6 +32,13 @@ class RoleFamilyProfile:
     metric_vocab: List[str]            # domain metric words (for relevance/coverage)
     identity_guidance: str             # short prompt block: how to frame identity
     extra_rules: str = ""              # any family-specific rule text
+    # Verified equivalences: (jd_facing_term, [cv_terms_that_justify_it], category).
+    # A small, curated, per-family slice of a skill ontology. When the JD wants
+    # jd_facing_term and the CV literally contains one of the justifying terms,
+    # the term may be surfaced honestly (synonym or child→parent tool inference —
+    # NEVER a domain claim the CV doesn't support). category ∈
+    # {technical, soft_skills, domain_knowledge}.
+    equivalences: List[tuple] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -70,6 +77,20 @@ _TECH = RoleFamilyProfile(
         "JD-aligned roles/projects over AI-evaluation/training roles. If the "
         "JD IS AI/ML-focused, lead with the AI/ML identity instead."
     ),
+    equivalences=[
+        # child→parent (always honest: knowing the specific implies the general)
+        ("SQL", ["postgresql", "postgres", "mysql", "sql server", "t-sql",
+                 "pl/sql", "sqlite", "oracle", "mariadb"], "technical"),
+        ("Relational Databases", ["postgresql", "mysql", "sql server",
+                                  "oracle", "sqlite", "mariadb"], "technical"),
+        ("NoSQL", ["mongodb", "cassandra", "dynamodb", "redis", "couchbase"], "technical"),
+        ("Cloud", ["aws", "azure", "gcp", "google cloud"], "technical"),
+        ("CI/CD", ["github actions", "gitlab ci", "jenkins", "circleci", "travis"], "technical"),
+        ("Data Visualisation", ["power bi", "tableau", "looker", "matplotlib",
+                                "seaborn", "plotly", "qlik"], "technical"),
+        # user-approved tool inference: CV has SQL → JD's PostgreSQL is defensible
+        ("PostgreSQL", ["sql", "postgres", "psql"], "technical"),
+    ],
 )
 
 _NURSING = RoleFamilyProfile(
@@ -106,6 +127,16 @@ _NURSING = RoleFamilyProfile(
         "- Certifications are first-class: include relevant clinical certs "
         "even when the JD does not name them explicitly."
     ),
+    equivalences=[
+        # TRUE SYNONYMS only — surfacing the same thing under the JD's vocabulary,
+        # never inferring a clinical competency the CV doesn't state.
+        ("Aged Care", ["ageing support", "aged care", "elderly care",
+                       "residential aged care"], "domain_knowledge"),
+        ("Activities of Daily Living", ["activities of daily living", "adls",
+                                        "personal care", "showering", "dressing"], "domain_knowledge"),
+        ("Person-Centred Care", ["person-centred care", "person centered care",
+                                 "individualised care"], "domain_knowledge"),
+    ],
 )
 
 _MANUAL = RoleFamilyProfile(
@@ -234,3 +265,65 @@ def resolve_seniority(jd_analysis: Dict[str, Any] | None) -> str:
     if level in ("senior", "lead", "principal", "staff", "manager", "director"):
         return "senior"
     return "mid"
+
+
+def apply_equivalences(
+    feasibility: Dict[str, Any] | None,
+    cv_text: str,
+    jd_text: str,
+    rf: RoleFamilyProfile,
+) -> Dict[str, Any]:
+    """
+    W8.3 — deterministically promote JD terms to inject_directly when the role
+    family's verified equivalence table says the CV honestly justifies them.
+
+    A term is surfaced only when ALL hold:
+      • the family allows injection (policy != "none"),
+      • the JD actually wants the term (it appears in the JD text),
+      • the CV literally contains one of the justifying terms,
+      • the term isn't already in the inject list.
+
+    The promoted entry uses the skills-section injection shape so the existing
+    deterministic injector (_inject_missing_skills) lands it. Replaces the
+    over-permissive AI feasibility guessing with verified, config-driven
+    surfacing (no per-case tokens). Returns the (mutated) feasibility dict.
+    """
+    if feasibility is None:
+        return feasibility
+    if rf.injection_policy == "none" or not rf.equivalences:
+        return feasibility
+
+    cv_l = (cv_text or "").lower()
+    jd_l = (jd_text or "").lower()
+    plan = feasibility.setdefault("feasibility_plan", {})
+    inject = plan.setdefault("inject_directly", [])
+    if not isinstance(inject, list):
+        return feasibility
+
+    existing = {
+        str(e.get("keyword", "")).lower()
+        for e in inject if isinstance(e, dict)
+    }
+    added: List[str] = []
+    for jd_term, cv_terms, category in rf.equivalences:
+        key = jd_term.lower()
+        if key in existing:
+            continue
+        if key not in jd_l:
+            continue  # the JD doesn't ask for it → no ATS value in surfacing
+        if not any(
+            re.search(r"\b" + re.escape(t.lower()) + r"\b", cv_l) for t in cv_terms
+        ):
+            continue  # the CV doesn't honestly justify it
+        inject.append({
+            "keyword": jd_term,
+            "category": category,
+            "injection_target": "skills_section",
+            "source": "equivalence",
+        })
+        existing.add(key)
+        added.append(jd_term)
+
+    if added:
+        feasibility.setdefault("_equivalences_added", []).extend(added)
+    return feasibility

@@ -58,6 +58,7 @@ from app.services.eval.knockout import detect_knockouts
 from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
+    apply_equivalences,
 )
 from app.services.cv.contact_line import stamp_contact_line
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
@@ -547,6 +548,9 @@ async def _writer_w8_integrated(
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])
     seniority = resolve_seniority(up["jd_analysis"])
+    # W8.3 — promote JD terms the CV honestly justifies via the family's verified
+    # equivalence table (replaces over-permissive AI guessing for these terms).
+    up["feasibility"] = apply_equivalences(up["feasibility"], cv_text, jd_text, role_family)
     system_prompt = build_composition_system(role_family, seniority)
 
     plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
