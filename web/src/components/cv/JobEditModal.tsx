@@ -92,7 +92,7 @@ export function JobEditModal({
         company_address: json.company_address ?? null,
       });
       // Re-fetch server data so the board reflects the DB trigger's recomputed
-      // jd_quality (a full paste ≥2000 chars flips thin → rich), clearing the
+      // jd_quality (a full paste ≥1400 chars flips thin → rich), clearing the
       // stale "thin JD" badge without a manual page reload.
       router.refresh();
       onClose();

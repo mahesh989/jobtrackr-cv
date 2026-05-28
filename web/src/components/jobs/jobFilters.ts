@@ -32,6 +32,22 @@ export interface ViewFilters {
   minDistance?: string;
 }
 
+/** Minimum manual-JD length (chars) that counts as "the user supplied a usable
+ *  JD". Mirrors the analyze route's hasManualJd bar so the UI, counts, and the
+ *  server analyze gate all agree on when a paste unblocks a thin job. */
+export const MANUAL_JD_MIN_CHARS = 200;
+
+/**
+ * Whether a job still needs a JD pasted: it's classified 'thin' AND the user
+ * hasn't already pasted a usable manual JD. Single source of truth shared by
+ * the filter, the card badges, the "Needs attention" bucket, and the funnel
+ * counts so they never disagree.
+ */
+export function jobNeedsJd(job: { jd_quality?: string | null; manual_jd_text?: string | null }): boolean {
+  if (job.jd_quality !== "thin") return false;
+  return (job.manual_jd_text ?? "").trim().length < MANUAL_JD_MIN_CHARS;
+}
+
 /**
  * Compute a job's ATS band from its run's recomputed gates (server-side helper,
  * mirrors the dashboard donut's ATS lens buckets exactly):
@@ -60,12 +76,12 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   if (f.stage === "analysed")        out = out.filter((x) => x.progress.has_analysis);
   else if (f.stage === "cvReady")    out = out.filter((x) => x.progress.has_tailored_cv);
   else if (f.stage === "letterReady")out = out.filter((x) => x.progress.has_cover_letter);
-  else if (f.stage === "thinJd")     out = out.filter((x) => x.jd_quality === "thin");
+  else if (f.stage === "thinJd")     out = out.filter(jobNeedsJd);
   else if (f.stage === "applied")    out = out.filter((x) => x.applied_at != null);
 
   // Triage sub-filter
-  if (f.triage === "needsJd" || f.triage === "thinJd") out = out.filter((x) => x.jd_quality === "thin");
-  else if (f.triage === "richJd")        out = out.filter((x) => x.jd_quality === "rich");
+  if (f.triage === "needsJd" || f.triage === "thinJd") out = out.filter(jobNeedsJd);
+  else if (f.triage === "richJd")        out = out.filter((x) => x.jd_quality === "rich" || (x.jd_quality === "thin" && !jobNeedsJd(x)));
   else if (f.triage === "roleMismatch")  out = out.filter((x) => x.role_match === "mismatch");
   else if (f.triage === "belowThreshold")out = out.filter((x) => x.pipelineState === "below_initial" || x.pipelineState === "below_final");
   else if (f.triage === "hasEmail")      out = out.filter((x) => x.has_email === true);

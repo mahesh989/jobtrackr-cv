@@ -33,7 +33,7 @@ import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
 import { type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoard } from "@/components/jobs/JobBoard";
-import { atsBandFor, type BoardJob } from "@/components/jobs/jobFilters";
+import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
 import {
   deriveProgress,
@@ -261,7 +261,7 @@ export default async function DashboardPage({
   // Thin-JD jobs in the loaded board — fed to the bulk "Fix thin JDs" modal.
   // Captured before the stage/triage filters below mutate typedJobs.
   const thinJdJobs: ThinJdJob[] = typedJobs
-    .filter((x) => x.jd_quality === "thin")
+    .filter(jobNeedsJd)
     .map((x) => ({
       id:             x.id,
       title:          x.title ?? null,
@@ -298,7 +298,7 @@ export default async function DashboardPage({
   // Status-tab counts — aggregated across profiles
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, role_match, has_email")
+    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -310,6 +310,7 @@ export default async function DashboardPage({
     dismissed_at: string | null;
     profile_id: string;
     jd_quality: string | null;
+    manual_jd_text: string | null;
     role_match: string | null;
     has_email: boolean | null;
   }
@@ -365,12 +366,12 @@ export default async function DashboardPage({
     applied:        tabAppliedCount,
     dismissed:      tabDismissedCount,
     newCount:       totalNew,
-    needsJd:        allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    needsJd:        allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
     roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,
     belowThreshold: allRows.filter((j) => !j.dismissed_at && belowThresholdSet.has(j.id)).length,
     hasEmail:       allRows.filter((j) => !j.dismissed_at && j.has_email === true).length,
-    thinJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
-    richJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "rich").length,
+    thinJd:         allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
+    richJd:         allRows.filter((j) => !j.dismissed_at && (j.jd_quality === "rich" || (j.jd_quality === "thin" && !jobNeedsJd(j)))).length,
   };
 
   // ── Pipeline donut: additional queries ───────────────────────────────────────

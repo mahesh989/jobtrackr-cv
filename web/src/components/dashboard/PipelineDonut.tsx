@@ -488,7 +488,12 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
                 <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
                 <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
                 <span className="text-[13px] font-semibold text-text w-12 text-right shrink-0 tabular-nums">{n.toLocaleString()}</span>
-                <span className="text-[10px] text-text-3 w-7 text-right shrink-0 tabular-nums">{pct}%</span>
+                <span className="text-[10px] text-text-3 w-9 text-right shrink-0 tabular-nums">{pct}%</span>
+                {/* Trailing spacer pulls the number + % column ~40% in from the
+                    right edge so it reads closer to the labels. Fixed-width
+                    right-aligned number/pct keep every row in a clean column —
+                    same treatment across all lens tabs. */}
+                <span aria-hidden className="shrink-0 w-[40%]" />
               </>
             );
             return s.href ? (

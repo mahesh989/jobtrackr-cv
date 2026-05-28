@@ -29,7 +29,7 @@ import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
 import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
-import { atsBandFor, type BoardJob } from "@/components/jobs/jobFilters";
+import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -197,7 +197,7 @@ export default async function JobsPage({
   // ── Global counts for funnel ─────────────────────────────────────────────
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, role_match, has_email")
+    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -205,7 +205,8 @@ export default async function JobsPage({
   interface AllCountRow {
     id: string; seen_at: string | null; applied_at: string | null;
     dismissed_at: string | null; profile_id: string;
-    jd_quality: string | null; role_match: string | null; has_email: boolean | null;
+    jd_quality: string | null; manual_jd_text: string | null;
+    role_match: string | null; has_email: boolean | null;
   }
   const allRows = (countRows ?? []) as AllCountRow[];
   const jobIdsForCounts = allRows.map((r) => r.id);
@@ -254,12 +255,12 @@ export default async function JobsPage({
     applied:        tabAppliedCount,
     dismissed:      tabDismissedCount,
     newCount,
-    needsJd:        allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
+    needsJd:        allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
     roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,
     belowThreshold: allRows.filter((j) => !j.dismissed_at && belowThresholdSet.has(j.id)).length,
     hasEmail:       allRows.filter((j) => !j.dismissed_at && j.has_email === true).length,
-    thinJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "thin").length,
-    richJd:         allRows.filter((j) => !j.dismissed_at && j.jd_quality === "rich").length,
+    thinJd:         allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
+    richJd:         allRows.filter((j) => !j.dismissed_at && (j.jd_quality === "rich" || (j.jd_quality === "thin" && !jobNeedsJd(j)))).length,
   };
 
   const exportParams = new URLSearchParams();
