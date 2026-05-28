@@ -198,22 +198,26 @@ export function SmartToolbar({
             ))}
           </select>
         </label>
+      </div>
 
-        {homeAddress && (
-          <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
-            Distance
-            <select
-              value={currentDistance}
-              onChange={(e) => setOne("max_distance", e.target.value)}
-              className="field text-[12px] py-1 pr-7"
-              title={`Distance from ${homeAddress}`}
-            >
-              {DISTANCE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-        )}
+      {/* Distance row — sits directly below Sort. Always visible: the
+          dashboard spans multiple profiles (no single homeAddress) but
+          each job still carries its own distance_km from its profile's
+          home, so the cap filter is meaningful there too. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
+          Distance
+          <select
+            value={currentDistance}
+            onChange={(e) => setOne("max_distance", e.target.value)}
+            className="field text-[12px] py-1 pr-7"
+            title={homeAddress ? `Distance from ${homeAddress}` : "Distance from each profile's home address"}
+          >
+            {DISTANCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Row 2 — "All jobs" reset chip + stage chips with live counts.

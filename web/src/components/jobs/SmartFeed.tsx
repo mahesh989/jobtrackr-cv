@@ -700,6 +700,11 @@ function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) {
 }
 
 function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
+  // Show whichever dates we have. Posted date is the more relevant signal
+  // for "is this fresh?", added is "when did the pipeline pick it up?".
+  // Tooltips carry the absolute date so the user can hover for precision.
+  const postedRel = relativeDate(job.posted_at);
+  const addedRel  = relativeDate(job.created_at);
   return (
     <p className={`${compact ? "mt-0.5 text-[11px]" : "text-[11px]"} text-text-2 truncate`}>
       {job.company && <span className="font-medium">{job.company}</span>}
@@ -709,6 +714,22 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
         <>
           <span className="text-text-3"> · </span>
           <Distance km={job.distance_km} method={job.distance_method ?? null} />
+        </>
+      )}
+      {postedRel && (
+        <>
+          <span className="text-text-3"> · </span>
+          <span title={`Posted ${new Date(job.posted_at as string).toLocaleDateString()}`}>
+            Posted {postedRel.toLowerCase()}
+          </span>
+        </>
+      )}
+      {!postedRel && addedRel && (
+        <>
+          <span className="text-text-3"> · </span>
+          <span title={`Added ${new Date(job.created_at as string).toLocaleDateString()}`}>
+            Added {addedRel.toLowerCase()}
+          </span>
         </>
       )}
       {job.jd_quality === "thin" && (
