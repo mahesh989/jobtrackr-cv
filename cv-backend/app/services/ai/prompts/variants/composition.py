@@ -152,7 +152,10 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one
   sentence is a failure. No bullets, no skills line, no third sentence.
 - Sentence 1 (positioning, ≤28 words): role title + ACTUAL relevant years + 1-2
-  JD specialisations + who you deliver for. NO-ECHO: the specialisations slot may
+  JD specialisations + who you deliver for. (When years are few (<2) but the
+  candidate has several roles or worked across multiple settings, lead with that
+  BREADTH instead of a bare year count — never inflate the number.) NO-ECHO: the
+  specialisations slot may
   not repeat the title's own words (title "Data Analyst" → don't say "data
   analysis"). NO tool names here — name methods/outcomes; tools live in Skills.
   NO off-axis sector/identity labels: do not cite an industry or specialism the
