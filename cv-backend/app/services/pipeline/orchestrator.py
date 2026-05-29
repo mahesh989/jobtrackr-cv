@@ -212,6 +212,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # enforce + entailment verify). Reuses the upstream artifacts above
             # so it adds only the composition + verify calls. Same storage path
             # and (markdown, storage_path) contract as the legacy writer.
+            logger.info("run %s: tailoring via w8_verified writer", run_id)
             from app.services.eval.writers import run_tailored_cv_w8_verified
             tailored_md, tailored_storage_path = await run_tailored_cv_w8_verified(
                 ai_client, payload.user_id, run_id, payload.cv_text, payload.jd_text,
@@ -219,6 +220,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 contact_details=payload.contact_details,
             )
         else:
+            logger.info("run %s: tailoring via legacy writer", run_id)
             tailored_md, tailored_storage_path = await run_tailored_cv(
                 ai_client, payload.user_id, run_id, payload.cv_text,
                 jd_analysis, recs_md, feasibility,
