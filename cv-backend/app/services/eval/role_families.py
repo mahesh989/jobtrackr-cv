@@ -122,8 +122,14 @@ _NURSING = RoleFamilyProfile(
         "present in the CV."
     ),
     extra_rules=(
-        "- Put a ## Registration & Licences section near the top listing "
-        "registration body, number (if present), and expiry.\n"
+        "- Include a ## Registration & Licences section ONLY if the CV actually "
+        "states a real registration, licence, or clearance (e.g. AHPRA "
+        "registration, police check, NDIS Worker Screening, Working with "
+        "Children Check, driver licence, first aid / CPR). List only the ones "
+        "the CV genuinely contains, with number/expiry if given. If the CV has "
+        "NONE of these, OMIT the section entirely — NEVER write 'eligible to "
+        "work in Australia', 'available on request', or that a credential is "
+        "missing. Stating eligibility or absence is nonsense on a CV.\n"
         "- Certifications are first-class: include relevant clinical certs "
         "even when the JD does not name them explicitly."
     ),

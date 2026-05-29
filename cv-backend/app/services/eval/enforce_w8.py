@@ -53,7 +53,16 @@ _CLEARANCE_TOKEN_RE = re.compile(
 # A body that only states the ABSENCE of something (or a placeholder) — useless
 # on a CV, so the whole section is dropped rather than shown.
 _FILLER_BODY_RE = re.compile(
-    r"^\W*(no\b|none\b|not\b|n/?a\b|nil\b|details? available|to be provided)",
+    r"^\W*(no\b|none\b|not\b|n/?a\b|nil\b|details? available|to be provided|"
+    r"eligible\b|able to work|willing\b)",
+    re.IGNORECASE,
+)
+# Individual nonsense/non-credential lines to strip from a registration section
+# (an applicant is self-evidently eligible; these carry zero signal).
+_NONSENSE_LINE_RE = re.compile(
+    r"eligible to work|right to work|work rights|able to work|"
+    r"available (?:on|upon) request|references available|willing to|"
+    r"able to commence|happy to provide",
     re.IGNORECASE,
 )
 
@@ -242,15 +251,21 @@ def _relabel_registration(markdown: str, rf: RoleFamilyProfile) -> str:
     out = list(preamble)
     for name, blk in blocks:
         if name == "Registration & Licences":
-            body_text = "\n".join(blk[1:])
-            body_plain = re.sub(r"[*_>#`]", "", body_text).strip()
+            # Strip nonsense/non-credential lines ("eligible to work", "available
+            # on request", …) before judging the section.
+            heading = blk[0]
+            cleaned = [
+                l for l in blk[1:]
+                if not (l.strip() and _NONSENSE_LINE_RE.search(l))
+            ]
+            body_text = "\n".join(cleaned)
+            body_plain = re.sub(r"[*_>#`-]", "", body_text).strip()
             has_reg = bool(_REGISTRATION_TOKEN_RE.search(body_text))
             has_clr = bool(_CLEARANCE_TOKEN_RE.search(body_text))
             is_filler = (not body_plain) or bool(_FILLER_BODY_RE.match(body_plain))
             if is_filler or (not has_reg and not has_clr):
-                continue  # drop the section entirely
-            if not has_reg and has_clr:
-                blk = ["## Checks & Clearances"] + blk[1:]
+                continue  # nothing real left → drop the whole section
+            blk = [heading if has_reg else "## Checks & Clearances"] + cleaned
         out.extend(blk)
     return "\n".join(out)
 
