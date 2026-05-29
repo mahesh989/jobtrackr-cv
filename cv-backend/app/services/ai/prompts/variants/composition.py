@@ -111,6 +111,11 @@ EXPERIENCE — selection & rewriting
   different on-axis bullet from the SAME role, or a transferable bullet grounded
   in that role's real adjacent work (reporting, stakeholder collaboration, data
   quality, automation, scale, compliance).
+- OFF-AXIS CAP (hard): keep AT MOST ONE off-axis bullet per role. If a role has
+  several off-axis achievements (e.g. a product/build or research achievement on
+  an analyst JD), keep only the single most JD-relevant one and fill the
+  remaining slots with that role's transferable on-axis work — NEVER a second
+  off-axis bullet, not even in the most recent role. The on-axis bullet leads.
 - CONSOLIDATE, don't drop: when a role has 4+ source achievements, merge them
   into 2-3 dense bullets preserving every real metric; only drop genuinely
   off-topic content.
@@ -125,7 +130,8 @@ PROJECTS (only if your role pack's section order includes a Projects section)
 - RANK candidates by primary tech-stack / method match FIRST, then domain match,
   then impressiveness. A flashy headline metric on an off-stack project does NOT
   outrank a modest on-stack project. Choose the best-FIT project, not the most
-  impressive one.
+  impressive one, and LIST THE BEST-FIT PROJECT FIRST (an on-stack project must
+  precede an off-stack one, regardless of which is flashier).
 - If NO project shares the JD's domain or methodology, OMIT the section entirely
   — do not pad with off-topic work.
 - DUPLICATION BAN: a project shown in Projects must not also be narrated as an
@@ -145,6 +151,9 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   JD specialisations + who you deliver for. NO-ECHO: the specialisations slot may
   not repeat the title's own words (title "Data Analyst" → don't say "data
   analysis"). NO tool names here — name methods/outcomes; tools live in Skills.
+  NO off-axis sector/identity labels: do not cite an industry or specialism the
+  JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
+  name only JD-aligned domains.
 - Sentence 2 (achievement, ≤22 words): action verb + method + quantified result
   + company anchor. If you kept 2+ roles, use two clauses (one per top role)
   joined by a semicolon.
