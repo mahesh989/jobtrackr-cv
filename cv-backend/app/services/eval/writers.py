@@ -118,6 +118,20 @@ async def _run_upstream(
     }
 
 
+def _inject_keyword_set(feasibility: Optional[Dict[str, Any]]) -> set[str]:
+    """Lowercased inject_directly keywords — the feasibility/equivalence terms the
+    plan authorised to surface. Used to exempt honest child→parent inferences
+    (e.g. SQL→PostgreSQL) from the deterministic skills entity-grounding strip."""
+    plan = (feasibility or {}).get("feasibility_plan") or {}
+    out: set[str] = set()
+    for e in (plan.get("inject_directly") or []):
+        if isinstance(e, dict):
+            kw = str(e.get("keyword") or "").strip().lower()
+            if kw:
+                out.add(kw)
+    return out
+
+
 def _postprocess(
     markdown: str,
     feasibility: Dict[str, Any],
@@ -381,6 +395,7 @@ async def _writer_w5_surfacing(
         jd_analysis=up["jd_analysis"],
         suppress=role_family.id in ("tech", "master"),
         original_cv_text=cv_text,
+        keep_skills=_inject_keyword_set(up["feasibility"]),
     )
     final_md = enforce_skills_section(
         final_md,
@@ -495,6 +510,7 @@ async def _writer_w7_converged(
         jd_analysis=up["jd_analysis"],
         suppress=role_family.id in ("tech", "master"),
         original_cv_text=cv_text,
+        keep_skills=_inject_keyword_set(up["feasibility"]),
     )
     final_md = enforce_skills_section(
         final_md,
@@ -585,6 +601,7 @@ async def _writer_w8_integrated(
         jd_analysis=up["jd_analysis"],
         suppress=role_family.id in ("tech", "master"),
         original_cv_text=cv_text,
+        keep_skills=_inject_keyword_set(up["feasibility"]),
     )
     md = enforce_skills_section(
         md,
@@ -681,12 +698,18 @@ async def _writer_w8_critique(
     if creport.get("applied"):
         md = to_canonical(revised, role_family)
         md = _enforce_structure(md)
+        # Parity with the integrated path: re-assert the deterministic skills
+        # injector and the authoritative contact line, in case the critique
+        # dropped an injected keyword or touched the contact/H1 lines.
+        md = _inject_missing_skills(md, result.feasibility)
+        md = stamp_contact_line(md, contact_details)
         md = apply_w3_gates(
             md,
             jd_text=jd_text,
             jd_analysis=result.jd_analysis,
             suppress=role_family.id in ("tech", "master"),
             original_cv_text=cv_text,
+            keep_skills=_inject_keyword_set(result.feasibility),
         )
         md = enforce_skills_section(
             md,

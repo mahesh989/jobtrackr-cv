@@ -71,9 +71,11 @@ WHAT TO IMPROVE (only using truthful material):
   that matches the JD, not its off-axis aspect.
 - BULLETS: sharpen vague bullets into specific, outcome-first lines. Keep every
   real metric; never add one.
+- SENIORITY: never add a seniority word (Senior / Lead / Principal / Manager /
+  Director) or a years figure that is not already in the candidate's CV.
 - DO NOT change section headings, add or remove sections, or alter contact info,
-  dates, employers, or education — structure is owned downstream. Edit only the
-  prose inside Summary, Experience, Projects and Skills.
+  dates, employers, education, or JOB TITLES — structure is owned downstream.
+  Edit only the prose inside Summary, Experience, Projects and Skills.
 
 Return JSON:
 {{"issues": [<=5 short strings naming the biggest JD-fit gaps you fixed],
@@ -162,6 +164,7 @@ async def critique_and_repair(
     except (AIClientError, Exception) as exc:  # noqa: BLE001 — best-effort
         logger.warning("critique_and_repair: AI call failed (%s) — keeping draft", exc)
         report["error"] = str(exc)
+        report["degraded"] = True  # critique did not run — surface it
         return draft_md, report
 
     revised = (data or {}).get("revised_cv")

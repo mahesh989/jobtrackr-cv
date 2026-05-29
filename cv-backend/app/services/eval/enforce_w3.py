@@ -314,6 +314,67 @@ def strip_ungrounded_bullet_parentheticals(md: str, original_cv_text: str) -> st
 
 
 # ---------------------------------------------------------------------------
+# Strip ungrounded named-entity SKILL items (BigQuery-class)
+#
+# verify_claims only fact-checks Experience/Projects bullets, and the bullet
+# parenthetical strip above only touches bullet lines — so a fabricated tool /
+# product / proper noun placed in the ## Skills line (the prime ATS keyword-
+# stuffing surface) survives every gate for non-"none" injection policies. This
+# closes that hole deterministically, for EVERY role family: a fabricated proper
+# noun is never policy-dependent. Generic lowercase skill words and items that
+# share a CV word are kept; only items whose HEAD token is in the ungrounded
+# named-entity set are dropped.
+# ---------------------------------------------------------------------------
+
+_SKILLS_LABEL_RE = re.compile(r"^\s*\*\*([^*]+?):\*\*\s*(.*)$")
+
+
+def strip_ungrounded_skill_entities(
+    md: str, original_cv_text: str, allow: "frozenset[str] | set[str]" = frozenset(),
+) -> str:
+    """
+    Drop any ## Skills item whose head token is a named entity absent from the
+    original CV, using the same detector as the bullet check (compute_grounding).
+    The head is the text before any parenthesis, so 'Power BI (DAX)' is judged on
+    'Power BI' (kept when grounded), not the parenthetical.
+
+    `allow` is the normalised set of keywords the feasibility plan / equivalence
+    table deliberately authorised (inject_directly) — these are honest by
+    construction (e.g. CV says 'SQL' → 'PostgreSQL' / 'Cloud' is a defensible
+    child→parent surfacing) even though they are not literal CV substrings, so
+    they are never stripped. compute_grounding is stricter than the curated
+    equivalence rule; this keeps the two from fighting.
+    """
+    if not original_cv_text:
+        return md
+    report = compute_grounding(md, original_cv_text)
+    ungrounded = {_norm(t) for t in (report.get("ungrounded") or []) if t.strip()}
+    if not ungrounded:
+        return md
+    allow_norm = {_norm(a) for a in allow if a}
+
+    lines = md.split("\n")
+    bounds = _section_bounds(lines, lambda s: s.lower() == "## skills")
+    if not bounds:
+        return md
+    start, end = bounds
+
+    for i in range(start + 1, end):
+        m = _SKILLS_LABEL_RE.match(lines[i])
+        if not m:
+            continue
+        label, rest = m.group(1).strip(), m.group(2).strip()
+        kept: List[str] = []
+        for item in _split_items(rest):
+            head_norm = _norm(item.split("(")[0])
+            if head_norm in ungrounded and head_norm not in allow_norm and _norm(item) not in allow_norm:
+                continue  # fabricated named entity, not an authorised inference → drop
+            kept.append(item)
+        lines[i] = f"**{label}:** " + ", ".join(kept)
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Domain-knowledge = direct-only (universal honesty rule)
 #
 # Confirmed systematic across two different JDs (CAE "financial analysis";
@@ -373,6 +434,7 @@ def apply_w3_gates(
     jd_analysis: Dict[str, Any],
     suppress: bool,
     original_cv_text: str = "",
+    keep_skills: "frozenset[str] | set[str]" = frozenset(),
 ) -> str:
     if suppress:
         md = suppress_ai_identity(md, jd_text)
@@ -380,4 +442,5 @@ def apply_w3_gates(
     md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:
         md = strip_ungrounded_bullet_parentheticals(md, original_cv_text)
+        md = strip_ungrounded_skill_entities(md, original_cv_text, keep_skills)
     return md
