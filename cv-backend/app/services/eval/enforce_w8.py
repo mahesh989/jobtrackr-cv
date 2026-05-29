@@ -36,15 +36,24 @@ from typing import Dict, List
 from app.services.eval.role_families import RoleFamilyProfile
 
 
-# A real registration/licence reference (vs. filler like "eligible to work").
-# Used to decide whether a "Registration & Licences" section is genuine or
-# should be relabelled "Checks & Clearances" for unregistered roles (AIN /
-# care worker / cleaner) — only registered clinicians (RN/EN) hold AHPRA reg.
+# A genuine registration/licence reference (held by registered clinicians only —
+# RN/EN with AHPRA). Distinct from a CLEARANCE (police check, NDIS, WWCC…) which
+# an unregistered care worker can legitimately hold.
 _REGISTRATION_TOKEN_RE = re.compile(
     r"\b(ahpra|registration number|reg(?:istration)?\.?\s*no|provider number|"
-    r"registered nurse|enrolled nurse|licen[sc]e\s*(?:no|number)|"
-    r"working with children|wwcc|police check|ndis worker|"
-    r"first aid certificate|cpr certificate|white card)\b",
+    r"registered nurse|enrolled nurse|licen[sc]e\s*(?:no|number))\b",
+    re.IGNORECASE,
+)
+_CLEARANCE_TOKEN_RE = re.compile(
+    r"\b(working with children|wwcc|blue card|police check|national police|"
+    r"ndis worker|first aid certificate|cpr certificate|white card|"
+    r"driver'?s? licen[sc]e)\b",
+    re.IGNORECASE,
+)
+# A body that only states the ABSENCE of something (or a placeholder) — useless
+# on a CV, so the whole section is dropped rather than shown.
+_FILLER_BODY_RE = re.compile(
+    r"^\W*(no\b|none\b|not\b|n/?a\b|nil\b|details? available|to be provided)",
     re.IGNORECASE,
 )
 
@@ -216,11 +225,14 @@ def _drop_empty_sections(markdown: str) -> str:
 
 def _relabel_registration(markdown: str, rf: RoleFamilyProfile) -> str:
     """
-    For licensed-profession families (nursing), a "Registration & Licences"
-    section is only honest when the candidate actually holds a registration.
-    An AIN / care worker is unregistered, so the heading becomes filler. If the
-    section contains no real registration/licence/clearance token, relabel it
-    "Checks & Clearances" (the honest equivalent for unregistered care roles).
+    Normalise the nursing "Registration & Licences" section by what it actually
+    contains:
+      • a genuine registration (AHPRA / RN / EN)        → keep the heading;
+      • only clearances (police check / NDIS / WWCC…)   → relabel "Checks &
+        Clearances" (the honest equivalent for unregistered care workers);
+      • neither — i.e. a filler/negative body like "No registration listed" or
+        "Details available on request"                  → DROP the section.
+    A section that only states the ABSENCE of a credential is useless on a CV.
     """
     if rf.id != "nursing":
         return markdown
@@ -231,7 +243,13 @@ def _relabel_registration(markdown: str, rf: RoleFamilyProfile) -> str:
     for name, blk in blocks:
         if name == "Registration & Licences":
             body_text = "\n".join(blk[1:])
-            if not _REGISTRATION_TOKEN_RE.search(body_text):
+            body_plain = re.sub(r"[*_>#`]", "", body_text).strip()
+            has_reg = bool(_REGISTRATION_TOKEN_RE.search(body_text))
+            has_clr = bool(_CLEARANCE_TOKEN_RE.search(body_text))
+            is_filler = (not body_plain) or bool(_FILLER_BODY_RE.match(body_plain))
+            if is_filler or (not has_reg and not has_clr):
+                continue  # drop the section entirely
+            if not has_reg and has_clr:
                 blk = ["## Checks & Clearances"] + blk[1:]
         out.extend(blk)
     return "\n".join(out)
@@ -270,34 +288,61 @@ def _extract_bachelor(cv_text: str):
     if not m:
         return None
     start = m.start()
-    # Search forward from the Bachelor match only — starting earlier bleeds the
-    # PREVIOUS degree's year-range/location into this entry (a real bug).
-    window = cv_text[start: start + 220]
 
-    tail = cv_text[start: start + 70]
+    tail = cv_text[start: start + 80]
     degree = re.split(r"[,\n|()]|\s\d{4}|\s{2,}", tail)[0].strip()
     degree = re.sub(r"\s+", " ", degree)
     if len(degree) < 5:
         return None
 
-    inst_m = _INSTITUTION_RE.search(window)
-    if not inst_m:
+    # Institution: prefer one stated AFTER the degree; otherwise take the NEAREST
+    # one BEFORE it. PDF-extracted CVs frequently jumble the Education block so
+    # the institution precedes the degree (e.g. "…Tribhuvan University Kathmandu
+    # Bachelor of Science…"). Forward-only search misses that.
+    institution = None
+    after = ""
+    fwd = cv_text[start: start + 200]
+    inst_m = _INSTITUTION_RE.search(fwd)
+    if inst_m:
+        institution = inst_m.group(1).strip()
+        after = fwd[inst_m.end(): inst_m.end() + 50]
+    else:
+        back = cv_text[max(0, start - 160): start]
+        back_matches = list(_INSTITUTION_RE.finditer(back))
+        if back_matches:
+            last = back_matches[-1]
+            institution = last.group(1).strip()
+            after = back[last.end(): last.end() + 50]
+    if not institution:
         return None
-    institution = inst_m.group(1).strip()
+
+    # The greedy institution match can swallow a PRECEDING degree's field words
+    # when the source has no separator (e.g. "…Theoretical Physics Tribhuvan
+    # University"). Strip leading academic field/degree tokens — an institution
+    # name almost never begins with one.
+    _FIELD_STOP = {
+        "theoretical", "physics", "science", "sciences", "mathematics", "maths",
+        "engineering", "arts", "commerce", "technology", "information", "data",
+        "business", "management", "computer", "applied", "master", "masters",
+        "master's", "bachelor", "bachelors", "phd", "doctor", "doctorate", "of",
+        "in", "the", "and",
+    }
+    inst_words = institution.split()
+    while len(inst_words) > 2 and inst_words[0].lower().strip(".,") in _FIELD_STOP:
+        inst_words.pop(0)
+    institution = " ".join(inst_words)
 
     loc = ""
-    after = window[inst_m.end(): inst_m.end() + 50]
-    # Terminate the location capture on a digit too (e.g. the start of a year).
-    loc_m = re.match(r"\s*[,|]\s*([A-Za-z][A-Za-z ,'’-]+?)(?:[|(\n0-9]|$)", after)
+    loc_m = re.match(r"\s*[,|]?\s*([A-Z][A-Za-z ,'’-]+?)(?:[|(\n0-9]|$)", after)
     if loc_m:
         cand = loc_m.group(1).strip().rstrip(",").strip()
-        if 0 < len(cand) <= 40:
+        if 0 < len(cand) <= 40 and not _BACHELOR_DETECT_RE.search(cand):
             loc = cand
 
-    yr_m = _YEARRANGE_RE.search(window)
-    years = f"{yr_m.group(1)} – {yr_m.group(2)}" if yr_m else ""
-
-    return institution, loc, degree, years
+    # Years deliberately OMITTED: in jumbled Education blocks the year-range next
+    # to the degree often belongs to a different degree, so a recovered Bachelor
+    # carries degree + institution only — wrong years are worse than no years.
+    return institution, loc, degree, ""
 
 
 def ensure_bachelor(markdown: str, original_cv_text: str) -> str:

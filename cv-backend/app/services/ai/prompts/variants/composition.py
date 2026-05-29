@@ -158,6 +158,9 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   + company anchor. If you kept 2+ roles, use two clauses (one per top role)
   joined by a semicolon.
 - No generic openers ("Results-driven", "Passionate", "Detail-oriented").
+- Do NOT open with a seniority adjective ("Entry-level", "Junior", "Graduate",
+  "Aspiring", "Senior") unless that exact word is in the candidate's CV title.
+  State the role and ACTUAL years instead — never label the candidate's level.
 
 SENIORITY WORDS
 Use "Senior / Lead / Principal / Manager / Director" only when that exact
