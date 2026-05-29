@@ -189,6 +189,99 @@ def suppress_ai_identity(
 
 
 # ---------------------------------------------------------------------------
+# Summary lead-identity trim (field-agnostic) — the general replacement for the
+# AI-only title-suffix strip. When the summary opens with a COMPOUND identity
+# ("Data Analyst and AI Engineer with ..."), keep the conjunct(s) that match the
+# JD's OWN job title and drop the off-axis one(s) — for ANY profession, ANY
+# field (Project Coordinator & Software Developer, Registered Nurse & Data
+# Analyst, etc.). Anchored on the JD title, so an AI-titled JD keeps "AI
+# Engineer" automatically. Deterministic, adds nothing, and conservative: it
+# acts only on a clear compound of full role titles.
+# ---------------------------------------------------------------------------
+
+# General profession head-nouns: the LAST word of a role title. Used only to
+# decide whether a conjoined lead is two SEPARATE roles (trimmable) vs one
+# multi-word role ("Data and Business Analyst" — not separable). Field-agnostic.
+_ROLE_HEAD_NOUNS: Set[str] = {
+    "engineer", "analyst", "manager", "developer", "scientist", "consultant",
+    "specialist", "coordinator", "designer", "architect", "administrator",
+    "officer", "worker", "assistant", "lead", "director", "accountant",
+    "technician", "nurse", "teacher", "programmer", "strategist", "planner",
+    "supervisor", "operator", "clerk", "advisor", "adviser", "representative",
+    "agent", "executive", "researcher", "evaluator", "trainer", "professional",
+    "practitioner", "associate", "intern", "writer", "editor", "marketer",
+    "recruiter", "auditor", "controller", "buyer", "estimator", "technologist",
+}
+
+_IDENTITY_STOPWORDS: Set[str] = {
+    "and", "of", "the", "a", "an", "with", "in", "for", "to", "at", "&",
+}
+_LEAD_SPLIT_RE = re.compile(r"\s+and\s+|,\s*", re.IGNORECASE)
+
+
+def _meaningful_tokens(text: str) -> Set[str]:
+    toks = re.findall(r"[a-z0-9]+", (text or "").lower())
+    return {t for t in toks if t not in _IDENTITY_STOPWORDS and len(t) >= 2}
+
+
+def _ends_in_role_noun(phrase: str) -> bool:
+    words = re.findall(r"[a-z0-9]+", phrase.lower())
+    return bool(words) and words[-1] in _ROLE_HEAD_NOUNS
+
+
+def enforce_summary_identity(md: str, jd_analysis: Dict[str, Any] | None) -> str:
+    """Trim the summary's LEAD identity to the role(s) matching the JD title."""
+    title_toks = _meaningful_tokens(str((jd_analysis or {}).get("job_title") or ""))
+    if not title_toks:
+        return md
+
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    pidx = next(
+        (
+            i
+            for i in range(start + 1, end)
+            if lines[i].strip()
+            and lines[i].strip()[:2] not in ("- ", "* ")
+            and not lines[i].strip().startswith("•")
+        ),
+        None,
+    )
+    if pidx is None:
+        return md
+
+    line = lines[pidx]
+    m = re.search(r"\bwith\b", line, re.IGNORECASE)
+    if not m:
+        return md  # no "<role> with ..." anchor — leave it
+    head, tail = line[: m.start()].rstrip(), line[m.start():]
+    if len(head) > 70:
+        return md  # too long to be a bare identity
+
+    parts = [p.strip() for p in _LEAD_SPLIT_RE.split(head) if p.strip()]
+    if len(parts) < 2:
+        return md  # not a compound identity
+    if not all(_ends_in_role_noun(p) for p in parts):
+        return md  # e.g. "Data and Business Analyst" — single role, don't split
+
+    scored = [(len(_meaningful_tokens(p) & title_toks), p) for p in parts]
+    best = max(s for s, _ in scored)
+    kept = [p for s, p in scored if s >= 1] or [p for s, p in scored if s == best][:1]
+    if len(kept) == len(parts):
+        return md  # every conjunct is on-axis — nothing to trim
+
+    lines[pidx] = f"{' and '.join(kept)} {tail}"
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Two-sentence Highlights clamp
 # ---------------------------------------------------------------------------
 
@@ -473,6 +566,7 @@ def apply_w3_gates(
 ) -> str:
     if suppress:
         md = suppress_ai_identity(md, jd_text, jd_analysis)
+    md = enforce_summary_identity(md, jd_analysis)
     md = clamp_two_sentences(md)
     md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:

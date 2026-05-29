@@ -51,7 +51,7 @@ from app.services.ai.prompts.variants.composition import (
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
+from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct, enforce_summary_identity
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
 from app.services.eval.critique import critique_and_repair
@@ -656,6 +656,11 @@ async def _writer_w8_verified(
         client, cv_text, jd_text, contact_details, vertical=vertical,
     )
     verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
+    # Re-assert the field-agnostic lead-identity trim as the LAST word:
+    # verify_claims' summary repair can honestly (CV-true) re-introduce an
+    # off-axis conjoined identity the integrated gate already trimmed. Anchored
+    # on the JD title, deterministic, touches only the summary's lead role.
+    verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -723,6 +728,10 @@ async def _writer_w8_critique(
 
     # 4. Final honesty gate: per-claim entailment on the (possibly) revised CV.
     verified_md, vreport = await verify_claims(client, revised, cv_text)
+    # Re-assert the field-agnostic lead-identity trim as the LAST word — same
+    # rationale as w8_verified: verify's summary repair can re-add an off-axis
+    # conjoined identity that's CV-true but not the JD's role.
+    verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
