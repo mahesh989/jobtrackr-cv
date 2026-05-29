@@ -34,6 +34,14 @@ _STOPCAPS = {
     "automated", "managed", "designed", "shipped", "migrated", "mentored",
     "analysed", "analyzed", "developed", "created", "implemented", "led",
     "supported", "collaborated", "reduced", "increased", "achieved",
+    # more clause-initial action verbs (often capitalised after a dash / pipe /
+    # heading, e.g. "Award – Recognised for…", "Placement | Completed Sept…") —
+    # never tool/product names, so they must never read as fabricated entities.
+    "recognised", "recognized", "completed", "awarded", "received", "served",
+    "provided", "executed", "maintained", "monitored", "transported",
+    "evaluated", "deployed", "selected", "nominated", "promoted", "trained",
+    "certified", "ensured", "serve", "deliver", "provide", "maintain",
+    "monitor", "collaborate", "evaluate",
     # section labels
     "skills", "technical", "soft", "other", "career", "highlights",
     "professional", "experience", "education", "projects", "certifications",
