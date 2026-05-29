@@ -151,11 +151,15 @@ candidate's ACTUAL relevant experience from the CV (round down); never match
 the JD's minimum.
 
 BEFORE YOU EMIT — quick self-check
-(1) Summary is exactly two sentences, 35-50 words, no dropped-item references.
+(1) Summary is exactly two sentences, 35-50 words, no dropped-item references,
+    no tool names, no echo of the title's words.
 (2) Every kept role has 2-3 bullets; off-axis bullets reframed, not lifted.
 (3) Projects (if any) are best-FIT, ≤2, none duplicated in Experience.
 (4) Bachelor kept; off-field graduate degrees dropped.
-(5) No cannot_inject keyword anywhere; no fabricated metric or proper noun."""
+(5) Certifications obey the role pack's cert policy (named-only + omitted-for-
+    projects where required; same issuer/year merged; within cap).
+(6) Off-axis identity suppressed per JD focus; off-axis tools out of Skills.
+(7) No cannot_inject keyword anywhere; no fabricated metric or proper noun."""
 
 
 # ---------------------------------------------------------------------------
@@ -208,17 +212,27 @@ _INJECTION_POLICY_TEXT = {
 _CERT_POLICY_TEXT = {
     "first_class": (
         "CERTIFICATIONS: first-class. Include relevant licences/certifications "
-        "prominently even when the JD does not name them — they are core to "
-        "this role family."
+        "prominently even when the JD does not name them — they ARE the "
+        "qualification for this role family. Lead with mandatory/role-critical "
+        "ones (e.g. licence, clearance, safety tickets). Cap at the 4-5 most "
+        "relevant; merge same-issuer or same-year certs onto one line. Do NOT "
+        "omit this section in favour of Projects — certs outrank projects here."
     ),
     "plus": (
         "CERTIFICATIONS: include ONLY when the JD explicitly names the "
-        "credential or its issuer. Otherwise omit the section. If a relevant "
-        "Projects section exists, prefer it and omit Certifications."
+        "credential or its issuer. TOPIC OVERLAP IS NOT ENOUGH — a credential "
+        "about the same subject does NOT qualify unless the JD names it or its "
+        "issuer (a warehousing cert does not qualify just because the JD "
+        "mentions 'data warehousing'). Cap at 2-3; merge same-issuer or "
+        "same-year certs onto one line. HARD TIEBREAKER: the CV must fit one "
+        "page, so if ANY project qualifies, Projects wins and you OMIT "
+        "Certifications entirely — certs appear only when zero projects qualify "
+        "AND the JD names a credential the candidate holds."
     ),
     "rare": (
         "CERTIFICATIONS: rarely included. Only when the JD names the exact "
-        "credential."
+        "credential the candidate holds; topic overlap is not enough. Cap at "
+        "2-3; merge same-issuer or same-year certs onto one line."
     ),
 }
 
