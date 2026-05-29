@@ -45,6 +45,26 @@ def jd_has_ai_signal(jd_text: str, threshold: int = 2) -> bool:
     return jd_ai_signal_count(jd_text) >= threshold
 
 
+# AI/ML tokens that, when present in the JD's OWN role title, mean the target
+# role really is AI-forward — so the candidate's AI identity should lead. A
+# plain title ("Data Analyst") must NOT keep an "& AI Engineer" tag even when
+# the JD body name-drops ML, which is exactly what the body-only signal gate got
+# wrong (a Data-Analyst JD mentioning "machine learning"/"data scientist" twice
+# disabled all suppression, leaking the AI identity into the summary).
+_AI_TITLE_TOKENS = (
+    "ai", "ml", "a.i.", "artificial intelligence", "machine learning",
+    "deep learning", "data scientist", "research scientist", "ml engineer",
+    "ai engineer", "computer vision", "nlp", "mlops",
+)
+
+
+def jd_title_is_ai(jd_analysis: Dict[str, Any] | None) -> bool:
+    title = str((jd_analysis or {}).get("job_title") or "").lower()
+    if not title:
+        return False
+    return any(re.search(r"\b" + re.escape(t) + r"\b", title) for t in _AI_TITLE_TOKENS)
+
+
 # ---------------------------------------------------------------------------
 # Suppression
 # ---------------------------------------------------------------------------
@@ -143,13 +163,28 @@ def _drop_ai_projects(md: str) -> str:
     return "\n".join(out)
 
 
-def suppress_ai_identity(md: str, jd_text: str) -> str:
-    """Apply suppression only when the JD shows no AI signal."""
-    if jd_has_ai_signal(jd_text):
-        return md  # AI-forward role — keep the AI identity
-    md = _strip_title_ai_suffix(md)
-    md = _strip_ai_skills(md)
-    md = _drop_ai_projects(md)
+def suppress_ai_identity(
+    md: str, jd_text: str, jd_analysis: Dict[str, Any] | None = None,
+) -> str:
+    """Suppress the candidate's AI identity unless the JD is genuinely AI-forward.
+
+    Two independent decisions, because they carry different risk:
+
+    • Title-suffix strip ("& AI Engineer") — purely an identity tag, very low
+      risk to remove. Driven by the JD's OWN role title: a plainly-titled role
+      (e.g. "Data Analyst") should never carry an AI-engineer identity, even if
+      the JD body mentions ML. Only kept when the TITLE itself is AI/ML.
+
+    • Skill / project drops — aggressive (they remove real CV content), so they
+      stay gated on the broader body signal AND a non-AI title: don't nuke ML
+      skills/projects a partly-AI JD might genuinely value.
+    """
+    title_is_ai = jd_title_is_ai(jd_analysis)
+    if not title_is_ai:
+        md = _strip_title_ai_suffix(md)
+    if not title_is_ai and not jd_has_ai_signal(jd_text):
+        md = _strip_ai_skills(md)
+        md = _drop_ai_projects(md)
     return md
 
 
@@ -437,7 +472,7 @@ def apply_w3_gates(
     keep_skills: "frozenset[str] | set[str]" = frozenset(),
 ) -> str:
     if suppress:
-        md = suppress_ai_identity(md, jd_text)
+        md = suppress_ai_identity(md, jd_text, jd_analysis)
     md = clamp_two_sentences(md)
     md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:
