@@ -72,6 +72,7 @@ from app.services.pipeline.steps.tailored_cv import (
     run_tailored_cv,
     _enforce_structure,        # production-stable post-processor — reused for fairness
     _inject_missing_skills,    # production-stable safety net
+    _upload_to_storage,        # production-stable Supabase upload (same path contract)
 )
 
 _EVAL_USER_ID = uuid.UUID(int=0)  # sentinel: W1's storage uploads live under 0000…/
@@ -559,8 +560,12 @@ async def _writer_w8_integrated(
     contact_details: Optional[Dict[str, Any]],
     *,
     vertical: Optional[str] = None,
+    upstream: Optional[Dict[str, Any]] = None,
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    # `upstream` lets the production orchestrator hand in its already-computed
+    # jd_analysis/matching/ats/input_recs/feasibility so the w8 path doesn't
+    # re-pay those AI calls. The eval harness passes nothing → recompute.
+    up = dict(upstream) if upstream is not None else await _run_upstream(client, cv_text, jd_text)
     up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])
@@ -651,9 +656,10 @@ async def _writer_w8_verified(
     contact_details: Optional[Dict[str, Any]],
     *,
     vertical: Optional[str] = None,
+    upstream: Optional[Dict[str, Any]] = None,
 ) -> WriterResult:
     result = await _writer_w8_integrated(
-        client, cv_text, jd_text, contact_details, vertical=vertical,
+        client, cv_text, jd_text, contact_details, vertical=vertical, upstream=upstream,
     )
     verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
     # Re-assert the field-agnostic lead-identity trim as the LAST word:
@@ -759,3 +765,48 @@ def get_writer(writer_variant: str) -> WriterFn:
             f"Known: {sorted(WRITER_VARIANTS)}"
         )
     return fn
+
+
+# ---------------------------------------------------------------------------
+# Production entry point — drop-in replacement for run_tailored_cv that routes
+# the tailoring step through the validated w8_verified writer while preserving
+# the exact (markdown, storage_path) contract the orchestrator depends on.
+#
+# The orchestrator hands in the upstream artifacts it already computed
+# (jd_analysis/matching/ats/input_recs/feasibility) so this adds only the
+# composition + entailment-verify calls — no duplicate upstream AI calls. The
+# markdown is uploaded to the SAME storage path (<user_id>/<run_id>.md) via the
+# production uploader, so the PDF render and storage path stay identical.
+# ---------------------------------------------------------------------------
+
+
+async def run_tailored_cv_w8_verified(
+    client: AIClient,
+    user_id: uuid.UUID,
+    run_id: uuid.UUID,
+    cv_text: str,
+    jd_text: str,
+    jd_analysis: Dict[str, Any],
+    matching: Dict[str, Any],
+    ats: Dict[str, Any],
+    input_recs: Dict[str, Any],
+    feasibility: Dict[str, Any],
+    contact_details: Optional[Dict[str, Any]] = None,
+) -> tuple[str, str]:
+    """Returns (markdown, storage_path) — same contract as run_tailored_cv."""
+    upstream = {
+        "jd_analysis": jd_analysis,
+        "matching":    matching,
+        "ats":         ats,
+        "input_recs":  input_recs,
+        "feasibility": feasibility,
+    }
+    result = await _writer_w8_verified(
+        client, cv_text, jd_text, contact_details,
+        vertical=None, upstream=upstream,
+    )
+    md = result.tailored_md
+    if not md or len(md.strip()) < 200:
+        raise ValueError("w8_verified tailored CV: response too short")
+    storage_path = _upload_to_storage(user_id, run_id, md)
+    return md, storage_path

@@ -206,11 +206,24 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
         await mark_step(run_id, step_status, "tailored_cv", "running")
-        tailored_md, tailored_storage_path = await run_tailored_cv(
-            ai_client, payload.user_id, run_id, payload.cv_text,
-            jd_analysis, recs_md, feasibility,
-            contact_details=payload.contact_details,
-        )
+        settings = get_settings()
+        if settings.TAILORED_CV_WRITER == "w8_verified":
+            # Validated beta writer (role-family composition + deterministic
+            # enforce + entailment verify). Reuses the upstream artifacts above
+            # so it adds only the composition + verify calls. Same storage path
+            # and (markdown, storage_path) contract as the legacy writer.
+            from app.services.eval.writers import run_tailored_cv_w8_verified
+            tailored_md, tailored_storage_path = await run_tailored_cv_w8_verified(
+                ai_client, payload.user_id, run_id, payload.cv_text, payload.jd_text,
+                jd_analysis, matching, ats, input_recs, feasibility,
+                contact_details=payload.contact_details,
+            )
+        else:
+            tailored_md, tailored_storage_path = await run_tailored_cv(
+                ai_client, payload.user_id, run_id, payload.cv_text,
+                jd_analysis, recs_md, feasibility,
+                contact_details=payload.contact_details,
+            )
         await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
 
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
