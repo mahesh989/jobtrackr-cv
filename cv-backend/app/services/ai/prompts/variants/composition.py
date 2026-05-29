@@ -57,6 +57,13 @@ is the JD's phrasing and the CV honestly supports it). Mirror the JD's outcome
 vocabulary — a commercial role's revenue/margin/cost/efficiency language, a
 clinical role's safety/care language, an operations role's throughput/quality
 language — but only on achievements the CV truthfully supports.
+- SCALE SIGNAL: when the JD stresses large datasets / high volume / many sites
+  or users, surface the candidate's HONEST scale figures (record/row counts,
+  dataset sizes, user/site/transaction volumes) where the CV gives them.
+- PRIORITY THEMES: when the JD emphasises a theme (e.g. data quality,
+  governance, compliance, safety, accessibility), name that theme using the
+  candidate's ADJACENT honest work (validation, accuracy, data integrity,
+  audits) — never claim the theme without real CV support.
 
 GENERATION ORDER (decide before you write — prevents ghost references)
 Before emitting anything, internally FIX your selections: which experience roles
@@ -116,6 +123,13 @@ EXPERIENCE — selection & rewriting
   an analyst JD), keep only the single most JD-relevant one and fill the
   remaining slots with that role's transferable on-axis work — NEVER a second
   off-axis bullet, not even in the most recent role. The on-axis bullet leads.
+- WEIGHT BY RELEVANCE: give on-axis roles 2-3 bullets; give a kept-but-largely-
+  off-axis role only ONE bullet — its single most transferable achievement.
+  Keep reverse-chronological order (do NOT reorder roles); trim weight, not
+  position, so the most JD-relevant roles carry the most space.
+- ON-AXIS FACET: when you keep an off-axis role/project/bullet, frame it by its
+  facet that matches the JD (e.g. the analytics/reporting/data angle of a
+  product), NOT its off-axis aspect (the full-stack build or research angle).
 - CONSOLIDATE, don't drop: when a role has 4+ source achievements, merge them
   into 2-3 dense bullets preserving every real metric; only drop genuinely
   off-topic content.
