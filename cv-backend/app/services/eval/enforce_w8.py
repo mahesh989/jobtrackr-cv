@@ -422,6 +422,73 @@ def ensure_bachelor(markdown: str, original_cv_text: str) -> str:
     return "\n".join(lines[: edu_start + 1] + body + lines[edu_end:])
 
 
+_EXPERIENCE_HEADINGS = {
+    "professional experience", "clinical experience", "work experience", "experience",
+}
+
+
+def _drop_projects_duplicated_in_experience(markdown: str) -> str:
+    """
+    Enforce the DUPLICATION BAN deterministically: if a Projects entry's
+    distinctive name also appears in an experience bullet (e.g. "CV Agent" shown
+    as both a project AND a Bitrates bullet), drop the PROJECT — the experience
+    timeline is primary. Matches the full multi-word project name as a phrase
+    (≥2 words, ≥6 chars) to avoid false positives. Drops the Projects section if
+    nothing survives.
+    """
+    preamble, blocks = _split_blocks(markdown)
+    if not blocks:
+        return markdown
+
+    exp_bullets: List[str] = []
+    for name, blk in blocks:
+        if name.lower() in _EXPERIENCE_HEADINGS:
+            for l in blk[1:]:
+                s = l.strip()
+                if s[:2] in ("- ", "* ") or s.startswith("•"):
+                    exp_bullets.append(s.lower())
+    exp_blob = " \n".join(exp_bullets)
+    if not exp_blob:
+        return markdown
+
+    out = list(preamble)
+    for name, blk in blocks:
+        if name.lower() != "projects":
+            out.extend(blk)
+            continue
+        # Split the Projects block into entries and keep only non-duplicates.
+        heading, body = blk[0], blk[1:]
+        entries: List[List[str]] = []
+        pre: List[str] = []
+        cur: List[str] | None = None
+        for l in body:
+            if l.lstrip().startswith("### "):
+                if cur is not None:
+                    entries.append(cur)
+                cur = [l]
+            elif cur is None:
+                pre.append(l)
+            else:
+                cur.append(l)
+        if cur is not None:
+            entries.append(cur)
+
+        kept = [heading] + pre
+        keep_count = 0
+        for ent in entries:
+            h3 = ent[0].lstrip()[4:]
+            pname = re.split(r"[–—|(]| - ", h3)[0].strip().lower()
+            pname = re.sub(r"\s+", " ", pname)
+            if len(pname) >= 6 and len(pname.split()) >= 2 and pname in exp_blob:
+                continue  # duplicated in Experience → drop the project
+            kept.extend(ent)
+            keep_count += 1
+        if keep_count == 0:
+            continue  # whole section now empty → drop it
+        out.extend(kept)
+    return "\n".join(out)
+
+
 def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     """
     Rename canonical headings back to the family's names, merge duplicate
@@ -433,6 +500,7 @@ def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     reverse = {v: k for k, v in _TO_CANONICAL.get(rf.id, {}).items()}
     md = _rename_headings(markdown, reverse)
     md = _merge_same_named_sections(md)
+    md = _drop_projects_duplicated_in_experience(md)
     md = _drop_filler_sections(md)
     md = _reorder_sections(md, rf.section_order)
     md = _relabel_registration(md, rf)

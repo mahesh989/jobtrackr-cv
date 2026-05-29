@@ -133,9 +133,13 @@ PROJECTS (only if your role pack's section order includes a Projects section)
   impressive one, and LIST THE BEST-FIT PROJECT FIRST (an on-stack project must
   precede an off-stack one, regardless of which is flashier).
 - If NO project shares the JD's domain or methodology, OMIT the section entirely
-  — do not pad with off-topic work.
+  — do not pad with off-topic work. If only ONE project qualifies, show ONLY
+  that one — NEVER add a second, off-axis project (e.g. a product/build project
+  on a reporting JD) just to fill the second slot. One on-axis project beats one
+  on-axis plus one off-axis.
 - DUPLICATION BAN: a project shown in Projects must not also be narrated as an
   experience bullet, and an experience role must not be repeated as a project.
+  If the same work appears in both, keep it in Experience and drop the project.
 
 EDUCATION
 - Keep 1-3 entries. ALWAYS keep the candidate's most recent Bachelor's degree as
