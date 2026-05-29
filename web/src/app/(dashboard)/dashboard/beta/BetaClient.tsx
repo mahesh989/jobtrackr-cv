@@ -19,6 +19,7 @@ const WRITERS: VariantOpt[] = [
   { id: "w7_converged",   label: "W7 — Convergence (W6 prompt + W3 gates)", available: true },
   { id: "w8_integrated",  label: "W8 — Integrated (role-family engine + frozen production contract)", available: true },
   { id: "w8_verified",    label: "W8+ — Integrated + per-claim entailment verification", available: true },
+  { id: "w8_critique",    label: "W8++ — Integrated + AI critique-and-repair + entailment verify", available: true },
 ];
 
 const SCORERS: VariantOpt[] = [

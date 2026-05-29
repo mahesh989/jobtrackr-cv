@@ -54,6 +54,7 @@ from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
+from app.services.eval.critique import critique_and_repair
 from app.services.eval.knockout import detect_knockouts
 from app.services.eval.role_families import (
     resolve_role_family,
@@ -643,6 +644,67 @@ async def _writer_w8_verified(
     return result
 
 
+# ---------------------------------------------------------------------------
+# W8-critique — W8 + Stage-5 AI critique-and-repair + Stage-6 entailment verify.
+# Strongest honest path: compose + deterministic enforce (the integrated draft),
+# then ONE JD-aware critique pass that re-targets and sharpens the draft using
+# only truthful material, then the SAME deterministic enforce layer re-run as a
+# safety net (so any fact the critique slips in is mechanically stripped), then
+# the per-claim entailment verifier as the final honesty gate. One extra AI call
+# over w8_verified; shipped as a separate variant to A/B the quality lift.
+# ---------------------------------------------------------------------------
+
+
+async def _writer_w8_critique(
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]],
+    *,
+    vertical: Optional[str] = None,
+) -> WriterResult:
+    # 1. Compose + deterministic enforce (no verify yet) — the integrated draft.
+    result = await _writer_w8_integrated(
+        client, cv_text, jd_text, contact_details, vertical=vertical,
+    )
+    role_family = resolve_role_family(vertical, result.jd_analysis)
+
+    # 2. AI critique-and-repair: JD-aware quality lift, honesty-gated by prompt.
+    revised, creport = await critique_and_repair(
+        client, result.tailored_md, cv_text, jd_text, role_family,
+    )
+    result.extras["critique"] = creport
+
+    # 3. Deterministic safety net on the revised draft — the SAME proven gates as
+    #    the integrated path (ungrounded-strip, suppression, skills hygiene,
+    #    structure, family order). Any fact the critique slipped in is removed.
+    if creport.get("applied"):
+        md = to_canonical(revised, role_family)
+        md = _enforce_structure(md)
+        md = apply_w3_gates(
+            md,
+            jd_text=jd_text,
+            jd_analysis=result.jd_analysis,
+            suppress=role_family.id in ("tech", "master"),
+            original_cv_text=cv_text,
+        )
+        md = enforce_skills_section(
+            md,
+            original_cv_text=cv_text,
+            drop_ungrounded=(role_family.injection_policy == "none"),
+        )
+        md = ensure_bachelor(md, cv_text)
+        revised = restore_and_order(md, role_family)
+    else:
+        revised = result.tailored_md
+
+    # 4. Final honesty gate: per-claim entailment on the (possibly) revised CV.
+    verified_md, vreport = await verify_claims(client, revised, cv_text)
+    result.tailored_md = verified_md
+    result.extras["verify"] = vreport
+    return result
+
+
 WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w1_current":     _writer_w1_current,
     "w2_general":     _writer_w2_general,
@@ -653,6 +715,7 @@ WRITER_VARIANTS: Dict[str, WriterFn] = {
     "w7_converged":   _writer_w7_converged,
     "w8_integrated":  _writer_w8_integrated,
     "w8_verified":    _writer_w8_verified,
+    "w8_critique":    _writer_w8_critique,
 }
 
 
