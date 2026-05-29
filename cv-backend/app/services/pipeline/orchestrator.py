@@ -193,12 +193,22 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "keyword_feasibility", "completed")
 
         # ── Step 5 — AI recommendations (markdown) ─────────────────────────────
-        await mark_step(run_id, step_status, "ai_recommendations", "running")
-        recs_md = await run_ai_recommendations(
-            ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
-        )
-        await save_step_result(run_id, "ai_recommendations", recs_md)
-        await mark_step(run_id, step_status, "ai_recommendations", "completed")
+        # The w8_verified writer composes from the feasibility plan directly and
+        # never consumes these recommendations, so skip the AI call entirely on
+        # that path — it keeps the per-run call count at legacy parity and avoids
+        # showing "Will Be Applied" advice the writer doesn't actually apply.
+        use_w8 = get_settings().TAILORED_CV_WRITER == "w8_verified"
+        recs_md = ""
+        if use_w8:
+            step_status["ai_recommendations"] = "skipped"
+            await save_step_result(run_id, "step_status", step_status)
+        else:
+            await mark_step(run_id, step_status, "ai_recommendations", "running")
+            recs_md = await run_ai_recommendations(
+                ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
+            )
+            await save_step_result(run_id, "ai_recommendations", recs_md)
+            await mark_step(run_id, step_status, "ai_recommendations", "completed")
 
         # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
         # contact_details (when present) stamps the user's canonical contact
@@ -206,8 +216,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
         await mark_step(run_id, step_status, "tailored_cv", "running")
-        settings = get_settings()
-        if settings.TAILORED_CV_WRITER == "w8_verified":
+        if use_w8:
             # Validated beta writer (role-family composition + deterministic
             # enforce + entailment verify). Reuses the upstream artifacts above
             # so it adds only the composition + verify calls. Same storage path
