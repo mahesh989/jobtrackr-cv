@@ -237,6 +237,109 @@ def _relabel_registration(markdown: str, rf: RoleFamilyProfile) -> str:
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------------------
+# Bachelor re-add — deterministic recovery of a dropped baseline credential.
+#
+# The composition prompt instructs the writer to ALWAYS keep the candidate's
+# Bachelor's, but the model sometimes drops it (recurring across runs). The
+# degree-relevance gate can prune but cannot re-add what the writer never
+# emitted. This recovers the Bachelor from the ORIGINAL CV and inserts a
+# two-line Education entry — best-effort, only when both a degree phrase AND an
+# institution can be extracted (never emits a half-broken entry).
+# ---------------------------------------------------------------------------
+
+_BACHELOR_DETECT_RE = re.compile(r"\b(bachelor|b\.?sc|b\.?eng|b\.?a\.?\b|undergrad)", re.IGNORECASE)
+_BACHELOR_WORD_RE = re.compile(r"\bbachelor\b|\bb\.?sc\b|\bb\.?eng\b", re.IGNORECASE)
+_INSTITUTION_RE = re.compile(
+    # "<Capitalised words> University/College/…"  OR  "University/College/… of <Place>"
+    r"([A-Z][A-Za-z.&'’-]+(?:\s+[A-Z][A-Za-z.&'’-]+){0,5}\s+"
+    r"(?:University|College|Institute|Polytechnic|Academy)"
+    r"|(?:University|College|Institute)\s+of\s+[A-Z][A-Za-z'’-]+"
+    r"(?:\s+[A-Z][A-Za-z'’-]+){0,3})"
+)
+_YEARRANGE_RE = re.compile(
+    r"((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2}|present|current)", re.IGNORECASE
+)
+
+
+def _extract_bachelor(cv_text: str):
+    """Return (institution, location, degree, years) or None. Best-effort."""
+    if not cv_text:
+        return None
+    m = _BACHELOR_WORD_RE.search(cv_text)
+    if not m:
+        return None
+    start = m.start()
+    # Search forward from the Bachelor match only — starting earlier bleeds the
+    # PREVIOUS degree's year-range/location into this entry (a real bug).
+    window = cv_text[start: start + 220]
+
+    tail = cv_text[start: start + 70]
+    degree = re.split(r"[,\n|()]|\s\d{4}|\s{2,}", tail)[0].strip()
+    degree = re.sub(r"\s+", " ", degree)
+    if len(degree) < 5:
+        return None
+
+    inst_m = _INSTITUTION_RE.search(window)
+    if not inst_m:
+        return None
+    institution = inst_m.group(1).strip()
+
+    loc = ""
+    after = window[inst_m.end(): inst_m.end() + 50]
+    # Terminate the location capture on a digit too (e.g. the start of a year).
+    loc_m = re.match(r"\s*[,|]\s*([A-Za-z][A-Za-z ,'’-]+?)(?:[|(\n0-9]|$)", after)
+    if loc_m:
+        cand = loc_m.group(1).strip().rstrip(",").strip()
+        if 0 < len(cand) <= 40:
+            loc = cand
+
+    yr_m = _YEARRANGE_RE.search(window)
+    years = f"{yr_m.group(1)} – {yr_m.group(2)}" if yr_m else ""
+
+    return institution, loc, degree, years
+
+
+def ensure_bachelor(markdown: str, original_cv_text: str) -> str:
+    """
+    If the Education section has no Bachelor's but the original CV does, insert a
+    reconstructed two-line Bachelor entry. Keeps the section ≤3 entries (drops
+    the oldest surplus grad to make room). No-op when a Bachelor is already
+    present or none can be reliably extracted.
+    """
+    lines = markdown.split("\n")
+    edu_start = next(
+        (i for i, l in enumerate(lines) if l.strip().lower() == "## education"), None
+    )
+    if edu_start is None:
+        return markdown
+    edu_end = next(
+        (i for i in range(edu_start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    body = lines[edu_start + 1: edu_end]
+    if _BACHELOR_DETECT_RE.search("\n".join(body)):
+        return markdown  # already has a Bachelor
+
+    extracted = _extract_bachelor(original_cv_text)
+    if not extracted:
+        return markdown
+    institution, loc, degree, years = extracted
+
+    while body and not body[-1].strip():
+        body.pop()
+
+    entry_idxs = [i for i, l in enumerate(body) if l.lstrip().startswith("### ")]
+    if len(entry_idxs) >= 3:
+        body = body[: entry_idxs[2]]  # keep first 2 entries, room for the Bachelor
+
+    h3 = f"### {institution}" + (f" | {loc}" if loc else "")
+    sub = f"*{degree}" + (f" | {years}" if years else "") + "*"
+    body = body + ["", h3, sub]
+
+    return "\n".join(lines[: edu_start + 1] + body + lines[edu_end:])
+
+
 def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     """
     Rename canonical headings back to the family's names, merge duplicate

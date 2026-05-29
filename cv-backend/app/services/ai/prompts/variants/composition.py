@@ -83,11 +83,17 @@ OUTPUT SHAPE
 - # Name (level-1). Below it ONE contact line (a placeholder is fine — it is
   overwritten by post-processing).
 - Use ## section headings in the EXACT ORDER given by the role pack below.
-- Entries (roles / projects / degrees) use a TWO-LINE block:
-    ### Left | Right
-    *Sub-left | Sub-right*
-  then a blank line, then 2-3 bullets (for roles/projects). Education entries
-  have NO bullets.
+- Every entry is a strict TWO-LINE block — the H3 line holds the org/place, the
+  italic line holds the role/dates. Put the fields in EXACTLY these slots; do
+  NOT cram everything onto the H3 line and do NOT add a third descriptor line:
+    • Experience role:   "### Company | Location"  then  "*Title | Start – End*"
+    • Project:           "### Project Name | Tech/Methods"  then  "*one-line role/context*"
+    • Education entry:   "### Institution | Location"  then  "*Degree | Year(s)*"
+  Then a blank line, then 2-3 bullets (roles/projects only). Education entries
+  have NO bullets and NO descriptor line beyond the italic Degree line.
+- NEVER invent a company/sector descriptor line (e.g. "*Property tech and
+  analytics services*"); the italic line is Title|Dates (roles) or Degree|Year
+  (education) only.
 - Every bullet is a full sentence ending in a period: action verb + method +
   context + (quantified) result. 18-30 words.
 

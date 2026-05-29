@@ -52,7 +52,7 @@ from app.services.ai.prompts.variants.composition import (
 )
 from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct
-from app.services.eval.enforce_w8 import to_canonical, restore_and_order
+from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
 from app.services.eval.knockout import detect_knockouts
 from app.services.eval.role_families import (
@@ -590,6 +590,9 @@ async def _writer_w8_integrated(
         original_cv_text=cv_text,
         drop_ungrounded=(role_family.injection_policy == "none"),
     )
+    # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
+    #     the original CV (the writer occasionally drops it despite the prompt).
+    md = ensure_bachelor(md, cv_text)
     # 4. Rename canonical headings back to the family's names and apply the
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
