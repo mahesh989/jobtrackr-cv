@@ -489,11 +489,62 @@ def _drop_projects_duplicated_in_experience(markdown: str) -> str:
     return "\n".join(out)
 
 
+_CERT_FIELD_SPLIT_RE = re.compile(r"\s*[–—|(]|\s-\s|,\s")
+
+
+def _dedupe_credentials_across_sections(markdown: str) -> str:
+    """
+    Drop a Certifications line whose credential phrase already appears in the
+    Education section. A formal qualification (Certificate III/IV, Diploma,
+    Bachelor's, …) belongs in Education; repeating it verbatim under
+    Certifications is pure redundancy (e.g. "Certificate IV in Ageing Support"
+    listed in BOTH). Education is treated as canonical — the Certifications copy
+    is removed. Matches the leading credential phrase (before the issuer/date)
+    as a substring of the normalised Education text; requires ≥2 words / ≥8
+    chars to avoid false positives. If the Certifications section ends up empty
+    the subsequent _drop_filler_sections pass removes it.
+    """
+    preamble, blocks = _split_blocks(markdown)
+    if not blocks:
+        return markdown
+
+    def _norm(s: str) -> str:
+        s = re.sub(r"[*_>#`\[\]]", "", s)
+        return re.sub(r"\s+", " ", s).strip().lower()
+
+    edu_blob = ""
+    for name, blk in blocks:
+        if name.lower() == "education":
+            edu_blob = _norm(" ".join(blk[1:]))
+    if not edu_blob:
+        return markdown
+
+    out = list(preamble)
+    for name, blk in blocks:
+        if name.lower() != "certifications":
+            out.extend(blk)
+            continue
+        heading, body = blk[0], blk[1:]
+        kept = [heading]
+        for ln in body:
+            if not ln.strip():
+                kept.append(ln)
+                continue
+            text = re.sub(r"^\s*(?:[-*•]|#{1,6})\s*", "", ln)  # strip bullet/heading marker
+            phrase = _norm(_CERT_FIELD_SPLIT_RE.split(text, 1)[0])
+            if len(phrase) >= 8 and len(phrase.split()) >= 2 and phrase in edu_blob:
+                continue  # duplicated in Education → drop this cert line
+            kept.append(ln)
+        out.extend(kept)
+    return "\n".join(out)
+
+
 def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     """
     Rename canonical headings back to the family's names, merge duplicate
-    sections, drop empty placeholders, reorder to the family's section order,
-    then relabel a filler Registration section. Order matters: reorder runs
+    sections, drop a Certifications entry already listed in Education, drop empty
+    placeholders, reorder to the family's section order, then relabel a filler
+    Registration section. Order matters: reorder runs
     while the heading is still "Registration & Licences" (so section_order
     matches), and the relabel happens last as an in-place heading swap.
     """
@@ -501,6 +552,7 @@ def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     md = _rename_headings(markdown, reverse)
     md = _merge_same_named_sections(md)
     md = _drop_projects_duplicated_in_experience(md)
+    md = _dedupe_credentials_across_sections(md)
     md = _drop_filler_sections(md)
     md = _reorder_sections(md, rf.section_order)
     md = _relabel_registration(md, rf)
