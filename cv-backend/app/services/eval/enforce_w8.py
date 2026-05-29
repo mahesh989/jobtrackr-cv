@@ -219,15 +219,37 @@ def _merge_same_named_sections(markdown: str) -> str:
     return "\n".join(out)
 
 
-def _drop_empty_sections(markdown: str) -> str:
-    """Remove sections whose body is entirely blank (heading-only placeholders)."""
+def _is_filler_line(line: str) -> bool:
+    """A line carrying no real CV signal — blank, a negative ('No X listed'),
+    or a non-credential placeholder ('eligible to work', 'available on request')."""
+    s = re.sub(r"[*_>#`()\-]", "", line).strip()
+    if not s:
+        return True
+    if _FILLER_BODY_RE.match(s):
+        return True
+    if _NONSENSE_LINE_RE.search(s):
+        return True
+    return False
+
+
+def _drop_filler_sections(markdown: str) -> str:
+    """
+    Remove any section whose ENTIRE body is filler — blank, or only negative/
+    placeholder statements (e.g. Certifications: '(No certifications listed…)',
+    or a Checks section that just says what's absent). A section that only states
+    what the candidate does NOT have is noise on a CV; omit it. A section keeps
+    if it has at least one real (non-filler) content line.
+    """
     preamble, blocks = _split_blocks(markdown)
     if not blocks:
         return markdown
     out = list(preamble)
     for _name, blk in blocks:
-        if _body_is_empty(blk):
-            continue
+        body_lines = [l for l in blk[1:] if l.strip()]
+        if body_lines and all(_is_filler_line(l) for l in body_lines):
+            continue  # every line is filler → drop the section
+        if not body_lines:
+            continue  # heading-only placeholder → drop
         out.extend(blk)
     return "\n".join(out)
 
@@ -411,7 +433,7 @@ def restore_and_order(markdown: str, rf: RoleFamilyProfile) -> str:
     reverse = {v: k for k, v in _TO_CANONICAL.get(rf.id, {}).items()}
     md = _rename_headings(markdown, reverse)
     md = _merge_same_named_sections(md)
-    md = _drop_empty_sections(md)
+    md = _drop_filler_sections(md)
     md = _reorder_sections(md, rf.section_order)
     md = _relabel_registration(md, rf)
     return md
