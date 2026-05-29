@@ -123,10 +123,14 @@ EXPERIENCE — selection & rewriting
   an analyst JD), keep only the single most JD-relevant one and fill the
   remaining slots with that role's transferable on-axis work — NEVER a second
   off-axis bullet, not even in the most recent role. The on-axis bullet leads.
-- WEIGHT BY RELEVANCE: give on-axis roles 2-3 bullets; give a kept-but-largely-
-  off-axis role only ONE bullet — its single most transferable achievement.
-  Keep reverse-chronological order (do NOT reorder roles); trim weight, not
-  position, so the most JD-relevant roles carry the most space.
+- WEIGHT BY RELEVANCE (hard): give on-axis roles 2-3 bullets; give a kept-but-
+  largely-off-axis role EXACTLY ONE bullet — its single most transferable
+  achievement — even when the source CV lists three or more for it. A role whose
+  title/domain does not match the JD's discipline (e.g. an AI-training or
+  research role on a BI/analyst JD) is largely off-axis: collapse it to that one
+  bullet, never two or three. Keep reverse-chronological order (do NOT reorder
+  roles); trim weight, not position, so the most JD-relevant roles carry the
+  most space.
 - ON-AXIS FACET: when you keep an off-axis role/project/bullet, frame it by its
   facet that matches the JD (e.g. the analytics/reporting/data angle of a
   product), NOT its off-axis aspect (the full-stack build or research angle).
