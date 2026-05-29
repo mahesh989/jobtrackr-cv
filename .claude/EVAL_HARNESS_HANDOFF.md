@@ -36,6 +36,27 @@ family section ordering). W8 is the deliverable of the "document production → 
 into new engine → adapt for nursing" task; it fixes W7's one residual (nursing now leads
 with "Registration & Licences" and every family's section order is honoured).
 
+### W8.4 — production selection logic integrated into the composition engine
+`composition.py` `_UNIVERSAL_ENGINE` rewritten to fold in the proven production
+TAILORED_CV_SYSTEM selection mechanisms, **generalised for any sector and
+example-free** (no Outlier/CV-Agent/iBuild baked nouns → no example-bleed; ~150
+assembled lines vs production's 976 → no hallucination bloat). Added, all
+field-agnostic: GENERATION ORDER + ghost-reference ban; JD-FOCUS ALIGNMENT
+(general off-axis suppression — demote/replace off-axis bullets, keep off-axis
+tools out of Skills/summary, every sector); EXPERIENCE selection (rank
+direct→adjacent→transferable, 1-3 roles, sparse floor, per-bullet relevance =
+reframe-don't-lift, consolidate 4+→2-3); PROJECTS selection (domain-OR-method,
+rank stack>domain>metrics, ≤2, omit if none, duplication ban); EDUCATION
+keep-Bachelor + drop off-field grads; CAREER SUMMARY 2-sentence mandatory +
+NO-ECHO + tool ban + 2-clause achievement; MIRROR-THE-JD-VOCABULARY (fixes
+"commercial framing missing"); DEMONSTRATE-KEY-SKILLS (fixes phantom-skill
+critique honestly); 5-point self-check. Affects W3/W5/W8 (all eval). Fixes the
+W8+ run issues: wrong project selected, off-axis Bitrates/AI bullets not
+suppressed, no commercial language. Residuals NOT code-gated (honesty): occasional
+1-sentence Highlights (model variance — prompt+self-check only, never fabricate a
+2nd sentence) and whole-entry project dup (prompt ban + bullet-dedup gate; no
+fuzzy title gate to avoid false-drop downgrade).
+
 ### W8 sophistication stack (W8.0–W8.3, all additive)
 - **W8.0 structural hardening** (`enforce_w8.py` + `enforce_w3.py`): merge same-named
   sections (fixes duplicate "Clinical Experience" the mismatch case dumped at the end),
