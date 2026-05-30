@@ -176,9 +176,11 @@ class FillMetrics:
     def is_optimal(self) -> bool:
         """True if the fill is good enough — no further tuning needed."""
         if self.pages == 1:
-            return 82.0 <= self.fill_pct <= 100.0
-        # Multi-page: last page should be ≥ 75% full
-        return self.fill_pct >= 75.0
+            # 75% floor: a comfortably filled single page looks professional;
+            # pushing above 82% risks overflow to 2 pages for near-full CVs.
+            return 75.0 <= self.fill_pct <= 100.0
+        # Multi-page: last page should be ≥ 70% full
+        return self.fill_pct >= 70.0
 
 
 # ---------------------------------------------------------------------------
