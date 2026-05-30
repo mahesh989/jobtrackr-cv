@@ -19,7 +19,11 @@ export const ONE_PAGE_HOST_PX = 1027;
 
 const TARGET_FILL = 0.95;   // aim for this fraction of one page
 const MAX_FILL    = 0.97;   // never exceed — keeps it single-page-safe
-const MAX_SCALE   = 1.15;   // font 10pt → 11.5pt, same as backend MAX_CONFIG
+const MAX_SCALE   = 1.45;   // cap zoom at ~1.45× (body 10pt → ~14.5pt) so a
+                            // genuinely sparse CV can reach the fill target
+                            // without the type looking poster-sized. The binary
+                            // search stops at MAX_FILL, so only sparse CVs use
+                            // the full headroom.
 
 /** Multiply every pt/px/in numeric in the stylesheet by k. */
 export function scaleCvStyle(css: string, k: number): string {
