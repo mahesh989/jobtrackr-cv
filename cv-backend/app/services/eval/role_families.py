@@ -32,6 +32,14 @@ class RoleFamilyProfile:
     metric_vocab: List[str]            # domain metric words (for relevance/coverage)
     identity_guidance: str             # short prompt block: how to frame identity
     extra_rules: str = ""              # any family-specific rule text
+    # Which internal bucket carries this family's HEADLINE competencies, i.e.
+    # the bucket that should wear skills_categories[0]. The CV/JD categoriser
+    # files software/tools/platforms under "technical" and industry/process/
+    # clinical knowledge under "domain_knowledge". For tech roles the headline
+    # is the technical bucket; for nursing/manual the headline is the domain
+    # bucket (clinical/care competencies), and "technical" (e.g. BESTMed) is
+    # the secondary "Other Skills" bucket.
+    headline_bucket: str = "technical"  # "technical" | "domain_knowledge"
     # Verified equivalences: (jd_facing_term, [cv_terms_that_justify_it], category).
     # A small, curated, per-family slice of a skill ontology. When the JD wants
     # jd_facing_term and the CV literally contains one of the justifying terms,
@@ -106,6 +114,7 @@ _NURSING = RoleFamilyProfile(
         "Education", "Skills", "Certifications",
     ],
     skills_categories=["Clinical Skills", "Soft Skills", "Other Skills"],
+    headline_bucket="domain_knowledge",  # clinical competencies live in domain_knowledge
     cert_policy="first_class",   # licences/certs are the qualification — lead with them
     injection_policy="direct_only",  # NEVER infer clinical competencies (patient safety)
     metric_vocab=[
@@ -169,6 +178,7 @@ _MANUAL = RoleFamilyProfile(
         "Summary", "Work Experience", "Skills", "Certifications & Checks", "Availability",
     ],
     skills_categories=["Core Skills", "Soft Skills", "Other Skills"],
+    headline_bucket="domain_knowledge",  # hands-on/process competencies live in domain_knowledge
     cert_policy="first_class",   # police check, White Card, WWCC, forklift licence
     injection_policy="none",     # no keyword injection; honesty + clarity win here
     metric_vocab=[
@@ -282,15 +292,27 @@ def category_labels(rf: RoleFamilyProfile) -> Dict[str, str]:
     """
     Map the internal skill-category keys to the family's display labels. The
     internal keys (technical / soft_skills / domain_knowledge) stay stable
-    everywhere; only the user-facing label changes per family. category_labels
-    is positional on RoleFamilyProfile.skills_categories:
-        technical        → skills_categories[0]  (Clinical Skills / Technical
-                                                   Skills / Core Skills)
-        soft_skills      → skills_categories[1]
-        domain_knowledge → skills_categories[2]
+    everywhere; only the user-facing label changes per family.
+
+    The three labels in skills_categories are, by convention:
+        [0] HEADLINE competencies, [1] soft skills, [2] secondary / catch-all.
+
+    The CV/JD categoriser files software/tools/platforms under "technical" and
+    industry/process/clinical knowledge under "domain_knowledge". Which of those
+    two buckets is the family's HEADLINE differs by role: tech roles lead with
+    "technical" (Python, SQL → Technical Skills); nursing/manual roles lead with
+    "domain_knowledge" (medication administration, dementia care → Clinical
+    Skills), and "technical" (e.g. BESTMed/MedMobile) becomes the secondary
+    "Other Skills" bucket. rf.headline_bucket selects which.
     """
     cats = list(rf.skills_categories) + ["Technical Skills", "Soft Skills", "Other Skills"]
-    return {key: cats[i] for i, key in enumerate(_CATEGORY_KEYS)}
+    headline = rf.headline_bucket if rf.headline_bucket in ("technical", "domain_knowledge") else "technical"
+    secondary = "domain_knowledge" if headline == "technical" else "technical"
+    return {
+        headline:      cats[0],
+        "soft_skills": cats[1],
+        secondary:     cats[2],
+    }
 
 
 def resolve_seniority(jd_analysis: Dict[str, Any] | None) -> str:

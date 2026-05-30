@@ -326,7 +326,9 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           </span>
         </div>
         <div className="px-5 py-3 divide-y divide-border/50">
-          {STEPS.map((s) => (
+          {STEPS
+            .filter((s) => (run.step_status?.[s.key] ?? "pending") !== "skipped")
+            .map((s) => (
             <StepRow
               key={s.key}
               label={s.label}
