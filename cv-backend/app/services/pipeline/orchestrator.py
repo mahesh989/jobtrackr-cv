@@ -120,6 +120,19 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
             await mark_step(run_id, step_status, "jd_analysis", "completed")
 
+        # Attach the resolved role family + family-aware category labels so every
+        # downstream step and the UI render category-1 as "Clinical Skills"
+        # (nursing) / "Technical Skills" (tech) / "Core Skills" (manual) instead
+        # of the IT-default "Technical". Rides in the jd_analysis_result JSON, so
+        # no migration. Idempotent — recomputes only when absent (handles old
+        # cached analyses on resume).
+        if not jd_analysis.get("category_labels"):
+            from app.services.eval.role_families import category_labels, resolve_role_family
+            _rf = resolve_role_family(None, jd_analysis)
+            jd_analysis["role_family"] = _rf.id
+            jd_analysis["category_labels"] = category_labels(_rf)
+            await save_step_result(run_id, "jd_analysis_result", jd_analysis)
+
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
         matching = cached.get("cv_jd_matching_result")
         if matching is not None:

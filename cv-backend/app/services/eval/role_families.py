@@ -275,6 +275,24 @@ def resolve_role_family(
     return _MASTER
 
 
+_CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
+
+
+def category_labels(rf: RoleFamilyProfile) -> Dict[str, str]:
+    """
+    Map the internal skill-category keys to the family's display labels. The
+    internal keys (technical / soft_skills / domain_knowledge) stay stable
+    everywhere; only the user-facing label changes per family. category_labels
+    is positional on RoleFamilyProfile.skills_categories:
+        technical        → skills_categories[0]  (Clinical Skills / Technical
+                                                   Skills / Core Skills)
+        soft_skills      → skills_categories[1]
+        domain_knowledge → skills_categories[2]
+    """
+    cats = list(rf.skills_categories) + ["Technical Skills", "Soft Skills", "Other Skills"]
+    return {key: cats[i] for i, key in enumerate(_CATEGORY_KEYS)}
+
+
 def resolve_seniority(jd_analysis: Dict[str, Any] | None) -> str:
     """Map the JD seniority to a coarse overlay bucket: grad | mid | senior."""
     level = str((jd_analysis or {}).get("seniority_level") or "unknown").lower()

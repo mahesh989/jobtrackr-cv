@@ -44,7 +44,12 @@ function rateBadgeCls(pct: number) {
   return "bg-red-light text-red border-red/30";
 }
 
-export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
+export function CvJdMatchingCard({
+  data, catLabels = CAT_LABEL,
+}: {
+  data: Record<string, unknown>;
+  catLabels?: Record<string, string>;
+}) {
   const d = data as MatchingData;
   const hasCategorised = !!d.counts;
 
@@ -57,7 +62,7 @@ export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
         </p>
       </div>
       <div className="px-5 py-4 space-y-5">
-        {hasCategorised ? <CategorisedView d={d} /> : <LegacyFlatView d={d} />}
+        {hasCategorised ? <CategorisedView d={d} catLabels={catLabels} /> : <LegacyFlatView d={d} />}
       </div>
     </div>
   );
@@ -65,7 +70,7 @@ export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
 
 // ── Categorised view (new schema) ──────────────────────────────────────────
 
-function CategorisedView({ d }: { d: MatchingData }) {
+function CategorisedView({ d, catLabels }: { d: MatchingData; catLabels: Record<string, string> }) {
   const counts  = d.counts!;
   const rates   = d.match_rates ?? {};
   const overall = counts.overall;
@@ -95,14 +100,20 @@ function CategorisedView({ d }: { d: MatchingData }) {
         </div>
       )}
 
-      <BreakdownTable counts={counts} rates={rates} />
+      <BreakdownTable counts={counts} rates={rates} catLabels={catLabels} />
 
-      <KeywordChipGrid matched={d.matched} missed={d.missed} />
+      <KeywordChipGrid matched={d.matched} missed={d.missed} catLabels={catLabels} />
     </>
   );
 }
 
-function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: MatchRates }) {
+function BreakdownTable({
+  counts, rates, catLabels,
+}: {
+  counts: MatchingCounts;
+  rates: MatchRates;
+  catLabels: Record<string, string>;
+}) {
   const catRatePct: Record<Cat, number | undefined> = {
     technical:        rates.technical_pct,
     soft_skills:      rates.soft_skills_pct,
@@ -140,7 +151,7 @@ function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: Matc
               const prefHas = pref && pref.total > 0;
               return (
                 <tr key={cat} className="border-b border-border/60">
-                  <td className="py-2 pr-3 font-medium text-text">{CAT_LABEL[cat]}</td>
+                  <td className="py-2 pr-3 font-medium text-text">{catLabels[cat]}</td>
                   <td className="py-2 pr-3 text-center">
                     {reqHas ? <MatchCell matched={req!.matched} total={req!.total} /> : <span className="text-text-3">—</span>}
                   </td>
@@ -207,7 +218,13 @@ function MatchCell({ matched, total }: { matched: number; total: number }) {
 
 // ── Keyword chips grouped by category ──────────────────────────────────────
 
-function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed?: BucketKeywords }) {
+function KeywordChipGrid({
+  matched, missed, catLabels,
+}: {
+  matched?: BucketKeywords;
+  missed?: BucketKeywords;
+  catLabels: Record<string, string>;
+}) {
   const merge = (bk?: BucketKeywords): Record<Cat, string[]> => {
     const out: Record<Cat, string[]> = { technical: [], soft_skills: [], domain_knowledge: [] };
     if (!bk) return out;
@@ -236,6 +253,7 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
           title="Matched keywords"
           color="green"
           buckets={m}
+          catLabels={catLabels}
         />
       )}
       {anyX && (
@@ -243,6 +261,7 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
           title="Missing keywords"
           color="red"
           buckets={x}
+          catLabels={catLabels}
         />
       )}
     </div>
@@ -250,11 +269,12 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
 }
 
 function ChipBlock({
-  title, color, buckets,
+  title, color, buckets, catLabels,
 }: {
   title: string;
   color: "green" | "red";
   buckets: Record<Cat, string[]>;
+  catLabels: Record<string, string>;
 }) {
   const titleCls = color === "green" ? "text-green" : "text-red";
   const chipCls  = color === "green"
@@ -270,7 +290,7 @@ function ChipBlock({
           return (
             <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1">
               <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
-                {CAT_LABEL[cat]}
+                {catLabels[cat]}
               </span>
               <div className="flex flex-wrap gap-1">
                 {kws.map((kw) => (

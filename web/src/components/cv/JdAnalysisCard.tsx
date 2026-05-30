@@ -30,6 +30,15 @@ const CAT_LABEL: Record<string, string> = {
 };
 const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
 
+// Role-family-aware display labels persisted on the JD analysis
+// (jd_analysis_result.category_labels). Falls back to the generic labels for
+// runs analysed before the role-family enrichment landed.
+function resolveCatLabels(data: Record<string, unknown>): Record<string, string> {
+  const raw = (data as { category_labels?: Record<string, string> }).category_labels;
+  if (!raw || typeof raw !== "object") return CAT_LABEL;
+  return { ...CAT_LABEL, ...raw };
+}
+
 // Decide whether the JD analysis came back "weak" — i.e. the AI couldn't
 // extract a real role description because the source text was a stub /
 // company-benefits page / paywall. When that happens we render `summary`
@@ -60,6 +69,7 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
   const reqIsCategorised  = req  != null && !Array.isArray(req)  && typeof req  === "object";
   const prefIsCategorised = pref != null && !Array.isArray(pref) && typeof pref === "object";
   const weak = isWeakAnalysis(d);
+  const catLabels = resolveCatLabels(data);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -103,12 +113,12 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 
         {/* Required skills */}
         {req && (
-          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" />
+          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" catLabels={catLabels} />
         )}
 
         {/* Preferred skills */}
         {pref && (
-          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" />
+          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" catLabels={catLabels} />
         )}
 
         {/* Responsibilities */}
@@ -135,18 +145,19 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function SkillBlock({
-  label, skills, categorised, variant,
+  label, skills, categorised, variant, catLabels,
 }: {
   label: string;
   skills: CategorisedSkills | string[];
   categorised: boolean;
   variant: "required" | "preferred";
+  catLabels: Record<string, string>;
 }) {
   return (
     <div>
       <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">{label}</h3>
       {categorised ? (
-        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} />
+        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} catLabels={catLabels} />
       ) : (
         <FlatChips items={skills as string[]} variant={variant} />
       )}
@@ -155,10 +166,11 @@ function SkillBlock({
 }
 
 function CategorisedSkillGrid({
-  skills, variant,
+  skills, variant, catLabels,
 }: {
   skills: CategorisedSkills;
   variant: "required" | "preferred";
+  catLabels: Record<string, string>;
 }) {
   const hasAny = CAT_ORDER.some((k) => (skills[k]?.length ?? 0) > 0);
   if (!hasAny) return null;
@@ -171,7 +183,7 @@ function CategorisedSkillGrid({
         return (
           <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
             <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
-              {CAT_LABEL[cat]}
+              {catLabels[cat]}
             </span>
             <div className="flex flex-wrap gap-1">
               {items.map((s) => <Chip key={s} label={s} variant={variant} />)}
