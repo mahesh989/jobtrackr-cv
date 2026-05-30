@@ -124,6 +124,16 @@ TWO_PAGE_MD = (
     + _DENSE_FOOTER
 )
 
+# "Tweener" — floors ~81% (1 page) but a small relaxation tips it to 2 pages,
+# so the engine must fill the single page as much as it can WITHOUT overflowing.
+# Mirrors the real nursing CV that exposed the early-bail bug: the search must
+# push toward the 2-page cliff, not stop at the 90% is_optimal floor.
+TWEENER_MD = (
+    _DENSE_HEADER
+    + "".join(_role(i + 1, 2023 - i, 2024 - i) for i in range(3))
+    + _DENSE_FOOTER
+)
+
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -306,6 +316,29 @@ class TestSparseCvRelaxes:
         result = find_optimal_config(measure)
         assert result.body_font_size <= MAX_CONFIG.body_font_size
         assert result.margin <= MAX_CONFIG.margin
+
+    def test_tweener_cv_fills_close_to_target(self):
+        """Regression: a tweener one-page CV (floors ~81%, tips to 2 pages with
+        a small relaxation) must be pushed close to the 95% target, NOT bailed
+        the moment it crosses the 90% is_optimal floor.
+
+        Before the fix the engine stopped at ~90% — an imperceptible relaxation
+        over the production floor — even though fuller one-page configs sat just
+        below the 2-page cliff.
+        """
+        name, contact, sections = _parse_markdown(TWEENER_MD)
+
+        def measure(cfg):
+            return _measure_fill(cfg, name, contact, sections)
+
+        floor = measure(DEFAULT_CONFIG)
+        assert floor.pages == 1 and floor.fill_pct < 90.0  # genuinely sparse
+
+        result = find_optimal_config(measure)
+        m = measure(result)
+        assert m.pages == 1
+        # Must comfortably clear the old 90% bail-out, on a single page.
+        assert m.fill_pct >= 92.0, f"only filled {m.fill_pct}%"
 
 
 # ---------------------------------------------------------------------------

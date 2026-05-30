@@ -254,8 +254,10 @@ def find_optimal_config(
         return MAX_CONFIG
 
     # Step 5: binary search  t ∈ [0, 1]  between floor ↔ ceiling
-    # Aim a touch above the 90% hard floor so we comfortably clear it.
-    target_fill = 0.93 if target_pages == 1 else 0.85
+    # Aim high so a sparse CV is pushed close to the 2-page cliff and the page
+    # ends up comfortably full — NOT just past the 90% is_optimal floor (which
+    # bails far too early and leaves visible bottom whitespace).
+    target_fill = 0.95 if target_pages == 1 else 0.85
 
     # Seed best with whichever endpoint is closer to target
     best_t = 0.0
@@ -297,8 +299,13 @@ def find_optimal_config(
             best_config = candidate
             best_t = mid_t
 
-        # Early exit if we hit the sweet spot
-        if m.is_optimal:
+        # Early exit when fill is genuinely close to target.  For a single page
+        # we require near-target fill (within 2 pts) rather than is_optimal's
+        # 90% floor — otherwise the search stops the moment it crosses 90% and
+        # never reaches the fuller one-page configs that sit just below the
+        # 2-page cliff.  The 2-page path keeps the looser is_optimal criterion.
+        near_target = abs(fill_ratio - target_fill) <= 0.02
+        if (target_pages == 1 and near_target) or (target_pages == 2 and m.is_optimal):
             logger.info(
                 "adaptive-layout: converged at iter %d (%.1f%% fill, t=%.3f, "
                 "font=%.1f, margin=%.0f)",
