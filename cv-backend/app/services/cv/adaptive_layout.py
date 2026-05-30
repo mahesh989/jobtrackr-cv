@@ -176,11 +176,10 @@ class FillMetrics:
     def is_optimal(self) -> bool:
         """True if the fill is good enough — no further tuning needed."""
         if self.pages == 1:
-            # 75% floor: a comfortably filled single page looks professional;
-            # pushing above 82% risks overflow to 2 pages for near-full CVs.
-            return 75.0 <= self.fill_pct <= 100.0
-        # Multi-page: last page should be ≥ 70% full
-        return self.fill_pct >= 70.0
+            # Require ≥ 90% fill on a single page before stopping.
+            return self.fill_pct >= 90.0
+        # Multi-page: last page should be ≥ 75% full
+        return self.fill_pct >= 75.0
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +254,8 @@ def find_optimal_config(
         return MAX_CONFIG
 
     # Step 5: binary search  t ∈ [0, 1]  between floor ↔ ceiling
-    target_fill = 0.92 if target_pages == 1 else 0.88
+    # Aim a touch above the 90% hard floor so we comfortably clear it.
+    target_fill = 0.93 if target_pages == 1 else 0.85
 
     # Seed best with whichever endpoint is closer to target
     best_t = 0.0

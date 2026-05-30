@@ -1128,7 +1128,14 @@ def _build_story(
 
 
 def _measure_fill(cfg: LayoutConfig, name, contact, sections) -> FillMetrics:
-    """Build story with the given config and measure how it fills pages."""
+    """Build story with the given config and simulate frame packing to measure fill.
+
+    Uses a greedy frame-packing simulation (matching ReportLab's own placement
+    logic) rather than a naive height sum.  The naive sum under-counts pages
+    because Tables — used for every two-col row, bullet, and HR — don't split
+    across frame boundaries; a table that straddles a page break is pushed whole
+    to the next page, leaving whitespace the sum ignores.
+    """
     global _active_cfg, STYLES
 
     _active_cfg = cfg
@@ -1139,18 +1146,22 @@ def _measure_fill(cfg: LayoutConfig, name, contact, sections) -> FillMetrics:
     usable_w = cfg.usable_w
     usable_h = cfg.usable_h
 
-    total_h = 0.0
+    # Greedy simulation: place each flowable; if it won't fit on the current
+    # page, start a new page first.
+    current_page_used = 0.0
+    pages = 1
     for flowable in story:
         _, h = flowable.wrap(usable_w, usable_h)
-        total_h += h
+        if current_page_used + h > usable_h and current_page_used > 0:
+            pages += 1
+            current_page_used = h
+        else:
+            current_page_used += h
 
-    pages = max(1, int(total_h // usable_h) + (1 if total_h % usable_h > 0 else 0))
-    last_page_used = total_h % usable_h if pages > 1 else total_h
-    # Handle exact-fit edge case
-    if total_h > 0 and total_h % usable_h == 0:
-        last_page_used = usable_h
+    last_page_used = min(current_page_used, usable_h)
     last_page_remaining = usable_h - last_page_used
     fill_pct = (last_page_used / usable_h) * 100.0
+    total_h = (pages - 1) * usable_h + last_page_used
 
     return FillMetrics(
         total_content_height_pt=round(total_h, 1),
@@ -1211,24 +1222,23 @@ def generate_pdf_from_markdown(markdown: str) -> bytes:
     name, contact, sections = _parse_markdown(markdown)
 
     with _cfg_lock:
-        # Find the optimal layout config
-        def measure(cfg: LayoutConfig) -> FillMetrics:
-            return _measure_fill(cfg, name, contact, sections)
+        try:
+            def measure(cfg: LayoutConfig) -> FillMetrics:
+                return _measure_fill(cfg, name, contact, sections)
 
-        optimal_cfg = find_optimal_config(measure)
+            optimal_cfg = find_optimal_config(measure)
 
-        logger.info(
-            "adaptive-layout: rendering with font=%.1f margin=%.0f",
-            optimal_cfg.body_font_size, optimal_cfg.margin,
-        )
+            logger.info(
+                "adaptive-layout: rendering with font=%.1f margin=%.0f",
+                optimal_cfg.body_font_size, optimal_cfg.margin,
+            )
 
-        # Render the final PDF with the chosen config
-        pdf_bytes = _render_pdf_with_config(optimal_cfg, name, contact, sections)
-
-        # Restore defaults for safety
-        global _active_cfg, STYLES
-        _active_cfg = DEFAULT_CONFIG
-        STYLES = _make_styles(DEFAULT_CONFIG)
+            pdf_bytes = _render_pdf_with_config(optimal_cfg, name, contact, sections)
+        finally:
+            # Always restore defaults so globals are clean for the next caller.
+            global _active_cfg, STYLES
+            _active_cfg = DEFAULT_CONFIG
+            STYLES = _make_styles(DEFAULT_CONFIG)
 
     return pdf_bytes
 
