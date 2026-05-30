@@ -25,6 +25,7 @@ writers is the AI prompt that produced the markdown.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Optional
@@ -73,7 +74,12 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_structure,        # production-stable post-processor — reused for fairness
     _inject_missing_skills,    # production-stable safety net
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
+    _SKILLS_CATEGORY_LABEL,    # canonical "**Technical/Soft/Other Skills:**" labels
+    _kw_in_skills,             # word-boundary "already listed?" check
+    _format_skill_label,       # title-case while preserving acronyms
 )
+
+logger = logging.getLogger(__name__)
 
 _EVAL_USER_ID = uuid.UUID(int=0)  # sentinel: W1's storage uploads live under 0000…/
 
@@ -364,6 +370,86 @@ def _matched_surface_terms(matching: Dict[str, Any]) -> list[str]:
     return [t for t in out if not (t.lower() in seen or seen.add(t.lower()))]
 
 
+# Generous per-category caps for the surfaced terms (technical, soft, other).
+# Higher than enforce_skills_section's display caps because these are confirmed
+# JD matches — the highest-value ATS keywords — and run AFTER that hygiene pass.
+_SURFACE_CAPS: Dict[str, int] = {"technical": 16, "soft_skills": 8, "domain_knowledge": 10}
+
+
+def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
+    """
+    Re-surface JD terms the matcher confirmed the candidate has into the tailored
+    Skills section, per category, if the tailoring rewrite dropped them.
+
+    Honest by construction: only terms in ``matching["matched"]`` are added — the
+    matcher verified each against the original CV — so this never fabricates. It
+    runs AFTER enforce_skills_section so the dedup/cap pass can't strip the very
+    keywords the original CV already scored on (the ATS-regression fix).
+    """
+    matched = (matching or {}).get("matched") or {}
+    # Collect matched terms per category, required before preferred.
+    by_cat: Dict[str, list[str]] = {c: [] for c in _SURFACE_CATS}
+    for bucket in _SURFACE_BUCKETS:
+        b = matched.get(bucket) or {}
+        for cat in _SURFACE_CATS:
+            for x in (b.get(cat) or []):
+                term = str(x).strip()
+                if term:
+                    by_cat[cat].append(term)
+    if not any(by_cat.values()):
+        return markdown
+
+    lines = markdown.split("\n")
+
+    # Locate the canonical Skills section (## Skills — restore_and_order renames
+    # headings to family names LATER, so labels here are still canonical).
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    # Map each category to its line index within the Skills section.
+    cat_to_line_idx: Dict[str, int] = {}
+    for i in range(skills_start + 1, skills_end):
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if lines[i].lstrip().startswith(label):
+                cat_to_line_idx[cat] = i
+                break
+
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+    appended = 0
+    for cat in _SURFACE_CATS:
+        target_idx = cat_to_line_idx.get(cat)
+        if target_idx is None:
+            continue
+        cap = _SURFACE_CAPS.get(cat, 8)
+        existing_count = len(lines[target_idx].split(","))
+        seen_terms: set[str] = set()
+        for term in by_cat[cat]:
+            key = term.lower()
+            if key in seen_terms or _kw_in_skills(term, skills_text_lower):
+                continue
+            if existing_count >= cap:
+                break
+            seen_terms.add(key)
+            display = _format_skill_label(term)
+            lines[target_idx] = f"{lines[target_idx].rstrip()}, {display}"
+            skills_text_lower += ", " + display.lower()
+            existing_count += 1
+            appended += 1
+
+    if appended:
+        logger.info("w8 surfacing: re-added %d matched JD skill term(s)", appended)
+
+    return "\n".join(lines)
+
+
 async def _writer_w5_surfacing(
     client: AIClient,
     cv_text: str,
@@ -613,6 +699,12 @@ async def _writer_w8_integrated(
         original_cv_text=cv_text,
         drop_ungrounded=(role_family.injection_policy == "none"),
     )
+    # 3a. Re-surface JD terms the matcher confirmed but the rewrite dropped, so the
+    #     tailored CV never scores BELOW the original on keywords it already had.
+    #     Honest (matched-only) and AFTER the hygiene cap so it can't be stripped.
+    #     Skipped for the "none" policy (trades) where minimalism is intentional.
+    if role_family.injection_policy != "none":
+        md = _surface_matched_skills(md, up["matching"])
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)
