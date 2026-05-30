@@ -105,7 +105,11 @@ material belongs in paragraph 2.
 
   Subsequent sentences in paragraph 1 should bridge from the opening claim \
 to a concrete qualifier from the CV (an experience, achievement, or skill — \
-not a personality trait) and name the role being applied for.
+not a personality trait) and name the role being applied for. When the role \
+expects a formal qualification, licence, registration, or certification that \
+the candidate holds (e.g. a required certificate or professional \
+registration), name THAT credential HERE in paragraph 1 — it is the headline \
+qualifier and must not be left to surface only in the closing paragraph.
 
   Must: name the role explicitly somewhere in the paragraph; include one \
 concrete qualifier drawn from the CV.
@@ -120,6 +124,17 @@ PARAGRAPH 2 — Why this company (3-5 sentences)
 or background.
   Must: reference the specific <company_fact>; connect it to something \
 concrete about the candidate.
+
+  EXISTING RELATIONSHIP — first check <candidate_cv>: if the candidate \
+already works for, previously worked for, or completed a placement at this \
+company (or a clearly related entity that shares the company's name), they \
+are NOT an outsider. Do NOT write "I've followed your work", "I've long \
+admired you", or any framing that pretends they are discovering the company \
+from the outside — that misrepresents a real relationship and reads as false. \
+Lead instead from that genuine connection (what they have seen of the \
+organisation from the inside); an internal/known candidate's first-hand \
+knowledge is the strongest possible "why this company" signal.
+
   Must not: use "your innovative culture", "leading company", "great place \
 to work", or any vague compliment that could apply to any employer.
 
@@ -168,7 +183,12 @@ there was a real situation, real people, real consequences.
 
   Must not: invent facts not in <candidate_cv>; deploy statistics as a \
 bullet-point list in prose form; copy any of the example sentences above \
-verbatim — they are structural patterns to imitate, not phrases to use.
+verbatim — they are structural patterns to imitate, not phrases to use; \
+re-tell an experience, placement, employer, or anecdote already used in \
+paragraph 2 (P2's company connection and P3's proof must draw on DIFFERENT \
+material), or repeat any distinctive phrase more than once across the letter \
+(e.g. do not lean on "person-centred" or any signature term in every \
+paragraph).
 
 PARAGRAPH 4 — Close (1-3 sentences)
   Intent: Thank the reader. Reiterate interest in this specific role at \
@@ -186,7 +206,11 @@ The following phrases appear in generic AI-generated cover letters. Do not \
 use any of them or close variations:
   - "I am writing to express"
   - "I am thrilled / excited / passionate"
+  - "genuinely excited", "truly excited", "really excited about this opportunity"
   - "I admire your work"
+  - "I've followed your work closely", "I have followed [company] closely", \
+"I've long admired"
+  - "this opportunity" used as a vague stand-in for the actual named role
   - "It is clear that"
   - "fits with my career goals"
   - "aligns with my passion"
@@ -281,6 +305,17 @@ PARAGRAPH 2 — Why this company (3-5 sentences)
 or background, building naturally from the angle P1 established.
   Must: reference the specific <company_fact>; connect it to something \
 concrete about the candidate.
+
+  EXISTING RELATIONSHIP — first check <candidate_cv>: if the candidate \
+already works for, previously worked for, or completed a placement at this \
+company (or a clearly related entity that shares the company's name), they \
+are NOT an outsider. Do NOT write "I've followed your work", "I've long \
+admired you", or any framing that pretends they are discovering the company \
+from the outside — that misrepresents a real relationship and reads as false. \
+Lead instead from that genuine connection (what they have seen of the \
+organisation from the inside); an internal/known candidate's first-hand \
+knowledge is the strongest possible "why this company" signal.
+
   Must not: use "your innovative culture", "leading company", "great place \
 to work", or any vague compliment that could apply to any employer.
 
@@ -329,7 +364,12 @@ there was a real situation, real people, real consequences.
 
   Must not: invent facts not in <candidate_cv>; deploy statistics as a \
 bullet-point list in prose form; copy any of the example sentences above \
-verbatim — they are structural patterns to imitate, not phrases to use.
+verbatim — they are structural patterns to imitate, not phrases to use; \
+re-tell an experience, placement, employer, or anecdote already used in \
+paragraph 2 (P2's company connection and P3's proof must draw on DIFFERENT \
+material), or repeat any distinctive phrase more than once across the letter \
+(e.g. do not lean on "person-centred" or any signature term in every \
+paragraph).
 
 PARAGRAPH 4 — Close (1-3 sentences)
   Intent: Thank the reader. Reiterate interest in this specific role at \
@@ -347,7 +387,11 @@ The following phrases appear in generic AI-generated cover letters. Do not \
 use any of them or close variations:
   - "I am writing to express"
   - "I am thrilled / excited / passionate"
+  - "genuinely excited", "truly excited", "really excited about this opportunity"
   - "I admire your work"
+  - "I've followed your work closely", "I have followed [company] closely", \
+"I've long admired"
+  - "this opportunity" used as a vague stand-in for the actual named role
   - "It is clear that"
   - "fits with my career goals"
   - "aligns with my passion"
