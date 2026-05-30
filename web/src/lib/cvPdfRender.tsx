@@ -26,6 +26,7 @@ import {
   type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
 import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
+import { fitCvToPage } from "@/lib/cvPdfFit";
 
 interface RenderInput {
   markdown:        string;
@@ -106,6 +107,10 @@ export async function renderTailoredCvBlob({ markdown, contactDetails }: RenderI
     applyCvSectionLayout(mainEl);
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    // 4b. Grow typography to fill one page when the CV is sparse (no bottom gap).
+    const styleEl = host.querySelector("style") as HTMLStyleElement | null;
+    if (styleEl) await fitCvToPage(mainEl, styleEl, CV_PDF_STYLE);
 
     // 5. html2canvas + jsPDF — identical to TailoredCvCard
     const [{ default: html2canvas }, { default: JsPDF }] = await Promise.all([

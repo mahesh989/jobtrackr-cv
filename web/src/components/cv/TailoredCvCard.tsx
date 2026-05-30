@@ -13,6 +13,7 @@ import {
   type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
 import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
+import { fitCvToPage } from "@/lib/cvPdfFit";
 
 interface Props {
   storagePath:    string | null;   // markdown path in tailored-cvs bucket
@@ -168,6 +169,10 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
       // Two RAF ticks so layout settles before snapshot.
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+      // Grow typography to fill one page when the CV is sparse (no bottom gap).
+      const styleEl = wrapper.querySelector("style") as HTMLStyleElement | null;
+      if (styleEl) await fitCvToPage(cvRoot, styleEl, CV_PDF_STYLE);
 
       const [{ default: html2canvas }, { default: JsPDF }] = await Promise.all([
         import("html2canvas-pro"),
