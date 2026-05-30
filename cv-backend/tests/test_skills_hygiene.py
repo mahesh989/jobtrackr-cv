@@ -7,6 +7,7 @@ from app.services.eval.writers import (
     _relabel_awards_only_certifications,
     ensure_awards,
     _extract_original_credentials,
+    _strip_ungrounded_credentials,
 )
 
 _CV_WITH_AWARD = (
@@ -167,3 +168,86 @@ def test_ensure_awards_noop_without_source_section():
     cv = "Name\n\nExperience\nDid things\n"
     tailored = "# Name\n\n## Experience\n- Did things\n"
     assert ensure_awards(tailored, cv) == tailored
+
+
+def test_ensure_awards_skips_certs_recovers_only_awards():
+    cv = (
+        "Certifications\n"
+        "- Certificate IV in Ageing Support\n"
+        "- National Police Check\n"
+        "- Staff Excellence Award (Aug 2025)\n"
+    )
+    tailored = "# Name\n\n## Experience\n- Did care.\n"
+    out = ensure_awards(tailored, cv)
+    assert "Staff Excellence Award" in out
+    # Certs / checks are NOT recovered here.
+    assert "Certificate IV in Ageing Support" not in out
+    assert "National Police Check" not in out
+
+
+def test_strip_ungrounded_drops_placeholder_entry():
+    cv = "Maheshwor Tiwari\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications\n"
+        "- First Aid / Manual Handling Training – [Provider not specified]\n\n"
+        "## Education\n### Heritage Skills Institute\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "First Aid" not in out
+    # Whole emptied section is dropped.
+    assert "## Certifications" not in out
+    assert "## Education" in out
+
+
+def test_strip_ungrounded_drops_fabricated_check():
+    cv = "Maheshwor Tiwari\nNSW\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Checks & Clearances\n"
+        "- Driver Licence (NSW)\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Driver Licence" not in out
+    assert "## Checks & Clearances" not in out
+    assert "## Skills" in out
+
+
+def test_strip_ungrounded_keeps_grounded_entry():
+    cv = (
+        "Certifications\n- Certificate IV in Ageing Support\n"
+        "- Staff Excellence Award (Aug 2025)\n"
+    )
+    md = (
+        "# Name\n\n"
+        "## Certifications\n"
+        "- Certificate IV in Ageing Support\n"
+        "- Staff Excellence Award (Aug 2025)\n\n"
+        "## Education\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Certificate IV in Ageing Support" in out
+    assert "Staff Excellence Award" in out
+    assert "## Certifications" in out
+
+
+def test_strip_ungrounded_drops_only_fabricated_keeps_real():
+    cv = "Certifications\n- Certificate IV in Ageing Support\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications\n"
+        "- Certificate IV in Ageing Support\n"
+        "- First Aid Training – [Provider not specified]\n\n"
+        "## Education\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Certificate IV in Ageing Support" in out
+    assert "First Aid" not in out
+    assert "## Certifications" in out
+
+
+def test_strip_ungrounded_noops_non_credential_sections():
+    cv = "Name\n\nExperience\nDid things\n"
+    md = "# Name\n\n## Experience\n- Did something unrelated to the CV\n"
+    assert _strip_ungrounded_credentials(md, cv) == md

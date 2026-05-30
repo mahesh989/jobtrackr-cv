@@ -639,12 +639,15 @@ def _extract_original_credentials(cv_text: str) -> list[str]:
 
 
 def ensure_awards(markdown: str, original_cv_text: str) -> str:
-    """Re-add original-CV Certifications/Awards entries the tailoring dropped.
+    """Re-add original-CV *award/recognition* entries the tailoring dropped.
 
-    No-op when the original lists none, or every entry already appears in the
-    tailored CV (matched by its distinctive lead phrase, so a credential already
-    shown in Education is not re-added)."""
-    entries = _extract_original_credentials(original_cv_text)
+    Award-only by design: trainings, certificates, licences and checks are NOT
+    recovered here (the writer/structure path owns real credentials, and
+    re-adding them tends to resurrect verbose JD-phrasing junk). No-op when the
+    original lists no awards, or every award already appears in the tailored CV
+    (matched by its distinctive lead phrase)."""
+    entries = [e for e in _extract_original_credentials(original_cv_text)
+               if _AWARD_RE.search(e) and not _CERT_LIKE_RE.search(e)]
     if not entries:
         return markdown
     md_low = markdown.lower()
@@ -681,6 +684,75 @@ def ensure_awards(markdown: str, original_cv_text: str) -> str:
         new_lines = lines + ["", "## Certifications"] + bullets
     logger.info("w8: recovered %d dropped credential/award entr(ies) from CV", len(missing))
     return "\n".join(new_lines)
+
+
+# Sections whose bullet entries must be grounded in the original CV. The AI
+# composer sometimes invents credentials/checks (e.g. "First Aid Training –
+# [Provider not specified]", "Driver Licence (NSW)") that the candidate never
+# listed. We drop any bullet that carries a placeholder marker or whose lead
+# phrase is absent from the source CV, and remove a section left empty.
+_GROUNDED_SECTION_WORDS = {
+    "certifications", "certification", "checks & clearances",
+    "checks and clearances", "clearances", "checks", "licences", "licenses",
+    "registration", "registrations", "registration & licences",
+    "professional development",
+}
+_PLACEHOLDER_RE = re.compile(
+    r"\[[^\]]*\]|not\s+specified|not\s+provided|tbc|to\s+be\s+confirmed",
+    re.IGNORECASE,
+)
+
+
+def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
+    """Drop AI-fabricated entries from credential/checks sections.
+
+    For any section whose heading is a credential/checks word, remove bullet
+    entries that (a) contain a placeholder marker, or (b) whose distinctive lead
+    phrase is not a substring of the original CV. A section emptied of bullets is
+    removed entirely."""
+    cv_low = (original_cv_text or "").lower()
+    lines = markdown.split("\n")
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if line.startswith("## ") and line[3:].strip().lower().rstrip(":") in _GROUNDED_SECTION_WORDS:
+            j = i + 1
+            while j < n and not lines[j].startswith("## "):
+                j += 1
+            body = lines[i + 1:j]
+            kept: list[str] = []
+            dropped = 0
+            kept_bullet = False
+            for bl in body:
+                stripped = bl.strip()
+                is_bullet = stripped[:1] in ("-", "*", "•")
+                if not is_bullet:
+                    kept.append(bl)
+                    continue
+                entry = stripped.lstrip("-*•").strip()
+                core = re.split(r"\s[–—-]\s|\(|,", entry)[0].strip().lower()
+                grounded = bool(core) and core in cv_low
+                if _PLACEHOLDER_RE.search(entry) or not grounded:
+                    dropped += 1
+                    continue
+                kept.append(bl)
+                kept_bullet = True
+            if dropped:
+                logger.info(
+                    "w8: dropped %d ungrounded credential entr(ies) from %s",
+                    dropped, line[3:].strip(),
+                )
+            if kept_bullet:
+                out.append(line)
+                out.extend(kept)
+            # else: section had no grounded bullets → drop heading + body.
+            i = j
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
 
 
 async def _writer_w5_surfacing(
@@ -951,7 +1023,10 @@ async def _writer_w8_integrated(
     # 4. Rename canonical headings back to the family's names and apply the
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
-    # 4a. Relabel an awards-only "Certifications" section to "Awards".
+    # 4a. Drop AI-fabricated credential/checks entries not grounded in the CV
+    #     (e.g. "First Aid – [Provider not specified]", "Driver Licence (NSW)").
+    final_md = _strip_ungrounded_credentials(final_md, cv_text)
+    # 4b. Relabel an awards-only "Certifications" section to "Awards".
     final_md = _relabel_awards_only_certifications(final_md)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
@@ -1065,6 +1140,8 @@ async def _writer_w8_critique(
         md = ensure_bachelor(md, cv_text)
         md = ensure_awards(md, cv_text)
         revised = restore_and_order(md, role_family)
+        revised = _strip_ungrounded_credentials(revised, cv_text)
+        revised = _relabel_awards_only_certifications(revised)
     else:
         revised = result.tailored_md
 
