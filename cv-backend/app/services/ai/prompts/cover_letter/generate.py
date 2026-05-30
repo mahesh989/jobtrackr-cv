@@ -118,6 +118,13 @@ concrete qualifier drawn from the CV.
 greeting. Must not open with "The [Role] at [Company]..." or any "role + \
 verb explaining appeal" construction.
 
+COMPANY NAME — name the company in full (exactly as written in <company>) on \
+its FIRST mention only; for every later mention use its natural short form — \
+drop legal suffixes (Pty Ltd, Inc, LLC), region/jurisdiction tags, and \
+"& <division>" extensions, keeping the core name people actually say aloud. \
+Repeating the full extended name in every paragraph reads as stiff and \
+machine-generated.
+
 PARAGRAPH 2 — Why this company (3-5 sentences)
   Intent: Show this application is informed, not generic. Anchor on the \
 <company_fact>. Connect that specific fact to the candidate's own motivation \
@@ -298,6 +305,13 @@ COHERENCE REQUIREMENT — P2 must build on the perspective or claim established 
 in P1. It must not restart from a different angle or restate what P1 already \
 said. The letter must read as if one person wrote all four paragraphs in \
 sequence, with P1 establishing a frame that the rest develops.
+
+COMPANY NAME — name the company in full (exactly as written in <company>) on \
+its FIRST mention only; for every later mention use its natural short form — \
+drop legal suffixes (Pty Ltd, Inc, LLC), region/jurisdiction tags, and \
+"& <division>" extensions, keeping the core name people actually say aloud. \
+Repeating the full extended name in every paragraph reads as stiff and \
+machine-generated.
 
 PARAGRAPH 2 — Why this company (3-5 sentences)
   Intent: Show this application is informed, not generic. Anchor on the \
