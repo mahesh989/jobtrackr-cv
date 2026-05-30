@@ -292,7 +292,11 @@ def _role_pack_block(rf: RoleFamilyProfile) -> str:
         f"{skills}. Format each as '**Category:** item, item, item'. Put "
         f"methodologies / domain knowledge in the last (catch-all) category, "
         f"never in the first. No duplicates across lines. List JD-named items "
-        f"first within each line.",
+        f"first within each line. Name software / tools / systems by their "
+        f"PRODUCT NAME ONLY (e.g. 'BESTMed', 'MedMobile') — never wrap a tool in "
+        f"a verbose functional descriptor like 'Electronic medication "
+        f"administration (BESTMed, MedMobile)'; the bare product name is the "
+        f"skill.",
         _CERT_POLICY_TEXT.get(rf.cert_policy, _CERT_POLICY_TEXT["plus"]),
         _INJECTION_POLICY_TEXT.get(rf.injection_policy, _INJECTION_POLICY_TEXT["direct_only"]),
     ]

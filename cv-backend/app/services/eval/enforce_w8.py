@@ -78,7 +78,7 @@ _NONSENSE_LINE_RE = re.compile(
 _TO_CANONICAL: Dict[str, Dict[str, str]] = {
     "nursing": {
         "Professional Summary": "Career Highlights",
-        "Clinical Experience":  "Professional Experience",
+        "Experience":           "Professional Experience",
         # Education / Skills / Certifications are already canonical.
     },
     "manual": {

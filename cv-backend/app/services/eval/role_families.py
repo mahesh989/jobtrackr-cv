@@ -16,7 +16,7 @@ master.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List
 
 
@@ -108,11 +108,17 @@ _NURSING = RoleFamilyProfile(
         "nurse", "nursing", "rn", "enrolled nurse", "registered nurse",
         "aged care", "midwife", "clinical", "healthcare assistant",
         "patient care", "ain", "personal care", "disability support",
+        "care worker", "support worker", "care assistant", "carer",
+        "individual support", "home care", "community care", "aged care worker",
+        "personal care worker", "nursing assistant",
     ],
     section_order=[
-        "Professional Summary", "Registration & Licences", "Clinical Experience",
+        "Professional Summary", "Registration & Licences", "Experience",
         "Education", "Skills", "Certifications",
     ],
+    # skills_categories[0] is overwritten per nursing sub-type at resolve time
+    # (Care Skills / Clinical Skills / Core Skills — see _apply_nursing_subtype);
+    # "Clinical Skills" is the base default for an unclassified clinical role.
     skills_categories=["Clinical Skills", "Soft Skills", "Other Skills"],
     headline_bucket="domain_knowledge",  # clinical competencies live in domain_knowledge
     cert_policy="first_class",   # licences/certs are the qualification — lead with them
@@ -232,7 +238,102 @@ ROLE_FAMILIES: Dict[str, RoleFamilyProfile] = {
 # ---------------------------------------------------------------------------
 
 
+# Australian nursing / care taxonomy. Unregulated assistant/care roles lead with
+# hands-on "Care Skills"; registered/licensed clinicians lead with "Clinical
+# Skills". Anything nursing we can't confidently classify falls back to a neutral
+# "Core Skills". Signals are matched on word boundaries (so "ain" matches the
+# acronym AIN, not "again"). AIN and Care Worker are the same family.
+_NURSING_CARE_SIGNALS = (
+    "assistant in nursing", "ain", "personal care worker", "personal care assistant",
+    "personal care", "care worker", "care assistant", "aged care worker",
+    "home care", "community care", "individual support", "disability support",
+    "support worker", "carer", "nursing assistant", "patient care assistant",
+    "care companion", "aged care",
+)
+_NURSING_CLINICAL_SIGNALS = (
+    "registered nurse", "enrolled nurse", "clinical nurse", "nurse practitioner",
+    "midwife", "mental health nurse", "intensive care", "icu", "theatre nurse",
+    "emergency nurse", "perioperative", "graduate nurse", "division 1",
+    "division 2", "rn", "en", "cns", "cnc",
+)
+_NURSING_SUBTYPE_LABEL = {"care": "Care Skills", "clinical": "Clinical Skills"}
+
+
+def _nursing_subtype(jd_analysis: Dict[str, Any] | None) -> str:
+    """
+    Classify a nursing JD as 'care' (unregulated assistant/care roles),
+    'clinical' (registered/licensed clinicians), or 'unknown'. The job title is
+    the strongest signal and decides outright when it carries one; otherwise we
+    count signal hits across the summary + responsibilities prose.
+    """
+    def _hit(text: str, signals: tuple) -> int:
+        return sum(
+            1 for s in signals
+            if re.search(r"\b" + re.escape(s) + r"\b", text)
+        )
+
+    # Registration is the defining identity: a "Registered/Enrolled Nurse" title
+    # is clinical even when it also names a care SETTING ("aged care"), so the
+    # clinical check runs before the care check on the title.
+    title = str((jd_analysis or {}).get("job_title") or "").lower()
+    if _hit(title, _NURSING_CLINICAL_SIGNALS):
+        return "clinical"
+    if _hit(title, _NURSING_CARE_SIGNALS):
+        return "care"
+
+    parts: List[str] = [str((jd_analysis or {}).get("summary") or "")]
+    resp = (jd_analysis or {}).get("responsibilities") or []
+    if isinstance(resp, list):
+        parts.extend(str(x) for x in resp)
+    else:
+        parts.append(str(resp))
+    blob = " ".join(parts).lower()
+    care, clinical = _hit(blob, _NURSING_CARE_SIGNALS), _hit(blob, _NURSING_CLINICAL_SIGNALS)
+    if care > clinical:
+        return "care"
+    if clinical > care:
+        return "clinical"
+    return "unknown"
+
+
+def _apply_nursing_subtype(
+    rf: RoleFamilyProfile,
+    jd_analysis: Dict[str, Any] | None,
+) -> RoleFamilyProfile:
+    """
+    For the nursing family, overwrite the headline skills label (skills_categories[0])
+    with the sub-type-appropriate one — "Care Skills" for care roles, "Clinical
+    Skills" for clinicians, "Core Skills" when unclassified — keeping id="nursing"
+    so the W8 canonical sandwich (_TO_CANONICAL["nursing"]) still applies. No-op
+    for every other family.
+    """
+    if rf.id != "nursing":
+        return rf
+    subtype = _nursing_subtype(jd_analysis)
+    headline = _NURSING_SUBTYPE_LABEL.get(subtype, "Core Skills")
+    cats = list(rf.skills_categories)
+    cats[0] = headline
+    return replace(
+        rf,
+        skills_categories=cats,
+        metadata={**rf.metadata, "nursing_subtype": subtype},
+    )
+
+
 def resolve_role_family(
+    vertical_hint: str | None,
+    jd_analysis: Dict[str, Any] | None,
+) -> RoleFamilyProfile:
+    """
+    Pick a role family, then apply the nursing sub-type overlay so the headline
+    skills label matches the specific role (Care / Clinical / Core).
+    """
+    return _apply_nursing_subtype(
+        _resolve_base_family(vertical_hint, jd_analysis), jd_analysis,
+    )
+
+
+def _resolve_base_family(
     vertical_hint: str | None,
     jd_analysis: Dict[str, Any] | None,
 ) -> RoleFamilyProfile:
