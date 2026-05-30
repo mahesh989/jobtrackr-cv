@@ -308,11 +308,28 @@ def category_labels(rf: RoleFamilyProfile) -> Dict[str, str]:
     cats = list(rf.skills_categories) + ["Technical Skills", "Soft Skills", "Other Skills"]
     headline = rf.headline_bucket if rf.headline_bucket in ("technical", "domain_knowledge") else "technical"
     secondary = "domain_knowledge" if headline == "technical" else "technical"
+    # The domain_knowledge bucket keeps an explicit "Domain Knowledge" label
+    # whenever it is NOT the headline (i.e. tech/master) so it stays a distinct,
+    # visible category instead of collapsing into a generic "Other Skills". When
+    # the secondary is the technical bucket (nursing/manual: tools/systems like
+    # BESTMed), it takes the family's catch-all label (skills_categories[2]).
+    secondary_label = "Domain Knowledge" if secondary == "domain_knowledge" else cats[2]
     return {
         headline:      cats[0],
         "soft_skills": cats[1],
-        secondary:     cats[2],
+        secondary:     secondary_label,
     }
+
+
+def category_order(rf: RoleFamilyProfile) -> List[str]:
+    """
+    Display order of the internal skill buckets for this family:
+    headline first, then soft skills, then the secondary bucket. So tech shows
+    Technical → Soft → Domain Knowledge; nursing shows Clinical → Soft → Other.
+    """
+    headline = rf.headline_bucket if rf.headline_bucket in ("technical", "domain_knowledge") else "technical"
+    secondary = "domain_knowledge" if headline == "technical" else "technical"
+    return [headline, "soft_skills", secondary]
 
 
 def resolve_seniority(jd_analysis: Dict[str, Any] | None) -> str:

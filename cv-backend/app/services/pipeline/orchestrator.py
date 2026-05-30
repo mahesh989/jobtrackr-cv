@@ -126,11 +126,16 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # of the IT-default "Technical". Rides in the jd_analysis_result JSON, so
         # no migration. Idempotent — recomputes only when absent (handles old
         # cached analyses on resume).
-        if not jd_analysis.get("category_labels"):
-            from app.services.eval.role_families import category_labels, resolve_role_family
+        # Keyed on category_order so a resume of a run enriched by an older
+        # label scheme recomputes against the current one.
+        if not jd_analysis.get("category_order"):
+            from app.services.eval.role_families import (
+                category_labels, category_order, resolve_role_family,
+            )
             _rf = resolve_role_family(None, jd_analysis)
             jd_analysis["role_family"] = _rf.id
             jd_analysis["category_labels"] = category_labels(_rf)
+            jd_analysis["category_order"] = category_order(_rf)
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────

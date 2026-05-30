@@ -28,7 +28,8 @@ const CAT_LABEL: Record<string, string> = {
   soft_skills:       "Soft skills",
   domain_knowledge:  "Domain knowledge",
 };
-const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
+type Cat = "technical" | "soft_skills" | "domain_knowledge";
+const DEFAULT_CAT_ORDER: Cat[] = ["technical", "soft_skills", "domain_knowledge"];
 
 // Role-family-aware display labels persisted on the JD analysis
 // (jd_analysis_result.category_labels). Falls back to the generic labels for
@@ -37,6 +38,17 @@ function resolveCatLabels(data: Record<string, unknown>): Record<string, string>
   const raw = (data as { category_labels?: Record<string, string> }).category_labels;
   if (!raw || typeof raw !== "object") return CAT_LABEL;
   return { ...CAT_LABEL, ...raw };
+}
+
+// Role-family-aware display order (jd_analysis_result.category_order): headline
+// bucket first (Clinical/Technical/Core), then soft, then the other bucket.
+function resolveCatOrder(data: Record<string, unknown>): Cat[] {
+  const raw = (data as { category_order?: string[] }).category_order;
+  if (!Array.isArray(raw)) return DEFAULT_CAT_ORDER;
+  const valid = raw.filter(
+    (k): k is Cat => k === "technical" || k === "soft_skills" || k === "domain_knowledge",
+  );
+  return valid.length === 3 ? valid : DEFAULT_CAT_ORDER;
 }
 
 // Decide whether the JD analysis came back "weak" — i.e. the AI couldn't
@@ -70,6 +82,7 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
   const prefIsCategorised = pref != null && !Array.isArray(pref) && typeof pref === "object";
   const weak = isWeakAnalysis(d);
   const catLabels = resolveCatLabels(data);
+  const catOrder = resolveCatOrder(data);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -113,12 +126,12 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 
         {/* Required skills */}
         {req && (
-          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" catLabels={catLabels} />
+          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" catLabels={catLabels} catOrder={catOrder} />
         )}
 
         {/* Preferred skills */}
         {pref && (
-          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" catLabels={catLabels} />
+          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" catLabels={catLabels} catOrder={catOrder} />
         )}
 
         {/* Responsibilities */}
@@ -145,19 +158,20 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function SkillBlock({
-  label, skills, categorised, variant, catLabels,
+  label, skills, categorised, variant, catLabels, catOrder,
 }: {
   label: string;
   skills: CategorisedSkills | string[];
   categorised: boolean;
   variant: "required" | "preferred";
   catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   return (
     <div>
       <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">{label}</h3>
       {categorised ? (
-        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} catLabels={catLabels} />
+        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} catLabels={catLabels} catOrder={catOrder} />
       ) : (
         <FlatChips items={skills as string[]} variant={variant} />
       )}
@@ -166,18 +180,19 @@ function SkillBlock({
 }
 
 function CategorisedSkillGrid({
-  skills, variant, catLabels,
+  skills, variant, catLabels, catOrder,
 }: {
   skills: CategorisedSkills;
   variant: "required" | "preferred";
   catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
-  const hasAny = CAT_ORDER.some((k) => (skills[k]?.length ?? 0) > 0);
+  const hasAny = catOrder.some((k) => (skills[k]?.length ?? 0) > 0);
   if (!hasAny) return null;
 
   return (
     <div className="space-y-2">
-      {CAT_ORDER.map((cat) => {
+      {catOrder.map((cat) => {
         const items = skills[cat];
         if (!items || items.length === 0) return null;
         return (

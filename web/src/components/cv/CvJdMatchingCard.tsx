@@ -45,10 +45,11 @@ function rateBadgeCls(pct: number) {
 }
 
 export function CvJdMatchingCard({
-  data, catLabels = CAT_LABEL,
+  data, catLabels = CAT_LABEL, catOrder = [...CAT_ORDER],
 }: {
   data: Record<string, unknown>;
   catLabels?: Record<string, string>;
+  catOrder?: Cat[];
 }) {
   const d = data as MatchingData;
   const hasCategorised = !!d.counts;
@@ -62,7 +63,7 @@ export function CvJdMatchingCard({
         </p>
       </div>
       <div className="px-5 py-4 space-y-5">
-        {hasCategorised ? <CategorisedView d={d} catLabels={catLabels} /> : <LegacyFlatView d={d} />}
+        {hasCategorised ? <CategorisedView d={d} catLabels={catLabels} catOrder={catOrder} /> : <LegacyFlatView d={d} />}
       </div>
     </div>
   );
@@ -70,7 +71,7 @@ export function CvJdMatchingCard({
 
 // ── Categorised view (new schema) ──────────────────────────────────────────
 
-function CategorisedView({ d, catLabels }: { d: MatchingData; catLabels: Record<string, string> }) {
+function CategorisedView({ d, catLabels, catOrder }: { d: MatchingData; catLabels: Record<string, string>; catOrder: Cat[] }) {
   const counts  = d.counts!;
   const rates   = d.match_rates ?? {};
   const overall = counts.overall;
@@ -100,19 +101,20 @@ function CategorisedView({ d, catLabels }: { d: MatchingData; catLabels: Record<
         </div>
       )}
 
-      <BreakdownTable counts={counts} rates={rates} catLabels={catLabels} />
+      <BreakdownTable counts={counts} rates={rates} catLabels={catLabels} catOrder={catOrder} />
 
-      <KeywordChipGrid matched={d.matched} missed={d.missed} catLabels={catLabels} />
+      <KeywordChipGrid matched={d.matched} missed={d.missed} catLabels={catLabels} catOrder={catOrder} />
     </>
   );
 }
 
 function BreakdownTable({
-  counts, rates, catLabels,
+  counts, rates, catLabels, catOrder,
 }: {
   counts: MatchingCounts;
   rates: MatchRates;
   catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   const catRatePct: Record<Cat, number | undefined> = {
     technical:        rates.technical_pct,
@@ -121,7 +123,7 @@ function BreakdownTable({
   };
 
   const sumTotals = (b?: BucketCounts) =>
-    CAT_ORDER.reduce((acc, c) => acc + (b?.[c]?.total ?? 0), 0);
+    catOrder.reduce((acc, c) => acc + (b?.[c]?.total ?? 0), 0);
   const requiredTotal  = sumTotals(counts.required);
   const preferredTotal = sumTotals(counts.preferred);
 
@@ -141,7 +143,7 @@ function BreakdownTable({
             </tr>
           </thead>
           <tbody>
-            {CAT_ORDER.map((cat) => {
+            {catOrder.map((cat) => {
               const req  = counts.required?.[cat];
               const pref = counts.preferred?.[cat];
               const catPct = catRatePct[cat];
@@ -219,11 +221,12 @@ function MatchCell({ matched, total }: { matched: number; total: number }) {
 // ── Keyword chips grouped by category ──────────────────────────────────────
 
 function KeywordChipGrid({
-  matched, missed, catLabels,
+  matched, missed, catLabels, catOrder,
 }: {
   matched?: BucketKeywords;
   missed?: BucketKeywords;
   catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   const merge = (bk?: BucketKeywords): Record<Cat, string[]> => {
     const out: Record<Cat, string[]> = { technical: [], soft_skills: [], domain_knowledge: [] };
@@ -231,19 +234,19 @@ function KeywordChipGrid({
     for (const bucket of ["required", "preferred"] as const) {
       const b = bk[bucket];
       if (!b) continue;
-      for (const c of CAT_ORDER) {
+      for (const c of catOrder) {
         if (b[c]) out[c].push(...b[c]!);
       }
     }
     // De-duplicate within each cat
-    for (const c of CAT_ORDER) out[c] = Array.from(new Set(out[c]));
+    for (const c of catOrder) out[c] = Array.from(new Set(out[c]));
     return out;
   };
 
   const m = merge(matched);
   const x = merge(missed);
-  const anyM = CAT_ORDER.some((c) => m[c].length > 0);
-  const anyX = CAT_ORDER.some((c) => x[c].length > 0);
+  const anyM = catOrder.some((c) => m[c].length > 0);
+  const anyX = catOrder.some((c) => x[c].length > 0);
   if (!anyM && !anyX) return null;
 
   return (
@@ -254,6 +257,7 @@ function KeywordChipGrid({
           color="green"
           buckets={m}
           catLabels={catLabels}
+          catOrder={catOrder}
         />
       )}
       {anyX && (
@@ -262,6 +266,7 @@ function KeywordChipGrid({
           color="red"
           buckets={x}
           catLabels={catLabels}
+          catOrder={catOrder}
         />
       )}
     </div>
@@ -269,12 +274,13 @@ function KeywordChipGrid({
 }
 
 function ChipBlock({
-  title, color, buckets, catLabels,
+  title, color, buckets, catLabels, catOrder,
 }: {
   title: string;
   color: "green" | "red";
   buckets: Record<Cat, string[]>;
   catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   const titleCls = color === "green" ? "text-green" : "text-red";
   const chipCls  = color === "green"
@@ -284,7 +290,7 @@ function ChipBlock({
     <div>
       <h3 className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${titleCls}`}>{title}</h3>
       <div className="space-y-2">
-        {CAT_ORDER.map((cat) => {
+        {catOrder.map((cat) => {
           const kws = buckets[cat];
           if (!kws.length) return null;
           return (
