@@ -404,6 +404,13 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   const isRunning  = letter?.status === "running" || letter?.status === "pending";
   const genStatus  = letter?.generation_status ?? { generate: "pending", honesty: "pending" };
 
+  // Live word/character count of the letter as it currently stands (reflects
+  // unsaved edits in the textarea). Shown in the header once a letter exists.
+  const currentBody = editedBody ?? letter?.pass_3_final ?? "";
+  const hasBody     = letter?.status === "completed" && !!letter.pass_3_final;
+  const wordCount   = currentBody.trim() ? currentBody.trim().split(/\s+/).length : 0;
+  const charCount   = currentBody.length;
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="bg-surface border border-border rounded-md">
@@ -416,6 +423,11 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {hasBody && (
+            <span className="text-[11px] text-text-3 tabular-nums whitespace-nowrap">
+              {wordCount.toLocaleString()} words · {charCount.toLocaleString()} characters
+            </span>
+          )}
           {letter?.status === "completed" && (
             <button
               onClick={() => handleGenerate(true)}
