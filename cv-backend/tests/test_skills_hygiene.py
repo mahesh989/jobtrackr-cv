@@ -5,6 +5,22 @@ from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
     _relabel_awards_only_certifications,
+    ensure_awards,
+    _extract_original_credentials,
+)
+
+_CV_WITH_AWARD = (
+    "Maheshwor Tiwari\nNSW\n\n"
+    "Experience\nJesmond Miranda Nursing Home\n\n"
+    "Education\nHeritage Skills Institute\nCertificate IV in Ageing Support\n\n"
+    "Certifications\n- Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)\n"
+)
+
+_TAILORED_NO_AWARD = (
+    "# Maheshwor Tiwari\nNSW | email\n\n"
+    "## Experience\n### Jesmond Miranda Nursing Home\n- Did care.\n\n"
+    "## Education\n### Heritage Skills Institute\n*Certificate IV in Ageing Support*\n\n"
+    "## Skills\n**Care Skills:** Personal care\n"
 )
 
 
@@ -114,3 +130,40 @@ def test_relabel_keeps_real_certifications():
 def test_relabel_noops_without_certifications():
     md = "## Skills\n**Care Skills:** Personal care\n"
     assert _relabel_awards_only_certifications(md) == md
+
+
+def test_extract_original_credentials():
+    out = _extract_original_credentials(_CV_WITH_AWARD)
+    assert out == ["Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)"]
+
+
+def test_ensure_awards_recovers_dropped_award():
+    out = ensure_awards(_TAILORED_NO_AWARD, _CV_WITH_AWARD)
+    assert "## Certifications" in out  # canonical heading; relabel renames later
+    assert "Staff Excellence Award" in out
+
+
+def test_ensure_awards_noop_when_already_present():
+    already = _TAILORED_NO_AWARD + "\n## Certifications\n- Staff Excellence Award (Aug 2025)\n"
+    out = ensure_awards(already, _CV_WITH_AWARD)
+    assert out.count("Staff Excellence Award") == 1
+
+
+def test_ensure_awards_does_not_readd_credential_in_education():
+    cv = (
+        "Education\nHeritage Skills Institute\n\n"
+        "Certifications\n- Certificate IV in Ageing Support\n"
+    )
+    tailored = (
+        "# Name\n\n## Education\n### Heritage Skills Institute\n"
+        "*Certificate IV in Ageing Support*\n"
+    )
+    out = ensure_awards(tailored, cv)
+    assert out.count("Certificate IV in Ageing Support") == 1
+    assert "## Certifications" not in out
+
+
+def test_ensure_awards_noop_without_source_section():
+    cv = "Name\n\nExperience\nDid things\n"
+    tailored = "# Name\n\n## Experience\n- Did things\n"
+    assert ensure_awards(tailored, cv) == tailored

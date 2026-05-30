@@ -583,6 +583,106 @@ def _relabel_awards_only_certifications(markdown: str) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Awards / certifications recovery — deterministic, grounded in the original CV.
+# The composition writer occasionally drops the whole Certifications/Awards
+# section (run-to-run variance), silently losing genuine achievements the
+# candidate listed. Like ensure_bachelor for the degree, this re-adds any
+# original Certifications/Awards entry that is missing from the tailored CV.
+# Honest by construction: entries are copied verbatim from the source CV and
+# only re-added when absent (so it never duplicates or invents).
+# ---------------------------------------------------------------------------
+
+# Headings (markdown or plain) whose entries we treat as awards/credentials.
+_CRED_SECTION_WORDS = {
+    "certifications", "certification", "awards", "award", "honours", "honors",
+    "certifications & checks", "awards & recognition", "achievements",
+    "licences", "licenses", "professional development",
+}
+# Other common CV headings — used to detect where a credentials section ends.
+_OTHER_SECTION_WORDS = {
+    "education", "experience", "work experience", "professional experience",
+    "clinical experience", "skills", "summary", "professional summary",
+    "profile", "projects", "references", "interests", "languages", "contact",
+    "objective", "career highlights", "registration & licences",
+}
+
+
+def _cv_heading_word(line: str) -> Optional[str]:
+    """If `line` is a section heading (markdown '## X' or a bare label line),
+    return its lowercased label; else None."""
+    s = line.strip()
+    if s.startswith("## "):
+        return s[3:].strip().lower().rstrip(":")
+    low = s.lower().rstrip(":").strip()
+    if low in _CRED_SECTION_WORDS or low in _OTHER_SECTION_WORDS:
+        return low
+    return None
+
+
+def _extract_original_credentials(cv_text: str) -> list[str]:
+    """Entries listed under a Certifications/Awards-type heading in the source CV."""
+    entries: list[str] = []
+    collecting = False
+    for raw in (cv_text or "").split("\n"):
+        word = _cv_heading_word(raw)
+        if word is not None:
+            collecting = word in _CRED_SECTION_WORDS
+            continue
+        if not collecting:
+            continue
+        item = raw.strip().lstrip("-*•").strip()
+        if item and len(item) <= 160:
+            entries.append(item)
+    seen: set[str] = set()
+    return [e for e in entries if not (e.lower() in seen or seen.add(e.lower()))]
+
+
+def ensure_awards(markdown: str, original_cv_text: str) -> str:
+    """Re-add original-CV Certifications/Awards entries the tailoring dropped.
+
+    No-op when the original lists none, or every entry already appears in the
+    tailored CV (matched by its distinctive lead phrase, so a credential already
+    shown in Education is not re-added)."""
+    entries = _extract_original_credentials(original_cv_text)
+    if not entries:
+        return markdown
+    md_low = markdown.lower()
+    missing: list[str] = []
+    for e in entries:
+        core = re.split(r"\s[–—-]\s|\(|,", e)[0].strip().lower()
+        if (core and core in md_low) or e.lower() in md_low:
+            continue
+        missing.append(e)
+    if not missing:
+        return markdown
+    missing = missing[:4]
+
+    lines = markdown.rstrip("\n").split("\n")
+    # Append into an existing credentials section if present, else create one.
+    sec_start = None
+    sec_end = len(lines)
+    for i, ln in enumerate(lines):
+        if ln.startswith("## ") and ln[3:].strip().lower() in _CRED_SECTION_WORDS:
+            sec_start = i
+            sec_end = next(
+                (j for j in range(i + 1, len(lines)) if lines[j].startswith("## ")),
+                len(lines),
+            )
+            break
+
+    bullets = [f"- {m}" for m in missing]
+    if sec_start is not None:
+        insert_at = sec_end
+        while insert_at - 1 > sec_start and not lines[insert_at - 1].strip():
+            insert_at -= 1
+        new_lines = lines[:insert_at] + bullets + lines[insert_at:]
+    else:
+        new_lines = lines + ["", "## Certifications"] + bullets
+    logger.info("w8: recovered %d dropped credential/award entr(ies) from CV", len(missing))
+    return "\n".join(new_lines)
+
+
 async def _writer_w5_surfacing(
     client: AIClient,
     cv_text: str,
@@ -845,6 +945,9 @@ async def _writer_w8_integrated(
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)
+    # 3c. Deterministic award/credential recovery — re-add a Certifications/Awards
+    #     entry from the original CV that the rewrite silently dropped.
+    md = ensure_awards(md, cv_text)
     # 4. Rename canonical headings back to the family's names and apply the
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
@@ -960,6 +1063,7 @@ async def _writer_w8_critique(
         )
         md = _strip_non_skill_phrases(md)
         md = ensure_bachelor(md, cv_text)
+        md = ensure_awards(md, cv_text)
         revised = restore_and_order(md, role_family)
     else:
         revised = result.tailored_md
