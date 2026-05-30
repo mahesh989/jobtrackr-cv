@@ -44,7 +44,13 @@ function rateBadgeCls(pct: number) {
   return "bg-red-light text-red border-red/30";
 }
 
-export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
+export function CvJdMatchingCard({
+  data, catLabels = CAT_LABEL, catOrder = [...CAT_ORDER],
+}: {
+  data: Record<string, unknown>;
+  catLabels?: Record<string, string>;
+  catOrder?: Cat[];
+}) {
   const d = data as MatchingData;
   const hasCategorised = !!d.counts;
 
@@ -57,7 +63,7 @@ export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
         </p>
       </div>
       <div className="px-5 py-4 space-y-5">
-        {hasCategorised ? <CategorisedView d={d} /> : <LegacyFlatView d={d} />}
+        {hasCategorised ? <CategorisedView d={d} catLabels={catLabels} catOrder={catOrder} /> : <LegacyFlatView d={d} />}
       </div>
     </div>
   );
@@ -65,7 +71,7 @@ export function CvJdMatchingCard({ data }: { data: Record<string, unknown> }) {
 
 // ── Categorised view (new schema) ──────────────────────────────────────────
 
-function CategorisedView({ d }: { d: MatchingData }) {
+function CategorisedView({ d, catLabels, catOrder }: { d: MatchingData; catLabels: Record<string, string>; catOrder: Cat[] }) {
   const counts  = d.counts!;
   const rates   = d.match_rates ?? {};
   const overall = counts.overall;
@@ -95,14 +101,21 @@ function CategorisedView({ d }: { d: MatchingData }) {
         </div>
       )}
 
-      <BreakdownTable counts={counts} rates={rates} />
+      <BreakdownTable counts={counts} rates={rates} catLabels={catLabels} catOrder={catOrder} />
 
-      <KeywordChipGrid matched={d.matched} missed={d.missed} />
+      <KeywordChipGrid matched={d.matched} missed={d.missed} catLabels={catLabels} catOrder={catOrder} />
     </>
   );
 }
 
-function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: MatchRates }) {
+function BreakdownTable({
+  counts, rates, catLabels, catOrder,
+}: {
+  counts: MatchingCounts;
+  rates: MatchRates;
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
+}) {
   const catRatePct: Record<Cat, number | undefined> = {
     technical:        rates.technical_pct,
     soft_skills:      rates.soft_skills_pct,
@@ -110,7 +123,7 @@ function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: Matc
   };
 
   const sumTotals = (b?: BucketCounts) =>
-    CAT_ORDER.reduce((acc, c) => acc + (b?.[c]?.total ?? 0), 0);
+    catOrder.reduce((acc, c) => acc + (b?.[c]?.total ?? 0), 0);
   const requiredTotal  = sumTotals(counts.required);
   const preferredTotal = sumTotals(counts.preferred);
 
@@ -130,7 +143,7 @@ function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: Matc
             </tr>
           </thead>
           <tbody>
-            {CAT_ORDER.map((cat) => {
+            {catOrder.map((cat) => {
               const req  = counts.required?.[cat];
               const pref = counts.preferred?.[cat];
               const catPct = catRatePct[cat];
@@ -140,7 +153,7 @@ function BreakdownTable({ counts, rates }: { counts: MatchingCounts; rates: Matc
               const prefHas = pref && pref.total > 0;
               return (
                 <tr key={cat} className="border-b border-border/60">
-                  <td className="py-2 pr-3 font-medium text-text">{CAT_LABEL[cat]}</td>
+                  <td className="py-2 pr-3 font-medium text-text">{catLabels[cat]}</td>
                   <td className="py-2 pr-3 text-center">
                     {reqHas ? <MatchCell matched={req!.matched} total={req!.total} /> : <span className="text-text-3">—</span>}
                   </td>
@@ -207,26 +220,33 @@ function MatchCell({ matched, total }: { matched: number; total: number }) {
 
 // ── Keyword chips grouped by category ──────────────────────────────────────
 
-function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed?: BucketKeywords }) {
+function KeywordChipGrid({
+  matched, missed, catLabels, catOrder,
+}: {
+  matched?: BucketKeywords;
+  missed?: BucketKeywords;
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
+}) {
   const merge = (bk?: BucketKeywords): Record<Cat, string[]> => {
     const out: Record<Cat, string[]> = { technical: [], soft_skills: [], domain_knowledge: [] };
     if (!bk) return out;
     for (const bucket of ["required", "preferred"] as const) {
       const b = bk[bucket];
       if (!b) continue;
-      for (const c of CAT_ORDER) {
+      for (const c of catOrder) {
         if (b[c]) out[c].push(...b[c]!);
       }
     }
     // De-duplicate within each cat
-    for (const c of CAT_ORDER) out[c] = Array.from(new Set(out[c]));
+    for (const c of catOrder) out[c] = Array.from(new Set(out[c]));
     return out;
   };
 
   const m = merge(matched);
   const x = merge(missed);
-  const anyM = CAT_ORDER.some((c) => m[c].length > 0);
-  const anyX = CAT_ORDER.some((c) => x[c].length > 0);
+  const anyM = catOrder.some((c) => m[c].length > 0);
+  const anyX = catOrder.some((c) => x[c].length > 0);
   if (!anyM && !anyX) return null;
 
   return (
@@ -236,6 +256,8 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
           title="Matched keywords"
           color="green"
           buckets={m}
+          catLabels={catLabels}
+          catOrder={catOrder}
         />
       )}
       {anyX && (
@@ -243,6 +265,8 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
           title="Missing keywords"
           color="red"
           buckets={x}
+          catLabels={catLabels}
+          catOrder={catOrder}
         />
       )}
     </div>
@@ -250,11 +274,13 @@ function KeywordChipGrid({ matched, missed }: { matched?: BucketKeywords; missed
 }
 
 function ChipBlock({
-  title, color, buckets,
+  title, color, buckets, catLabels, catOrder,
 }: {
   title: string;
   color: "green" | "red";
   buckets: Record<Cat, string[]>;
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   const titleCls = color === "green" ? "text-green" : "text-red";
   const chipCls  = color === "green"
@@ -264,13 +290,13 @@ function ChipBlock({
     <div>
       <h3 className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${titleCls}`}>{title}</h3>
       <div className="space-y-2">
-        {CAT_ORDER.map((cat) => {
+        {catOrder.map((cat) => {
           const kws = buckets[cat];
           if (!kws.length) return null;
           return (
             <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1">
               <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
-                {CAT_LABEL[cat]}
+                {catLabels[cat]}
               </span>
               <div className="flex flex-wrap gap-1">
                 {kws.map((kw) => (

@@ -109,24 +109,20 @@ def _keyword_score(matching: Dict[str, Any]) -> tuple[float, Dict[str, Any]]:
     Compute Category 1 directly from the structured counts produced by
     the matching step. No substring searching, no text parsing.
 
-    Each component contributes (matched / total) * weight points, with
-    weight = 0 contribution if total = 0 (cannot fail on a category the
-    JD did not request).
+    Presence-aware: the nominal weights in ``_KEYWORD_WEIGHTS`` are shaped for
+    IT roles (technical-required carries 25 of 50). A nursing or care JD often
+    has zero required-technical keywords, which under a fixed-weight scheme
+    would make 25 of the 50 keyword points permanently unreachable and cap a
+    perfect-match CV at ~50 %. To keep the category fair across role families,
+    the weight of any bucket the JD did not populate (total = 0) is
+    redistributed proportionally onto the buckets it DID populate, so a CV that
+    perfectly matches every requested keyword earns the full 50.
+
+    Each present component then contributes (matched / total) * effective_weight.
     """
     counts = matching.get("counts") or {}
     required = counts.get("required") or {}
     preferred = counts.get("preferred") or {}
-
-    def _component(matched: int, total: int, weight: int) -> Dict[str, Any]:
-        rate = (matched / total) if total else 0.0
-        earned = rate * weight
-        return {
-            "matched": matched,
-            "total": total,
-            "match_rate_pct": round(rate * 100, 1),
-            "max_points": weight,
-            "earned_points": round(earned, 2),
-        }
 
     tech = required.get("technical") or {"matched": 0, "total": 0}
     soft = required.get("soft_skills") or {"matched": 0, "total": 0}
@@ -137,16 +133,30 @@ def _keyword_score(matching: Dict[str, Any]) -> tuple[float, Dict[str, Any]]:
     pref_total = sum((preferred.get(c) or {}).get("total", 0) for c in
                      ("technical", "soft_skills", "domain_knowledge"))
 
-    components = {
-        "technical_required":        _component(tech["matched"], tech["total"],
-                                                _KEYWORD_WEIGHTS["technical_required"]),
-        "soft_skills_required":      _component(soft["matched"], soft["total"],
-                                                _KEYWORD_WEIGHTS["soft_skills_required"]),
-        "domain_knowledge_required": _component(domain["matched"], domain["total"],
-                                                _KEYWORD_WEIGHTS["domain_knowledge_required"]),
-        "preferred_overall":         _component(pref_matched, pref_total,
-                                                _KEYWORD_WEIGHTS["preferred_overall"]),
+    raw = {
+        "technical_required":        (tech["matched"], tech["total"]),
+        "soft_skills_required":      (soft["matched"], soft["total"]),
+        "domain_knowledge_required": (domain["matched"], domain["total"]),
+        "preferred_overall":         (pref_matched, pref_total),
     }
+
+    # Redistribute the nominal weight of empty buckets onto populated ones.
+    present_base = sum(_KEYWORD_WEIGHTS[k] for k, (_, total) in raw.items() if total > 0)
+    scale = (sum(_KEYWORD_WEIGHTS.values()) / present_base) if present_base else 0.0
+
+    components: Dict[str, Any] = {}
+    for key, (matched, total) in raw.items():
+        base = _KEYWORD_WEIGHTS[key]
+        effective = base * scale if total > 0 else 0.0
+        rate = (matched / total) if total else 0.0
+        components[key] = {
+            "matched": matched,
+            "total": total,
+            "match_rate_pct": round(rate * 100, 1),
+            "base_points": base,
+            "max_points": round(effective, 2),
+            "earned_points": round(rate * effective, 2),
+        }
 
     total = sum(c["earned_points"] for c in components.values())
     return total, components

@@ -40,28 +40,51 @@ from reportlab.platypus import (
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Constants
+# Adaptive layout — config-backed constants
 # ---------------------------------------------------------------------------
-PAGE_W, PAGE_H = A4              # 595.28 × 841.89 pt
-MARGIN = 0.5 * inch              # 36 pt
-USABLE_W = PAGE_W - 2 * MARGIN   # 523.28 pt
-RIGHT_COL_W = 1.8 * inch         # 129.6 pt
-LEFT_COL_W = USABLE_W - RIGHT_COL_W
+import threading
+from app.services.cv.adaptive_layout import (
+    DEFAULT_CONFIG,
+    LayoutConfig,
+    FillMetrics,
+    find_optimal_config,
+)
 
+PAGE_W, PAGE_H = A4              # 595.28 × 841.89 pt
+
+# Thread-safe active config for the current render pass.
+_cfg_lock = threading.Lock()
+_active_cfg: LayoutConfig = DEFAULT_CONFIG
+
+def _cfg() -> LayoutConfig:
+    return _active_cfg
+
+# Legacy constant names — now read from the active config so every helper
+# keeps working without signature changes. These are accessed as module-level
+# names, so we use a proxy pattern: helpers that need them call the name
+# which is now a function or property access.
+# For the handful of helpers that use them at TABLE CREATION time (not import
+# time), we swap to reading _cfg() at call sites below.
+
+# These remain true constants (not config-tuned):
+MARGIN = 0.5 * inch              # default; overridden by _cfg().margin at render
+USABLE_W = PAGE_W - 2 * MARGIN   # default; overridden by _cfg().usable_w at render
+RIGHT_COL_W = 1.8 * inch         # default
+LEFT_COL_W = USABLE_W - RIGHT_COL_W
 BULLET_COL_W = 16
 TEXT_COL_W = USABLE_W - BULLET_COL_W
 
-# Colours
+# Colours (not config-tuned)
 C_BODY = colors.HexColor("#000000")
 C_HEADER = colors.HexColor("#1a1a1a")
 C_LINK = colors.HexColor("#000080")
 C_RULE = colors.HexColor("#000000")
 
-# Spacing (pt)
+# Spacing defaults — helpers below now read from _cfg() instead
 SECTION_ABOVE = 14
 SUBSECTION_GAP = 10
 BULLET_GAP = 2.5
-SKILLS_LINE_GAP = BULLET_GAP + 2   # extra breathing room between skill categories
+SKILLS_LINE_GAP = BULLET_GAP + 2
 AFTER_BULLETS = 8
 LINE_AFTER_SECTION = 4
 RULE_TITLE_SPACER = 2
@@ -77,42 +100,60 @@ F_ITALIC     = "Helvetica-Oblique"
 F_BOLDITALIC = "Helvetica-BoldOblique"
 
 # ---------------------------------------------------------------------------
-# Paragraph styles
+# Paragraph styles — rebuilt per config so font sizes adapt
 # ---------------------------------------------------------------------------
 
-def _ps(name: str, **kwargs) -> ParagraphStyle:
-    defaults = {
-        "fontName": F_REGULAR,
-        "fontSize": 10,
-        "leading": 11,
-        "textColor": C_BODY,
-        "spaceAfter": 0,
-        "spaceBefore": 0,
-        "leftIndent": 0,
-        "rightIndent": 0,
-        "firstLineIndent": 0,
-        "wordWrap": "LTR",
+_style_counter = 0  # ensures unique ReportLab style names per rebuild
+
+def _make_styles(cfg: LayoutConfig) -> Dict[str, ParagraphStyle]:
+    """Build a STYLES dict from the given LayoutConfig."""
+    global _style_counter
+    _style_counter += 1
+    tag = f"_v{_style_counter}"
+
+    def _ps(name: str, **kwargs) -> ParagraphStyle:
+        defaults = {
+            "fontName": F_REGULAR,
+            "fontSize": cfg.body_font_size,
+            "leading": cfg.body_leading,
+            "textColor": C_BODY,
+            "spaceAfter": 0,
+            "spaceBefore": 0,
+            "leftIndent": 0,
+            "rightIndent": 0,
+            "firstLineIndent": 0,
+            "wordWrap": "LTR",
+        }
+        defaults.update(kwargs)
+        return ParagraphStyle(name + tag, **defaults)
+
+    return {
+        "name":         _ps("name", fontName=F_BOLD,
+                            fontSize=cfg.name_font_size,
+                            leading=cfg.name_leading,
+                            alignment=1, textColor=C_HEADER),
+        "contact":      _ps("contact", alignment=1),
+        "section":      _ps("section", fontName=F_BOLD,
+                            fontSize=cfg.section_font_size,
+                            textColor=C_HEADER),
+        "body":         _ps("body", alignment=4),
+        "bullet_sym":   _ps("bullet_sym"),
+        "bullet_text":  _ps("bullet_text", alignment=4),
+        "company_row":  _ps("company_row", fontName=F_BOLD, textColor=C_HEADER),
+        "job_title":    _ps("job_title", fontName=F_ITALIC, textColor=C_HEADER),
+        "date_right":   _ps("date_right", alignment=2),
+        "degree":       _ps("degree", fontName=F_BOLD, textColor=C_HEADER),
+        "institution":  _ps("institution", fontName=F_ITALIC),
+        "project_name": _ps("project_name", fontName=F_BOLD, textColor=C_HEADER),
+        "project_meta": _ps("project_meta", fontName=F_ITALIC),
     }
-    defaults.update(kwargs)
-    return ParagraphStyle(name, **defaults)
 
+# Default styles (used when _active_cfg == DEFAULT_CONFIG)
+STYLES: Dict[str, ParagraphStyle] = _make_styles(DEFAULT_CONFIG)
 
-STYLES: Dict[str, ParagraphStyle] = {
-    "name":         _ps("name", fontName=F_BOLD, fontSize=20, leading=22,
-                        alignment=1, textColor=C_HEADER),
-    "contact":      _ps("contact", alignment=1),
-    "section":      _ps("section", fontName=F_BOLD, textColor=C_HEADER),
-    "body":         _ps("body", alignment=4),                       # justify
-    "bullet_sym":   _ps("bullet_sym"),
-    "bullet_text":  _ps("bullet_text", alignment=4),                # justify
-    "company_row":  _ps("company_row", fontName=F_BOLD, textColor=C_HEADER),
-    "job_title":    _ps("job_title", fontName=F_ITALIC, textColor=C_HEADER),
-    "date_right":   _ps("date_right", alignment=2),                 # right
-    "degree":       _ps("degree", fontName=F_BOLD, textColor=C_HEADER),
-    "institution":  _ps("institution", fontName=F_ITALIC),
-    "project_name": _ps("project_name", fontName=F_BOLD, textColor=C_HEADER),
-    "project_meta": _ps("project_meta", fontName=F_ITALIC),
-}
+def _styles() -> Dict[str, ParagraphStyle]:
+    """Return the styles dict for the active config."""
+    return STYLES
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,34 +173,39 @@ def _spacer(h: float) -> Spacer:
 
 
 def _hr() -> Table:
-    hr = HRFlowable(width=USABLE_W, thickness=0.5, color=C_RULE, hAlign="LEFT")
-    t = Table([[hr]], colWidths=[USABLE_W])
+    w = _cfg().usable_w
+    hr = HRFlowable(width=w, thickness=0.5, color=C_RULE, hAlign="LEFT")
+    t = Table([[hr]], colWidths=[w])
     t.setStyle(_NO_PAD_TABLE)
     return t
 
 
 def _section_header(title: str) -> List[Any]:
-    p = Paragraph(title.upper(), STYLES["section"])
-    t = Table([[p]], colWidths=[USABLE_W])
+    c = _cfg()
+    w = c.usable_w
+    p = Paragraph(title.upper(), _styles()["section"])
+    t = Table([[p]], colWidths=[w])
     t.setStyle(_NO_PAD_TABLE)
     return [
-        _spacer(SECTION_ABOVE),
+        _spacer(c.section_above),
         t,
-        _spacer(RULE_TITLE_SPACER),
+        _spacer(c.rule_title_spacer),
         _hr(),
-        _spacer(LINE_AFTER_SECTION),
+        _spacer(c.line_after_section),
     ]
 
 
 def _two_col(left: Paragraph, right: Paragraph) -> Table:
-    t = Table([[left, right]], colWidths=[LEFT_COL_W, RIGHT_COL_W])
+    c = _cfg()
+    t = Table([[left, right]], colWidths=[c.left_col_w, c.right_col_w])
     t.setStyle(_NO_PAD_TABLE)
     return t
 
 
 def _bullet_row(text_para: Paragraph) -> Table:
-    sym = Paragraph("•", STYLES["bullet_sym"])
-    t = Table([[sym, text_para]], colWidths=[BULLET_COL_W, TEXT_COL_W])
+    c = _cfg()
+    sym = Paragraph("•", _styles()["bullet_sym"])
+    t = Table([[sym, text_para]], colWidths=[c.bullet_col_w, c.text_col_w])
     t.setStyle(_NO_PAD_TABLE)
     return t
 
@@ -320,7 +366,7 @@ def _render_contact_line(contact: str) -> List[Any]:
             )
         else:
             fragments.append(_escape(part))
-    return [Paragraph(" | ".join(fragments), STYLES["contact"])]
+    return [Paragraph(" | ".join(fragments), _styles()["contact"])]
 
 
 # ---------------------------------------------------------------------------
@@ -460,10 +506,10 @@ def _parse_experience_header(items: List[Dict], i: int) -> Optional[_EntryHeader
 def _render_bullets(items: List[Dict], start: int, end: int) -> List[Any]:
     out: List[Any] = []
     for j, item in enumerate(items[start:end], start=start):
-        para = _inline_markup(item["text"], STYLES["bullet_text"])
+        para = _inline_markup(item["text"], _styles()["bullet_text"])
         out.append(_bullet_row(para))
         if j < end - 1:
-            out.append(_spacer(BULLET_GAP))
+            out.append(_spacer(_cfg().bullet_gap))
     return out
 
 
@@ -487,22 +533,22 @@ def _render_highlights(items: List[Dict]) -> List[Any]:
                 skills_text = text[colon + 1:].strip()
                 bullet_paras.append(Paragraph(
                     f"Skills: <i>{_escape(skills_text)}</i>",
-                    STYLES["bullet_text"],
+                    _styles()["bullet_text"],
                 ))
             else:
-                bullet_paras.append(_inline_markup(text, STYLES["bullet_text"]))
+                bullet_paras.append(_inline_markup(text, _styles()["bullet_text"]))
         else:
             # paragraph (summary text)
             if bullet_paras:
                 # already started bullets — treat as another bullet
-                bullet_paras.append(_inline_markup(text, STYLES["bullet_text"]))
+                bullet_paras.append(_inline_markup(text, _styles()["bullet_text"]))
             else:
-                out.append(_inline_markup(text, STYLES["body"]))
+                out.append(_inline_markup(text, _styles()["body"]))
 
     for j, para in enumerate(bullet_paras):
         out.append(_bullet_row(para))
         if j < len(bullet_paras) - 1:
-            out.append(_spacer(BULLET_GAP))
+            out.append(_spacer(_cfg().bullet_gap))
     return out
 
 
@@ -525,19 +571,19 @@ def _render_experience(items: List[Dict]) -> List[Any]:
             seen_fp.add(header.fingerprint)
 
             if entry_count > 0:
-                out.append(_spacer(SUBSECTION_GAP))
+                out.append(_spacer(_cfg().subsection_gap))
             entry_count += 1
 
             # Row 1: Company (bold) | Location
             out.append(_two_col(
-                Paragraph(_escape(header.left_top), STYLES["company_row"]),
-                Paragraph(_escape(header.right_top), STYLES["date_right"]),
+                Paragraph(_escape(header.left_top), _styles()["company_row"]),
+                Paragraph(_escape(header.right_top), _styles()["date_right"]),
             ))
             # Row 2: Title|Tools (italic) | Date
             if header.left_bot or header.right_bot:
                 out.append(_two_col(
-                    Paragraph(_escape(header.left_bot), STYLES["job_title"]),
-                    Paragraph(_escape(header.right_bot), STYLES["date_right"]),
+                    Paragraph(_escape(header.left_bot), _styles()["job_title"]),
+                    Paragraph(_escape(header.right_bot), _styles()["date_right"]),
                 ))
 
             i += header.consumed
@@ -552,13 +598,13 @@ def _render_experience(items: List[Dict]) -> List[Any]:
             bullet_end = i
             if bullet_end > bullet_start:
                 out.extend(_render_bullets(items, bullet_start, bullet_end))
-                out.append(_spacer(AFTER_BULLETS))
+                out.append(_spacer(_cfg().after_bullets))
             continue
 
         # Stray bullet
         if item["type"] == "bullet":
-            out.append(_bullet_row(_inline_markup(item["text"], STYLES["bullet_text"])))
-            out.append(_spacer(BULLET_GAP))
+            out.append(_bullet_row(_inline_markup(item["text"], _styles()["bullet_text"])))
+            out.append(_spacer(_cfg().bullet_gap))
             i += 1
             continue
 
@@ -572,7 +618,7 @@ def _render_experience(items: List[Dict]) -> List[Any]:
         if re.search(r'\b(19|20)\d{2}\b', text) and "|" in text:
             i += 1
             continue
-        out.append(_inline_markup(item["text"], STYLES["body"]))
+        out.append(_inline_markup(item["text"], _styles()["body"]))
         i += 1
 
     return out
@@ -605,20 +651,20 @@ def _render_education(items: List[Dict]) -> List[Any]:
             return
         seen_fp.add(fp)
         if entry_count > 0:
-            out.append(_spacer(EDUCATION_GAP))
+            out.append(_spacer(_cfg().education_gap))
         entry_count += 1
 
         out.append(_two_col(
-            Paragraph(_escape(degree), STYLES["degree"]),
-            Paragraph(_escape(year), STYLES["date_right"]),
+            Paragraph(_escape(degree), _styles()["degree"]),
+            Paragraph(_escape(year), _styles()["date_right"]),
         ))
         inst_loc = institution
         if location and location not in institution:
             inst_loc = f"{institution}, {location}" if institution else location
         if inst_loc or gpa:
             out.append(_two_col(
-                Paragraph(_escape(inst_loc), STYLES["institution"]),
-                Paragraph(_escape(gpa), STYLES["date_right"]),
+                Paragraph(_escape(inst_loc), _styles()["institution"]),
+                Paragraph(_escape(gpa), _styles()["date_right"]),
             ))
 
     def _extract_year(parts: List[str]) -> str:
@@ -746,7 +792,7 @@ def _render_skills(items: List[Dict]) -> List[Any]:
                     pending_cat = None
                 bullet_paras.append(Paragraph(
                     f"<b>{_escape(cat)}:</b> {_escape(skills)}",
-                    STYLES["bullet_text"],
+                    _styles()["bullet_text"],
                 ))
             else:
                 pending_cat = cat
@@ -754,22 +800,22 @@ def _render_skills(items: List[Dict]) -> List[Any]:
             if pending_cat is not None:
                 bullet_paras.append(Paragraph(
                     f"<b>{_escape(pending_cat)}:</b> {_escape(raw)}",
-                    STYLES["bullet_text"],
+                    _styles()["bullet_text"],
                 ))
                 pending_cat = None
             else:
-                bullet_paras.append(_inline_markup(item["text"], STYLES["bullet_text"]))
+                bullet_paras.append(_inline_markup(item["text"], _styles()["bullet_text"]))
 
     if pending_cat is not None:
         bullet_paras.append(Paragraph(
             f"<b>{_escape(pending_cat)}:</b>",
-            STYLES["bullet_text"],
+            _styles()["bullet_text"],
         ))
 
     for j, para in enumerate(bullet_paras):
         out.append(_bullet_row(para))
         if j < len(bullet_paras) - 1:
-            out.append(_spacer(SKILLS_LINE_GAP))
+            out.append(_spacer(_cfg().skills_line_gap))
     return out
 
 
@@ -846,7 +892,7 @@ def _render_projects(items: List[Dict]) -> List[Any]:
             seen_fp.add(fp)
 
             if entry_count > 0:
-                out.append(_spacer(SUBSECTION_GAP))
+                out.append(_spacer(_cfg().subsection_gap))
             entry_count += 1
 
             # Build right paragraph: replace any URL with "Link" hyperlink
@@ -857,16 +903,16 @@ def _render_projects(items: List[Dict]) -> List[Any]:
                     f'{_escape(date_text)} | '
                     f'<a href="{url_match.group()}" color="{C_LINK.hexval()}">Link</a>'
                 )
-                right_para = Paragraph(right_html, STYLES["date_right"])
+                right_para = Paragraph(right_html, _styles()["date_right"])
             elif url_match:
                 right_para = Paragraph(
                     f'<a href="{url_match.group()}" color="{C_LINK.hexval()}">Link</a>',
-                    STYLES["date_right"],
+                    _styles()["date_right"],
                 )
             else:
-                right_para = Paragraph(_escape(date_text), STYLES["date_right"])
+                right_para = Paragraph(_escape(date_text), _styles()["date_right"])
 
-            left_para = Paragraph(_escape(left_text), STYLES["project_name"])
+            left_para = Paragraph(_escape(left_text), _styles()["project_name"])
             out.append(_two_col(left_para, right_para))
 
             i += consumed
@@ -877,12 +923,12 @@ def _render_projects(items: List[Dict]) -> List[Any]:
                 i += 1
             if i > b_start:
                 out.extend(_render_bullets(items, b_start, i))
-                out.append(_spacer(AFTER_BULLETS))
+                out.append(_spacer(_cfg().after_bullets))
             continue
 
         if item["type"] == "bullet":
-            out.append(_bullet_row(_inline_markup(item["text"], STYLES["bullet_text"])))
-            out.append(_spacer(BULLET_GAP))
+            out.append(_bullet_row(_inline_markup(item["text"], _styles()["bullet_text"])))
+            out.append(_spacer(_cfg().bullet_gap))
             i += 1
             continue
 
@@ -892,7 +938,7 @@ def _render_projects(items: List[Dict]) -> List[Any]:
         if fp in seen_fp:
             i += 1
             continue
-        out.append(_inline_markup(item["text"], STYLES["body"]))
+        out.append(_inline_markup(item["text"], _styles()["body"]))
         i += 1
 
     return out
@@ -909,11 +955,11 @@ def _render_certifications(items: List[Dict]) -> List[Any]:
         if fp in seen_fp or not text:
             continue
         seen_fp.add(fp)
-        rendered.append(_inline_markup(text, STYLES["bullet_text"]))
+        rendered.append(_inline_markup(text, _styles()["bullet_text"]))
     for j, para in enumerate(rendered):
         out.append(_bullet_row(para))
         if j < len(rendered) - 1:
-            out.append(_spacer(BULLET_GAP))
+            out.append(_spacer(_cfg().bullet_gap))
     return out
 
 
@@ -965,43 +1011,27 @@ def _render_section(stype: str, items: List[Dict]) -> List[Any]:
     out: List[Any] = []
     for item in items:
         if item["type"] == "bullet":
-            out.append(_bullet_row(_inline_markup(item["text"], STYLES["bullet_text"])))
-            out.append(_spacer(BULLET_GAP))
+            out.append(_bullet_row(_inline_markup(item["text"], _styles()["bullet_text"])))
+            out.append(_spacer(_cfg().bullet_gap))
         else:
-            out.append(_inline_markup(item["text"], STYLES["body"]))
+            out.append(_inline_markup(item["text"], _styles()["body"]))
     return out
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Public API — adaptive layout engine
 # ---------------------------------------------------------------------------
 
-def generate_pdf_from_markdown(markdown: str) -> bytes:
-    """Convert AI-produced tailored CV markdown to PDF bytes."""
-    name, contact, sections = _parse_markdown(markdown)
-
-    buf = io.BytesIO()
-    doc = BaseDocTemplate(
-        buf,
-        pagesize=A4,
-        leftMargin=MARGIN,
-        rightMargin=MARGIN,
-        topMargin=MARGIN,
-        bottomMargin=MARGIN,
-    )
-    frame = Frame(
-        MARGIN, MARGIN,
-        USABLE_W, PAGE_H - 2 * MARGIN,
-        leftPadding=0, rightPadding=0,
-        topPadding=0, bottomPadding=0,
-        id="main",
-    )
-    doc.addPageTemplates([PageTemplate(id="main", frames=[frame])])
-
+def _build_story(
+    name: Optional[str],
+    contact: Optional[str],
+    sections: List[Tuple[str, List[Dict]]],
+) -> List[Any]:
+    """Build the ReportLab story list using the currently active config/styles."""
     story: List[Any] = []
 
     if name:
-        story.append(Paragraph(_escape(name), STYLES["name"]))
+        story.append(Paragraph(_escape(name), _styles()["name"]))
     else:
         story.append(Spacer(1, 24))
 
@@ -1016,7 +1046,6 @@ def generate_pdf_from_markdown(markdown: str) -> bytes:
         if key and key not in section_map:
             section_map[key] = (title, items)
         elif key:
-            # Same canonical key already populated — extend its items
             existing_title, existing_items = section_map[key]
             section_map[key] = (existing_title, existing_items + items)
         else:
@@ -1029,7 +1058,6 @@ def generate_pdf_from_markdown(markdown: str) -> bytes:
         ai_title, items = section_map[stype]
         if not items:
             continue
-        # Use the AI's section title verbatim when reasonable; fall back to canonical label
         display_title = ai_title or _SECTION_LABELS[stype]
         story.extend(_section_header(display_title))
         story.extend(_render_section(stype, items))
@@ -1041,5 +1069,111 @@ def generate_pdf_from_markdown(markdown: str) -> bytes:
         story.extend(_section_header(title))
         story.extend(_render_section("_unknown_", items))
 
+    return story
+
+
+def _measure_fill(cfg: LayoutConfig, name, contact, sections) -> FillMetrics:
+    """Build story with the given config and measure how it fills pages."""
+    global _active_cfg, STYLES
+
+    _active_cfg = cfg
+    STYLES = _make_styles(cfg)
+
+    story = _build_story(name, contact, sections)
+
+    usable_w = cfg.usable_w
+    usable_h = cfg.usable_h
+
+    total_h = 0.0
+    for flowable in story:
+        _, h = flowable.wrap(usable_w, usable_h)
+        total_h += h
+
+    pages = max(1, int(total_h // usable_h) + (1 if total_h % usable_h > 0 else 0))
+    last_page_used = total_h % usable_h if pages > 1 else total_h
+    # Handle exact-fit edge case
+    if total_h > 0 and total_h % usable_h == 0:
+        last_page_used = usable_h
+    last_page_remaining = usable_h - last_page_used
+    fill_pct = (last_page_used / usable_h) * 100.0
+
+    return FillMetrics(
+        total_content_height_pt=round(total_h, 1),
+        usable_height_pt=round(usable_h, 1),
+        pages=pages,
+        last_page_used_pt=round(last_page_used, 1),
+        last_page_remaining_pt=round(last_page_remaining, 1),
+        fill_pct=round(fill_pct, 1),
+        overall_fill_ratio=round(total_h / (pages * usable_h), 3) if pages else 0,
+    )
+
+
+def _render_pdf_with_config(
+    cfg: LayoutConfig,
+    name: Optional[str],
+    contact: Optional[str],
+    sections: List[Tuple[str, List[Dict]]],
+) -> bytes:
+    """Render the final PDF with the given config."""
+    global _active_cfg, STYLES
+
+    _active_cfg = cfg
+    STYLES = _make_styles(cfg)
+
+    story = _build_story(name, contact, sections)
+
+    buf = io.BytesIO()
+    doc = BaseDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=cfg.margin,
+        rightMargin=cfg.margin,
+        topMargin=cfg.margin,
+        bottomMargin=cfg.margin,
+    )
+    frame = Frame(
+        cfg.margin, cfg.margin,
+        cfg.usable_w, cfg.usable_h,
+        leftPadding=0, rightPadding=0,
+        topPadding=0, bottomPadding=0,
+        id="main",
+    )
+    doc.addPageTemplates([PageTemplate(id="main", frames=[frame])])
     doc.build(story)
     return buf.getvalue()
+
+
+def generate_pdf_from_markdown(markdown: str) -> bytes:
+    """
+    Convert AI-produced tailored CV markdown to PDF bytes.
+
+    Adaptive layout engine — automatically adjusts font size, margins, and
+    spacing so the CV fills exactly 1 or 2 pages with professional density:
+      - Sparse content → larger fonts, wider margins, more breathing room
+      - Dense content → tight layout that fits cleanly
+      - 1.5 page overflow → relaxes to fill 2 full pages
+    """
+    name, contact, sections = _parse_markdown(markdown)
+
+    with _cfg_lock:
+        # Find the optimal layout config
+        def measure(cfg: LayoutConfig) -> FillMetrics:
+            return _measure_fill(cfg, name, contact, sections)
+
+        optimal_cfg = find_optimal_config(measure)
+
+        logger.info(
+            "adaptive-layout: rendering with font=%.1f margin=%.0f",
+            optimal_cfg.body_font_size, optimal_cfg.margin,
+        )
+
+        # Render the final PDF with the chosen config
+        pdf_bytes = _render_pdf_with_config(optimal_cfg, name, contact, sections)
+
+        # Restore defaults for safety
+        global _active_cfg, STYLES
+        _active_cfg = DEFAULT_CONFIG
+        STYLES = _make_styles(DEFAULT_CONFIG)
+
+    return pdf_bytes
+

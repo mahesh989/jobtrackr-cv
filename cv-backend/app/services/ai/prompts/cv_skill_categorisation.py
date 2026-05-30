@@ -10,14 +10,22 @@ categories.
 CATEGORIES — every keyword goes in exactly one:
 
 - "technical": programming languages, tools, frameworks, libraries, databases,
-  platforms, cloud services, specific software, file formats
+  platforms, cloud services, specific software products, file formats
   (e.g. python, sql, tableau, aws, docker, snowflake, react, jira, excel, vba).
+  Named clinical/care software systems are technical too (e.g. bestmed,
+  medmobile, epic, cerner, leecare, manad) — the named PRODUCT, not the activity.
 - "soft_skills": interpersonal / behavioural / cognitive capabilities
   (e.g. communication, leadership, stakeholder management, problem solving,
   analytical thinking, mentoring, presentation skills).
-- "domain_knowledge": industry / business / regulatory / methodology / process
-  knowledge (e.g. data warehouse, agile, scrum, gdpr, b2b saas, fundraising,
-  marketing campaigns, customer service, anti-money laundering).
+- "domain_knowledge": industry / business / regulatory / methodology / process /
+  clinical / care knowledge — the WHAT-FIELD, never a software product
+  (e.g. data warehouse, agile, scrum, gdpr, b2b saas, fundraising,
+  marketing campaigns, customer service, anti-money laundering,
+  aged care, home care, community care, individual support, dementia care,
+  palliative care, person-centred care, medication administration, wound care,
+  infection control, manual handling, activities of daily living).
+  A CARE SETTING or CARE TYPE (aged care, home care, disability support…) is
+  ALWAYS domain_knowledge — never technical.
 
 EXTRACTION RULES:
 

@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     DEFAULT_AI_MODEL: str = "claude-3-5-sonnet-20241022"
 
     # -------------------------------------------------------------------------
+    # Tailored-CV writer selection (beta→production migration).
+    #   "legacy"      — the original single-call run_tailored_cv (default).
+    #   "w8_verified" — the role-family composition + deterministic enforce +
+    #                   entailment-verify path (the validated beta writer).
+    # Reversible at runtime by setting/unsetting the env var; flag-off keeps the
+    # exact legacy behaviour, so deploys are safe before the flip.
+    # -------------------------------------------------------------------------
+    TAILORED_CV_WRITER: str = "legacy"
+
+    # -------------------------------------------------------------------------
     # HMAC shared secret with JobTrackr (set in commit 2c, deployed in 2f).
     # cv-backend rejects requests whose signature does not verify with this.
     # -------------------------------------------------------------------------

@@ -40,6 +40,7 @@ from typing import Any, Dict, List
 
 from app.database import get_supabase
 from app.schemas.cover_letter import GenerateCoverLetterRequest
+from app.services.cover_letter.company_name import normalise_company_in_body
 from app.services.ai.client import AIClient, AIClientError, make_ai_client
 from app.services.ai.prompts.cover_letter.gate_1_honesty import (
     GATE_1_SYSTEM,
@@ -314,6 +315,10 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                 honesty_retry_block="",
             )
 
+        # Guarantee the prompt's "full name once, short form after" rule
+        # deterministically — the model is best-effort about it.
+        body = normalise_company_in_body(body, payload.company_name)
+
         await _patch(letter_id, {
             "pass_3_final": body,
             "generation_status": {"generate": "completed", "honesty": "pending"},
@@ -353,6 +358,7 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                         secondary_story_block=secondary_story_block,
                         honesty_retry_block=retry_block,
                     )
+                body = normalise_company_in_body(body, payload.company_name)
                 await _patch(letter_id, {"pass_3_final": body})
                 passed_2, unsupported_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,

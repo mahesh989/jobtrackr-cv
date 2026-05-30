@@ -85,6 +85,26 @@ async def run_cv_jd_matching(
     # truthful even when the model loses track.
     _reconcile_with_jd(result, jd_analysis)
 
+    # Promote JD keywords the CV honestly satisfies under the role family's
+    # equivalence + qualification-hierarchy rules (e.g. a higher aged-care
+    # certificate subsumes a lower or alternative one the JD lists) from
+    # missed → matched, so an either/or or lower-level requirement isn't flagged
+    # as a gap. Deterministic and honesty-preserving — never invents a match.
+    from app.services.eval.role_families import (
+        promote_matched_equivalents,
+        resolve_role_family,
+    )
+    _rf = resolve_role_family(None, jd_analysis)
+    promoted = promote_matched_equivalents(
+        result["matched"], result["missed"], cv_text, _rf,
+    )
+    if promoted:
+        result["equivalence_promoted"] = promoted
+        logger.info(
+            "CV-JD matching: promoted %d keyword(s) via %s equivalence/hierarchy: %s",
+            len(promoted), _rf.id, promoted,
+        )
+
     # Derived counts and rates — computed by us, not the AI.
     result["counts"] = _compute_counts(result["matched"], jd_analysis)
     result["match_rates"] = _compute_match_rates(result["counts"])

@@ -209,7 +209,7 @@ function buildContactParts(cd: ContactDetails): string[] {
 // ─── Print-time DOM layout (h3/p pairs → two-column rows) ──────────────────
 
 export function applyCvSectionLayout(root: HTMLElement) {
-  const sectionNames = new Set(["professional experience", "experience", "education", "projects"]);
+  const sectionNames = new Set(["professional experience", "experience", "clinical experience", "work experience", "education", "projects"]);
 
   const splitRow = (text: string) => {
     const value = text.trim();

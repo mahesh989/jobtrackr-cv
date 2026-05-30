@@ -58,6 +58,17 @@ fact at all. If the CV mentions the employer, the technology, the \
 achievement, or the qualification — even briefly, even phrased differently \
 — the claim passes.
 
+NAMED CREDENTIALS — HIGHEST STAKES: a specific educational institution, \
+degree, field of study, or professional certification is the most damaging \
+thing to get wrong, so check each named one INDEPENDENTLY. The exact \
+credential must appear in the CV in some form (a different spelling or \
+abbreviation is fine — "École Polytechnique" vouches for "Polytechnique"). \
+Do NOT let a real degree TYPE vouch for an institution or field the CV never \
+names: if the letter says "Bachelor of Science at <School>" but the CV names \
+no such school, flag the unsupported part. A named school/degree/cert that \
+appears nowhere in the CV is fabricated, even when a different real \
+qualification exists.
+
 When in doubt, do NOT flag. False positives are worse than false negatives \
 in this system — users see the warnings, and a noisy gate trains them to \
 ignore real problems.

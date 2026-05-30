@@ -28,7 +28,28 @@ const CAT_LABEL: Record<string, string> = {
   soft_skills:       "Soft skills",
   domain_knowledge:  "Domain knowledge",
 };
-const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
+type Cat = "technical" | "soft_skills" | "domain_knowledge";
+const DEFAULT_CAT_ORDER: Cat[] = ["technical", "soft_skills", "domain_knowledge"];
+
+// Role-family-aware display labels persisted on the JD analysis
+// (jd_analysis_result.category_labels). Falls back to the generic labels for
+// runs analysed before the role-family enrichment landed.
+function resolveCatLabels(data: Record<string, unknown>): Record<string, string> {
+  const raw = (data as { category_labels?: Record<string, string> }).category_labels;
+  if (!raw || typeof raw !== "object") return CAT_LABEL;
+  return { ...CAT_LABEL, ...raw };
+}
+
+// Role-family-aware display order (jd_analysis_result.category_order): headline
+// bucket first (Clinical/Technical/Core), then soft, then the other bucket.
+function resolveCatOrder(data: Record<string, unknown>): Cat[] {
+  const raw = (data as { category_order?: string[] }).category_order;
+  if (!Array.isArray(raw)) return DEFAULT_CAT_ORDER;
+  const valid = raw.filter(
+    (k): k is Cat => k === "technical" || k === "soft_skills" || k === "domain_knowledge",
+  );
+  return valid.length === 3 ? valid : DEFAULT_CAT_ORDER;
+}
 
 // Decide whether the JD analysis came back "weak" — i.e. the AI couldn't
 // extract a real role description because the source text was a stub /
@@ -60,6 +81,8 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
   const reqIsCategorised  = req  != null && !Array.isArray(req)  && typeof req  === "object";
   const prefIsCategorised = pref != null && !Array.isArray(pref) && typeof pref === "object";
   const weak = isWeakAnalysis(d);
+  const catLabels = resolveCatLabels(data);
+  const catOrder = resolveCatOrder(data);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -103,12 +126,12 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 
         {/* Required skills */}
         {req && (
-          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" />
+          <SkillBlock label="Required skills" skills={req} categorised={reqIsCategorised} variant="required" catLabels={catLabels} catOrder={catOrder} />
         )}
 
         {/* Preferred skills */}
         {pref && (
-          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" />
+          <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" catLabels={catLabels} catOrder={catOrder} />
         )}
 
         {/* Responsibilities */}
@@ -135,18 +158,20 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function SkillBlock({
-  label, skills, categorised, variant,
+  label, skills, categorised, variant, catLabels, catOrder,
 }: {
   label: string;
   skills: CategorisedSkills | string[];
   categorised: boolean;
   variant: "required" | "preferred";
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
   return (
     <div>
       <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">{label}</h3>
       {categorised ? (
-        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} />
+        <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} catLabels={catLabels} catOrder={catOrder} />
       ) : (
         <FlatChips items={skills as string[]} variant={variant} />
       )}
@@ -155,23 +180,25 @@ function SkillBlock({
 }
 
 function CategorisedSkillGrid({
-  skills, variant,
+  skills, variant, catLabels, catOrder,
 }: {
   skills: CategorisedSkills;
   variant: "required" | "preferred";
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
-  const hasAny = CAT_ORDER.some((k) => (skills[k]?.length ?? 0) > 0);
+  const hasAny = catOrder.some((k) => (skills[k]?.length ?? 0) > 0);
   if (!hasAny) return null;
 
   return (
     <div className="space-y-2">
-      {CAT_ORDER.map((cat) => {
+      {catOrder.map((cat) => {
         const items = skills[cat];
         if (!items || items.length === 0) return null;
         return (
           <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
             <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
-              {CAT_LABEL[cat]}
+              {catLabels[cat]}
             </span>
             <div className="flex flex-wrap gap-1">
               {items.map((s) => <Chip key={s} label={s} variant={variant} />)}

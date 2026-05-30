@@ -306,6 +306,12 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
     run.step_status?.tailored_cv === "skipped" &&
     !!run.job_id;
 
+  // Role-family-aware skill-category labels persisted on the JD analysis
+  // (jd_analysis_result.category_labels). Drives the matching card + CV skills
+  // summary so a nursing run shows "Clinical Skills" instead of "Technical".
+  const catLabels = resolveCatLabels(run.jd_analysis_result);
+  const catOrder  = resolveCatOrder(run.jd_analysis_result);
+
   return (
     <div className="space-y-6">
       {/* Steps */}
@@ -321,7 +327,9 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           </span>
         </div>
         <div className="px-5 py-3 divide-y divide-border/50">
-          {STEPS.map((s) => (
+          {STEPS
+            .filter((s) => (run.step_status?.[s.key] ?? "pending") !== "skipped")
+            .map((s) => (
             <StepRow
               key={s.key}
               label={s.label}
@@ -472,7 +480,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
       </div>
 
       {/* CV skills — shown independently of the JD, mirrors cv-magic order. */}
-      {cvCategorisedSkills && <CvSkillsSummary skills={cvCategorisedSkills} label={cvLabel ?? null} />}
+      {cvCategorisedSkills && <CvSkillsSummary skills={cvCategorisedSkills} label={cvLabel ?? null} catLabels={catLabels} catOrder={catOrder} />}
 
       {/* Pipeline output cards — order matches cv-magic: scoring impact
           appears BEFORE the tailored CV markdown so the user sees the
@@ -481,7 +489,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         <JdAnalysisCard data={run.jd_analysis_result as Record<string, unknown>} />
       )}
       {run.cv_jd_matching_result && (
-        <CvJdMatchingCard data={run.cv_jd_matching_result as Record<string, unknown>} />
+        <CvJdMatchingCard data={run.cv_jd_matching_result as Record<string, unknown>} catLabels={catLabels} catOrder={catOrder} />
       )}
       {run.ats_scoring_result && (
         <AtsScoreCard data={run.ats_scoring_result as Record<string, unknown>} />
@@ -520,19 +528,43 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 // ── CV skills summary (independent of JD) ───────────────────────────────────
 
 const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
-const CAT_LABEL: Record<(typeof CAT_ORDER)[number], string> = {
+type Cat = (typeof CAT_ORDER)[number];
+const CAT_LABEL: Record<Cat, string> = {
   technical:        "Technical",
   soft_skills:      "Soft skills",
   domain_knowledge: "Domain knowledge",
 };
 
+// Merge the role-family-aware labels persisted on jd_analysis_result over the
+// generic defaults. Runs analysed before the enrichment landed have no
+// category_labels and fall back to the defaults.
+function resolveCatLabels(jd: Record<string, unknown> | null): Record<string, string> {
+  const raw = (jd as { category_labels?: Record<string, string> } | null)?.category_labels;
+  if (!raw || typeof raw !== "object") return CAT_LABEL;
+  return { ...CAT_LABEL, ...raw };
+}
+
+// Role-family-aware display order persisted on jd_analysis_result.category_order
+// (headline bucket first, then soft, then the other bucket). Falls back to the
+// generic order for runs analysed before the enrichment landed.
+function resolveCatOrder(jd: Record<string, unknown> | null): Cat[] {
+  const raw = (jd as { category_order?: string[] } | null)?.category_order;
+  if (!Array.isArray(raw)) return [...CAT_ORDER];
+  const valid = raw.filter(
+    (k): k is Cat => k === "technical" || k === "soft_skills" || k === "domain_knowledge",
+  );
+  return valid.length === 3 ? valid : [...CAT_ORDER];
+}
+
 function CvSkillsSummary({
-  skills, label,
+  skills, label, catLabels, catOrder,
 }: {
   skills: CategorisedSkills;
   label:  string | null;
+  catLabels: Record<string, string>;
+  catOrder: Cat[];
 }) {
-  const totals = CAT_ORDER.map((c) => skills[c]?.length ?? 0);
+  const totals = catOrder.map((c) => skills[c]?.length ?? 0);
   const total  = totals.reduce((a, b) => a + b, 0);
   if (total === 0) return null;
 
@@ -544,10 +576,10 @@ function CvSkillsSummary({
       </div>
       <div className="px-5 py-4 space-y-3">
         <div className="flex flex-wrap gap-4 text-[12px]">
-          {CAT_ORDER.map((cat, i) => (
+          {catOrder.map((cat, i) => (
             <div key={cat} className="flex items-baseline gap-1.5">
               <span className="text-[14px] font-semibold tabular-nums text-text">{totals[i]}</span>
-              <span className="text-text-3">{CAT_LABEL[cat].toLowerCase()}</span>
+              <span className="text-text-3">{catLabels[cat].toLowerCase()}</span>
             </div>
           ))}
           <div className="ml-auto flex items-baseline gap-1.5">
@@ -556,13 +588,13 @@ function CvSkillsSummary({
           </div>
         </div>
         <div className="space-y-2">
-          {CAT_ORDER.map((cat) => {
+          {catOrder.map((cat) => {
             const items = skills[cat];
             if (!items || items.length === 0) return null;
             return (
               <div key={cat}>
                 <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1">
-                  {CAT_LABEL[cat]} <span className="font-normal">({items.length})</span>
+                  {catLabels[cat]} <span className="font-normal">({items.length})</span>
                 </h3>
                 <div className="flex flex-wrap gap-1">
                   {items.map((s) => (

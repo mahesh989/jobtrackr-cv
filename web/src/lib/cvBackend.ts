@@ -36,43 +36,71 @@ export async function callCvBackend<T>(
   if (!path.startsWith("/internal/")) throw new Error("path must start with /internal/");
 
   const timeoutMs = opts.timeoutMs ?? 30_000;
-  const ts        = Math.floor(Date.now() / 1000);
   const rawBody   = JSON.stringify(body ?? {});
-  const sig       = crypto
-    .createHmac("sha256", SECRET)
-    .update(`${ts}${rawBody}`)
-    .digest("hex");
 
-  let res: Response;
-  try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Timestamp":  String(ts),
-        "X-Signature":  sig,
-      },
-      body:    rawBody,
-      signal:  AbortSignal.timeout(timeoutMs),
-      cache:   "no-store",
-    });
-  } catch (err) {
-    throw new CvBackendError(
-      0,
-      err instanceof Error ? err.message : String(err),
-      `cv-backend unreachable: ${path}`,
-    );
+  // Retry ONLY on connection-level failures (status 0 — the request never
+  // reached the backend, e.g. a Fly machine restart during a deploy or a
+  // transient network blip). Because the server never received the request,
+  // retrying is safe even for POSTs (no duplicate eval runs). We do NOT retry
+  // timeouts (the server may be mid-work) or HTTP 4xx/5xx (a real response).
+  const maxAttempts  = 3;
+  const baseDelayMs  = 1_500;
+
+  let lastConnErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Fresh timestamp + signature each attempt so the HMAC window stays valid.
+    const ts  = Math.floor(Date.now() / 1000);
+    const sig = crypto
+      .createHmac("sha256", SECRET)
+      .update(`${ts}${rawBody}`)
+      .digest("hex");
+
+    let res: Response;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Timestamp":  String(ts),
+          "X-Signature":  sig,
+        },
+        body:    rawBody,
+        signal:  AbortSignal.timeout(timeoutMs),
+        cache:   "no-store",
+      });
+    } catch (err) {
+      lastConnErr = err;
+      const isTimeout =
+        err instanceof Error &&
+        (err.name === "TimeoutError" || err.name === "AbortError");
+      if (!isTimeout && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * attempt));
+        continue; // connection blip — retry with backoff
+      }
+      throw new CvBackendError(
+        0,
+        err instanceof Error ? err.message : String(err),
+        `cv-backend unreachable: ${path}`,
+      );
+    }
+
+    // Read body once — try JSON, fall back to text for non-JSON errors.
+    const text = await res.text();
+    let parsed: unknown = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+
+    if (!res.ok) {
+      throw new CvBackendError(res.status, parsed, `cv-backend ${res.status} on ${path}`);
+    }
+    return parsed as T;
   }
 
-  // Read body once — try JSON, fall back to text for non-JSON errors.
-  const text = await res.text();
-  let parsed: unknown = null;
-  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
-
-  if (!res.ok) {
-    throw new CvBackendError(res.status, parsed, `cv-backend ${res.status} on ${path}`);
-  }
-  return parsed as T;
+  // Exhausted retries on connection failures.
+  throw new CvBackendError(
+    0,
+    lastConnErr instanceof Error ? lastConnErr.message : String(lastConnErr),
+    `cv-backend unreachable after ${maxAttempts} attempts: ${path}`,
+  );
 }
 
 // ── Typed wrappers ───────────────────────────────────────────────────────────
@@ -489,4 +517,105 @@ export function voiceRewriteEmail(
     // Synchronous AI call — single short body. Typical latency 3-8 s.
     { timeoutMs: 30_000 },
   );
+}
+
+// ── Eval harness (beta A/B/C/D screen) ───────────────────────────────────────
+
+export interface AnalyzeEvalPayload {
+  cv_text:         string;
+  jd_text:         string;
+  writer_variant:  string;            // w1_current | w2_general | w3_composition | w4_chat
+  scorer_variant:  string;            // s1_current | s2_grounded | s3_reweighted | s4_llm
+  jd_label?:       string | null;
+  vertical?:       string | null;
+  cv_source?:      string | null;
+  experiment_id?:  string | null;
+  iteration?:      number;
+  contact_details?: Record<string, unknown> | null;
+  ai_provider:     "anthropic" | "openai" | "deepseek";
+  ai_api_key:      string;
+  ai_model?:       string | null;
+}
+
+export interface AnalyzeEvalResult {
+  eval_run_id: string;
+  status:      "running";
+}
+
+export function triggerEvalRun(
+  payload: AnalyzeEvalPayload,
+): Promise<AnalyzeEvalResult> {
+  return callCvBackend<AnalyzeEvalResult>(
+    "/internal/analyze-eval",
+    payload,
+    { timeoutMs: 20_000 },          // returns 202 fast; long work runs in background
+  );
+}
+
+export interface EvalRunRow {
+  id:                 string;
+  status:             "running" | "completed" | "failed";
+  error:              string | null;
+  writer_variant:     string;
+  scorer_variant:     string;
+  model:              string | null;
+  jd_label:           string | null;
+  vertical:           string | null;
+  cv_source:          string | null;
+  experiment_id:      string | null;
+  iteration:          number | null;
+  tailored_md:        string | null;
+  initial_ats:        number | null;
+  final_ats:          number | null;
+  ats_lift:           number | null;
+  structural_summary: Record<string, unknown> | null;
+  grounding_report:   Record<string, unknown> | null;
+  rescore_report:     Record<string, unknown> | null;
+  auto_metrics:       Record<string, unknown> | null;
+  timings_ms:         Record<string, unknown> | null;
+  created_at:         string | null;
+}
+
+/**
+ * GET /internal/eval-run/{id} via HMAC. Used by the beta screen's poll loop.
+ * Inlined here (rather than going through callCvBackend) because the existing
+ * helper hardcodes POST; everything else about HMAC signing is identical.
+ */
+export async function getEvalRun(evalRunId: string): Promise<EvalRunRow> {
+  if (!BASE_URL) throw new Error("CV_BACKEND_URL is not set");
+  if (!SECRET)   throw new Error("JOBTRACKR_HMAC_SECRET is not set");
+
+  const ts  = Math.floor(Date.now() / 1000);
+  const sig = crypto
+    .createHmac("sha256", SECRET)
+    .update(`${ts}`)     // empty body
+    .digest("hex");
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/internal/eval-run/${encodeURIComponent(evalRunId)}`, {
+      method:  "GET",
+      headers: {
+        "X-Timestamp":  String(ts),
+        "X-Signature":  sig,
+      },
+      signal:  AbortSignal.timeout(10_000),
+      cache:   "no-store",
+    });
+  } catch (err) {
+    throw new CvBackendError(
+      0,
+      err instanceof Error ? err.message : String(err),
+      `cv-backend unreachable: /internal/eval-run/${evalRunId}`,
+    );
+  }
+
+  const text = await res.text();
+  let parsed: unknown = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+
+  if (!res.ok) {
+    throw new CvBackendError(res.status, parsed, `cv-backend ${res.status} on eval-run`);
+  }
+  return parsed as EvalRunRow;
 }

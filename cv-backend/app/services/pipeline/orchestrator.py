@@ -120,6 +120,24 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
             await mark_step(run_id, step_status, "jd_analysis", "completed")
 
+        # Attach the resolved role family + family-aware category labels so every
+        # downstream step and the UI render category-1 as "Clinical Skills"
+        # (nursing) / "Technical Skills" (tech) / "Core Skills" (manual) instead
+        # of the IT-default "Technical". Rides in the jd_analysis_result JSON, so
+        # no migration. Idempotent — recomputes only when absent (handles old
+        # cached analyses on resume).
+        # Keyed on category_order so a resume of a run enriched by an older
+        # label scheme recomputes against the current one.
+        if not jd_analysis.get("category_order"):
+            from app.services.eval.role_families import (
+                category_labels, category_order, resolve_role_family,
+            )
+            _rf = resolve_role_family(None, jd_analysis)
+            jd_analysis["role_family"] = _rf.id
+            jd_analysis["category_labels"] = category_labels(_rf)
+            jd_analysis["category_order"] = category_order(_rf)
+            await save_step_result(run_id, "jd_analysis_result", jd_analysis)
+
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
         matching = cached.get("cv_jd_matching_result")
         if matching is not None:
@@ -193,12 +211,22 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "keyword_feasibility", "completed")
 
         # ── Step 5 — AI recommendations (markdown) ─────────────────────────────
-        await mark_step(run_id, step_status, "ai_recommendations", "running")
-        recs_md = await run_ai_recommendations(
-            ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
-        )
-        await save_step_result(run_id, "ai_recommendations", recs_md)
-        await mark_step(run_id, step_status, "ai_recommendations", "completed")
+        # The w8_verified writer composes from the feasibility plan directly and
+        # never consumes these recommendations, so skip the AI call entirely on
+        # that path — it keeps the per-run call count at legacy parity and avoids
+        # showing "Will Be Applied" advice the writer doesn't actually apply.
+        use_w8 = get_settings().TAILORED_CV_WRITER == "w8_verified"
+        recs_md = ""
+        if use_w8:
+            step_status["ai_recommendations"] = "skipped"
+            await save_step_result(run_id, "step_status", step_status)
+        else:
+            await mark_step(run_id, step_status, "ai_recommendations", "running")
+            recs_md = await run_ai_recommendations(
+                ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
+            )
+            await save_step_result(run_id, "ai_recommendations", recs_md)
+            await mark_step(run_id, step_status, "ai_recommendations", "completed")
 
         # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
         # contact_details (when present) stamps the user's canonical contact
@@ -206,11 +234,25 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
         await mark_step(run_id, step_status, "tailored_cv", "running")
-        tailored_md, tailored_storage_path = await run_tailored_cv(
-            ai_client, payload.user_id, run_id, payload.cv_text,
-            jd_analysis, recs_md, feasibility,
-            contact_details=payload.contact_details,
-        )
+        if use_w8:
+            # Validated beta writer (role-family composition + deterministic
+            # enforce + entailment verify). Reuses the upstream artifacts above
+            # so it adds only the composition + verify calls. Same storage path
+            # and (markdown, storage_path) contract as the legacy writer.
+            logger.info("run %s: tailoring via w8_verified writer", run_id)
+            from app.services.eval.writers import run_tailored_cv_w8_verified
+            tailored_md, tailored_storage_path = await run_tailored_cv_w8_verified(
+                ai_client, payload.user_id, run_id, payload.cv_text, payload.jd_text,
+                jd_analysis, matching, ats, input_recs, feasibility,
+                contact_details=payload.contact_details,
+            )
+        else:
+            logger.info("run %s: tailoring via legacy writer", run_id)
+            tailored_md, tailored_storage_path = await run_tailored_cv(
+                ai_client, payload.user_id, run_id, payload.cv_text,
+                jd_analysis, recs_md, feasibility,
+                contact_details=payload.contact_details,
+            )
         await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
 
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
@@ -246,16 +288,52 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         except Exception as exc:
             logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
-        # ── Step 6.5 — Deterministic re-score of the tailored CV ───────────────
+        # ── Step 6.5 — Keyword chip reporting (deterministic) ─────────────────
+        # Still runs the deterministic rescoring so the UI can show which
+        # keywords were injected, which failed, and which are honest gaps.
+        # The SCORE itself is now sourced from a real AI matching call below,
+        # so keyword lift is measured accurately regardless of paraphrasing.
         rescore = run_tailored_rescoring(
             tailored_md, jd_analysis, matching, feasibility, ats,
         )
+
+        # ── Step 6.5b — Real AI re-score of the tailored CV ───────────────────
+        # Re-runs the matching step on the tailored markdown to get an honest
+        # score: paraphrased keyword injections, restructured bullets, and
+        # equivalence promotions are all captured by the AI — not just literal
+        # string matches. This also unfreezes Category 2 (raw_match_score /
+        # experience match) which the deterministic approach could never update.
+        try:
+            tailored_matching_scored = await run_cv_jd_matching(
+                ai_client, tailored_md, jd_analysis,
+            )
+            tailored_ats_scored = run_ats_scoring(
+                tailored_md, jd_analysis, tailored_matching_scored,
+            )
+            tailored_score = tailored_ats_scored.get("overall_score")
+            logger.info(
+                "run %s: tailored re-score — original=%s tailored=%s",
+                run_id, ats.get("overall_score"), tailored_score,
+            )
+        except Exception as exc:
+            # Non-fatal: fall back to the deterministic approximation so the
+            # run completes even if the extra AI call fails.
+            logger.warning(
+                "run %s: tailored AI re-score failed (%s) — falling back to "
+                "deterministic estimate", run_id, exc,
+            )
+            tailored_ats_scored = rescore["tailored_ats_scoring_result"]
+            tailored_score = rescore["tailored_match_score"]
+
+        original_score = int((ats or {}).get("overall_score") or 0)
+        tailored_score_int = int(tailored_score) if tailored_score is not None else None
+        ats_lift_real = (tailored_score_int - original_score) if tailored_score_int is not None else rescore["ats_lift"]
 
         # ── Step 6.6 — Deterministic structural validation ─────────────────────
         structural_report = run_tailored_structural_validation(
             tailored_md, payload.cv_text, jd_analysis=jd_analysis,
         )
-        tailored_ats_payload = dict(rescore["tailored_ats_scoring_result"])
+        tailored_ats_payload = dict(tailored_ats_scored)
         tailored_ats_payload["structural_report"] = structural_report
         if structural_report.get("summary", {}).get("fail"):
             logger.info(
@@ -267,14 +345,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             )
 
         await save_step_result(run_id, "tailored_ats_scoring_result", tailored_ats_payload)
-        await save_step_result(run_id, "tailored_match_score", rescore["tailored_match_score"])
-        await save_step_result(run_id, "ats_lift", rescore["ats_lift"])
+        await save_step_result(run_id, "tailored_match_score", tailored_score_int)
+        await save_step_result(run_id, "ats_lift", ats_lift_real)
 
         # ── Final-ATS gate (Phase C-2 — record only, no early-stop) ───────────
         # Phase E will use this to decide whether to run cover-letter
         # generation; for now the cover-letter step is always user-triggered
         # so this is information-only.
-        final_score = rescore["tailored_match_score"]
+        final_score = tailored_score_int
         if final_score is not None:
             await save_step_result(
                 run_id, "passed_final_gate",
@@ -289,8 +367,8 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "tailored_cv", "completed")
 
         await mark_run_completed(run_id)
-        logger.info("run %s: pipeline completed (score=%s lift=%s)",
-                    run_id, ats.get("overall_score"), rescore["ats_lift"])
+        logger.info("run %s: pipeline completed (score=%s tailored=%s lift=%s)",
+                    run_id, ats.get("overall_score"), tailored_score_int, ats_lift_real)
 
         # ── Auto cover letter ────────────────────────────────────────────────
         # Triggered when the tailored score clears the user's final gate.
