@@ -402,3 +402,106 @@ def apply_equivalences(
     if added:
         feasibility.setdefault("_equivalences_added", []).extend(added)
     return feasibility
+
+
+# ---------------------------------------------------------------------------
+# Match-time equivalences + qualification hierarchy
+# ---------------------------------------------------------------------------
+
+_MATCH_BUCKETS = ("required", "preferred")
+_MATCH_CATS = ("technical", "soft_skills", "domain_knowledge")
+
+# Aged-care / personal-care qualification streams treated as interchangeable for
+# AIN / personal-care / aged-care roles. A higher AQF certificate level in the
+# same family subsumes a lower or alternative one (Cert IV ⊇ Cert III), so the
+# matcher must not flag an either/or or lower-level cert as missing when the CV
+# already holds an equivalent or higher qualification.
+_AGED_CARE_QUAL_TERMS = (
+    "aged care", "ageing support", "ageing", "aged-care",
+    "individual support", "personal care", "community care",
+    "home care", "home and community care", "disability",
+)
+_ROMAN_LEVEL = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
+_CERT_RE = re.compile(r"certificate\s+([ivx]+)\b(?:\s+(?:in|of)\s+([a-z ,&/+-]+))?")
+
+
+def _aged_care_cert_level(text: str) -> int:
+    """Highest aged-care-family certificate level present in `text` (0 if none).
+    'Certificate IV in Ageing Support' → 4."""
+    best = 0
+    for m in _CERT_RE.finditer(text.lower()):
+        lvl = _ROMAN_LEVEL.get(m.group(1))
+        stream = m.group(2) or ""
+        if lvl and any(t in stream for t in _AGED_CARE_QUAL_TERMS):
+            best = max(best, lvl)
+    return best
+
+
+def _required_aged_care_cert_level(keyword: str) -> int | None:
+    """AQF level of an aged-care-family certificate requirement, else None.
+    'certificate iii in individual support' → 3."""
+    m = _CERT_RE.search(keyword.lower())
+    if not m:
+        return None
+    lvl = _ROMAN_LEVEL.get(m.group(1))
+    stream = m.group(2) or ""
+    if lvl and any(t in stream for t in _AGED_CARE_QUAL_TERMS):
+        return lvl
+    return None
+
+
+def promote_matched_equivalents(
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
+    cv_text: str,
+    rf: RoleFamilyProfile,
+) -> List[str]:
+    """
+    Move JD keywords from `missed` to `matched` when the CV honestly satisfies
+    them under the role family's rules — never invents a match. Two sources:
+
+      1. rf.equivalences synonyms — the JD term and a CV term mean the same
+         thing (JD 'Aged Care' ⇄ CV 'ageing support').
+      2. Aged-care certificate hierarchy (nursing only) — a higher or
+         alternative AQF certificate in the CV subsumes a lower/alternative one
+         the JD lists (Cert IV in Ageing Support ⊇ Cert III in Individual
+         Support). This is the "either/or + qualification level" rule for
+         AIN / personal-care roles.
+
+    Mutates matched/missed in place; returns the promoted keywords (lowercased).
+    """
+    cv_l = (cv_text or "").lower()
+    promoted: List[str] = []
+
+    def _move(bucket: str, cat: str, kw: str) -> None:
+        if kw not in missed[bucket][cat]:
+            return
+        missed[bucket][cat] = [k for k in missed[bucket][cat] if k != kw]
+        if kw not in matched[bucket][cat]:
+            matched[bucket][cat].append(kw)
+        promoted.append(kw)
+
+    # 1. Verified synonyms from the family's equivalence table.
+    for jd_term, cv_terms, category in rf.equivalences:
+        if category not in _MATCH_CATS:
+            continue
+        if not any(
+            re.search(r"\b" + re.escape(t.lower()) + r"\b", cv_l) for t in cv_terms
+        ):
+            continue
+        key = jd_term.lower()
+        for bucket in _MATCH_BUCKETS:
+            _move(bucket, category, key)
+
+    # 2. Aged-care certificate hierarchy (AIN / personal-care).
+    if rf.id == "nursing":
+        cv_level = _aged_care_cert_level(cv_l)
+        if cv_level:
+            for bucket in _MATCH_BUCKETS:
+                for cat in _MATCH_CATS:
+                    for kw in list(missed[bucket][cat]):
+                        req_level = _required_aged_care_cert_level(kw)
+                        if req_level is not None and req_level <= cv_level:
+                            _move(bucket, cat, kw)
+
+    return promoted
