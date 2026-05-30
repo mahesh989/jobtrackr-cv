@@ -67,13 +67,13 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
 export function JobBoard({
   jobs,
   counts,
-  railJobs,
+  railJobs = [],
   thinJdJobs,
   sourceParam,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
-  railJobs:    RailJob[];
+  railJobs?:   RailJob[];
   thinJdJobs:  ThinJdJob[];
   sourceParam?: string;
 }) {
