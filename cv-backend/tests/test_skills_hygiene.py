@@ -1,7 +1,11 @@
 """Skills-section hygiene: non-skill phrases (qualifications, eligibility/
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
-from app.services.eval.writers import _is_non_skill_phrase, _strip_non_skill_phrases
+from app.services.eval.writers import (
+    _is_non_skill_phrase,
+    _strip_non_skill_phrases,
+    _relabel_awards_only_certifications,
+)
 
 
 def test_predicate_rejects_non_skills():
@@ -81,3 +85,32 @@ def test_strip_drops_emptied_category_line():
 def test_strip_noops_without_skills_section():
     md = "# Name\n\n## Experience\n- Did things\n"
     assert _strip_non_skill_phrases(md) == md
+
+
+def test_relabel_awards_only_certifications():
+    md = (
+        "## Certifications\n"
+        "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)\n\n"
+        "## Education\n"
+    )
+    out = _relabel_awards_only_certifications(md)
+    assert "## Awards" in out
+    assert "## Certifications" not in out
+    assert "Staff Excellence Award" in out
+
+
+def test_relabel_keeps_real_certifications():
+    md = (
+        "## Certifications\n"
+        "- Certificate IV in Ageing Support\n"
+        "- Staff Excellence Award (Aug 2025)\n\n"
+        "## Education\n"
+    )
+    out = _relabel_awards_only_certifications(md)
+    assert "## Certifications" in out
+    assert "## Awards" not in out
+
+
+def test_relabel_noops_without_certifications():
+    md = "## Skills\n**Care Skills:** Personal care\n"
+    assert _relabel_awards_only_certifications(md) == md

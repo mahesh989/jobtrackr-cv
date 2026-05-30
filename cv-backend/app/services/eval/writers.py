@@ -538,6 +538,51 @@ def _strip_non_skill_phrases(markdown: str) -> str:
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------------------
+# Awards-only Certifications → "Awards". The source CV often parks an award
+# (e.g. "Staff Excellence Award") under a "Certifications" heading. When every
+# entry is an award/recognition and none is an actual credential, relabel the
+# heading so it reads honestly. Mixed or cert-bearing sections are left alone.
+# ---------------------------------------------------------------------------
+
+_AWARD_RE = re.compile(
+    r"\b(award|recognition|prize|honou?r|medal|dean'?s list|scholarship)\b",
+    re.IGNORECASE,
+)
+_CERT_LIKE_RE = re.compile(
+    r"\b(certificate|certification|certified|licen[sc]e|diploma|accreditation"
+    r"|police check|first aid|cpr|working with children|wwcc|registration"
+    r"|qualification)\b",
+    re.IGNORECASE,
+)
+
+
+def _relabel_awards_only_certifications(markdown: str) -> str:
+    """Rename a ``## Certifications`` heading to ``## Awards`` when its entries
+    are all award/recognition lines and none is an actual credential."""
+    lines = markdown.split("\n")
+    start = None
+    end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip().lower() == "## certifications":
+            start = i
+        elif start is not None and line.startswith("## "):
+            end = i
+            break
+    if start is None:
+        return markdown
+
+    content = [ln.strip() for ln in lines[start + 1:end] if ln.strip()]
+    if not content:
+        return markdown
+    if all(_AWARD_RE.search(e) for e in content) and not any(
+        _CERT_LIKE_RE.search(e) for e in content
+    ):
+        lines[start] = "## Awards"
+        logger.info("w8: relabelled awards-only Certifications section to Awards")
+    return "\n".join(lines)
+
+
 async def _writer_w5_surfacing(
     client: AIClient,
     cv_text: str,
@@ -803,6 +848,8 @@ async def _writer_w8_integrated(
     # 4. Rename canonical headings back to the family's names and apply the
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
+    # 4a. Relabel an awards-only "Certifications" section to "Awards".
+    final_md = _relabel_awards_only_certifications(final_md)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
