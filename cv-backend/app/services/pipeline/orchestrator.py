@@ -288,16 +288,52 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         except Exception as exc:
             logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
-        # ── Step 6.5 — Deterministic re-score of the tailored CV ───────────────
+        # ── Step 6.5 — Keyword chip reporting (deterministic) ─────────────────
+        # Still runs the deterministic rescoring so the UI can show which
+        # keywords were injected, which failed, and which are honest gaps.
+        # The SCORE itself is now sourced from a real AI matching call below,
+        # so keyword lift is measured accurately regardless of paraphrasing.
         rescore = run_tailored_rescoring(
             tailored_md, jd_analysis, matching, feasibility, ats,
         )
+
+        # ── Step 6.5b — Real AI re-score of the tailored CV ───────────────────
+        # Re-runs the matching step on the tailored markdown to get an honest
+        # score: paraphrased keyword injections, restructured bullets, and
+        # equivalence promotions are all captured by the AI — not just literal
+        # string matches. This also unfreezes Category 2 (raw_match_score /
+        # experience match) which the deterministic approach could never update.
+        try:
+            tailored_matching_scored = await run_cv_jd_matching(
+                ai_client, tailored_md, jd_analysis,
+            )
+            tailored_ats_scored = run_ats_scoring(
+                tailored_md, jd_analysis, tailored_matching_scored,
+            )
+            tailored_score = tailored_ats_scored.get("overall_score")
+            logger.info(
+                "run %s: tailored re-score — original=%s tailored=%s",
+                run_id, ats.get("overall_score"), tailored_score,
+            )
+        except Exception as exc:
+            # Non-fatal: fall back to the deterministic approximation so the
+            # run completes even if the extra AI call fails.
+            logger.warning(
+                "run %s: tailored AI re-score failed (%s) — falling back to "
+                "deterministic estimate", run_id, exc,
+            )
+            tailored_ats_scored = rescore["tailored_ats_scoring_result"]
+            tailored_score = rescore["tailored_match_score"]
+
+        original_score = int((ats or {}).get("overall_score") or 0)
+        tailored_score_int = int(tailored_score) if tailored_score is not None else None
+        ats_lift_real = (tailored_score_int - original_score) if tailored_score_int is not None else rescore["ats_lift"]
 
         # ── Step 6.6 — Deterministic structural validation ─────────────────────
         structural_report = run_tailored_structural_validation(
             tailored_md, payload.cv_text, jd_analysis=jd_analysis,
         )
-        tailored_ats_payload = dict(rescore["tailored_ats_scoring_result"])
+        tailored_ats_payload = dict(tailored_ats_scored)
         tailored_ats_payload["structural_report"] = structural_report
         if structural_report.get("summary", {}).get("fail"):
             logger.info(
@@ -309,14 +345,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             )
 
         await save_step_result(run_id, "tailored_ats_scoring_result", tailored_ats_payload)
-        await save_step_result(run_id, "tailored_match_score", rescore["tailored_match_score"])
-        await save_step_result(run_id, "ats_lift", rescore["ats_lift"])
+        await save_step_result(run_id, "tailored_match_score", tailored_score_int)
+        await save_step_result(run_id, "ats_lift", ats_lift_real)
 
         # ── Final-ATS gate (Phase C-2 — record only, no early-stop) ───────────
         # Phase E will use this to decide whether to run cover-letter
         # generation; for now the cover-letter step is always user-triggered
         # so this is information-only.
-        final_score = rescore["tailored_match_score"]
+        final_score = tailored_score_int
         if final_score is not None:
             await save_step_result(
                 run_id, "passed_final_gate",
@@ -331,8 +367,8 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "tailored_cv", "completed")
 
         await mark_run_completed(run_id)
-        logger.info("run %s: pipeline completed (score=%s lift=%s)",
-                    run_id, ats.get("overall_score"), rescore["ats_lift"])
+        logger.info("run %s: pipeline completed (score=%s tailored=%s lift=%s)",
+                    run_id, ats.get("overall_score"), tailored_score_int, ats_lift_real)
 
         # ── Auto cover letter ────────────────────────────────────────────────
         # Triggered when the tailored score clears the user's final gate.
