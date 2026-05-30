@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Optional
@@ -435,6 +436,8 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
             key = term.lower()
             if key in seen_terms or _kw_in_skills(term, skills_text_lower):
                 continue
+            if _is_non_skill_phrase(term):
+                continue
             if existing_count >= cap:
                 break
             seen_terms.add(key)
@@ -448,6 +451,91 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
         logger.info("w8 surfacing: re-added %d matched JD skill term(s)", appended)
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Skills hygiene — drop "non-skill" entries that the matcher surfaces or the
+# base classifier mislabels. These are JD keywords that match for scoring but
+# read as junk in a Skills list: qualifications (belong in Education; a higher
+# cert subsumes a lower one — Cert IV ⊇ Cert III), eligibility/compliance
+# phrases (work rights, police checks), bare sector names (Aged Care), and
+# JD-phrasing fillers ("Experience in…", "Knowledge of…"). Stripping them from
+# Skills does not lose the keyword for ATS — the scorer still matches it from
+# Education/Summary/Experience, or re-derives cert equivalences via promotion.
+# ---------------------------------------------------------------------------
+
+# Exact (lowercased) entries that are sector/setting names, not skills.
+_NON_SKILL_EXACT: set[str] = {
+    "aged care", "aged care practices", "aged care practice",
+    "aged care experience", "ageing support", "ageing",
+    "residential aged care", "home care", "community care",
+}
+# Entries beginning with these are JD-phrasing fillers, not skills.
+_NON_SKILL_PREFIXES: tuple[str, ...] = (
+    "experience in", "experienced in", "knowledge of", "understanding of",
+    "ability to", "familiarity with", "demonstrated ", "proven ",
+    "willingness to", "commitment to", "passion for",
+)
+# Qualification / eligibility / compliance signals — never genuine skills.
+_NON_SKILL_PATTERN = re.compile(
+    r"\b(certificate|cert|diploma|degree|bachelor|qualification|or equivalent"
+    r"|work rights|right to work|police check|working with children|wwcc"
+    r"|compliance|eligibility|eligible to work|visa|clearance)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_non_skill_phrase(term: str) -> bool:
+    """True if `term` is a sector name / qualification / eligibility phrase /
+    filler that should not appear as a Skills entry."""
+    t = term.strip().lower()
+    if not t:
+        return True
+    if t in _NON_SKILL_EXACT:
+        return True
+    if any(t.startswith(p) for p in _NON_SKILL_PREFIXES):
+        return True
+    return bool(_NON_SKILL_PATTERN.search(t))
+
+
+_SKILLS_LINE_RE = re.compile(r"^(\s*\*\*[^*]+:\*\*\s*)(.*)$")
+
+
+def _strip_non_skill_phrases(markdown: str) -> str:
+    """Remove non-skill entries from each category line in the canonical
+    ``## Skills`` section. Drops a category line entirely if it ends up empty."""
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    out: list[str] = []
+    removed = 0
+    for i, line in enumerate(lines):
+        if not (skills_start < i < skills_end):
+            out.append(line)
+            continue
+        m = _SKILLS_LINE_RE.match(line)
+        if not m:
+            out.append(line)
+            continue
+        prefix, body = m.group(1), m.group(2)
+        parts = [p.strip() for p in body.split(",")]
+        kept = [p for p in parts if p and not _is_non_skill_phrase(p)]
+        removed += len([p for p in parts if p]) - len(kept)
+        if kept:
+            out.append(prefix + ", ".join(kept))
+        # else: drop the now-empty category line entirely.
+    if removed:
+        logger.info("w8 skills hygiene: removed %d non-skill phrase(s)", removed)
+    return "\n".join(out)
 
 
 async def _writer_w5_surfacing(
@@ -705,6 +793,10 @@ async def _writer_w8_integrated(
     #     Skipped for the "none" policy (trades) where minimalism is intentional.
     if role_family.injection_policy != "none":
         md = _surface_matched_skills(md, up["matching"])
+    # 3a-bis. Strip non-skill entries (qualifications, eligibility/compliance,
+    #     bare sector names, JD-phrasing fillers) from the Skills section, no
+    #     matter whether the base classifier or the surfacing pass added them.
+    md = _strip_non_skill_phrases(md)
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)
@@ -819,6 +911,7 @@ async def _writer_w8_critique(
             original_cv_text=cv_text,
             drop_ungrounded=(role_family.injection_policy == "none"),
         )
+        md = _strip_non_skill_phrases(md)
         md = ensure_bachelor(md, cv_text)
         revised = restore_and_order(md, role_family)
     else:
