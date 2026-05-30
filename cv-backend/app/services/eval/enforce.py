@@ -97,6 +97,7 @@ def enforce_skills_section(
     cv_norm = f" {_norm(original_cv_text)} " if original_cv_text else ""
     seen: set[str] = set()           # cross-line dedup
     line_idx = 0                      # which of the 3 category lines we're on
+    drop_idx: set[int] = set()        # empty category lines to remove entirely
 
     for i in range(start + 1, end):
         m = _LABEL_LINE_RE.match(lines[i])
@@ -120,6 +121,15 @@ def enforce_skills_section(
             if len(kept) >= cap:
                 break
 
+        # Never emit a dangling "**Label:**" with no items — if a category has
+        # nothing genuine to show, drop the whole line rather than enforce an
+        # empty section the user didn't earn.
+        if not kept:
+            drop_idx.add(i)
+            continue
         lines[i] = f"**{label}:** " + ", ".join(kept)
+
+    if drop_idx:
+        lines = [ln for idx, ln in enumerate(lines) if idx not in drop_idx]
 
     return "\n".join(lines)
