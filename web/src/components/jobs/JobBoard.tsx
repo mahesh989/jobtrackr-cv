@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PipelineFunnel, type FunnelCounts } from "./PipelineFunnel";
 import { SmartFilterBar } from "./SmartFilterBar";
-import { ContinueRail, type RailJob } from "./ContinueRail";
 import { JobTable } from "./JobTable";
 import { BulkThinJdButton, type ThinJdJob } from "./BulkThinJdButton";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob } from "./jobFilters";
@@ -35,13 +34,11 @@ function resolveStage(sp: URLSearchParams): string {
 export function JobBoard({
   jobs,
   counts,
-  railJobs,
   thinJdJobs,
   sourceParam,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
-  railJobs:    RailJob[];
   thinJdJobs:  ThinJdJob[];
   sourceParam?: string;
 }) {
@@ -110,8 +107,6 @@ export function JobBoard({
       <PipelineFunnel counts={counts} currentStage={stage} excludeStages={["all", "applied"]} shallow />
 
       <SmartFilterBar total={filtered.length} showKeywords={false} showAtsFilter shallow />
-
-      <ContinueRail jobs={railJobs} currentTab={stage} />
 
       <JobTable jobs={filtered} showVisa={showVisa} currentTab={stage} />
     </>

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PipelineFunnel, type FunnelCounts } from "./PipelineFunnel";
 import { SmartFilterBar } from "./SmartFilterBar";
-import { ContinueRail, type RailJob } from "./ContinueRail";
 import { JobTable } from "./JobTable";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob } from "./jobFilters";
 
@@ -37,11 +36,9 @@ function resolveStage(sp: URLSearchParams): string {
 export function ProfileJobBoard({
   jobs,
   counts,
-  railJobs,
 }: {
   jobs:     BoardJob[];
   counts:   FunnelCounts;
-  railJobs: RailJob[];
 }) {
   const sp = useSearchParams();
 
@@ -79,8 +76,6 @@ export function ProfileJobBoard({
       <PipelineFunnel counts={counts} currentStage={stage} shallow />
 
       <SmartFilterBar total={filtered.length} showKeywords showAtsFilter={false} shallow />
-
-      <ContinueRail jobs={railJobs} currentTab={stage} />
 
       {/* Table section — scrolled to when a funnel stage is clicked */}
       <div ref={tableRef}>

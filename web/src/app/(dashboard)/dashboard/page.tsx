@@ -31,7 +31,6 @@ import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
-import { type RailJob } from "@/components/jobs/ContinueRail";
 import { JobBoard } from "@/components/jobs/JobBoard";
 import { atsBandFor, type BoardJob } from "@/components/jobs/jobFilters";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
@@ -275,20 +274,6 @@ export default async function DashboardPage({
     discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, newCount: 0,
     needsJd: 0, roleMismatch: 0, belowThreshold: 0, hasEmail: 0, thinJd: 0, richJd: 0
   };
-
-  const railJobs: RailJob[] = [...typedJobs]
-    .filter((x) => x.progress.last_progress_at !== null && !x.dismissed_at)
-    .sort((a, b) =>
-      (b.progress.last_progress_at ?? "").localeCompare(a.progress.last_progress_at ?? ""),
-    )
-    .slice(0, 3)
-    .map((x) => ({
-      id:         x.id,
-      profile_id: x.profile_id,
-      title:      x.title,
-      company:    x.company,
-      progress:   x.progress,
-    }));
 
   // View filtering (stage / triage / ATS band / min-keywords) and sorting now
   // happen instantly client-side in <JobBoard> from this full loaded set — no
@@ -594,7 +579,6 @@ export default async function DashboardPage({
             <JobBoard
               jobs={typedJobs}
               counts={funnelCounts}
-              railJobs={railJobs}
               thinJdJobs={thinJdJobs}
               sourceParam={sp.source}
             />
