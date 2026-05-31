@@ -51,11 +51,32 @@ characteristic section of their About page or company blog. Do not paraphrase.
 For hiring_intel: return what you can find. Empty lists are acceptable.
 hiring_manager_likely should be a name if discoverable, otherwise null.
 
+GEOGRAPHIC CONSISTENCY (HARD — applies when the user message specifies a JD
+location). If the raw research content appears to describe a DIFFERENT
+organisation than the one the JD names — typically a same-name organisation
+in a different country (e.g. "Sanctuary Care and Support Services" the
+Australian NDIS provider vs. "Sanctuary Group" the UK charity with 110 care
+homes; "Atlassian" the SaaS company vs. an unrelated regional Atlassian
+named after the same mountain range) — return EMPTY facts rather than
+facts about the wrong organisation:
+  • distinguishing_facts: []
+  • description_short: ""
+  • mission_statement: ""
+  • products_or_services: []
+  • recent_events: []
+  • headquarters: "" (or whatever city the JD specifies, if any)
+A blank company_fact is INFINITELY better than a fabricated one — the cover
+letter generator falls back to sector framing when facts are absent. When
+in doubt about which organisation the raw research describes (different
+country, different industry, different scale than the JD's organisation),
+return blanks and let downstream code handle it.
+
 Return ONLY valid JSON. No commentary, no markdown fences.\
 """
 
 COMPANY_RESEARCH_USER_TEMPLATE = """\
 Company: {company_name}
+JD location: {jd_location_block}
 
 Raw research content (web search results + website scraping):
 {raw_research_text}

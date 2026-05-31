@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Optional
 
 from app.schemas.company import CompanyFacts
+from app.services.company.jd_geo import detect_country, fact_text_country_mismatch
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,7 @@ def select_facts(
     jd_text: str,
     cv_text: str,
     facts: CompanyFacts,
+    jd_location: Optional[str] = None,
 ) -> list[dict]:
     """
     Rank company facts by keyword relevance to jd_text + cv_text.
@@ -110,6 +113,12 @@ def select_facts(
         User's master CV text. Combined with JD for richer query signal.
     facts : CompanyFacts
         Validated CompanyFacts from the company_research row.
+    jd_location : Optional[str]
+        JD's job location. When supplied AND a country can be inferred, any
+        candidate fact whose text references a DIFFERENT country is dropped
+        before scoring (defends against same-name conflations like UK
+        Sanctuary Group facts on an AU Sanctuary Care JD). None falls back
+        to the geographically-naive ranking.
 
     Returns
     -------
@@ -127,6 +136,25 @@ def select_facts(
     if not candidates:
         logger.warning("select_facts: no fact candidates extracted from CompanyFacts")
         return []
+
+    # Geographic filter — drop candidates that mention a country other than
+    # the JD's. Skipped when no JD country can be inferred (conservative —
+    # never makes things worse than the legacy ranking).
+    jd_country = detect_country(jd_location) if jd_location else None
+    if jd_country:
+        before = len(candidates)
+        candidates = [
+            (text, src) for text, src in candidates
+            if not fact_text_country_mismatch(text, jd_country)
+        ]
+        dropped = before - len(candidates)
+        if dropped:
+            logger.info(
+                "select_facts: dropped %d/%d wrong-country fact(s) (jd_country=%s)",
+                dropped,
+                before,
+                jd_country,
+            )
 
     scored = [
         {

@@ -544,6 +544,7 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
             company_name=body.company_name,
             company_domain=body.company_domain,
             tavily_api_key=settings.TAVILY_API_KEY or None,
+            jd_location=body.jd_location,
         )
     except CompanyResearchError as exc:
         raise HTTPException(
@@ -584,6 +585,7 @@ async def select_company_fact_endpoint(body: SelectCompanyFactRequest) -> Select
         jd_text=body.jd_text,
         cv_text=body.cv_text,
         facts=body.facts,
+        jd_location=body.jd_location,
     )
     return SelectCompanyFactResponse(
         ranked_facts=[

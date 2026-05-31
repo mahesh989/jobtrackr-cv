@@ -46,6 +46,11 @@ from app.services.ai.prompts.cover_letter.company_research import (
     COMPANY_RESEARCH_SYSTEM,
     COMPANY_RESEARCH_USER_TEMPLATE,
 )
+from app.services.company.jd_geo import (
+    country_full_name,
+    detect_country,
+    normalise_location,
+)
 from app.services.company.quality_scorer import compute_quality_score
 from app.services.company.slug import make_company_slug
 from app.security.ssrf import SSRFError, safe_get
@@ -78,15 +83,28 @@ class CompanyResearchError(Exception):
 async def _tavily_search(
     company_name: str,
     tavily_api_key: str,
+    jd_location: Optional[str] = None,
+    jd_country_name: Optional[str] = None,
 ) -> tuple[list[dict], int]:
     """
     Run three Tavily searches for the company. Returns (results_list, count).
     results_list entries: {"title", "url", "content"} dicts from Tavily.
+
+    When jd_location and/or jd_country_name are supplied, queries are biased
+    toward the JD's geography — this disambiguates same-named organisations
+    in different countries (e.g. AU Sanctuary Care vs. UK Sanctuary Group).
     """
+    loc = (jd_location or "").strip()
+    country = (jd_country_name or "").strip()
+    # The geo suffix prefers location (more specific) over country, falling
+    # back to country when location is empty, and to "" when both are absent.
+    # An empty suffix reverts to the original (geographically-naive) query.
+    geo_suffix = f" {loc}" if loc else (f" {country}" if country else "")
+    country_suffix = f" {country}" if country else geo_suffix
     queries = [
-        f"{company_name} official website about mission values",
-        f"{company_name} news 2025 2026",
-        f"{company_name} careers team culture engineering",
+        f"{company_name}{geo_suffix} official website",
+        f'"{company_name}"{country_suffix} about mission',
+        f"{company_name}{geo_suffix} careers team culture",
     ]
     all_results: list[dict] = []
 
@@ -254,6 +272,7 @@ async def research_company(
     company_name: str,
     company_domain: Optional[str],
     tavily_api_key: Optional[str],
+    jd_location: Optional[str] = None,
 ) -> dict:
     """
     Research a company and return a dict ready for Supabase INSERT.
@@ -268,6 +287,10 @@ async def research_company(
         Domain hint if known (e.g. 'atlassian.com'). May be None.
     tavily_api_key : Optional[str]
         System-level Tavily key from env. If None/empty, search is skipped.
+    jd_location : Optional[str]
+        JD's job location (e.g. "Rouse Hill, Sydney NSW"). Used to bias
+        search queries and to flag fact-text country mismatches downstream.
+        None falls back to legacy geographically-naive behaviour.
 
     Returns
     -------
@@ -275,7 +298,18 @@ async def research_company(
         Serialised CompanyResearch, ready for supabase.table('company_research').upsert().
     """
     company_id = make_company_slug(company_name)
-    logger.info("research_company: company_id=%r name=%r", company_id, company_name)
+    # Resolve JD geography (country code + human-readable country name +
+    # cleaned location) once; pass downstream as needed.
+    jd_country_code = detect_country(jd_location)
+    jd_country_name = country_full_name(jd_country_code)
+    cleaned_location = normalise_location(jd_location)
+    logger.info(
+        "research_company: company_id=%r name=%r jd_location=%r country=%s",
+        company_id,
+        company_name,
+        cleaned_location,
+        jd_country_code or "unknown",
+    )
 
     # ── 1. Tavily search ───────────────────────────────────────────────────────
     search_skipped = False
@@ -284,7 +318,12 @@ async def research_company(
 
     if tavily_api_key and tavily_api_key.strip():
         try:
-            tavily_results, sources_found = await _tavily_search(company_name, tavily_api_key)
+            tavily_results, sources_found = await _tavily_search(
+                company_name,
+                tavily_api_key,
+                jd_location=cleaned_location,
+                jd_country_name=jd_country_name,
+            )
         except Exception as exc:
             logger.warning("tavily search raised unexpectedly: %s", exc)
             search_skipped = True
@@ -310,8 +349,21 @@ async def research_company(
     raw_research_text = _assemble_research_text(tavily_results, scraped_text, company_name)
 
     # ── 4. AI distillation ────────────────────────────────────────────────────
+    # jd_location_block surfaces the JD's geography (city + country) to the
+    # model so it can refuse to distill facts about a wrong-country org.
+    # Renders as "Sydney NSW, Australia" when both known, or just one of them
+    # when only one is, or "(not specified)" so the prompt still parses.
+    if cleaned_location and jd_country_name:
+        jd_location_block = f"{cleaned_location}, {jd_country_name}"
+    elif cleaned_location:
+        jd_location_block = cleaned_location
+    elif jd_country_name:
+        jd_location_block = jd_country_name
+    else:
+        jd_location_block = "(not specified)"
     user_prompt = COMPANY_RESEARCH_USER_TEMPLATE.format(
         company_name=company_name,
+        jd_location_block=jd_location_block,
         raw_research_text=raw_research_text,
     )
 

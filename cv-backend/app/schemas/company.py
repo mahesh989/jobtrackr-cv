@@ -88,6 +88,11 @@ class CompanyResearch(BaseModel):
 class ResearchCompanyRequest(BaseModel):
     company_name: str
     company_domain: Optional[str] = None
+    # JD's job location (e.g. "Rouse Hill, Sydney NSW"). When supplied, used
+    # to bias search queries and to flag wrong-country facts during AI
+    # distillation. Optional — omitting falls back to the geographically-
+    # naive legacy path.
+    jd_location: Optional[str] = None
     ai_provider: Literal["anthropic", "openai", "deepseek"]
     ai_api_key: str
     ai_model: Optional[str] = None
@@ -111,6 +116,9 @@ class SelectCompanyFactRequest(BaseModel):
     facts: CompanyFacts
     jd_text: str
     cv_text: str
+    # JD's job location for the geographic mismatch filter. Optional — when
+    # absent, all facts are scored without the country-mismatch drop.
+    jd_location: Optional[str] = None
 
 
 class SelectCompanyFactResponse(BaseModel):
