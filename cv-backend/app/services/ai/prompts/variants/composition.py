@@ -64,6 +64,12 @@ language — but only on achievements the CV truthfully supports.
   governance, compliance, safety, accessibility), name that theme using the
   candidate's ADJACENT honest work (validation, accuracy, data integrity,
   audits) — never claim the theme without real CV support.
+- VERBATIM REPLACEMENT: when a bullet uses a generic synonym for a JD phrase
+  the candidate honestly supports, REPLACE with the JD's exact wording — do not
+  leave the generic synonym in place. Example: JD says "functions of daily
+  living" and your bullet draft says "daily tasks" → rewrite to "functions of
+  daily living". Only do this where the candidate's work HONESTLY supports the
+  JD phrase; never mirror a phrase the CV cannot back up.
 
 GENERATION ORDER (decide before you write — prevents ghost references)
 Before emitting anything, internally FIX your selections: which experience roles
@@ -89,7 +95,14 @@ may add field-specific suppression, e.g. an AI/ML identity for tech.)
 OUTPUT SHAPE
 - # Name (level-1). Below it ONE contact line (a placeholder is fine — it is
   overwritten by post-processing).
-- Use ## section headings in the EXACT ORDER given by the role pack below.
+- Use ## section headings in the EXACT ORDER given by the role pack below. Do
+  NOT emit headings OUTSIDE the prescribed set — no ad-hoc ## Awards, ##
+  Volunteering, ## Interests, ## Hobbies, ## Languages (unless the role pack
+  lists them). RELOCATE such content into the nearest prescribed section:
+  awards/recognitions go under ## Certifications (a downstream relabel handles
+  the final heading); volunteering that meets the role's discipline goes under
+  ## Experience; anything that fits nowhere — drop it. Section order is
+  authoritative; do not rename prescribed headings.
 - Every entry is a strict TWO-LINE block — the H3 line holds the org/place, the
   italic line holds the role/dates. Put the fields in EXACTLY these slots; do
   NOT cram everything onto the H3 line and do NOT add a third descriptor line:
@@ -141,6 +154,9 @@ EXPERIENCE — selection & rewriting
   list and the CV honestly supports showing it in action, evidence it in ONE
   bullet rather than leaving it a bare keyword. If no bullet can honestly show
   it, leave it in Skills only — never fabricate a demonstration.
+- VERB TENSE: bullets under a completed role use PAST-tense action verbs
+  ("delivered", "led", "reduced"). A current role marked "– Present" may use
+  present tense. Be consistent within a role; never mix tenses inside one role.
 
 PROJECTS (only if your role pack's section order includes a Projects section)
 - Keep 1-2 projects. A project qualifies ONLY if it shares the JD's DOMAIN or
@@ -179,9 +195,16 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   NO off-axis sector/identity labels: do not cite an industry or specialism the
   JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
   name only JD-aligned domains.
-- Sentence 2 (achievement, ≤22 words): action verb + method + quantified result
-  + company anchor. If you kept 2+ roles, use two clauses (one per top role)
-  joined by a semicolon.
+- Sentence 2 (achievement, ≤22 words): PAST-tense action verb + method +
+  quantified result + company anchor. If you kept 2+ roles, use two clauses
+  (one per top role) joined by a semicolon. NEVER write S2 in the present tense
+  ("delivers", "manages") — the achievement is complete; the verb is past.
+  COMPANY ANCHOR is mandatory: name at least one kept employer in S2 (drop it
+  into the clause naturally, e.g. "…at Jesmond Miranda Nursing Home").
+- METRIC FALLBACK: if the kept experience supplies NO quantified result anywhere,
+  do NOT invent one. Use the strongest concrete outcome the CV actually shows —
+  a named system/process, a scope phrase (across multiple sites/shifts), an
+  observed quality (incident-free record, audit pass). Never fabricate a number.
 - No generic openers ("Results-driven", "Passionate", "Detail-oriented").
 - Do NOT open with a seniority adjective ("Entry-level", "Junior", "Graduate",
   "Aspiring", "Senior") unless that exact word is in the candidate's CV title.
@@ -193,16 +216,34 @@ word appears in the candidate's CV job titles. The years figure reflects the
 candidate's ACTUAL relevant experience from the CV (round down); never match
 the JD's minimum.
 
-BEFORE YOU EMIT — quick self-check
-(1) Summary is exactly two sentences, 35-50 words, no dropped-item references,
-    no tool names, no echo of the title's words.
-(2) Every kept role has 2-3 bullets; off-axis bullets reframed, not lifted.
-(3) Projects (if any) are best-FIT, ≤2, none duplicated in Experience.
-(4) Bachelor kept; off-field graduate degrees dropped.
-(5) Certifications obey the role pack's cert policy (named-only + omitted-for-
-    projects where required; same issuer/year merged; within cap).
-(6) Off-axis identity suppressed per JD focus; off-axis tools out of Skills.
-(7) No cannot_inject keyword anywhere; no fabricated metric or proper noun."""
+BEFORE YOU EMIT — final self-audit (run these in order; fix any failure in
+place; do not emit until every item passes):
+(1)  CHRONO: Experience entries are in strict reverse-chronological order by
+     start date (most recent first). Do not detach bullets from their parent role.
+(2)  SUMMARY_STRUCT: exactly 2 sentences, 35-50 words total, prose only.
+(3)  SUMMARY_S1: role title + (years OR breadth framing when <2 yrs across
+     multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
+     specialisations do NOT echo the title's own words; no tool names; no off-
+     axis sector labels.
+(4)  SUMMARY_S2: PAST-tense verb + method + (quantified) result + company
+     anchor naming a kept employer. No present tense. No fabricated metric — use
+     a concrete non-numeric outcome if the CV gives no number.
+(5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
+     client, tool, or achievement absent from kept sections).
+(6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence
+     EXACTLY; no ad-hoc ## Awards/Volunteering/Interests/Hobbies/Languages.
+(7)  BULLETS: every kept role has 2-3 bullets; each is a full sentence ending
+     in a period; each is 18-30 words.
+(8)  BULLET_TENSE: completed roles use past-tense verbs; only "– Present" roles
+     may use present tense; tense is consistent within a role.
+(9)  JD_MIRROR: where the candidate honestly supports them, JD phrases appear
+     VERBATIM (no generic synonyms left in place).
+(10) PROJECTS/EDU/CERTS: Projects (if any) best-FIT ≤2, no duplication in
+     Experience; Bachelor kept, off-field graduate degree dropped; Certifications
+     obey the role pack's cert policy (within cap, same-issuer merged).
+(11) TRUTH + INJECTION: no invented skill/employer/metric/cert/proper noun; no
+     cannot_inject keyword anywhere; off-axis identity suppressed per JD focus;
+     off-axis tools kept out of Skills."""
 
 
 # ---------------------------------------------------------------------------
