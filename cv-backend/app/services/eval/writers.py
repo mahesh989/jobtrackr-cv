@@ -477,10 +477,24 @@ _NON_SKILL_PREFIXES: tuple[str, ...] = (
     "willingness to", "commitment to", "passion for",
 )
 # Qualification / eligibility / compliance signals — never genuine skills.
+# Also catches JD-phrasing "experience in/with/of X" anywhere in the term
+# (the prefix list only catches it at the START of the term, so phrases like
+# "professional experience in aged care" or "personal experience in disability"
+# slip past — they describe a requirement, not a competency the candidate has).
 _NON_SKILL_PATTERN = re.compile(
     r"\b(certificate|cert|diploma|degree|bachelor|qualification|or equivalent"
     r"|work rights|right to work|police check|working with children|wwcc"
-    r"|compliance|eligibility|eligible to work|visa|clearance)\b",
+    r"|compliance|eligibility|eligible to work|visa|clearance"
+    # "experience in/with/of/working/across …" anywhere — JD-phrasing filler.
+    # Matches "experience in aged care", "personal experience in disability",
+    # "hands-on experience with dementia", "broad experience working in NDIS",
+    # etc. These are role-requirement phrases, never a single skill.
+    r"|experience\s+(in|with|of|working|across|supporting)\b"
+    # Bare "X experience" where X is a qualifier the JD uses to describe a
+    # candidate background ("personal experience", "professional experience",
+    # "lived experience", "prior experience"). On their own they are not a
+    # skill — they are a category of background.
+    r"|(?:professional|personal|lived|prior|previous|extensive|hands[- ]on)\s+experience)\b",
     re.IGNORECASE,
 )
 

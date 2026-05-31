@@ -37,6 +37,20 @@ def test_predicate_rejects_non_skills():
         "Knowledge of dementia care",
         "National Police Check",
         "Diploma of Nursing",
+        # Regression: production Dovida CV listed these under Other Skills.
+        # They are JD-experience requirements ("desirable if you have
+        # professional or personal experience in aged care") — not skills.
+        # Predicate must match "experience in" anywhere in the term, not
+        # just as a prefix.
+        "Professional Experience In Aged Care",
+        "Personal Experience In Aged Care",
+        "Professional Experience In Disability Support",
+        "Personal Experience In Disability Support",
+        "Hands-on Experience With Dementia",
+        "Prior Experience Working In NDIS",
+        "Lived Experience",
+        "Personal Experience",
+        "Professional Experience",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
@@ -53,6 +67,12 @@ def test_predicate_keeps_real_skills():
         "Communication",
         "BESTMed",
         "MedMobile",
+        # Guard against over-matching: words that contain "experience" or
+        # "personal" as a substring but are legitimate single-skill terms.
+        "Personal trainer",
+        "Personal hygiene support",
+        "User experience design",
+        "Customer experience",
     ]:
         assert not _is_non_skill_phrase(skill), skill
 
