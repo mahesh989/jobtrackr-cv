@@ -43,10 +43,24 @@ TRUTH CONTRACT (highest priority — overrides every other rule)
 
 FEASIBILITY PLAN (authoritative for keyword surfacing)
 You are given a feasibility plan classifying JD keywords:
-  - inject_directly / inject_as_extension / inject_with_inference → MAY be
-    surfaced (subject to the role pack's injection policy below).
+  - inject_directly / inject_as_extension / inject_with_inference → MANDATORY
+    TARGETS. Treat every one of these as a keyword you MUST surface verbatim
+    somewhere natural (Skills, an experience bullet, or the summary). The ONLY
+    valid reason to skip an approved keyword is if it names a specific named
+    credential, licence, formal certification, or formal qualification the
+    candidate genuinely does not hold. Professional skills, soft skills,
+    work-practice phrases, domain vocabulary, and communication/operational
+    attributes (e.g. "verbal communication", "risk management", "duty of care",
+    "planning and prioritisation", "writing skills") have ZERO valid reason to
+    skip — inject them verbatim.
   - cannot_inject → HONEST GAPS. These MUST NOT appear in the CV.
 Honour it exactly. Never surface a cannot_inject keyword.
+
+APPROVED KEYWORD MANDATE: before emitting the CV, review the feasibility plan's
+inject_directly + inject_as_extension + inject_with_inference lists. For each
+keyword ask: "Does this exact phrase appear VERBATIM somewhere in my output?"
+If not, and it is not a specific named credential the candidate lacks, ADD it
+now to the most natural location. There is no default-to-skip — default-to-inject.
 
 READ THE ACTUAL JD — AND MIRROR ITS LANGUAGE
 Read the raw JD's real priorities, vocabulary, and emphasis, and tailor to
@@ -243,7 +257,13 @@ place; do not emit until every item passes):
      obey the role pack's cert policy (within cap, same-issuer merged).
 (11) TRUTH + INJECTION: no invented skill/employer/metric/cert/proper noun; no
      cannot_inject keyword anywhere; off-axis identity suppressed per JD focus;
-     off-axis tools kept out of Skills."""
+     off-axis tools kept out of Skills.
+(12) APPROVED KEYWORDS: review every keyword in the feasibility plan's
+     inject_directly + inject_as_extension + inject_with_inference lists. For
+     each one: confirm it appears VERBATIM in the output. If it does not, and it
+     is NOT a specific named credential/licence/qualification the candidate lacks,
+     INSERT it now before emitting. No approved non-credential keyword may be
+     absent from the final CV."""
 
 
 # ---------------------------------------------------------------------------
@@ -276,9 +296,15 @@ _SENIORITY_OVERLAY = {
 
 _INJECTION_POLICY_TEXT = {
     "aggressive": (
-        "INJECTION POLICY (aggressive): you may surface inject_directly, "
-        "inject_as_extension, AND inject_with_inference keywords. Defensible "
-        "inference is allowed (the candidate could discuss it in interview)."
+        "INJECTION POLICY (aggressive): you MUST surface ALL inject_directly, "
+        "inject_as_extension, AND inject_with_inference keywords verbatim. "
+        "Treat the approved list as a mandatory checklist — for every keyword, "
+        "place the EXACT JD phrase naturally (Skills, a bullet, or the summary). "
+        "Skip only for a specific named credential/licence/formal qualification "
+        "the candidate does not hold. Professional phrases, soft skills, "
+        "work-practice terms, and domain vocabulary MUST appear — zero "
+        "tolerance for skipping these. Defensible inference is allowed "
+        "(the candidate could discuss it in interview)."
     ),
     "direct_only": (
         "INJECTION POLICY (direct-only): surface ONLY inject_directly keywords "
