@@ -55,7 +55,15 @@ export function renderCoverLetterPdf(templatedText: string): Buffer {
         doc.addPage();
         yPos = margin;
       }
-      doc.text(wl, margin, yPos);
+      // Strip leading whitespace from the wrapped line AND pass an explicit
+      // align: "left". Two safety belts against jsPDF's letter-spacing
+      // glitch where a wrapped line that begins with whitespace (typically
+      // a paragraph-internal continuation, e.g. " Sanctuary Care…" after
+      // a hard wrap) gets rendered with full-width inter-character spacing
+      // as if "justify" alignment had been requested. align defaults to
+      // "left" in current jsPDF but some font/glyph combos still trip the
+      // bug. Passing it explicitly forces the safe path on every line.
+      doc.text(wl.replace(/^\s+/, ""), margin, yPos, { align: "left" });
       yPos += lineHeight;
     }
   }

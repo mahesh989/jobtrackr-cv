@@ -51,6 +51,17 @@ def test_predicate_rejects_non_skills():
         "Lived Experience",
         "Personal Experience",
         "Professional Experience",
+        # Regression: production Dovida CV listed "Working With Seniors" as
+        # an Other Skill. That's the JD's audience-framing
+        # ("passion for the lives of seniors"), not a discrete competency.
+        "Working With Seniors",
+        "Working With Older People",
+        "Working With The Elderly",
+        "Working With Children",
+        "Supporting Older Adults",
+        "Caring For Patients",
+        "Engaging With Residents",
+        "Supporting Vulnerable People",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
@@ -153,6 +164,46 @@ def test_relabel_keeps_real_certifications():
 def test_relabel_noops_without_certifications():
     md = "## Skills\n**Care Skills:** Personal care\n"
     assert _relabel_awards_only_certifications(md) == md
+
+
+def test_relabel_handles_recognition_heading():
+    """Regression: production Sanctuary CV emitted ## Recognition (not
+    ## Certifications). The relabel must catch the alternative heading and
+    normalise to ## Awards so it lands at the canonical post-Skills slot."""
+    md = (
+        "## Skills\n**Care Skills:** Personal Care\n\n"
+        "## Recognition\n"
+        "### Staff Excellence Award, Jesmond Miranda Nursing Home | Miranda, NSW, Australia\n"
+        "*Recognised For Hard Work, Caring Nature, And Positive Attitude | Aug 2025*\n"
+    )
+    out = _relabel_awards_only_certifications(md)
+    assert "## Awards" in out
+    assert "## Recognition" not in out
+    assert "Staff Excellence Award" in out
+
+
+def test_relabel_handles_achievements_heading():
+    md = (
+        "## Achievements\n"
+        "- Dean's List 2023 — Charles Darwin University\n\n"
+        "## Skills\n"
+    )
+    out = _relabel_awards_only_certifications(md)
+    assert "## Awards" in out
+    assert "## Achievements" not in out
+
+
+def test_relabel_keeps_recognition_with_real_credential():
+    """A Recognition section that contains a real credential entry stays
+    unchanged — the relabel only fires for award-only sections."""
+    md = (
+        "## Recognition\n"
+        "- Staff Excellence Award (Aug 2025)\n"
+        "- First Aid Certificate HLTAID011\n"
+    )
+    out = _relabel_awards_only_certifications(md)
+    assert "## Awards" not in out
+    assert "## Recognition" in out
 
 
 def test_extract_original_credentials():

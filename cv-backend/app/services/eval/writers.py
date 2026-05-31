@@ -494,7 +494,20 @@ _NON_SKILL_PATTERN = re.compile(
     # candidate background ("personal experience", "professional experience",
     # "lived experience", "prior experience"). On their own they are not a
     # skill — they are a category of background.
-    r"|(?:professional|personal|lived|prior|previous|extensive|hands[- ]on)\s+experience)\b",
+    r"|(?:professional|personal|lived|prior|previous|extensive|hands[- ]on)\s+experience"
+    # "Working / Supporting / Caring for [population]" — JD-phrasing for WHO
+    # the work is with, not a discrete skill. "Working with Seniors",
+    # "Supporting Older People", "Caring for Children". The audience belongs
+    # in the summary; the actual skills (Personal Care, Dementia Care,
+    # Behavioural Management) live in the appropriate Skills line. "with"
+    # is optional — natural English has both "supporting seniors" and
+    # "working with seniors".
+    r"|(?:working|supporting|caring\s+for|engaging)(?:\s+with)?\s+"
+    r"(?:the\s+)?"
+    r"(?:seniors|elderly|aged|older\s+(?:people|adults|persons|australians)"
+    r"|children|adolescents|adults|youth|patients|residents|clients"
+    r"|families|consumers|participants|vulnerable\s+(?:people|adults)"
+    r"|the\s+aged|the\s+elderly))\b",
     re.IGNORECASE,
 )
 
@@ -661,7 +674,13 @@ def _normalise_skills_case(markdown: str) -> str:
 # ---------------------------------------------------------------------------
 
 _AWARD_RE = re.compile(
-    r"\b(award|recognition|prize|honou?r|medal|dean'?s list|scholarship)\b",
+    # award/prize/honour/medal/dean's-list/scholarship — exact nouns.
+    # Plus recognition/recognised/recognize/recognised — the italic
+    # continuation line of two-line H3+italic entries often uses the
+    # past-tense verb ("Recognised for hard work…") instead of the noun,
+    # and without it, the all() check rejects the entry as non-award.
+    r"\b(award|recognition|recognise[d]?|recognize[d]?|prize|honou?r|medal"
+    r"|dean'?s list|scholarship|commendation|excellence)\b",
     re.IGNORECASE,
 )
 _CERT_LIKE_RE = re.compile(
@@ -672,18 +691,38 @@ _CERT_LIKE_RE = re.compile(
 )
 
 
+_AWARDS_SOURCE_HEADINGS = {
+    "certifications",
+    "recognition",
+    "recognitions",
+    "achievements",
+    "achievement",
+    "honours",
+    "honors",
+    "accolades",
+}
+
+
 def _relabel_awards_only_certifications(markdown: str) -> str:
-    """Rename a ``## Certifications`` heading to ``## Awards`` when its entries
-    are all award/recognition lines and none is an actual credential."""
+    """Rename a credentials-style heading to ``## Awards`` when its entries
+    are all award/recognition lines and none is an actual credential.
+
+    Catches Certifications AND the AI's recurring alternatives — Recognition,
+    Achievements, Honours. Without this, an ## Recognition section emitted by
+    the writer (production Sanctuary CV) escapes the relabel and persists as
+    an off-rolepack heading, breaking section_order semantics."""
     lines = markdown.split("\n")
     start = None
     end = len(lines)
     for i, line in enumerate(lines):
-        if line.strip().lower() == "## certifications":
-            start = i
-        elif start is not None and line.startswith("## "):
-            end = i
-            break
+        if line.startswith("## "):
+            heading = line[3:].strip().lower().rstrip(":")
+            if heading in _AWARDS_SOURCE_HEADINGS and start is None:
+                start = i
+                continue
+            if start is not None:
+                end = i
+                break
     if start is None:
         return markdown
 
@@ -693,8 +732,12 @@ def _relabel_awards_only_certifications(markdown: str) -> str:
     if all(_AWARD_RE.search(e) for e in content) and not any(
         _CERT_LIKE_RE.search(e) for e in content
     ):
+        original_heading = lines[start][3:].strip().rstrip(":")
         lines[start] = "## Awards"
-        logger.info("w8: relabelled awards-only Certifications section to Awards")
+        logger.info(
+            "w8: relabelled awards-only %s section to Awards",
+            original_heading,
+        )
     return "\n".join(lines)
 
 
