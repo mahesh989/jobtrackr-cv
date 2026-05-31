@@ -337,7 +337,12 @@ def _role_pack_block(rf: RoleFamilyProfile) -> str:
         f"PRODUCT NAME ONLY (e.g. 'BESTMed', 'MedMobile') — never wrap a tool in "
         f"a verbose functional descriptor like 'Electronic medication "
         f"administration (BESTMed, MedMobile)'; the bare product name is the "
-        f"skill.",
+        f"skill. CASE: write every entry in Title Case (capitalise each word: "
+        f"'Personal Care', 'Time Management', 'Person-Centred Care'); keep "
+        f"acronyms upper ('SQL', 'NDIS', 'AHPRA'); keep mixed-case product "
+        f"names exactly as the vendor writes them ('BESTMed', 'MedMobile', "
+        f"'eHealth'). No SHOUTING (don't write 'TEAMWORK'), no sentence case "
+        f"('time management'), no mixed style within or across the three lines.",
         _CERT_POLICY_TEXT.get(rf.cert_policy, _CERT_POLICY_TEXT["plus"]),
         _INJECTION_POLICY_TEXT.get(rf.injection_policy, _INJECTION_POLICY_TEXT["direct_only"]),
     ]

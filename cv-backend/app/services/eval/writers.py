@@ -539,6 +539,107 @@ def _strip_non_skill_phrases(markdown: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Skills-section case normalisation. The AI writer and the surfacing helper
+# emit entries in inconsistent case ("Communication" alongside "time
+# management" and "Person-centred care"). This pass forces consistent Title
+# Case across every entry in every ## Skills category line while preserving:
+#   - all-uppercase acronyms (SQL, AWS, NDIS, AHPRA)
+#   - internal-uppercase product names (BESTMed, MedMobile, eHealth, iCare)
+#   - digit-containing tokens (GA4, AS400, YOLOv8)
+# Hyphenated words are title-cased per part ("person-centred" → "Person-Centred").
+# Idempotent.
+# ---------------------------------------------------------------------------
+
+# Known acronyms — upper-cased regardless of input case. Conservative list
+# focused on the role families we tailor for (healthcare, tech, manual).
+# Distinguishes real acronyms from common all-caps English ("TEAMWORK", "CARE"),
+# which should be title-cased instead.
+_KNOWN_ACRONYMS = frozenset({
+    # Healthcare / nursing
+    "AHPRA", "NDIS", "NDIA", "ACFI", "CPR", "BLS", "ACLS", "ICU", "ED",
+    "OHS", "WHS", "ADL", "ADLS", "SBAR", "ISBAR", "PCA", "ANTT", "PEG",
+    "NGT", "MMSE", "RN", "EN", "AIN", "GP", "IV", "IM", "PRN", "MET",
+    "NEWS", "ECG", "EKG", "BP",
+    # Tech / IT
+    "SQL", "AWS", "GCP", "AI", "ML", "NLP", "API", "REST", "JSON", "XML",
+    "YAML", "CSS", "HTML", "JS", "TS", "IDE", "CI", "CD", "QA", "BI", "CV",
+    "ETL", "ELT", "EDA", "EDW", "OLAP", "OLTP", "IOT", "AR", "VR", "XR",
+    "RBAC", "ABAC", "JVM", "JDK",
+    # Manual / trades / general
+    "HR", "MR", "MC", "LR", "HC", "RSA", "RCG", "EWP", "VOC", "ABN", "ACN",
+    "GST", "BAS",
+})
+
+
+def _smartcase_atom(atom: str) -> str:
+    """Case-normalise a single alphanumeric atom (one of the parts produced by
+    splitting an entry on whitespace AND hyphens)."""
+    if not atom:
+        return atom
+    # Digit-containing tokens — preserve as-is (GA4, AS400, YOLOv8).
+    if any(ch.isdigit() for ch in atom):
+        return atom
+    # Known acronym — upper-case regardless of input case.
+    if atom.isalpha() and atom.upper() in _KNOWN_ACRONYMS:
+        return atom.upper()
+    # Mixed-case product names — uppercase letter after position 0 AND not
+    # entirely upper (BESTMed, MedMobile, eHealth, iCare). All-caps inputs
+    # (TEAMWORK, CARE) fall through to title-case.
+    if any(ch.isupper() for ch in atom[1:]) and not atom.isupper():
+        return atom
+    # Default: Title case ("communication" → "Communication", "TEAMWORK" →
+    # "Teamwork", "ndis" → "Ndis" unless it's on the acronym list above).
+    return atom[:1].upper() + atom[1:].lower()
+
+
+def _smartcase_skill(entry: str) -> str:
+    """Title-case a Skills-line entry consistently while preserving acronyms,
+    mixed-case product names, and digit tokens. Hyphenated words are
+    title-cased per part: ``person-centred care`` → ``Person-Centred Care``."""
+    out_tokens: list[str] = []
+    for tok in entry.strip().split():
+        if not tok:
+            continue
+        # Split on hyphens, smart-case each atom, rejoin so each hyphenated
+        # part is title-cased independently.
+        out_tokens.append("-".join(_smartcase_atom(p) for p in tok.split("-")))
+    return " ".join(out_tokens)
+
+
+def _normalise_skills_case(markdown: str) -> str:
+    """Apply consistent Title Case to every entry in each ## Skills category
+    line. Preserves acronyms, digit tokens, and mixed-case product names.
+    Idempotent — running it twice yields the same output."""
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    changed = 0
+    for i in range(skills_start + 1, skills_end):
+        m = _SKILLS_LINE_RE.match(lines[i])
+        if not m:
+            continue
+        prefix, body = m.group(1), m.group(2)
+        parts = [p.strip() for p in body.split(",") if p.strip()]
+        new_parts = [_smartcase_skill(p) for p in parts]
+        new_line = prefix + ", ".join(new_parts)
+        if new_line != lines[i]:
+            lines[i] = new_line
+            changed += 1
+    if changed:
+        logger.info("w8: normalised case on %d Skills category line(s)", changed)
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Awards-only Certifications → "Awards". The source CV often parks an award
 # (e.g. "Staff Excellence Award") under a "Certifications" heading. When every
 # entry is an award/recognition and none is an actual credential, relabel the
@@ -1014,6 +1115,11 @@ async def _writer_w8_integrated(
     #     bare sector names, JD-phrasing fillers) from the Skills section, no
     #     matter whether the base classifier or the surfacing pass added them.
     md = _strip_non_skill_phrases(md)
+    # 3a-ter. Normalise case across all Skills entries — Title Case with
+    #     preservation rules for acronyms (SQL/NDIS), digit tokens (GA4), and
+    #     mixed-case product names (BESTMed/MedMobile). Fixes inconsistent
+    #     casing between AI-written entries and surfacing-pass entries.
+    md = _normalise_skills_case(md)
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)
@@ -1137,6 +1243,7 @@ async def _writer_w8_critique(
             drop_ungrounded=(role_family.injection_policy == "none"),
         )
         md = _strip_non_skill_phrases(md)
+        md = _normalise_skills_case(md)
         md = ensure_bachelor(md, cv_text)
         md = ensure_awards(md, cv_text)
         revised = restore_and_order(md, role_family)

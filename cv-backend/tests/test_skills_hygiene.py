@@ -8,6 +8,8 @@ from app.services.eval.writers import (
     ensure_awards,
     _extract_original_credentials,
     _strip_ungrounded_credentials,
+    _smartcase_skill,
+    _normalise_skills_case,
 )
 
 _CV_WITH_AWARD = (
@@ -251,3 +253,72 @@ def test_strip_ungrounded_noops_non_credential_sections():
     cv = "Name\n\nExperience\nDid things\n"
     md = "# Name\n\n## Experience\n- Did something unrelated to the CV\n"
     assert _strip_ungrounded_credentials(md, cv) == md
+
+
+# ---------------------------------------------------------------------------
+# Skills-line case normalisation
+# ---------------------------------------------------------------------------
+
+def test_smartcase_plain_words():
+    assert _smartcase_skill("communication") == "Communication"
+    assert _smartcase_skill("time management") == "Time Management"
+    assert _smartcase_skill("TEAMWORK") == "Teamwork"
+
+
+def test_smartcase_preserves_acronyms():
+    assert _smartcase_skill("SQL") == "SQL"
+    assert _smartcase_skill("AWS") == "AWS"
+    assert _smartcase_skill("NDIS Worker Screening") == "NDIS Worker Screening"
+    assert _smartcase_skill("AHPRA") == "AHPRA"
+
+
+def test_smartcase_preserves_mixed_case_products():
+    assert _smartcase_skill("BESTMed") == "BESTMed"
+    assert _smartcase_skill("MedMobile") == "MedMobile"
+    assert _smartcase_skill("eHealth") == "eHealth"
+    assert _smartcase_skill("iCare") == "iCare"
+
+
+def test_smartcase_preserves_digit_tokens():
+    assert _smartcase_skill("GA4") == "GA4"
+    assert _smartcase_skill("AS400") == "AS400"
+    assert _smartcase_skill("YOLOv8") == "YOLOv8"
+
+
+def test_smartcase_handles_hyphens():
+    assert _smartcase_skill("person-centred care") == "Person-Centred Care"
+    assert _smartcase_skill("PERSON-CENTRED CARE") == "Person-Centred Care"
+    assert _smartcase_skill("Person-centred Care") == "Person-Centred Care"
+
+
+def test_normalise_skills_case_consistent_line():
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Personal care, dementia care, MEDICATION ASSISTANCE, BESTMed, MedMobile\n"
+        "**Soft Skills:** Communication, time management, teamwork, Person-centred care\n"
+        "**Other Skills:** SQL, ndis worker screening, behavioural management techniques\n\n"
+        "## Education\n"
+    )
+    out = _normalise_skills_case(md)
+    assert "Personal Care, Dementia Care, Medication Assistance, BESTMed, MedMobile" in out
+    assert "Communication, Time Management, Teamwork, Person-Centred Care" in out
+    assert "SQL, NDIS Worker Screening, Behavioural Management Techniques" in out
+    # Acronyms / mixed-case products preserved.
+    assert "BESTMed" in out and "MedMobile" in out and "SQL" in out and "NDIS" in out
+    # Other sections untouched.
+    assert "## Education" in out
+
+
+def test_normalise_skills_case_is_idempotent():
+    md = (
+        "## Skills\n"
+        "**Soft Skills:** Communication, time management, Person-centred care\n"
+    )
+    once = _normalise_skills_case(md)
+    twice = _normalise_skills_case(once)
+    assert once == twice
+
+
+def test_normalise_skills_case_noops_without_skills_section():
+    md = "# Name\n\n## Experience\n- Did things\n"
+    assert _normalise_skills_case(md) == md
