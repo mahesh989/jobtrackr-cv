@@ -172,6 +172,24 @@ def test_ensure_awards_noop_without_source_section():
     assert ensure_awards(tailored, cv) == tailored
 
 
+def test_ensure_awards_recovers_when_only_mentioned_inline():
+    """Regression: award mentioned in an Experience bullet must NOT prevent
+    the dedicated Awards entry from being recovered. The inline mention is
+    not a substitute for a section entry — recruiters scan for the dedicated
+    section, and the deterministic relabel only fires when the section exists.
+    """
+    tailored = (
+        "# Maheshwor Tiwari\nNSW | email\n\n"
+        "## Experience\n### Jesmond Miranda Nursing Home\n"
+        "- Received Staff Excellence Award for caring nature; delivered care.\n\n"
+        "## Education\n### Heritage Skills Institute\n*Certificate IV in Ageing Support*\n"
+    )
+    out = ensure_awards(tailored, _CV_WITH_AWARD)
+    # Inline mention is preserved AND dedicated section recovered:
+    assert "## Certifications" in out
+    assert out.count("Staff Excellence Award") == 2  # 1 inline + 1 in section
+
+
 def test_ensure_awards_skips_certs_recovers_only_awards():
     cv = (
         "Certifications\n"

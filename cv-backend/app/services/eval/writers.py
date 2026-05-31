@@ -739,23 +739,47 @@ def _extract_original_credentials(cv_text: str) -> list[str]:
     return [e for e in entries if not (e.lower() in seen or seen.add(e.lower()))]
 
 
+def _awards_section_text(markdown: str) -> str:
+    """Return the lowercased text of every credential/awards section in the
+    markdown, joined. Used to decide if an award is already surfaced as a
+    DEDICATED entry (Certifications/Awards/Achievements section), not just
+    mentioned inline in an Experience bullet. Returns "" when no such section
+    exists."""
+    lines = markdown.split("\n")
+    parts: list[str] = []
+    collecting = False
+    for ln in lines:
+        if ln.startswith("## "):
+            heading = ln[3:].strip().lower().rstrip(":")
+            collecting = heading in _CRED_SECTION_WORDS
+            continue
+        if collecting and ln.strip():
+            parts.append(ln.lower())
+    return "\n".join(parts)
+
+
 def ensure_awards(markdown: str, original_cv_text: str) -> str:
     """Re-add original-CV *award/recognition* entries the tailoring dropped.
 
     Award-only by design: trainings, certificates, licences and checks are NOT
     recovered here (the writer/structure path owns real credentials, and
     re-adding them tends to resurrect verbose JD-phrasing junk). No-op when the
-    original lists no awards, or every award already appears in the tailored CV
-    (matched by its distinctive lead phrase)."""
+    original lists no awards, or every award already appears as a dedicated
+    entry in a Certifications/Awards section (an inline mention inside an
+    Experience bullet does NOT count — the dedicated entry is what we recover).
+    """
     entries = [e for e in _extract_original_credentials(original_cv_text)
                if _AWARD_RE.search(e) and not _CERT_LIKE_RE.search(e)]
     if not entries:
         return markdown
-    md_low = markdown.lower()
+    # Scope the "already present" check to credential/awards sections only.
+    # Bullets like "Received Staff Excellence Award at Jesmond…" in Experience
+    # are NOT a substitute for a dedicated Awards entry — we still recover.
+    awards_text = _awards_section_text(markdown)
     missing: list[str] = []
     for e in entries:
         core = re.split(r"\s[–—-]\s|\(|,", e)[0].strip().lower()
-        if (core and core in md_low) or e.lower() in md_low:
+        if (core and core in awards_text) or e.lower() in awards_text:
             continue
         missing.append(e)
     if not missing:
