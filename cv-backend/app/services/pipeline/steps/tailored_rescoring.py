@@ -43,7 +43,11 @@ import logging
 import re
 from typing import Any, Dict, List, Set, Tuple
 
-from app.services.pipeline.steps.ats_scoring import run_ats_scoring
+from app.services.pipeline.steps.ats_scoring import (
+    _FORMATTING_MAX,
+    _to_pct,
+    run_ats_scoring,
+)
 from app.services.pipeline.steps.cv_jd_matching import (
     _compute_counts,
     _compute_match_rates,
@@ -68,16 +72,35 @@ def run_tailored_rescoring(
 
     tailored_lower = (tailored_markdown or "").lower()
 
-    injected: List[str] = []
-    failed: List[str] = []
-    for kw in approved:
-        if _kw_present(kw, tailored_lower):
-            injected.append(kw)
-        else:
-            failed.append(kw)
+    # Honesty blocklist: keywords the feasibility classifier judged we cannot
+    # legitimately claim. Surfacing one of these is a fabrication and is NEVER
+    # credited toward the score.
+    honest_gaps = [
+        str(e.get("keyword") or "").lower().strip()
+        for e in (plan.get("cannot_inject") or [])
+        if isinstance(e, dict) and e.get("keyword")
+    ]
+    blocked: Set[str] = {kw for kw in honest_gaps if kw}
 
-    # Build a tailored matching by promoting verified injections.
-    tailored_matching = _promote_injections(matching, set(injected))
+    # Credit EVERY missed JD keyword the tailored CV now surfaces literally,
+    # except the honesty blocklist. Reacting to any genuine improvement — not
+    # only the keywords the feasibility classifier happened to enumerate — is
+    # what makes this generalise across every analysis. The promotion is
+    # monotonic (missed → matched only): the tailored CV can never score below
+    # the original on keyword coverage.
+    all_missed = _all_missed_keywords(matching)
+    credited: Set[str] = {
+        kw for kw in all_missed
+        if kw and kw not in blocked and _kw_present(kw, tailored_lower)
+    }
+
+    # Reporting split for the UI chips: which approved keywords actually landed
+    # vs which the writer failed to surface.
+    injected = sorted(credited)
+    failed = sorted({kw for kw in approved if kw not in credited})
+
+    # Build a tailored matching by promoting the credited keywords.
+    tailored_matching = _promote_injections(matching, credited)
 
     # Recompute counts + rates against the JD as ground truth.
     tailored_matching["counts"] = _compute_counts(
@@ -87,24 +110,30 @@ def run_tailored_rescoring(
         tailored_matching["counts"]
     )
 
-    # Deterministic ATS score on the tailored CV.
+    # Deterministic ATS score on the tailored CV, using the SAME scorer and the
+    # SAME (frozen) experience signal as the original. raw_match_score rides
+    # through _promote_injections untouched, so Category 2 (experience) is
+    # identical for original and tailored — honest tailoring surfaces keywords,
+    # it does not add experience. Only keyword coverage moves.
     tailored_ats = run_ats_scoring(tailored_markdown, jd_analysis, tailored_matching)
+
+    # Formatting is a property of the GENERATOR, not of tailoring quality. A
+    # clean generated CV must never format worse than the raw original (which
+    # can happen only as an artifact — e.g. contact info not stamped). Floor the
+    # formatting component at the original's so such artifacts can't manufacture
+    # a phantom regression; genuinely cleaner formatting is still rewarded.
+    tailored_ats = _floor_formatting(tailored_ats, original_ats)
 
     original_score = int((original_ats or {}).get("overall_score") or 0)
     tailored_score = int(tailored_ats.get("overall_score") or 0)
     lift = tailored_score - original_score
 
-    honest_gaps = [
-        str(e.get("keyword") or "").lower().strip()
-        for e in (plan.get("cannot_inject") or [])
-        if isinstance(e, dict) and e.get("keyword")
-    ]
-
-    # Fabrication check — if any cannot_inject keyword literally appears in
-    # the tailored CV, the AI broke the prompt contract. Surface it so the
-    # user can see what was wrongly added; it doesn't fail the run.
+    # Fabrication check — if any blocked keyword literally appears in the
+    # tailored CV, the writer broke the honesty contract. Surface it so the
+    # user can see what was wrongly added; it earns no points and doesn't fail
+    # the run.
     fabricated: List[str] = sorted(
-        {kw for kw in honest_gaps if kw and _kw_present(kw, tailored_lower)}
+        {kw for kw in blocked if _kw_present(kw, tailored_lower)}
     )
     if fabricated:
         logger.warning(
@@ -117,8 +146,8 @@ def run_tailored_rescoring(
         "tailored_ats_scoring_result": tailored_ats,
         "tailored_match_score":         tailored_score,
         "ats_lift":                     lift,
-        "injected_keywords":            sorted(set(injected)),
-        "failed_to_inject":             sorted(set(failed)),
+        "injected_keywords":            injected,
+        "failed_to_inject":             failed,
         "honest_gaps":                  honest_gaps,
         "fabricated_keywords":          fabricated,
         "tailored_matching":            tailored_matching,
@@ -128,6 +157,49 @@ def run_tailored_rescoring(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _all_missed_keywords(matching: Dict[str, Any]) -> Set[str]:
+    """Flatten matching['missed'] across every bucket × category to a lower-cased set."""
+    missed = (matching or {}).get("missed") or {}
+    out: Set[str] = set()
+    if not isinstance(missed, dict):
+        return out
+    for bucket in _BUCKETS:
+        b = missed.get(bucket) or {}
+        if not isinstance(b, dict):
+            continue
+        for cat in _CATEGORIES:
+            for kw in (b.get(cat) or []):
+                k = str(kw).lower().strip()
+                if k:
+                    out.add(k)
+    return out
+
+
+def _floor_formatting(
+    tailored_ats: Dict[str, Any], original_ats: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Raise the tailored formatting component to at least the original's.
+
+    Mutates and returns the tailored ATS dict: when the original formatted
+    better, the shortfall is added back to the formatting component, the
+    formatting_score percentage, and the overall_score. A no-op when the
+    tailored CV already formats as well or better.
+    """
+    t_fmt = (tailored_ats.get("breakdown") or {}).get("category_3_formatting") or {}
+    o_fmt = ((original_ats or {}).get("breakdown") or {}).get("category_3_formatting") or {}
+    t_earned = float(t_fmt.get("earned") or 0.0)
+    o_earned = float(o_fmt.get("earned") or 0.0)
+    if o_earned <= t_earned:
+        return tailored_ats
+
+    delta = o_earned - t_earned
+    t_fmt["earned"] = round(o_earned, 1)
+    tailored_ats["formatting_score"] = _to_pct(o_earned, _FORMATTING_MAX)
+    new_overall = int(round((tailored_ats.get("overall_score") or 0) + delta))
+    tailored_ats["overall_score"] = max(0, min(100, new_overall))
+    return tailored_ats
 
 
 def _approved_keywords(plan: Dict[str, Any]) -> List[str]:

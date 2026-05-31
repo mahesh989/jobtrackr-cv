@@ -288,46 +288,31 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         except Exception as exc:
             logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
-        # ── Step 6.5 — Keyword chip reporting (deterministic) ─────────────────
-        # Still runs the deterministic rescoring so the UI can show which
-        # keywords were injected, which failed, and which are honest gaps.
-        # The SCORE itself is now sourced from a real AI matching call below,
-        # so keyword lift is measured accurately regardless of paraphrasing.
+        # ── Step 6.5 — Tailored-CV scoring (deterministic, consistent) ────────
+        # Score the tailored CV with the SAME deterministic scorer and the SAME
+        # baseline as the original (Step 3). Tailoring changes only keyword
+        # coverage — measured by literal presence, exactly what an ATS keys on —
+        # while the experience signal is held constant (honest tailoring
+        # surfaces keywords, it does not add experience) and formatting is
+        # floored at the original's. This makes the comparison apples-to-apples
+        # and the lift monotonic: a genuinely improved CV can never score below
+        # the original. (Replaces a prior AI re-match whose fresh,
+        # non-deterministic call could push the tailored score BELOW the
+        # original — the "bizarre regression" bug.) Identical to the beta
+        # /analyze-eval harness, so beta and production agree exactly.
         rescore = run_tailored_rescoring(
             tailored_md, jd_analysis, matching, feasibility, ats,
         )
-
-        # ── Step 6.5b — Real AI re-score of the tailored CV ───────────────────
-        # Re-runs the matching step on the tailored markdown to get an honest
-        # score: paraphrased keyword injections, restructured bullets, and
-        # equivalence promotions are all captured by the AI — not just literal
-        # string matches. This also unfreezes Category 2 (raw_match_score /
-        # experience match) which the deterministic approach could never update.
-        try:
-            tailored_matching_scored = await run_cv_jd_matching(
-                ai_client, tailored_md, jd_analysis,
-            )
-            tailored_ats_scored = run_ats_scoring(
-                tailored_md, jd_analysis, tailored_matching_scored,
-            )
-            tailored_score = tailored_ats_scored.get("overall_score")
-            logger.info(
-                "run %s: tailored re-score — original=%s tailored=%s",
-                run_id, ats.get("overall_score"), tailored_score,
-            )
-        except Exception as exc:
-            # Non-fatal: fall back to the deterministic approximation so the
-            # run completes even if the extra AI call fails.
-            logger.warning(
-                "run %s: tailored AI re-score failed (%s) — falling back to "
-                "deterministic estimate", run_id, exc,
-            )
-            tailored_ats_scored = rescore["tailored_ats_scoring_result"]
-            tailored_score = rescore["tailored_match_score"]
+        tailored_ats_scored = rescore["tailored_ats_scoring_result"]
+        tailored_score = rescore["tailored_match_score"]
 
         original_score = int((ats or {}).get("overall_score") or 0)
         tailored_score_int = int(tailored_score) if tailored_score is not None else None
-        ats_lift_real = (tailored_score_int - original_score) if tailored_score_int is not None else rescore["ats_lift"]
+        ats_lift_real = rescore["ats_lift"]
+        logger.info(
+            "run %s: tailored score — original=%s tailored=%s lift=%s",
+            run_id, original_score, tailored_score_int, ats_lift_real,
+        )
 
         # ── Step 6.6 — Deterministic structural validation ─────────────────────
         structural_report = run_tailored_structural_validation(
