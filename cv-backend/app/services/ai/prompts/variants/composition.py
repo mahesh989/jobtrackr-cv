@@ -62,6 +62,16 @@ keyword ask: "Does this exact phrase appear VERBATIM somewhere in my output?"
 If not, and it is not a specific named credential the candidate lacks, ADD it
 now to the most natural location. There is no default-to-skip — default-to-inject.
 
+VERBATIM ≠ SYNONYM (ATS matches strings, not meanings). If the JD asks for
+"verbal communication" and your CV already has "Communication" in Skills, that
+does NOT satisfy the verbatim mandate — the ATS scorer matches the EXACT phrase.
+You MUST surface the JD's exact wording somewhere (Skills line, a bullet, or the
+summary) ALONGSIDE the existing synonym — never replace the synonym. Same for
+"written communication" vs "writing", "risk management" vs "managing risks",
+"resident charting" vs "documentation", "duty of care" vs "care". The synonym
+already on the CV is fine; the JD's exact phrase MUST appear too. The only valid
+skip is a specific named credential/licence the candidate does not hold.
+
 READ THE ACTUAL JD — AND MIRROR ITS LANGUAGE
 Read the raw JD's real priorities, vocabulary, and emphasis, and tailor to
 THAT — not a generic version of the role. Where the candidate genuinely meets a
@@ -304,9 +314,15 @@ place; do not emit until every item passes):
      multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
      specialisations do NOT echo the title's own words; no tool names; no off-
      axis sector labels.
-(4)  SUMMARY_S2: PAST-tense verb + method + (quantified) result + company
-     anchor naming a kept employer. No present tense. No fabricated metric — use
-     a concrete non-numeric outcome if the CV gives no number.
+(4)  SUMMARY_S2: scan S2 character-by-character for the name of at least one
+     KEPT employer (the company shown in your ## Experience section's H3 lines,
+     e.g. "Jesmond Miranda Nursing Home", "Uniting – The Marion"). If NONE
+     appears, S2 FAILS — rewrite it now to drop a kept employer name naturally
+     into a clause (e.g. "…at Jesmond Miranda Nursing Home"). Generic phrases
+     like "in aged care facilities", "across the industry", "in residential
+     care" do NOT satisfy the anchor. Also verify: PAST-tense verb (not
+     "delivers"/"manages"); method named; (quantified) result OR concrete
+     non-numeric outcome from the CV (never a fabricated number).
 (5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
      client, tool, or achievement absent from kept sections).
 (6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence
