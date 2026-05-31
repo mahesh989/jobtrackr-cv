@@ -850,21 +850,34 @@ function MenuItem({ children, onClick, disabled }: { children: React.ReactNode; 
 // ── tiny presentational primitives ──────────────────────────────────────
 
 function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  const score = matchScore(job);
-  // Bar colour follows ATS band when there is a run, else falls back to score.
-  const cls = job.atsBand !== "no_ats"
+  const hasAnalysis = job.atsBand !== "no_ats";
+
+  // For analysed jobs show the REAL ATS score (tailored if available, else
+  // initial). For unanalysed jobs fall back to the composite ranking signal.
+  const atsScore    = hasAnalysis ? (job.tailored_match_score ?? job.initial_ats_score ?? null) : null;
+  const displayScore = atsScore ?? matchScore(job);
+  const label        = atsScore != null ? "ATS" : "Match";
+
+  const cls = hasAnalysis
     ? ATS_BAND_META[job.atsBand].barColor
-    : (score >= 70 ? "bg-green-500" : score >= 50 ? "bg-amber-500" : "bg-red-500");
+    : (displayScore >= 70 ? "bg-green-500" : displayScore >= 50 ? "bg-amber-500" : "bg-red-500");
+
+  const tip = atsScore != null
+    ? `ATS score ${displayScore}/100 — ${ATS_BAND_META[job.atsBand].tip}`
+    : `Match score ${displayScore}/100 — combines distance, ATS band, JD quality, freshness, visa hints`;
+
   return (
-    <div
-      className="flex items-center gap-2"
-      title={`Match score ${score}/100 — combines distance, ATS band, JD quality, freshness, visa hints`}
-    >
+    <div className="flex items-center gap-1.5" title={tip}>
+      {!compact && (
+        <span className="text-[9px] font-semibold text-text-3 shrink-0 uppercase tracking-wide w-7 text-right">
+          {label}
+        </span>
+      )}
       <div className={`relative bg-[var(--surface-2)] rounded-full overflow-hidden ${compact ? "h-1" : "h-1.5"} flex-1`}>
-        <div className={`h-full ${cls}`} style={{ width: `${score}%` }} />
+        <div className={`h-full ${cls}`} style={{ width: `${displayScore}%` }} />
       </div>
       <span className={`tabular-nums font-semibold text-text-2 shrink-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-        {score}
+        {displayScore}
       </span>
     </div>
   );

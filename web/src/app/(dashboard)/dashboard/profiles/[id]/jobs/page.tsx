@@ -176,7 +176,14 @@ export default async function JobsPage({
       liveRun?.passed_initial_gate ?? null,
       liveRun?.passed_final_gate   ?? null,
     );
-    return { ...(j as unknown as Job), progress, pipelineState, atsBand };
+    return {
+      ...(j as unknown as Job),
+      progress,
+      pipelineState,
+      atsBand,
+      initial_ats_score:    run?.initial_ats_score    ?? null,
+      tailored_match_score: run?.tailored_match_score ?? null,
+    };
   });
 
   // ── Continue rail — top 3 most recently progressed ───────────────────────

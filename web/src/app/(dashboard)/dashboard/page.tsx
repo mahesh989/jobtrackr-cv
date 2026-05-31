@@ -250,10 +250,12 @@ export default async function DashboardPage({
     const atsBand = atsBandFor(!!run, g?.passedInitial ?? null, g?.passedFinal ?? null);
     return {
       ...(j as unknown as BoardJob),
-      profile_name: profileNameById.get(j.profile_id) ?? null,
+      profile_name:         profileNameById.get(j.profile_id) ?? null,
       progress,
       pipelineState,
       atsBand,
+      initial_ats_score:    run?.initial_ats_score    ?? null,
+      tailored_match_score: run?.tailored_match_score ?? null,
     };
   });
 

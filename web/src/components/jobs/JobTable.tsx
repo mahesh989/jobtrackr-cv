@@ -72,6 +72,9 @@ export interface Job {
   /** 'driving' = OSRM route; 'haversine' = straight-line fallback (UI
    *  renders ~ prefix and a tooltip explaining the approximation). */
   distance_method?:    "driving" | "haversine" | null;
+  /** ATS scores from the latest analysis run (null when not yet analysed). */
+  initial_ats_score?:   number | null;
+  tailored_match_score?: number | null;
   /** Derived in page.tsx via progressFlags.deriveProgress(). */
   progress:            JobProgress;
   /** Derived in page.tsx via pipelineState.derivePipelineState(). */
