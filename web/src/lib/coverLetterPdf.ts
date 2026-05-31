@@ -45,7 +45,11 @@ export function renderCoverLetterPdf(templatedText: string): Buffer {
       yPos += paragraphGap;
       continue;
     }
-    const wrapped: string[] = doc.splitTextToSize(raw, textWidth);
+    // Split with a 10pt safety buffer — jsPDF's character-width tables are
+    // slightly optimistic for some glyph combinations, which causes the last
+    // word of an "exact-fit" line to overflow the right margin by a few pt.
+    // Wrapping 10pt early prevents this without visibly narrowing the column.
+    const wrapped: string[] = doc.splitTextToSize(raw, textWidth - 10);
     for (const wl of wrapped) {
       if (yPos + lineHeight > pageHeight - margin) {
         doc.addPage();
