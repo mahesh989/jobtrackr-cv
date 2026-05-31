@@ -9,7 +9,12 @@
  *     name, phone, email, address, suburb, postcode,
  *     linkedin, github, website, portfolio,
  *     other_label, other_url,
- *     projects: [ { name, url, description }, ... ]
+ *     projects:    [ { name, url, description }, ... ],
+ *     credentials: {              // surfaces on nursing/care CVs only
+ *       ahpra_number, drivers_licence, work_rights, wwcc_state,
+ *       wwcc, police_check, ndis_screening, first_aid, cpr,
+ *       medication_competency, own_car, car_insurance, flu_vaccination,
+ *     },
  *   }
  */
 
@@ -21,6 +26,22 @@ interface Project {
   name?:        string;
   url?:         string;
   description?: string;
+}
+
+interface HealthcareCredentials {
+  ahpra_number?:         string;
+  drivers_licence?:      string;
+  work_rights?:          string;
+  wwcc_state?:           string;
+  wwcc?:                 boolean;
+  police_check?:         boolean;
+  ndis_screening?:       boolean;
+  first_aid?:            boolean;
+  cpr?:                  boolean;
+  medication_competency?: boolean;
+  own_car?:              boolean;
+  car_insurance?:        boolean;
+  flu_vaccination?:      boolean;
 }
 
 interface ContactDetails {
@@ -37,6 +58,7 @@ interface ContactDetails {
   other_label?:  string;
   other_url?:    string;
   projects?:     Project[];
+  credentials?:  HealthcareCredentials;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,6 +103,27 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
       if (proj.name || proj.url || proj.description) projects.push(proj);
     }
     if (projects.length > 0) out.projects = projects;
+  }
+  if (i.credentials && typeof i.credentials === "object") {
+    const c = i.credentials as Record<string, unknown>;
+    const creds: HealthcareCredentials = {};
+    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "wwcc_state"] as const;
+    for (const k of credStr) {
+      if (typeof c[k] === "string") {
+        const v = (c[k] as string).trim();
+        if (v) creds[k] = v;
+      }
+    }
+    const credBool = [
+      "wwcc", "police_check", "ndis_screening", "first_aid", "cpr",
+      "medication_competency", "own_car", "car_insurance", "flu_vaccination",
+    ] as const;
+    for (const k of credBool) {
+      if (c[k] === true) creds[k] = true;
+    }
+    // Only attach when at least one credential was supplied — keeps the
+    // stored JSON minimal and the no-credentials path identical to today.
+    if (Object.keys(creds).length > 0) out.credentials = creds;
   }
   return { ok: true, value: out };
 }

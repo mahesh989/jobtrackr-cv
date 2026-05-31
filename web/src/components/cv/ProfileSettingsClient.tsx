@@ -10,6 +10,28 @@ interface Project {
   description?: string;
 }
 
+/**
+ * Healthcare / care credentials captured in the profile and surfaced
+ * compactly on tailored CVs for nursing/healthcare/care role families.
+ * All optional. Only positive ("held") items are shown on the CV —
+ * a profile with no flags set produces no Registration & Licences section.
+ */
+export interface HealthcareCredentials {
+  ahpra_number?:         string;      // RN/EN/Midwife only — "NMW0001234567"
+  drivers_licence?:      string;      // "" | "Open" | "Provisional" | "Learner"
+  own_car?:              boolean;
+  car_insurance?:        boolean;     // comprehensive
+  work_rights?:          string;      // "" | "Citizen" | "PR" | "Visa with work rights"
+  police_check?:         boolean;     // current national police check
+  ndis_screening?:       boolean;     // NDIS Worker Screening Check
+  wwcc?:                 boolean;     // Working with Children Check
+  wwcc_state?:           string;      // "" | "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "ACT" | "NT"
+  first_aid?:            boolean;     // HLTAID011
+  cpr?:                  boolean;     // HLTAID009
+  flu_vaccination?:      boolean;     // current
+  medication_competency?: boolean;
+}
+
 export interface ContactDetails {
   name?:         string;
   phone?:        string;
@@ -24,6 +46,9 @@ export interface ContactDetails {
   other_label?:  string;
   other_url?:    string;
   projects?:     Project[];
+  /** Surfaces on tailored CVs only when the JD's role family is nursing/
+   *  healthcare/care. Stays hidden on tech/general/manual CVs. */
+  credentials?:  HealthcareCredentials;
 }
 
 interface Props {
@@ -44,12 +69,16 @@ export function ProfileSettingsClient({ initial }: Props) {
   const router = useRouter();
   const [cd, setCd]             = useState<ContactDetails>(initial ?? EMPTY);
   const [projects, setProjects] = useState<Project[]>(initial?.projects ?? []);
+  const [creds, setCreds]       = useState<HealthcareCredentials>(initial?.credentials ?? {});
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
   function setField<K extends keyof ContactDetails>(k: K, v: string) {
     setCd((prev) => ({ ...prev, [k]: v }));
+  }
+  function setCred<K extends keyof HealthcareCredentials>(k: K, v: HealthcareCredentials[K]) {
+    setCreds((prev) => ({ ...prev, [k]: v }));
   }
   function addProject() {
     setProjects((p) => [...p, { name: "", url: "", description: "" }]);
@@ -68,7 +97,7 @@ export function ProfileSettingsClient({ initial }: Props) {
       const res = await fetch("/api/user/preferences", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ contact_details: { ...cd, projects } }),
+        body:    JSON.stringify({ contact_details: { ...cd, projects, credentials: creds } }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error ?? `Failed (${res.status})`); return; }
@@ -199,6 +228,64 @@ export function ProfileSettingsClient({ initial }: Props) {
         </button>
       </div>
 
+      {/* ── Healthcare / Care Credentials card ── */}
+      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+        <div>
+          <h2 className="label-luxury text-text-2">Healthcare / Care Credentials</h2>
+          <p className="mt-1 text-xs text-text-3">
+            Used only when tailoring for nursing, aged-care, disability, or
+            community-care roles. Surfaces as a compact <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Registration &amp; Licences</code> line
+            on the CV. Tick only what you hold — nothing negative is ever
+            shown. Leave the whole block empty for non-care roles.
+          </p>
+        </div>
+
+        {/* Registration */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field
+            label="AHPRA Registration (RN/EN/Midwife only)"
+            value={creds.ahpra_number ?? ""}
+            onChange={(v) => setCred("ahpra_number", v)}
+            placeholder="NMW0001234567"
+          />
+          <Select
+            label="Driver Licence"
+            value={creds.drivers_licence ?? ""}
+            onChange={(v) => setCred("drivers_licence", v)}
+            options={["", "Open", "Provisional", "Learner"]}
+          />
+          <Select
+            label="Australian Work Rights"
+            value={creds.work_rights ?? ""}
+            onChange={(v) => setCred("work_rights", v)}
+            options={["", "Citizen", "PR", "Visa with work rights"]}
+          />
+          <Select
+            label="WWCC State (if you hold a Working with Children Check)"
+            value={creds.wwcc_state ?? ""}
+            onChange={(v) => setCred("wwcc_state", v)}
+            options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
+          />
+        </div>
+
+        {/* Held — checkboxes */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <CheckBox label="Working with Children Check"           checked={!!creds.wwcc}                  onChange={(v) => setCred("wwcc", v)} />
+          <CheckBox label="National Police Check (current)"        checked={!!creds.police_check}          onChange={(v) => setCred("police_check", v)} />
+          <CheckBox label="NDIS Worker Screening Check"            checked={!!creds.ndis_screening}        onChange={(v) => setCred("ndis_screening", v)} />
+          <CheckBox label="First Aid Certificate (HLTAID011)"      checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
+          <CheckBox label="CPR Certificate (HLTAID009)"            checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
+          <CheckBox label="Medication Competency Certificate"      checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
+          <CheckBox label="Own a Reliable Car"                     checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
+          <CheckBox label="Comprehensive Car Insurance"            checked={!!creds.car_insurance}         onChange={(v) => setCred("car_insurance", v)} />
+          <CheckBox label="Current Influenza Vaccination"          checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />
+        </div>
+
+        <p className="text-xs text-text-3">
+          On nursing/care CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only, in a single compact line.
+        </p>
+      </div>
+
       {error && (
         <div className="rounded-md bg-red-light border border-red/20 px-3 py-2 text-[12px] text-red">
           {error}
@@ -241,5 +328,49 @@ function Field({
         className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
       />
     </div>
+  );
+}
+
+function Select({
+  label, value, onChange, options,
+}: {
+  label:    string;
+  value:    string;
+  onChange: (v: string) => void;
+  options:  string[];
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-text-2">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt || "—"}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function CheckBox({
+  label, checked, onChange,
+}: {
+  label:    string;
+  checked:  boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-[var(--surface-2)] transition-colors">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-[var(--border)] text-[var(--brand)] focus:ring-[var(--brand)]/30"
+      />
+      <span className="text-sm text-text">{label}</span>
+    </label>
   );
 }

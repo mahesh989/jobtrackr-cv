@@ -63,7 +63,7 @@ from app.services.eval.role_families import (
     resolve_seniority,
     apply_equivalences,
 )
-from app.services.cv.contact_line import stamp_contact_line
+from app.services.cv.contact_line import stamp_contact_line, stamp_credentials
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
 from app.services.pipeline.steps.ats_scoring import run_ats_scoring
@@ -1172,6 +1172,12 @@ async def _writer_w8_integrated(
     final_md = _strip_ungrounded_credentials(final_md, cv_text)
     # 4b. Relabel an awards-only "Certifications" section to "Awards".
     final_md = _relabel_awards_only_certifications(final_md)
+    # 4c. Stamp user-supplied credentials into ## Registration & Licences
+    #     (nursing/healthcare/care families only; no-op when role family is
+    #     tech/manual/general or when the user has saved no credentials).
+    #     Replaces any AI-emitted body in that section — the user's profile
+    #     is authoritative for what they actually hold.
+    final_md = stamp_credentials(final_md, contact_details, role_family.id)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
