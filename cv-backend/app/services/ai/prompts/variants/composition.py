@@ -261,12 +261,20 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   NO off-axis sector/identity labels: do not cite an industry or specialism the
   JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
   name only JD-aligned domains.
-- Sentence 2 (achievement, ≤22 words): PAST-tense action verb + method +
-  quantified result + company anchor. If you kept 2+ roles, use two clauses
-  (one per top role) joined by a semicolon. NEVER write S2 in the present tense
-  ("delivers", "manages") — the achievement is complete; the verb is past.
-  COMPANY ANCHOR is mandatory: name at least one kept employer in S2 (drop it
-  into the clause naturally, e.g. "…at Jesmond Miranda Nursing Home").
+- Sentence 2 (achievement, ≤22 words): action verb + method + quantified
+  result + company anchor. If you kept 2+ roles, use TWO clauses (one per
+  top role) joined by a semicolon — single-clause S2 is a hard error when
+  2+ roles exist; it under-fills the sentence and signals that only one
+  role matters.
+  TENSE: completed roles use PAST-tense ("delivered", "led", "reduced"). A
+  CURRENT role marked "– Present" in Experience may use PRESENT tense in its
+  clause ("delivers", "leads", "provides") — this reads honestly for ongoing
+  work. Mix freely when 2 roles span past+current: one clause past, one
+  present, joined by semicolon. Never use present tense for a completed role.
+  COMPANY ANCHOR is mandatory in EVERY clause: each clause must name its
+  kept employer naturally (e.g. "…at Jesmond Miranda Nursing Home";
+  "…at Uniting – The Marion"). Generic phrases ("in aged care facilities",
+  "across the industry") do NOT satisfy the anchor.
 - METRIC FALLBACK: if the kept experience supplies NO quantified result anywhere,
   do NOT invent one. Use the strongest concrete outcome the CV actually shows —
   a named system/process, a scope phrase (across multiple sites/shifts), an
@@ -314,15 +322,23 @@ place; do not emit until every item passes):
      multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
      specialisations do NOT echo the title's own words; no tool names; no off-
      axis sector labels.
-(4)  SUMMARY_S2: scan S2 character-by-character for the name of at least one
-     KEPT employer (the company shown in your ## Experience section's H3 lines,
-     e.g. "Jesmond Miranda Nursing Home", "Uniting – The Marion"). If NONE
-     appears, S2 FAILS — rewrite it now to drop a kept employer name naturally
-     into a clause (e.g. "…at Jesmond Miranda Nursing Home"). Generic phrases
-     like "in aged care facilities", "across the industry", "in residential
-     care" do NOT satisfy the anchor. Also verify: PAST-tense verb (not
-     "delivers"/"manages"); method named; (quantified) result OR concrete
-     non-numeric outcome from the CV (never a fabricated number).
+(4)  SUMMARY_S2: count the kept Experience roles (## Experience section's H3
+     lines). Then check S2:
+     • If 1 kept role: S2 must name THAT employer somewhere in the sentence.
+     • If 2+ kept roles: S2 MUST contain TWO clauses joined by a semicolon,
+       one anchored to EACH of the top 2 kept employers
+       (e.g. "Delivered medication administration at Jesmond Miranda;
+       provided person-centred care at Uniting – The Marion."). A single-
+       clause S2 is a HARD FAIL when 2+ roles exist — it under-fills the
+       sentence and reads as if only one role mattered. Rewrite into the
+       two-clause shape before emitting.
+     Generic phrases like "in aged care facilities", "across the industry",
+     "in residential care" do NOT satisfy the company-anchor requirement.
+     Also verify: PAST-tense verb (a current "– Present" role's clause may
+     stay present tense, but a clause referring to a completed role must use
+     past tense — never present tense for a past achievement); method named;
+     (quantified) result OR concrete non-numeric outcome from the CV (never
+     a fabricated number).
 (5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
      client, tool, or achievement absent from kept sections).
 (6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence
