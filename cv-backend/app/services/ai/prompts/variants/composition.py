@@ -145,6 +145,18 @@ EXPERIENCE — selection & rewriting
   different on-axis bullet from the SAME role, or a transferable bullet grounded
   in that role's real adjacent work (reporting, stakeholder collaboration, data
   quality, automation, scale, compliance).
+- IMPLIED ADJACENT WORK (inference from role context, not fabrication): when
+  the source CV's bullets for a role are sparse or all off-axis, you MAY write
+  a new bullet from the role's IMPLIED routine work — activities that are a
+  standard part of that role's scope even when the source CV doesn't bullet
+  them explicitly. Examples by family: analyst role → stakeholder reporting,
+  data validation, governance; nursing/care role → handover, documentation,
+  infection control, observation; manual role → safety compliance, scheduling,
+  site checks. The inferred activity must be (i) a routine, defensible part
+  of that role, and (ii) consistent with how the source CV describes the
+  role's scope and seniority. Never inferred-bullet a specific tool, system,
+  metric, or named achievement the candidate could not honestly claim — only
+  the routine activity itself.
 - OFF-AXIS CAP (hard): keep AT MOST ONE off-axis bullet per role. If a role has
   several off-axis achievements (e.g. a product/build or research achievement on
   an analyst JD), keep only the single most JD-relevant one and fill the
@@ -171,6 +183,15 @@ EXPERIENCE — selection & rewriting
 - VERB TENSE: bullets under a completed role use PAST-tense action verbs
   ("delivered", "led", "reduced"). A current role marked "– Present" may use
   present tense. Be consistent within a role; never mix tenses inside one role.
+- QUANTIFICATION (soft target, anti-fabrication clause): aim for at least 60%
+  of kept bullets across the whole CV to carry a metric (number, %, $, scale,
+  time saved, frequency, count). Metrics anchor every family — tech (% accuracy,
+  $ saved, users, rows), nursing/care (patients, shifts, beds, medications,
+  ratios), manual (sites, deliveries, hours, vehicles). DO NOT invent numbers
+  to hit this target. If the source CV gives no metric for a bullet, leave the
+  bullet metric-free, or use a conservative qualifier ("roughly", "around",
+  "X-Y%") ONLY when the magnitude is genuinely defensible from the CV.
+  Missing a few metrics is acceptable; inventing one is a hard error.
 
 PROJECTS (only if your role pack's section order includes a Projects section)
 - Keep 1-2 projects. A project qualifies ONLY if it shares the JD's DOMAIN or
@@ -188,6 +209,23 @@ PROJECTS (only if your role pack's section order includes a Projects section)
 - DUPLICATION BAN: a project shown in Projects must not also be narrated as an
   experience bullet, and an experience role must not be repeated as a project.
   If the same work appears in both, keep it in Experience and drop the project.
+- LEAD PROJECT WEIGHT: when the first project shown is the candidate's flagship
+  demonstration (most JD-aligned, the project they are known for, with the
+  richest source content), give it 3 bullets. The third bullet is load-bearing
+  — it carries scale, reliability, or a second metric the first two miss.
+  Secondary projects get 2 bullets. When consolidating from a 4+ bullet
+  original, MERGE — preserve every real metric from the source; never silently
+  drop a quantified achievement just to fit the 2-3 bullet count.
+
+PROJECTS-vs-CERTIFICATIONS TIEBREAKER (one-page constraint)
+A tailored CV ideally fits one page. When Projects and Certifications both
+qualify under their own rules, Projects WIN — shipped work outranks passive
+credentials in recruiter perception. Certifications appear only when EITHER
+(a) no project qualifies under the project relevance test, OR (b) the role
+pack's cert_policy is "first_class" (licensed professions where certs ARE the
+qualification, e.g. nursing/manual licences — AHPRA registration, White Card,
+forklift licence, First Aid). The role pack carries the final say on which
+clause applies; this rule explains the reasoning when both seem to qualify.
 
 EDUCATION
 - Keep 1-3 entries. ALWAYS keep the candidate's most recent Bachelor's degree as
@@ -199,6 +237,10 @@ EDUCATION
 CAREER-STYLE SUMMARY (the summary section named by your role pack)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one
   sentence is a failure. No bullets, no skills line, no third sentence.
+- 35 is a HARD MINIMUM. A summary below 35 words is too thin and must be
+  EXPANDED with specific JD-aligned content (an additional specialisation in
+  S1, a quantified detail or named system/process in S2) until the total is
+  35-50. Never pad with adjectives; expand only with facts the CV supports.
 - Sentence 1 (positioning, ≤28 words): role title + ACTUAL relevant years + 1-2
   JD specialisations + who you deliver for. (When years are few (<2) but the
   candidate has several roles or worked across multiple settings, lead with that
@@ -224,6 +266,26 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   "Aspiring", "Senior") unless that exact word is in the candidate's CV title.
   State the role and ACTUAL years instead — never label the candidate's level.
 
+TITLE SLOT (summary opener) — choose ONE title, never chain
+The opener uses ONE role title; never write "Title A and Title B" or
+"Title A & Title B". When the candidate's CV titles include multiple variants,
+pick by JD relevance using these clauses (in order):
+  (a) SYNONYMOUS variants of the same role (e.g. "Assistant in Nursing" /
+      "Care Worker" / "Personal Care Assistant" — same job, different
+      employers; or "Data Analyst" / "BI Analyst" / "Reporting Analyst";
+      or "Registered Nurse" / "Division 1 Nurse"): use the variant that
+      matches the JD's job title. The other variants do NOT appear in the
+      summary opener at all (they remain in their own Experience entries).
+  (b) HYBRID "X & Y" titles where the CV lists both halves explicitly (e.g.
+      "Data Analyst & AI Engineer", "Software Engineer & ML Researcher"):
+      drop the half the JD does NOT prioritise. Keep the JD-aligned half
+      only — and drop the same suffix from the Experience role titles too,
+      so the CV reads as one coherent identity.
+  (c) GENUINELY UNRELATED roles at different employers (e.g. "Cleaner" at
+      one job, "Receptionist" at another — two different jobs, not one
+      hybrid): name the JD-aligned role in the summary opener; the other
+      appears only in its own Experience entry with its own title.
+
 SENIORITY WORDS
 Use "Senior / Lead / Principal / Manager / Director" only when that exact
 word appears in the candidate's CV job titles. The years figure reflects the
@@ -234,7 +296,10 @@ BEFORE YOU EMIT — final self-audit (run these in order; fix any failure in
 place; do not emit until every item passes):
 (1)  CHRONO: Experience entries are in strict reverse-chronological order by
      start date (most recent first). Do not detach bullets from their parent role.
-(2)  SUMMARY_STRUCT: exactly 2 sentences, 35-50 words total, prose only.
+(2)  SUMMARY_STRUCT: count the words. If <35, summary is too thin — EXPAND
+     with specific CV facts (extra specialisation in S1, quantified detail or
+     named system/process in S2) until the total reaches 35. If >50, trim.
+     End at exactly 2 sentences in the 35-50 band.
 (3)  SUMMARY_S1: role title + (years OR breadth framing when <2 yrs across
      multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
      specialisations do NOT echo the title's own words; no tool names; no off-
@@ -263,7 +328,12 @@ place; do not emit until every item passes):
      each one: confirm it appears VERBATIM in the output. If it does not, and it
      is NOT a specific named credential/licence/qualification the candidate lacks,
      INSERT it now before emitting. No approved non-credential keyword may be
-     absent from the final CV."""
+     absent from the final CV.
+(13) TITLE_SLOT: the summary opener names exactly ONE role title. No "Title A
+     and Title B", no "Title A & Title B". If the CV has synonymous variants
+     (AIN/Care Worker, Data Analyst/BI Analyst) → kept variant matches the JD.
+     If the CV has hybrid "X & Y" titles → kept half matches the JD, dropped
+     half also dropped from Experience role titles."""
 
 
 # ---------------------------------------------------------------------------
