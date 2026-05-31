@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
-  let body: { company_name?: string; company_domain?: string };
+  let body: { company_name?: string; company_domain?: string; jd_location?: string };
   try {
     body = await req.json();
   } catch {
@@ -50,6 +50,9 @@ export async function POST(req: NextRequest) {
       { status: 422 },
     );
   }
+  // Caller-supplied location takes priority; otherwise we look one up
+  // server-side from any matching job below (see step 4b).
+  let jdLocation: string | null = body.jd_location?.trim() || null;
 
   // ── 3. Compute slug ───────────────────────────────────────────────────────────
   // Slug must match make_company_slug() in cv-backend exactly.
@@ -134,12 +137,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 5. Call cv-backend ────────────────────────────────────────────────────────
+  // ── 5a. Auto-lookup jd_location from a matching job when caller didn't supply ─
+  // Cover-letter UI flow passes only { company_name }; we recover the JD's
+  // location from the user's most-recent matching job so cv-backend's
+  // geographic disambiguation gates can activate. Best-effort; missing
+  // location is benign — backend falls back to legacy naive search.
+  if (!jdLocation) {
+    const { data: matchedJob } = await admin
+      .from("jobs")
+      .select("location, profile_id, created_at, search_profiles!inner(user_id)")
+      .ilike("company", companyName)
+      .eq("search_profiles.user_id", user.id)
+      .not("location", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const loc = (matchedJob?.location as string | null)?.trim() ?? "";
+    if (loc) jdLocation = loc;
+  }
+
+  // ── 5b. Call cv-backend ────────────────────────────────────────────────────────
   let result: { company_id: string; status: string; research: CompanyResearch | null; search_skipped: boolean };
   try {
     result = await researchCompany({
       company_name:   companyName,
       company_domain: body.company_domain ?? null,
+      jd_location:    jdLocation,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
       ai_model:       entry.model ?? null,

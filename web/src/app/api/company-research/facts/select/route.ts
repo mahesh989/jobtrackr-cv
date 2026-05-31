@@ -54,9 +54,11 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Ownership check (job → search_profile → user) ─────────────────────────
   // Service-role bypasses RLS so this manual ownership check is required.
+  // location is selected so we can pass it through to cv-backend for the
+  // geographic mismatch filter (defends against same-name org conflations).
   const { data: job } = await admin
     .from("jobs")
-    .select("id, profile_id, company, manual_jd_text")
+    .select("id, profile_id, company, manual_jd_text, location")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -153,11 +155,13 @@ export async function POST(req: NextRequest) {
 
   // ── 8. Call cv-backend /internal/select-company-fact ─────────────────────────
   try {
+    const jobLocation = (job.location as string | null)?.trim() || null;
     const result = await selectCompanyFact({
-      company_id: companyId,
-      facts:      row.facts,
-      jd_text:    jdText,
-      cv_text:    cv.cv_text,
+      company_id:  companyId,
+      facts:       row.facts,
+      jd_text:     jdText,
+      cv_text:     cv.cv_text,
+      jd_location: jobLocation,
     });
 
     return NextResponse.json({ ranked_facts: result.ranked_facts, company_id: companyId });

@@ -94,12 +94,30 @@ export async function POST(
     );
   }
 
-  // ── 2. Optional domain override from body ─────────────────────────────────────
+  // ── 2. Optional overrides from body (domain hint + JD location hint) ─────────
   let domainOverride: string | null = existing.domain ?? null;
+  let jdLocation:     string | null = null;
   try {
     const body = await req.json();
     if (body?.company_domain) domainOverride = body.company_domain;
+    if (body?.jd_location)    jdLocation     = String(body.jd_location).trim() || null;
   } catch { /* body is optional */ }
+
+  // Recover JD location from the user's most recent matching job when not
+  // supplied. Mirrors the auto-lookup in POST /api/company-research.
+  if (!jdLocation) {
+    const { data: matchedJob } = await admin
+      .from("jobs")
+      .select("location, profile_id, created_at, search_profiles!inner(user_id)")
+      .ilike("company", existing.name)
+      .eq("search_profiles.user_id", user.id)
+      .not("location", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const loc = (matchedJob?.location as string | null)?.trim() ?? "";
+    if (loc) jdLocation = loc;
+  }
 
   // ── 3. Resolve AI key ─────────────────────────────────────────────────────────
   const { data: keys } = await admin
@@ -145,6 +163,7 @@ export async function POST(
     const result = await researchCompany({
       company_name:   existing.name,
       company_domain: domainOverride,
+      jd_location:    jdLocation,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
       ai_model:       entry.model ?? null,

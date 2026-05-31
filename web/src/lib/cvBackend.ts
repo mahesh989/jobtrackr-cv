@@ -352,6 +352,11 @@ export interface CompanyResearch {
 export interface ResearchCompanyPayload {
   company_name:    string;
   company_domain?: string | null;
+  /** JD's job location (e.g. "Rouse Hill, Sydney NSW"). When supplied,
+   *  cv-backend biases Tavily queries toward the right geography and
+   *  flags wrong-country facts during AI distillation. Defends against
+   *  same-name org conflations (the "Sanctuary" regression). */
+  jd_location?:    string | null;
   ai_provider:     "anthropic" | "openai" | "deepseek";
   ai_api_key:      string;
   ai_model?:       string | null;
@@ -381,10 +386,14 @@ export interface RankedFact {
 }
 
 export interface SelectCompanyFactPayload {
-  company_id: string;
-  facts:      CompanyFacts;
-  jd_text:    string;
-  cv_text:    string;
+  company_id:   string;
+  facts:        CompanyFacts;
+  jd_text:      string;
+  cv_text:      string;
+  /** JD's job location. When supplied AND a country can be inferred,
+   *  cv-backend drops candidate facts that mention a different country
+   *  before ranking. None falls back to legacy geographically-naive ranking. */
+  jd_location?: string | null;
 }
 
 export interface SelectCompanyFactResult {
