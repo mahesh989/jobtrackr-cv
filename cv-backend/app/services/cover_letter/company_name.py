@@ -22,12 +22,21 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-# Trailing tokens that mark a company's legal form — never part of the name a
-# person says aloud.
+# Trailing tokens that mark a company's legal form OR a generic business-type
+# descriptor — never part of the name a person says aloud. We peel words like
+# "Services" / "Solutions" because they are descriptors of business type, not
+# distinctive brand words. CAREFUL: do NOT add "Bank", "Hospital", "Care",
+# "Centre", "Health", "Support" — those are domain-meaningful (NAB, Nepean
+# Hospital, Bolton Clarke's competitors) and peeling them would lose the brand.
 _LEGAL_SUFFIX_TOKENS = {
+    # Legal-form suffixes
     "pty", "ltd", "limited", "inc", "incorporated", "llc", "llp", "plc",
     "corp", "corporation", "co", "gmbh", "ag", "nv", "bv", "srl", "spa",
+    # Org-shape descriptors (already in original list)
     "group", "holdings", "international", "global", "worldwide",
+    # Business-type descriptors — never distinctive brand words
+    "services", "solutions", "systems", "technologies", "industries",
+    "consulting", "partners", "associates", "enterprises", "ventures",
 }
 # Trailing region / jurisdiction tags (AU states & territories, common country/
 # region codes). Kept tight on purpose: a word must be unambiguously a place
