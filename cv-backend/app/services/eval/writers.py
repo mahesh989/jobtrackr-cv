@@ -709,6 +709,10 @@ _BR_AM_SKILL_SUBS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\boptimized\b", re.IGNORECASE),                  "Optimised"),
     (re.compile(r"\banalyze\b", re.IGNORECASE),                    "Analyse"),
     (re.compile(r"\bcolor\b", re.IGNORECASE),                      "Colour"),
+    (re.compile(r"\brecognized\b", re.IGNORECASE),                 "Recognised"),
+    (re.compile(r"\brecognise\b", re.IGNORECASE),                  "Recognise"),
+    (re.compile(r"\brecognize\b", re.IGNORECASE),                  "Recognise"),
+    (re.compile(r"\brecognised\b", re.IGNORECASE),                 "Recognised"),
 ]
 
 
@@ -804,6 +808,26 @@ _AWARDS_SOURCE_HEADINGS = {
 }
 
 
+_DATE_TAIL_RE = re.compile(
+    r"\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
+    r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
+    r"|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{4})\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_valid_date(d: str) -> bool:
+    if not d:
+        return False
+    has_digit = any(c.isdigit() for c in d)
+    has_month = bool(re.search(
+        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+        d,
+        re.IGNORECASE
+    ))
+    return has_digit or has_month
+
+
 def _parse_award_parts(content: str) -> tuple:
     """Extract (name, org, date, description) from any observed award text.
 
@@ -889,6 +913,7 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         desc = description.strip().rstrip(".")
         # Sentence-case the description (title-cased from italic is noisy).
         desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
+        desc = _canonicalise_skill_spelling(desc)
         lines.append(f"{desc}.")
     return lines
 
@@ -912,7 +937,7 @@ def _normalise_awards_entries(markdown: str) -> str:
     lines = markdown.split("\n")
     start = next(
         (i for i, l in enumerate(lines)
-         if l.strip().lower() == "## awards"),
+         if l.strip().lower().rstrip(":") == "## awards"),
         -1,
     )
     if start < 0:
@@ -965,12 +990,6 @@ def _normalise_awards_entries(markdown: str) -> str:
                 # Date is right of LAST "|" in italic; text before is description.
                 # When there is no italic line, fall back to plain_text and
                 # extract a trailing month+year or year as the date.
-                _DATE_TAIL_RE = re.compile(
-                    r"\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
-                    r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
-                    r"|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{4})\s*$",
-                    re.IGNORECASE,
-                )
                 if "|" in italic_text:
                     desc_part, date = italic_text.rsplit("|", 1)
                     description = desc_part.strip()
@@ -999,7 +1018,49 @@ def _normalise_awards_entries(markdown: str) -> str:
 
         elif stripped.startswith(("- ", "* ")):
             content = stripped[2:].strip()
+            # Look ahead to see if the next line is a description bullet
+            j = i + 1
+            next_bullet_desc = ""
+            while j < end and not lines[j].strip():
+                j += 1
+            if j < end and lines[j].strip().startswith(("- ", "* ")):
+                next_stripped = lines[j].strip()
+                next_content = next_stripped[2:].strip()
+                if re.match(
+                    r"^(?:recognised|recognized|awarded|received|nominated|presented|given)\b",
+                    next_content,
+                    re.IGNORECASE
+                ):
+                    next_bullet_desc = next_content
+                    i = j  # consume the next bullet
+
             name, org, date, description = _parse_award_parts(content)
+
+            # Location filtering: if the parsed date is not valid, discard both date and description
+            if not _is_valid_date(date):
+                date = ""
+                description = ""
+
+            if next_bullet_desc:
+                next_date = ""
+                m_date = _DATE_TAIL_RE.search(next_bullet_desc)
+                if m_date:
+                    next_date = m_date.group(1).strip()
+                    next_desc = next_bullet_desc[:m_date.start()].strip().rstrip(",").strip()
+                else:
+                    next_desc = next_bullet_desc
+
+                if not date and _is_valid_date(next_date):
+                    date = next_date
+                
+                if description:
+                    description = f"{description}. {next_desc}"
+                else:
+                    description = next_desc
+
+            if not _is_valid_date(date):
+                date = ""
+
             for ln in _format_award_entry(name, org, date, description):
                 new_entries.append(ln)
             i += 1
