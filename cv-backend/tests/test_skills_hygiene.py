@@ -280,6 +280,22 @@ def test_normalise_handles_award_without_organisation():
     assert "- Dean's List (2023)" in out
 
 
+def test_normalise_strips_trailing_description_after_paren_date():
+    """Regression: production Dovida CV emitted
+    `- Award – Org (Date), recognised for hard work…` — the description
+    after the closing paren must be stripped."""
+    md = (
+        "## Awards\n"
+        "- Staff Excellence Award – Jesmond Miranda Nursing Home (2025), "
+        "recognised for hard work, caring nature, patience, and positive "
+        "attitude in resident care.\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (2025)" in out
+    assert "recognised for hard work" not in out
+    assert "patience" not in out  # only inside the stripped description
+
+
 def test_extract_original_credentials():
     out = _extract_original_credentials(_CV_WITH_AWARD)
     assert out == ["Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)"]

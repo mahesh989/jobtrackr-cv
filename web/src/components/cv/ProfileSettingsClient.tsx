@@ -101,14 +101,15 @@ export function ProfileSettingsClient({ initial }: Props) {
     setFamilies((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]);
   }
 
-  // Conditional rendering rules:
-  // - First-time / legacy users (families == []) → show ALL add-on cards so
-  //   nothing they had before disappears.
-  // - Once the user explicitly picks one or more families → show only those.
-  const showAll      = families.length === 0;
-  const showTech     = showAll || families.includes("tech")    || families.includes("general");
-  const showNursing  = showAll || families.includes("nursing");
-  const showManual   = showAll || families.includes("manual");
+  // Conditional rendering rules (user-requested):
+  //   • No family picked → HIDE every role-specific card. The user sees a
+  //     friendly "pick a family to customize" placeholder instead. Existing
+  //     saved data is preserved in state (not lost on save).
+  //   • One or more picked → show only the matching cards.
+  const showTech     = families.includes("tech") || families.includes("general");
+  const showNursing  = families.includes("nursing");
+  const showManual   = families.includes("manual");
+  const anySelected  = families.length > 0;
   function addProject() {
     setProjects((p) => [...p, { name: "", url: "", description: "" }]);
   }
@@ -144,24 +145,6 @@ export function ProfileSettingsClient({ initial }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Role Families picker — drives which add-on cards show ── */}
-      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
-        <div>
-          <h2 className="label-luxury text-text-2">What roles are you applying for?</h2>
-          <p className="mt-1 text-xs text-text-3">
-            Pick any that apply. The form tailors itself — extra credential
-            fields appear for the families you select. Leave blank to see
-            everything (useful if you're not sure yet).
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <CheckBox label="Tech / Data / Engineering"     checked={families.includes("tech")}    onChange={() => toggleFamily("tech")} />
-          <CheckBox label="Healthcare / Nursing / Care"   checked={families.includes("nursing")} onChange={() => toggleFamily("nursing")} />
-          <CheckBox label="Manual / Service / Trades"     checked={families.includes("manual")}  onChange={() => toggleFamily("manual")} />
-          <CheckBox label="Other / General"               checked={families.includes("general")} onChange={() => toggleFamily("general")} />
-        </div>
-      </div>
-
       {/* ── Contact Details (always shown) — LinkedIn is universal ── */}
       <div className="glass rounded-lg shadow-gold p-6 space-y-4">
         <div>
@@ -190,6 +173,43 @@ export function ProfileSettingsClient({ initial }: Props) {
         </p>
       </div>
 
+      {/* ── Role Families picker — comes RIGHT AFTER Contact, drives which
+            add-on cards show below. Pill-style multi-select feels cleaner
+            than checkboxes per direction. ── */}
+      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+        <div>
+          <h2 className="label-luxury text-text-2">What roles are you applying for?</h2>
+          <p className="mt-1 text-xs text-text-3">
+            Pick any that apply. Extra fields appear below for each family.
+            Pick nothing while you're figuring it out — the form stays clean.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Pill label="Tech / Data / Engineering"     selected={families.includes("tech")}    onClick={() => toggleFamily("tech")} />
+          <Pill label="Healthcare / Nursing / Care"   selected={families.includes("nursing")} onClick={() => toggleFamily("nursing")} />
+          <Pill label="Manual / Service / Trades"     selected={families.includes("manual")}  onClick={() => toggleFamily("manual")} />
+          <Pill label="Other / General"               selected={families.includes("general")} onClick={() => toggleFamily("general")} />
+        </div>
+        {anySelected && (
+          <p className="text-xs text-text-3">
+            Showing add-on fields for: <span className="font-medium text-text-2">{families.map(formatFamilyLabel).join(", ")}</span>
+          </p>
+        )}
+      </div>
+
+      {/* ── Empty-state placeholder when no family is picked ── */}
+      {!anySelected && (
+        <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-6 py-10 text-center">
+          <p className="text-sm text-text-2">
+            Pick at least one role family above to customize your profile.
+          </p>
+          <p className="mt-1 text-xs text-text-3">
+            Tech links, healthcare credentials, and manual/trade credentials
+            appear only when you've selected the matching family.
+          </p>
+        </div>
+      )}
+
       {/* ── Tech add-on (GitHub / Portfolio / Website) ── */}
       {showTech && (
         <div className="glass rounded-lg shadow-gold p-6 space-y-4">
@@ -209,7 +229,9 @@ export function ProfileSettingsClient({ initial }: Props) {
         </div>
       )}
 
-      {/* ── Portfolio Projects card ── */}
+      {/* ── Portfolio Projects card (tech-only — Projects are a tech-CV
+            section; nursing/manual CVs don't carry a Projects block) ── */}
+      {showTech && (
       <div className="glass rounded-lg shadow-gold p-6 space-y-4">
         <div>
           <h2 className="label-luxury text-text-2">Portfolio Projects</h2>
@@ -292,6 +314,7 @@ export function ProfileSettingsClient({ initial }: Props) {
           Add project
         </button>
       </div>
+      )}
 
       {/* ── Healthcare / Care Credentials card (shown when nursing selected) ── */}
       {showNursing && (
@@ -506,4 +529,44 @@ function CheckBox({
       <span className="text-sm text-text">{label}</span>
     </label>
   );
+}
+
+/**
+ * Pill button — multi-select via toggle. Selected pills fill with the brand
+ * colour; unselected stay bordered. Cleaner than checkboxes for a small
+ * fixed set of choices like role families. Click toggles.
+ */
+function Pill({
+  label, selected, onClick,
+}: {
+  label:    string;
+  selected: boolean;
+  onClick:  () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={
+        selected
+          ? "inline-flex items-center gap-1 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-sm font-medium text-[var(--brand-fg)] shadow-sm transition-shadow hover:glow-gold"
+          : "inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-sm font-medium text-text-2 hover:border-[var(--brand)]/40 hover:text-[var(--brand)] transition-colors"
+      }
+    >
+      {selected && <span aria-hidden>✓</span>}
+      {label}
+    </button>
+  );
+}
+
+const FAMILY_LABELS: Record<RoleFamily, string> = {
+  tech:    "Tech",
+  nursing: "Healthcare",
+  manual:  "Manual",
+  general: "General",
+};
+
+function formatFamilyLabel(f: RoleFamily): string {
+  return FAMILY_LABELS[f] ?? f;
 }

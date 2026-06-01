@@ -777,24 +777,29 @@ def _normalise_awards_entries(markdown: str) -> str:
             date = italic.rsplit("|", 1)[-1].strip() if "|" in italic else ""
             new_entries.append(_format_award_bullet(name, org, date))
         elif stripped.startswith("- ") or stripped.startswith("* "):
-            # Verbose bullet. Pattern: "Name – Org | Date – Desc" or close
-            # variants. Strip everything after the LAST "|"'s "– Desc" tail,
-            # and convert "| Date" → " (Date)".
             content = stripped[2:].strip()
+            # Three variants seen in production:
+            #   (a) "Name – Org | Date – Desc"        — pipe form
+            #   (b) "Name – Org (Date), description"  — paren-date + trailing
+            #   (c) "Name – Org (Date)"               — already canonical
             if "|" in content:
+                # Pipe form (a) → normalise to paren-date, strip desc.
                 left, right = content.rsplit("|", 1)
                 left = left.strip()
                 date_part = right.strip()
-                # Drop trailing " – Description" / " — Description" / " - Desc".
                 for sep in (" – ", " — ", " - "):
                     if sep in date_part:
                         date_part = date_part.split(sep, 1)[0].strip()
                         break
                 new_entries.append(f"- {left} ({date_part})" if date_part else f"- {left}")
             else:
-                # No pipe — only strip trailing description after " – "
-                # if there's an org separator earlier.
-                # Conservative: drop nothing, just keep the bullet as-is.
+                # No pipe. If a parenthesized date is already present, strip
+                # any trailing text AFTER the closing ")" — that's the
+                # "recognised for hard work…" Dovida pattern.
+                m = re.search(r"\([^()]+\)", content)
+                if m:
+                    # Trim everything after the date's closing paren.
+                    content = content[:m.end()].rstrip()
                 new_entries.append(f"- {content}")
             i += 1
         else:
