@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.7",
-    "updated": "2026-05-30",
+    "updated": "2026-06-01",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
