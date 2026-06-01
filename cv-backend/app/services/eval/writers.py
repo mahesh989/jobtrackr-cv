@@ -949,6 +949,41 @@ def _classify_entry_line(line: str) -> tuple:
     return "plain", s
 
 
+# Anchors for "this is a location, not an organisation". When a side of the
+# pipe matches this, it should be discarded (or treated as location to strip)
+# rather than promoted to the org field.
+_LOCATION_ANCHOR_RE = re.compile(
+    r"\b(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT"
+    r"|New South Wales|Victoria|Queensland|Western Australia|South Australia"
+    r"|Tasmania|Australian Capital Territory|Northern Territory|Australia)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_location(text: str) -> bool:
+    """True when text contains an Australian state/territory/country anchor —
+    i.e. it's a location string and NOT an org name."""
+    return bool(text and _LOCATION_ANCHOR_RE.search(text))
+
+
+def _split_award_name_org(text: str) -> tuple:
+    """Split 'Award – Org' (dash separator) or 'Award, Org' (comma, no trailing
+    date) into (name, org). Returns (text, '') when no separator present.
+
+    The AI commonly emits 'Staff Excellence Award – Jesmond Miranda Nursing
+    Home' as a single h3/plain string; this helper extracts the org so the
+    layout can put it in the right column instead of mashing it with the name.
+    """
+    for sep in (" – ", " — ", " - "):
+        if sep in text:
+            name, org = text.split(sep, 1)
+            return name.strip(), org.strip()
+    if "," in text and not _DATE_TAIL_RE.search(text):
+        name, org = text.split(",", 1)
+        return name.strip(), org.strip()
+    return text.strip(), ""
+
+
 def _parse_award_raw_entry(entry_lines: list) -> dict:
     """Parse one raw entry (a group of consecutive non-empty lines from inside
     ## Awards) into {name, org, date, description}.
@@ -964,30 +999,40 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
 
         if kind == "h3":
             if not name:
-                # First h3 = the award name (possibly with date or "Name, Org").
+                # First h3 = the award name (possibly with date / org / location).
                 if "|" in content:
                     left, right = content.split("|", 1)
-                    candidate_name = left.strip()
                     candidate_right = right.strip()
+                    # Always try to split left into name+org first — AI emits
+                    # 'Award – Org | …' as the dominant shape.
+                    parsed_name, parsed_org = _split_award_name_org(left.strip())
+                    name = parsed_name
+                    if parsed_org and not org:
+                        org = parsed_org
+                    # Now classify the right side.
                     if _is_valid_date(candidate_right):
-                        name, date = candidate_name, candidate_right
-                    elif "," in candidate_name:
-                        name, org = [x.strip() for x in candidate_name.split(",", 1)]
-                    else:
-                        # "Name | Org [, location]" — right side is the org.
-                        name = candidate_name
-                        if not org:
-                            org = candidate_right
-                elif "," in content and not _DATE_TAIL_RE.search(content):
-                    # "Award, Org" with no date — old h3 shape.
-                    name, org = [x.strip() for x in content.split(",", 1)]
+                        date = candidate_right
+                    elif _looks_like_location(candidate_right) and org:
+                        # Org already came from dash split → right is pure
+                        # location residue, discard.
+                        pass
+                    elif not org:
+                        # Right may be 'Org, Suburb, State, Country' — accept
+                        # and let _format_award_entry strip the location tail.
+                        org = candidate_right
                 else:
-                    m_date = _DATE_TAIL_RE.search(content)
-                    if m_date:
-                        name = content[:m_date.start()].strip()
-                        date = m_date.group(1).strip()
+                    parsed_name, parsed_org = _split_award_name_org(content)
+                    if parsed_org:
+                        name = parsed_name
+                        if not org:
+                            org = parsed_org
                     else:
-                        name = content
+                        m_date = _DATE_TAIL_RE.search(content)
+                        if m_date:
+                            name = content[:m_date.start()].strip()
+                            date = m_date.group(1).strip()
+                        else:
+                            name = content
             else:
                 # Second h3 in same entry = description that was wrongly
                 # promoted to a heading by verify_claims. Fold it back.
@@ -1014,8 +1059,10 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 description = content
             elif not org:
                 org = content
-            elif not description:
-                description = content
+            # else: org is already set. A second italic line here is almost
+            # always a leftover location residue (e.g. '*Miranda*' after a
+            # location strip) or a redundant org repeat — DISCARD it rather
+            # than letting it bleed into the description field.
 
         elif kind == "bullet":
             # If we already have a name and the bullet starts with description
@@ -1041,23 +1088,35 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
         else:  # plain
             m_date = _DATE_TAIL_RE.search(content)
             if not name:
-                # First plain line — could be "Name | Date" / "Name | Org" /
-                # bare name / name with trailing date.
+                # First plain line — could be "Name – Org | Date" /
+                # "Name – Org" / "Name | Date" / "Name | Org" / bare name.
                 if "|" in content:
                     left, right = content.split("|", 1)
-                    candidate_name = left.strip()
                     candidate_right = right.strip()
+                    parsed_name, parsed_org = _split_award_name_org(left.strip())
+                    name = parsed_name
+                    if parsed_org and not org:
+                        org = parsed_org
                     if _is_valid_date(candidate_right):
-                        name, date = candidate_name, candidate_right
-                    else:
-                        name = candidate_name
-                        if not org:
-                            org = candidate_right
-                elif m_date:
-                    name = content[:m_date.start()].strip()
-                    date = m_date.group(1).strip()
+                        date = candidate_right
+                    elif _looks_like_location(candidate_right) and org:
+                        # Org already came from dash split → right is just
+                        # location residue, discard.
+                        pass
+                    elif not org:
+                        # Let _format_award_entry strip any trailing location.
+                        org = candidate_right
                 else:
-                    name = content
+                    parsed_name, parsed_org = _split_award_name_org(content)
+                    if parsed_org:
+                        name = parsed_name
+                        if not org:
+                            org = parsed_org
+                    elif m_date:
+                        name = content[:m_date.start()].strip()
+                        date = m_date.group(1).strip()
+                    else:
+                        name = content
             elif _DESCRIPTION_PREFIX_RE.match(content):
                 # Description-style language — never an org.
                 if m_date and not date:
