@@ -70,11 +70,31 @@ def _content_words(item: str) -> List[str]:
     return [w for w in _norm(item).split() if len(w) >= 4]
 
 
+# Category markers inside the Skills section. Two alternatives, bold tried
+# first: (1) any bold '**Label:**' marker; (2) a BARE label of the form
+# '<Capitalised word> Skills:' or '<Word> Knowledge:' (e.g. 'Care Skills:',
+# 'Soft Skills:', 'Domain Knowledge:'). The bare alternative is what catches
+# the LLM regression where all three categories land on one unbolded line.
+_CATEGORY_MARKER_RE = re.compile(
+    r"(\*\*[^*]+?:\*\*\s*"
+    r"|[A-Z][a-zA-Z]*\s+(?:Skills|Knowledge)\s*:\s*)"
+)
+
+
+def _clean_category_name(marker: str) -> str:
+    """Strip bold markers, whitespace and the trailing colon from a marker."""
+    m = marker.strip().strip("*").strip()
+    if m.endswith(":"):
+        m = m[:-1].strip()
+    return m
+
+
 def _split_compound_skills(markdown: str) -> str:
     """
-    If any single line inside the '## Skills' section contains multiple bold
-    category markers (e.g. '**Core Skills:** ... **Soft Skills:** ...'),
-    split them onto separate lines.
+    If any single line inside the '## Skills' section contains multiple
+    category markers — bold ('**Core Skills:** ... **Soft Skills:** ...') OR
+    bare ('Care Skills: ... Soft Skills: ... Other Skills: ...') — split them
+    onto separate lines and normalise every marker to the bold form.
     """
     lines = markdown.split("\n")
     skills_start = None
@@ -89,19 +109,18 @@ def _split_compound_skills(markdown: str) -> str:
         return markdown
 
     skills_lines: List[str] = []
-    category_pat = re.compile(r"(\*\*[^*]+?:\*\*\s*)")
 
     for i in range(skills_start + 1, skills_end):
         ln = lines[i]
-        parts = category_pat.split(ln)
+        parts = _CATEGORY_MARKER_RE.split(ln)
         if len(parts) > 3:  # has at least 2 category markers
             first = parts[0].strip()
             if first:
                 skills_lines.append(first)
             for j in range(1, len(parts), 2):
-                marker = parts[j].strip()
+                cat = _clean_category_name(parts[j])
                 content = parts[j + 1].strip().lstrip(",").strip() if j + 1 < len(parts) else ""
-                skills_lines.append(f"{marker} {content}")
+                skills_lines.append(f"**{cat}:** {content}".rstrip())
         else:
             skills_lines.append(ln)
 

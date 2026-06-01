@@ -262,26 +262,40 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
   name only JD-aligned domains.
 - Sentence 2 (achievement, ≤22 words): action verb + method + quantified
-  result + company anchor. If you kept 2+ roles, use TWO clauses (one per
-  top role) joined by a SEMICOLON (not comma + "and") — single-clause S2
-  is a hard error when 2+ roles exist; it under-fills the sentence and
-  signals that only one role matters.
-  WORD-COUNT FLOOR FOR 2+ ROLES (HARD): when 2+ roles are kept, S2 MUST
-  be 16-22 words. A 10-14 word S2 cannot physically fit two clauses with
-  two employer anchors — if your draft S2 is under 16 words AND you kept
-  2+ roles, you have dropped the second clause. REWRITE with the missing
-  employer's clause before emitting. Single-role S2 stays 10-22 words.
+  result + anchor (see COMPANY ANCHOR below — the anchor is an employer name
+  OR, for breadth-framed experience, the scope). When S1 framed 2+ DISTINCT
+  roles with real tenure, use TWO clauses (one per top role) joined by a
+  SEMICOLON (not comma + "and"); a single-clause S2 there signals only one
+  role matters. This two-clause rule does NOT apply to breadth-framed
+  experience (many short/casual placements) — that stays one scope-anchored
+  clause; see COMPANY ANCHOR.
+  WORD-COUNT FLOOR FOR 2+ DISTINCT ROLES (HARD): when S1 framed 2+ distinct
+  roles, S2 MUST be 16-22 words. A 10-14 word S2 cannot fit two clauses with
+  two employer anchors — if under 16 words there, you dropped the second
+  clause; REWRITE with the missing employer's clause. Single-role and
+  breadth-framed S2 stay 10-22 words.
   TENSE: completed roles use PAST-tense ("delivered", "led", "reduced"). A
   CURRENT role marked "– Present" in Experience may use PRESENT tense in its
   clause ("delivers", "leads", "provides") — this reads honestly for ongoing
   work. Mix freely when 2 roles span past+current: one clause past, one
   present, joined by semicolon. Never use present tense for a completed role.
-  COMPANY ANCHOR is mandatory in EVERY clause: each clause must name its
-  kept employer BY NAME (e.g. "…at Jesmond Miranda Nursing Home";
-  "…at Uniting – The Marion"). Vague substitutes are FORBIDDEN — do NOT
-  write "during placement", "in casual roles", "across multiple settings",
-  "in residential aged care", "in aged care facilities", "across the
-  industry". If you can't name the employer, the clause fails — rewrite it.
+  COMPANY ANCHOR depends on how S1 framed the experience — the two MUST agree:
+  • SINGLE-EMPLOYER FRAMING (S1 leads with one dominant role, OR 2+ distinct
+    roles with real tenure): name the employer BY NAME in each clause
+    (e.g. "…at Jesmond Miranda Nursing Home"; "…at Uniting – The Marion").
+    With 2+ such roles, name BOTH (one per clause). Never cherry-pick ONE
+    employer and ignore the others.
+  • BREADTH FRAMING (S1 says "across multiple settings / facilities / sites"
+    because the candidate worked several short, casual, or agency placements):
+    naming a SINGLE employer is FORBIDDEN here — it contradicts the breadth
+    claim and misleads by elevating one of many. Anchor S2 on the SCOPE
+    instead ("across multiple residential aged care settings", "spanning
+    several facilities") OR name 2-3 of the settings together. Do NOT pick
+    just one. A single named employer after a "multiple settings" S1 is a
+    HARD CONTRADICTION — rewrite.
+  Rule of thumb: S1 and S2 must tell the SAME story. If S1 says "multiple",
+  S2 must not narrow to one. If S1 names/implies one or two specific roles,
+  S2 names those same employers.
   NO TOOL NAMES in S2 (same rule as S1): do NOT write "using BESTMed and
   MedMobile", "via Power BI", "with Python". Tools live in the Skills
   section. Replace tool names with the METHOD they enable: "electronic
@@ -335,26 +349,27 @@ place; do not emit until every item passes):
      multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
      specialisations do NOT echo the title's own words; no tool names; no off-
      axis sector labels.
-(4)  SUMMARY_S2: count the kept Experience roles (## Experience section's H3
-     lines) and the word count of S2. Then enforce ALL of:
-     • If 1 kept role: S2 must name THAT employer by name somewhere.
-       Word count 10-22.
-     • If 2+ kept roles: S2 MUST contain TWO clauses joined by a SEMICOLON
-       (";"), one anchored to EACH of the top 2 kept employers BY NAME
-       (e.g. "Delivers medication administration at Jesmond Miranda Nursing
-       Home; provides person-centred care at Uniting – The Marion.").
-       Word count 16-22. Below 16 words with 2+ roles is mechanically
-       impossible to fit two clauses — that is a HARD FAIL; rewrite by
-       adding the missing employer's clause. A single-clause S2 with 2+
-       roles fails. A two-clause S2 joined by "and" instead of ";" fails.
-       Look at your draft S2: do you see exactly one ";" character? If
-       you see zero, you have failed the rule — fix it now.
-     FORBIDDEN substitutes that the second clause must NOT use as its
-     anchor: "during placement", "in casual roles", "across multiple
-     settings", "in residential aged care", "in aged care facilities",
-     "across the industry", "in clinical settings", "in care facilities".
-     If you cannot name the second employer, you have failed — rewrite
-     until both employers are named.
+(4)  SUMMARY_S2: first read how S1 framed the experience, then enforce S2 to
+     MATCH it (S1 and S2 must tell the same story):
+     • If S1 used BREADTH framing ("across multiple settings / facilities /
+       sites" — many short, casual, or agency roles): S2 must NOT name a
+       single employer. Anchor on the SCOPE ("across multiple residential
+       aged care settings") or name 2-3 settings together. A single named
+       employer here is a HARD CONTRADICTION with S1 — rewrite. Word count
+       10-22.
+     • If S1 framed ONE dominant role: S2 names THAT employer by name
+       somewhere. Word count 10-22.
+     • If S1 framed 2+ distinct roles with real tenure: S2 MUST contain TWO
+       clauses joined by a SEMICOLON (";"), one anchored to EACH of the top
+       2 kept employers BY NAME (e.g. "Delivered medication administration
+       at Jesmond Miranda Nursing Home; provided person-centred care at
+       Uniting – The Marion."). Word count 16-22. A single-clause S2 here,
+       or two clauses joined by "and" instead of ";", fails — rewrite.
+       Never cherry-pick one employer and ignore the other.
+     ANCHOR CHECK: when you DO name employers (the two dominant-role cases),
+     vague substitutes are forbidden as the anchor — "during placement",
+     "in casual roles", "in aged care facilities", "across the industry".
+     When S1 used breadth framing, scope phrasing is REQUIRED, not forbidden.
      TOOL-NAME SCAN: scan S2 character-by-character for tool names
      (BESTMed, MedMobile, Python, SQL, Power BI, PostgreSQL, AWS, Tableau,
      Snowflake, etc.). If ANY appear, S2 FAILS — rewrite replacing each

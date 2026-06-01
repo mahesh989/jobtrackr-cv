@@ -764,38 +764,44 @@ def _render_education(items: List[Dict]) -> List[Any]:
     return out
 
 
-# Matches **Category:** bold markers embedded mid-bullet by the LLM writer.
-# Capture group 1 = the category name (no ** or :).
-# Example: 'Care Skills: x, y **Soft Skills:** a, b **Other Skills:** z'
-_BOLD_CATEGORY_RE = re.compile(r'\*\*([A-Z][^*:]+):\*\*\s*')
+# Matches category markers embedded mid-bullet by the LLM writer. Two
+# alternatives, bold tried first: a bold '**Category:**' marker, OR a BARE
+# '<Word> Skills:' / '<Word> Knowledge:' label (the unbolded form the writer
+# sometimes emits, which mashes all three categories onto one line).
+# Example: 'Care Skills: x, y Soft Skills: a, b Other Skills: z'
+_BOLD_CATEGORY_RE = re.compile(
+    r'(\*\*[A-Z][^*:]+:\*\*\s*'
+    r'|[A-Z][a-zA-Z]*\s+(?:Skills|Knowledge)\s*:\s*)'
+)
 
 
 def _split_compound_skills_item(original_text: str) -> List[str]:
     """
-    Split a compound skills bullet that contains bold-marked embedded categories.
+    Split a compound skills bullet that folds several categories into one line.
 
-    LLM output pattern:
+    LLM output patterns (bold or bare):
         'Care Skills: x, y **Soft Skills:** a, b **Other Skills:** z'
-    becomes:
-        ['Care Skills: x, y', '**Soft Skills:** a, b', '**Other Skills:** z']
+        'Care Skills: x, y Soft Skills: a, b Other Skills: z'
+    both become:
+        ['**Care Skills:** x, y', '**Soft Skills:** a, b', '**Other Skills:** z']
 
-    Each returned string still has its ** markers so _strip_md_emphasis can
-    handle them normally downstream.  If no bold category markers are found the
-    original text is returned unchanged (no split).
+    Markers are normalised to the bold form so _strip_md_emphasis handles them
+    downstream. If no category markers are found the text is returned unchanged.
     """
     parts = _BOLD_CATEGORY_RE.split(original_text)
     if len(parts) <= 1:
-        return [original_text]     # no embedded bold categories — leave as-is
+        return [original_text]     # no embedded categories — leave as-is
 
     result: List[str] = []
-    # parts[0]  = text before the first bold marker (the leading category)
+    # parts[0] = text before the first marker (empty when the line starts
+    # with a category; non-empty only for stray leading prose).
     first = parts[0].strip()
     if first:
         result.append(first)
 
-    # parts[1], parts[2], parts[3], parts[4], … = cat_name, items, cat_name, items, …
+    # parts[1], parts[2], … = marker, items, marker, items, …
     for i in range(1, len(parts), 2):
-        cat_name = parts[i].strip()
+        cat_name = parts[i].strip().strip("*").strip().rstrip(":").strip()
         items_text = parts[i + 1].strip().lstrip(",").strip() if i + 1 < len(parts) else ""
         result.append(f"**{cat_name}:** {items_text}" if items_text else f"**{cat_name}:**")
 

@@ -582,3 +582,42 @@ def test_split_compound_skills_single_line():
     assert enforced_lines[1] == "**Core Skills:** Personal Care, Medication Assistance"
     assert enforced_lines[2] == "**Soft Skills:** Communication, Teamwork"
     assert enforced_lines[3] == "**Other Skills:** BESTMed, MedMobile"
+
+
+def test_split_compound_skills_bare_unbolded_line():
+    """Regression: the writer sometimes emits all categories on one line with
+    NO bold markers. Bare '<Word> Skills:' labels must still split + bold."""
+    from app.services.eval.enforce import _split_compound_skills
+
+    md_bare = (
+        "## Skills\n"
+        "Care Skills: Personal Care, Medication Assistance, Dementia Care "
+        "Soft Skills: Verbal Communication, Teamwork "
+        "Other Skills: BESTMed, MedMobile\n"
+        "\n"
+        "## Experience\n"
+    )
+    lines = _split_compound_skills(md_bare).strip().split("\n")
+    assert lines[0] == "## Skills"
+    assert lines[1] == "**Care Skills:** Personal Care, Medication Assistance, Dementia Care"
+    assert lines[2] == "**Soft Skills:** Verbal Communication, Teamwork"
+    assert lines[3] == "**Other Skills:** BESTMed, MedMobile"
+
+
+def test_split_compound_skills_leaves_plain_content_untouched():
+    """A single category line with comma-separated items (no embedded second
+    category) must NOT be falsely split — only category-marker boundaries split."""
+    from app.services.eval.enforce import _split_compound_skills
+
+    md_ok = (
+        "## Skills\n"
+        "**Care Skills:** Personal Care, Medication Assistance, Dementia Care\n"
+        "**Soft Skills:** Teamwork\n"
+        "**Other Skills:** BESTMed\n"
+        "\n"
+        "## Experience\n"
+    )
+    lines = _split_compound_skills(md_ok).strip().split("\n")
+    assert lines[1] == "**Care Skills:** Personal Care, Medication Assistance, Dementia Care"
+    assert lines[2] == "**Soft Skills:** Teamwork"
+    assert lines[3] == "**Other Skills:** BESTMed"
