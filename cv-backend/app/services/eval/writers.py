@@ -53,7 +53,12 @@ from app.services.ai.prompts.variants.composition import (
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import apply_w3_gates, restrict_domain_to_direct, enforce_summary_identity
+from app.services.eval.enforce_w3 import (
+    apply_w3_gates,
+    restrict_domain_to_direct,
+    enforce_summary_identity,
+    enforce_summary_breadth_consistency,
+)
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
 from app.services.eval.critique import critique_and_repair
@@ -1835,6 +1840,9 @@ async def _writer_w8_verified(
     # off-axis conjoined identity the integrated gate already trimmed. Anchored
     # on the JD title, deterministic, touches only the summary's lead role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
+    # Summary breadth/single-employer consistency — when S1 frames breadth
+    # ("multiple settings"), strip a cherry-picked single employer from S2.
+    verified_md = enforce_summary_breadth_consistency(verified_md)
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent

@@ -317,6 +317,84 @@ def clamp_two_sentences(md: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Summary breadth/single-employer consistency
+# ---------------------------------------------------------------------------
+# When S1 frames the candidate's experience as breadth — "across multiple
+# residential aged care settings", "several facilities", etc. — naming ONE
+# specific employer in S2 ("at Jesmond Miranda Nursing Home") is a hard
+# contradiction. The prompt forbids it, but the AI doesn't always comply, so
+# this deterministic pass strips the cherry-picked employer.
+
+_BREADTH_RE = re.compile(
+    r"\b(?:multiple|several|various|many)\s+(?:[a-z]+\s+){0,3}"
+    r"(?:settings|facilities|sites|placements|locations|homes|wards|"
+    r"units|environments|services|providers|employers)\b",
+    re.IGNORECASE,
+)
+
+# Match a trailing 'at <Capitalised Org Name>' just before the sentence's
+# terminating punctuation. The org is 1–8 capitalised tokens, joined by
+# spaces / connectors (the/of/and/&/–/-). Stops at the next sentence boundary.
+_AT_EMPLOYER_TAIL_RE = re.compile(
+    r"\s+at\s+"
+    r"([A-Z][\w']*"
+    r"(?:\s+(?:[A-Z][\w']*|of|the|and|&|–|-)){0,8})"
+    r"(?=\s*[.!?]|\s*$)"
+)
+
+
+def enforce_summary_breadth_consistency(md: str) -> str:
+    """If the summary's S1 uses breadth framing (multiple/several settings,
+    facilities, sites, placements, etc.) AND S2 anchors on a SINGLE named
+    employer ("at Jesmond Miranda Nursing Home."), strip the employer mention
+    and replace with "across these settings" so S1 and S2 agree.
+
+    No-op when:
+      - the Summary section is absent,
+      - S1 doesn't use breadth framing,
+      - S2 has no trailing 'at <Org>' anchor,
+      - S2 names two employers via a semicolon (the rule allows that).
+    """
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    prose_idx = [
+        i for i in range(start + 1, end)
+        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
+    ]
+    if not prose_idx:
+        return md
+    full = " ".join(lines[i].strip() for i in prose_idx).strip()
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
+    if len(sentences) < 2:
+        return md
+
+    s1, s2 = sentences[0], sentences[1]
+    if not _BREADTH_RE.search(s1):
+        return md  # S1 isn't breadth-framed — nothing to enforce.
+    if ";" in s2:
+        return md  # Two-clause S2 (allowed when two dominant roles exist).
+
+    new_s2 = _AT_EMPLOYER_TAIL_RE.sub(" across these settings", s2)
+    if new_s2 == s2:
+        return md  # No single-employer anchor to strip.
+
+    rest = sentences[2:] if len(sentences) > 2 else []
+    new_prose = " ".join([s1, new_s2] + rest)
+
+    for i in prose_idx:
+        lines[i] = ""
+    lines[prose_idx[0]] = new_prose
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Degree relevance
 # ---------------------------------------------------------------------------
 
