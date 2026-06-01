@@ -1007,15 +1007,18 @@ def _render_projects(items: List[Dict]) -> List[Any]:
 
 def _render_awards(items: List[Dict]) -> List[Any]:
     """
-    Awards entries — mirrors the Experience header layout:
-      Row 1: Award Name (bold, left)   |  Date (right)
-      Row 2: Organisation (italic, left)                [optional]
-      Row 3: Description (body text, full width)        [optional]
+    Awards entries — compact two-row layout:
+      Row 1: Award Name (bold, left)         |  Organisation (right)
+      Row 2: Description (body, left)        |  Date (right)
 
-    Canonical markdown shape produced by _normalise_awards_entries:
+    Markdown shape produced by _normalise_awards_entries:
       ### Staff Excellence Award | August 2025
       *Jesmond Miranda Nursing Home*
       Recognised for hard work, caring nature, and positive attitude.
+
+    Parsed as:  name = h3 left of "|", date = h3 right of "|",
+                org  = the italic line, desc = the plain line.
+    Org missing → row 1 right is blank. Desc missing → row 2 omitted.
     """
     out: List[Any] = []
     entry_count = 0
@@ -1025,13 +1028,13 @@ def _render_awards(items: List[Dict]) -> List[Any]:
         item = items[i]
 
         if item["type"] != "h3":
-            # Stray line (bullet or paragraph before any h3) — render as body.
+            # Stray line before any h3 — render as body.
             if item["text"].strip():
                 out.append(_inline_markup(item["text"], _styles()["body"]))
             i += 1
             continue
 
-        # Parse "Award Name | Date" or just "Award Name"
+        # Parse the h3: "Award Name | Date" or just "Award Name".
         raw = _strip_md_emphasis(item["text"])
         if "|" in raw:
             name_part, date_part = raw.split("|", 1)
@@ -1040,38 +1043,42 @@ def _render_awards(items: List[Dict]) -> List[Any]:
         else:
             award_name = raw.strip()
             award_date = ""
+        i += 1
+
+        # Optional italic line → organisation.
+        award_org = ""
+        if (i < len(items)
+                and items[i]["type"] == "paragraph"
+                and _is_italic_only_line(items[i]["text"])):
+            award_org = _strip_md_emphasis(items[i]["text"])
+            i += 1
+
+        # Optional plain line → description.
+        award_desc = ""
+        if (i < len(items)
+                and items[i]["type"] == "paragraph"
+                and not _is_italic_only_line(items[i]["text"])):
+            award_desc = items[i]["text"].strip()
+            i += 1
 
         if entry_count > 0:
             out.append(_spacer(_cfg().subsection_gap))
         entry_count += 1
 
-        # Row 1: name (bold) | date (right)
+        # Row 1: Award Name (bold, left) | Organisation (right).
         out.append(_two_col(
             Paragraph(_escape(award_name), _styles()["company_row"]),
-            Paragraph(_escape(award_date), _styles()["date_right"]),
+            Paragraph(_escape(award_org), _styles()["date_right"]),
         ))
-        i += 1
 
-        # Row 2: organisation — next paragraph if italic
-        if (i < len(items)
-                and items[i]["type"] == "paragraph"
-                and _is_italic_only_line(items[i]["text"])):
-            org_text = _strip_md_emphasis(items[i]["text"])
+        # Row 2: Description (body, left) | Date (right).
+        # Only emitted when there's at least a description OR a date —
+        # nothing renders an empty row.
+        if award_desc or award_date:
             out.append(_two_col(
-                Paragraph(_escape(org_text), _styles()["job_title"]),
-                Paragraph("", _styles()["date_right"]),
+                Paragraph(_escape(award_desc), _styles()["bullet_text"]),
+                Paragraph(_escape(award_date), _styles()["date_right"]),
             ))
-            i += 1
-
-        # Row 3: description — next paragraph if plain (not italic, not h3)
-        if (i < len(items)
-                and items[i]["type"] == "paragraph"
-                and not _is_italic_only_line(items[i]["text"])):
-            desc = items[i]["text"].strip()
-            if desc:
-                out.append(_spacer(_cfg().bullet_gap))
-                out.append(_inline_markup(desc, _styles()["bullet_text"]))
-            i += 1
 
     return out
 
