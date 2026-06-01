@@ -263,19 +263,5 @@ def stamp_credentials(
         lines = lines[:start_idx] + new_block + lines[end_idx:]
         return "\n".join(lines)
 
-    # Section absent — insert it after the H1's contact block, before the
-    # first ## section. The role-pack section_order already lists
-    # "Registration & Licences" right after Professional Summary; restore_and_order
-    # has run before us, so any later "## Professional Summary" lives at the
-    # canonical first-section slot. Insert immediately BEFORE that summary
-    # heading so the reorder semantics stay intact.
-    first_section = next(
-        (i for i, l in enumerate(lines) if l.startswith("## ")),
-        -1,
-    )
-    if first_section < 0:
-        # No sections at all — append at end as a fallback. Should be rare.
-        return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n{line}\n"
-    insert_block = [_CREDENTIALS_HEADING, "", line, ""]
-    lines = lines[:first_section] + insert_block + lines[first_section:]
-    return "\n".join(lines)
+    # Section absent — append at end of the markdown document
+    return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n{line}\n"

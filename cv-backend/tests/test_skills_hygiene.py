@@ -503,3 +503,55 @@ def test_normalise_skills_case_is_idempotent():
 def test_normalise_skills_case_noops_without_skills_section():
     md = "# Name\n\n## Experience\n- Did things\n"
     assert _normalise_skills_case(md) == md
+
+
+def test_availability_and_shift_patterns_rejected():
+    assert _is_non_skill_phrase("Availability For Day Shifts 8am-4pm Monday Tuesday Friday")
+    assert _is_non_skill_phrase("available for night shifts")
+    assert _is_non_skill_phrase("monday to friday")
+    assert _is_non_skill_phrase("8am-4pm")
+    assert _is_non_skill_phrase("rostered shifts")
+
+    # legitimate care / coord skills must survive
+    assert not _is_non_skill_phrase("roster management")
+    assert not _is_non_skill_phrase("roster coordination")
+    assert not _is_non_skill_phrase("shift handover")
+    assert not _is_non_skill_phrase("shift lead")
+
+
+def test_ensure_awards_recovers_flexible_headings():
+    cv = (
+        "Maheshwor Tiwari\n\n"
+        "## Awards & Achievements\n"
+        "- Staff Excellence Award\n"
+    )
+    tailored = (
+        "# Name\n\n## Experience\n- Did care.\n"
+    )
+    out = ensure_awards(tailored, cv)
+    assert "Staff Excellence Award" in out
+    assert "## Certifications" in out
+
+
+def test_user_has_credential_mapping():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "drivers_licence": "Open C Class",
+            "own_car": True,
+            "car_insurance": False,
+            "police_check": True,
+        }
+    }
+
+    assert user_has_credential("valid driver licence", contact)
+    assert user_has_credential("open driver's license", contact)
+    assert user_has_credential("driving and access to reliable car", contact)
+    assert user_has_credential("reliable vehicle", contact)
+    assert user_has_credential("national police check", contact)
+
+    # False because car_insurance is False
+    assert not user_has_credential("comprehensive car insurance", contact)
+    # False because not in profile
+    assert not user_has_credential("wwcc", contact)

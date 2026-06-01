@@ -108,14 +108,17 @@ WriterFn = Callable[..., Awaitable[WriterResult]]
 
 
 async def _run_upstream(
-    client: AIClient, cv_text: str, jd_text: str,
+    client: AIClient,
+    cv_text: str,
+    jd_text: str,
+    contact_details: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     jd_analysis = await run_jd_analysis(client, jd_text)
     matching = await run_cv_jd_matching(client, cv_text, jd_analysis)
     ats = run_ats_scoring(cv_text, jd_analysis, matching)
     input_recs = run_input_recommendations(cv_text, jd_analysis, matching, ats)
     feasibility = await run_keyword_feasibility(
-        client, cv_text, jd_analysis, matching, input_recs,
+        client, cv_text, jd_analysis, matching, input_recs, contact_details=contact_details,
     )
     return {
         "jd_analysis": jd_analysis,
@@ -164,7 +167,7 @@ async def _writer_w1_current(
     *,
     vertical: Optional[str] = None,  # ignored by W1
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
     )
@@ -203,7 +206,7 @@ async def _writer_w2_general(
     *,
     vertical: Optional[str] = None,  # ignored by W2
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
     )
@@ -247,7 +250,7 @@ async def _writer_w4_chat(
     *,
     vertical: Optional[str] = None,  # ignored by W4
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     user_prompt = TAILORED_CV_CHAT_USER_TEMPLATE.format(
         cv_text=cv_text,
         jd_text=jd_text,
@@ -293,7 +296,7 @@ async def _writer_w3_composition(
     *,
     vertical: Optional[str] = None,
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])
@@ -518,7 +521,14 @@ _NON_SKILL_PATTERN = re.compile(
     r"|ndis|disability|home\s+care|community\s+care|in[- ]home|"
     r"hospital|clinical|palliative)\s+"
     r"(?:clients|residents|participants|patients|consumers|persons"
-    r"|people))\b",
+    r"|people)"
+    # Availability, shifts, schedules, hours, and days of the week
+    r"|availability|available\b"
+    r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"
+    r"|(?:\b\d{1,2}(?:am|pm)?\s*(?:-|to)\s*\d{1,2}(?:am|pm)\b)"
+    r"|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)s?\b"
+    r"|\b(?:day|night|evening|afternoon|morning|weekend|rotating|casual|part[- ]time|full[- ]time)\s+shift[s]?\b"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -955,10 +965,12 @@ def _relabel_awards_only_certifications(markdown: str) -> str:
 # ---------------------------------------------------------------------------
 
 # Headings (markdown or plain) whose entries we treat as awards/credentials.
-_CRED_SECTION_WORDS = {
-    "certifications", "certification", "awards", "award", "honours", "honors",
-    "certifications & checks", "awards & recognition", "achievements",
-    "licences", "licenses", "professional development",
+_CRED_KEYWORDS = {
+    "certifications", "certification", "cert", "certs", "awards", "award",
+    "honours", "honors", "recognition", "recognitions", "accolades",
+    "clearances", "clearance", "checks", "check", "licences", "licence",
+    "licenses", "license", "registration", "registrations", "achievements",
+    "achievement", "credential", "credentials", "development",
 }
 # Other common CV headings — used to detect where a credentials section ends.
 _OTHER_SECTION_WORDS = {
@@ -969,14 +981,30 @@ _OTHER_SECTION_WORDS = {
 }
 
 
+def _is_cred_heading(heading: str, is_explicit: bool = False) -> bool:
+    h = heading.lower()
+    if h in _OTHER_SECTION_WORDS:
+        return False
+    if not is_explicit:
+        if h.startswith(("-", "*", "•")):
+            return False
+        if len(h.split()) > 5:
+            return False
+    tokens = re.findall(r"\b\w+\b", h)
+    return any(t in _CRED_KEYWORDS for t in tokens)
+
+
 def _cv_heading_word(line: str) -> Optional[str]:
     """If `line` is a section heading (markdown '## X' or a bare label line),
     return its lowercased label; else None."""
     s = line.strip()
     if s.startswith("## "):
-        return s[3:].strip().lower().rstrip(":")
+        label = s[3:].strip().lower().rstrip(":")
+        if _is_cred_heading(label, is_explicit=True) or label in _OTHER_SECTION_WORDS:
+            return label
+        return None
     low = s.lower().rstrip(":").strip()
-    if low in _CRED_SECTION_WORDS or low in _OTHER_SECTION_WORDS:
+    if _is_cred_heading(low, is_explicit=False) or low in _OTHER_SECTION_WORDS:
         return low
     return None
 
@@ -988,7 +1016,7 @@ def _extract_original_credentials(cv_text: str) -> list[str]:
     for raw in (cv_text or "").split("\n"):
         word = _cv_heading_word(raw)
         if word is not None:
-            collecting = word in _CRED_SECTION_WORDS
+            collecting = _is_cred_heading(word, is_explicit=True)
             continue
         if not collecting:
             continue
@@ -1011,7 +1039,7 @@ def _awards_section_text(markdown: str) -> str:
     for ln in lines:
         if ln.startswith("## "):
             heading = ln[3:].strip().lower().rstrip(":")
-            collecting = heading in _CRED_SECTION_WORDS
+            collecting = _is_cred_heading(heading, is_explicit=True)
             continue
         if collecting and ln.strip():
             parts.append(ln.lower())
@@ -1051,7 +1079,7 @@ def ensure_awards(markdown: str, original_cv_text: str) -> str:
     sec_start = None
     sec_end = len(lines)
     for i, ln in enumerate(lines):
-        if ln.startswith("## ") and ln[3:].strip().lower() in _CRED_SECTION_WORDS:
+        if ln.startswith("## ") and _is_cred_heading(ln[3:].strip().rstrip(":"), is_explicit=True):
             sec_start = i
             sec_end = next(
                 (j for j in range(i + 1, len(lines)) if lines[j].startswith("## ")),
@@ -1148,7 +1176,7 @@ async def _writer_w5_surfacing(
     *,
     vertical: Optional[str] = None,
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])
     seniority = resolve_seniority(up["jd_analysis"])
@@ -1209,7 +1237,7 @@ async def _writer_w6_general(
     *,
     vertical: Optional[str] = None,  # not needed — the prompt is field-agnostic
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
@@ -1256,7 +1284,7 @@ async def _writer_w7_converged(
     *,
     vertical: Optional[str] = None,
 ) -> WriterResult:
-    up = await _run_upstream(client, cv_text, jd_text)
+    up = await _run_upstream(client, cv_text, jd_text, contact_details)
     up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
     recs_md = await run_ai_recommendations(
         client, cv_text, up["jd_analysis"], up["matching"], up["input_recs"], up["feasibility"],
@@ -1341,7 +1369,7 @@ async def _writer_w8_integrated(
     # `upstream` lets the production orchestrator hand in its already-computed
     # jd_analysis/matching/ats/input_recs/feasibility so the w8 path doesn't
     # re-pay those AI calls. The eval harness passes nothing → recompute.
-    up = dict(upstream) if upstream is not None else await _run_upstream(client, cv_text, jd_text)
+    up = dict(upstream) if upstream is not None else await _run_upstream(client, cv_text, jd_text, contact_details)
     up["feasibility"] = restrict_domain_to_direct(up["feasibility"])  # domain expertise can't be inferred
 
     role_family = resolve_role_family(vertical, up["jd_analysis"])

@@ -81,6 +81,7 @@ async def run_keyword_feasibility(
     jd_analysis: Dict[str, Any],
     matching: Dict[str, Any],
     input_recs: Dict[str, Any],
+    contact_details: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     missing_block = (input_recs or {}).get("missing_keywords") or {}
     match_evidence = (matching or {}).get("match_evidence") or {}
@@ -110,7 +111,9 @@ async def run_keyword_feasibility(
     )
 
     plan = _normalise_plan(raw)
-    plan = _reconcile_with_missing(plan, missing_block, matching=matching)
+    plan = _reconcile_with_missing(
+        plan, missing_block, matching=matching, contact_details=contact_details
+    )
 
     # Counts and expected-lift summary
     counts = (matching or {}).get("counts") or {}
@@ -205,11 +208,97 @@ def _normalise_entry(item: Any, *, feasibility: str) -> Dict[str, Any] | None:
     return entry
 
 
+def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool:
+    if not contact_details:
+        return False
+    creds = contact_details.get("credentials") or {}
+    if not isinstance(creds, dict) or not creds:
+        return False
+
+    import re
+    kw = kw.lower().strip()
+
+    def has(key: str) -> bool:
+        val = creds.get(key)
+        if isinstance(val, str):
+            return bool(val.strip())
+        return bool(val)
+
+    # 1. Car insurance
+    if "insurance" in kw and ("car" in kw or "vehicle" in kw or "motor" in kw or "auto" in kw):
+        return has("car_insurance")
+
+    # 2. Compound Licence + Car (e.g. "driving and access to reliable car")
+    is_licence_kw = "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw
+    is_car_kw = "car" in kw or "vehicle" in kw or "transport" in kw or "automobile" in kw
+    if is_licence_kw and is_car_kw:
+        return has("drivers_licence") and has("own_car")
+
+    # 3. Forklift
+    if "forklift" in kw:
+        return has("forklift_licence")
+
+    # 4. Driver's licence
+    if "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw:
+        return has("drivers_licence")
+
+    # 5. Own car
+    if "car" in kw or "vehicle" in kw or "transport" in kw or "automobile" in kw:
+        return has("own_car")
+
+    # 6. Police check
+    if "police" in kw or "npc" in kw or "criminal" in kw or "background check" in kw or "national police check" in kw:
+        return has("police_check")
+
+    # 7. First aid
+    if "first aid" in kw or "hltaid011" in kw or "first-aid" in kw:
+        return has("first_aid")
+
+    # 8. CPR
+    if "cpr" in kw or "hltaid009" in kw or "cardiopulmonary" in kw:
+        return has("cpr")
+
+    # 9. Medication
+    if "medication" in kw or "med competency" in kw or "administer" in kw:
+        return has("medication_competency")
+
+    # 10. WWCC
+    if "wwcc" in kw or "working with children" in kw or "child check" in kw or "blue card" in kw:
+        return has("wwcc")
+
+    # 11. NDIS
+    if "ndis" in kw or "disability screening" in kw or "yellow card" in kw:
+        return has("ndis_screening")
+
+    # 12. White card
+    if "white card" in kw:
+        return has("white_card")
+
+    # 13. Flu
+    if "flu" in kw or "influenza" in kw:
+        return has("flu_vaccination")
+
+    # 14. Covid
+    if "covid" in kw or "corona" in kw or "sars-cov" in kw or "covid-19" in kw:
+        return has("covid_vaccination")
+
+    # 15. General vaccination
+    if "vaccination" in kw or "immunisation" in kw or "immunization" in kw:
+        return has("covid_vaccination") or has("flu_vaccination")
+
+    # 16. Work rights
+    if "work rights" in kw or "visa" in kw or "citizenship" in kw or "right to work" in kw or "australian citizen" in kw:
+        return has("work_rights")
+
+    return False
+
+
 def _reconcile_with_missing(
     plan: Dict[str, List[Dict[str, Any]]],
     missing_block: Dict[str, Dict[str, List[str]]],
     *,
     matching: Dict[str, Any],
+    contact_details: Dict[str, Any] | None = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Make sure every missed keyword is accounted for exactly once.
@@ -235,6 +324,20 @@ def _reconcile_with_missing(
     seen: set[str] = set()
     cleaned: Dict[str, List[Dict[str, Any]]] = {b: [] for b in _FEASIBILITY_BUCKETS}
 
+    # 1. Force any missing keywords that are backed by user credentials into inject_directly
+    for kw, (bucket, cat) in expected.items():
+        if user_has_credential(kw, contact_details):
+            cleaned["inject_directly"].append({
+                "keyword": kw,
+                "category": cat,
+                "bucket":   bucket,
+                "injection_target": "skills_section",
+                "evidence": "Stamps from user profile credentials settings.",
+                "rationale": "User has this credential enabled in their profile settings.",
+            })
+            seen.add(kw)
+
+    # 2. Process AI plan entries
     for fb in _FEASIBILITY_BUCKETS:
         for entry in plan[fb]:
             kw = entry["keyword"]

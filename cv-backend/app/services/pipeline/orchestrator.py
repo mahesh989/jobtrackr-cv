@@ -206,6 +206,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         await mark_step(run_id, step_status, "keyword_feasibility", "running")
         feasibility = await run_keyword_feasibility(
             ai_client, payload.cv_text, jd_analysis, matching, input_recs,
+            contact_details=payload.contact_details,
         )
         await save_step_result(run_id, "keyword_feasibility", feasibility)
         await mark_step(run_id, step_status, "keyword_feasibility", "completed")

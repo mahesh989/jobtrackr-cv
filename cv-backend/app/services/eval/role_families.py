@@ -179,8 +179,8 @@ _NURSING = RoleFamilyProfile(
         "personal care worker", "nursing assistant",
     ],
     section_order=[
-        "Professional Summary", "Registration & Licences", "Experience",
-        "Education", "Skills", "Certifications",
+        "Professional Summary", "Experience", "Education", "Skills",
+        "Certifications", "Registration & Licences",
     ],
     # skills_categories[0] is overwritten per nursing sub-type at resolve time
     # (Care Skills / Clinical Skills / Core Skills — see _apply_nursing_subtype);

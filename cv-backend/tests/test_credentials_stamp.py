@@ -105,10 +105,10 @@ def test_stamp_inserts_section_when_absent_for_nursing():
     out = stamp_credentials(_BASE_MD, _CREDS, "nursing")
     assert "## Registration & Licences" in out
     assert "National Police Check · NDIS Worker Screening" in out
-    # Section sits BEFORE Professional Summary so role-pack section_order keeps it first.
+    # Section sits AFTER Professional Summary (at the end)
     summary_idx = out.index("## Professional Summary")
     creds_idx = out.index("## Registration & Licences")
-    assert creds_idx < summary_idx
+    assert creds_idx > summary_idx
 
 
 def test_stamp_replaces_existing_section_body():
