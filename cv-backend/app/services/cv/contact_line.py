@@ -186,7 +186,7 @@ def build_credentials_line(
         parts.append("NDIS Worker Screening")
     if creds.get("wwcc"):
         state = _clean(creds.get("wwcc_state"))
-        parts.append(f"WWCC ({state})" if state else "WWCC")
+        parts.append(f"Working with Children Check ({state})" if state else "Working with Children Check")
 
     # 3. Healthcare-only skill certs
     if family == "nursing":

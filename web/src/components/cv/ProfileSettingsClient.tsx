@@ -361,12 +361,6 @@ export function ProfileSettingsClient({ initial }: Props) {
                 options={["", "Full Time", "Part Time"]}
               />
             )}
-            <Select
-              label="WWCC State (if you hold a Working with Children Check)"
-              value={creds.wwcc_state ?? ""}
-              onChange={(v) => setCred("wwcc_state", v)}
-              options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
-            />
           </div>
 
           {/* Held — checkboxes */}
@@ -439,12 +433,6 @@ export function ProfileSettingsClient({ initial }: Props) {
                     options={["", "Full Time", "Part Time"]}
                   />
                 )}
-                <Select
-                  label="WWCC State (if held)"
-                  value={creds.wwcc_state ?? ""}
-                  onChange={(v) => setCred("wwcc_state", v)}
-                  options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
-                />
               </>
             )}
           </div>

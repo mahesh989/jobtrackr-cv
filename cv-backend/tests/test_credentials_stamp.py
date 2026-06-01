@@ -45,7 +45,7 @@ def test_only_truthy_credentials_surface():
     # Order: registrations → clearances → certs → practical → status
     assert line == (
         "National Police Check · "
-        "WWCC (NSW) · "
+        "Working with Children Check (NSW) · "
         "First Aid (HLTAID011) · "
         "Medication Competency · "
         "Driver Licence (Open) · "
@@ -67,7 +67,7 @@ def test_ahpra_number_leads_when_present():
 
 def test_wwcc_without_state_uses_bare_label():
     line = build_credentials_line({"credentials": {"wwcc": True}})
-    assert line == "WWCC"
+    assert line == "Working with Children Check"
 
 
 def test_drivers_licence_only_emitted_when_class_specified():
@@ -163,7 +163,7 @@ def test_manual_family_renders_trade_certs_and_drops_clinical():
         "White Card · "
         "Forklift Licence (LF) · "
         "National Police Check · "
-        "WWCC (NSW) · "
+        "Working with Children Check (NSW) · "
         "Driver Licence (Open) · "
         "Own a car · "
         "Work Rights (PR)"
