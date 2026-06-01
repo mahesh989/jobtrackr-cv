@@ -481,15 +481,32 @@ _CERT_POLICY_TEXT = {
 def _role_pack_block(rf: RoleFamilyProfile) -> str:
     sections = " → ".join(rf.section_order)
     skills = ", ".join(rf.skills_categories)
+    first_cat = rf.skills_categories[0]   # e.g. "Care Skills" / "Technical Skills"
+    last_cat  = rf.skills_categories[2]   # e.g. "Other Skills"
+    if rf.headline_bucket == "domain_knowledge":
+        # Nursing / manual: domain terms (care settings, processes, clinical
+        # knowledge) belong in the FIRST bucket; tools/software in the LAST.
+        _skills_placement = (
+            f"Put clinical/care terms, work settings (e.g. 'Acute Healthcare', "
+            f"'Aged Care'), and care processes in **{first_cat}** (first line). "
+            f"Put software, tools, and systems (e.g. BESTMed, MedMobile) in "
+            f"**{last_cat}** (last line). NEVER place a care setting, care "
+            f"process, or clinical domain term in {last_cat}."
+        )
+    else:
+        # Tech / master: methodologies and domain knowledge are the catch-all.
+        _skills_placement = (
+            f"Put methodologies / domain knowledge in the last (catch-all) "
+            f"category ({last_cat}), never in the first."
+        )
     parts = [
         f"ROLE FAMILY: {rf.label}",
         rf.identity_guidance,
         f"SECTION ORDER (exact): {sections}. Do not rename or reorder; omit a "
         f"section only when the candidate genuinely has nothing for it.",
         f"SKILLS SECTION: exactly these three category lines, in order — "
-        f"{skills}. Format each as '**Category:** item, item, item'. Put "
-        f"methodologies / domain knowledge in the last (catch-all) category, "
-        f"never in the first. No duplicates across lines. List JD-named items "
+        f"{skills}. Format each as '**Category:** item, item, item'. "
+        f"{_skills_placement} No duplicates across lines. List JD-named items "
         f"first within each line. Name software / tools / systems by their "
         f"PRODUCT NAME ONLY (e.g. 'BESTMed', 'MedMobile') — never wrap a tool in "
         f"a verbose functional descriptor like 'Electronic medication "
