@@ -10,6 +10,7 @@ import { ComposeEmailModal } from "./ComposeEmailModal";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
 import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
+import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 export interface ApplicationRow {
   letter_id:                 string;
@@ -128,6 +129,7 @@ export function ApplicationCard({
   const [emailInput, setEmailInput] = useState("");
   const [emailFallback, setEmailFallback] = useState<{ subject: string; body: string } | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
   const score        = formatScore(row.tailored_match_score);
   const analysisHref = row.latest_run_id
@@ -294,6 +296,28 @@ export function ApplicationCard({
     // Then mark applied. handleApply does the optimistic UI + server action
     // + slides the card out toward the Sent/Applied tab.
     handleApply();
+  }
+
+  async function handleDownloadZip() {
+    if (downloadingZip) return;
+    setActionError(null);
+    setDownloadingZip(true);
+    try {
+      if (!row.tailored_cv_storage_path) {
+        throw new Error("Tailored CV is not available");
+      }
+      await downloadApplicationBundle({
+        jobId: row.job_id,
+        letterId: row.letter_id,
+        cvStoragePath: row.tailored_cv_storage_path,
+        companyName: row.job_company,
+        hiringManager: row.job_hiring_manager,
+      });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to download ZIP bundle");
+    } finally {
+      setDownloadingZip(false);
+    }
   }
 
   async function handleCopyEmail() {
@@ -471,7 +495,7 @@ export function ApplicationCard({
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
-        {analysisHref && (
+        {analysisHref && currentTab !== "apply" && (
           <Link
             href={analysisHref}
             className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
@@ -480,29 +504,30 @@ export function ApplicationCard({
             Full Analysis
           </Link>
         )}
-        <a
-          href={row.job_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Open job
-        </a>
-        <a
-          href={`/api/applications/${row.letter_id}/cover-letter-pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-          title="Preview cover letter PDF"
-        >
-          <FileType className="w-3 h-3" />
-          Cover Letter
-        </a>
-        {/* Tailored CV preview — renders client-side using the same pipeline
-            as the analysis page Download PDF button, so what users preview
-            here matches what the recipient receives as an attachment. */}
-        {row.tailored_cv_storage_path && (
+        {currentTab !== "pool" && currentTab !== "apply" && (
+          <a
+            href={row.job_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Open job
+          </a>
+        )}
+        {currentTab !== "pool" && currentTab !== "apply" && (
+          <a
+            href={`/api/applications/${row.letter_id}/cover-letter-pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+            title="Preview cover letter PDF"
+          >
+            <FileType className="w-3 h-3" />
+            Cover Letter
+          </a>
+        )}
+        {currentTab !== "pool" && currentTab !== "apply" && row.tailored_cv_storage_path && (
           <button
             type="button"
             onClick={previewTailoredCv}
@@ -514,10 +539,7 @@ export function ApplicationCard({
             {cvPreviewing ? "Rendering…" : "Tailored CV"}
           </button>
         )}
-        {/* Edit letter — visible on all non-sent cards. Server blocks edits to
-            already-sent letters; hiding the button on Sent/Archived avoids
-            inviting that error path. */}
-        {!localApplied && !row.job_applied_at && !row.job_dismissed_at && (
+        {currentTab === "email" && !localApplied && !row.job_applied_at && !row.job_dismissed_at && (
           <button
             onClick={() => setEditing(true)}
             disabled={pending !== null}
@@ -575,8 +597,22 @@ export function ApplicationCard({
           </button>
         )}
 
-        {/* Mark applied — available on apply, email (rare), and other non-pool tabs */}
-        {currentTab !== "pool" && !localApplied && (
+        {/* Download ZIP bundle (apply/sent/archived tabs only) */}
+        {(currentTab === "apply" || currentTab === "sent" || currentTab === "archived") && row.tailored_cv_storage_path && (
+          <button
+            type="button"
+            onClick={handleDownloadZip}
+            disabled={downloadingZip}
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            title="Download ZIP bundle containing CV and cover letter"
+          >
+            {downloadingZip ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileType className="w-3 h-3" />}
+            {downloadingZip ? "Preparing ZIP…" : "Download ZIP"}
+          </button>
+        )}
+
+        {/* Mark applied — available on sent/archived or non-pool/non-email/non-apply tabs */}
+        {currentTab !== "pool" && currentTab !== "email" && currentTab !== "apply" && !localApplied && (
           <button
             onClick={handleApply}
             disabled={pending !== null}

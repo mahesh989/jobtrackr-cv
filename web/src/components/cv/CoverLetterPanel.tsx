@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 interface GenerationStatus {
   generate: string;
@@ -44,6 +46,8 @@ interface Props {
   initial:  CoverLetterRow | null;
   /** Saved hiring manager name from the job row (used to pre-fill the download modal). */
   jobHiringManager: string | null;
+  cvStoragePath?: string | null;
+  companyName?: string | null;
 }
 
 const STEP_LABELS = [
@@ -71,7 +75,7 @@ function Naturalnessbadge({ score }: { score: number | null }) {
   );
 }
 
-export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
+export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePath, companyName }: Props) {
   const [letter, setLetter]     = useState<CoverLetterRow | null>(initial);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -80,6 +84,27 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadHiringMgr, setDownloadHiringMgr] = useState<string>(jobHiringManager ?? "");
   const [downloading, setDownloading] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  async function handleDownloadZip() {
+    if (downloadingZip || !letter || !cvStoragePath) return;
+    setError(null);
+    setDownloadingZip(true);
+    try {
+      await downloadApplicationBundle({
+        jobId,
+        letterId: letter.id,
+        cvStoragePath,
+        companyName: companyName ?? "Company",
+        hiringManager: downloadHiringMgr || null,
+        editedBody: editedBody || null,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download ZIP bundle");
+    } finally {
+      setDownloadingZip(false);
+    }
+  }
 
   // Phase D-2: when the API returns 422 + action=below_final_gate, surface
   // an inline override prompt with the actual score + threshold so the
@@ -664,6 +689,16 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager }: Props) {
             >
               Download PDF
             </button>
+            {cvStoragePath && (
+              <button
+                onClick={handleDownloadZip}
+                disabled={downloadingZip}
+                className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors disabled:opacity-40 flex items-center gap-1.5"
+              >
+                {downloadingZip && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {downloadingZip ? "Preparing ZIP…" : "Download ZIP"}
+              </button>
+            )}
             {/* Jump to the Applications "Application pool" tab so the user
                 can queue this letter for review without hunting through the nav. */}
             <Link

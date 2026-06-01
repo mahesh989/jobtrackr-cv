@@ -165,6 +165,8 @@ export default async function AnalyzeRunPage({ params }: Props) {
           jobId={jobId}
           initial={existingLetter as any}
           jobHiringManager={job?.hiring_manager ?? null}
+          cvStoragePath={(run as any).tailored_cv_storage_path}
+          companyName={job?.company ?? null}
         />
         </div>
       </div>
