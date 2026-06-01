@@ -507,7 +507,18 @@ _NON_SKILL_PATTERN = re.compile(
     r"(?:seniors|elderly|aged|older\s+(?:people|adults|persons|australians)"
     r"|children|adolescents|adults|youth|patients|residents|clients"
     r"|families|consumers|participants|vulnerable\s+(?:people|adults)"
-    r"|the\s+aged|the\s+elderly))\b",
+    r"|the\s+aged|the\s+elderly)"
+    # Bare "[sector] [audience]" — same JD-phrasing class without a verb
+    # prefix. "Aged Care Clients", "Nursing Home Residents", "NDIS
+    # Participants", "Disability Clients", "Home Care Clients" — these are
+    # WHO the work serves, not a skill. The candidate's actual competencies
+    # (Personal Care, Dementia Care, Medication Assistance) live in Care
+    # Skills; the audience never belongs on a Skills line.
+    r"|(?:aged\s+care|nursing\s+home|residential\s+(?:aged\s+care|care)"
+    r"|ndis|disability|home\s+care|community\s+care|in[- ]home|"
+    r"hospital|clinical|palliative)\s+"
+    r"(?:clients|residents|participants|patients|consumers|persons"
+    r"|people))\b",
     re.IGNORECASE,
 )
 
@@ -701,6 +712,113 @@ _AWARDS_SOURCE_HEADINGS = {
     "honors",
     "accolades",
 }
+
+
+def _normalise_awards_entries(markdown: str) -> str:
+    """Collapse ## Awards entries to clean single bullets.
+
+    Two input shapes appear from the writer in production:
+      1. Verbose bullet:
+         - Staff Excellence Award – Org | Aug 2025 – Recognised for hard work,
+           caring nature, and positive attitude.
+      2. Two-line H3 + italic block:
+         ### Staff Excellence Award, Org | Location
+         *Recognised For Hard Work, Caring Nature, And Positive Attitude | Aug 2025*
+
+    Output (deterministic, one shape):
+      - Staff Excellence Award – Org (Aug 2025)
+
+    No-op when the section is absent or already conformant. Recognised-for /
+    descriptive trailing text is stripped — the award name + organisation +
+    date is the persuasion-bearing part; the description repeats what every
+    award implies."""
+    lines = markdown.split("\n")
+    start = next(
+        (i for i, l in enumerate(lines)
+         if l.strip().lower() == "## awards"),
+        -1,
+    )
+    if start < 0:
+        return markdown
+    end = next(
+        (j for j in range(start + 1, len(lines)) if lines[j].startswith("## ")),
+        len(lines),
+    )
+
+    new_entries: list[str] = []
+    i = start + 1
+    while i < end:
+        line = lines[i].rstrip()
+        stripped = line.strip()
+        if not stripped:
+            i += 1
+            continue
+
+        if stripped.startswith("### "):
+            # Two-line H3 + italic. Parse H3: "Award Name, Org | Location"
+            h3 = stripped[4:].strip()
+            italic = ""
+            if i + 1 < end and lines[i + 1].strip().startswith("*"):
+                italic = lines[i + 1].strip().strip("*").strip()
+                i += 2
+            else:
+                i += 1
+            # H3 left of first "|" carries "Award Name, Org".
+            h3_core = h3.split("|", 1)[0].strip() if "|" in h3 else h3
+            # Split award name from org on the FIRST comma — the org may
+            # itself contain commas downstream (we keep them in org).
+            if "," in h3_core:
+                name, org = h3_core.split(",", 1)
+                name = name.strip()
+                org = org.strip()
+            else:
+                name, org = h3_core, ""
+            # Italic right of LAST "|" is the date; left is description (drop).
+            date = italic.rsplit("|", 1)[-1].strip() if "|" in italic else ""
+            new_entries.append(_format_award_bullet(name, org, date))
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            # Verbose bullet. Pattern: "Name – Org | Date – Desc" or close
+            # variants. Strip everything after the LAST "|"'s "– Desc" tail,
+            # and convert "| Date" → " (Date)".
+            content = stripped[2:].strip()
+            if "|" in content:
+                left, right = content.rsplit("|", 1)
+                left = left.strip()
+                date_part = right.strip()
+                # Drop trailing " – Description" / " — Description" / " - Desc".
+                for sep in (" – ", " — ", " - "):
+                    if sep in date_part:
+                        date_part = date_part.split(sep, 1)[0].strip()
+                        break
+                new_entries.append(f"- {left} ({date_part})" if date_part else f"- {left}")
+            else:
+                # No pipe — only strip trailing description after " – "
+                # if there's an org separator earlier.
+                # Conservative: drop nothing, just keep the bullet as-is.
+                new_entries.append(f"- {content}")
+            i += 1
+        else:
+            # Plain line — keep as-is (rare).
+            new_entries.append(stripped)
+            i += 1
+
+    if not new_entries:
+        return markdown
+
+    # Rebuild section. Standard spacing: heading, blank, entries, blank.
+    rebuilt = [lines[start], ""] + new_entries + [""]
+    return "\n".join(lines[:start] + rebuilt + lines[end:])
+
+
+def _format_award_bullet(name: str, org: str, date: str) -> str:
+    """Compose the canonical single-bullet shape for an Awards entry."""
+    if org and date:
+        return f"- {name} – {org} ({date})"
+    if date:
+        return f"- {name} ({date})"
+    if org:
+        return f"- {name} – {org}"
+    return f"- {name}"
 
 
 def _relabel_awards_only_certifications(markdown: str) -> str:
@@ -1213,8 +1331,13 @@ async def _writer_w8_integrated(
     # 4a. Drop AI-fabricated credential/checks entries not grounded in the CV
     #     (e.g. "First Aid – [Provider not specified]", "Driver Licence (NSW)").
     final_md = _strip_ungrounded_credentials(final_md, cv_text)
-    # 4b. Relabel an awards-only "Certifications" section to "Awards".
+    # 4b. Relabel an awards-only "Certifications" / "Recognition" section to "Awards".
     final_md = _relabel_awards_only_certifications(final_md)
+    # 4b-bis. Normalise every entry in ## Awards to a single clean bullet
+    #     `- Name – Organisation (Date)` — collapses the two-line H3+italic
+    #     block shape the writer sometimes emits, and strips trailing
+    #     "Recognised for hard work…" descriptive text from verbose bullets.
+    final_md = _normalise_awards_entries(final_md)
     # 4c. Stamp user-supplied credentials into ## Registration & Licences
     #     (nursing/healthcare/care families only; no-op when role family is
     #     tech/manual/general or when the user has saved no credentials).

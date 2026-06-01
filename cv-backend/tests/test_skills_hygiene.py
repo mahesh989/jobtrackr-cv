@@ -5,6 +5,7 @@ from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
     _relabel_awards_only_certifications,
+    _normalise_awards_entries,
     ensure_awards,
     _extract_original_credentials,
     _strip_ungrounded_credentials,
@@ -62,6 +63,22 @@ def test_predicate_rejects_non_skills():
         "Caring For Patients",
         "Engaging With Residents",
         "Supporting Vulnerable People",
+        # Regression: production Dovida CV listed "Aged Care Clients" under
+        # Other Skills. Same family — bare audience phrase, not a skill.
+        # "[sector] [audience]" without any verb prefix.
+        "Aged Care Clients",
+        "Aged Care Residents",
+        "Nursing Home Residents",
+        "NDIS Participants",
+        "NDIS Clients",
+        "Disability Clients",
+        "Home Care Clients",
+        "Residential Care Residents",
+        "Community Care Participants",
+        "Hospital Patients",
+        "Clinical Clients",
+        "Palliative Patients",
+        "In-home Clients",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
@@ -204,6 +221,63 @@ def test_relabel_keeps_recognition_with_real_credential():
     out = _relabel_awards_only_certifications(md)
     assert "## Awards" not in out
     assert "## Recognition" in out
+
+
+# ---------------------------------------------------------------------------
+# _normalise_awards_entries — canonicalise the bullet shape
+# ---------------------------------------------------------------------------
+
+def test_normalise_collapses_h3_italic_block_to_bullet():
+    """Regression: production Sanctuary CV emitted the two-line H3+italic
+    shape for the Staff Excellence Award. The user wants single bullets."""
+    md = (
+        "## Awards\n\n"
+        "### Staff Excellence Award, Jesmond Miranda Nursing Home | Miranda, NSW, Australia\n"
+        "*Recognised For Hard Work, Caring Nature, And Positive Attitude | Aug 2025*\n\n"
+        "## Education\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "### Staff Excellence Award" not in out
+    assert "*Recognised" not in out
+    # Trailing description stripped, date moved to parens.
+    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+
+
+def test_normalise_strips_trailing_description_on_bullet():
+    """Regression: production Dovida CV emitted a verbose bullet
+    `Name – Org | Date – Recognised for X` — strip the description tail
+    and convert `| Date` to ` (Date)`."""
+    md = (
+        "## Awards\n"
+        "- Staff Excellence Award – Jesmond Miranda Nursing Home | Aug 2025 – Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "Recognised for hard work" not in out
+    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+
+
+def test_normalise_noops_when_already_clean():
+    """A bullet already in the canonical shape passes through unchanged."""
+    md = (
+        "## Awards\n\n"
+        "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+
+
+def test_normalise_noops_without_awards_section():
+    md = "## Skills\n**Care Skills:** Personal Care\n"
+    assert _normalise_awards_entries(md) == md
+
+
+def test_normalise_handles_award_without_organisation():
+    md = (
+        "## Awards\n"
+        "- Dean's List (2023)\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "- Dean's List (2023)" in out
 
 
 def test_extract_original_credentials():

@@ -263,18 +263,26 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   name only JD-aligned domains.
 - Sentence 2 (achievement, ≤22 words): action verb + method + quantified
   result + company anchor. If you kept 2+ roles, use TWO clauses (one per
-  top role) joined by a semicolon — single-clause S2 is a hard error when
-  2+ roles exist; it under-fills the sentence and signals that only one
-  role matters.
+  top role) joined by a SEMICOLON (not comma + "and") — single-clause S2
+  is a hard error when 2+ roles exist; it under-fills the sentence and
+  signals that only one role matters.
   TENSE: completed roles use PAST-tense ("delivered", "led", "reduced"). A
   CURRENT role marked "– Present" in Experience may use PRESENT tense in its
   clause ("delivers", "leads", "provides") — this reads honestly for ongoing
   work. Mix freely when 2 roles span past+current: one clause past, one
   present, joined by semicolon. Never use present tense for a completed role.
   COMPANY ANCHOR is mandatory in EVERY clause: each clause must name its
-  kept employer naturally (e.g. "…at Jesmond Miranda Nursing Home";
-  "…at Uniting – The Marion"). Generic phrases ("in aged care facilities",
-  "across the industry") do NOT satisfy the anchor.
+  kept employer BY NAME (e.g. "…at Jesmond Miranda Nursing Home";
+  "…at Uniting – The Marion"). Vague substitutes are FORBIDDEN — do NOT
+  write "during placement", "in casual roles", "across multiple settings",
+  "in residential aged care", "in aged care facilities", "across the
+  industry". If you can't name the employer, the clause fails — rewrite it.
+  NO TOOL NAMES in S2 (same rule as S1): do NOT write "using BESTMed and
+  MedMobile", "via Power BI", "with Python". Tools live in the Skills
+  section. Replace tool names with the METHOD they enable: "electronic
+  medication administration" (not "BESTMed"), "automated reporting" (not
+  "Power BI"). The summary describes what you DELIVERED, not what software
+  you used to deliver it.
 - METRIC FALLBACK: if the kept experience supplies NO quantified result anywhere,
   do NOT invent one. Use the strongest concrete outcome the CV actually shows —
   a named system/process, a scope phrase (across multiple sites/shifts), an
@@ -324,21 +332,33 @@ place; do not emit until every item passes):
      axis sector labels.
 (4)  SUMMARY_S2: count the kept Experience roles (## Experience section's H3
      lines). Then check S2:
-     • If 1 kept role: S2 must name THAT employer somewhere in the sentence.
-     • If 2+ kept roles: S2 MUST contain TWO clauses joined by a semicolon,
-       one anchored to EACH of the top 2 kept employers
-       (e.g. "Delivered medication administration at Jesmond Miranda;
-       provided person-centred care at Uniting – The Marion."). A single-
-       clause S2 is a HARD FAIL when 2+ roles exist — it under-fills the
-       sentence and reads as if only one role mattered. Rewrite into the
-       two-clause shape before emitting.
-     Generic phrases like "in aged care facilities", "across the industry",
-     "in residential care" do NOT satisfy the company-anchor requirement.
-     Also verify: PAST-tense verb (a current "– Present" role's clause may
-     stay present tense, but a clause referring to a completed role must use
-     past tense — never present tense for a past achievement); method named;
-     (quantified) result OR concrete non-numeric outcome from the CV (never
-     a fabricated number).
+     • If 1 kept role: S2 must name THAT employer by name somewhere.
+     • If 2+ kept roles: S2 MUST contain TWO clauses joined by a SEMICOLON
+       (";"), one anchored to EACH of the top 2 kept employers BY NAME
+       (e.g. "Delivers medication administration at Jesmond Miranda Nursing
+       Home; provides person-centred care at Uniting – The Marion."). A
+       single-clause S2 is a HARD FAIL when 2+ roles exist. A two-clause
+       S2 joined by "and" instead of a semicolon is also a HARD FAIL —
+       the semicolon is required to signal the per-employer split.
+     FORBIDDEN substitutes that the second clause must NOT use as its
+     anchor: "during placement", "in casual roles", "across multiple
+     settings", "in residential aged care", "in aged care facilities",
+     "across the industry", "in clinical settings", "in care facilities".
+     If you cannot name the second employer, you have failed — rewrite
+     until both employers are named.
+     TOOL-NAME SCAN: scan S2 character-by-character for tool names
+     (BESTMed, MedMobile, Python, SQL, Power BI, PostgreSQL, AWS, Tableau,
+     Snowflake, etc.). If ANY appear, S2 FAILS — rewrite replacing each
+     tool with the METHOD/OUTCOME it enables (BESTMed → "electronic
+     medication administration"; Power BI → "automated dashboards";
+     Python → "data automation"). Tools are for the Skills section, NEVER
+     the summary.
+     TENSE: a clause referring to a completed role uses PAST tense; a
+     clause referring to a "– Present" role may use present tense. Mix
+     across clauses is fine. Never present tense for a past achievement.
+     METHOD + RESULT: every clause names a method and either a quantified
+     result or a concrete non-numeric outcome from the CV (never a
+     fabricated number).
 (5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
      client, tool, or achievement absent from kept sections).
 (6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence
