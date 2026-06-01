@@ -567,11 +567,51 @@ def _format_skill_label(keyword: str) -> str:
     return " ".join(out)
 
 
+def _split_compound_skills(markdown: str) -> str:
+    """
+    If any single line inside the '## Skills' section contains multiple bold
+    category markers (e.g. '**Core Skills:** ... **Soft Skills:** ...'),
+    split them onto separate lines.
+    """
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip().lower() == "## skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    skills_lines: list[str] = []
+    category_pat = re.compile(r"(\*\*[^*]+?:\*\*\s*)")
+
+    for i in range(skills_start + 1, skills_end):
+        ln = lines[i]
+        parts = category_pat.split(ln)
+        if len(parts) > 3:  # has at least 2 category markers
+            first = parts[0].strip()
+            if first:
+                skills_lines.append(first)
+            for j in range(1, len(parts), 2):
+                marker = parts[j].strip()
+                content = parts[j + 1].strip().lstrip(",").strip() if j + 1 < len(parts) else ""
+                skills_lines.append(f"{marker} {content}")
+        else:
+            skills_lines.append(ln)
+
+    new_lines = lines[:skills_start + 1] + skills_lines + lines[skills_end:]
+    return "\n".join(new_lines)
+
+
 def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
     """
     Append any inject_directly keyword (target=skills_section) that's missing
     from the Skills section to the appropriate category line. AI-free.
     """
+    markdown = _split_compound_skills(markdown)
     plan = (feasibility or {}).get("feasibility_plan") or {}
     inject_directly = plan.get("inject_directly") or []
     if not isinstance(inject_directly, list) or not inject_directly:

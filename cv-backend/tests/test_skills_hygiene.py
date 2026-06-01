@@ -555,3 +555,30 @@ def test_user_has_credential_mapping():
     assert not user_has_credential("comprehensive car insurance", contact)
     # False because not in profile
     assert not user_has_credential("wwcc", contact)
+
+
+def test_split_compound_skills_single_line():
+    from app.services.eval.enforce import _split_compound_skills, enforce_skills_section
+
+    md_single_line = (
+        "## Skills\n"
+        "**Core Skills:** Personal Care, Medication Assistance **Soft Skills:** Communication, Teamwork **Other Skills:** BESTMed, MedMobile\n"
+        "\n"
+        "## Education\n"
+    )
+
+    # Test direct _split_compound_skills
+    split_md = _split_compound_skills(md_single_line)
+    lines = split_md.strip().split("\n")
+    assert lines[0] == "## Skills"
+    assert lines[1] == "**Core Skills:** Personal Care, Medication Assistance"
+    assert lines[2] == "**Soft Skills:** Communication, Teamwork"
+    assert lines[3] == "**Other Skills:** BESTMed, MedMobile"
+
+    # Test via enforce_skills_section
+    enforced = enforce_skills_section(md_single_line)
+    enforced_lines = enforced.strip().split("\n")
+    assert enforced_lines[0] == "## Skills"
+    assert enforced_lines[1] == "**Core Skills:** Personal Care, Medication Assistance"
+    assert enforced_lines[2] == "**Soft Skills:** Communication, Teamwork"
+    assert enforced_lines[3] == "**Other Skills:** BESTMed, MedMobile"
