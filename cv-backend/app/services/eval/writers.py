@@ -907,21 +907,34 @@ def _strip_au_location(org: str) -> str:
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
     """Produce the canonical structured Awards entry lines for ## Awards.
 
-    Output shape (mirrors Experience header layout):
-      ### Award Name | Date
-      *Organisation*
-      Description sentence.
+    Output shape (two rows — name|org primary, description|date secondary —
+    so the web's applyCvSectionLayout and the PDF's _render_awards produce
+    the same two-column layout):
+
+      ### Award Name | Organisation
+      Description sentence. | Date
+
+    Falls back gracefully when any field is missing:
+      - no org   →  '### Award Name'                  (h3 with no pipe)
+      - no date  →  'Description sentence.'           (paragraph with no pipe)
+      - no description but date present → emits 'Date' on its own (rare).
     """
-    header = f"### {name} | {date}" if date else f"### {name}"
+    org_clean = _strip_au_location(org) if org else ""
+    header = f"### {name} | {org_clean}" if org_clean else f"### {name}"
     lines = [header]
-    if org:
-        lines.append(f"*{_strip_au_location(org)}*")
+
     if description:
         desc = description.strip().rstrip(".")
-        # Sentence-case the description (title-cased from italic is noisy).
+        # Sentence-case the description (title-cased input is noisy).
         desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
         desc = _canonicalise_skill_spelling(desc)
-        lines.append(f"{desc}.")
+        body = f"{desc}."
+        if date:
+            body = f"{body} | {date}"
+        lines.append(body)
+    elif date:
+        # No description but we have a date — keep the date as its own row.
+        lines.append(f" | {date}")
     return lines
 
 

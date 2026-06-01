@@ -1005,20 +1005,32 @@ def _render_projects(items: List[Dict]) -> List[Any]:
     return out
 
 
+_AWARD_DATE_TAIL_RE = re.compile(
+    r"\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
+    r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
+    r"|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{4})\b",
+    re.IGNORECASE,
+)
+
+
 def _render_awards(items: List[Dict]) -> List[Any]:
     """
-    Awards entries — compact two-row layout:
-      Row 1: Award Name (bold, left)         |  Organisation (right)
-      Row 2: Description (body, left)        |  Date (right)
+    Awards entries — compact two-row layout that matches the web's
+    applyCvSectionLayout splitRow:
 
-    Markdown shape produced by _normalise_awards_entries:
-      ### Staff Excellence Award | August 2025
-      *Jesmond Miranda Nursing Home*
-      Recognised for hard work, caring nature, and positive attitude.
+      Row 1 (primary):   Award Name (bold, left)   |  Organisation (right)
+      Row 2 (secondary): Description (body, left)  |  Date (right)
 
-    Parsed as:  name = h3 left of "|", date = h3 right of "|",
-                org  = the italic line, desc = the plain line.
-    Org missing → row 1 right is blank. Desc missing → row 2 omitted.
+    Canonical markdown shape produced by _normalise_awards_entries:
+      ### Staff Excellence Award | Jesmond Miranda Nursing Home
+      Recognised for hard work, caring nature, and positive attitude. | August 2025
+
+    Parsed as:  name = h3 left of '|', org = h3 right of '|',
+                desc = next paragraph's left of '|', date = right of '|'.
+
+    Backward-compatible: if the h3's right side parses as a date (e.g. the
+    pre-2026-06-02 shape "### Name | Aug 2025"), we keep it as the date and
+    fall back to the old italic-line-as-org reading.
     """
     out: List[Any] = []
     entry_count = 0
@@ -1028,37 +1040,52 @@ def _render_awards(items: List[Dict]) -> List[Any]:
         item = items[i]
 
         if item["type"] != "h3":
-            # Stray line before any h3 — render as body.
             if item["text"].strip():
                 out.append(_inline_markup(item["text"], _styles()["body"]))
             i += 1
             continue
 
-        # Parse the h3: "Award Name | Date" or just "Award Name".
+        # Parse the h3.
         raw = _strip_md_emphasis(item["text"])
+        award_name = award_org = award_date = ""
         if "|" in raw:
-            name_part, date_part = raw.split("|", 1)
-            award_name = name_part.strip()
-            award_date = date_part.strip()
+            left, right = [x.strip() for x in raw.split("|", 1)]
+            award_name = left
+            # If the right side looks like a date, treat it as such (old
+            # shape); otherwise it's the organisation (new shape).
+            if right and re.fullmatch(
+                r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
+                r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
+                r"|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{4}",
+                right, re.IGNORECASE,
+            ):
+                award_date = right
+            else:
+                award_org = right
         else:
             award_name = raw.strip()
-            award_date = ""
         i += 1
 
-        # Optional italic line → organisation.
-        award_org = ""
-        if (i < len(items)
+        # Optional italic line → legacy organisation slot (old shape).
+        if (not award_org and i < len(items)
                 and items[i]["type"] == "paragraph"
                 and _is_italic_only_line(items[i]["text"])):
             award_org = _strip_md_emphasis(items[i]["text"])
             i += 1
 
-        # Optional plain line → description.
+        # Description paragraph (may contain " | Date").
         award_desc = ""
         if (i < len(items)
                 and items[i]["type"] == "paragraph"
                 and not _is_italic_only_line(items[i]["text"])):
-            award_desc = items[i]["text"].strip()
+            para = items[i]["text"].strip()
+            if " | " in para:
+                left, right = [x.strip() for x in para.rsplit(" | ", 1)]
+                award_desc = left
+                if not award_date:
+                    award_date = right
+            else:
+                award_desc = para
             i += 1
 
         if entry_count > 0:
@@ -1071,9 +1098,7 @@ def _render_awards(items: List[Dict]) -> List[Any]:
             Paragraph(_escape(award_org), _styles()["date_right"]),
         ))
 
-        # Row 2: Description (body, left) | Date (right).
-        # Only emitted when there's at least a description OR a date —
-        # nothing renders an empty row.
+        # Row 2: Description (body, left) | Date (right). Skip when empty.
         if award_desc or award_date:
             out.append(_two_col(
                 Paragraph(_escape(award_desc), _styles()["bullet_text"]),
