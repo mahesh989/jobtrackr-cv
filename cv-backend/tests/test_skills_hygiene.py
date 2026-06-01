@@ -11,6 +11,8 @@ from app.services.eval.writers import (
     _strip_ungrounded_credentials,
     _smartcase_skill,
     _normalise_skills_case,
+    _canonicalise_skill_spelling,
+    _dedupe_skills_across_lines,
 )
 
 _CV_WITH_AWARD = (

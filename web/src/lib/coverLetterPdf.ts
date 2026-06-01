@@ -37,9 +37,17 @@ export function renderCoverLetterPdf(templatedText: string): Buffer {
   doc.setFontSize(fontSize);
 
   let yPos = margin;
+  // Sanitize input text. jsPDF's standard non-embedded fonts (like Helvetica)
+  // only support standard ASCII/WinAnsi characters. Unicode characters like
+  // the non-breaking hyphen (\u2011) are unsupported, causing jsPDF to drop
+  // letters and spacing calculations to break (leading to extreme letter-spacing).
+  const sanitizedText = templatedText
+    .replace(/\u2011/g, "-")  // non-breaking hyphen -> standard hyphen
+    .replace(/\u00a0/g, " "); // non-breaking space -> standard space
+
   // Split on hard newlines first so blank source lines become explicit
   // paragraph gaps rather than collapsing into uniform line spacing.
-  const rawLines = templatedText.split("\n");
+  const rawLines = sanitizedText.split("\n");
   for (const raw of rawLines) {
     if (raw.trim() === "") {
       yPos += paragraphGap;

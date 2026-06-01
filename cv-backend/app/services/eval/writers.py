@@ -678,6 +678,86 @@ def _normalise_skills_case(markdown: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# British/American spelling canonicalisation + cross-line dedup. The writer
+# sometimes emits the British form on one Skills line ("Person-Centred Care"
+# on Care Skills) and the American form on another ("Person-Centered Care" on
+# Other Skills). They are the same skill — dedup needs them to compare equal.
+#
+# Australian CVs use British spelling, so we canonicalise to British. Limited
+# to a curated set of skill-phrase replacements (not generic letter swaps) to
+# avoid touching brand names like "Optimizely" or "Customer Behavior Analytics".
+# ---------------------------------------------------------------------------
+
+_BR_AM_SKILL_SUBS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bperson[- ]centered\b", re.IGNORECASE),         "Person-Centred"),
+    (re.compile(r"\bperson[- ]centred\b", re.IGNORECASE),          "Person-Centred"),
+    (re.compile(r"\bbehavioral\b", re.IGNORECASE),                 "Behavioural"),
+    (re.compile(r"\bspecialized\b", re.IGNORECASE),                "Specialised"),
+    (re.compile(r"\borganized\b", re.IGNORECASE),                  "Organised"),
+    (re.compile(r"\bindividualized\b", re.IGNORECASE),             "Individualised"),
+    (re.compile(r"\bpersonalized\b", re.IGNORECASE),               "Personalised"),
+    (re.compile(r"\boptimized\b", re.IGNORECASE),                  "Optimised"),
+    (re.compile(r"\banalyze\b", re.IGNORECASE),                    "Analyse"),
+    (re.compile(r"\bcolor\b", re.IGNORECASE),                      "Colour"),
+]
+
+
+def _canonicalise_skill_spelling(skill: str) -> str:
+    """Replace American spellings with British/Australian equivalents.
+    Applies only to the curated skill-phrase patterns above; brand names
+    that happen to contain American spellings are left alone."""
+    out = skill
+    for pat, repl in _BR_AM_SKILL_SUBS:
+        out = pat.sub(repl, out)
+    return out
+
+
+def _dedupe_skills_across_lines(markdown: str) -> str:
+    """Remove duplicate entries that appear on multiple ## Skills category
+    lines after spelling canonicalisation. Within each line, also dedupe
+    case-insensitively. Earlier lines win — a skill already in Care Skills
+    is dropped from Soft / Other; a skill in Soft is dropped from Other.
+
+    Runs AFTER _normalise_skills_case so we work on canonical-cased entries,
+    and applies the British-spelling map before comparing so 'Person-Centred
+    Care' (Care Skills) and 'Person-Centered Care' (Other) deduplicate."""
+    lines = markdown.split("\n")
+    skills_start = next((i for i, l in enumerate(lines) if l.strip() == "## Skills"), -1)
+    if skills_start < 0:
+        return markdown
+    skills_end = next(
+        (j for j in range(skills_start + 1, len(lines)) if lines[j].startswith("## ")),
+        len(lines),
+    )
+
+    seen: set[str] = set()
+    dropped = 0
+    for i in range(skills_start + 1, skills_end):
+        m = _SKILLS_LINE_RE.match(lines[i])
+        if not m:
+            continue
+        prefix, body = m.group(1), m.group(2)
+        kept: list[str] = []
+        for raw in body.split(","):
+            p = raw.strip()
+            if not p:
+                continue
+            canonical = _canonicalise_skill_spelling(p)
+            key = canonical.lower()
+            if key in seen:
+                dropped += 1
+                continue
+            seen.add(key)
+            kept.append(canonical)
+        new_line = prefix + ", ".join(kept) if kept else ""
+        if kept:
+            lines[i] = new_line
+    if dropped:
+        logger.info("w8: deduped %d cross-line Skills entr(ies)", dropped)
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Awards-only Certifications → "Awards". The source CV often parks an award
 # (e.g. "Staff Excellence Award") under a "Certifications" heading. When every
 # entry is an award/recognition and none is an actual credential, relabel the
@@ -1324,6 +1404,12 @@ async def _writer_w8_integrated(
     #     mixed-case product names (BESTMed/MedMobile). Fixes inconsistent
     #     casing between AI-written entries and surfacing-pass entries.
     md = _normalise_skills_case(md)
+    # 3a-quater. Canonicalise British/American spellings AND dedupe duplicates
+    #     across Skills lines. "Person-Centered Care" in Other Skills + "Person-
+    #     Centred Care" in Care Skills are the same skill — keep only the
+    #     earlier-line entry, drop the later. Applies British spelling
+    #     (Australian default) to all surviving entries.
+    md = _dedupe_skills_across_lines(md)
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)

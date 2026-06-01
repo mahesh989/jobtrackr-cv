@@ -266,6 +266,11 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   top role) joined by a SEMICOLON (not comma + "and") — single-clause S2
   is a hard error when 2+ roles exist; it under-fills the sentence and
   signals that only one role matters.
+  WORD-COUNT FLOOR FOR 2+ ROLES (HARD): when 2+ roles are kept, S2 MUST
+  be 16-22 words. A 10-14 word S2 cannot physically fit two clauses with
+  two employer anchors — if your draft S2 is under 16 words AND you kept
+  2+ roles, you have dropped the second clause. REWRITE with the missing
+  employer's clause before emitting. Single-role S2 stays 10-22 words.
   TENSE: completed roles use PAST-tense ("delivered", "led", "reduced"). A
   CURRENT role marked "– Present" in Experience may use PRESENT tense in its
   clause ("delivers", "leads", "provides") — this reads honestly for ongoing
@@ -331,15 +336,19 @@ place; do not emit until every item passes):
      specialisations do NOT echo the title's own words; no tool names; no off-
      axis sector labels.
 (4)  SUMMARY_S2: count the kept Experience roles (## Experience section's H3
-     lines). Then check S2:
+     lines) and the word count of S2. Then enforce ALL of:
      • If 1 kept role: S2 must name THAT employer by name somewhere.
+       Word count 10-22.
      • If 2+ kept roles: S2 MUST contain TWO clauses joined by a SEMICOLON
        (";"), one anchored to EACH of the top 2 kept employers BY NAME
        (e.g. "Delivers medication administration at Jesmond Miranda Nursing
-       Home; provides person-centred care at Uniting – The Marion."). A
-       single-clause S2 is a HARD FAIL when 2+ roles exist. A two-clause
-       S2 joined by "and" instead of a semicolon is also a HARD FAIL —
-       the semicolon is required to signal the per-employer split.
+       Home; provides person-centred care at Uniting – The Marion.").
+       Word count 16-22. Below 16 words with 2+ roles is mechanically
+       impossible to fit two clauses — that is a HARD FAIL; rewrite by
+       adding the missing employer's clause. A single-clause S2 with 2+
+       roles fails. A two-clause S2 joined by "and" instead of ";" fails.
+       Look at your draft S2: do you see exactly one ";" character? If
+       you see zero, you have failed the rule — fix it now.
      FORBIDDEN substitutes that the second clause must NOT use as its
      anchor: "during placement", "in casual roles", "across multiple
      settings", "in residential aged care", "in aged care facilities",
