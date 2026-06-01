@@ -880,10 +880,12 @@ def _parse_award_parts(content: str) -> tuple:
 
 
 _AU_LOCATION_TAIL_RE = re.compile(
-    # Strips ", State[, Australia]" or ", Country" from the end of an org name.
-    # A trailing suburb (e.g. "…Home Miranda, NSW") may leave the suburb word
-    # behind — that is an acceptable trade-off vs. mis-stripping org words.
-    r",\s*(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT"
+    # Strips ", [Suburb,] State[, Australia]" or ", Country" from the end of an
+    # org name. The suburb part is optional and matched only when a state or
+    # country follows, so it never strips a comma-suburb pattern that lacks the
+    # state anchor (e.g. "Some Foundation, Inc." stays intact).
+    r",\s*(?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?,\s*)?"  # optional suburb name
+    r"(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT"
     r"|New South Wales|Victoria|Queensland|Western Australia|South Australia"
     r"|Tasmania|Australian Capital Territory|Northern Territory"
     r"|Australia)\b.*$",
@@ -923,6 +925,178 @@ def _format_award_bullet(name: str, org: str, date: str) -> str:
     return "\n".join(_format_award_entry(name, org, date))
 
 
+# Words/phrases that mean a line is a DESCRIPTION (not an award name). Used
+# to detect the "swapped" shape verify_claims sometimes produces, where the
+# description gets promoted to ### and the name lands as plain text.
+_DESCRIPTION_PREFIX_RE = re.compile(
+    r"^(?:Recogni[sz]ed|Awarded|Received|Nominated|Presented|Given|Honou?red|For)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_entry_line(line: str) -> tuple:
+    """Classify a non-blank line inside ## Awards.
+
+    Returns (kind, content) where kind ∈ {h3, italic, bullet, plain}.
+    """
+    s = line.strip()
+    if s.startswith("### "):
+        return "h3", s[4:].strip()
+    if s.startswith("*") and s.endswith("*") and len(s) > 2:
+        return "italic", s.strip("*").strip()
+    if s.startswith(("- ", "* ")):
+        return "bullet", s[2:].strip()
+    return "plain", s
+
+
+def _parse_award_raw_entry(entry_lines: list) -> dict:
+    """Parse one raw entry (a group of consecutive non-empty lines from inside
+    ## Awards) into {name, org, date, description}.
+
+    Handles every observed shape — bullet (pipe/paren/plain), h3+italic block,
+    h3-only with trailing date, and the malformed "swapped" shape where the
+    name is plain text and the description is promoted to ###.
+    """
+    name = org = date = description = ""
+
+    for line in entry_lines:
+        kind, content = _classify_entry_line(line)
+
+        if kind == "h3":
+            if not name:
+                # First h3 = the award name (possibly with date or "Name, Org").
+                if "|" in content:
+                    left, right = content.split("|", 1)
+                    candidate_name = left.strip()
+                    candidate_right = right.strip()
+                    if _is_valid_date(candidate_right):
+                        name, date = candidate_name, candidate_right
+                    elif "," in candidate_name:
+                        name, org = [x.strip() for x in candidate_name.split(",", 1)]
+                    else:
+                        # "Name | Org [, location]" — right side is the org.
+                        name = candidate_name
+                        if not org:
+                            org = candidate_right
+                elif "," in content and not _DATE_TAIL_RE.search(content):
+                    # "Award, Org" with no date — old h3 shape.
+                    name, org = [x.strip() for x in content.split(",", 1)]
+                else:
+                    m_date = _DATE_TAIL_RE.search(content)
+                    if m_date:
+                        name = content[:m_date.start()].strip()
+                        date = m_date.group(1).strip()
+                    else:
+                        name = content
+            else:
+                # Second h3 in same entry = description that was wrongly
+                # promoted to a heading by verify_claims. Fold it back.
+                m_date = _DATE_TAIL_RE.search(content)
+                if m_date:
+                    candidate_desc = content[:m_date.start()].strip().rstrip(",").strip()
+                    if not date:
+                        date = m_date.group(1).strip()
+                else:
+                    candidate_desc = content
+                description = candidate_desc if not description else f"{description}. {candidate_desc}"
+
+        elif kind == "italic":
+            if "|" in content:
+                left, right = content.rsplit("|", 1)
+                if _is_valid_date(right.strip()):
+                    if not description:
+                        description = left.strip()
+                    if not date:
+                        date = right.strip()
+                elif not org:
+                    org = content
+            elif _DESCRIPTION_PREFIX_RE.match(content) and not description:
+                description = content
+            elif not org:
+                org = content
+            elif not description:
+                description = content
+
+        elif kind == "bullet":
+            # If we already have a name and the bullet starts with description
+            # language (Recognised for/Awarded/etc.), treat it as a description
+            # continuation instead of trying to parse name/org again.
+            if name and _DESCRIPTION_PREFIX_RE.match(content):
+                m_date = _DATE_TAIL_RE.search(content)
+                if m_date:
+                    desc_text = content[:m_date.start()].strip().rstrip(",").strip()
+                    if not date:
+                        date = m_date.group(1).strip()
+                else:
+                    desc_text = content
+                description = desc_text if not description else f"{description}. {desc_text}"
+            else:
+                n, o, d, desc = _parse_award_parts(content)
+                if not name:        name = n
+                if not org:         org = o
+                if not date and _is_valid_date(d):
+                    date = d
+                if not description: description = desc
+
+        else:  # plain
+            m_date = _DATE_TAIL_RE.search(content)
+            if not name:
+                # First plain line — could be "Name | Date" / "Name | Org" /
+                # bare name / name with trailing date.
+                if "|" in content:
+                    left, right = content.split("|", 1)
+                    candidate_name = left.strip()
+                    candidate_right = right.strip()
+                    if _is_valid_date(candidate_right):
+                        name, date = candidate_name, candidate_right
+                    else:
+                        name = candidate_name
+                        if not org:
+                            org = candidate_right
+                elif m_date:
+                    name = content[:m_date.start()].strip()
+                    date = m_date.group(1).strip()
+                else:
+                    name = content
+            elif _DESCRIPTION_PREFIX_RE.match(content):
+                # Description-style language — never an org.
+                if m_date and not date:
+                    description = content[:m_date.start()].strip().rstrip(",").strip()
+                    date = m_date.group(1).strip()
+                else:
+                    description = content if not description else f"{description}. {content}"
+            elif not org:
+                org = content
+            else:
+                if m_date and not date:
+                    description = content[:m_date.start()].strip().rstrip(",").strip()
+                    date = m_date.group(1).strip()
+                elif not description:
+                    description = content
+                else:
+                    description = f"{description}. {content}"
+
+    return {
+        "name": name.strip(),
+        "org": org.strip(),
+        "date": date.strip(),
+        "description": description.strip(),
+    }
+
+
+def _is_description_only_entry(entry: dict) -> bool:
+    """An entry is description-only when:
+      - its name starts with description language (Recognised for / Awarded / …)
+      - OR it has no name + no org but a description
+    """
+    n = entry.get("name", "")
+    if n and _DESCRIPTION_PREFIX_RE.match(n):
+        return True
+    if not n and not entry.get("org") and entry.get("description"):
+        return True
+    return False
+
+
 def _normalise_awards_entries(markdown: str) -> str:
     """Normalise every entry inside ## Awards to the structured header format:
 
@@ -930,9 +1104,10 @@ def _normalise_awards_entries(markdown: str) -> str:
       *Organisation*
       Description sentence.
 
-    Handles all production input shapes (verbose bullet with pipe/paren date,
-    two-line H3+italic block, already-structured H3 entries). No-op when the
-    Awards section is absent.
+    Robust to all observed production shapes (bullet, h3+italic, h3-only) AND
+    to the "swapped" shape verify_claims sometimes produces (name as plain
+    text, description promoted to ###). Idempotent — running twice on already-
+    structured input is a no-op. No-op when ## Awards is absent.
     """
     lines = markdown.split("\n")
     start = next(
@@ -947,152 +1122,55 @@ def _normalise_awards_entries(markdown: str) -> str:
         len(lines),
     )
 
-    new_entries: list[str] = []
-    i = start + 1
-    while i < end:
-        stripped = lines[i].strip()
-        if not stripped:
-            i += 1
-            continue
-
-        if stripped.startswith("### "):
-            # H3 shape — could be old "Award, Org | Location" or new "Award | Date".
-            h3 = stripped[4:].strip()
-            # Peek at the next line(s) for italic (org) and plain (description).
-            italic_text = plain_text = ""
-            j = i + 1
-            if j < end and lines[j].strip().startswith("*") and lines[j].strip().endswith("*"):
-                italic_text = lines[j].strip().strip("*").strip()
-                j += 1
-            if j < end and lines[j].strip() and not lines[j].strip().startswith(("*", "### ", "## ", "-")):
-                plain_text = lines[j].strip()
-                j += 1
-
-            # Decide if this is the NEW shape (h3 = "Name | Date") or OLD
-            # shape (h3 = "Name, Org | Location", italic = "Desc | Date").
-            if "|" in h3 and (italic_text.startswith("*") or not italic_text
-                               or re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\b", h3)):
-                # NEW shape or h3 with explicit date — keep as structured.
-                name_part, date_part = h3.split("|", 1)
-                name = name_part.strip()
-                date = date_part.strip()
-                org = italic_text
-                description = plain_text
-            else:
-                # OLD shape: h3 = "Name, Org | Location", italic = "Desc | Date"
-                h3_core = h3.split("|", 1)[0].strip() if "|" in h3 else h3
-                if "," in h3_core:
-                    name, org = h3_core.split(",", 1)
-                    name = name.strip()
-                    org = org.strip()
-                else:
-                    name, org = h3_core, ""
-                # Date is right of LAST "|" in italic; text before is description.
-                # When there is no italic line, fall back to plain_text and
-                # extract a trailing month+year or year as the date.
-                if "|" in italic_text:
-                    desc_part, date = italic_text.rsplit("|", 1)
-                    description = desc_part.strip()
-                    date = date.strip()
-                elif italic_text:
-                    date = ""
-                    description = italic_text
-                elif plain_text:
-                    # Plain-text companion line: "Desc… Month YYYY" — split off date.
-                    m_date = _DATE_TAIL_RE.search(plain_text)
-                    if m_date:
-                        date = m_date.group(1).strip()
-                        description = plain_text[:m_date.start()].strip().rstrip(",").strip()
-                    else:
-                        date = ""
-                        description = plain_text
-                    # plain_text already consumed above — advance j past it.
-                    # (j was already incremented when plain_text was set)
-                else:
-                    date = ""
-                    description = ""
-
-            # Location filtering and org rescue for H3 branch
-            if date and not _is_valid_date(date):
-                if not org:
-                    # Extract org name before first comma of the non-date string
-                    org = date.split(",", 1)[0].strip()
-                date = ""
-            
-            # If date is now empty, see if we can extract it from description
-            if not date and description:
-                m_date = _DATE_TAIL_RE.search(description)
-                if m_date:
-                    date = m_date.group(1).strip()
-                    description = description[:m_date.start()].strip().rstrip(",").strip()
-            
-            # Final safety check on date
-            if not _is_valid_date(date):
-                date = ""
-
-            for ln in _format_award_entry(name, org, date, description):
-                new_entries.append(ln)
-            i = j
-
+    # Step 1: split section body into RAW ENTRIES, separated by blank lines.
+    body = lines[start + 1:end]
+    raw_entries: list[list[str]] = []
+    current: list[str] = []
+    for ln in body:
+        if not ln.strip():
+            if current:
+                raw_entries.append(current)
+                current = []
         else:
-            # It's a bullet or a plain paragraph!
-            # Strip any leading bullet character (e.g. • or - or * or whitespace)
-            content = stripped.lstrip("-*• ").strip()
-            
-            # Look ahead to see if the next line is a description bullet/paragraph
-            j = i + 1
-            next_bullet_desc = ""
-            while j < end and not lines[j].strip():
-                j += 1
-            if j < end and not lines[j].strip().startswith("### "):
-                next_stripped = lines[j].strip()
-                next_content = next_stripped.lstrip("-*• ").strip()
-                if re.match(
-                    r"^(?:recognised|recognized|awarded|received|nominated|presented|given)\b",
-                    next_content,
-                    re.IGNORECASE
-                ):
-                    next_bullet_desc = next_content
-                    i = j  # consume the next line
+            current.append(ln)
+    if current:
+        raw_entries.append(current)
 
-            name, org, date, description = _parse_award_parts(content)
+    if not raw_entries:
+        return markdown
 
-            # Location filtering: if the parsed date is not valid, discard both date and description
-            if not _is_valid_date(date):
-                # If org is not set, rescue the non-date part of right side as org
-                if not org and date:
-                    org = date.split(",", 1)[0].strip()
-                date = ""
-                description = ""
+    # Step 2: parse each raw entry into structured fields.
+    parsed = [_parse_award_raw_entry(e) for e in raw_entries]
 
-            if next_bullet_desc:
-                next_date = ""
-                m_date = _DATE_TAIL_RE.search(next_bullet_desc)
-                if m_date:
-                    next_date = m_date.group(1).strip()
-                    next_desc = next_bullet_desc[:m_date.start()].strip().rstrip(",").strip()
-                else:
-                    next_desc = next_bullet_desc
+    # Step 3: merge description-only entries back into the previous entry
+    # (handles the swapped shape: name+org as plain, description as own ### block).
+    merged: list[dict] = []
+    for entry in parsed:
+        if (merged and _is_description_only_entry(entry)
+                and not merged[-1].get("description")):
+            # Promote this entry's contents into the previous entry's description.
+            prev = merged[-1]
+            new_desc = entry.get("description") or entry.get("name")
+            prev["description"] = new_desc
+            if entry.get("date") and not prev.get("date"):
+                prev["date"] = entry["date"]
+        else:
+            merged.append(entry)
 
-                if not date and _is_valid_date(next_date):
-                    date = next_date
-                
-                if description:
-                    description = f"{description}. {next_desc}"
-                else:
-                    description = next_desc
-
-            if not _is_valid_date(date):
-                date = ""
-
-            for ln in _format_award_entry(name, org, date, description):
-                new_entries.append(ln)
-            i += 1
+    # Step 4: drop entries with no usable content; emit the structured shape.
+    new_entries: list[str] = []
+    for entry in merged:
+        if not (entry.get("name") or entry.get("org") or entry.get("description")):
+            continue
+        for ln in _format_award_entry(
+            entry["name"], entry["org"], entry["date"], entry["description"]
+        ):
+            new_entries.append(ln)
 
     if not new_entries:
         return markdown
 
-    # Blank line between entries, then a trailing blank before the next section.
+    # Blank line between entries, trailing blank before the next section.
     spaced: list[str] = []
     for ln in new_entries:
         if ln.startswith("### ") and spaced:
@@ -1698,6 +1776,12 @@ async def _writer_w8_verified(
     # off-axis conjoined identity the integrated gate already trimmed. Anchored
     # on the JD title, deterministic, touches only the summary's lead role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
+    # Re-run the awards/section normalisers — verify_claims is an AI step that
+    # can rewrite the Awards/Certifications section into a messy shape (e.g.
+    # description promoted to ###). These deterministic passes are idempotent
+    # and ensure the structured Awards layout reaches the renderer.
+    verified_md = _relabel_awards_only_certifications(verified_md)
+    verified_md = _normalise_awards_entries(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -1774,6 +1858,11 @@ async def _writer_w8_critique(
     # rationale as w8_verified: verify's summary repair can re-add an off-axis
     # conjoined identity that's CV-true but not the JD's role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
+    # Re-run the awards/section normalisers — verify_claims can rewrite the
+    # Awards/Certifications section back to a messy shape; these deterministic
+    # idempotent passes guarantee the structured Awards layout survives.
+    verified_md = _relabel_awards_only_certifications(verified_md)
+    verified_md = _normalise_awards_entries(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
