@@ -1005,6 +1005,77 @@ def _render_projects(items: List[Dict]) -> List[Any]:
     return out
 
 
+def _render_awards(items: List[Dict]) -> List[Any]:
+    """
+    Awards entries — mirrors the Experience header layout:
+      Row 1: Award Name (bold, left)   |  Date (right)
+      Row 2: Organisation (italic, left)                [optional]
+      Row 3: Description (body text, full width)        [optional]
+
+    Canonical markdown shape produced by _normalise_awards_entries:
+      ### Staff Excellence Award | August 2025
+      *Jesmond Miranda Nursing Home*
+      Recognised for hard work, caring nature, and positive attitude.
+    """
+    out: List[Any] = []
+    entry_count = 0
+    i = 0
+
+    while i < len(items):
+        item = items[i]
+
+        if item["type"] != "h3":
+            # Stray line (bullet or paragraph before any h3) — render as body.
+            if item["text"].strip():
+                out.append(_inline_markup(item["text"], _styles()["body"]))
+            i += 1
+            continue
+
+        # Parse "Award Name | Date" or just "Award Name"
+        raw = _strip_md_emphasis(item["text"])
+        if "|" in raw:
+            name_part, date_part = raw.split("|", 1)
+            award_name = name_part.strip()
+            award_date = date_part.strip()
+        else:
+            award_name = raw.strip()
+            award_date = ""
+
+        if entry_count > 0:
+            out.append(_spacer(_cfg().subsection_gap))
+        entry_count += 1
+
+        # Row 1: name (bold) | date (right)
+        out.append(_two_col(
+            Paragraph(_escape(award_name), _styles()["company_row"]),
+            Paragraph(_escape(award_date), _styles()["date_right"]),
+        ))
+        i += 1
+
+        # Row 2: organisation — next paragraph if italic
+        if (i < len(items)
+                and items[i]["type"] == "paragraph"
+                and _is_italic_only_line(items[i]["text"])):
+            org_text = _strip_md_emphasis(items[i]["text"])
+            out.append(_two_col(
+                Paragraph(_escape(org_text), _styles()["job_title"]),
+                Paragraph("", _styles()["date_right"]),
+            ))
+            i += 1
+
+        # Row 3: description — next paragraph if plain (not italic, not h3)
+        if (i < len(items)
+                and items[i]["type"] == "paragraph"
+                and not _is_italic_only_line(items[i]["text"])):
+            desc = items[i]["text"].strip()
+            if desc:
+                out.append(_spacer(_cfg().bullet_gap))
+                out.append(_inline_markup(desc, _styles()["bullet_text"]))
+            i += 1
+
+    return out
+
+
 def _render_certifications(items: List[Dict]) -> List[Any]:
     out: List[Any] = []
     bullets = [it for it in items if it["type"] in ("bullet", "paragraph")]
@@ -1047,9 +1118,13 @@ _SECTION_ALIASES: Dict[str, str] = {
     "professional certifications":  "certifications",
     "licences & certifications":    "certifications",
     "licenses & certifications":    "certifications",
+    "awards":                       "awards",
+    "recognition":                  "awards",
+    "honours":                      "awards",
+    "honors":                       "awards",
 }
 
-_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications"]
+_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications", "awards"]
 
 _SECTION_LABELS = {
     "highlights":     "Profile",
@@ -1058,6 +1133,7 @@ _SECTION_LABELS = {
     "skills":         "Skills",
     "projects":       "Projects",
     "certifications": "Professional Certifications",
+    "awards":         "Awards",
 }
 
 
@@ -1068,6 +1144,7 @@ def _render_section(stype: str, items: List[Dict]) -> List[Any]:
     if stype == "skills":         return _render_skills(items)
     if stype == "projects":       return _render_projects(items)
     if stype == "certifications": return _render_certifications(items)
+    if stype == "awards":         return _render_awards(items)
     # Generic fallback
     out: List[Any] = []
     for item in items:

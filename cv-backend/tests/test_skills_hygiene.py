@@ -229,9 +229,10 @@ def test_relabel_keeps_recognition_with_real_credential():
 # _normalise_awards_entries — canonicalise the bullet shape
 # ---------------------------------------------------------------------------
 
-def test_normalise_collapses_h3_italic_block_to_bullet():
-    """Regression: production Sanctuary CV emitted the two-line H3+italic
-    shape for the Staff Excellence Award. The user wants single bullets."""
+def test_normalise_h3_italic_block_to_structured():
+    """Old H3+italic shape ('Award, Org | Location' / '*Desc | Date*') converts
+    to the structured header format with award name bold-left, date right, org
+    italic, description as a separate line."""
     md = (
         "## Awards\n\n"
         "### Staff Excellence Award, Jesmond Miranda Nursing Home | Miranda, NSW, Australia\n"
@@ -239,33 +240,37 @@ def test_normalise_collapses_h3_italic_block_to_bullet():
         "## Education\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award" not in out
-    assert "*Recognised" not in out
-    # Trailing description stripped, date moved to parens.
-    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+    # New structured h3 format — award name and date separated by pipe
+    assert "### Staff Excellence Award | Aug 2025" in out
+    # Organisation on its own italic line
+    assert "*Jesmond Miranda Nursing Home*" in out
+    # Description preserved (sentence-cased)
+    assert "Recognised for hard work, caring nature, and positive attitude." in out
 
 
-def test_normalise_strips_trailing_description_on_bullet():
-    """Regression: production Dovida CV emitted a verbose bullet
-    `Name – Org | Date – Recognised for X` — strip the description tail
-    and convert `| Date` to ` (Date)`."""
+def test_normalise_bullet_pipe_form_to_structured():
+    """Verbose bullet 'Name – Org | Date – Desc' converts to structured format
+    with description kept."""
     md = (
         "## Awards\n"
         "- Staff Excellence Award – Jesmond Miranda Nursing Home | Aug 2025 – Recognised for hard work, caring nature, and positive attitude.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "Recognised for hard work" not in out
-    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "### Staff Excellence Award | Aug 2025" in out
+    assert "*Jesmond Miranda Nursing Home*" in out
+    assert "Recognised for hard work, caring nature, and positive attitude." in out
 
 
-def test_normalise_noops_when_already_clean():
-    """A bullet already in the canonical shape passes through unchanged."""
+def test_normalise_old_bullet_converts_to_structured():
+    """A bullet in the old canonical shape '- Name – Org (Date)' converts to
+    the new structured format."""
     md = (
         "## Awards\n\n"
         "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)\n"
     )
     out = _normalise_awards_entries(md)
-    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "### Staff Excellence Award | Aug 2025" in out
+    assert "*Jesmond Miranda Nursing Home*" in out
 
 
 def test_normalise_noops_without_awards_section():
@@ -274,18 +279,17 @@ def test_normalise_noops_without_awards_section():
 
 
 def test_normalise_handles_award_without_organisation():
+    """Award entry with no org (e.g. Dean's List) still produces a clean h3."""
     md = (
         "## Awards\n"
         "- Dean's List (2023)\n"
     )
     out = _normalise_awards_entries(md)
-    assert "- Dean's List (2023)" in out
+    assert "### Dean's List | 2023" in out
 
 
-def test_normalise_strips_trailing_description_after_paren_date():
-    """Regression: production Dovida CV emitted
-    `- Award – Org (Date), recognised for hard work…` — the description
-    after the closing paren must be stripped."""
+def test_normalise_paren_date_with_description_keeps_description():
+    """Bullet 'Award – Org (Date), description' must now KEEP the description."""
     md = (
         "## Awards\n"
         "- Staff Excellence Award – Jesmond Miranda Nursing Home (2025), "
@@ -293,9 +297,10 @@ def test_normalise_strips_trailing_description_after_paren_date():
         "attitude in resident care.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "- Staff Excellence Award – Jesmond Miranda Nursing Home (2025)" in out
-    assert "recognised for hard work" not in out
-    assert "patience" not in out  # only inside the stripped description
+    assert "### Staff Excellence Award | 2025" in out
+    assert "*Jesmond Miranda Nursing Home*" in out
+    # Description is now kept
+    assert "recognised for hard work" in out.lower()
 
 
 def test_extract_original_credentials():

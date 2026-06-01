@@ -804,24 +804,111 @@ _AWARDS_SOURCE_HEADINGS = {
 }
 
 
+def _parse_award_parts(content: str) -> tuple:
+    """Extract (name, org, date, description) from any observed award text.
+
+    Handles the four production shapes seen in awards bullets/h3 bodies:
+      pipe form:   "Name – Org | Date – Description"
+      paren form:  "Name – Org (Date), description"
+      plain form:  "Name – Org (Date)"
+      bare name:   "Dean's List"
+    """
+    name = org = date = description = ""
+    if "|" in content:
+        left, right = content.rsplit("|", 1)
+        right = right.strip()
+        for sep in (" – ", " — ", " - ", ", "):
+            if sep in right:
+                date, description = right.split(sep, 1)
+                date = date.strip()
+                description = description.strip()
+                break
+        else:
+            date = right
+        left = left.strip()
+        for sep in (" – ", " — ", " - "):
+            if sep in left:
+                name, org = left.split(sep, 1)
+                break
+        else:
+            name = left
+    else:
+        m = re.search(r"\(([^()]+)\)", content)
+        if m:
+            date = m.group(1).strip()
+            before = content[:m.start()].strip()
+            after = content[m.end():].strip().lstrip(",").strip()
+            description = after
+            for sep in (" – ", " — ", " - "):
+                if sep in before:
+                    name, org = before.split(sep, 1)
+                    break
+            else:
+                name = before
+        else:
+            for sep in (" – ", " — ", " - "):
+                if sep in content:
+                    name, org = content.split(sep, 1)
+                    break
+            else:
+                name = content
+    return name.strip(), org.strip(), date.strip(), description.strip()
+
+
+_AU_LOCATION_TAIL_RE = re.compile(
+    # Strips ", State[, Australia]" or ", Country" from the end of an org name.
+    # A trailing suburb (e.g. "…Home Miranda, NSW") may leave the suburb word
+    # behind — that is an acceptable trade-off vs. mis-stripping org words.
+    r",\s*(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT"
+    r"|New South Wales|Victoria|Queensland|Western Australia|South Australia"
+    r"|Tasmania|Australian Capital Territory|Northern Territory"
+    r"|Australia)\b.*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_au_location(org: str) -> str:
+    """Remove trailing Australian suburb/state/country from an org name."""
+    cleaned = _AU_LOCATION_TAIL_RE.sub("", org).strip().rstrip(",").strip()
+    return cleaned if cleaned else org
+
+
+def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
+    """Produce the canonical structured Awards entry lines for ## Awards.
+
+    Output shape (mirrors Experience header layout):
+      ### Award Name | Date
+      *Organisation*
+      Description sentence.
+    """
+    header = f"### {name} | {date}" if date else f"### {name}"
+    lines = [header]
+    if org:
+        lines.append(f"*{_strip_au_location(org)}*")
+    if description:
+        desc = description.strip().rstrip(".")
+        # Sentence-case the description (title-cased from italic is noisy).
+        desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
+        lines.append(f"{desc}.")
+    return lines
+
+
+# Keep the old name as an alias so any external callers are not broken.
+def _format_award_bullet(name: str, org: str, date: str) -> str:
+    return "\n".join(_format_award_entry(name, org, date))
+
+
 def _normalise_awards_entries(markdown: str) -> str:
-    """Collapse ## Awards entries to clean single bullets.
+    """Normalise every entry inside ## Awards to the structured header format:
 
-    Two input shapes appear from the writer in production:
-      1. Verbose bullet:
-         - Staff Excellence Award – Org | Aug 2025 – Recognised for hard work,
-           caring nature, and positive attitude.
-      2. Two-line H3 + italic block:
-         ### Staff Excellence Award, Org | Location
-         *Recognised For Hard Work, Caring Nature, And Positive Attitude | Aug 2025*
+      ### Award Name | Date
+      *Organisation*
+      Description sentence.
 
-    Output (deterministic, one shape):
-      - Staff Excellence Award – Org (Aug 2025)
-
-    No-op when the section is absent or already conformant. Recognised-for /
-    descriptive trailing text is stripped — the award name + organisation +
-    date is the persuasion-bearing part; the description repeats what every
-    award implies."""
+    Handles all production input shapes (verbose bullet with pipe/paren date,
+    two-line H3+italic block, already-structured H3 entries). No-op when the
+    Awards section is absent.
+    """
     lines = markdown.split("\n")
     start = next(
         (i for i, l in enumerate(lines)
@@ -838,82 +925,100 @@ def _normalise_awards_entries(markdown: str) -> str:
     new_entries: list[str] = []
     i = start + 1
     while i < end:
-        line = lines[i].rstrip()
-        stripped = line.strip()
+        stripped = lines[i].strip()
         if not stripped:
             i += 1
             continue
 
         if stripped.startswith("### "):
-            # Two-line H3 + italic. Parse H3: "Award Name, Org | Location"
+            # H3 shape — could be old "Award, Org | Location" or new "Award | Date".
             h3 = stripped[4:].strip()
-            italic = ""
-            if i + 1 < end and lines[i + 1].strip().startswith("*"):
-                italic = lines[i + 1].strip().strip("*").strip()
-                i += 2
+            # Peek at the next line(s) for italic (org) and plain (description).
+            italic_text = plain_text = ""
+            j = i + 1
+            if j < end and lines[j].strip().startswith("*") and lines[j].strip().endswith("*"):
+                italic_text = lines[j].strip().strip("*").strip()
+                j += 1
+            if j < end and lines[j].strip() and not lines[j].strip().startswith(("*", "### ", "## ", "-")):
+                plain_text = lines[j].strip()
+                j += 1
+
+            # Decide if this is the NEW shape (h3 = "Name | Date") or OLD
+            # shape (h3 = "Name, Org | Location", italic = "Desc | Date").
+            if "|" in h3 and (italic_text.startswith("*") or not italic_text
+                               or re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\b", h3)):
+                # NEW shape or h3 with explicit date — keep as structured.
+                name_part, date_part = h3.split("|", 1)
+                name = name_part.strip()
+                date = date_part.strip()
+                org = italic_text
+                description = plain_text
             else:
-                i += 1
-            # H3 left of first "|" carries "Award Name, Org".
-            h3_core = h3.split("|", 1)[0].strip() if "|" in h3 else h3
-            # Split award name from org on the FIRST comma — the org may
-            # itself contain commas downstream (we keep them in org).
-            if "," in h3_core:
-                name, org = h3_core.split(",", 1)
-                name = name.strip()
-                org = org.strip()
-            else:
-                name, org = h3_core, ""
-            # Italic right of LAST "|" is the date; left is description (drop).
-            date = italic.rsplit("|", 1)[-1].strip() if "|" in italic else ""
-            new_entries.append(_format_award_bullet(name, org, date))
-        elif stripped.startswith("- ") or stripped.startswith("* "):
+                # OLD shape: h3 = "Name, Org | Location", italic = "Desc | Date"
+                h3_core = h3.split("|", 1)[0].strip() if "|" in h3 else h3
+                if "," in h3_core:
+                    name, org = h3_core.split(",", 1)
+                    name = name.strip()
+                    org = org.strip()
+                else:
+                    name, org = h3_core, ""
+                # Date is right of LAST "|" in italic; text before is description.
+                # When there is no italic line, fall back to plain_text and
+                # extract a trailing month+year or year as the date.
+                _DATE_TAIL_RE = re.compile(
+                    r"\b((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
+                    r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
+                    r"|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{4})\s*$",
+                    re.IGNORECASE,
+                )
+                if "|" in italic_text:
+                    desc_part, date = italic_text.rsplit("|", 1)
+                    description = desc_part.strip()
+                    date = date.strip()
+                elif italic_text:
+                    date = ""
+                    description = italic_text
+                elif plain_text:
+                    # Plain-text companion line: "Desc… Month YYYY" — split off date.
+                    m_date = _DATE_TAIL_RE.search(plain_text)
+                    if m_date:
+                        date = m_date.group(1).strip()
+                        description = plain_text[:m_date.start()].strip().rstrip(",").strip()
+                    else:
+                        date = ""
+                        description = plain_text
+                    # plain_text already consumed above — advance j past it.
+                    # (j was already incremented when plain_text was set)
+                else:
+                    date = ""
+                    description = ""
+
+            for ln in _format_award_entry(name, org, date, description):
+                new_entries.append(ln)
+            i = j
+
+        elif stripped.startswith(("- ", "* ")):
             content = stripped[2:].strip()
-            # Three variants seen in production:
-            #   (a) "Name – Org | Date – Desc"        — pipe form
-            #   (b) "Name – Org (Date), description"  — paren-date + trailing
-            #   (c) "Name – Org (Date)"               — already canonical
-            if "|" in content:
-                # Pipe form (a) → normalise to paren-date, strip desc.
-                left, right = content.rsplit("|", 1)
-                left = left.strip()
-                date_part = right.strip()
-                for sep in (" – ", " — ", " - "):
-                    if sep in date_part:
-                        date_part = date_part.split(sep, 1)[0].strip()
-                        break
-                new_entries.append(f"- {left} ({date_part})" if date_part else f"- {left}")
-            else:
-                # No pipe. If a parenthesized date is already present, strip
-                # any trailing text AFTER the closing ")" — that's the
-                # "recognised for hard work…" Dovida pattern.
-                m = re.search(r"\([^()]+\)", content)
-                if m:
-                    # Trim everything after the date's closing paren.
-                    content = content[:m.end()].rstrip()
-                new_entries.append(f"- {content}")
+            name, org, date, description = _parse_award_parts(content)
+            for ln in _format_award_entry(name, org, date, description):
+                new_entries.append(ln)
             i += 1
         else:
-            # Plain line — keep as-is (rare).
             new_entries.append(stripped)
             i += 1
 
     if not new_entries:
         return markdown
 
-    # Rebuild section. Standard spacing: heading, blank, entries, blank.
-    rebuilt = [lines[start], ""] + new_entries + [""]
+    # Blank line between entries, then a trailing blank before the next section.
+    spaced: list[str] = []
+    for ln in new_entries:
+        if ln.startswith("### ") and spaced:
+            spaced.append("")
+        spaced.append(ln)
+
+    rebuilt = [lines[start], ""] + spaced + [""]
     return "\n".join(lines[:start] + rebuilt + lines[end:])
-
-
-def _format_award_bullet(name: str, org: str, date: str) -> str:
-    """Compose the canonical single-bullet shape for an Awards entry."""
-    if org and date:
-        return f"- {name} – {org} ({date})"
-    if date:
-        return f"- {name} ({date})"
-    if org:
-        return f"- {name} – {org}"
-    return f"- {name}"
 
 
 def _relabel_awards_only_certifications(markdown: str) -> str:
