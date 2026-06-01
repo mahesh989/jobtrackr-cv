@@ -11,26 +11,38 @@ interface Project {
 }
 
 /**
- * Healthcare / care credentials captured in the profile and surfaced
- * compactly on tailored CVs for nursing/healthcare/care role families.
- * All optional. Only positive ("held") items are shown on the CV —
+ * Unified credentials block captured in the profile. The CV renderer
+ * picks the family-relevant subset at tailoring time based on the JD's
+ * role family, so the user fills this once and it serves nursing AND
+ * manual roles. Only positive ("held") items are shown on the CV —
  * a profile with no flags set produces no Registration & Licences section.
  */
-export interface HealthcareCredentials {
-  ahpra_number?:         string;      // RN/EN/Midwife only — "NMW0001234567"
-  drivers_licence?:      string;      // "" | "Open" | "Provisional" | "Learner"
-  own_car?:              boolean;
-  car_insurance?:        boolean;     // comprehensive
-  work_rights?:          string;      // "" | "Citizen" | "PR" | "Visa with work rights"
-  police_check?:         boolean;     // current national police check
-  ndis_screening?:       boolean;     // NDIS Worker Screening Check
-  wwcc?:                 boolean;     // Working with Children Check
-  wwcc_state?:           string;      // "" | "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "ACT" | "NT"
-  first_aid?:            boolean;     // HLTAID011
-  cpr?:                  boolean;     // HLTAID009
-  flu_vaccination?:      boolean;     // current
+export interface ProfileCredentials {
+  // Healthcare / care
+  ahpra_number?:          string;      // RN/EN/Midwife only — "NMW0001234567"
+  ndis_screening?:        boolean;
+  first_aid?:             boolean;     // HLTAID011
+  cpr?:                   boolean;     // HLTAID009
   medication_competency?: boolean;
+  flu_vaccination?:       boolean;
+  covid_vaccination?:     boolean;
+  car_insurance?:         boolean;     // comprehensive — community/home care
+  // Manual / service
+  white_card?:            boolean;     // construction
+  forklift_licence?:      string;      // "" | "LF" | "LO"
+  // Shared (both nursing & manual)
+  drivers_licence?:       string;      // "" | "Open" | "Provisional" | "Learner"
+  own_car?:               boolean;
+  police_check?:          boolean;     // current national police check
+  wwcc?:                  boolean;     // Working with Children Check
+  wwcc_state?:            string;      // "" | "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "ACT" | "NT"
+  work_rights?:           string;      // "" | "Citizen" | "PR" | "Visa with work rights"
 }
+
+/** Self-declared role-family selections that decide which add-on cards
+ *  appear on the profile form. Multi-select — a candidate may apply for
+ *  both nursing and admin roles, for example. */
+export type RoleFamily = "tech" | "nursing" | "manual" | "general";
 
 export interface ContactDetails {
   name?:         string;
@@ -46,9 +58,13 @@ export interface ContactDetails {
   other_label?:  string;
   other_url?:    string;
   projects?:     Project[];
-  /** Surfaces on tailored CVs only when the JD's role family is nursing/
-   *  healthcare/care. Stays hidden on tech/general/manual CVs. */
-  credentials?:  HealthcareCredentials;
+  /** Which role families the candidate applies for. Decides which add-on
+   *  cards appear on this profile form. Surfaces on the CV via the matching
+   *  role-family pack at tailoring time. */
+  role_families?: RoleFamily[];
+  /** Surfaces on tailored CVs only when the JD's role family is in the
+   *  CREDENTIAL_FAMILIES set on the backend (currently nursing + manual). */
+  credentials?:  ProfileCredentials;
 }
 
 interface Props {
@@ -69,7 +85,8 @@ export function ProfileSettingsClient({ initial }: Props) {
   const router = useRouter();
   const [cd, setCd]             = useState<ContactDetails>(initial ?? EMPTY);
   const [projects, setProjects] = useState<Project[]>(initial?.projects ?? []);
-  const [creds, setCreds]       = useState<HealthcareCredentials>(initial?.credentials ?? {});
+  const [creds, setCreds]       = useState<ProfileCredentials>(initial?.credentials ?? {});
+  const [families, setFamilies] = useState<RoleFamily[]>(initial?.role_families ?? []);
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -77,9 +94,21 @@ export function ProfileSettingsClient({ initial }: Props) {
   function setField<K extends keyof ContactDetails>(k: K, v: string) {
     setCd((prev) => ({ ...prev, [k]: v }));
   }
-  function setCred<K extends keyof HealthcareCredentials>(k: K, v: HealthcareCredentials[K]) {
+  function setCred<K extends keyof ProfileCredentials>(k: K, v: ProfileCredentials[K]) {
     setCreds((prev) => ({ ...prev, [k]: v }));
   }
+  function toggleFamily(f: RoleFamily) {
+    setFamilies((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]);
+  }
+
+  // Conditional rendering rules:
+  // - First-time / legacy users (families == []) → show ALL add-on cards so
+  //   nothing they had before disappears.
+  // - Once the user explicitly picks one or more families → show only those.
+  const showAll      = families.length === 0;
+  const showTech     = showAll || families.includes("tech")    || families.includes("general");
+  const showNursing  = showAll || families.includes("nursing");
+  const showManual   = showAll || families.includes("manual");
   function addProject() {
     setProjects((p) => [...p, { name: "", url: "", description: "" }]);
   }
@@ -97,7 +126,9 @@ export function ProfileSettingsClient({ initial }: Props) {
       const res = await fetch("/api/user/preferences", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ contact_details: { ...cd, projects, credentials: creds } }),
+        body:    JSON.stringify({
+          contact_details: { ...cd, projects, credentials: creds, role_families: families },
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error ?? `Failed (${res.status})`); return; }
@@ -113,14 +144,31 @@ export function ProfileSettingsClient({ initial }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Contact Details card ── */}
+      {/* ── Role Families picker — drives which add-on cards show ── */}
+      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+        <div>
+          <h2 className="label-luxury text-text-2">What roles are you applying for?</h2>
+          <p className="mt-1 text-xs text-text-3">
+            Pick any that apply. The form tailors itself — extra credential
+            fields appear for the families you select. Leave blank to see
+            everything (useful if you're not sure yet).
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <CheckBox label="Tech / Data / Engineering"     checked={families.includes("tech")}    onChange={() => toggleFamily("tech")} />
+          <CheckBox label="Healthcare / Nursing / Care"   checked={families.includes("nursing")} onChange={() => toggleFamily("nursing")} />
+          <CheckBox label="Manual / Service / Trades"     checked={families.includes("manual")}  onChange={() => toggleFamily("manual")} />
+          <CheckBox label="Other / General"               checked={families.includes("general")} onChange={() => toggleFamily("general")} />
+        </div>
+      </div>
+
+      {/* ── Contact Details (always shown) — LinkedIn is universal ── */}
       <div className="glass rounded-lg shadow-gold p-6 space-y-4">
         <div>
           <h2 className="label-luxury text-text-2">Contact Details</h2>
           <p className="mt-1 text-xs text-text-3">
-            Used to stamp a clean contact line on every tailored CV. LinkedIn,
-            GitHub, and Portfolio appear as clickable links. Leave fields blank
-            to omit them.
+            Used to stamp a clean contact line on every tailored CV. LinkedIn
+            appears as a clickable link on every CV. Leave fields blank to omit them.
           </p>
         </div>
 
@@ -132,17 +180,34 @@ export function ProfileSettingsClient({ initial }: Props) {
           <Field label="Suburb"             value={cd.suburb      ?? ""} onChange={(v) => setField("suburb",      v)} placeholder="Hurstville" />
           <Field label="Postcode"           value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220" />
           <Field label="LinkedIn URL"       value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="linkedin.com/in/yourname" />
-          <Field label="GitHub URL"         value={cd.github      ?? ""} onChange={(v) => setField("github",      v)} placeholder="github.com/yourname" />
-          <Field label="Portfolio URL"      value={cd.portfolio   ?? ""} onChange={(v) => setField("portfolio",   v)} placeholder="yourname.dev" />
-          <Field label="Website URL"        value={cd.website     ?? ""} onChange={(v) => setField("website",     v)} placeholder="(used only if no Portfolio)" />
           <Field label="Other (label)"      value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
           <Field label="Other (URL)"        value={cd.other_url   ?? ""} onChange={(v) => setField("other_url",   v)} placeholder="https://..." />
         </div>
 
         <p className="text-xs text-text-3">
-          On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Address | Phone | Email | LinkedIn | GitHub | Portfolio</code>
+          On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Address | Phone | Email | LinkedIn</code>
+          {(showTech) && <> · plus GitHub / Portfolio when you fill them below</>}
         </p>
       </div>
+
+      {/* ── Tech add-on (GitHub / Portfolio / Website) ── */}
+      {showTech && (
+        <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+          <div>
+            <h2 className="label-luxury text-text-2">Tech / Engineering Links</h2>
+            <p className="mt-1 text-xs text-text-3">
+              Surface on the contact line for tech / engineering / data CVs.
+              Leave blank to omit. Portfolio is preferred; Website is shown
+              only when no Portfolio is set.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="GitHub URL"    value={cd.github    ?? ""} onChange={(v) => setField("github",    v)} placeholder="github.com/yourname" />
+            <Field label="Portfolio URL" value={cd.portfolio ?? ""} onChange={(v) => setField("portfolio", v)} placeholder="yourname.dev" />
+            <Field label="Website URL"   value={cd.website   ?? ""} onChange={(v) => setField("website",   v)} placeholder="(used only if no Portfolio)" />
+          </div>
+        </div>
+      )}
 
       {/* ── Portfolio Projects card ── */}
       <div className="glass rounded-lg shadow-gold p-6 space-y-4">
@@ -228,63 +293,131 @@ export function ProfileSettingsClient({ initial }: Props) {
         </button>
       </div>
 
-      {/* ── Healthcare / Care Credentials card ── */}
-      <div className="glass rounded-lg shadow-gold p-6 space-y-4">
-        <div>
-          <h2 className="label-luxury text-text-2">Healthcare / Care Credentials</h2>
-          <p className="mt-1 text-xs text-text-3">
-            Used only when tailoring for nursing, aged-care, disability, or
-            community-care roles. Surfaces as a compact <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Registration &amp; Licences</code> line
-            on the CV. Tick only what you hold — nothing negative is ever
-            shown. Leave the whole block empty for non-care roles.
+      {/* ── Healthcare / Care Credentials card (shown when nursing selected) ── */}
+      {showNursing && (
+        <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+          <div>
+            <h2 className="label-luxury text-text-2">Healthcare / Care Credentials</h2>
+            <p className="mt-1 text-xs text-text-3">
+              Surfaces as a compact <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Registration &amp; Licences</code> line
+              on nursing / aged-care / disability / community-care CVs.
+              Tick only what you hold — nothing negative is ever shown.
+            </p>
+          </div>
+
+          {/* Registration + selectable identity */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field
+              label="AHPRA Registration (RN/EN/Midwife only)"
+              value={creds.ahpra_number ?? ""}
+              onChange={(v) => setCred("ahpra_number", v)}
+              placeholder="NMW0001234567"
+            />
+            <Select
+              label="Driver Licence"
+              value={creds.drivers_licence ?? ""}
+              onChange={(v) => setCred("drivers_licence", v)}
+              options={["", "Open", "Provisional", "Learner"]}
+            />
+            <Select
+              label="Australian Work Rights"
+              value={creds.work_rights ?? ""}
+              onChange={(v) => setCred("work_rights", v)}
+              options={["", "Citizen", "PR", "Visa with work rights"]}
+            />
+            <Select
+              label="WWCC State (if you hold a Working with Children Check)"
+              value={creds.wwcc_state ?? ""}
+              onChange={(v) => setCred("wwcc_state", v)}
+              options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
+            />
+          </div>
+
+          {/* Held — checkboxes */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <CheckBox label="Working with Children Check"        checked={!!creds.wwcc}                  onChange={(v) => setCred("wwcc", v)} />
+            <CheckBox label="National Police Check (current)"     checked={!!creds.police_check}          onChange={(v) => setCred("police_check", v)} />
+            <CheckBox label="NDIS Worker Screening Check"         checked={!!creds.ndis_screening}        onChange={(v) => setCred("ndis_screening", v)} />
+            <CheckBox label="First Aid Certificate (HLTAID011)"   checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
+            <CheckBox label="CPR Certificate (HLTAID009)"         checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
+            <CheckBox label="Medication Competency Certificate"   checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
+            <CheckBox label="Own a Reliable Car"                  checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
+            <CheckBox label="Comprehensive Car Insurance"         checked={!!creds.car_insurance}         onChange={(v) => setCred("car_insurance", v)} />
+            <CheckBox label="Current Influenza Vaccination"       checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />
+            <CheckBox label="COVID-19 Vaccination (up to date)"   checked={!!creds.covid_vaccination}     onChange={(v) => setCred("covid_vaccination", v)} />
+          </div>
+
+          <p className="text-xs text-text-3">
+            On nursing/care CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only, in a single compact line.
           </p>
         </div>
+      )}
 
-        {/* Registration */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="AHPRA Registration (RN/EN/Midwife only)"
-            value={creds.ahpra_number ?? ""}
-            onChange={(v) => setCred("ahpra_number", v)}
-            placeholder="NMW0001234567"
-          />
-          <Select
-            label="Driver Licence"
-            value={creds.drivers_licence ?? ""}
-            onChange={(v) => setCred("drivers_licence", v)}
-            options={["", "Open", "Provisional", "Learner"]}
-          />
-          <Select
-            label="Australian Work Rights"
-            value={creds.work_rights ?? ""}
-            onChange={(v) => setCred("work_rights", v)}
-            options={["", "Citizen", "PR", "Visa with work rights"]}
-          />
-          <Select
-            label="WWCC State (if you hold a Working with Children Check)"
-            value={creds.wwcc_state ?? ""}
-            onChange={(v) => setCred("wwcc_state", v)}
-            options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
-          />
+      {/* ── Manual / Service Credentials card (shown when manual selected) ── */}
+      {showManual && (
+        <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+          <div>
+            <h2 className="label-luxury text-text-2">Manual / Service Credentials</h2>
+            <p className="mt-1 text-xs text-text-3">
+              Surfaces on cleaning, kitchen, warehouse, driver, and trades
+              CVs. Shares Driver Licence / Work Rights / Police Check / WWCC
+              with the Healthcare block above — fill them once, they appear
+              wherever relevant.
+            </p>
+          </div>
+
+          {/* Identity */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Select
+              label="Forklift Licence"
+              value={creds.forklift_licence ?? ""}
+              onChange={(v) => setCred("forklift_licence", v)}
+              options={["", "LF", "LO"]}
+            />
+            {/* These three already render in Healthcare when nursing is
+                also selected — but we duplicate them here for manual-only
+                users so they don't have to enable Healthcare to set them. */}
+            {!showNursing && (
+              <>
+                <Select
+                  label="Driver Licence"
+                  value={creds.drivers_licence ?? ""}
+                  onChange={(v) => setCred("drivers_licence", v)}
+                  options={["", "Open", "Provisional", "Learner"]}
+                />
+                <Select
+                  label="Australian Work Rights"
+                  value={creds.work_rights ?? ""}
+                  onChange={(v) => setCred("work_rights", v)}
+                  options={["", "Citizen", "PR", "Visa with work rights"]}
+                />
+                <Select
+                  label="WWCC State (if held)"
+                  value={creds.wwcc_state ?? ""}
+                  onChange={(v) => setCred("wwcc_state", v)}
+                  options={["", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Held — checkboxes */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <CheckBox label="White Card (construction)"  checked={!!creds.white_card}    onChange={(v) => setCred("white_card", v)} />
+            {!showNursing && (
+              <>
+                <CheckBox label="National Police Check (current)" checked={!!creds.police_check} onChange={(v) => setCred("police_check", v)} />
+                <CheckBox label="Working with Children Check"     checked={!!creds.wwcc}         onChange={(v) => setCred("wwcc", v)} />
+                <CheckBox label="Own a Reliable Vehicle"          checked={!!creds.own_car}      onChange={(v) => setCred("own_car", v)} />
+              </>
+            )}
+          </div>
+
+          <p className="text-xs text-text-3">
+            On manual / service CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only.
+          </p>
         </div>
-
-        {/* Held — checkboxes */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <CheckBox label="Working with Children Check"           checked={!!creds.wwcc}                  onChange={(v) => setCred("wwcc", v)} />
-          <CheckBox label="National Police Check (current)"        checked={!!creds.police_check}          onChange={(v) => setCred("police_check", v)} />
-          <CheckBox label="NDIS Worker Screening Check"            checked={!!creds.ndis_screening}        onChange={(v) => setCred("ndis_screening", v)} />
-          <CheckBox label="First Aid Certificate (HLTAID011)"      checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
-          <CheckBox label="CPR Certificate (HLTAID009)"            checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
-          <CheckBox label="Medication Competency Certificate"      checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
-          <CheckBox label="Own a Reliable Car"                     checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
-          <CheckBox label="Comprehensive Car Insurance"            checked={!!creds.car_insurance}         onChange={(v) => setCred("car_insurance", v)} />
-          <CheckBox label="Current Influenza Vaccination"          checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />
-        </div>
-
-        <p className="text-xs text-text-3">
-          On nursing/care CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only, in a single compact line.
-        </p>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-md bg-red-light border border-red/20 px-3 py-2 text-[12px] text-red">

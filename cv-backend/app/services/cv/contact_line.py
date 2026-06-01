@@ -130,21 +130,33 @@ def _normalise_url(value: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 # Section heading inserted/replaced when stamping credentials. Tied to the
-# nursing role-pack's section_order entry of the same name.
+# nursing role-pack's section_order entry of the same name and the manual
+# role-pack's "Certifications & Checks" entry — we use a single canonical
+# heading and let the role-pack rename it via to_canonical/restore_and_order.
 _CREDENTIALS_HEADING = "## Registration & Licences"
 
-# Role families that surface credentials. Add others as they get credential
-# capture in the profile UI.
-_CREDENTIAL_FAMILIES = frozenset({"nursing"})
+# Role families that surface credentials. Each picks a different subset of
+# the unified credentials JSON via build_credentials_line(family_id=...).
+_CREDENTIAL_FAMILIES = frozenset({"nursing", "manual"})
 
 
-def build_credentials_line(contact_details: Optional[Dict[str, Any]]) -> str:
+def build_credentials_line(
+    contact_details: Optional[Dict[str, Any]],
+    family_id: Optional[str] = "nursing",
+) -> str:
     """Compose a compact middle-dot-separated line from the user's saved
-    credentials. Returns "" when no credentials are present or supplied.
+    credentials, picking the family-relevant subset.
 
-    Ordering (recruiter scan order): registrations → clearances → skill
-    certs → practical (transport) → status. Empty / false / missing fields
-    are skipped; we never emit "no licence" or any negative form.
+    Family subsets:
+      nursing — AHPRA registration, clinical clearances (police/NDIS/WWCC),
+                healthcare certs (First Aid/CPR/Medication Competency),
+                vehicle (driver licence/car/insurance), status (work rights,
+                flu/COVID vaccination).
+      manual  — trade certs (White Card/Forklift), basic clearances (police/
+                WWCC), vehicle, status (work rights).
+
+    Empty / false / missing fields are skipped; the line never advertises
+    what the candidate doesn't hold.
     """
     if not contact_details:
         return ""
@@ -153,44 +165,56 @@ def build_credentials_line(contact_details: Optional[Dict[str, Any]]) -> str:
         return ""
 
     parts: List[str] = []
+    family = (family_id or "nursing").lower()
 
-    # 1. Registrations
-    ahpra = _clean(creds.get("ahpra_number"))
-    if ahpra:
-        parts.append(f"AHPRA {ahpra}")
+    # 1. Registrations / trade certs (family-specific identity)
+    if family == "nursing":
+        ahpra = _clean(creds.get("ahpra_number"))
+        if ahpra:
+            parts.append(f"AHPRA {ahpra}")
+    elif family == "manual":
+        if creds.get("white_card"):
+            parts.append("White Card")
+        forklift = _clean(creds.get("forklift_licence"))
+        if forklift:
+            parts.append(f"Forklift Licence ({forklift})")
 
-    # 2. Clearances
+    # 2. Clearances — shared
     if creds.get("police_check"):
         parts.append("National Police Check")
-    if creds.get("ndis_screening"):
+    if family == "nursing" and creds.get("ndis_screening"):
         parts.append("NDIS Worker Screening")
     if creds.get("wwcc"):
         state = _clean(creds.get("wwcc_state"))
         parts.append(f"WWCC ({state})" if state else "WWCC")
 
-    # 3. Skill certs
-    if creds.get("first_aid"):
-        parts.append("First Aid (HLTAID011)")
-    if creds.get("cpr"):
-        parts.append("CPR (HLTAID009)")
-    if creds.get("medication_competency"):
-        parts.append("Medication Competency")
+    # 3. Healthcare-only skill certs
+    if family == "nursing":
+        if creds.get("first_aid"):
+            parts.append("First Aid (HLTAID011)")
+        if creds.get("cpr"):
+            parts.append("CPR (HLTAID009)")
+        if creds.get("medication_competency"):
+            parts.append("Medication Competency")
 
-    # 4. Practical / transport
+    # 4. Practical / transport — shared
     licence = _clean(creds.get("drivers_licence"))
     if licence:
         parts.append(f"Driver Licence ({licence})")
     if creds.get("own_car"):
         parts.append("Reliable Vehicle")
-    if creds.get("car_insurance"):
+    if family == "nursing" and creds.get("car_insurance"):
         parts.append("Comprehensive Car Insurance")
 
-    # 5. Status
+    # 5. Status — shared
     rights = _clean(creds.get("work_rights"))
     if rights:
         parts.append(f"Work Rights ({rights})")
-    if creds.get("flu_vaccination"):
-        parts.append("Influenza Vaccination")
+    if family == "nursing":
+        if creds.get("flu_vaccination"):
+            parts.append("Influenza Vaccination")
+        if creds.get("covid_vaccination"):
+            parts.append("COVID-19 Vaccination")
 
     return " · ".join(parts)
 
@@ -216,7 +240,7 @@ def stamp_credentials(
         return markdown
     if role_family_id not in _CREDENTIAL_FAMILIES:
         return markdown
-    line = build_credentials_line(contact_details)
+    line = build_credentials_line(contact_details, family_id=role_family_id)
     if not line:
         return markdown
 

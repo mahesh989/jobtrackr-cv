@@ -28,11 +28,12 @@ interface Project {
   description?: string;
 }
 
-interface HealthcareCredentials {
+interface ProfileCredentials {
   ahpra_number?:         string;
   drivers_licence?:      string;
   work_rights?:          string;
   wwcc_state?:           string;
+  forklift_licence?:     string;
   wwcc?:                 boolean;
   police_check?:         boolean;
   ndis_screening?:       boolean;
@@ -42,23 +43,29 @@ interface HealthcareCredentials {
   own_car?:              boolean;
   car_insurance?:        boolean;
   flu_vaccination?:      boolean;
+  covid_vaccination?:    boolean;
+  white_card?:           boolean;
 }
 
+type RoleFamily = "tech" | "nursing" | "manual" | "general";
+const ROLE_FAMILY_VALUES: readonly RoleFamily[] = ["tech", "nursing", "manual", "general"] as const;
+
 interface ContactDetails {
-  name?:         string;
-  phone?:        string;
-  email?:        string;
-  address?:      string;
-  suburb?:       string;
-  postcode?:     string;
-  linkedin?:     string;
-  github?:       string;
-  website?:      string;
-  portfolio?:    string;
-  other_label?:  string;
-  other_url?:    string;
-  projects?:     Project[];
-  credentials?:  HealthcareCredentials;
+  name?:          string;
+  phone?:         string;
+  email?:         string;
+  address?:       string;
+  suburb?:        string;
+  postcode?:      string;
+  linkedin?:      string;
+  github?:        string;
+  website?:       string;
+  portfolio?:     string;
+  other_label?:   string;
+  other_url?:     string;
+  projects?:      Project[];
+  role_families?: RoleFamily[];
+  credentials?:   ProfileCredentials;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -106,8 +113,8 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   }
   if (i.credentials && typeof i.credentials === "object") {
     const c = i.credentials as Record<string, unknown>;
-    const creds: HealthcareCredentials = {};
-    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "wwcc_state"] as const;
+    const creds: ProfileCredentials = {};
+    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "wwcc_state", "forklift_licence"] as const;
     for (const k of credStr) {
       if (typeof c[k] === "string") {
         const v = (c[k] as string).trim();
@@ -117,6 +124,7 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     const credBool = [
       "wwcc", "police_check", "ndis_screening", "first_aid", "cpr",
       "medication_competency", "own_car", "car_insurance", "flu_vaccination",
+      "covid_vaccination", "white_card",
     ] as const;
     for (const k of credBool) {
       if (c[k] === true) creds[k] = true;
@@ -124,6 +132,19 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     // Only attach when at least one credential was supplied — keeps the
     // stored JSON minimal and the no-credentials path identical to today.
     if (Object.keys(creds).length > 0) out.credentials = creds;
+  }
+  if (Array.isArray(i.role_families)) {
+    const families: RoleFamily[] = [];
+    for (const raw of i.role_families) {
+      if (typeof raw !== "string") continue;
+      const v = raw.trim().toLowerCase();
+      if ((ROLE_FAMILY_VALUES as readonly string[]).includes(v) && !families.includes(v as RoleFamily)) {
+        families.push(v as RoleFamily);
+      }
+    }
+    // Persist the array even when empty — empty signals "no selection yet"
+    // (UI shows all add-on cards), distinct from undefined.
+    out.role_families = families;
   }
   return { ok: true, value: out };
 }

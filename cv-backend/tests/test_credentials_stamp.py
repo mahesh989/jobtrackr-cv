@@ -37,6 +37,7 @@ def test_only_truthy_credentials_surface():
         "car_insurance":         False,
         "work_rights":           "Citizen",
         "flu_vaccination":       True,
+        "covid_vaccination":     True,
         "medication_competency": True,
         "ahpra_number":          "",     # blank → omitted
     }}
@@ -50,7 +51,8 @@ def test_only_truthy_credentials_surface():
         "Driver Licence (Open) · "
         "Reliable Vehicle · "
         "Work Rights (Citizen) · "
-        "Influenza Vaccination"
+        "Influenza Vaccination · "
+        "COVID-19 Vaccination"
     )
 
 
@@ -127,10 +129,54 @@ def test_stamp_replaces_existing_section_body():
 
 def test_stamp_noop_for_non_credentialed_family():
     """Tech/general CVs must NEVER carry a Registration & Licences block."""
-    for family in ("tech", "manual", "master", None):
+    for family in ("tech", "master", None):
         out = stamp_credentials(_BASE_MD, _CREDS, family)
         assert "## Registration & Licences" not in out, family
         assert out == _BASE_MD, family
+
+
+def test_manual_family_renders_trade_certs_and_drops_clinical():
+    """Manual / Service CVs surface trade certs (White Card, Forklift) and
+    basic clearances/transport — NOT AHPRA, NDIS, First Aid, CPR, or
+    Medication Competency (those are nursing-only)."""
+    cd = {"credentials": {
+        "white_card":         True,
+        "forklift_licence":   "LF",
+        "police_check":       True,
+        "wwcc":               True,
+        "wwcc_state":         "NSW",
+        "drivers_licence":    "Open",
+        "own_car":            True,
+        "work_rights":        "PR",
+        # Nursing-only fields supplied but MUST be excluded:
+        "ahpra_number":       "NMW0001234567",
+        "ndis_screening":     True,
+        "first_aid":          True,
+        "cpr":                True,
+        "medication_competency": True,
+        "car_insurance":      True,
+        "flu_vaccination":    True,
+        "covid_vaccination":  True,
+    }}
+    line = build_credentials_line(cd, family_id="manual")
+    assert line == (
+        "White Card · "
+        "Forklift Licence (LF) · "
+        "National Police Check · "
+        "WWCC (NSW) · "
+        "Driver Licence (Open) · "
+        "Reliable Vehicle · "
+        "Work Rights (PR)"
+    )
+
+
+def test_manual_family_stamps_section():
+    """The manual family is wired into stamp_credentials, so a manual CV
+    gets the Registration & Licences block injected just like nursing."""
+    cd = {"credentials": {"white_card": True, "police_check": True}}
+    out = stamp_credentials(_BASE_MD, cd, "manual")
+    assert "## Registration & Licences" in out
+    assert "White Card · National Police Check" in out
 
 
 def test_stamp_noop_when_credentials_empty():
