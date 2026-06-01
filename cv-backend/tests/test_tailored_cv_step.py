@@ -1,6 +1,38 @@
 from __future__ import annotations
 
-from app.services.pipeline.steps.tailored_cv import _enforce_career_highlights_words
+from app.services.pipeline.steps.tailored_cv import (
+    _enforce_career_highlights_words,
+    _trim_to_words,
+)
+
+
+def test_trim_to_words_does_not_cut_at_semicolon():
+    """Regression for the semicolon-cutoff bug. A two-clause S2 joined by ';'
+    must NOT be truncated AT the semicolon. With the semicolon removed from
+    _ends_clause's clause-boundary set, the trimmer falls through to the
+    forward search or hard cap — preserving the second clause's existence."""
+    s2 = (
+        "Delivered safe medication administration to elderly residents in "
+        "dementia ward at Jesmond Miranda Nursing Home; provided compassionate "
+        "person-centred care and mobility support and pain management at "
+        "Uniting – The Marion."
+    )
+    # max_words=20 puts the backward window at [12, 20]; the semicolon sits at
+    # word 14 (was the buggy cut point). The new code must NOT stop there.
+    trimmed = _trim_to_words(s2, 20)
+    # The trimmed output must not END right at the semicolon location — i.e.
+    # the first-clause-only output 'Delivered ... Nursing Home.' is the bug.
+    assert not trimmed.rstrip(".").endswith("Nursing Home"), (
+        "Trimmer cut at the semicolon — the second-clause employer is lost. "
+        f"Got: {trimmed!r}"
+    )
+
+
+def test_enforce_career_highlights_default_cap_is_65():
+    """The default cap was raised 50 → 65 so two-employer S2 has headroom."""
+    import inspect
+    sig = inspect.signature(_enforce_career_highlights_words)
+    assert sig.parameters["max_words"].default == 65
 
 
 def test_enforce_career_highlights_words_preserves_semicolon():

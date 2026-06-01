@@ -132,7 +132,14 @@ def _trim_to_words(text: str, max_words: int) -> str:
     flex_cap = max_words + 10  # may exceed cap by up to 10 to complete a clause
 
     def _ends_clause(w: str) -> bool:
-        return w.endswith(",") or w.endswith(";")
+        # Only commas count as clause boundaries here. Semicolons used to
+        # qualify, but the summary's S2 joins two employer clauses with a
+        # semicolon ("…at Org A; …at Org B."); cutting at the semicolon
+        # silently deleted the second clause and produced the "single
+        # employer" summary bug. Commas are the safe boundary — the trimmer
+        # falls back to commas when no clause boundary fits, and to a hard
+        # word-cap dangler strip when there are no commas either.
+        return w.endswith(",")
 
     def _outer_comma_idx(anchor_idx: int) -> int:
         """
@@ -258,11 +265,18 @@ def _enforce_section_roles(
     return "\n".join(out_lines)
 
 
-def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
+def _enforce_career_highlights_words(markdown: str, max_words: int = 65) -> str:
     """
     Trim Career Highlights prose to at most max_words words.
     Ensures exactly two sentences are kept if present, truncating the second
     sentence if the total word count exceeds max_words.
+
+    Cap raised from 50→65 so that a two-employer S2 (which the prompt mandates
+    via a semicolon-joined clause pair) has headroom to fit before the trimmer
+    has to engage. Combined with the semicolon no longer being treated as a
+    cut boundary (see _trim_to_words._ends_clause), this prevents the silent
+    deletion of the second employer clause that used to produce the
+    "single-employer" summary bug.
     """
     HEADING = "## Career Highlights"
     lines = markdown.split("\n")
@@ -653,7 +667,7 @@ def _enforce_structure(markdown: str) -> str:
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)
-    markdown = _enforce_career_highlights_words(markdown, max_words=50)
+    markdown = _enforce_career_highlights_words(markdown, max_words=65)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"
