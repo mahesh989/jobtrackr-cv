@@ -285,6 +285,31 @@ def test_normalise_consecutive_bullets_merge():
     assert "Recognised for hard work, caring nature, and positive attitude." in out
 
 
+def test_normalise_plain_paragraphs_merge():
+    md = (
+        "## Awards\n"
+        "Staff Excellence Award | Jesmond Miranda Nursing Home, Miranda, NSW, Australia\n"
+        "Recognized for hard work, caring nature, and positive attitude August 2025\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "### Staff Excellence Award | August 2025" in out
+    assert "*Jesmond Miranda Nursing Home*" in out
+    assert "Recognised for hard work, caring nature, and positive attitude." in out
+
+
+def test_normalise_h3_non_date_org_rescue():
+    md = (
+        "## Awards\n"
+        "### Staff Excellence Award | Jesmond Miranda Nursing Home, Miranda, NSW, Australia\n"
+        "Recognized for hard work, caring nature, and positive attitude August 2025\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "### Staff Excellence Award | August 2025" in out
+    assert "*Jesmond Miranda Nursing Home*" in out
+    assert "Recognised for hard work, caring nature, and positive attitude." in out
+
+
+
 def test_normalise_noops_without_awards_section():
     md = "## Skills\n**Care Skills:** Personal Care\n"
     assert _normalise_awards_entries(md) == md

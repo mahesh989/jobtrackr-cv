@@ -1012,32 +1012,56 @@ def _normalise_awards_entries(markdown: str) -> str:
                     date = ""
                     description = ""
 
+            # Location filtering and org rescue for H3 branch
+            if date and not _is_valid_date(date):
+                if not org:
+                    # Extract org name before first comma of the non-date string
+                    org = date.split(",", 1)[0].strip()
+                date = ""
+            
+            # If date is now empty, see if we can extract it from description
+            if not date and description:
+                m_date = _DATE_TAIL_RE.search(description)
+                if m_date:
+                    date = m_date.group(1).strip()
+                    description = description[:m_date.start()].strip().rstrip(",").strip()
+            
+            # Final safety check on date
+            if not _is_valid_date(date):
+                date = ""
+
             for ln in _format_award_entry(name, org, date, description):
                 new_entries.append(ln)
             i = j
 
-        elif stripped.startswith(("- ", "* ")):
-            content = stripped[2:].strip()
-            # Look ahead to see if the next line is a description bullet
+        else:
+            # It's a bullet or a plain paragraph!
+            # Strip any leading bullet character (e.g. • or - or * or whitespace)
+            content = stripped.lstrip("-*• ").strip()
+            
+            # Look ahead to see if the next line is a description bullet/paragraph
             j = i + 1
             next_bullet_desc = ""
             while j < end and not lines[j].strip():
                 j += 1
-            if j < end and lines[j].strip().startswith(("- ", "* ")):
+            if j < end and not lines[j].strip().startswith("### "):
                 next_stripped = lines[j].strip()
-                next_content = next_stripped[2:].strip()
+                next_content = next_stripped.lstrip("-*• ").strip()
                 if re.match(
                     r"^(?:recognised|recognized|awarded|received|nominated|presented|given)\b",
                     next_content,
                     re.IGNORECASE
                 ):
                     next_bullet_desc = next_content
-                    i = j  # consume the next bullet
+                    i = j  # consume the next line
 
             name, org, date, description = _parse_award_parts(content)
 
             # Location filtering: if the parsed date is not valid, discard both date and description
             if not _is_valid_date(date):
+                # If org is not set, rescue the non-date part of right side as org
+                if not org and date:
+                    org = date.split(",", 1)[0].strip()
                 date = ""
                 description = ""
 
@@ -1063,9 +1087,6 @@ def _normalise_awards_entries(markdown: str) -> str:
 
             for ln in _format_award_entry(name, org, date, description):
                 new_entries.append(ln)
-            i += 1
-        else:
-            new_entries.append(stripped)
             i += 1
 
     if not new_entries:
