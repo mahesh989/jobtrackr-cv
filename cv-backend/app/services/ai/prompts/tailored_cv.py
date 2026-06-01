@@ -347,6 +347,12 @@ STRUCTURE — exactly two sentences, no exceptions:
       automated dashboards at iBuild; improved forecasting accuracy
       by 25% via predictive modelling at The Bitrates."
 
+  WORD-COUNT FLOOR FOR 2+ ROLES (HARD): when 2+ roles are kept, S2 MUST
+  be 16-22 words. A 10-14 word S2 cannot physically fit two clauses with
+  two employer anchors — if your draft S2 is under 16 words AND you kept
+  2+ roles, you have dropped the second clause. REWRITE with the missing
+  employer's clause before emitting. Single-role S2 stays 10-22 words.
+
   Each achievement clause MUST contain:
     - An action verb (Reduced, Built, Improved, Automated, etc.)
     - A specific method or analytical approach (predictive modelling,
@@ -385,8 +391,9 @@ Before writing Career Highlights, answer these internally:
      If no — rewrite it.
   5b. Did you keep 2 or more Experience roles? If YES, does Sentence 2
       contain TWO achievement clauses joined by a semicolon (one per
-      top-2 role)? If a single clause — fix it. Under-filling Sentence
-      2 with one clause when 2 roles exist is a hard error.
+      top-2 role) AND is it 16-22 words? If S2 is under 16 words or lacks a
+      semicolon / second clause — fix it. Under-filling Sentence 2 with
+      one clause when 2 roles exist is a hard error.
   6. Does any seniority word in Sentence 1 appear in the candidate's
      actual job titles? If no — remove it.
   7. Are there exactly 2 sentences and 0 bullet points? If no — fix.

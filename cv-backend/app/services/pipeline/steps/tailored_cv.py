@@ -260,7 +260,8 @@ def _enforce_section_roles(
 def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     """
     Trim Career Highlights prose to at most max_words words.
-    Cuts at the last sentence boundary (period or semicolon) before the limit.
+    Ensures exactly two sentences are kept if present, truncating the second
+    sentence if the total word count exceeds max_words.
     """
     HEADING = "## Career Highlights"
     lines = markdown.split("\n")
@@ -291,15 +292,18 @@ def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     if len(words) <= max_words:
         return markdown
 
-    # Walk backwards from max_words to find a sentence boundary
-    cut = max_words
-    for i in range(max_words - 1, 0, -1):
-        if words[i - 1].endswith(".") or words[i - 1].endswith(";"):
-            cut = i
-            break
-    trimmed = " ".join(words[:cut])
-    if not trimmed.endswith("."):
-        trimmed = trimmed.rstrip(".,;:!?") + "."
+    # Split into sentences using a regex
+    sent_split_re = re.compile(r"(?<=[.!?])\s+")
+    sentences = [s.strip() for s in sent_split_re.split(full) if s.strip()]
+    if len(sentences) >= 2:
+        s1 = sentences[0]
+        s1_len = len(s1.split())
+        s2_max = max(5, max_words - s1_len)
+        s2 = sentences[1]
+        s2_trimmed = _trim_to_words(s2, s2_max)
+        trimmed = f"{s1} {s2_trimmed}"
+    else:
+        trimmed = _trim_to_words(full, max_words)
 
     # Replace prose lines: blank all, write trimmed into first prose slot
     new_lines = list(lines)
