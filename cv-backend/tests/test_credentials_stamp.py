@@ -49,7 +49,7 @@ def test_only_truthy_credentials_surface():
         "First Aid (HLTAID011) · "
         "Medication Competency · "
         "Driver Licence (Open) · "
-        "Reliable Vehicle · "
+        "Own a car · "
         "Work Rights (Citizen) · "
         "Influenza Vaccination · "
         "COVID-19 Vaccination"
@@ -165,7 +165,7 @@ def test_manual_family_renders_trade_certs_and_drops_clinical():
         "National Police Check · "
         "WWCC (NSW) · "
         "Driver Licence (Open) · "
-        "Reliable Vehicle · "
+        "Own a car · "
         "Work Rights (PR)"
     )
 
@@ -199,3 +199,46 @@ def test_stamp_noop_when_all_creds_false():
     out = stamp_credentials(_BASE_MD, cd, "nursing")
     assert "## Registration & Licences" not in out
     assert out == _BASE_MD
+
+
+def test_drivers_licence_yes_no():
+    # If drivers_licence is "Yes", render as "Driver Licence" (no parentheses)
+    line_yes = build_credentials_line({"credentials": {"drivers_licence": "Yes"}})
+    assert line_yes == "Driver Licence"
+    
+    # If drivers_licence is "No", omit entirely
+    line_no = build_credentials_line({"credentials": {"drivers_licence": "No"}})
+    assert line_no == ""
+
+
+def test_work_rights_hours():
+    # Visa with work rights + hours -> "Working Right (Full Time)"
+    cd = {
+        "credentials": {
+            "work_rights": "Visa with work rights",
+            "work_rights_hours": "Full Time",
+        }
+    }
+    line = build_credentials_line(cd)
+    assert line == "Working Right (Full Time)"
+
+    # Visa with work rights but no hours -> fallback to "Work Rights (Visa with work rights)"
+    cd_no_hours = {
+        "credentials": {
+            "work_rights": "Visa with work rights",
+            "work_rights_hours": "",
+        }
+    }
+    line_no_hours = build_credentials_line(cd_no_hours)
+    assert line_no_hours == "Work Rights (Visa with work rights)"
+
+    # Citizen + hours -> hours ignored -> "Work Rights (Citizen)"
+    cd_citizen = {
+        "credentials": {
+            "work_rights": "Citizen",
+            "work_rights_hours": "Part Time",
+        }
+    }
+    line_citizen = build_credentials_line(cd_citizen)
+    assert line_citizen == "Work Rights (Citizen)"
+

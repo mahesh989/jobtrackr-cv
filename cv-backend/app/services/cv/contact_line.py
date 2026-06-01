@@ -200,16 +200,23 @@ def build_credentials_line(
     # 4. Practical / transport — shared
     licence = _clean(creds.get("drivers_licence"))
     if licence:
-        parts.append(f"Driver Licence ({licence})")
+        if licence.lower() == "yes":
+            parts.append("Driver Licence")
+        elif licence.lower() == "no":
+            pass
+        else:
+            parts.append(f"Driver Licence ({licence})")
     if creds.get("own_car"):
-        parts.append("Reliable Vehicle")
-    if family == "nursing" and creds.get("car_insurance"):
-        parts.append("Comprehensive Car Insurance")
+        parts.append("Own a car")
 
     # 5. Status — shared
     rights = _clean(creds.get("work_rights"))
+    hours = _clean(creds.get("work_rights_hours"))
     if rights:
-        parts.append(f"Work Rights ({rights})")
+        if rights == "Visa with work rights" and hours:
+            parts.append(f"Working Right ({hours})")
+        else:
+            parts.append(f"Work Rights ({rights})")
     if family == "nursing":
         if creds.get("flu_vaccination"):
             parts.append("Influenza Vaccination")

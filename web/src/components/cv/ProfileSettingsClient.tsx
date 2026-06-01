@@ -26,7 +26,6 @@ export interface ProfileCredentials {
   medication_competency?: boolean;
   flu_vaccination?:       boolean;
   covid_vaccination?:     boolean;
-  car_insurance?:         boolean;     // comprehensive — community/home care
   // Manual / service
   white_card?:            boolean;     // construction
   forklift_licence?:      string;      // "" | "LF" | "LO"
@@ -37,6 +36,7 @@ export interface ProfileCredentials {
   wwcc?:                  boolean;     // Working with Children Check
   wwcc_state?:            string;      // "" | "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "ACT" | "NT"
   work_rights?:           string;      // "" | "Citizen" | "PR" | "Visa with work rights"
+  work_rights_hours?:     string;      // "" | "Full Time" | "Part Time"
 }
 
 /** Self-declared role-family selections that decide which add-on cards
@@ -159,8 +159,8 @@ export function ProfileSettingsClient({ initial }: Props) {
           <Field label="Full Name"          value={cd.name        ?? ""} onChange={(v) => setField("name",        v)} placeholder="Jane Doe" />
           <Field label="Phone"              value={cd.phone       ?? ""} onChange={(v) => setField("phone",       v)} placeholder="+61 414 032 507" type="tel" />
           <Field label="Email"              value={cd.email       ?? ""} onChange={(v) => setField("email",       v)} placeholder="you@example.com" type="email" />
-          <Field label="Address / Location" value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="Street address" />
           <Field label="Suburb"             value={cd.suburb      ?? ""} onChange={(v) => setField("suburb",      v)} placeholder="Hurstville" />
+          <Field label="State"              value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="NSW" />
           <Field label="Postcode"           value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220" />
           <Field label="LinkedIn URL"       value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="linkedin.com/in/yourname" />
           <Field label="Other (label)"      value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
@@ -168,7 +168,7 @@ export function ProfileSettingsClient({ initial }: Props) {
         </div>
 
         <p className="text-xs text-text-3">
-          On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">Address | Phone | Email | LinkedIn</code>
+          On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">State | Phone | Email | LinkedIn</code>
           {(showTech) && <> · plus GitHub / Portfolio when you fill them below</>}
         </p>
       </div>
@@ -340,14 +340,27 @@ export function ProfileSettingsClient({ initial }: Props) {
               label="Driver Licence"
               value={creds.drivers_licence ?? ""}
               onChange={(v) => setCred("drivers_licence", v)}
-              options={["", "Open", "Provisional", "Learner"]}
+              options={["", "Yes", "No"]}
             />
             <Select
               label="Australian Work Rights"
               value={creds.work_rights ?? ""}
-              onChange={(v) => setCred("work_rights", v)}
+              onChange={(v) => {
+                setCred("work_rights", v);
+                if (v !== "Visa with work rights") {
+                  setCred("work_rights_hours", "");
+                }
+              }}
               options={["", "Citizen", "PR", "Visa with work rights"]}
             />
+            {creds.work_rights === "Visa with work rights" && (
+              <Select
+                label="Visa Hours Type"
+                value={creds.work_rights_hours ?? ""}
+                onChange={(v) => setCred("work_rights_hours", v)}
+                options={["", "Full Time", "Part Time"]}
+              />
+            )}
             <Select
               label="WWCC State (if you hold a Working with Children Check)"
               value={creds.wwcc_state ?? ""}
@@ -364,8 +377,7 @@ export function ProfileSettingsClient({ initial }: Props) {
             <CheckBox label="First Aid Certificate (HLTAID011)"   checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
             <CheckBox label="CPR Certificate (HLTAID009)"         checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
             <CheckBox label="Medication Competency Certificate"   checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
-            <CheckBox label="Own a Reliable Car"                  checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
-            <CheckBox label="Comprehensive Car Insurance"         checked={!!creds.car_insurance}         onChange={(v) => setCred("car_insurance", v)} />
+            <CheckBox label="Own a car"                           checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
             <CheckBox label="Current Influenza Vaccination"       checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />
             <CheckBox label="COVID-19 Vaccination (up to date)"   checked={!!creds.covid_vaccination}     onChange={(v) => setCred("covid_vaccination", v)} />
           </div>
@@ -406,14 +418,27 @@ export function ProfileSettingsClient({ initial }: Props) {
                   label="Driver Licence"
                   value={creds.drivers_licence ?? ""}
                   onChange={(v) => setCred("drivers_licence", v)}
-                  options={["", "Open", "Provisional", "Learner"]}
+                  options={["", "Yes", "No"]}
                 />
                 <Select
                   label="Australian Work Rights"
                   value={creds.work_rights ?? ""}
-                  onChange={(v) => setCred("work_rights", v)}
+                  onChange={(v) => {
+                    setCred("work_rights", v);
+                    if (v !== "Visa with work rights") {
+                      setCred("work_rights_hours", "");
+                    }
+                  }}
                   options={["", "Citizen", "PR", "Visa with work rights"]}
                 />
+                {creds.work_rights === "Visa with work rights" && (
+                  <Select
+                    label="Visa Hours Type"
+                    value={creds.work_rights_hours ?? ""}
+                    onChange={(v) => setCred("work_rights_hours", v)}
+                    options={["", "Full Time", "Part Time"]}
+                  />
+                )}
                 <Select
                   label="WWCC State (if held)"
                   value={creds.wwcc_state ?? ""}
@@ -431,7 +456,7 @@ export function ProfileSettingsClient({ initial }: Props) {
               <>
                 <CheckBox label="National Police Check (current)" checked={!!creds.police_check} onChange={(v) => setCred("police_check", v)} />
                 <CheckBox label="Working with Children Check"     checked={!!creds.wwcc}         onChange={(v) => setCred("wwcc", v)} />
-                <CheckBox label="Own a Reliable Vehicle"          checked={!!creds.own_car}      onChange={(v) => setCred("own_car", v)} />
+                <CheckBox label="Own a car"                       checked={!!creds.own_car}      onChange={(v) => setCred("own_car", v)} />
               </>
             )}
           </div>
