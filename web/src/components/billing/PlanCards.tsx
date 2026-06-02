@@ -14,9 +14,12 @@ import { PUBLIC_PLANS, formatAud, TRIAL_DAYS, type PlanId } from "@/lib/billing/
 export function PlanCards({
   showTrial = true,
   currentPlan = null,
+  hideButtons = false,
 }: {
   showTrial?: boolean;
   currentPlan?: PlanId | null;
+  /** Show plans for comparison only — no subscribe buttons (used on onboarding). */
+  hideButtons?: boolean;
 }) {
   const [loading, setLoading] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,19 +90,21 @@ export function PlanCards({
                 ))}
               </ul>
 
-              <button
-                onClick={() => subscribe(plan.id)}
-                disabled={loading !== null || isCurrent}
-                className={
-                  "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                  (featured
-                    ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                    : "gh-btn")
-                }
-              >
-                {loading === plan.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : showTrial ? "Start free trial" : "Choose this plan"}
-              </button>
+              {!hideButtons && (
+                <button
+                  onClick={() => subscribe(plan.id)}
+                  disabled={loading !== null || isCurrent}
+                  className={
+                    "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
+                    (featured
+                      ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
+                      : "gh-btn")
+                  }
+                >
+                  {loading === plan.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : showTrial ? "Start free trial" : "Choose this plan"}
+                </button>
+              )}
             </div>
           );
         })}
