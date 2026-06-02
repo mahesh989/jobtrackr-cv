@@ -1,6 +1,7 @@
 """Skills-section hygiene: non-skill phrases (qualifications, eligibility/
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
+from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
@@ -730,4 +731,98 @@ def test_dedupe_skills_and_canonicalisation():
     assert "Person-Centred Care" in deduped
     assert "Patient Advocacy" in deduped
     assert "Other Skills" not in deduped
+
+
+# ---------------------------------------------------------------------------
+# Post-verify skills re-hygiene regression tests.
+# verify_claims is an AI step that runs AFTER all deterministic gates — it can
+# collapse the three Skills category lines back onto one line, add junk entries
+# like "Person-Centred Care Principles" or care-setting descriptors, and break
+# case consistency.  The writers must re-run skills hygiene after verify_claims.
+# These tests simulate the verify_claims output and confirm the hygiene pipeline
+# corrects it deterministically.
+# ---------------------------------------------------------------------------
+
+def _run_post_verify_hygiene(md: str) -> str:
+    """Apply the same hygiene chain the writers run post-verify_claims."""
+    md = enforce_skills_section(md)
+    md = _strip_non_skill_phrases(md)
+    md = _normalise_skills_case(md)
+    md = _dedupe_skills_across_lines(md)
+    return md
+
+
+def test_post_verify_collapsed_skills_are_split():
+    """verify_claims sometimes merges all three skill categories onto one line;
+    enforce_skills_section must split them back out."""
+    # Simulate verify_claims collapsing categories (bare unbolded single line)
+    md = (
+        "## Summary\nExperienced nurse.\n\n"
+        "## Skills\n"
+        "**Care Skills:** Wound Care, Medication Administration "
+        "**Soft Skills:** Teamwork, Communication "
+        "**Other Skills:** Manual Handling\n\n"
+        "## Experience\n### RN - Hospital\n- Did stuff.\n"
+    )
+    out = _run_post_verify_hygiene(md)
+    # All three categories must appear as separate bold lines
+    assert "**Care Skills:**" in out
+    assert "**Soft Skills:**" in out
+    assert "**Other Skills:**" in out
+    # Each line should contain only its own items
+    for line in out.split("\n"):
+        if "**Care Skills:**" in line:
+            assert "Teamwork" not in line
+        if "**Soft Skills:**" in line:
+            assert "Wound Care" not in line
+
+
+def test_post_verify_care_setting_stripped():
+    """verify_claims sometimes reintroduces care-setting descriptors
+    ('Acute Healthcare Environment', 'Hospital Setting') into Skills.
+    _strip_non_skill_phrases must remove them after verify."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Wound Care, Acute Healthcare Environment, Medication Administration\n"
+        "**Soft Skills:** Communication, Hospital Setting\n"
+        "**Other Skills:** Manual Handling\n\n"
+        "## Experience\n"
+    )
+    out = _run_post_verify_hygiene(md)
+    assert "Acute Healthcare Environment" not in out
+    assert "Hospital Setting" not in out
+    assert "Wound Care" in out
+    assert "Medication Administration" in out
+    assert "Communication" in out
+
+
+def test_post_verify_principles_junk_stripped():
+    """'Person-Centred Care Principles' is junk (principles, not a skill);
+    stripped by _is_non_skill_phrase → _strip_non_skill_phrases."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Person-Centred Care, Person-Centred Care Principles, Wound Care\n"
+        "**Soft Skills:** Communication\n"
+        "**Other Skills:** NDIS\n\n"
+        "## Experience\n"
+    )
+    out = _run_post_verify_hygiene(md)
+    assert "Person-Centred Care Principles" not in out
+    # The base term should survive
+    assert "Person-Centred Care" in out
+
+
+def test_post_verify_duplicate_across_lines_removed():
+    """verify_claims can add a skill to multiple categories; dedup must fix it."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Wound Care, NDIS\n"
+        "**Soft Skills:** Communication\n"
+        "**Other Skills:** NDIS, Wound Care\n\n"
+        "## Experience\n"
+    )
+    out = _run_post_verify_hygiene(md)
+    # Count occurrences — each should appear exactly once
+    assert out.count("NDIS") == 1
+    assert out.count("Wound Care") == 1
 

@@ -534,6 +534,11 @@ _NON_SKILL_PATTERN = re.compile(
     #   "Clinical Environment", "Hospital Setting", "Community Setting",
     #   "Aged Care Environment", "Rehabilitation Ward", "Acute Care Facility".
     r"|(?:environment|setting[s]?|facility|facilities|ward[s]?)\s*$"
+    # "X Principles" — the principles are not the skill; the underlying competency
+    # is. "Person-Centred Care Principles" → base skill is "Person-Centred Care".
+    # "Infection Control Principles" → skill is "Infection Control". No meaningful
+    # skills line entry ends with the word "principles".
+    r"|\bprinciples\s*$"
     # Availability, shifts, schedules, hours, and days of the week
     r"|availability|available\b"
     r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"
@@ -864,6 +869,26 @@ def _is_valid_date(d: str) -> bool:
     return has_digit or has_month
 
 
+def _add_desc_sentence(desc: str, new_sent: str) -> str:
+    """Append new_sent to desc only if it is not case-insensitively and
+    character-wise (ignoring punctuation/spaces) already present as a
+    sentence in desc.
+    """
+    new_sent = new_sent.strip()
+    if not new_sent:
+        return desc
+    if not desc:
+        return new_sent
+    # Simple split by punctuation followed by space or end of string
+    existing_sentences = [s.strip() for s in re.split(r'\s*\.\s*', desc) if s.strip()]
+    norm_new = re.sub(r'[^a-zA-Z0-9]', '', new_sent).lower()
+    for s in existing_sentences:
+        norm_s = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+        if norm_s == norm_new or norm_s.startswith(norm_new) or norm_new.startswith(norm_s):
+            return desc
+    return f"{desc.rstrip('.')}. {new_sent}"
+
+
 def _parse_award_parts(content: str) -> tuple:
     """Extract (name, org, date, description) from any observed award text.
 
@@ -886,12 +911,13 @@ def _parse_award_parts(content: str) -> tuple:
         else:
             date = right
         left = left.strip()
-        for sep in (" – ", " — ", " - "):
-            if sep in left:
-                name, org = left.split(sep, 1)
-                break
+        parsed_name, parsed_org = _split_award_name_org(left)
+        if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
+            description = _add_desc_sentence(description, parsed_org)
+            name, org = _split_award_name_org(parsed_name)
         else:
-            name = left
+            name = parsed_name
+            org = parsed_org
     else:
         m = re.search(r"\(([^()]+)\)", content)
         if m:
@@ -899,19 +925,21 @@ def _parse_award_parts(content: str) -> tuple:
             before = content[:m.start()].strip()
             after = content[m.end():].strip().lstrip(",").strip()
             description = after
-            for sep in (" – ", " — ", " - "):
-                if sep in before:
-                    name, org = before.split(sep, 1)
-                    break
+            parsed_name, parsed_org = _split_award_name_org(before)
+            if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                description = _add_desc_sentence(description, parsed_org)
+                name, org = _split_award_name_org(parsed_name)
             else:
-                name = before
+                name = parsed_name
+                org = parsed_org
         else:
-            for sep in (" – ", " — ", " - "):
-                if sep in content:
-                    name, org = content.split(sep, 1)
-                    break
+            parsed_name, parsed_org = _split_award_name_org(content)
+            if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                description = _add_desc_sentence(description, parsed_org)
+                name, org = _split_award_name_org(parsed_name)
             else:
-                name = content
+                name = parsed_name
+                org = parsed_org
     return name.strip(), org.strip(), date.strip(), description.strip()
 
 
@@ -962,6 +990,9 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         # Strip any leading "Month YYYY. " or "YYYY. " that sometimes gets
         # prepended to descriptions (the date already appears on the name line).
         desc = _LEADING_DATE_RE.sub("", desc).strip()
+        # Strip stray leading punctuation — e.g. ". Recognised for..." when
+        # verify_claims appends description directly after a closing paren date.
+        desc = desc.lstrip(".,;").strip()
         # Strip trailing " |" left over from old pipe-delimiter format conversion.
         desc = desc.rstrip("|").strip().rstrip(".")
         if desc:
@@ -1065,9 +1096,13 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                     # Always try to split left into name+org first — AI emits
                     # 'Award – Org | …' as the dominant shape.
                     parsed_name, parsed_org = _split_award_name_org(left.strip())
-                    name = parsed_name
-                    if parsed_org and not org:
-                        org = parsed_org
+                    if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                        description = _add_desc_sentence(description, parsed_org)
+                        name, org = _split_award_name_org(parsed_name)
+                    else:
+                        name = parsed_name
+                        if parsed_org and not org:
+                            org = parsed_org
                     # Now classify the right side.
                     if _is_valid_date(candidate_right):
                         date = candidate_right
@@ -1082,9 +1117,13 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 else:
                     parsed_name, parsed_org = _split_award_name_org(content)
                     if parsed_org:
-                        name = parsed_name
-                        if not org:
-                            org = parsed_org
+                        if _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                            description = _add_desc_sentence(description, parsed_org)
+                            name, org = _split_award_name_org(parsed_name)
+                        else:
+                            name = parsed_name
+                            if not org:
+                                org = parsed_org
                     else:
                         m_date = _DATE_TAIL_RE.search(content)
                         if m_date:
@@ -1102,20 +1141,19 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                         date = m_date.group(1).strip()
                 else:
                     candidate_desc = content
-                description = candidate_desc if not description else f"{description}. {candidate_desc}"
+                description = _add_desc_sentence(description, candidate_desc)
 
         elif kind == "italic":
             if "|" in content:
                 left, right = content.rsplit("|", 1)
                 if _is_valid_date(right.strip()):
-                    if not description:
-                        description = left.strip()
+                    description = _add_desc_sentence(description, left.strip())
                     if not date:
                         date = right.strip()
                 elif not org:
                     org = content
-            elif _DESCRIPTION_PREFIX_RE.match(content) and not description:
-                description = content
+            elif _DESCRIPTION_PREFIX_RE.match(content):
+                description = _add_desc_sentence(description, content)
             elif not org:
                 org = content
             # else: org is already set. A second italic line here is almost
@@ -1135,14 +1173,15 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                         date = m_date.group(1).strip()
                 else:
                     desc_text = content
-                description = desc_text if not description else f"{description}. {desc_text}"
+                description = _add_desc_sentence(description, desc_text)
             else:
                 n, o, d, desc = _parse_award_parts(content)
                 if not name:        name = n
                 if not org:         org = o
                 if not date and _is_valid_date(d):
                     date = d
-                if not description: description = desc
+                if desc:
+                    description = _add_desc_sentence(description, desc)
 
         else:  # plain
             m_date = _DATE_TAIL_RE.search(content)
@@ -1153,9 +1192,13 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                     left, right = content.split("|", 1)
                     candidate_right = right.strip()
                     parsed_name, parsed_org = _split_award_name_org(left.strip())
-                    name = parsed_name
-                    if parsed_org and not org:
-                        org = parsed_org
+                    if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                        description = _add_desc_sentence(description, parsed_org)
+                        name, org = _split_award_name_org(parsed_name)
+                    else:
+                        name = parsed_name
+                        if parsed_org and not org:
+                            org = parsed_org
                     if _is_valid_date(candidate_right):
                         date = candidate_right
                     elif _looks_like_location(candidate_right) and org:
@@ -1168,9 +1211,13 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 else:
                     parsed_name, parsed_org = _split_award_name_org(content)
                     if parsed_org:
-                        name = parsed_name
-                        if not org:
-                            org = parsed_org
+                        if _DESCRIPTION_PREFIX_RE.match(parsed_org):
+                            description = _add_desc_sentence(description, parsed_org)
+                            name, org = _split_award_name_org(parsed_name)
+                        else:
+                            name = parsed_name
+                            if not org:
+                                org = parsed_org
                     elif m_date:
                         name = content[:m_date.start()].strip()
                         date = m_date.group(1).strip()
@@ -1179,20 +1226,18 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
             elif _DESCRIPTION_PREFIX_RE.match(content):
                 # Description-style language — never an org.
                 if m_date and not date:
-                    description = content[:m_date.start()].strip().rstrip(",|").strip()
+                    description = _add_desc_sentence(description, content[:m_date.start()].strip().rstrip(",|").strip())
                     date = m_date.group(1).strip()
                 else:
-                    description = content if not description else f"{description}. {content}"
+                    description = _add_desc_sentence(description, content)
             elif not org:
                 org = content
             else:
                 if m_date and not date:
-                    description = content[:m_date.start()].strip().rstrip(",|").strip()
+                    description = _add_desc_sentence(description, content[:m_date.start()].strip().rstrip(",|").strip())
                     date = m_date.group(1).strip()
-                elif not description:
-                    description = content
                 else:
-                    description = f"{description}. {content}"
+                    description = _add_desc_sentence(description, content)
 
     return {
         "name": name.strip(),
@@ -1903,6 +1948,15 @@ async def _writer_w8_verified(
     # and ensure the structured Awards layout reaches the renderer.
     verified_md = _relabel_awards_only_certifications(verified_md)
     verified_md = _normalise_awards_entries(verified_md)
+    # Re-run skills hygiene — verify_claims can rewrite the Skills section:
+    # merging all three categories back onto one line (so the PDF renders them
+    # as a single paragraph), adding junk entries like "Person-Centred Care
+    # Principles" or care-setting descriptors, and breaking case consistency.
+    # These passes are idempotent; the cost is negligible.
+    verified_md = enforce_skills_section(verified_md)
+    verified_md = _strip_non_skill_phrases(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -1984,6 +2038,15 @@ async def _writer_w8_critique(
     # idempotent passes guarantee the structured Awards layout survives.
     verified_md = _relabel_awards_only_certifications(verified_md)
     verified_md = _normalise_awards_entries(verified_md)
+    # Re-run skills hygiene — verify_claims can rewrite the Skills section:
+    # merging all three categories back onto one line (so the PDF renders them
+    # as a single paragraph), adding junk entries like "Person-Centred Care
+    # Principles" or care-setting descriptors, and breaking case consistency.
+    # These passes are idempotent; the cost is negligible.
+    verified_md = enforce_skills_section(verified_md)
+    verified_md = _strip_non_skill_phrases(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
