@@ -526,6 +526,13 @@ _NON_SKILL_PATTERN = re.compile(
     r"hospital|clinical|palliative)\s+"
     r"(?:clients|residents|participants|patients|consumers|persons"
     r"|people)"
+    # Work-context / environment descriptors — these are WHERE you work, not WHAT
+    # you can do. No genuine discrete skill ends with "environment", "setting",
+    # "facility", or "ward". Catches:
+    #   "Acute Healthcare Environment", "Residential Aged Care Setting",
+    #   "Clinical Environment", "Hospital Setting", "Community Setting",
+    #   "Aged Care Environment", "Rehabilitation Ward", "Acute Care Facility".
+    r"|(?:environment|setting[s]?|facility|facilities|ward[s]?)\s*$"
     # Availability, shifts, schedules, hours, and days of the week
     r"|availability|available\b"
     r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"

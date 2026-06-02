@@ -85,6 +85,20 @@ def test_predicate_rejects_non_skills():
         "Care For Older People",
         "Home Care Support For Older People",
         "Support for Residents",
+        # Regression: care-setting / environment descriptors — WHERE you work,
+        # not a discrete skill. "Acute Healthcare Environment" was the original
+        # reported bug. The gate was catching audience phrases but missing
+        # work-context endings (environment, setting, facility, ward).
+        "Acute Healthcare Environment",
+        "Acute Care Setting",
+        "Aged Care Environment",
+        "Residential Aged Care Setting",
+        "Healthcare Environment",
+        "Clinical Environment",
+        "Hospital Setting",
+        "Community Setting",
+        "Rehabilitation Ward",
+        "Acute Care Facility",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
@@ -107,6 +121,12 @@ def test_predicate_keeps_real_skills():
         "Personal hygiene support",
         "User experience design",
         "Customer experience",
+        # Guard: skills that happen to END with a word the environment-pattern
+        # targets — but only when the WHOLE term ends with it. These are real
+        # skills and must NOT be stripped.
+        "Roster management",      # ends with "management", not "ward/setting"
+        "Wound care",             # ends with "care", not "environment"
+        "Theatre nursing",        # "theatre" ≠ a setting-suffix word
     ]:
         assert not _is_non_skill_phrase(skill), skill
 
