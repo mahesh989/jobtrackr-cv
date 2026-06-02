@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 const BRAND_PANEL_FEATURES = [
   "Australia's major sources scanned every night",
@@ -17,36 +18,65 @@ const LOGO_SVG = (
   </svg>
 );
 
-export default function SignupPage() {
-  const [email, setEmail]           = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [submitted, setSubmitted]   = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [loading, setLoading]       = useState(false);
+const GOOGLE_SVG = (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+  </svg>
+);
 
-  async function handleSubmit(e: React.FormEvent) {
+const inputStyle = {
+  background: "#F4EEFB",
+  border: "1px solid rgba(10, 21, 48, 0.12)",
+  fontSize: 14,
+  fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
+  color: "#0A1530",
+} as React.CSSProperties;
+
+export default function SignupPage() {
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleSignUp() {
+    setGoogleLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/confirm`,
+      },
+    });
+    if (error) {
+      setError(error.message);
+      setGoogleLoading(false);
+    }
+    // On success browser redirects to Google — no further action needed.
+  }
+
+  async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    // Account creation is enforced server-side: the route atomically claims the
-    // invite and creates the user via the service-role admin API. The invite is
-    // NOT validated/consumed in the browser, so the gate can't be bypassed by
-    // calling Supabase signup directly with the public anon key.
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code: inviteCode.trim().toUpperCase() }),
+    const supabase = createClient();
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
     });
-
-    if (!res.ok) {
-      const { error: msg } = await res.json().catch(() => ({ error: null }));
-      setError(msg ?? "Signup failed — please try again.");
+    if (error) {
+      setError(error.message);
       setLoading(false);
       return;
     }
-
     setSubmitted(true);
+    setLoading(false);
   }
 
   return (
@@ -63,7 +93,6 @@ export default function SignupPage() {
           <span
             className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}
-            aria-hidden="true"
           >
             {LOGO_SVG}
           </span>
@@ -71,17 +100,7 @@ export default function SignupPage() {
         </Link>
 
         <div>
-          <h2
-            style={{
-              fontFamily: "var(--font-cv-serif)",
-              fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)",
-              lineHeight: 1.15,
-              letterSpacing: "-0.6px",
-              color: "#F4EEFB",
-              marginBottom: 12,
-              fontWeight: 400,
-            }}
-          >
+          <h2 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)", lineHeight: 1.15, letterSpacing: "-0.6px", color: "#F4EEFB", marginBottom: 12, fontWeight: 400 }}>
             Stop hunting.<br />
             <em style={{ fontStyle: "italic", color: "#8250DF" }}>Start tracking.</em>
           </h2>
@@ -90,19 +109,8 @@ export default function SignupPage() {
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {BRAND_PANEL_FEATURES.map((f) => (
-              <li
-                key={f}
-                style={{
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                  padding: "10px 0",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  color: "rgba(244,238,251,0.7)",
-                  fontSize: 13, lineHeight: 1.5,
-                }}
-              >
-                <span
-                  style={{ width: 5, height: 5, background: "#8250DF", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
-                />
+              <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(244,238,251,0.7)", fontSize: 13, lineHeight: 1.5 }}>
+                <span style={{ width: 5, height: 5, background: "#8250DF", borderRadius: "50%", flexShrink: 0, marginTop: 5 }} />
                 {f}
               </li>
             ))}
@@ -110,7 +118,7 @@ export default function SignupPage() {
         </div>
 
         <p style={{ fontSize: 11, color: "rgba(244,238,251,0.25)", letterSpacing: 0.3 }}>
-          Invite-only beta · Built for Australian job seekers
+          Built for Australian job seekers
         </p>
       </aside>
 
@@ -119,11 +127,7 @@ export default function SignupPage() {
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
           <Link href="/" className="flex items-center gap-2.5">
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "#241A5C" }}
-              aria-hidden="true"
-            >
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#241A5C" }}>
               {LOGO_SVG}
             </span>
             <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
@@ -146,26 +150,17 @@ export default function SignupPage() {
         <main className="flex-1 flex items-center justify-center px-5 py-10">
           <div
             className="w-full max-w-md rounded-2xl px-10 py-12"
-            style={{
-              background: "#ffffff",
-              border: "1px solid rgba(10, 21, 48, 0.08)",
-              boxShadow: "0 30px 60px -30px rgba(10, 21, 48, 0.12), 0 1px 0 rgba(10, 21, 48, 0.02)",
-            }}
+            style={{ background: "#ffffff", border: "1px solid rgba(10, 21, 48, 0.08)", boxShadow: "0 30px 60px -30px rgba(10, 21, 48, 0.12), 0 1px 0 rgba(10, 21, 48, 0.02)" }}
           >
             {submitted ? (
+              /* ── Email sent state ── */
               <div className="text-center">
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5"
-                  style={{ background: "#E5E1F8", border: "1px solid rgba(86, 69, 212, 0.2)" }}
-                >
+                <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#E5E1F8", border: "1px solid rgba(86, 69, 212, 0.2)" }}>
                   <svg width="22" height="22" fill="none" stroke="#5645D4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h1
-                  className="mb-2"
-                  style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}
-                >
+                <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
                   Check your inbox
                 </h1>
                 <p style={{ color: "#6B6A8C", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
@@ -173,96 +168,73 @@ export default function SignupPage() {
                   <span style={{ color: "#0A1530", fontWeight: 500 }}>{email}</span>.
                   Click it to activate your account.
                 </p>
-                <button
-                  onClick={() => setSubmitted(false)}
-                  className="mt-6 text-[13px]"
-                  style={{ color: "#938FB8" }}
-                >
+                <button onClick={() => setSubmitted(false)} className="mt-6 text-[13px]" style={{ color: "#938FB8" }}>
                   Try a different email
                 </button>
               </div>
             ) : (
               <>
                 <div className="mb-6">
-                  <div
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4"
-                    style={{ background: "#E5E1F8", border: "1px solid rgba(26,107,74,0.2)", fontSize: 12, color: "#5645D4", fontWeight: 500 }}
-                  >
-                    <span style={{ width: 5, height: 5, background: "#8250DF", borderRadius: "50%", display: "inline-block" }} />
-                    Invite-only beta
-                  </div>
-                  <h1
-                    style={{
-                      fontFamily: "var(--font-cv-serif)",
-                      fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
-                      lineHeight: 1.12,
-                      letterSpacing: "-0.8px",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <h1 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 4vw, 2.25rem)", lineHeight: 1.12, letterSpacing: "-0.8px", marginBottom: 8 }}>
                     Create your account.
                   </h1>
                   <p style={{ color: "#6B6A8C", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
-                    Enter your invite code and email to get started. You&apos;ll be set up in 60 seconds.
+                    Start your 3-day free trial — no commitment required.
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Google button */}
+                <button
+                  onClick={handleGoogleSignUp}
+                  disabled={googleLoading || loading}
+                  className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity"
+                  style={{ background: "#ffffff", border: "1.5px solid rgba(10,21,48,0.15)", fontSize: 14, fontWeight: 500, color: "#0A1530", opacity: googleLoading ? 0.7 : 1 }}
+                >
+                  {googleLoading ? (
+                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path opacity="0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : GOOGLE_SVG}
+                  Continue with Google
+                </button>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3 mb-5">
+                  <div style={{ flex: 1, height: 1, background: "rgba(10,21,48,0.08)" }} />
+                  <span style={{ fontSize: 12, color: "#938FB8" }}>or sign up with email</span>
+                  <div style={{ flex: 1, height: 1, background: "rgba(10,21,48,0.08)" }} />
+                </div>
+
+                {/* Email + password form */}
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
                   <div>
-                    <label htmlFor="invite" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-                      Invite code
-                    </label>
+                    <label htmlFor="email" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Email address</label>
                     <input
-                      id="invite"
-                      type="text"
-                      required
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value)}
-                      placeholder="JT-XXXXXXXX"
-                      autoFocus
-                      className="w-full px-4 py-3 rounded-lg outline-none uppercase"
-                      style={{
-                        background: "#F4EEFB",
-                        border: "1px solid rgba(10, 21, 48, 0.12)",
-                        fontSize: 14,
-                        fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                        letterSpacing: 2,
-                        color: "#0A1530",
-                      }}
+                      id="email" type="email" required
+                      value={email} onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full px-4 py-3 rounded-lg outline-none"
+                      style={inputStyle}
                       onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
                       onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
                     />
                   </div>
-
                   <div>
-                    <label htmlFor="email" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-                      Email address
-                    </label>
+                    <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Password</label>
                     <input
-                      id="email"
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      id="password" type="password" required minLength={8}
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 8 characters"
                       className="w-full px-4 py-3 rounded-lg outline-none"
-                      style={{
-                        background: "#F4EEFB",
-                        border: "1px solid rgba(10, 21, 48, 0.12)",
-                        fontSize: 14,
-                        fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-                        color: "#0A1530",
-                      }}
+                      style={inputStyle}
                       onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
                       onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
                     />
                   </div>
 
                   {error && (
-                    <div
-                      className="flex items-start gap-2.5 px-3 py-2.5 rounded-md"
-                      style={{ background: "#fff0ee", border: "1px solid rgba(207, 34, 46, 0.2)" }}
-                    >
+                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-md" style={{ background: "#fff0ee", border: "1px solid rgba(207, 34, 46, 0.2)" }}>
                       <svg width="16" height="16" fill="#cf222e" viewBox="0 0 20 20" className="mt-0.5 shrink-0">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
@@ -271,16 +243,9 @@ export default function SignupPage() {
                   )}
 
                   <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2"
-                    style={{
-                      background: "#5645D4",
-                      color: "#F4EEFB",
-                      fontSize: 14,
-                      fontWeight: 500,
-                      opacity: loading ? 0.7 : 1,
-                    }}
+                    type="submit" disabled={loading || googleLoading}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity"
+                    style={{ background: "#5645D4", color: "#F4EEFB", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
                   >
                     {loading ? (
                       <>
@@ -288,7 +253,7 @@ export default function SignupPage() {
                           <circle opacity="0.25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path opacity="0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
-                        Checking…
+                        Creating account…
                       </>
                     ) : (
                       <>
@@ -303,19 +268,16 @@ export default function SignupPage() {
 
                 <p className="text-center mt-6" style={{ fontSize: 12, color: "#938FB8" }}>
                   Already have an account?{" "}
-                  <Link href="/auth/login" style={{ color: "#5645D4", fontWeight: 500, textDecoration: "none" }}>
-                    Sign in
-                  </Link>
+                  <Link href="/auth/login" style={{ color: "#5645D4", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
                 </p>
               </>
             )}
           </div>
         </main>
 
-        {/* Trust strip */}
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
-            {["5 AU sources", "AI-ranked feed", "Visa signal", "Free plan"].map((label) => (
+            {["5 AU sources", "AI-ranked feed", "Visa signal", "3-day free trial"].map((label) => (
               <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#938FB8" }}>
                 <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#5645D4" }} />
                 {label}
