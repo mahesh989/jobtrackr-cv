@@ -396,7 +396,7 @@ export function ApplicationCard({
             <button
               onClick={openCompose}
               disabled={pending !== null}
-              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+              className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
             >
               <Send className="w-3 h-3" />
               Review
@@ -436,7 +436,7 @@ export function ApplicationCard({
             <button
               onClick={() => handlePoolDecision(emailInput.trim() || undefined)}
               disabled={pending !== null}
-              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1.5 disabled:opacity-40 shrink-0"
+              className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1.5 disabled:opacity-40 shrink-0"
             >
               {pending === "pool" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               Queue for review
@@ -557,7 +557,7 @@ export function ApplicationCard({
           <button
             onClick={handleDirectSend}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
             title="Send the approved email — renders CV PDF then dispatches"
           >
             {pending === "send" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
@@ -572,7 +572,7 @@ export function ApplicationCard({
           <button
             onClick={handleCopyEmail}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
             title="Copy the approved subject + body to your clipboard"
           >
             {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
@@ -589,7 +589,7 @@ export function ApplicationCard({
             type="button"
             onClick={handleApplyNow}
             disabled={pending !== null}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
             title="Open the job posting and mark this application as applied"
           >
             <ExternalLink className="w-3 h-3" />
@@ -603,7 +603,7 @@ export function ApplicationCard({
             type="button"
             onClick={handleDownloadZip}
             disabled={downloadingZip}
-            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 disabled:opacity-40"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
             title="Download ZIP bundle containing CV and cover letter"
           >
             {downloadingZip ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileType className="w-3 h-3" />}

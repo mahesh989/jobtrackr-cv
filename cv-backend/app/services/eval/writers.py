@@ -905,36 +905,38 @@ def _strip_au_location(org: str) -> str:
 
 
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
-    """Produce the canonical structured Awards entry lines for ## Awards.
+    """Produce the canonical bullet-list entry for ## Awards.
 
-    Output shape (two rows — name|org primary, description|date secondary —
-    so the web's applyCvSectionLayout and the PDF's _render_awards produce
-    the same two-column layout):
+    Output shape:
+      * Award Name - Organisation (Date)
+        Description sentence.
 
-      ### Award Name | Organisation
-      Description sentence. | Date
-
+    Trailing two spaces on the first line create a <br> in ReactMarkdown so
+    the description appears on its own visual line inside the same list item.
     Falls back gracefully when any field is missing:
-      - no org   →  '### Award Name'                  (h3 with no pipe)
-      - no date  →  'Description sentence.'           (paragraph with no pipe)
-      - no description but date present → emits 'Date' on its own (rare).
+      - no org   →  '* Award Name (Date)'
+      - no date  →  '* Award Name - Organisation'
+      - no description → single-line bullet, no second line
     """
     org_clean = _strip_au_location(org) if org else ""
-    header = f"### {name} | {org_clean}" if org_clean else f"### {name}"
-    lines = [header]
+
+    first = name or "(unnamed award)"
+    if org_clean:
+        first = f"{first} - {org_clean}"
+    if date:
+        first = f"{first} ({date})"
 
     if description:
         desc = description.strip().rstrip(".")
         # Sentence-case the description (title-cased input is noisy).
         desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
         desc = _canonicalise_skill_spelling(desc)
-        body = f"{desc}."
-        if date:
-            body = f"{body} | {date}"
-        lines.append(body)
-    elif date:
-        # No description but we have a date — keep the date as its own row.
-        lines.append(f" | {date}")
+        # Trailing "  " = hard line break (<br>) in ReactMarkdown so the
+        # description appears on its own line within the same list item.
+        lines = [f"* {first}  ", f"  {desc}."]
+    else:
+        lines = [f"* {first}"]
+
     return lines
 
 
@@ -1175,11 +1177,10 @@ def _is_description_only_entry(entry: dict) -> bool:
 
 
 def _normalise_awards_entries(markdown: str) -> str:
-    """Normalise every entry inside ## Awards to the structured header format:
+    """Normalise every entry inside ## Awards to the simple bullet format:
 
-      ### Award Name | Date
-      *Organisation*
-      Description sentence.
+      * Award Name - Organisation (Date)
+        Description sentence.
 
     Robust to all observed production shapes (bullet, h3+italic, h3-only) AND
     to the "swapped" shape verify_claims sometimes produces (name as plain
@@ -1247,10 +1248,11 @@ def _normalise_awards_entries(markdown: str) -> str:
     if not new_entries:
         return markdown
 
-    # Blank line between entries, trailing blank before the next section.
+    # Blank line between entries (keeps list items parseable as separate
+    # entries on a re-run), trailing blank before the next section.
     spaced: list[str] = []
     for ln in new_entries:
-        if ln.startswith("### ") and spaced:
+        if ln.startswith("* ") and spaced:
             spaced.append("")
         spaced.append(ln)
 
