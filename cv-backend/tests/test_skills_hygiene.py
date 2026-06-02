@@ -230,8 +230,8 @@ def test_relabel_keeps_recognition_with_real_credential():
 # ---------------------------------------------------------------------------
 
 def test_normalise_h3_italic_block_to_structured():
-    """Old H3+italic shape converts to the new two-row format:
-       row 1 = '### Name | Org', row 2 = 'Description. | Date'.
+    """Old H3+italic shape converts to the new bullet format:
+       * Name - Org (Date) / Description.
     """
     md = (
         "## Awards\n\n"
@@ -240,9 +240,9 @@ def test_normalise_h3_italic_block_to_structured():
         "## Education\n"
     )
     out = _normalise_awards_entries(md)
-    # New shape: h3 holds Name | Org, paragraph holds Description | Date.
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "Recognised for hard work, caring nature, and positive attitude. | Aug 2025" in out
+    # New shape: bullet holds Name - Org (Date); next line is Description.
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
 def test_normalise_bullet_pipe_form_to_structured():
@@ -251,8 +251,8 @@ def test_normalise_bullet_pipe_form_to_structured():
         "- Staff Excellence Award – Jesmond Miranda Nursing Home | Aug 2025 – Recognised for hard work, caring nature, and positive attitude.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "Recognised for hard work, caring nature, and positive attitude. | Aug 2025" in out
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
 def test_normalise_old_bullet_converts_to_structured():
@@ -261,8 +261,7 @@ def test_normalise_old_bullet_converts_to_structured():
         "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "| Aug 2025" in out
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
 
 
 def test_normalise_consecutive_bullets_merge():
@@ -272,8 +271,8 @@ def test_normalise_consecutive_bullets_merge():
         "- Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "Recognised for hard work, caring nature, and positive attitude. | August 2025" in out
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
 def test_normalise_plain_paragraphs_merge():
@@ -283,8 +282,8 @@ def test_normalise_plain_paragraphs_merge():
         "Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "Recognised for hard work, caring nature, and positive attitude. | August 2025" in out
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
 def test_normalise_h3_non_date_org_rescue():
@@ -294,8 +293,8 @@ def test_normalise_h3_non_date_org_rescue():
         "Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    assert "Recognised for hard work, caring nature, and positive attitude. | August 2025" in out
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
 
@@ -305,17 +304,15 @@ def test_normalise_noops_without_awards_section():
 
 
 def test_normalise_handles_award_without_organisation():
-    """Award entry with no org (e.g. Dean's List). With no org the h3 has no
-    pipe; the date sits in the description-row's right slot."""
+    """Award entry with no org (e.g. Dean's List). With no org the bullet
+    has no dash separator — just '* Name (Date)'."""
     md = (
         "## Awards\n"
         "- Dean's List (2023)\n"
     )
     out = _normalise_awards_entries(md)
-    # h3 with no org → no pipe in the heading.
-    assert "### Dean's List\n" in out or "### Dean's List " in out or out.endswith("### Dean's List\n\n")
-    # Date appears on a separate line as the right column of row 2.
-    assert "2023" in out
+    # Bullet with no org → no dash in the line.
+    assert "* Dean's List (2023)" in out
 
 
 def test_normalise_paren_date_with_description_keeps_description():
@@ -327,10 +324,8 @@ def test_normalise_paren_date_with_description_keeps_description():
         "attitude in resident care.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "### Staff Excellence Award | Jesmond Miranda Nursing Home" in out
-    # Description and date now share one line, separated by " | ".
+    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (2025)" in out
     assert "recognised for hard work" in out.lower()
-    assert "| 2025" in out
 
 
 def test_extract_original_credentials():
