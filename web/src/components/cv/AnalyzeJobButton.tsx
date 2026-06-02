@@ -75,7 +75,11 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, override, compact
         const rect = btnRef.current.getBoundingClientRect();
         setToastPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
       }
-      if (/active CV/i.test(message)) {
+      if (res.status === 402) {
+        // Billing cap hit — point the user at the billing page with the reason.
+        const reason = (json.reason as string | undefined) ?? "cv_unique_cap";
+        setErr({ message, action, cta: { label: "Upgrade", href: `/dashboard/billing?denied=${reason}` } });
+      } else if (/active CV/i.test(message)) {
         setErr({ message, action, cta: { label: "Upload CV", href: "/dashboard/cv" } });
       } else if (/AI key/i.test(message)) {
         setErr({ message, action, cta: { label: "Add AI key", href: "/dashboard/integrations" } });

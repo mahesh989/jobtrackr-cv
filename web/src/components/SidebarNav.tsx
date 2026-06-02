@@ -17,6 +17,7 @@ import {
   Sparkles,
   Send,
   BookOpen,
+  CreditCard,
 } from "lucide-react";
 
 interface Profile {
@@ -137,6 +138,7 @@ export function SidebarNav({ email, poolCount = 0 }: Props) {
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
         <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
+        <NavItem href="/dashboard/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
       </nav>

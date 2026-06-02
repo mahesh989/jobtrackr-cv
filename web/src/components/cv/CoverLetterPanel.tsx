@@ -79,6 +79,8 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
   const [letter, setLetter]     = useState<CoverLetterRow | null>(initial);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  /** Billing cap hit (HTTP 402) — { message, reason } drives the upgrade banner. */
+  const [paywall, setPaywall]   = useState<{ message: string; reason: string } | null>(null);
   const [copied, setCopied]     = useState(false);
   const [editedBody, setEditedBody] = useState<string | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -204,6 +206,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
   ) {
     setLoading(true);
     setError(null);
+    setPaywall(null);
     setBelowFinalGate(null);
 
     try {
@@ -218,6 +221,15 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       const data = await res.json();
 
       if (!res.ok) {
+        // Billing cap hit — surface an upgrade banner instead of a plain error.
+        if (res.status === 402) {
+          setPaywall({
+            message: (data.error as string) ?? "Cover-letter limit reached",
+            reason:  (data.reason as string | undefined) ?? "letter_unique_cap",
+          });
+          return;
+        }
+
         // Phase D-2: tailored score below user's final-ATS threshold.
         // Show an inline override prompt so the user can decide whether to
         // spend the AI call anyway.
@@ -516,6 +528,19 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {error && (
         <div className="mx-5 mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
           {error}
+        </div>
+      )}
+
+      {/* Billing cap — upgrade prompt */}
+      {paywall && (
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
+          <span className="font-medium">{paywall.message}</span>
+          <a
+            href={`/dashboard/billing?denied=${paywall.reason}`}
+            className="shrink-0 rounded-md bg-[var(--brand)] px-2.5 py-1 text-[11px] font-semibold text-[var(--brand-fg)] hover:opacity-90"
+          >
+            Upgrade
+          </a>
         </div>
       )}
 

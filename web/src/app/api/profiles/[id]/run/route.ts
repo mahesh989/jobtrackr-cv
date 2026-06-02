@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { consumeRun } from "@/lib/billing/entitlements";
 
 const QUEUE_NAME = "jobtrackr-pipeline";
 
@@ -61,6 +62,15 @@ export async function POST(
 
   if (!profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  // Billing gate: read-only accounts blocked; run quota metered per period.
+  const gate = await consumeRun(user.id);
+  if (!gate.allowed) {
+    return NextResponse.json(
+      { error: "Run limit reached", reason: gate.reason },
+      { status: 402 },
+    );
   }
 
   // Enqueue the pipeline job with timeout

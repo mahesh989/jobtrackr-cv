@@ -50,6 +50,12 @@ export function RunNowButton({
     setState("running");
     startedAtRef.current = Date.now();
     const res = await fetch(`/api/profiles/${profileId}/run`, { method: "POST" });
+    if (res.status === 402) {
+      // Run cap / read-only — send the user to billing with the reason.
+      const reason = await res.json().then((d) => d.reason as string | undefined).catch(() => undefined);
+      router.push(`/dashboard/billing?denied=${reason ?? "run_cap"}`);
+      return;
+    }
     if (!res.ok) setState("error");
   }
 

@@ -21,6 +21,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { decryptApiKey }             from "@/lib/integrations/crypto";
 import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
+import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -173,6 +174,22 @@ export async function POST(
   }
   const aiModel = chosenEntry.model;
 
+  // ── 1c-bis. Billing gate: reserve a tailored-CV credit ───────────────────
+  // A tailored CV is the 2nd-last pipeline step ("analysis"). Reserve here so
+  // we fail fast (no JD scrape, no AI spend) when over cap or read-only. The
+  // reservation is linked to the run row below and committed/voided by the
+  // analysis_runs trigger on completion/failure. Released inline on the early
+  // 422/500 paths before a run row exists.
+  const cvGate = await consumeTailoredCv(user.id, jobId);
+  if (!cvGate.allowed) {
+    return NextResponse.json(
+      { error: "Tailored CV limit reached", reason: cvGate.reason, action: "upgrade" },
+      { status: 402 },
+    );
+  }
+  const usageEventId = cvGate.eventId ?? null;
+  const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
+
   // ── 1d. Load saved contact details + portfolio projects (optional) ──────
   const { data: prefRow } = await admin
     .from("user_preferences")
@@ -219,6 +236,7 @@ export async function POST(
   }
 
   if (jdText.length < JD_MIN_USABLE) {
+    await release(); // no run row will be created — free the reservation now
     return NextResponse.json(
       { error: "Could not get enough job description text to analyse. The listing may have expired or require login to view." },
       { status: 422 },
@@ -250,8 +268,13 @@ export async function POST(
 
   if (insertErr || !newRun) {
     console.error("[/api/jobs/:id/analyze] insert run failed:", insertErr?.message);
+    await release(); // no run row → free the reservation
     return NextResponse.json({ error: "Failed to create analysis run" }, { status: 500 });
   }
+
+  // Link the reservation to the run so the analysis_runs trigger can commit it
+  // on 'completed' or void it on 'failed'.
+  if (usageEventId) await linkUsageEvent(usageEventId, newRun.id);
 
   // Augment the CV text with the user's saved portfolio projects so the
   // tailoring AI considers them even if they're not already in the CV PDF.

@@ -5,11 +5,19 @@ import { SidebarNav } from "@/components/SidebarNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
 import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
+import { getEntitlement } from "@/lib/billing/entitlements";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
+
+  // Subscription gate: a brand-new user with NO subscription row must pick a
+  // plan to start their trial before they can use the dashboard. Canceled /
+  // expired users keep read-only access here (enforcement is at the choke
+  // points), and grandfathered beta / founder / admin resolve to "full".
+  const ent = await getEntitlement(user.id);
+  if (ent.status === "none") redirect("/onboarding/plan");
 
   // Fetch profiles with new-job counts for sidebar badges
   const { data: profileRows } = await supabase

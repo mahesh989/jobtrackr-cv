@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
+import { assertCanCreateProfile } from "@/lib/billing/entitlements";
 
 const QUEUE_NAME = "jobtrackr-pipeline";
 
@@ -101,6 +102,13 @@ function extractSourceFields(formData: FormData) {
 
 export async function createProfile(formData: FormData) {
   const { supabase, user } = await authedClient();
+
+  // Billing gate: read-only accounts and profile-cap-reached users are bounced
+  // to billing. The profile form also pre-checks, so this is the hard backstop.
+  const gate = await assertCanCreateProfile(user.id);
+  if (!gate.allowed) {
+    redirect(`/dashboard/billing?denied=${gate.reason ?? "profile_cap"}`);
+  }
 
   const keywords = (formData.get("keywords") as string)
     .split(",").map((k) => k.trim()).filter(Boolean);
@@ -198,6 +206,12 @@ export async function updateProfile(profileId: string, formData: FormData) {
 
 export async function copyProfile(profileId: string) {
   const { supabase, user } = await authedClient();
+
+  // Copying creates a new profile — same billing gate as createProfile.
+  const gate = await assertCanCreateProfile(user.id);
+  if (!gate.allowed) {
+    redirect(`/dashboard/billing?denied=${gate.reason ?? "profile_cap"}`);
+  }
 
   // Fetch original (verify ownership)
   const { data: orig } = await supabase

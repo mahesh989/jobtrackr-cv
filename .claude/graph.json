@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.7",
-    "updated": "2026-06-01",
+    "version": "0.8",
+    "updated": "2026-06-02",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -34,7 +34,9 @@
     }
   },
   "build_state": {
-    "current_phase": "post-12 — CV tailoring quality + polish",
+    "current_phase": "phase-13 — monetization: Stripe subscriptions + usage metering (IN PROGRESS, not yet production)",
+    "billing_high_level": "Adding paid subscriptions (Stripe, AUD) gating the platform — not AI tokens (BYOK). Plans: 3-day card-upfront TRIAL (3 tailored CVs + 3 cover letters, 1 profile, 1 run) → WEEKLY (50 unique / 75 total CVs + letters, 5 profiles, 30 runs) → MONTHLY (250 unique / 375 total, 10 profiles, 120 runs) → UNLIMITED (∞, higher price). Total = unique × 1.5. Tailored CV and cover letter are SEPARATE buckets, equal caps (either/or). Caps reset per Stripe billing period (counted by current_period_start). Auto-renew ON (Stripe default; trial auto-converts after 3 days; subscriptions auto-renew each period). On cancel/expiry → READ-ONLY (existing CVs/letters viewable, no new analyses). Existing role='beta' users grandfathered via a comp subscription with a 14-day grace. Enforcement is at the 4 web-layer choke points only (createProfile, profiles/[id]/run, jobs/[id]/analyze, jobs/[id]/cover-letter); cv-backend + worker untouched. Migration 051_billing.sql. Pricing numbers are placeholders to finalize before go-live.",
+    "previous_phase": "post-12 — CV tailoring quality + polish",
     "production_writer": "w8_verified (W8+) — active via TAILORED_CV_WRITER=w8_verified Fly secret on jobtrackr-cv-api. All /internal/analyze runs use this. Beta /internal/analyze-eval is a separate isolated harness.",
     "production_ats_scorer": "S1 (deterministic: 50pt keyword + 35pt experience + 15pt formatting, presence-aware). 2026-05-31: tailored ATS score is now computed by the SAME deterministic scorer + SAME baseline as the original (run_tailored_rescoring), guaranteeing a monotonic, genuine lift. The prior AI re-match (Step 6.5b) was REMOVED — its fresh non-deterministic cv_jd_matching call could push the tailored score BELOW the original (the 'bizarre regression' bug). New method: experience signal frozen (raw_match_score rides through untouched — tailoring surfaces keywords, doesn't add experience); keyword coverage promotes any missed JD keyword that literally appears in the tailored CV AND is not on the cannot_inject honesty blocklist (generalises beyond the feasibility allowlist); formatting floored at the original's (a missing-contact artifact can't manufacture a phantom drop). Production now matches the beta /analyze-eval S1 harness exactly. NEEDS FLY DEPLOY.",
     "last_shipped": "2026-05-30 — feat/eval-harness merged to main (DEPLOYED). Key changes: (1) Nursing sub-type Skills labels — Care Skills (AIN/aged-care/home-care), Clinical Skills (RN/EN/midwife), Core Skills (unknown); plain 'Experience' heading; named care software (BESTMed, MedMobile) shown by product name only. (2) Cover-letter hardening — real insider-relationship framing, cross-paragraph dedup, anti-pattern bans, COMPANY NAME rule (full name first mention, natural short form after; no hardcoded example). (3) Deterministic company short-name module (company_name.py) — peels legal suffixes + region tags conservatively; Johnson & Johnson / Bank of America unchanged. (4) Honesty gate (gate_1_honesty.py) — NAMED CREDENTIALS check: each institution/degree/cert checked independently. (5) Word/char count live in CoverLetterPanel header. (6) ATS lift fix — re-run AI matching on tailored CV; old deterministic string-search always returned 0 lift (raw_match_score frozen + inject_as_extension not found literally). (7) Role-family-aware skill labels + presence-aware ATS scoring. (8) Adaptive PDF layout engine prototype (adaptive_layout.py — floor=today's layout, ceiling=relaxed; binary-search for 1/2 page fill; NOT verified/deployed yet). EARLIER 2026-05-27: dashboard redesign (SmartFeed, SmartToolbar, ContinueRail, unified boards); driving-distance feature (migration 048, Nominatim+OSRM, distance chip + filter); per-profile adzuna_method toggle (migration 047); must_include_phrases (migration 046).",
@@ -56,6 +58,23 @@
       "lifecycle": "DISCOVERED → JD_CHECK → ROLE_CHECK → INITIAL_ATS_GATE(60) → TAILORED_CV → FINAL_ATS_GATE(70) → COVER_LETTER+EMAIL → APPLICATION_READY → READY_TO_SEND/APPLY → SENT/APPLIED",
       "gates_save_cost": "JD_CHECK: zero AI cost; ROLE_CHECK: zero AI cost; INITIAL_GATE: saves ~3 AI calls; FINAL_GATE: saves ~2 AI calls",
       "cover_letter": "Co-generated with email body+subject in ONE AI call. Voice profile (fingerprint + sample) drives register."
+    },
+    "billing": {
+      "summary": "Stripe subscriptions (AUD) monetize the platform. Enforcement lives ONLY in the web layer at 4 choke points; cv-backend/worker are unaware of billing.",
+      "model": "Two metered buckets (tailored_cv, cover_letter) + profiles (live count of search_profiles) + runs (per-period event count). consume_usage() Postgres RPC does an atomic cap-check + reservation (FOR UPDATE on subscription). Reserve on trigger (pending) → trigger on analysis_runs/cover_letters status flips to committed (completed) or voided (failed). Dangling pending self-heals after 1h TTL in the count.",
+      "entitlement_resolution": "founder/admin → unlimited bypass. status='trialing' → TRIAL limits (3/3/1/1) regardless of chosen plan, window = trial period. status='active' → chosen plan limits. status='past_due' → access continues (dunning banner) until Stripe moves to canceled/unpaid. plan='comp' (grandfathered beta) → unlimited until current_period_end (14-day grace) then read-only. canceled/unpaid/no-sub → READ-ONLY + redirect to /onboarding/plan.",
+      "key_files": [
+        "supabase/migrations/051_billing.sql",
+        "web/src/lib/billing/plans.ts",
+        "web/src/lib/billing/entitlements.ts",
+        "web/src/lib/billing/stripe.ts",
+        "web/src/app/api/billing/checkout/route.ts",
+        "web/src/app/api/billing/portal/route.ts",
+        "web/src/app/api/billing/webhook/route.ts",
+        "web/src/app/(dashboard)/dashboard/billing/page.tsx",
+        "web/src/app/onboarding/plan/page.tsx"
+      ],
+      "env": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_PRICE_WEEKLY", "STRIPE_PRICE_MONTHLY", "STRIPE_PRICE_UNLIMITED"]
     },
     "css_theming": {
       "rule": "Always use var(--brand), border-border, text-text, bg-surface. NEVER hardcode hex.",
@@ -101,7 +120,12 @@
     { "id": "D6", "decision": "Stale strategy: new run on (user, job) marks prior runs is_stale=true. Re-run is user-triggered only." },
     { "id": "D9", "decision": "Preferred AI provider stored in localStorage (not DB). No migration; preference is per-browser." },
     { "id": "D11", "decision": "Dropdowns inside overflow:hidden use createPortal + position:fixed + getBoundingClientRect." },
-    { "id": "D14", "decision": "Cover letter: single rich AI call + verbatim voice sample + intent rubric + anti-patterns. Replaces 3-pass pipeline that produced mechanical output." }
+    { "id": "D14", "decision": "Cover letter: single rich AI call + verbatim voice sample + intent rubric + anti-patterns. Replaces 3-pass pipeline that produced mechanical output." },
+    { "id": "D15", "decision": "Monetize the platform via Stripe subscriptions (AUD), NOT AI tokens — BYOK stays for now. Subscription bounds infra/Apify cost (job discovery, scraping, pipeline orchestration)." },
+    { "id": "D16", "decision": "BYOK is transitional — planned removal in the future (platform will supply AI keys). Until then D3 holds. When removed, AI cost becomes the platform's and plan caps/pricing must be revisited." },
+    { "id": "D17", "decision": "Prioritise direct scraping (seekDirect / Adzuna direct / Careerjet HTML) over the Apify actor to cut per-run cost — actor remains fallback only. Reinforces why runs are capped per plan." },
+    { "id": "D18", "decision": "Billing enforcement is web-layer-only at 4 choke points (createProfile, run, analyze, cover-letter). cv-backend + worker stay billing-unaware. consume_usage() RPC + DB triggers are the authoritative meter (reserve/commit/void)." },
+    { "id": "D19", "decision": "On subscription cancel/expiry → READ-ONLY (existing artifacts viewable, no new work) rather than hard-lock. Grandfather existing beta users with a 14-day comp subscription." }
   ],
   "operational_notes": [
     {

@@ -45,6 +45,7 @@ import {
   OpeningVariant,
 } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
@@ -248,9 +249,26 @@ export async function POST(
   }
 
   // ── 6. Idempotency — return cached if non-stale letter exists ─────────────────
+  // Cached returns must NOT consume a cover-letter credit.
   if (existingLetter && !regenerate) {
     return NextResponse.json({ letter_id: existingLetter.id, status: "cached" });
   }
+
+  // ── 6b. Billing gate — reserve a cover-letter credit ──────────────────────────
+  // Placed after the idempotency check (so cached returns are free) and before
+  // the expensive AI variant generation (so an over-cap user is blocked early).
+  // The reservation is a pending usage_event; it is committed by a DB trigger
+  // when the letter reaches status 'completed', voided on 'failed', and released
+  // here on any early-return path before the cover_letters row exists.
+  const clGate = await consumeCoverLetter(user.id, jobId);
+  if (!clGate.allowed) {
+    return NextResponse.json(
+      { error: "Cover-letter limit reached", reason: clGate.reason, action: "upgrade" },
+      { status: 402 },
+    );
+  }
+  const usageEventId = clGate.eventId;
+  const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
 
   // Mark previous letter stale if regenerating
   if (existingLetter && regenerate) {
@@ -275,6 +293,7 @@ export async function POST(
     ? preferred : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
 
   if (!chosen) {
+    await release();
     return NextResponse.json(
       { error: "No AI key configured. Add one in Settings → Integrations." },
       { status: 422 },
@@ -286,6 +305,7 @@ export async function POST(
   try {
     aiApiKey = decryptApiKey(entry.encrypted);
   } catch {
+    await release();
     return NextResponse.json(
       { error: "Could not decrypt your AI key. Re-connect it in Settings." },
       { status: 500 },
@@ -340,6 +360,7 @@ export async function POST(
   }
 
   if (!topStory) {
+    await release();
     return NextResponse.json(
       { error: "No stories extracted yet. Run story extraction on your CV first." },
       { status: 422 },
@@ -395,6 +416,7 @@ export async function POST(
     .maybeSingle();
 
   if (!companyResearch) {
+    await release();
     return NextResponse.json(
       {
         error:
@@ -463,6 +485,7 @@ export async function POST(
       "[POST /api/jobs/[id]/cover-letter] variants generation failed:",
       err instanceof CvBackendError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err),
     );
+    await release();
     return NextResponse.json(
       { error: "Could not generate opening options. Try again." },
       { status: 502 },
@@ -496,10 +519,15 @@ export async function POST(
 
   if (insertErr || !letterRow) {
     console.error("[POST /api/jobs/[id]/cover-letter] insert failed:", insertErr?.message);
+    await release();
     return NextResponse.json({ error: "Failed to create cover letter record." }, { status: 500 });
   }
 
   const letterId = letterRow.id as string;
+
+  // Link the pending reservation to the letter row so the cover_letters status
+  // trigger can commit (status 'completed') or void (status 'failed') it.
+  if (usageEventId) await linkUsageEvent(usageEventId, letterId);
 
   return NextResponse.json({ letter_id: letterId, status: "picking", variants });
 }
