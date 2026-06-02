@@ -2,6 +2,7 @@
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
 from app.services.eval.enforce import enforce_skills_section
+from app.services.eval.enforce_w3 import enforce_summary_breadth_consistency
 from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
@@ -267,7 +268,7 @@ def test_normalise_h3_italic_block_to_structured():
     )
     out = _normalise_awards_entries(md)
     # New shape: bullet holds Name - Org (Date); next line is Description.
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (Aug 2025)" in out
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
@@ -277,7 +278,7 @@ def test_normalise_bullet_pipe_form_to_structured():
         "- Staff Excellence Award – Jesmond Miranda Nursing Home | Aug 2025 – Recognised for hard work, caring nature, and positive attitude.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (Aug 2025)" in out
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
@@ -287,7 +288,7 @@ def test_normalise_old_bullet_converts_to_structured():
         "- Staff Excellence Award – Jesmond Miranda Nursing Home (Aug 2025)\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (Aug 2025)" in out
 
 
 def test_normalise_consecutive_bullets_merge():
@@ -297,7 +298,7 @@ def test_normalise_consecutive_bullets_merge():
         "- Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)" in out
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
@@ -308,7 +309,7 @@ def test_normalise_plain_paragraphs_merge():
         "Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)" in out
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
@@ -319,7 +320,7 @@ def test_normalise_h3_non_date_org_rescue():
         "Recognized for hard work, caring nature, and positive attitude August 2025\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)" in out
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
@@ -350,7 +351,7 @@ def test_normalise_paren_date_with_description_keeps_description():
         "attitude in resident care.\n"
     )
     out = _normalise_awards_entries(md)
-    assert "* Staff Excellence Award - Jesmond Miranda Nursing Home (2025)" in out
+    assert "* Staff Excellence Award, Jesmond Miranda Nursing Home (2025)" in out
     assert "recognised for hard work" in out.lower()
 
 
@@ -383,6 +384,36 @@ def test_normalise_strips_pipe_residue_from_description():
     )
     out = _normalise_awards_entries(md)
     assert "|" not in out.split("## Awards")[1].split("\n")[2]  # description line
+
+
+def test_normalise_two_distinct_awards_no_blank_line_both_survive():
+    """Regression (bug #1): two GENUINE separate awards as adjacent bullets with
+    no blank line between them must BOTH survive — neither starts with
+    description language, so they are distinct entries, not an award + its
+    orphan description. The old blank-line-only split merged them and silently
+    dropped the second."""
+    md = (
+        "## Awards\n"
+        "- Dean's List (2019)\n"
+        "- Employee of the Year - Acme Health (2023)\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "* Dean's List (2019)" in out
+    assert "* Employee of the Year, Acme Health (2023)" in out
+
+
+def test_normalise_description_preserves_proper_noun_casing():
+    """Regression (Fix E): the description must not be blanket-lowercased —
+    acronyms and proper nouns (NDIS, Jesmond) have to survive."""
+    md = (
+        "## Awards\n\n"
+        "### Staff Excellence Award | Jesmond Miranda Nursing Home\n"
+        "Recognised for outstanding NDIS support across the Jesmond team. (Aug 2025)\n"
+    )
+    out = _normalise_awards_entries(md)
+    # "NDIS" only appears in the description; the old blanket .lower() produced
+    # "ndis". Its survival proves the casing is preserved.
+    assert "NDIS" in out
 
 
 def test_extract_original_credentials():
@@ -775,6 +806,138 @@ def test_post_verify_collapsed_skills_are_split():
             assert "Teamwork" not in line
         if "**Soft Skills:**" in line:
             assert "Wound Care" not in line
+
+
+# ---------------------------------------------------------------------------
+# enforce_summary_breadth_consistency
+#
+# The durable contract: when S1 frames experience as BREADTH ("across multiple
+# … settings"), naming a SINGLE specific employer in S2 contradicts it. The
+# gate strips employer names it reads from the CV's OWN Experience headings —
+# so it must work for EVERY grammatical shape the employer can appear in, not
+# just a sentence-final "at <Org>." These tests lock in that breadth.
+# ---------------------------------------------------------------------------
+
+_BREADTH_S1 = (
+    "Experienced Aged Care Worker with 3+ years across multiple residential "
+    "aged care settings."
+)
+
+# A real Experience section so _employer_candidates() can extract the name.
+_EXP_SECTION = (
+    "\n\n## Experience\n"
+    "### Assistant in Nursing | Jesmond Miranda Nursing Home (2023–2025)\n"
+    "- Provided personal care.\n"
+)
+
+
+def _breadth_md(s2: str) -> str:
+    return f"## Professional Summary\n{_BREADTH_S1} {s2}{_EXP_SECTION}"
+
+
+def _assert_clean(out: str) -> None:
+    """Common post-conditions on the SUMMARY prose only (the employer name still
+    legitimately appears in the Experience heading): employer gone, no double
+    space, no stray ' ,' / ' .' / dangling-connector artefacts."""
+    summary = out.split("## Experience")[0]
+    assert "Jesmond Miranda Nursing Home" not in summary, f"employer leaked: {summary!r}"
+    assert "  " not in summary, f"double space leaked: {summary!r}"
+    assert " ." not in summary and " ," not in summary, f"stray punct: {summary!r}"
+
+
+def test_breadth_tail_employer_replaced_with_scope():
+    """'…care at Jesmond Miranda Nursing Home.' → '…care across these settings.'"""
+    md = _breadth_md(
+        "Delivered medication management and person-centred care at Jesmond Miranda Nursing Home."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    _assert_clean(out)
+    assert "across these settings" in out
+
+
+def test_breadth_mid_and_clause_preserved():
+    """'…at <Org> and provided care.' → employer gone, continuation survives."""
+    md = _breadth_md(
+        "Supported residents at Jesmond Miranda Nursing Home and provided person-centred care."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    _assert_clean(out)
+    assert "provided person-centred care" in out
+
+
+def test_breadth_mid_comma_gerund_preserved():
+    """Comma + gerund continuation — the shape the OLD regex silently missed."""
+    md = _breadth_md(
+        "Worked at Jesmond Miranda Nursing Home, providing person-centred care to residents."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    _assert_clean(out)
+    assert "providing person-centred care" in out
+
+
+def test_breadth_mid_where_clause_preserved():
+    """'…at <Org> where I delivered care.' relative-clause continuation."""
+    md = _breadth_md(
+        "Worked at Jesmond Miranda Nursing Home where I delivered medication support."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    _assert_clean(out)
+    assert "delivered medication support" in out
+
+
+def test_breadth_employer_at_sentence_start():
+    """S2 that opens on the employer: 'At <Org>, delivered care.'"""
+    md = _breadth_md(
+        "At Jesmond Miranda Nursing Home, delivered safe medication administration."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    _assert_clean(out)
+    assert "delivered safe medication administration".capitalize().split()[0] in out
+    assert "medication administration" in out
+
+
+def test_breadth_semicolon_two_employers_untouched():
+    """Two employers joined by ';' = two dominant roles — left entirely alone."""
+    s2 = (
+        "Delivered care at Jesmond Miranda Nursing Home; "
+        "provided clinical support at Uniting."
+    )
+    md = _breadth_md(s2)
+    out = enforce_summary_breadth_consistency(md)
+    assert "Jesmond Miranda Nursing Home" in out  # not stripped
+
+
+def test_breadth_no_breadth_s1_is_noop():
+    """S1 without breadth framing → no-op even if S2 names the employer."""
+    md = (
+        "## Professional Summary\n"
+        "Aged Care Worker with 3 years at Jesmond Miranda Nursing Home. "
+        "Delivered person-centred care at Jesmond Miranda Nursing Home."
+        + _EXP_SECTION
+    )
+    out = enforce_summary_breadth_consistency(md)
+    assert out == md  # unchanged
+
+
+def test_breadth_setting_type_not_mistaken_for_employer():
+    """A capitalised care-SETTING type ('Aged Care') is NOT in the Experience
+    headings, so it must NOT be stripped — only real employers are."""
+    md = _breadth_md(
+        "Delivered person-centred care across Aged Care environments to elderly residents."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    # No employer named → S2 untouched, 'Aged Care' preserved.
+    assert "Aged Care environments" in out
+
+
+def test_breadth_unknown_org_not_stripped():
+    """An 'at <Capitalised>' that is NOT one of the candidate's employers is
+    left alone — the gate strips known employers only, never guesses."""
+    md = _breadth_md(
+        "Delivered person-centred care at Christmas events for elderly residents."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    assert "at Christmas events" in out  # not an employer → untouched
 
 
 def test_post_verify_care_setting_stripped():

@@ -210,6 +210,15 @@ def _bullet_row(text_para: Paragraph) -> Table:
     return t
 
 
+def _indented_row(text_para: Paragraph) -> Table:
+    """A text paragraph aligned under a bullet's text column (no bullet symbol).
+    Used for award descriptions that continue under the award line."""
+    c = _cfg()
+    t = Table([["", text_para]], colWidths=[c.bullet_col_w, c.text_col_w])
+    t.setStyle(_NO_PAD_TABLE)
+    return t
+
+
 def _ensure_https(url: str) -> str:
     if url and "://" not in url:
         return "https://" + url
@@ -1015,21 +1024,19 @@ _AWARD_DATE_TAIL_RE = re.compile(
 
 def _render_awards(items: List[Dict]) -> List[Any]:
     """
-    Awards entries — compact two-row layout.
+    Awards entries — flat bullet layout, matching the web renderer:
+
+      * Award Name, Organisation (Date)
+            Concise description.
 
     Canonical markdown shape produced by _normalise_awards_entries:
-      * Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)
+      * Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)
         Recognised for hard work, caring nature, and positive attitude.
 
     Parsed as:
-      bullet item:    "Name - Org (Date)"  → name, org, date
-      paragraph item: "Description."       → description (optional, follows bullet)
-
-    Row 1 (primary):   Award Name (bold, left)   |  Organisation (right)
-    Row 2 (secondary): Description (body, left)  |  Date (right)
+      bullet item:    "Name, Org (Date)"  → rendered verbatim as a bullet line
+      paragraph item: "Description."      → indented continuation (optional)
     """
-    _PAREN_DATE_RE = re.compile(r'\s*\(([^)]+)\)\s*$')
-
     out: List[Any] = []
     entry_count = 0
     i = 0
@@ -1043,50 +1050,25 @@ def _render_awards(items: List[Dict]) -> List[Any]:
             i += 1
             continue
 
-        # Parse "Name - Org (Date)" from the bullet text.
-        raw = _strip_md_emphasis(item["text"]).strip()
-        award_name = award_org = award_date = ""
-
-        # Extract trailing (Date) first.
-        m = _PAREN_DATE_RE.search(raw)
-        if m:
-            award_date = m.group(1).strip()
-            raw = raw[:m.start()].strip()
-
-        # Split name - org on first dash separator.
-        for sep in (" – ", " — ", " - "):
-            if sep in raw:
-                left, right = raw.split(sep, 1)
-                award_name = left.strip()
-                award_org = right.strip()
-                break
-        else:
-            award_name = raw
-
-        i += 1
-
-        # Optional description: the indented paragraph that follows the bullet.
-        award_desc = ""
-        if i < len(items) and items[i]["type"] == "paragraph":
-            award_desc = _strip_md_emphasis(items[i]["text"]).strip()
-            i += 1
-
         if entry_count > 0:
             out.append(_spacer(_cfg().subsection_gap))
         entry_count += 1
 
-        # Row 1: Award Name (bold, left) | Organisation (right).
-        out.append(_two_col(
-            Paragraph(_escape(award_name), _styles()["company_row"]),
-            Paragraph(_escape(award_org), _styles()["date_right"]),
+        # Bullet line: "Award Name, Org (Date)" — rendered verbatim.
+        out.append(_bullet_row(
+            _inline_markup(item["text"].strip(), _styles()["bullet_text"])
         ))
+        i += 1
 
-        # Row 2: Description (body, left) | Date (right). Skip when empty.
-        if award_desc or award_date:
-            out.append(_two_col(
-                Paragraph(_escape(award_desc), _styles()["bullet_text"]),
-                Paragraph(_escape(award_date), _styles()["date_right"]),
-            ))
+        # Optional description: the paragraph that follows the bullet, indented
+        # to align under the award text.
+        if i < len(items) and items[i]["type"] == "paragraph":
+            desc = items[i]["text"].strip()
+            if desc:
+                out.append(_indented_row(
+                    _inline_markup(desc, _styles()["bullet_text"])
+                ))
+            i += 1
 
     return out
 

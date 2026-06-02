@@ -966,22 +966,23 @@ def _strip_au_location(org: str) -> str:
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
     """Produce the canonical bullet-list entry for ## Awards.
 
-    Output shape:
-      * Award Name - Organisation (Date)
+    Output shape (name and organisation separated by a comma, rendered flat in
+    both the web and PDF renderers):
+      * Award Name, Organisation (Date)
         Description sentence.
 
     Trailing two spaces on the first line create a <br> in ReactMarkdown so
     the description appears on its own visual line inside the same list item.
     Falls back gracefully when any field is missing:
       - no org   →  '* Award Name (Date)'
-      - no date  →  '* Award Name - Organisation'
+      - no date  →  '* Award Name, Organisation'
       - no description → single-line bullet, no second line
     """
     org_clean = _strip_au_location(org) if org else ""
 
     first = name or "(unnamed award)"
     if org_clean:
-        first = f"{first} - {org_clean}"
+        first = f"{first}, {org_clean}"
     if date:
         first = f"{first} ({date})"
 
@@ -996,8 +997,14 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         # Strip trailing " |" left over from old pipe-delimiter format conversion.
         desc = desc.rstrip("|").strip().rstrip(".")
         if desc:
-            # Sentence-case the description (title-cased input is noisy).
-            desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
+            if desc.isupper():
+                # ALL-CAPS noise → sentence-case it.
+                desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
+            else:
+                # Preserve original casing — blanket .lower() destroyed proper
+                # nouns and acronyms (NDIS, RN, place/person names). Just ensure
+                # the first character is capitalised.
+                desc = desc[0].upper() + desc[1:] if len(desc) > 1 else desc.upper()
             desc = _canonicalise_skill_spelling(desc)
             # Trailing "  " = hard line break (<br>) in ReactMarkdown so the
             # description appears on its own line within the same list item.
@@ -1284,25 +1291,47 @@ def _normalise_awards_entries(markdown: str) -> str:
         len(lines),
     )
 
-    # Step 1: split section body into RAW ENTRIES, separated by blank lines.
+    # Step 1: split section body into RAW ENTRIES. A new entry starts on a blank
+    # line OR on a new bullet/h3 line — so adjacent award bullets with no blank
+    # line between them (as verify_claims sometimes emits) are NOT merged into a
+    # single entry (which silently dropped the second award). EXCEPTION: a
+    # description-language line (Recognised for / Awarded / …) is a continuation
+    # of the current award, not a new entry, even when the AI emits it as its own
+    # bullet or promotes it to a `### ` heading (the "swapped" shape). Indented
+    # continuation lines and `*italic*` lines never trigger a split (they lack the
+    # trailing space the `* `/`- ` check needs).
     body = lines[start + 1:end]
     raw_entries: list[list[str]] = []
     current: list[str] = []
     for ln in body:
-        if not ln.strip():
+        stripped = ln.strip()
+        if not stripped:
             if current:
                 raw_entries.append(current)
                 current = []
-        else:
-            current.append(ln)
+            continue
+        starts_entry = stripped.startswith(("* ", "- ", "### "))
+        if starts_entry:
+            entry_content = stripped.lstrip("*-# ").strip()
+            if _DESCRIPTION_PREFIX_RE.match(entry_content):
+                starts_entry = False
+        if starts_entry and current:
+            raw_entries.append(current)
+            current = []
+        current.append(ln)
     if current:
         raw_entries.append(current)
 
     if not raw_entries:
         return markdown
 
-    # Step 2: parse each raw entry into structured fields.
+    # Step 2: parse each raw entry into structured fields. Fail loud when a
+    # non-empty raw entry yields no usable field — that's an unrecognised shape
+    # the parser silently swallowed, not legitimately-empty content.
     parsed = [_parse_award_raw_entry(e) for e in raw_entries]
+    for raw, entry in zip(raw_entries, parsed):
+        if not (entry.get("name") or entry.get("org") or entry.get("description")):
+            logger.warning("awards: unparsed entry shape: %r", raw)
 
     # Step 3: merge description-only entries back into the previous entry
     # (handles the swapped shape: name+org as plain, description as own ### block).

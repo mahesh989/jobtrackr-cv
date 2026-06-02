@@ -322,8 +322,17 @@ def clamp_two_sentences(md: str) -> str:
 # When S1 frames the candidate's experience as breadth — "across multiple
 # residential aged care settings", "several facilities", etc. — naming ONE
 # specific employer in S2 ("at Jesmond Miranda Nursing Home") is a hard
-# contradiction. The prompt forbids it, but the AI doesn't always comply, so
-# this deterministic pass strips the cherry-picked employer.
+# contradiction. The prompt forbids it, but the AI doesn't always comply.
+#
+# DURABILITY NOTE (why this is the "final" form):
+#   The earlier versions of this gate tried to GUESS what an employer name
+#   looks like with a capitalised-token regex, anchored at the end of the
+#   sentence. Every new grammatical shape the model emitted ("…at X, where…",
+#   "…at X, providing…", "…for X…") slipped past, so the bug kept "coming
+#   back". This version does NOT guess. It reads the candidate's REAL employer
+#   names straight out of their own Experience `###` headings, then strips any
+#   of those exact names from S2 — wherever they appear, whatever follows.
+#   Matching a known string is bullet-proof; guessing a pattern is not.
 
 _BREADTH_RE = re.compile(
     r"\b(?:multiple|several|various|many)\s+(?:[a-z]+\s+){0,3}"
@@ -332,27 +341,107 @@ _BREADTH_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Match a trailing 'at <Capitalised Org Name>' just before the sentence's
-# terminating punctuation. The org is 1–8 capitalised tokens, joined by
-# spaces / connectors (the/of/and/&/–/-). Stops at the next sentence boundary.
-_AT_EMPLOYER_TAIL_RE = re.compile(
-    r"\s+at\s+"
-    r"([A-Z][\w']*"
-    r"(?:\s+(?:[A-Z][\w']*|of|the|and|&|–|-)){0,8})"
-    r"(?=\s*[.!?]|\s*$)"
-)
+# Section headings whose `###` entries name an employer.
+_SUMMARY_EXPERIENCE_HEADINGS = {
+    "experience", "professional experience", "clinical experience",
+    "work experience", "employment", "employment history",
+}
+
+# Strip a trailing date parenthetical and any "| Location" / ", Location" tail.
+_HEADING_DATE_PAREN_RE = re.compile(r"\s*\([^)]*\)\s*$")
+_HEADING_FIELD_SPLIT_RE = re.compile(r"\s+[|–—]\s+|\s+-\s+")
+
+
+def _employer_candidates(lines: List[str]) -> List[str]:
+    """Collect real employer-name strings from the Experience section(s).
+
+    Each `### Role | Org (Dates)` heading contributes BOTH sides of the
+    role/org split as candidates (we don't need to know which side is the
+    employer — the 'at <name>' gate below only ever fires on the org). Returns
+    candidates longest-first so the fullest name matches before any prefix.
+    """
+    cands: Set[str] = set()
+    i = 0
+    n = len(lines)
+    while i < n:
+        s = lines[i].strip()
+        if s.startswith("## ") and s[3:].strip().lower() in _SUMMARY_EXPERIENCE_HEADINGS:
+            i += 1
+            while i < n and not lines[i].strip().startswith("## "):
+                h = lines[i].strip()
+                if h.startswith("### "):
+                    head = _HEADING_DATE_PAREN_RE.sub("", h[4:].strip())
+                    parts = _HEADING_FIELD_SPLIT_RE.split(head)
+                    for p in parts:
+                        # Drop a trailing ", City, STATE" location tail.
+                        name = p.split(",")[0].strip()
+                        # Real org names are ≥6 chars (filters "RN", "EN", "NSW").
+                        if len(name) >= 6:
+                            cands.add(name)
+                i += 1
+            continue
+        i += 1
+    return sorted(cands, key=len, reverse=True)
+
+
+def _tidy_clause(s: str) -> str:
+    """Repair a sentence after an 'at <employer>' span was excised: collapse
+    whitespace, reattach punctuation, drop any now-dangling leading connector,
+    re-capitalise, and guarantee terminal punctuation."""
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    s = re.sub(r"\s+([,.;:!?])", r"\1", s)          # " ," -> ","
+    s = re.sub(r"^(?:and|or|but|,|;)\s+", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s+(?:and|or)\s*([.!?])", r"\1", s)  # "… and ." -> "…."
+    s = re.sub(r",\s*,", ", ", s)
+    s = s.strip()
+    if s:
+        s = s[0].upper() + s[1:]
+    if s and s[-1] not in ".!?":
+        s += "."
+    return s
+
+
+def _strip_named_employers(s2: str, candidates: List[str]) -> str:
+    """Remove every 'at <known employer>' from S2. If the employer sat at the
+    sentence tail (nothing but terminal punctuation after it) it is replaced
+    with a scope phrase so S2 stays a complete, breadth-aligned thought;
+    mid-sentence mentions are simply excised and the clause repaired."""
+    out = s2
+    for name in candidates:
+        # (start-of-string | whitespace) + 'at' + name, on a word boundary.
+        pat = re.compile(
+            r"(?:^|\s)at\s+" + re.escape(name) + r"(?![\w'])",
+            re.IGNORECASE,
+        )
+        while True:
+            m = pat.search(out)
+            if not m:
+                break
+            after = out[m.end():]
+            is_tail = after.strip() == "" or after.lstrip()[:1] in (".", "!", "?")
+            replacement = " across these settings" if is_tail else ""
+            out = out[: m.start()] + replacement + out[m.end():]
+    return _tidy_clause(out) if out != s2 else s2
 
 
 def enforce_summary_breadth_consistency(md: str) -> str:
     """If the summary's S1 uses breadth framing (multiple/several settings,
-    facilities, sites, placements, etc.) AND S2 anchors on a SINGLE named
-    employer ("at Jesmond Miranda Nursing Home."), strip the employer mention
-    and replace with "across these settings" so S1 and S2 agree.
+    facilities, sites, placements, etc.) AND S2 names a SINGLE specific
+    employer drawn from the CV's own Experience section, strip that employer so
+    S1 and S2 tell the same story.
+
+    Examples (employer = "Jesmond Miranda Nursing Home"):
+      "…provided care at Jesmond Miranda Nursing Home."
+        → "…provided care across these settings."
+      "…at Jesmond Miranda Nursing Home and provided care."
+        → "…and provided care."
+      "…at Jesmond Miranda Nursing Home, providing person-centred care."
+        → "…, providing person-centred care."
 
     No-op when:
       - the Summary section is absent,
       - S1 doesn't use breadth framing,
-      - S2 has no trailing 'at <Org>' anchor,
+      - S2 names no employer from the Experience section,
       - S2 names two employers via a semicolon (the rule allows that).
     """
     lines = md.split("\n")
@@ -381,9 +470,13 @@ def enforce_summary_breadth_consistency(md: str) -> str:
     if ";" in s2:
         return md  # Two-clause S2 (allowed when two dominant roles exist).
 
-    new_s2 = _AT_EMPLOYER_TAIL_RE.sub(" across these settings", s2)
+    candidates = _employer_candidates(lines)
+    if not candidates:
+        return md  # No employer names to match against.
+
+    new_s2 = _strip_named_employers(s2, candidates)
     if new_s2 == s2:
-        return md  # No single-employer anchor to strip.
+        return md  # S2 named no Experience employer — nothing to strip.
 
     rest = sentences[2:] if len(sentences) > 2 else []
     new_prose = " ".join([s1, new_s2] + rest)

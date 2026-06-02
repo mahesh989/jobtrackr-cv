@@ -232,6 +232,9 @@ export function applyCvSectionLayout(root: HTMLElement) {
     const patterns = [
       /^(.*)\s+\|\s+([^|]+)$/,
       /^(.*)\s+[—–]\s+([^—–]+)$/,
+      // ASCII-hyphen fallback (tried last so pipe / em- / en-dash win first).
+      // Matches the PDF renderer, which splits "Name - Org" on " - ".
+      /^(.*)\s+-\s+([^-]+)$/,
     ];
     for (const pattern of patterns) {
       const match = value.match(pattern);
@@ -248,7 +251,7 @@ export function applyCvSectionLayout(root: HTMLElement) {
     if (lastPipe !== -1) {
       return { leftHtml: html.slice(0, lastPipe).trim(), rightHtml: html.slice(lastPipe + 3).trim() };
     }
-    for (const sep of [" – ", " — "]) {
+    for (const sep of [" – ", " — ", " - "]) {
       const idx = html.lastIndexOf(sep);
       if (idx !== -1) {
         return { leftHtml: html.slice(0, idx).trim(), rightHtml: html.slice(idx + sep.length).trim() };
@@ -320,6 +323,15 @@ export function applyCvSectionLayout(root: HTMLElement) {
             rowCount += 1;
             if (node.parentNode) node.parentNode.removeChild(node);
             continue;
+          }
+          // Fail loud: an H3 is always meant to be a two-column header row, so a
+          // heading with no recognised separator (| – — -) is an unknown shape,
+          // not a paragraph. Tag it for inspection and warn outside production.
+          if (tag === "H3") {
+            node.setAttribute("data-cv-unsplit", "1");
+            if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+              console.warn("[cv-layout] unsplit H3 header (no | / – / — / - separator):", node.textContent);
+            }
           }
         }
         wrap.appendChild(node);
