@@ -709,3 +709,25 @@ def test_split_compound_skills_leaves_plain_content_untouched():
     assert lines[1] == "**Care Skills:** Personal Care, Medication Assistance, Dementia Care"
     assert lines[2] == "**Soft Skills:** Teamwork"
     assert lines[3] == "**Other Skills:** BESTMed"
+
+
+def test_dedupe_skills_and_canonicalisation():
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Person-Centred Care\n"
+        "**Soft Skills:** Advocacy For Patients And Residents\n"
+        "**Other Skills:** Patient-Centred Care\n\n"
+        "## Experience\n"
+    )
+    # Test spelling conversions
+    assert _canonicalise_skill_spelling("Patient-Centred Care") == "Person-Centred Care"
+    assert _canonicalise_skill_spelling("Advocacy For Patients And Residents") == "Patient Advocacy"
+
+    # Test full pass and dropping of empty lines (Other Skills line should be dropped since it only has a duplicate)
+    norm = _normalise_skills_case(md)
+    deduped = _dedupe_skills_across_lines(norm)
+
+    assert "Person-Centred Care" in deduped
+    assert "Patient Advocacy" in deduped
+    assert "Other Skills" not in deduped
+

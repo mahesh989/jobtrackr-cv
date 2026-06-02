@@ -715,6 +715,12 @@ def _normalise_skills_case(markdown: str) -> str:
 _BR_AM_SKILL_SUBS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bperson[- ]centered\b", re.IGNORECASE),         "Person-Centred"),
     (re.compile(r"\bperson[- ]centred\b", re.IGNORECASE),          "Person-Centred"),
+    (re.compile(r"\bpatient[- ]centered\b", re.IGNORECASE),         "Person-Centred"),
+    (re.compile(r"\bpatient[- ]centred\b", re.IGNORECASE),          "Person-Centred"),
+    (re.compile(
+        r"\badvocacy\s+for\s+(?:patients|residents|clients|people)(?:\s+(?:and|or)\s+(?:patients|residents|clients|people))?\b",
+        re.IGNORECASE
+    ), "Patient Advocacy"),
     (re.compile(r"\bbehavioral\b", re.IGNORECASE),                 "Behavioural"),
     (re.compile(r"\bspecialized\b", re.IGNORECASE),                "Specialised"),
     (re.compile(r"\borganized\b", re.IGNORECASE),                  "Organised"),
@@ -777,12 +783,19 @@ def _dedupe_skills_across_lines(markdown: str) -> str:
                 continue
             seen.add(key)
             kept.append(canonical)
-        new_line = prefix + ", ".join(kept) if kept else ""
         if kept:
-            lines[i] = new_line
+            lines[i] = prefix + ", ".join(kept)
+        else:
+            lines[i] = ""
+    # Filter out empty lines inside ## Skills
+    non_empty_lines = []
+    for i, line in enumerate(lines):
+        if skills_start < i < skills_end and line == "":
+            continue
+        non_empty_lines.append(line)
     if dropped:
         logger.info("w8: deduped %d cross-line Skills entr(ies)", dropped)
-    return "\n".join(lines)
+    return "\n".join(non_empty_lines)
 
 
 # ---------------------------------------------------------------------------
