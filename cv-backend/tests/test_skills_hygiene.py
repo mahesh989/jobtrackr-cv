@@ -85,6 +85,7 @@ def test_predicate_rejects_non_skills():
         "Care For Older People",
         "Home Care Support For Older People",
         "Support for Residents",
+        "Working With Disadvantaged And Vulnerable People",
         # Regression: care-setting / environment descriptors — WHERE you work,
         # not a discrete skill. "Acute Healthcare Environment" was the original
         # reported bug. The gate was catching audience phrases but missing

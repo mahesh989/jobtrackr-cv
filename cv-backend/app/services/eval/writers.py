@@ -511,9 +511,10 @@ _NON_SKILL_PATTERN = re.compile(
     # is optional.
     r"|(?:working|supporting|caring|support|care|engaging)(?:\s+(?:with|for|of))?\s+"
     r"(?:the\s+)?"
+    r"(?:(?:disadvantaged|vulnerable|homeless|marginali[sz]ed|diverse|frail|aged|older|elderly)(?:\s+(?:and|or)\s+(?:disadvantaged|vulnerable|homeless|marginali[sz]ed|diverse|frail|aged|older|elderly))?\s+)?"
     r"(?:seniors|elderly|aged|older\s+(?:people|adults|persons|australians)"
     r"|children|adolescents|adults|youth|patients|residents|clients"
-    r"|families|consumers|participants|vulnerable\s+(?:people|adults)"
+    r"|families|consumers|participants|people|adults"
     r"|the\s+aged|the\s+elderly)"
     # Bare "[sector] [audience]" — same JD-phrasing class without a verb
     # prefix. "Aged Care Clients", "Nursing Home Residents", "NDIS
