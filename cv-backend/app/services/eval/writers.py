@@ -820,6 +820,15 @@ _DATE_TAIL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Strips "August 2025." or "2025." from the START of a description string.
+# The date already appears on the name line, so a leading repetition is noise.
+_LEADING_DATE_RE = re.compile(
+    r"^(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May"
+    r"|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?"
+    r"|Nov(?:ember)?|Dec(?:ember)?)\s+)?\d{4}[.\s,]+",
+    re.IGNORECASE,
+)
+
 
 def _is_valid_date(d: str) -> bool:
     if not d:
@@ -927,13 +936,21 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         first = f"{first} ({date})"
 
     if description:
-        desc = description.strip().rstrip(".")
-        # Sentence-case the description (title-cased input is noisy).
-        desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
-        desc = _canonicalise_skill_spelling(desc)
-        # Trailing "  " = hard line break (<br>) in ReactMarkdown so the
-        # description appears on its own line within the same list item.
-        lines = [f"* {first}  ", f"  {desc}."]
+        desc = description.strip()
+        # Strip any leading "Month YYYY. " or "YYYY. " that sometimes gets
+        # prepended to descriptions (the date already appears on the name line).
+        desc = _LEADING_DATE_RE.sub("", desc).strip()
+        # Strip trailing " |" left over from old pipe-delimiter format conversion.
+        desc = desc.rstrip("|").strip().rstrip(".")
+        if desc:
+            # Sentence-case the description (title-cased input is noisy).
+            desc = desc[0].upper() + desc[1:].lower() if len(desc) > 1 else desc.upper()
+            desc = _canonicalise_skill_spelling(desc)
+            # Trailing "  " = hard line break (<br>) in ReactMarkdown so the
+            # description appears on its own line within the same list item.
+            lines = [f"* {first}  ", f"  {desc}."]
+        else:
+            lines = [f"* {first}"]
     else:
         lines = [f"* {first}"]
 
@@ -1058,7 +1075,7 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 # promoted to a heading by verify_claims. Fold it back.
                 m_date = _DATE_TAIL_RE.search(content)
                 if m_date:
-                    candidate_desc = content[:m_date.start()].strip().rstrip(",").strip()
+                    candidate_desc = content[:m_date.start()].strip().rstrip(",|").strip()
                     if not date:
                         date = m_date.group(1).strip()
                 else:
@@ -1091,7 +1108,7 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
             if name and _DESCRIPTION_PREFIX_RE.match(content):
                 m_date = _DATE_TAIL_RE.search(content)
                 if m_date:
-                    desc_text = content[:m_date.start()].strip().rstrip(",").strip()
+                    desc_text = content[:m_date.start()].strip().rstrip(",|").strip()
                     if not date:
                         date = m_date.group(1).strip()
                 else:
@@ -1140,7 +1157,7 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
             elif _DESCRIPTION_PREFIX_RE.match(content):
                 # Description-style language — never an org.
                 if m_date and not date:
-                    description = content[:m_date.start()].strip().rstrip(",").strip()
+                    description = content[:m_date.start()].strip().rstrip(",|").strip()
                     date = m_date.group(1).strip()
                 else:
                     description = content if not description else f"{description}. {content}"
@@ -1148,7 +1165,7 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 org = content
             else:
                 if m_date and not date:
-                    description = content[:m_date.start()].strip().rstrip(",").strip()
+                    description = content[:m_date.start()].strip().rstrip(",|").strip()
                     date = m_date.group(1).strip()
                 elif not description:
                     description = content

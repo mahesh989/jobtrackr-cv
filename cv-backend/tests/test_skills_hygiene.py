@@ -328,6 +328,37 @@ def test_normalise_paren_date_with_description_keeps_description():
     assert "recognised for hard work" in out.lower()
 
 
+def test_normalise_strips_date_prefix_from_description():
+    """Regression: when verify_claims or a re-run prepends the date to the
+    description (e.g. 'August 2025. Recognised for...'), it must be stripped
+    — the date already lives in the name line '* Name - Org (Date)'."""
+    md = (
+        "## Awards\n\n"
+        "* Staff Excellence Award - Jesmond Miranda Nursing Home (August 2025)\n"
+        "August 2025. Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    out = _normalise_awards_entries(md)
+    # Date must NOT appear in the description line.
+    lines = [l for l in out.split("\n") if "Recognised" in l]
+    assert lines, "description line missing"
+    assert "August 2025" not in lines[0], (
+        f"Date leaked into description: {lines[0]!r}"
+    )
+    assert "recognised for hard work" in lines[0].lower()
+
+
+def test_normalise_strips_pipe_residue_from_description():
+    """Regression: 'Recognised for hard work. | August 2025' (old pipe format)
+    must not leave a trailing '|' in the description."""
+    md = (
+        "## Awards\n\n"
+        "### Staff Excellence Award | Jesmond Miranda Nursing Home\n"
+        "Recognised for hard work, caring nature, and positive attitude. | August 2025\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "|" not in out.split("## Awards")[1].split("\n")[2]  # description line
+
+
 def test_extract_original_credentials():
     out = _extract_original_credentials(_CV_WITH_AWARD)
     assert out == ["Staff Excellence Award - Jesmond Miranda Nursing Home (Aug 2025)"]
