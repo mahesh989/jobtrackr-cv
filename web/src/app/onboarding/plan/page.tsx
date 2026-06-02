@@ -1,16 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Sparkles, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { getEntitlement } from "@/lib/billing/entitlements";
+import { TrialHero } from "@/components/billing/TrialHero";
 import { PlanCards } from "@/components/billing/PlanCards";
 
-export const metadata = { title: "Choose your plan — JobTrackr" };
+export const metadata = { title: "Start your free trial — JobTrackr" };
 
-/**
- * Plan-selection gate. New users land here after signup (and after a cancelled
- * Stripe Checkout) to start their trial. If they already have write access we
- * bounce them into the dashboard — no need to pick a plan again.
- */
 export default async function OnboardingPlanPage({
   searchParams,
 }: {
@@ -28,26 +24,27 @@ export default async function OnboardingPlanPage({
 
   return (
     <div className="min-h-screen bg-bg px-6 py-12">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <div className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand)]/10">
-            <Sparkles className="h-6 w-6 text-[var(--brand)]" />
-          </div>
-          <h1 className="text-2xl font-bold text-text">Start your free trial</h1>
-          <p className="mt-2 text-sm text-text-2">
-            Pick a plan to unlock job discovery and CV tailoring. Your 3-day trial includes
-            3 tailored CVs and 3 cover letters — cancel anytime before it ends.
-          </p>
-        </div>
+      <div className="mx-auto max-w-4xl space-y-10">
 
         {checkout === "cancelled" && (
           <div className="mx-auto flex max-w-xl items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>Checkout was cancelled — you haven&apos;t been charged. Choose a plan whenever you&apos;re ready.</span>
+            <span>Checkout was cancelled — you haven&apos;t been charged. Start your trial whenever you&apos;re ready.</span>
           </div>
         )}
 
-        <PlanCards showTrial currentPlan={null} />
+        {/* Primary trial CTA — defaults to Monthly */}
+        <TrialHero />
+
+        {/* Divider */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 border-t border-border" />
+          <span className="text-xs text-text-2">or compare all plans</span>
+          <div className="flex-1 border-t border-border" />
+        </div>
+
+        {/* Full plan comparison */}
+        <PlanCards showTrial={false} currentPlan={null} />
 
         <p className="text-center text-xs text-text-2">
           Bring your own AI key — JobTrackr never charges for AI tokens.

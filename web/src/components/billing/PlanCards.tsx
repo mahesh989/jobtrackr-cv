@@ -98,7 +98,7 @@ export function PlanCards({
                 }
               >
                 {loading === plan.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : "Choose plan"}
+                {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : showTrial ? "Start free trial" : "Choose this plan"}
               </button>
             </div>
           );
