@@ -81,6 +81,10 @@ def test_predicate_rejects_non_skills():
         "Clinical Clients",
         "Palliative Patients",
         "In-home Clients",
+        "NSW C Class Motor Vehicle Licence",
+        "Care For Older People",
+        "Home Care Support For Older People",
+        "Support for Residents",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
@@ -512,6 +516,8 @@ def test_smartcase_preserves_acronyms():
     assert _smartcase_skill("AWS") == "AWS"
     assert _smartcase_skill("NDIS Worker Screening") == "NDIS Worker Screening"
     assert _smartcase_skill("AHPRA") == "AHPRA"
+    assert _smartcase_skill("nsw") == "NSW"
+    assert _smartcase_skill("VIC") == "VIC"
 
 
 def test_smartcase_preserves_mixed_case_products():

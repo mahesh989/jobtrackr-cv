@@ -492,7 +492,7 @@ _NON_SKILL_PREFIXES: tuple[str, ...] = (
 _NON_SKILL_PATTERN = re.compile(
     r"\b(certificate|cert|diploma|degree|bachelor|qualification|or equivalent"
     r"|work rights|right to work|police check|working with children|wwcc"
-    r"|compliance|eligibility|eligible to work|visa|clearance"
+    r"|compliance|eligibility|eligible to work|visa|clearance|licence|license"
     # "experience in/with/of/working/across …" anywhere — JD-phrasing filler.
     # Matches "experience in aged care", "personal experience in disability",
     # "hands-on experience with dementia", "broad experience working in NDIS",
@@ -503,14 +503,13 @@ _NON_SKILL_PATTERN = re.compile(
     # "lived experience", "prior experience"). On their own they are not a
     # skill — they are a category of background.
     r"|(?:professional|personal|lived|prior|previous|extensive|hands[- ]on)\s+experience"
-    # "Working / Supporting / Caring for [population]" — JD-phrasing for WHO
+    # "Working / Supporting / Caring/Support/Care for [population]" — JD-phrasing for WHO
     # the work is with, not a discrete skill. "Working with Seniors",
-    # "Supporting Older People", "Caring for Children". The audience belongs
-    # in the summary; the actual skills (Personal Care, Dementia Care,
-    # Behavioural Management) live in the appropriate Skills line. "with"
-    # is optional — natural English has both "supporting seniors" and
-    # "working with seniors".
-    r"|(?:working|supporting|caring\s+for|engaging)(?:\s+with)?\s+"
+    # "Supporting Older People", "Care for Older People", "Caring for Children".
+    # The audience belongs in the summary; the actual skills (Personal Care, Dementia Care,
+    # Behavioural Management) live in the appropriate Skills line. "with/for/of"
+    # is optional.
+    r"|(?:working|supporting|caring|support|care|engaging)(?:\s+(?:with|for|of))?\s+"
     r"(?:the\s+)?"
     r"(?:seniors|elderly|aged|older\s+(?:people|adults|persons|australians)"
     r"|children|adolescents|adults|youth|patients|residents|clients"
@@ -621,6 +620,8 @@ _KNOWN_ACRONYMS = frozenset({
     # Manual / trades / general
     "HR", "MR", "MC", "LR", "HC", "RSA", "RCG", "EWP", "VOC", "ABN", "ACN",
     "GST", "BAS",
+    # Australian States/Territories
+    "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT",
 })
 
 
