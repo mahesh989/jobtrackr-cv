@@ -78,7 +78,7 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
     displayName: "Weekly",
     interval: "week",
     trialDays: 0,
-    priceCents: 999,
+    priceCents: 999, // A$9.99
     currency: "aud",
     isPublic: true,
     blurb: "For an active job search sprint.",
@@ -96,7 +96,7 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
     displayName: "Monthly",
     interval: "month",
     trialDays: 0,
-    priceCents: 2499,
+    priceCents: 1999, // A$19.99
     currency: "aud",
     isPublic: true,
     blurb: "Best value for a sustained search.",
@@ -114,7 +114,7 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
     displayName: "Unlimited",
     interval: "month",
     trialDays: 0,
-    priceCents: 4999,
+    priceCents: 2999, // A$29.99
     currency: "aud",
     isPublic: true,
     blurb: "No caps. For power users and recruiters.",

@@ -311,7 +311,7 @@ export default function LoginPage() {
         {/* Trust strip */}
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
-            {["5 AU sources", "AI-ranked feed", "Visa signal", "Free plan"].map((label) => (
+            {["5 AU sources", "AI-ranked feed", "Visa signal", "3-day trial"].map((label) => (
               <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#938FB8" }}>
                 <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#5645D4" }} />
                 {label}
