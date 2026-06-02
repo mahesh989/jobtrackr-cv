@@ -691,17 +691,17 @@ def test_split_compound_skills_single_line():
     split_md = _split_compound_skills(md_single_line)
     lines = split_md.strip().split("\n")
     assert lines[0] == "## Skills"
-    assert lines[1] == "**Core Skills:** Personal Care, Medication Assistance"
-    assert lines[2] == "**Soft Skills:** Communication, Teamwork"
-    assert lines[3] == "**Other Skills:** BESTMed, MedMobile"
+    assert lines[1] == "- **Core Skills:** Personal Care, Medication Assistance"
+    assert lines[2] == "- **Soft Skills:** Communication, Teamwork"
+    assert lines[3] == "- **Other Skills:** BESTMed, MedMobile"
 
     # Test via enforce_skills_section
     enforced = enforce_skills_section(md_single_line)
     enforced_lines = enforced.strip().split("\n")
     assert enforced_lines[0] == "## Skills"
-    assert enforced_lines[1] == "**Core Skills:** Personal Care, Medication Assistance"
-    assert enforced_lines[2] == "**Soft Skills:** Communication, Teamwork"
-    assert enforced_lines[3] == "**Other Skills:** BESTMed, MedMobile"
+    assert enforced_lines[1] == "- **Core Skills:** Personal Care, Medication Assistance"
+    assert enforced_lines[2] == "- **Soft Skills:** Communication, Teamwork"
+    assert enforced_lines[3] == "- **Other Skills:** BESTMed, MedMobile"
 
 
 def test_split_compound_skills_bare_unbolded_line():
@@ -719,9 +719,9 @@ def test_split_compound_skills_bare_unbolded_line():
     )
     lines = _split_compound_skills(md_bare).strip().split("\n")
     assert lines[0] == "## Skills"
-    assert lines[1] == "**Care Skills:** Personal Care, Medication Assistance, Dementia Care"
-    assert lines[2] == "**Soft Skills:** Verbal Communication, Teamwork"
-    assert lines[3] == "**Other Skills:** BESTMed, MedMobile"
+    assert lines[1] == "- **Care Skills:** Personal Care, Medication Assistance, Dementia Care"
+    assert lines[2] == "- **Soft Skills:** Verbal Communication, Teamwork"
+    assert lines[3] == "- **Other Skills:** BESTMed, MedMobile"
 
 
 def test_split_compound_skills_leaves_plain_content_untouched():

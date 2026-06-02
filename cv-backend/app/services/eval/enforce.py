@@ -26,7 +26,9 @@ from typing import List, Tuple
 DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (14, 6, 8)
 
 _SKILLS_HEADING_RE = re.compile(r"^##\s+skills\s*$", re.IGNORECASE)
-_LABEL_LINE_RE = re.compile(r"^\s*\*\*([^*]+?):\*\*\s*(.*)$")
+# Matches both bullet-prefixed and bare bold-label lines:
+#   "- **Care Skills:** items"  OR  "**Care Skills:** items"
+_LABEL_LINE_RE = re.compile(r"^\s*(?:[-*•]\s+)?\*\*([^*]+?):\*\*\s*(.*)$")
 
 
 def _split_items(rest: str) -> List[str]:
@@ -120,7 +122,7 @@ def _split_compound_skills(markdown: str) -> str:
             for j in range(1, len(parts), 2):
                 cat = _clean_category_name(parts[j])
                 content = parts[j + 1].strip().lstrip(",").strip() if j + 1 < len(parts) else ""
-                skills_lines.append(f"**{cat}:** {content}".rstrip())
+                skills_lines.append(f"- **{cat}:** {content}".rstrip())
         else:
             skills_lines.append(ln)
 
@@ -186,7 +188,7 @@ def enforce_skills_section(
         if not kept:
             drop_idx.add(i)
             continue
-        lines[i] = f"**{label}:** " + ", ".join(kept)
+        lines[i] = f"- **{label}:** " + ", ".join(kept)
 
     if drop_idx:
         lines = [ln for idx, ln in enumerate(lines) if idx not in drop_idx]

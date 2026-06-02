@@ -563,7 +563,7 @@ def _is_non_skill_phrase(term: str) -> bool:
     return bool(_NON_SKILL_PATTERN.search(t))
 
 
-_SKILLS_LINE_RE = re.compile(r"^(\s*\*\*[^*]+:\*\*\s*)(.*)$")
+_SKILLS_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
 
 
 def _strip_non_skill_phrases(markdown: str) -> str:
