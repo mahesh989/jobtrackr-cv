@@ -28,7 +28,7 @@ export default function PricingPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-text">Simple, honest pricing</h1>
           <p className="mt-2 text-sm text-text-2">
-            You bring your own AI key — we never charge for AI tokens. Start with a 3-day free trial.
+            Start with a 3-day free trial — cancel anytime before it ends.
           </p>
         </div>
 

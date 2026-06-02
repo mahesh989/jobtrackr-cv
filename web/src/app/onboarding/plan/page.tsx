@@ -46,9 +46,6 @@ export default async function OnboardingPlanPage({
         {/* Full plan comparison */}
         <PlanCards showTrial={false} currentPlan={null} />
 
-        <p className="text-center text-xs text-text-2">
-          Bring your own AI key — JobTrackr never charges for AI tokens.
-        </p>
       </div>
     </div>
   );
