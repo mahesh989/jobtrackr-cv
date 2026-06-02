@@ -384,6 +384,17 @@ def _matched_surface_terms(matching: Dict[str, Any]) -> list[str]:
 # JD matches — the highest-value ATS keywords — and run AFTER that hygiene pass.
 _SURFACE_CAPS: Dict[str, int] = {"technical": 16, "soft_skills": 8, "domain_knowledge": 10}
 
+# Strip an optional leading list bullet ("- ", "* ", "• ") so category-line
+# detection works whether or not enforce_skills_section has stamped the bullet
+# prefix that the web/PDF renderers need.
+_LEADING_BULLET_RE = re.compile(r"^[-*•]\s+")
+
+
+def _line_starts_label(line: str, label: str) -> bool:
+    """True if `line` (ignoring leading whitespace + an optional list bullet)
+    starts with the bold category `label`."""
+    return _LEADING_BULLET_RE.sub("", line.lstrip()).startswith(label)
+
 
 def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
     """
@@ -427,7 +438,7 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
     cat_to_line_idx: Dict[str, int] = {}
     for i in range(skills_start + 1, skills_end):
         for cat, label in _SKILLS_CATEGORY_LABEL.items():
-            if lines[i].lstrip().startswith(label):
+            if _line_starts_label(lines[i], label):
                 cat_to_line_idx[cat] = i
                 break
 
@@ -457,6 +468,149 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
 
     if appended:
         logger.info("w8 surfacing: re-added %d matched JD skill term(s)", appended)
+
+    return "\n".join(lines)
+
+
+# Buckets the feasibility classifier marks as eligible to inject.
+_APPROVED_BUCKETS = ("inject_directly", "inject_as_extension", "inject_with_inference")
+
+
+def _approved_skill_entries(feasibility: Optional[Dict[str, Any]]) -> list[tuple[str, str]]:
+    """(keyword, category) for every approved keyword in a Skills category.
+
+    Pulls from all three injectable buckets (the SAME set the tailored-rescorer
+    treats as "approved" → so anything that would otherwise show as "Approved
+    but missed" gets one deterministic, post-cap chance to land in Skills).
+    """
+    plan = (feasibility or {}).get("feasibility_plan") or {}
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for fb in _APPROVED_BUCKETS:
+        for entry in plan.get(fb) or []:
+            if not isinstance(entry, dict):
+                continue
+            kw = str(entry.get("keyword") or "").strip()
+            cat = str(entry.get("category") or "").strip().lower()
+            if not kw or cat not in _SURFACE_CATS:
+                continue
+            key = kw.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((kw, cat))
+    return out
+
+
+def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]) -> str:
+    """Deterministic POST-CAP safety net for approved-but-missing skill keywords.
+
+    enforce_skills_section caps each Skills line (soft skills at 6), which can
+    drop a JD-approved soft skill (e.g. "verbal communication" / "written
+    communication") the writer never surfaced, leaving it stuck on the
+    "Approved but missed" list forever. This runs AFTER the cap and re-injects
+    such keywords into their own category line, bounded by the (more generous)
+    surfacing caps, skipping anything already present or flagged as a non-skill
+    phrase. Honest: only keywords the feasibility classifier approved.
+    """
+    entries = _approved_skill_entries(feasibility)
+    if not entries:
+        return markdown
+
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    cat_to_line_idx: Dict[str, int] = {}
+    for i in range(skills_start + 1, skills_end):
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if _line_starts_label(lines[i], label):
+                cat_to_line_idx[cat] = i
+                break
+
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+    appended = 0
+    for kw, cat in entries:
+        target_idx = cat_to_line_idx.get(cat)
+        if target_idx is None:
+            continue
+        if _kw_in_skills(kw, skills_text_lower) or _is_non_skill_phrase(kw):
+            continue
+        cap = _SURFACE_CAPS.get(cat, 8)
+        if len(lines[target_idx].split(",")) >= cap:
+            continue
+        display = _format_skill_label(kw)
+        lines[target_idx] = f"{lines[target_idx].rstrip()}, {display}"
+        skills_text_lower += ", " + display.lower()
+        appended += 1
+
+    if appended:
+        logger.info("w8 approved-skill injector: re-added %d approved keyword(s)", appended)
+
+    return "\n".join(lines)
+
+
+def _drop_subsumed_generic_skills(markdown: str) -> str:
+    """Drop a bare single-word Skills entry when a more specific multi-word
+    entry already ends with that word.
+
+    e.g. once "Verbal Communication" and "Written Communication" are present,
+    the generic "Communication" is redundant noise. Same for "Care" vs
+    "Personal Care", "Management" vs "Time Management". Operates only inside the
+    ``## Skills`` section, across all category lines; first-listed wins.
+    """
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown
+
+    # Collect every (line_idx, item) across the Skills section.
+    parsed: list[tuple[int, list[str]]] = []
+    multiword_last_words: set[str] = set()
+    for i in range(skills_start + 1, skills_end):
+        m = _SKILLS_LINE_RE.match(lines[i])
+        if not m:
+            continue
+        items = [p.strip() for p in m.group(2).split(",") if p.strip()]
+        parsed.append((i, items))
+        for it in items:
+            words = it.lower().split()
+            if len(words) > 1:
+                multiword_last_words.add(words[-1])
+
+    if not multiword_last_words:
+        return markdown
+
+    dropped = 0
+    for idx, items in parsed:
+        kept: list[str] = []
+        for it in items:
+            words = it.lower().split()
+            if len(words) == 1 and words[0] in multiword_last_words:
+                dropped += 1
+                continue
+            kept.append(it)
+        m = _SKILLS_LINE_RE.match(lines[idx])
+        if m and kept:
+            lines[idx] = m.group(1) + ", ".join(kept)
+
+    if dropped:
+        logger.info("w8 skills hygiene: dropped %d generic skill(s) subsumed by a specific entry", dropped)
 
     return "\n".join(lines)
 
@@ -1895,6 +2049,13 @@ async def _writer_w8_integrated(
     #     earlier-line entry, drop the later. Applies British spelling
     #     (Australian default) to all surviving entries.
     md = _dedupe_skills_across_lines(md)
+    # 3a-quinquies. Post-cap safety net for approved-but-missing skill keywords
+    #     (e.g. "verbal communication" / "written communication") the cap
+    #     dropped, then drop generics the specific entries now subsume.
+    md = _inject_approved_skills(md, up["feasibility"])
+    md = _drop_subsumed_generic_skills(md)
+    md = _normalise_skills_case(md)
+    md = _dedupe_skills_across_lines(md)
     # 3b. Deterministic Bachelor recovery — re-add a dropped baseline degree from
     #     the original CV (the writer occasionally drops it despite the prompt).
     md = ensure_bachelor(md, cv_text)
@@ -1986,6 +2147,13 @@ async def _writer_w8_verified(
     verified_md = _strip_non_skill_phrases(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
+    # Post-cap safety net: re-inject any approved keyword the cap dropped, then
+    # drop generics the now-present specific entries subsume. Final word on
+    # Skills so approved soft skills (verbal/written communication) actually land.
+    verified_md = _inject_approved_skills(verified_md, result.feasibility)
+    verified_md = _drop_subsumed_generic_skills(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -2074,6 +2242,13 @@ async def _writer_w8_critique(
     # These passes are idempotent; the cost is negligible.
     verified_md = enforce_skills_section(verified_md)
     verified_md = _strip_non_skill_phrases(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
+    # Post-cap safety net: re-inject any approved keyword the cap dropped, then
+    # drop generics the now-present specific entries subsume. Final word on
+    # Skills so approved soft skills (verbal/written communication) actually land.
+    verified_md = _inject_approved_skills(verified_md, result.feasibility)
+    verified_md = _drop_subsumed_generic_skills(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md

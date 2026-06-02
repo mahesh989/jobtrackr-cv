@@ -623,8 +623,11 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
     # Map each category to its line index within the Skills section
     cat_to_line_idx: dict[str, int] = {}
     for i in range(skills_start + 1, skills_end):
+        # Tolerate an optional leading list bullet ("- ", "* ", "• ") that the
+        # renderer-facing prefix may have stamped on the category line.
+        stripped = re.sub(r"^[-*•]\s+", "", lines[i].lstrip())
         for cat, label in _SKILLS_CATEGORY_LABEL.items():
-            if lines[i].lstrip().startswith(label):
+            if stripped.startswith(label):
                 cat_to_line_idx[cat] = i
                 break
 

@@ -15,6 +15,13 @@ from app.services.eval.writers import (
     _normalise_skills_case,
     _canonicalise_skill_spelling,
     _dedupe_skills_across_lines,
+    _inject_approved_skills,
+    _drop_subsumed_generic_skills,
+    _approved_skill_entries,
+)
+from app.services.pipeline.steps.keyword_feasibility import (
+    _is_filler_keyword,
+    _reconcile_with_missing,
 )
 
 _CV_WITH_AWARD = (
@@ -774,10 +781,14 @@ def test_dedupe_skills_and_canonicalisation():
 # corrects it deterministically.
 # ---------------------------------------------------------------------------
 
-def _run_post_verify_hygiene(md: str) -> str:
+def _run_post_verify_hygiene(md, feasibility=None):
     """Apply the same hygiene chain the writers run post-verify_claims."""
     md = enforce_skills_section(md)
     md = _strip_non_skill_phrases(md)
+    md = _normalise_skills_case(md)
+    md = _dedupe_skills_across_lines(md)
+    md = _inject_approved_skills(md, feasibility)
+    md = _drop_subsumed_generic_skills(md)
     md = _normalise_skills_case(md)
     md = _dedupe_skills_across_lines(md)
     return md
@@ -989,3 +1000,160 @@ def test_post_verify_duplicate_across_lines_removed():
     assert out.count("NDIS") == 1
     assert out.count("Wound Care") == 1
 
+
+
+# ---------------------------------------------------------------------------
+# Approved-but-missing skill injection (post-cap safety net) + generic
+# subsumption. Fixes the "Approved but missed: verbal/written communication"
+# report when the soft-skills cap dropped the writer-surfaced terms.
+# ---------------------------------------------------------------------------
+
+
+def _feasibility(*entries: tuple[str, str, str]) -> dict:
+    """Build a feasibility dict from (keyword, category, bucket_name) tuples."""
+    plan: dict = {"inject_directly": [], "inject_as_extension": [], "inject_with_inference": []}
+    for kw, cat, bucket_name in entries:
+        plan[bucket_name].append({"keyword": kw, "category": cat, "bucket": "required"})
+    return {"feasibility_plan": plan}
+
+
+def test_approved_soft_skills_injected_past_cap():
+    """verbal/written communication are approved but the cap kept only 6 soft
+    skills — the post-cap injector must re-add them."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Personal Care, Dementia Care\n"
+        "**Soft Skills:** Empathy, Teamwork, Communication, Time Management, Adaptability, Reliability\n"
+        "**Other Skills:** BESTMed, MedMobile\n\n"
+        "## Experience\n"
+    )
+    feas = _feasibility(
+        ("verbal communication", "soft_skills", "inject_directly"),
+        ("written communication", "soft_skills", "inject_directly"),
+    )
+    out = _run_post_verify_hygiene(md, feas)
+    assert "Verbal Communication" in out
+    assert "Written Communication" in out
+
+
+def test_approved_soft_skill_from_extension_bucket_injected():
+    """Approval can come from inject_as_extension / inject_with_inference too."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Personal Care\n"
+        "**Soft Skills:** Empathy, Teamwork, Communication, Time Management, Adaptability, Reliability\n"
+        "**Other Skills:** BESTMed\n\n"
+        "## Experience\n"
+    )
+    feas = _feasibility(("written communication", "soft_skills", "inject_with_inference"))
+    out = _run_post_verify_hygiene(md, feas)
+    assert "Written Communication" in out
+
+
+def test_generic_communication_subsumed_by_specifics():
+    """Once Verbal/Written Communication are present, the bare 'Communication'
+    generic is redundant and must be dropped."""
+    md = (
+        "## Skills\n"
+        "**Soft Skills:** Empathy, Communication, Verbal Communication, Written Communication\n\n"
+        "## Experience\n"
+    )
+    out = _drop_subsumed_generic_skills(md)
+    skills_block = out.split("## Experience")[0]
+    assert "Verbal Communication" in skills_block
+    assert "Written Communication" in skills_block
+    # The bare generic should be gone (no standalone ", Communication," item)
+    items = [s.strip() for s in skills_block.split("Soft Skills:**")[1].split(",")]
+    assert "Communication" not in items
+
+
+def test_injector_skips_already_present_and_non_skill():
+    """No duplicate when already present; non-skill phrases never injected."""
+    md = (
+        "## Skills\n"
+        "**Soft Skills:** Empathy, Verbal Communication\n\n"
+        "## Experience\n"
+    )
+    feas = _feasibility(
+        ("verbal communication", "soft_skills", "inject_directly"),  # already present
+        ("knowledge of whs", "soft_skills", "inject_directly"),       # non-skill filler
+    )
+    out = _run_post_verify_hygiene(md, feas)
+    assert out.count("Verbal Communication") == 1
+    assert "Knowledge Of Whs" not in out
+    assert "knowledge of whs" not in out.lower()
+
+
+def test_approved_skill_entries_dedups_across_buckets():
+    feas = _feasibility(
+        ("verbal communication", "soft_skills", "inject_directly"),
+        ("verbal communication", "soft_skills", "inject_as_extension"),
+        ("teamwork", "soft_skills", "inject_directly"),
+    )
+    entries = _approved_skill_entries(feas)
+    kws = [k for k, _ in entries]
+    assert kws.count("verbal communication") == 1
+    assert "teamwork" in kws
+
+
+def test_no_feasibility_is_noop():
+    md = "## Skills\n**Soft Skills:** Empathy\n\n## Experience\n"
+    assert _inject_approved_skills(md, None) == md
+    assert _inject_approved_skills(md, {}) == md
+
+
+# ---------------------------------------------------------------------------
+# WHS-filler / JD-phrasing exclusion from the feasibility plan. "working
+# knowledge of whs" must never reach the plan (neither approved nor honest gap).
+# ---------------------------------------------------------------------------
+
+
+def test_filler_keyword_predicate():
+    for filler in [
+        "working knowledge of whs",
+        "knowledge of infection control",
+        "sound knowledge of medication",
+        "understanding of person-centred care",
+        "an understanding of dementia",
+        "ability to work autonomously",
+        "experience in aged care",
+        "familiarity with ndis",
+        "willingness to learn",
+        "commitment to safety",
+        "demonstrated ability to communicate",
+    ]:
+        assert _is_filler_keyword(filler), filler
+
+    # Genuine compound skills must survive (no "... of/in/to ..." connective).
+    for real in [
+        "product knowledge",
+        "knowledge management",
+        "stakeholder management",
+        "wound care",
+        "verbal communication",
+        "manual handling",
+        "infection control",
+    ]:
+        assert not _is_filler_keyword(real), real
+
+
+def test_filler_excluded_from_feasibility_plan():
+    """A JD-phrasing fragment in the missed set is dropped from the plan —
+    not approved, not an honest gap."""
+    plan = {b: [] for b in ("inject_directly", "inject_as_extension", "inject_with_inference", "cannot_inject")}
+    # AI tried to approve the filler keyword
+    plan["inject_directly"].append({
+        "keyword": "working knowledge of whs",
+        "category": "soft_skills",
+        "bucket": "required",
+        "evidence": "candidate worked safely",
+    })
+    missing_block = {"required": {"technical": [], "soft_skills": ["working knowledge of whs"], "domain_knowledge": []},
+                     "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []}}
+    cleaned = _reconcile_with_missing(plan, missing_block, matching={})
+    all_kws = [
+        e["keyword"]
+        for bucket in cleaned.values()
+        for e in bucket
+    ]
+    assert "working knowledge of whs" not in all_kws

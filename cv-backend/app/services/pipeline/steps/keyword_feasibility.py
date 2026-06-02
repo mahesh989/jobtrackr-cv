@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Dict, List, Tuple
 
 from app.services.ai.client import AIClient
@@ -63,6 +64,36 @@ _INJECTABLE_BUCKETS = (
 )
 _VALID_CONFIDENCES = {"high", "medium"}
 _VALID_TARGETS = {"skills_section", "summary", "experience_bullet"}
+
+# JD-phrasing requirement fragments that are NOT clean, injectable keywords.
+# The matcher sometimes extracts a whole requirement clause as a "keyword"
+# ("working knowledge of WHS", "understanding of infection control"). These can
+# never be surfaced verbatim as a skill — the real skill is the noun at the end
+# ("WHS", "infection control") — so they only ever land on the "Approved but
+# missed" list. We drop them from the feasibility plan entirely (neither
+# injectable nor honest gap): they are noise, not a plannable gap.
+#
+# Conservative by design: each alternative REQUIRES the connective ("knowledge
+# of", "experience in", "ability to") so genuine compound skills survive —
+# "product knowledge", "knowledge management", "stakeholder management" have no
+# "... of/in/to ..." and are untouched.
+_FILLER_KEYWORD_RE = re.compile(
+    r"^(?:"
+    r"(?:working|sound|thorough|good|basic|strong|broad|in[- ]depth|practical|general|excellent)\s+)?"
+    r"knowledge\s+of\b"
+    r"|^(?:an?\s+)?understanding\s+of\b"
+    r"|^ability\s+to\b"
+    r"|^experience\s+(?:in|with|of)\b"
+    r"|^familiarity\s+with\b"
+    r"|^(?:willingness|commitment|passion|aptitude)\s+(?:to|for)\b"
+    r"|^(?:demonstrated|proven)\s+(?:ability|understanding|knowledge|experience)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_filler_keyword(kw: str) -> bool:
+    """True if `kw` is a JD-phrasing requirement fragment, not a real keyword."""
+    return bool(_FILLER_KEYWORD_RE.search((kw or "").strip().lower()))
 
 # Mirrors `_KEYWORD_WEIGHTS` in ats_scoring.py — kept local so the
 # expected-lift estimate stays self-contained. If those weights change,
@@ -318,8 +349,14 @@ def _reconcile_with_missing(
         for cat in _CATEGORIES:
             for kw in cat_map.get(cat) or []:
                 k = str(kw).lower().strip()
-                if k:
-                    expected[k] = (bucket, cat)
+                if not k:
+                    continue
+                # JD-phrasing fragments ("working knowledge of WHS") are noise,
+                # not a plannable gap — exclude from the feasibility plan
+                # entirely so they never surface as "Approved but missed".
+                if _is_filler_keyword(k):
+                    continue
+                expected[k] = (bucket, cat)
 
     seen: set[str] = set()
     cleaned: Dict[str, List[Dict[str, Any]]] = {b: [] for b in _FEASIBILITY_BUCKETS}
