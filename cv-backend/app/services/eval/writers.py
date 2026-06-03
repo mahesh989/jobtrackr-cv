@@ -1524,14 +1524,62 @@ def _extract_cv_named_tools_for_summary(cv_text: str) -> list[str]:
     return out
 
 
+_EMPLOYER_GENERIC_TOKENS = {
+    # Tokens that appear in many org names and therefore are NOT distinctive
+    # enough on their own to mean "this employer is named". A standalone
+    # 'Home' or 'Care' in S2 doesn't prove the employer is mentioned.
+    "the", "and", "of", "for", "to", "at", "in", "on", "or",
+    "care", "home", "house", "centre", "center", "facility", "facilities",
+    "nursing", "aged", "village", "services", "service", "support",
+    "hospital", "clinic", "community", "agency", "group", "company",
+    "pty", "ltd", "inc", "limited", "co", "association",
+}
+
+
+def _distinctive_employer_tokens(employer: str) -> set[str]:
+    """Return the distinctive (proper-noun) tokens of an employer name.
+
+    'Uniting – The Marion' → {'uniting', 'marion'}
+    'Jesmond Miranda Nursing Home' → {'jesmond', 'miranda'}
+    'Anglicare Mildred Symons House' → {'anglicare', 'mildred', 'symons'}
+
+    Generic CV-org words ('Nursing', 'Home', 'Care', 'Centre', 'The', ...)
+    are filtered so they can't accidentally trigger a 'concrete' match.
+    Tokens must be 4+ chars to ensure they're meaningful.
+    """
+    out: set[str] = set()
+    for tok in re.split(r"[\s\-–—,/()]+", employer):
+        tok = tok.strip().lower()
+        if len(tok) < 4:
+            continue
+        if tok in _EMPLOYER_GENERIC_TOKENS:
+            continue
+        out.add(tok)
+    return out
+
+
 def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
-    """True if S2 contains an employer name, a CV-named tool, or a numeric metric."""
+    """True if S2 contains an employer's DISTINCTIVE token, a CV-named tool,
+    or a numeric metric.
+
+    Partial matching (distinctive tokens) catches cases where the LLM cited
+    only the brand suffix — e.g. 'The Marion' (fragment of 'Uniting – The
+    Marion') correctly counts as employer-named via the 'marion' token.
+    Exact-string substring matching would have missed this and replaced
+    valid content with a template.
+    """
     if not s2:
         return False
     low = s2.lower()
     for emp in employer_names:
+        # Whole-name exact substring match (cheap, common case).
         if emp.lower() in low:
             return True
+        # Distinctive-token match: at least one proper-noun token from the
+        # employer name appears as a whole word in S2.
+        for tok in _distinctive_employer_tokens(emp):
+            if re.search(r"\b" + re.escape(tok) + r"\b", low):
+                return True
     for tool in cv_tools:
         if tool.lower() in low:
             return True
@@ -1596,8 +1644,25 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
     s1, s2 = sentences[0], sentences[1]
     rest = sentences[2:] if len(sentences) > 2 else []
 
-    employers = _extract_present_employers_from_experience(original_cv_text)
-    tools = _extract_cv_named_tools_for_summary(original_cv_text)
+    # Prefer the tailored markdown for employer extraction — it has the
+    # canonical ## Experience / ### Employer structure that Sprint B
+    # enforces, so parsing is reliable. Fall back to the raw cv_text if
+    # the markdown for any reason yields nothing (defensive — should not
+    # happen in production).
+    employers = _extract_present_employers_from_experience(markdown)
+    if not employers:
+        employers = _extract_present_employers_from_experience(original_cv_text)
+    # Tools: combine matches from BOTH the markdown and the original CV
+    # text. Some brand mentions only survive in one source.
+    tools_md = _extract_cv_named_tools_for_summary(markdown)
+    tools_cv = _extract_cv_named_tools_for_summary(original_cv_text)
+    # Preserve order, dedupe.
+    seen: set[str] = set()
+    tools: list[str] = []
+    for t in tools_md + tools_cv:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            tools.append(t)
 
     if _s2_has_concrete_evidence(s2, employers, tools):
         return markdown  # already concrete

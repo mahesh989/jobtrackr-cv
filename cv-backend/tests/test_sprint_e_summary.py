@@ -125,6 +125,33 @@ class TestS2ConcreteEvidence:
             ["BESTMed"],
         )
 
+    def test_partial_distinctive_token_counts_as_concrete(self):
+        # Hotfix: GPT-5.1 sometimes cites only the brand-suffix ("The Marion")
+        # without the full "Uniting – The Marion". The distinctive token
+        # 'marion' matches → counted as concrete.
+        assert _s2_has_concrete_evidence(
+            "...for residents living with dementia – The Marion and during placement.",
+            ["Uniting – The Marion"],
+            [],
+        )
+
+    def test_generic_tokens_alone_not_concrete(self):
+        # "Nursing Home" appears in many org names — must NOT trigger a
+        # concrete match. Only distinctive proper-noun tokens count.
+        assert not _s2_has_concrete_evidence(
+            "Provided care at a nursing home for older people.",
+            ["Jesmond Miranda Nursing Home"],
+            [],
+        )
+
+    def test_distinctive_token_jesmond_matches(self):
+        # 'Jesmond' is distinctive — should count.
+        assert _s2_has_concrete_evidence(
+            "Delivered medication assistance at Jesmond.",
+            ["Jesmond Miranda Nursing Home"],
+            [],
+        )
+
 
 class TestComposeConcreteS2:
     def test_two_employers_two_tools(self):
