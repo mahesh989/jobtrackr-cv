@@ -640,6 +640,19 @@ _NON_SKILL_EXACT: set[str] = {
     # live on the Skills lines, the setting belongs in the summary/experience.
     "residential care", "nursing home", "care facility",
     "aged care facility", "residential aged care facility",
+    # Sonnet 4.6 generates these creative sector/sector-concatenation variants
+    # that GPT-5.1 does not. All are sector descriptors, not skills.
+    "aged care delivery", "retirement community care",
+    "retirement living and community aged care",
+    "home care or disability support work",
+    "home care or disability support",
+    "retirement living", "aged care services", "aged care work",
+    "community aged care",
+    # Workplace Health & Safety with/without the (WHS) suffix. WHS is a domain
+    # category, not a discrete competency — the real skill is e.g. "Infection
+    # Control", "Manual Handling".
+    "workplace health and safety", "workplace health and safety (whs)",
+    "work health and safety", "whs",
 }
 # Entries beginning with these are JD-phrasing fillers, not skills.
 _NON_SKILL_PREFIXES: tuple[str, ...] = (
@@ -720,6 +733,37 @@ _NON_SKILL_PATTERN = re.compile(
     r"|\bdignity\b"
     r"|\bwell[\s-]?being\b"
     r"|\bquality\s+of\s+life\b"
+    # Sector + activity-noun ending — sector descriptors disguised as skills.
+    # "Aged Care Delivery", "Home Care Provision", "Retirement Living Services",
+    # "Community Care Work", "Residential Aged Care Services". The bare sector
+    # exact-blocklist catches the simple cases; this catches sector + activity.
+    r"|(?:aged\s+care|home\s+care|residential\s+(?:aged\s+care|care)"
+    r"|community\s+care|retirement\s+(?:living|community)|disability\s+support)"
+    r"\s+(?:delivery|provision|services?|work|operations|coverage)\b"
+    # Multi-sector concatenations joined with And/Or — Sonnet stitches two
+    # sector names into one Skills entry. "Retirement Living and Community
+    # Aged Care", "Home Care or Disability Support Work", "Aged Care and
+    # Disability Services". The candidate's REAL skills (Personal Care,
+    # Dementia Care) belong on the Skills line; these are sector pairings.
+    r"|(?:aged|home|residential|community|disability|retirement|nursing)"
+    r"(?:\s+\w+)*?\s+(?:and|or)\s+"
+    r"(?:aged|home|residential|community|disability|retirement|nursing)\s+\w+"
+    # Credentials/certifications/vaccinations — these belong in Registration &
+    # Licences (which already lists them). Stripping prevents duplication.
+    # "Covid and Flu Vaccination", "First Aid and CPR Certification",
+    # "Vaccination Status", "Police Check Certification".
+    r"|\bvaccinations?\b"
+    r"|\bcertifications?\s*$"
+    # "Promotion of X" / "Maintenance of X" — care values stated as actions,
+    # not concrete competencies. "Promotion of Independence for Older People",
+    # "Maintenance of Dignity", "Promotion of Wellbeing".
+    r"|\b(?:promotion|maintenance|enhancement|preservation)\s+of\b"
+    # "X Usage/Use For Y" / "X For Rostering" — JD verb phrases describing
+    # what tools are used for, not the tool skill itself. "Mobile App Usage
+    # for Rostering" — the candidate's actual skill is rostering, or the app
+    # name (BESTMed, MedMobile). Bare "for [activity]" tail patterns.
+    r"|\b(?:usage|use)\s+for\b"
+    r"|\bapp\s+(?:usage|use)\b"
     # Availability, shifts, schedules, hours, and days of the week
     r"|availability|available\b"
     r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"

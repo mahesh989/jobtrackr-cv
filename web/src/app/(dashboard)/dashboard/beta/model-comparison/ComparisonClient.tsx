@@ -162,30 +162,17 @@ export default function ComparisonClient({
     setEstimatedCosts({});
     setExperimentId(null);
 
-    let cvText = (pastedCv ?? "").trim();
-    let cvSource = cvLabel || null;
+    const cvText = (pastedCv ?? "").trim();
+    const cvSource = cvLabel || (cvMode === "paste" ? "paste" : null);
 
-    if (!cvText) {
-      if (cvMode === "version" && cvVersionId) {
-        try {
-          const res = await fetch(`/api/cv-versions/${cvVersionId}`, { cache: "no-store" });
-          if (res.ok) {
-            const cv = (await res.json()) as { cv_text?: string; label?: string };
-            cvText = (cv.cv_text as string) ?? "";
-            cvSource ??= (cv.label as string) ?? `cv:${cvVersionId.slice(0, 8)}`;
-          }
-        } catch {
-          setRunError("Could not load CV");
-          setRunning(false);
-          return;
-        }
-      }
-    } else {
-      cvSource ??= "paste";
+    // Validation: either paste must be substantial, or a version must be selected.
+    if (cvMode === "paste" && cvText.length < 50) {
+      setRunError("Pasted CV text is too short (min 50 chars)");
+      setRunning(false);
+      return;
     }
-
-    if (cvText.length < 50) {
-      setRunError("CV text is too short");
+    if (cvMode === "version" && !cvVersionId) {
+      setRunError("Select a CV version");
       setRunning(false);
       return;
     }
@@ -220,20 +207,22 @@ export default function ComparisonClient({
     const newEvalRunIds: Record<string, string> = {};
     const costs: Record<string, { input: number; output: number; total: number }> = {};
 
+    // CV length unknown in version mode (server resolves it); use 3500 chars as
+    // a typical estimate so the cost line still shows a reasonable ballpark.
+    const cvLengthEstimate = cvText.length || 3500;
     for (const run of runs) {
-      costs[run.id] = estimateCost(run.model, cvText.length, jdText.length);
+      costs[run.id] = estimateCost(run.model, cvLengthEstimate, jdText.length);
     }
     setEstimatedCosts(costs);
 
     const triggers = await Promise.all(
       runs.map(async (run) => {
         try {
-          const payload = {
+          const payload: Record<string, unknown> = {
             jd_text:         jdText,
             jd_label:        jdLabel || undefined,
             vertical:        vertical || undefined,
-            cv_text:         cvText,
-            cv_source:       cvSource,
+            cv_source:       cvSource ?? undefined,
             writer_variants: [writer],
             scorer_variant:  "s1_current",
             experiment_id:   expId,
@@ -241,6 +230,11 @@ export default function ComparisonClient({
             provider:        run.provider,
             ai_model:        run.model,
           };
+          if (cvMode === "paste") {
+            payload.cv_text = cvText;
+          } else {
+            payload.cv_version_id = cvVersionId;
+          }
 
           const res = await fetch("/api/eval/run", {
             method: "POST",

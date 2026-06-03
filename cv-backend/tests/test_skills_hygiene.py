@@ -124,6 +124,24 @@ def test_predicate_rejects_non_skills():
         "Care Facility",
         "Aged Care Facility",
         "Residential Aged Care Facility",
+        # Regression: Sonnet 4.6 production runs (2026-06-03) leaked these into
+        # Other Skills / Care Skills. GPT-5.1 produces canonical short skills;
+        # Sonnet preserves JD multi-word noun phrases verbatim. These are all
+        # sector descriptors, JD verb phrases, or credentials — not skills.
+        "Aged Care Delivery",
+        "Retirement Community Care",
+        "Retirement Living And Community Aged Care",
+        "Home Care Or Disability Support Work",
+        "Aged Care And Disability Services",
+        "Workplace Health And Safety",
+        "Workplace Health And Safety (WHS)",
+        "Mobile App Usage For Rostering",
+        "Covid And Flu Vaccination",
+        "First Aid And CPR Certification",
+        "Promotion Of Independence For Older People",
+        "Maintenance Of Dignity",
+        "Aged Care Services",
+        "Home Care Provision",
     ]:
         assert _is_non_skill_phrase(junk), junk
 
