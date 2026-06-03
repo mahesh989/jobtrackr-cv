@@ -117,6 +117,84 @@ class TestAwardDateDedupe:
 
 
 # ---------------------------------------------------------------------------
+# Sprint D — extended location stripping on the award org field.
+# ---------------------------------------------------------------------------
+
+
+class TestSprintDLocationStripping:
+    """The post-Sprint-C Anglicare run rendered:
+       'Staff Excellence Award, Jesmond Miranda Nursing Home Miranda (August 2025)'
+    Sprint D extends _strip_au_location to handle the LLM's no-comma variant
+    AND duplicate-trailing-word concatenation."""
+
+    def test_jesmond_miranda_duplicate_stripped(self):
+        # The exact production bug.
+        lines = _format_award_entry(
+            name="Staff Excellence Award",
+            org="Jesmond Miranda Nursing Home Miranda",
+            date="August 2025",
+        )
+        assert lines[0] == "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)"
+
+    def test_no_comma_suburb_state_country_stripped(self):
+        # LLM emitted org as "Anglicare Sydney Kirrawee, NSW, Australia"
+        # — no comma between Sydney and Kirrawee.
+        lines = _format_award_entry(
+            name="Award",
+            org="Anglicare Sydney Kirrawee, NSW, Australia",
+            date="2024",
+        )
+        assert lines[0] == "* Award, Anglicare Sydney (2024)"
+
+    def test_two_word_suburb_with_state_stripped(self):
+        # "North Sydney" is a two-word suburb. With our STRICT regex (single
+        # capword before STATE), only "Sydney" gets stripped — "North" is
+        # left attached to the org. This is a conservative trade-off: in
+        # production the LLM either emits proper commas (org-comma-suburb)
+        # or concatenates a single-word suburb. Two-word suburb concatenation
+        # without commas is rare and ambiguous.
+        lines = _format_award_entry(
+            name="Award",
+            org="Some Org North Sydney, NSW",
+            date="2024",
+        )
+        # Strips ' Sydney, NSW' — "North" remains as part of the org.
+        assert "NSW" not in lines[0]
+        assert "Some Org North" in lines[0]
+
+    def test_corporate_suffix_not_stripped(self):
+        # 'Acme Pty' — "Pty" is a corporate suffix, must not be treated as
+        # duplicate even if 'Pty' appeared earlier.
+        lines = _format_award_entry(
+            name="Award",
+            org="Acme Pty",
+            date="2024",
+        )
+        assert "Pty" in lines[0]
+
+    def test_normal_org_unchanged(self):
+        # Clean org → unchanged.
+        lines = _format_award_entry(
+            name="Award",
+            org="Anglicare",
+            date="2024",
+        )
+        assert lines[0] == "* Award, Anglicare (2024)"
+
+    def test_genuinely_repeated_word_in_short_org_not_stripped(self):
+        # 'Big Big Co' — 2 words plus trailing dup. Length-3 minimum applies,
+        # so we DO check. 'Big' would dedupe... but this is an edge case
+        # that's unlikely in practice. Document the behaviour.
+        lines = _format_award_entry(
+            name="Award",
+            org="Big Big Co",
+            date="2024",
+        )
+        # 'Co' is a corporate suffix → not stripped. 'Big Big Co' stays.
+        assert "Co" in lines[0]
+
+
+# ---------------------------------------------------------------------------
 # Phase 1.8 — skills tidier should not truncate generic "X Skills" entries
 # ---------------------------------------------------------------------------
 

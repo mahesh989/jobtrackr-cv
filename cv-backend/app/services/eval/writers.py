@@ -2095,10 +2095,75 @@ _AU_LOCATION_TAIL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Sprint D — LLM-error variants where the comma is missing. The writer
+# occasionally concatenates "Org Name Suburb, NSW, Australia" without the
+# comma between Org and Suburb, leaving the existing regex unable to match.
+# Strips ` Suburb, State[, Country]` (no leading comma) — anchored strictly
+# by `Suburb,\s*STATE` so it CAN'T strip the second-to-last word ambiguously.
+# Only one suburb word is consumed; an "Anglicare Sydney Kirrawee, NSW"
+# input strips just "Kirrawee, NSW, Australia", keeping the org name
+# "Anglicare Sydney" intact (Sydney here is a city-operator suffix, not a
+# location suburb).
+_AU_LOCATION_TAIL_NOCOMMA_RE = re.compile(
+    r"\s+[A-Z][a-zA-Z]+,\s*"                            # ` Suburb,`
+    r"(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT"
+    r"|New South Wales|Victoria|Queensland|Western Australia|South Australia"
+    r"|Tasmania|Australian Capital Territory|Northern Territory"
+    r"|Australia)\b.*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_duplicate_trailing_word(org: str) -> str:
+    """Strip a trailing capitalised word that ALSO appears earlier in the org.
+
+    Fixes the Anglicare-run bug: 'Jesmond Miranda Nursing Home Miranda' →
+    'Jesmond Miranda Nursing Home'. The LLM concatenated the suburb
+    ('Miranda') to the org name without a comma; since 'Miranda' already
+    appears in the facility's name, we can confidently identify it as
+    duplicate.
+
+    Only acts when:
+      • There are 3+ words in the org (avoids stripping a real second word)
+      • The last word matches a previous word case-insensitively
+      • The last word is NOT a corporate suffix (Inc, Ltd, LLC, Pty, Group)
+      • The last word is NOT all-caps (NSW, USA — handled by other passes)
+    """
+    if not org or not org.strip():
+        return org
+    parts = org.strip().split()
+    if len(parts) < 3:
+        return org
+    last = parts[-1]
+    # Skip corporate suffixes; they may genuinely duplicate (rare).
+    if last.lower() in {"inc", "ltd", "llc", "pty", "limited", "group", "co"}:
+        return org
+    if last.isupper() and len(last) <= 4:
+        return org  # ALL-CAPS short token: probably acronym, not duplicate suburb
+    prior = " ".join(parts[:-1]).lower()
+    if last.lower() in prior.split():
+        # Duplicate found → strip.
+        return " ".join(parts[:-1])
+    return org
+
 
 def _strip_au_location(org: str) -> str:
-    """Remove trailing Australian suburb/state/country from an org name."""
-    cleaned = _AU_LOCATION_TAIL_RE.sub("", org).strip().rstrip(",").strip()
+    """Remove trailing Australian suburb/state/country from an org name.
+
+    Three passes, applied in order:
+      1. NO-COMMA tail FIRST (' Suburb, NSW, Australia') — the broader match
+         that consumes both Suburb and State. Must run before the comma-led
+         regex which would otherwise greedily eat just ', NSW, Australia',
+         orphaning the Suburb word inside the org.
+      2. Comma-led location tail (', Suburb, NSW, Australia') — catches the
+         remaining cases where the LLM emitted a clean comma-delimited tail.
+      3. Duplicate trailing word that already appears earlier in the org
+         ('Jesmond Miranda Nursing Home Miranda' → strip the duplicate) —
+         the writer occasionally concatenates a suburb name verbatim.
+    """
+    cleaned = _AU_LOCATION_TAIL_NOCOMMA_RE.sub("", org).strip().rstrip(",").strip()
+    cleaned = _AU_LOCATION_TAIL_RE.sub("", cleaned).strip().rstrip(",").strip()
+    cleaned = _strip_duplicate_trailing_word(cleaned)
     return cleaned if cleaned else org
 
 
