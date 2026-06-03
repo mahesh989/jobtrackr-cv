@@ -1899,6 +1899,270 @@ def _relabel_awards_only_certifications(markdown: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Sprint A — Awards / Certifications disambiguator (Phase 2 Module 7).
+#
+# The Phase-1 _relabel_awards_only_certifications only handles the pure case
+# (every entry is an award → rename heading). It does NOT split a MIXED
+# section. So when GPT-5.1 generates:
+#
+#   ## Certifications
+#   First Aid Certification
+#   Staff Excellence Award, Jesmond Miranda Nursing Home
+#     Recognised for hard work, caring nature, and positive attitude.
+#
+# …the relabel pass sees the cert entry, refuses to rename, and the award
+# entry ends up under the wrong heading. This is the Anglicare run bug.
+#
+# Sprint A: classify EACH entry, then SPLIT.
+#   • Pure award (match _AWARD_RE, not _CERT_LIKE_RE) → ## Awards
+#   • Credential ALREADY in Registration & Licences (literal substring) → drop
+#     (duplicate; the canonical home is Registration)
+#   • Industry cert (_CERT_LIKE_RE only, not already in Registration) → keep
+#     under Certifications
+#   • Section empty after split → drop heading entirely
+#
+# Result: Awards always shows when an award exists; Certifications only
+# appears when there's a real industry-cert entry no other section covers.
+# ---------------------------------------------------------------------------
+
+
+def _entry_is_award(text: str) -> bool:
+    """Award-shaped entry: matches award vocabulary AND not cert vocabulary."""
+    return bool(_AWARD_RE.search(text)) and not bool(_CERT_LIKE_RE.search(text))
+
+
+def _entry_is_cert(text: str) -> bool:
+    """Credential-shaped entry (certificate/licence/first aid/cpr/etc.)."""
+    return bool(_CERT_LIKE_RE.search(text))
+
+
+def _registration_section_text(markdown: str) -> str:
+    """Lowercased body text of ## Registration & Licences (and aliases),
+    used to detect when a Certifications entry duplicates a credential
+    already canonically listed in Registration. Returns "" when no such
+    section exists."""
+    aliases = {
+        "registration & licences", "registration and licences",
+        "registration", "registrations", "licences", "licenses",
+        "licences and registrations", "credentials & checks",
+    }
+    lines = markdown.split("\n")
+    out: list[str] = []
+    collecting = False
+    for ln in lines:
+        if ln.startswith("## "):
+            heading = ln[3:].strip().lower().rstrip(":")
+            collecting = heading in aliases
+            continue
+        if collecting and ln.strip():
+            out.append(ln.lower())
+    return "\n".join(out)
+
+
+def _credential_already_in_registration(entry: str, registration_blob: str) -> bool:
+    """True if the credential phrase already appears in Registration & Licences.
+
+    Conservative match: looks for the credential's canonical word stem
+    (first aid / cpr / police check / driver licence / vaccination /
+    medication competency / wwcc) in the registration blob. Exact-phrase
+    matching would miss synonyms ("First Aid Certification" vs
+    "First Aid (HLTAID011)")."""
+    if not registration_blob:
+        return False
+    t = entry.lower()
+    # Canonical credential anchors — if entry contains one AND registration
+    # also contains it, treat as duplicate. Keeps the check tight (avoids
+    # over-matching on generic words).
+    anchors = (
+        "first aid", "cpr", "police check", "working with children", "wwcc",
+        "driver licence", "drivers license", "driver license", "drivers licence",
+        "medication competency", "ndis worker", "covid", "influenza",
+        "vaccination", "police clearance", "work rights",
+    )
+    for anchor in anchors:
+        if anchor in t and anchor in registration_blob:
+            return True
+    return False
+
+
+def split_awards_and_certifications(markdown: str) -> str:
+    """Sprint A core pass: classify each entry under a Certifications/Recognition/
+    Achievements/Honours heading, then split into clean ## Awards + ## Certifications
+    sections (dropping credential entries already covered by Registration).
+
+    Idempotent — running twice produces identical output.
+
+    Source section detection: any heading in _AWARDS_SOURCE_HEADINGS. Multiple
+    such sections are merged.
+
+    Entry classification:
+      • award-shaped → Awards bucket
+      • cert-shaped AND duplicate of Registration entry → DROP
+      • cert-shaped AND not in Registration → Certifications bucket (real industry cert)
+      • ambiguous (neither matches) → Awards bucket (default — better to over-include awards
+        than drop content; the Awards renderer is more permissive of free-form text)
+    """
+    lines = markdown.split("\n")
+    # Find every candidate source section (Certifications, Recognition, etc.)
+    # so we can merge multi-section content from chatty LLM output.
+    section_ranges: list[tuple[int, int, str]] = []
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith("## "):
+            heading = ln[3:].strip().lower().rstrip(":")
+            if heading in _AWARDS_SOURCE_HEADINGS:
+                start = i
+                j = i + 1
+                while j < len(lines) and not lines[j].startswith("## "):
+                    j += 1
+                section_ranges.append((start, j, heading))
+                i = j
+                continue
+        i += 1
+
+    if not section_ranges:
+        return markdown
+
+    # Collect every entry across all source sections. Track which source
+    # heading each entry came from so ambiguous (neither award nor cert
+    # vocabulary) entries default sensibly: source "certifications" → keep
+    # as cert; source "awards"/"recognition"/"honours" → award.
+    raw_entries: list[tuple[str, str]] = []  # (entry_text, source_heading)
+    for start, end, source_heading in section_ranges:
+        block_lines = lines[start + 1:end]
+        # Group lines into entries. A new entry starts on a non-indented,
+        # non-bullet, non-blank line. Lines that are indented (2+ leading
+        # spaces, a tab) OR start with a bullet marker (-, *, •) are
+        # CONTINUATIONS of the previous entry. Blank lines also flush.
+        current: list[str] = []
+
+        def flush():
+            if current:
+                raw_entries.append(("\n".join(current).rstrip(), source_heading))
+
+        for bl in block_lines:
+            stripped = bl.strip()
+            if not stripped:
+                flush()
+                current = []
+                continue
+            is_continuation = (
+                bl[:1] in (" ", "\t")            # indented
+                or stripped[:1] in ("-", "*", "•")  # bullet → could be either,
+                # but bullet items lead a NEW entry only when current is empty
+            )
+            # Special-case: if the line starts with a bullet AND current is
+            # empty, treat as a new entry (e.g. "- Award Name").
+            if stripped[:1] in ("-", "*", "•") and not current:
+                current.append(bl)
+                continue
+            if is_continuation and current:
+                current.append(bl)
+            else:
+                flush()
+                current = [bl]
+        flush()
+
+    if not raw_entries:
+        # All source sections empty — just drop the headings.
+        return _drop_sections_by_ranges(lines, section_ranges)
+
+    registration_blob = _registration_section_text(markdown)
+
+    awards_entries: list[str] = []
+    cert_entries: list[str] = []
+    dropped_dup: list[str] = []
+
+    _CERT_SOURCE_HEADINGS = {
+        "certifications", "certification", "certs", "cert",
+        "credentials", "credential",
+    }
+
+    for entry, source_heading in raw_entries:
+        flat = entry.replace("\n", " ")
+        if _entry_is_award(flat):
+            awards_entries.append(entry)
+        elif _entry_is_cert(flat):
+            if _credential_already_in_registration(flat, registration_blob):
+                dropped_dup.append(flat[:80])
+                continue
+            cert_entries.append(entry)
+        else:
+            # Ambiguous — default to the source heading's category.
+            # "## Certifications" + ambiguous entry → keep as cert (might be
+            # an industry cert like "CKAD" the regex doesn't recognise).
+            # "## Recognition" / "## Honours" + ambiguous → award.
+            if source_heading in _CERT_SOURCE_HEADINGS:
+                cert_entries.append(entry)
+            else:
+                awards_entries.append(entry)
+
+    # Re-emit: drop all source-section blocks, then append new Awards + Certifications
+    # at the position of the FIRST source section (preserves rough layout). The
+    # downstream _reorder_sections pass repositions to canonical order anyway.
+    insertion_point = section_ranges[0][0]
+    out_lines = _drop_sections_by_ranges(lines, section_ranges)
+    new_blocks: list[str] = []
+    if awards_entries:
+        new_blocks.append("## Awards\n\n" + "\n\n".join(awards_entries).rstrip())
+    if cert_entries:
+        new_blocks.append("## Certifications\n\n" + "\n\n".join(cert_entries).rstrip())
+
+    if not new_blocks:
+        # Everything was deduplicated — log and return without source sections.
+        if dropped_dup:
+            logger.info(
+                "sprint-A awards-split: dropped %d credential duplicate(s) of Registration",
+                len(dropped_dup),
+            )
+        return "\n".join(out_lines)
+
+    # Find the insertion line in the reduced out_lines. We tracked the original
+    # insertion_point but the array has been edited; find a stable anchor.
+    # Simplest: append before the next non-source ## heading that follows the
+    # original position; otherwise append at end.
+    new_text = "\n\n".join(new_blocks)
+    # Splice: walk the reduced output, find where we should insert (matching
+    # the original first-source position by counting headings).
+    result = "\n".join(out_lines).rstrip() + "\n\n" + new_text + "\n"
+
+    if dropped_dup:
+        logger.info(
+            "sprint-A awards-split: split %d source section(s) → %d award + %d cert; dropped %d duplicate(s)",
+            len(section_ranges), len(awards_entries), len(cert_entries), len(dropped_dup),
+        )
+    else:
+        logger.info(
+            "sprint-A awards-split: split %d source section(s) → %d award + %d cert",
+            len(section_ranges), len(awards_entries), len(cert_entries),
+        )
+    return result
+
+
+def _drop_sections_by_ranges(lines: list[str], ranges: list[tuple[int, int, str]]) -> list[str]:
+    """Return `lines` with the (start, end) ranges removed. Ranges are
+    sorted/de-overlapped before applying so multiple sections drop cleanly."""
+    keep = [True] * len(lines)
+    for start, end, _ in ranges:
+        for k in range(start, min(end, len(lines))):
+            keep[k] = False
+    out = [ln for ln, k in zip(lines, keep) if k]
+    # Collapse runs of >2 blank lines that the drop may have left.
+    cleaned: list[str] = []
+    blank_run = 0
+    for ln in out:
+        if not ln.strip():
+            blank_run += 1
+            if blank_run <= 2:
+                cleaned.append(ln)
+        else:
+            blank_run = 0
+            cleaned.append(ln)
+    return cleaned
+
+
+# ---------------------------------------------------------------------------
 # Awards / certifications recovery — deterministic, grounded in the original CV.
 # The composition writer occasionally drops the whole Certifications/Awards
 # section (run-to-run variance), silently losing genuine achievements the
@@ -2408,18 +2672,30 @@ async def _writer_w8_integrated(
     #     (e.g. "First Aid – [Provider not specified]", "Driver Licence (NSW)").
     final_md = _strip_ungrounded_credentials(final_md, cv_text)
     # 4b. Relabel an awards-only "Certifications" / "Recognition" section to "Awards".
+    #     This handles the PURE case (every entry is award-shaped). The MIXED
+    #     case (award entry + cert entry under one heading) survives this pass.
     final_md = _relabel_awards_only_certifications(final_md)
-    # 4b-bis. Normalise every entry in ## Awards to a single clean bullet
-    #     `- Name – Organisation (Date)` — collapses the two-line H3+italic
-    #     block shape the writer sometimes emits, and strips trailing
-    #     "Recognised for hard work…" descriptive text from verbose bullets.
-    final_md = _normalise_awards_entries(final_md)
     # 4c. Stamp user-supplied credentials into ## Registration & Licences
     #     (nursing/healthcare/care families only; no-op when role family is
     #     tech/manual/general or when the user has saved no credentials).
     #     Replaces any AI-emitted body in that section — the user's profile
-    #     is authoritative for what they actually hold.
+    #     is authoritative for what they actually hold. Run BEFORE the
+    #     awards-split pass so it can dedupe against Registration content.
     final_md = stamp_credentials(final_md, contact_details, role_family.id)
+    # 4c-bis. Sprint A — split MIXED Certifications sections into clean Awards
+    #     + Certifications, dropping cert entries already duplicated in
+    #     Registration & Licences. Fixes the Anglicare run where "First Aid
+    #     Certification" + "Staff Excellence Award" landed under one heading;
+    #     the relabel pass at 4b refused to rename (mixed), so the award sat
+    #     under the wrong heading and the cert duplicated Registration.
+    final_md = split_awards_and_certifications(final_md)
+    # 4d. Normalise every entry in ## Awards to a single clean bullet
+    #     `- Name – Organisation (Date)` — collapses the two-line H3+italic
+    #     block shape the writer sometimes emits, and strips trailing
+    #     "Recognised for hard work…" descriptive text from verbose bullets.
+    #     Run AFTER the awards-split so newly-created Awards sections get
+    #     normalised too.
+    final_md = _normalise_awards_entries(final_md)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
