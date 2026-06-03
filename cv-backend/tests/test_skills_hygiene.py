@@ -124,6 +124,10 @@ def test_predicate_rejects_non_skills():
         "Care Facility",
         "Aged Care Facility",
         "Residential Aged Care Facility",
+        # Opus 4.7/4.8 leaked these in the post-Phase-1 Anglicare run.
+        # Casual variants of "aged care" and sector-plus-"support" descriptors.
+        "Ageing Care",
+        "Home Care Support",
         # Regression: Sonnet 4.6 production runs (2026-06-03) leaked these into
         # Other Skills / Care Skills. GPT-5.1 produces canonical short skills;
         # Sonnet preserves JD multi-word noun phrases verbatim. These are all

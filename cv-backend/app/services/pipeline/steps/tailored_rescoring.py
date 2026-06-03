@@ -222,20 +222,74 @@ def _approved_keywords(plan: Dict[str, Any]) -> List[str]:
     return deduped
 
 
+# Credential / qualification suffix words. When a JD asks for "First Aid
+# Certificate" the candidate's CV will typically list "First Aid (HLTAID011)"
+# — same credential, different wording. We retry the match with the suffix
+# word stripped so the verifier correctly credits the keyword.
+_CREDENTIAL_SUFFIXES = (
+    "certificate", "certification", "certified",
+    "licence", "license", "licensed",
+    "vaccination", "vaccinated",
+    "check", "clearance",
+)
+
+
 def _kw_present(keyword: str, text_lower: str) -> bool:
     """
     Detect a keyword in the tailored CV text.
 
-    Uses a regex with `\b` word boundaries when the keyword contains
-    only word characters (letters, digits, underscores). For multi-word
-    or symbol-bearing keywords (e.g. "data warehouse", "c++"), falls back
-    to plain substring search.
+    Strategy:
+      1. Literal word-boundary match (the common case).
+      2. If the keyword ends in a credential-suffix word ("certificate",
+         "licence", "vaccination"...), retry with the suffix stripped.
+         "First Aid Certificate" → "First Aid" matches "First Aid (HLTAID011)".
+      3. If the keyword contains " and " or " & ", split into parts and
+         require EVERY part to be present. "Covid and Flu Vaccination" →
+         requires both "Covid Vaccination" and "Flu Vaccination" (suffix
+         appended to each bare token).
     """
     kw = keyword.lower().strip()
     if not kw:
         return False
+
+    if _literal_match(kw, text_lower):
+        return True
+
+    # Suffix-strip retry for credentials.
+    parts = kw.split()
+    if len(parts) >= 2 and parts[-1] in _CREDENTIAL_SUFFIXES:
+        bare = " ".join(parts[:-1])
+        if _literal_match(bare, text_lower):
+            return True
+
+    # Conjunction split: "covid and flu vaccination" → "covid vaccination"
+    # AND "flu vaccination" — both must be present.
+    for sep in (" and ", " & "):
+        if sep in kw:
+            # Detect a trailing shared suffix (vaccination / certificate / ...)
+            tokens = kw.split()
+            shared_suffix = ""
+            if tokens[-1] in _CREDENTIAL_SUFFIXES:
+                shared_suffix = " " + tokens[-1]
+                kw_core = " ".join(tokens[:-1])
+            else:
+                kw_core = kw
+            sub_parts = [p.strip() for p in kw_core.split(sep) if p.strip()]
+            if len(sub_parts) >= 2 and all(
+                _literal_match(p + shared_suffix, text_lower) or _literal_match(p, text_lower)
+                for p in sub_parts
+            ):
+                return True
+            break  # only try the first separator that's present
+
+    return False
+
+
+def _literal_match(kw: str, text_lower: str) -> bool:
+    """Word-boundary regex match for word-only keywords; substring for the rest."""
+    if not kw:
+        return False
     if re.fullmatch(r"[\w\s\-]+", kw):
-        # \b boundaries on the first/last alphanumeric run
         pattern = r"\b" + re.escape(kw) + r"\b"
         return re.search(pattern, text_lower) is not None
     return kw in text_lower

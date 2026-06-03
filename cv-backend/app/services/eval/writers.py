@@ -702,6 +702,11 @@ _NON_SKILL_EXACT: set[str] = {
     "home care or disability support",
     "retirement living", "aged care services", "aged care work",
     "community aged care",
+    # Opus 4.7/4.8 nursing run (2026-06-03 post Phase 1) leaked these.
+    # "ageing care" is a casual variant of "aged care" — same sector descriptor.
+    # "home care support" is the sector + "support" — names a category of work,
+    # not a discrete competency the candidate has.
+    "ageing care", "home care support",
     # Workplace Health & Safety with/without the (WHS) suffix. WHS is a domain
     # category, not a discrete competency — the real skill is e.g. "Infection
     # Control", "Manual Handling".
@@ -1296,6 +1301,34 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
       - no description → single-line bullet, no second line
     """
     org_clean = _strip_au_location(org) if org else ""
+
+    # Strip trailing date from org when the same date will also be appended
+    # in parentheses — fixes "Jesmond Miranda Nursing Home, August 2025
+    # (August 2025)" duplicates that arise when the upstream parser leaves
+    # the date in the org field AND also extracts it separately.
+    if org_clean and date:
+        # Match either a literal trailing copy of `date` or a generic
+        # "Month YYYY"/"YYYY"/"YYYY-YYYY" tail (with optional preceding
+        # comma/space). Anchor to end so we don't trim a date that happens
+        # to also appear inside the org name.
+        date_norm = re.escape(date.strip())
+        org_clean = re.sub(
+            r"\s*,?\s*" + date_norm + r"\s*$",
+            "",
+            org_clean,
+            flags=re.IGNORECASE,
+        ).rstrip(" ,")
+        # Generic month-year tail (covers cases where org has "August 2025"
+        # but date is normalised to "Aug 2025" or similar — still a duplicate
+        # in spirit).
+        org_clean = re.sub(
+            r"\s*,?\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
+            r"Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|"
+            r"Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\s*$",
+            "",
+            org_clean,
+            flags=re.IGNORECASE,
+        ).rstrip(" ,")
 
     first = name or "(unnamed award)"
     if org_clean:
