@@ -475,6 +475,110 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# Brand-name tools the candidate uses that should NEVER disappear from the
+# tailored CV's Skills section, even when the JD doesn't ask for them. The
+# writer prompt sometimes drops these in favour of JD-required generic terms
+# ("Basic Computer Skills") — but the candidate's named tools are real
+# differentiators recruiters scan for.
+#
+# Pattern: each entry is a regex matched against the original CV text
+# (case-insensitive). When matched in the CV but absent from the tailored
+# Skills section, the canonical form is appended to the headline-secondary
+# (Other Skills for nursing/manual) line.
+#
+# Conservative list: only proven nursing/care domain tools that match the
+# kind of CV content this app sees. Easy to extend per vertical.
+_KNOWN_CV_TOOLS: tuple[tuple[str, str], ...] = (
+    # Medication administration / clinical apps used in Australian aged care.
+    (r"\bBESTMed\b",   "BESTMed"),
+    (r"\bMedMobile\b", "MedMobile"),
+    (r"\bLeecare\b",   "Leecare"),
+    (r"\bManAd\b",     "ManAd"),
+    (r"\bePAS\b",      "ePAS"),
+    # Common clinical EHRs (US/AU). Match only when literally in the CV.
+    (r"\bEpic\b",      "Epic"),
+    (r"\bCerner\b",    "Cerner"),
+)
+
+
+def _surface_cv_named_tools(
+    markdown: str, original_cv_text: str, role_family
+) -> str:
+    """Ensure CV-named brand tools (BESTMed, MedMobile, Leecare, ...) appear
+    in the tailored Skills section.
+
+    The writer prompt sometimes drops these in favour of JD-required generic
+    keywords ("Basic Computer Skills", "Smartphone Usage"), wiping the
+    candidate's actual differentiating tools. This runs AFTER the cap-and-
+    strip dance and re-injects only tools literally present in the original
+    CV. Honest by construction — tools must appear in original_cv_text.
+
+    Routes to:
+      - Other Skills (when headline_bucket == "domain_knowledge", i.e. nursing
+        / manual): tools sit in the secondary "Other" line by convention.
+      - Technical Skills (when headline_bucket == "technical", i.e. tech /
+        master): tools ARE the headline.
+    """
+    if not original_cv_text or not markdown:
+        return markdown
+
+    # Match brand tools present in the original CV but NOT yet in the tailored
+    # Skills section (anywhere — lowercase substring is enough).
+    md_lower = markdown.lower()
+    missing: list[str] = []
+    for pattern, canonical in _KNOWN_CV_TOOLS:
+        if re.search(pattern, original_cv_text, flags=re.IGNORECASE):
+            if canonical.lower() not in md_lower:
+                missing.append(canonical)
+
+    if not missing:
+        return markdown
+
+    # Pick the target category: technical for tech-style families, otherwise
+    # domain_knowledge (Other Skills for nursing under the canonical sandwich,
+    # since headline_bucket == domain_knowledge places "Care Skills" on the
+    # technical line and "Other Skills" on the domain_knowledge line).
+    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
+
+    lines = markdown.split("\n")
+    skills_start = next(
+        (i for i, l in enumerate(lines) if l.strip() == "## Skills"), None,
+    )
+    if skills_start is None:
+        return markdown
+    skills_end = next(
+        (j for j in range(skills_start + 1, len(lines)) if lines[j].startswith("## ")),
+        len(lines),
+    )
+
+    target_idx = None
+    for i in range(skills_start + 1, skills_end):
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if _line_starts_label(lines[i], label) and cat == target_cat:
+                target_idx = i
+                break
+        if target_idx is not None:
+            break
+    if target_idx is None:
+        return markdown
+
+    cap = _SURFACE_CAPS.get(target_cat, 8)
+    existing_count = len([s for s in lines[target_idx].split(",") if s.strip()])
+    appended = 0
+    for tool in missing:
+        if existing_count >= cap:
+            break
+        lines[target_idx] = f"{lines[target_idx].rstrip()}, {tool}"
+        existing_count += 1
+        appended += 1
+
+    if appended:
+        logger.info("w8 surfacing: re-added %d CV-named tool(s): %s",
+                    appended, missing[:appended])
+
+    return "\n".join(lines)
+
+
 # Buckets the feasibility classifier marks as eligible to inject.
 _APPROVED_BUCKETS = ("inject_directly", "inject_as_extension", "inject_with_inference")
 
@@ -715,7 +819,8 @@ _NON_SKILL_EXACT: set[str] = {
 }
 # Entries beginning with these are JD-phrasing fillers, not skills.
 _NON_SKILL_PREFIXES: tuple[str, ...] = (
-    "experience in", "experienced in", "knowledge of", "understanding of",
+    "experience in", "experienced in", "experience as", "experience working",
+    "knowledge of", "understanding of",
     "ability to", "familiarity with", "demonstrated ", "proven ",
     "willingness to", "commitment to", "passion for",
 )
@@ -732,7 +837,7 @@ _NON_SKILL_PATTERN = re.compile(
     # Matches "experience in aged care", "personal experience in disability",
     # "hands-on experience with dementia", "broad experience working in NDIS",
     # etc. These are role-requirement phrases, never a single skill.
-    r"|experience\s+(in|with|of|working|across|supporting)\b"
+    r"|experience\s+(in|with|of|as|working|across|supporting)\b"
     # Bare "X experience" where X is a qualifier the JD uses to describe a
     # candidate background ("personal experience", "professional experience",
     # "lived experience", "prior experience"). On their own they are not a
@@ -792,6 +897,13 @@ _NON_SKILL_PATTERN = re.compile(
     r"|\bdignity\b"
     r"|\bwell[\s-]?being\b"
     r"|\bquality\s+of\s+life\b"
+    # Driver licence variants — the licence itself belongs in Registration &
+    # Licences (already populated by stamp_credentials when the user has it).
+    # Listing "Driving NSW C Class Motor Vehicle" / "Driving Motor Vehicle" /
+    # "C Class Driver Licence" on the Skills line is duplicate JD-phrasing for
+    # the same thing. The candidate's real driving skill is the licence held.
+    r"|\bdriving\s+(?:[a-z]+\s+){0,3}(?:motor\s+vehicle|class\s+[a-z]+(?:\s+vehicle)?|licen[cs]e)\b"
+    r"|(?:c|p|hr|mr|hc)\s+class\s+(?:motor\s+vehicle|driver|licen[cs]e|vehicle)\b"
     # Sector + activity-noun ending — sector descriptors disguised as skills.
     # "Aged Care Delivery", "Home Care Provision", "Retirement Living Services",
     # "Community Care Work", "Residential Aged Care Services". The bare sector
@@ -858,22 +970,47 @@ _LEADING_SKILL_QUALIFIER_RE = re.compile(
     r"|solid|superior|advanced|highly\s+developed|well[\s-]developed)\s+",
     re.IGNORECASE,
 )
-# A redundant trailing "Skills" word inside the Skills section ("Communication
-# Skills" → "Communication", "Interpersonal Skills" → "Interpersonal").
-_TRAILING_SKILLS_WORD_RE = re.compile(r"\s+skills$", re.IGNORECASE)
+# A redundant trailing "Skills" word inside the Skills section is only
+# meaningful to strip when the base is itself a recognised competency word
+# ("Communication Skills" → "Communication", "Interpersonal Skills" →
+# "Interpersonal"). For entries whose base is a generic noun that NEEDS the
+# "Skills" word to read sensibly ("Computer Skills", "Basic Computer Skills",
+# "People Skills"), stripping produces broken-looking output ("Basic Computer")
+# — keep the suffix.
+_STRIPPABLE_SKILL_BASE_RE = re.compile(
+    r"^(?:"
+    r"communication|interpersonal|analytical|organisational|organizational"
+    r"|leadership|management|negotiation|presentation|teamwork|collaboration"
+    r"|problem[\s-]solving|critical[\s-]thinking|time[\s-]management"
+    r"|stakeholder|writing|verbal|written"
+    r")$",
+    re.IGNORECASE,
+)
+_TRAILING_SKILLS_WORD_RE = re.compile(r"^(.*?)\s+skills$", re.IGNORECASE)
 
 
 def _tidy_skill_qualifiers(entry: str) -> str:
     """Strip a leading evaluative qualifier and a redundant trailing "Skills"
     word from a single Skills-line entry. Never returns empty — if stripping
-    would empty the entry, the original token is preserved."""
+    would empty the entry, the original token is preserved.
+
+    The trailing-"Skills" strip is conditional: only when the base IS a
+    recognised competency word (Communication/Interpersonal/Analytical/...).
+    Generic bases that need "Skills" to read sensibly (Computer / People /
+    Technology) keep the suffix."""
     t = entry.strip()
     stripped_lead = _LEADING_SKILL_QUALIFIER_RE.sub("", t).strip()
     if stripped_lead:
         t = stripped_lead
-    stripped_tail = _TRAILING_SKILLS_WORD_RE.sub("", t).strip()
-    if stripped_tail:
-        t = stripped_tail
+    m = _TRAILING_SKILLS_WORD_RE.match(t)
+    if m:
+        base = m.group(1).strip()
+        # Strip "skills" suffix only when the base alone is itself a real
+        # competency name. "Basic Computer Skills" → base="Basic Computer" →
+        # not in allowlist → keep "Skills". "Communication Skills" →
+        # base="Communication" → in allowlist → strip → "Communication".
+        if base and _STRIPPABLE_SKILL_BASE_RE.match(base):
+            t = base
     return t
 
 
@@ -2230,6 +2367,12 @@ async def _writer_w8_integrated(
     #     Skipped for the "none" policy (trades) where minimalism is intentional.
     if role_family.injection_policy != "none":
         md = _surface_matched_skills(md, up["matching"])
+    # 3a-pre. CV-named brand tools the writer dropped (BESTMed, MedMobile,
+    #     Leecare, ...). Independent of the JD — these are the candidate's
+    #     differentiators and must never disappear, even when the writer
+    #     prompt biases toward JD-required generics ("Basic Computer Skills").
+    if role_family.injection_policy != "none":
+        md = _surface_cv_named_tools(md, cv_text, role_family)
     # 3a-bis. Strip non-skill entries (qualifications, eligibility/compliance,
     #     bare sector names, JD-phrasing fillers) from the Skills section, no
     #     matter whether the base classifier or the surfacing pass added them.

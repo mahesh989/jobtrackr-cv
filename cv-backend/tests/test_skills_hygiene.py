@@ -128,6 +128,18 @@ def test_predicate_rejects_non_skills():
         # Casual variants of "aged care" and sector-plus-"support" descriptors.
         "Ageing Care",
         "Home Care Support",
+        # GPT-5.1 nursing run (post-Phase-1.7) injected "Experience As A Support
+        # Worker In Home Care Or Disability" into Other Skills — JD-verb-phrase
+        # filler. The "experience as" prefix was missing from the predicate.
+        "Experience As A Support Worker In Home Care Or Disability",
+        "Experience As A Care Worker",
+        "Experience Working In Aged Care",
+        # Driver-licence variants — credential belongs in Registration & Licences,
+        # not Skills. The candidate's real driving "skill" IS the licence.
+        "Driving NSW C Class Motor Vehicle",
+        "Driving Motor Vehicle",
+        "C Class Driver Licence",
+        "C Class Motor Vehicle Licence",
         # Regression: Sonnet 4.6 production runs (2026-06-03) leaked these into
         # Other Skills / Care Skills. GPT-5.1 produces canonical short skills;
         # Sonnet preserves JD multi-word noun phrases verbatim. These are all
@@ -174,6 +186,14 @@ def test_predicate_keeps_real_skills():
         "Roster management",      # ends with "management", not "ward/setting"
         "Wound care",             # ends with "care", not "environment"
         "Theatre nursing",        # "theatre" ≠ a setting-suffix word
+        # Phase 1.8 guards: legitimate "Skills" entries that look similar to
+        # the new patterns but are real.
+        "Basic Computer Skills",   # "computer" + "skills" → KEEP the "Skills" word
+        "Computer Skills",
+        "People Skills",
+        "Technology Skills",
+        "Driving Buses",           # no licence/class/motor-vehicle suffix
+        "Defensive Driving",       # no licence/class/motor-vehicle suffix
     ]:
         assert not _is_non_skill_phrase(skill), skill
 

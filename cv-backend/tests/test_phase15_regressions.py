@@ -114,3 +114,44 @@ class TestAwardDateDedupe:
     def test_date_only_no_org(self):
         lines = _format_award_entry(name="Award", org="", date="2025")
         assert lines[0] == "* Award (2025)"
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.8 — skills tidier should not truncate generic "X Skills" entries
+# ---------------------------------------------------------------------------
+
+
+class TestSkillsTrailingWordTidier:
+    """The skills tidier was stripping " Skills" from EVERY entry, breaking
+    'Basic Computer Skills' → 'Basic Computer'. The fix: only strip when
+    the base alone is a recognised competency word."""
+
+    def setup_method(self):
+        from app.services.eval.writers import _tidy_skill_qualifiers
+        self.tidy = _tidy_skill_qualifiers
+
+    def test_communication_skills_strips_to_communication(self):
+        # Communication IS a real competency name → strip "Skills" suffix.
+        assert self.tidy("Communication Skills") == "Communication"
+
+    def test_interpersonal_skills_strips_to_interpersonal(self):
+        assert self.tidy("Interpersonal Skills") == "Interpersonal"
+
+    def test_basic_computer_skills_preserved(self):
+        # "Basic Computer" alone reads broken — keep the "Skills" word.
+        assert self.tidy("Basic Computer Skills") == "Basic Computer Skills"
+
+    def test_computer_skills_preserved(self):
+        assert self.tidy("Computer Skills") == "Computer Skills"
+
+    def test_people_skills_preserved(self):
+        assert self.tidy("People Skills") == "People Skills"
+
+    def test_strong_leadership_skills_strips_qualifier_and_suffix(self):
+        # Combined: leading qualifier ("Strong") stripped, then "Leadership
+        # Skills" → "Leadership" since leadership is a competency.
+        assert self.tidy("Strong Leadership Skills") == "Leadership"
+
+    def test_strong_basic_computer_skills_strips_only_qualifier(self):
+        # "Strong" stripped; "Basic Computer Skills" keeps the suffix.
+        assert self.tidy("Strong Basic Computer Skills") == "Basic Computer Skills"
