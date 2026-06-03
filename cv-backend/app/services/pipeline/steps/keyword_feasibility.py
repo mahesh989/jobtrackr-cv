@@ -146,9 +146,12 @@ async def run_keyword_feasibility(
         plan, missing_block, matching=matching, contact_details=contact_details
     )
 
-    # Counts and expected-lift summary
+    # Counts and expected-lift summary — use the per-family weights so the
+    # lift estimate matches what ats_scoring will award. Falls back to the
+    # tech-shaped defaults if no role family is attached.
     counts = (matching or {}).get("counts") or {}
-    expected_lift = _expected_lift_pts(plan, counts)
+    weights = _resolve_keyword_weights(jd_analysis)
+    expected_lift = _expected_lift_pts(plan, counts, weights)
 
     summary = {
         "n_inject_directly":       len(plan["inject_directly"]),
@@ -413,9 +416,25 @@ def _reconcile_with_missing(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
+    """Pick per-family keyword weights (mirrors ats_scoring._resolve_keyword_weights).
+    Falls back to the tech defaults when no role family is attached."""
+    family_id = (jd_analysis or {}).get("role_family")
+    if family_id:
+        try:
+            from app.services.eval.role_families import resolve_role_family
+            rf = resolve_role_family(family_id, jd_analysis)
+            if rf and rf.keyword_weights:
+                return dict(rf.keyword_weights)
+        except Exception:  # noqa: BLE001
+            logger.warning("feasibility: failed to resolve family %s weights; using defaults", family_id)
+    return dict(_KEYWORD_WEIGHTS)
+
+
 def _expected_lift_pts(
     plan: Dict[str, List[Dict[str, Any]]],
     counts: Dict[str, Any],
+    weights: Dict[str, int],
 ) -> float:
     """
     Estimate the ATS-points lift if every inject_directly + inject_as_extension
@@ -443,9 +462,9 @@ def _expected_lift_pts(
 
     # Required-bucket components — one weight per category.
     component_weight = {
-        "technical":        _KEYWORD_WEIGHTS["technical_required"],
-        "soft_skills":      _KEYWORD_WEIGHTS["soft_skills_required"],
-        "domain_knowledge": _KEYWORD_WEIGHTS["domain_knowledge_required"],
+        "technical":        weights["technical_required"],
+        "soft_skills":      weights["soft_skills_required"],
+        "domain_knowledge": weights["domain_knowledge_required"],
     }
     req_counts = (counts.get("required") or {})
     for cat, weight in component_weight.items():
@@ -465,7 +484,7 @@ def _expected_lift_pts(
     pref_delta = sum(additions.get(("preferred", c), 0) for c in _CATEGORIES)
     if pref_total > 0 and pref_delta > 0:
         new_matched = min(pref_total, pref_matched_now + pref_delta)
-        lift += ((new_matched - pref_matched_now) / pref_total) * _KEYWORD_WEIGHTS["preferred_overall"]
+        lift += ((new_matched - pref_matched_now) / pref_total) * weights["preferred_overall"]
 
     return lift
 

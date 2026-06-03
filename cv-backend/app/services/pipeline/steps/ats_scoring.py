@@ -53,7 +53,13 @@ def run_ats_scoring(
     jd_analysis: Dict[str, Any],
     matching: Dict[str, Any],
 ) -> Dict[str, Any]:
-    keyword_total, keyword_breakdown = _keyword_score(matching)
+    # Per-family ATS weights: nursing/manual flip technical ↔ domain because
+    # the headline competencies (Personal Care, Dementia Care, Forklift
+    # Operation) live in domain_knowledge, not technical. Fallback to tech
+    # defaults when no family is attached (legacy resumes / unknown vertical).
+    weights = _resolve_keyword_weights(jd_analysis)
+
+    keyword_total, keyword_breakdown = _keyword_score(matching, weights)
     experience = _experience_score(matching)
     formatting = _formatting_score(cv_text)
 
@@ -64,7 +70,7 @@ def run_ats_scoring(
         # Top-level numbers (each on a 0-100 scale where applicable, or
         # the raw point contribution where noted).
         "overall_score": overall,
-        "keyword_match_score": _to_pct(keyword_total, sum(_KEYWORD_WEIGHTS.values())),
+        "keyword_match_score": _to_pct(keyword_total, sum(weights.values())),
         "experience_match_score": _to_pct(experience, _EXPERIENCE_MAX),
         "formatting_score": _to_pct(formatting, _FORMATTING_MAX),
 
@@ -73,7 +79,7 @@ def run_ats_scoring(
         "breakdown": {
             "category_1_keyword_match": {
                 "earned": round(keyword_total, 1),
-                "max": sum(_KEYWORD_WEIGHTS.values()),
+                "max": sum(weights.values()),
                 "components": keyword_breakdown,
             },
             "category_2_experience": {
@@ -86,9 +92,10 @@ def run_ats_scoring(
                 "max": _FORMATTING_MAX,
             },
             "weights": {
-                "keyword_max": sum(_KEYWORD_WEIGHTS.values()),
+                "keyword_max": sum(weights.values()),
                 "experience_max": _EXPERIENCE_MAX,
                 "formatting_max": _FORMATTING_MAX,
+                "per_bucket": weights,
             },
         },
 
@@ -104,7 +111,29 @@ def run_ats_scoring(
 # ---------------------------------------------------------------------------
 
 
-def _keyword_score(matching: Dict[str, Any]) -> tuple[float, Dict[str, Any]]:
+def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
+    """Pick the per-family keyword weights, falling back to tech defaults.
+
+    The orchestrator stores the resolved role family on `jd_analysis["role_family"]`
+    before ATS scoring (orchestrator.py:131-139). When the family ships with a
+    `keyword_weights` dict (nursing/manual flip technical↔domain), use it;
+    otherwise the tech-shaped defaults below apply — same behaviour as before.
+    """
+    family_id = (jd_analysis or {}).get("role_family")
+    if family_id:
+        try:
+            from app.services.eval.role_families import resolve_role_family
+            rf = resolve_role_family(family_id, jd_analysis)
+            if rf and rf.keyword_weights:
+                return dict(rf.keyword_weights)
+        except Exception:  # noqa: BLE001 — never block scoring on a config lookup
+            logger.warning("ATS: failed to resolve family %s weights; using defaults", family_id)
+    return dict(_KEYWORD_WEIGHTS)
+
+
+def _keyword_score(
+    matching: Dict[str, Any], weights: Dict[str, int]
+) -> tuple[float, Dict[str, Any]]:
     """
     Compute Category 1 directly from the structured counts produced by
     the matching step. No substring searching, no text parsing.
@@ -141,12 +170,12 @@ def _keyword_score(matching: Dict[str, Any]) -> tuple[float, Dict[str, Any]]:
     }
 
     # Redistribute the nominal weight of empty buckets onto populated ones.
-    present_base = sum(_KEYWORD_WEIGHTS[k] for k, (_, total) in raw.items() if total > 0)
-    scale = (sum(_KEYWORD_WEIGHTS.values()) / present_base) if present_base else 0.0
+    present_base = sum(weights[k] for k, (_, total) in raw.items() if total > 0)
+    scale = (sum(weights.values()) / present_base) if present_base else 0.0
 
     components: Dict[str, Any] = {}
     for key, (matched, total) in raw.items():
-        base = _KEYWORD_WEIGHTS[key]
+        base = weights[key]
         effective = base * scale if total > 0 else 0.0
         rate = (matched / total) if total else 0.0
         components[key] = {

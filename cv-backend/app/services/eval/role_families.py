@@ -48,6 +48,18 @@ class RoleFamilyProfile:
     # {technical, soft_skills, domain_knowledge}.
     equivalences: List[tuple] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Per-family ATS keyword weights — sum to 50 (the Keyword Match half of the
+    # 100-point ATS score). Tech defaults: technical 25 / soft 10 / domain 5 /
+    # preferred 10 (BI/SQL/cloud tools dominate). Nursing/manual flip technical
+    # ↔ domain because the headline competencies live in domain_knowledge.
+    # If a family does not set this, ats_scoring.py falls back to the tech
+    # defaults below.
+    keyword_weights: Dict[str, int] = field(default_factory=lambda: {
+        "technical_required":        25,
+        "soft_skills_required":      10,
+        "domain_knowledge_required":  5,
+        "preferred_overall":         10,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +248,17 @@ _NURSING = RoleFamilyProfile(
         ("Person-Centred Care", ["person-centred care", "person centered care",
                                  "individualised care"], "domain_knowledge"),
     ],
+    # Nursing flips technical ↔ domain weighting. Clinical/care competencies
+    # (Personal Care, Dementia Care, Medication Administration) live in the
+    # domain_knowledge bucket — those ARE the role. Tools (BESTMed, MedMobile)
+    # are nice-to-have, not the qualification. Sums to 50 like tech (same
+    # keyword-match budget; only the per-bucket distribution differs).
+    keyword_weights={
+        "domain_knowledge_required": 25,
+        "soft_skills_required":      10,
+        "technical_required":         5,
+        "preferred_overall":         10,
+    },
 )
 
 _MANUAL = RoleFamilyProfile(
@@ -270,6 +293,15 @@ _MANUAL = RoleFamilyProfile(
         "- A short ## Availability line (days/shifts, transport) is valuable.\n"
         "- Skip the keyword-injection game entirely; surface real experience plainly."
     ),
+    # Manual roles match nursing's weighting: core competencies (cleaning,
+    # forklift operation, kitchen prep) sit in domain_knowledge; "technical"
+    # is mostly empty. Sums to 50 like tech.
+    keyword_weights={
+        "domain_knowledge_required": 25,
+        "soft_skills_required":      10,
+        "technical_required":         5,
+        "preferred_overall":         10,
+    },
 )
 
 _MASTER = RoleFamilyProfile(

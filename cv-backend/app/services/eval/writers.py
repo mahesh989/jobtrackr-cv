@@ -619,6 +619,60 @@ def _drop_subsumed_generic_skills(markdown: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# End-of-tailoring report
+# ---------------------------------------------------------------------------
+
+
+def _log_tailoring_report(
+    *,
+    family_id: str,
+    feasibility: Optional[Dict[str, Any]],
+    matching: Optional[Dict[str, Any]],
+    tailored_md: str,
+) -> None:
+    """One-line summary of where keywords ended up. Used for post-hoc debugging.
+
+    Reports: role family / feasibility-bucket counts / # honest gaps /
+    Skills-section length / first few honest gaps verbatim. The full landings
+    can always be reconstructed by reading tailored_md; this exists so
+    "why did keyword X go missing?" doesn't require grepping 10 per-pass logs.
+    """
+    plan = (feasibility or {}).get("feasibility_plan") or {}
+    direct = len(plan.get("inject_directly") or [])
+    ext    = len(plan.get("inject_as_extension") or [])
+    inf    = len(plan.get("inject_with_inference") or [])
+    gaps   = (feasibility or {}).get("summary", {}).get("honest_gaps") or []
+
+    # Count keywords surfaced in the Skills section (rough: sum of comma-separated
+    # entries across all category lines).
+    skills_entries = 0
+    in_skills = False
+    for line in tailored_md.split("\n"):
+        if line.strip() == "## Skills":
+            in_skills = True
+            continue
+        if in_skills and line.startswith("## "):
+            break
+        if in_skills and "**" in line and ":" in line:
+            after_colon = line.split(":", 1)[1]
+            skills_entries += len([s for s in after_colon.split(",") if s.strip()])
+
+    counts = (matching or {}).get("counts") or {}
+    req = counts.get("required") or {}
+    req_matched = sum(int((req.get(c) or {}).get("matched") or 0) for c in
+                      ("technical", "soft_skills", "domain_knowledge"))
+    req_total = sum(int((req.get(c) or {}).get("total") or 0) for c in
+                    ("technical", "soft_skills", "domain_knowledge"))
+
+    logger.info(
+        "tailoring report: family=%s | req_matched=%d/%d | feasibility direct=%d ext=%d inf=%d gaps=%d | "
+        "skills_entries=%d | first_gaps=%s",
+        family_id, req_matched, req_total, direct, ext, inf, len(gaps),
+        skills_entries, ", ".join(gaps[:5]) or "—",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Skills hygiene — drop "non-skill" entries that the matcher surfaces or the
 # base classifier mislabels. These are JD keywords that match for scoring but
 # read as junk in a Skills list: qualifications (belong in Education; a higher
@@ -2194,6 +2248,17 @@ async def _writer_w8_integrated(
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
     knockouts = detect_knockouts(jd_text, up["jd_analysis"], cv_text)
+
+    # End-of-tailoring report — one log line summarising where every JD keyword
+    # landed. Makes "why did keyword X go missing?" debuggable without grepping
+    # 10 per-pass logs. Deliberately concise: family / counts / first few honest
+    # gaps. Full landings are deducible from the tailored_md when needed.
+    _log_tailoring_report(
+        family_id=role_family.id,
+        feasibility=up["feasibility"],
+        matching=up["matching"],
+        tailored_md=final_md,
+    )
 
     return WriterResult(
         tailored_md=final_md,

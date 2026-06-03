@@ -633,9 +633,22 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
 
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
 
+    # Lazy import to avoid circular dependency — writers.py imports from this
+    # module. _is_non_skill_phrase encodes the same blocklist used by
+    # _surface_matched_skills + _inject_approved_skills; this injector was the
+    # only one missing the guard, which is why approved-but-junk keywords
+    # ("Residential Care", "Aged Care Delivery") were dumped into Skills only
+    # to be scrubbed later by _strip_non_skill_phrases. Skipping them up front
+    # prevents the leak at source.
+    from app.services.eval.writers import _is_non_skill_phrase
+
     appended_count = 0
+    skipped_junk = 0
     for kw, cat in targets:
         if _kw_in_skills(kw, skills_text_lower):
+            continue
+        if _is_non_skill_phrase(kw):
+            skipped_junk += 1
             continue
         target_idx = cat_to_line_idx.get(cat) or cat_to_line_idx.get("domain_knowledge")
         if target_idx is None:
@@ -649,10 +662,10 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
         # Update the lower-cased blob so subsequent checks see the new addition
         skills_text_lower = skills_text_lower + ", " + display.lower()
 
-    if appended_count:
+    if appended_count or skipped_junk:
         logger.info(
-            "Deterministic skills injector appended %d missing keyword(s)",
-            appended_count,
+            "Deterministic skills injector: appended %d, skipped %d non-skill phrase(s)",
+            appended_count, skipped_junk,
         )
 
     return "\n".join(lines)
