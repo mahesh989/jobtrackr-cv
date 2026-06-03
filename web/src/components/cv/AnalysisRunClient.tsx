@@ -32,10 +32,11 @@ interface AnalysisRunRow {
   tailored_pdf_storage_path:   string | null;
   tailored_ats_scoring_result: Record<string, unknown> | null;
   injected_keywords:           {
-    injected?:         string[];
-    failed_to_inject?: string[];
-    honest_gaps?:      string[];
-    fabricated?:       string[];
+    injected?:             string[];
+    failed_to_inject?:     string[];
+    filtered_as_non_skill?: string[];
+    honest_gaps?:          string[];
+    fabricated?:           string[];
   } | null;
   match_score:                 number | null;
   tailored_match_score:        number | null;
@@ -517,6 +518,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           lift={run.ats_lift}
           injected={run.injected_keywords?.injected}
           failedToInject={run.injected_keywords?.failed_to_inject}
+          filteredAsNonSkill={run.injected_keywords?.filtered_as_non_skill}
           honestGaps={run.injected_keywords?.honest_gaps}
           fabricated={run.injected_keywords?.fabricated}
           structuralReport={

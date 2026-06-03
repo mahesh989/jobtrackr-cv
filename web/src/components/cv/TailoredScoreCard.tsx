@@ -12,6 +12,7 @@ interface Props {
   lift?:           number | null;
   injected?:       string[];
   failedToInject?: string[];
+  filteredAsNonSkill?: string[];         // approved but stripped as junk (sector/setting names)
   honestGaps?:     string[];
   fabricated?:     string[];
   structuralReport?: {
@@ -53,6 +54,14 @@ export function TailoredScoreCard(props: Props) {
             sublabel="Approved by the feasibility plan but not detected in the tailored CV. Re-run if it matters."
             items={props.failedToInject}
             cls="bg-[#FFF8C5] text-[#9A6700] border-[#D4A72C]/40"
+          />
+        )}
+        {props.filteredAsNonSkill && props.filteredAsNonSkill.length > 0 && (
+          <ChipList
+            label={`Filtered as non-skill (${props.filteredAsNonSkill.length})`}
+            sublabel="Approved by feasibility but recognised as a sector / setting / filler phrase (e.g. 'Residential Care', 'Home Care Support'). Stripped to keep the Skills section clean — these would not have helped ATS scoring."
+            items={props.filteredAsNonSkill}
+            cls="bg-surface-2 text-text-3 border-border"
           />
         )}
         {props.fabricated && props.fabricated.length > 0 && (

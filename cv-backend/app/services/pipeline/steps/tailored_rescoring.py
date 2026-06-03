@@ -94,10 +94,25 @@ def run_tailored_rescoring(
         if kw and kw not in blocked and _kw_present(kw, tailored_lower)
     }
 
-    # Reporting split for the UI chips: which approved keywords actually landed
-    # vs which the writer failed to surface.
+    # Reporting split for the UI chips: which approved keywords actually landed,
+    # which were DELIBERATELY filtered as non-skill phrases by the injector
+    # guards (would not have helped ATS — they're sector descriptors / fillers),
+    # and which the writer genuinely failed to surface.
+    #
+    # Pre-Phase 1.6 the deliberate filters were lumped into "failed_to_inject"
+    # which made the writer look worse than it was — "approved but missed"
+    # should only contain genuine misses, not keywords the hygiene pass
+    # correctly stripped as junk.
+    #
+    # Lazy import so this module stays loadable without pulling the entire
+    # writers.py chain (eval harness, role families, etc.) when only rescoring
+    # is needed.
+    from app.services.eval.writers import _is_non_skill_phrase
+
     injected = sorted(credited)
-    failed = sorted({kw for kw in approved if kw not in credited})
+    _failed_raw = {kw for kw in approved if kw not in credited}
+    filtered_non_skill = sorted({kw for kw in _failed_raw if _is_non_skill_phrase(kw)})
+    failed = sorted(_failed_raw - set(filtered_non_skill))
 
     # Build a tailored matching by promoting the credited keywords.
     tailored_matching = _promote_injections(matching, credited)
@@ -148,6 +163,7 @@ def run_tailored_rescoring(
         "ats_lift":                     lift,
         "injected_keywords":            injected,
         "failed_to_inject":             failed,
+        "filtered_as_non_skill":        filtered_non_skill,
         "honest_gaps":                  honest_gaps,
         "fabricated_keywords":          fabricated,
         "tailored_matching":            tailored_matching,

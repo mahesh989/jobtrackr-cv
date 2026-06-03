@@ -345,10 +345,11 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 final_score >= payload.min_final_ats,
             )
         await save_step_result(run_id, "injected_keywords", {
-            "injected":         rescore["injected_keywords"],
-            "failed_to_inject": rescore["failed_to_inject"],
-            "honest_gaps":      rescore["honest_gaps"],
-            "fabricated":       rescore.get("fabricated_keywords") or [],
+            "injected":              rescore["injected_keywords"],
+            "failed_to_inject":      rescore["failed_to_inject"],
+            "filtered_as_non_skill": rescore.get("filtered_as_non_skill") or [],
+            "honest_gaps":           rescore["honest_gaps"],
+            "fabricated":            rescore.get("fabricated_keywords") or [],
         })
         await mark_step(run_id, step_status, "tailored_cv", "completed")
 

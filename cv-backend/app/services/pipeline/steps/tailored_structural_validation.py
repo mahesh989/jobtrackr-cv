@@ -98,6 +98,13 @@ def run_tailored_structural_validation(
         sections = _split_sections(tailored_markdown or "")
         jd_vocab = _build_jd_vocabulary(jd_analysis or {})
 
+        # Family-aware expected Skills categories. The first label varies by
+        # role family ("Technical Skills" for tech, "Care Skills" for nursing,
+        # "Core Skills" for manual). The gate fails harmlessly for tech CVs if
+        # we omit this — its hardcoded {Technical, Soft, Other} was never going
+        # to pass nursing or manual CVs.
+        expected_skills_labels = _resolve_expected_skills_labels(jd_analysis)
+
         gates: List[Dict[str, Any]] = [
             _gate_profile_word_count(sections),
             _gate_seniority_literal_match(sections, original_cv_text),
@@ -109,7 +116,7 @@ def run_tailored_structural_validation(
             _gate_experience_bullet_length(sections),
             _gate_period_terminator(sections),
             _gate_metric_coverage(sections),
-            _gate_skills_min_per_category(sections),
+            _gate_skills_min_per_category(sections, expected_skills_labels),
             _gate_highlights_prose_shape(sections),
             _gate_highlights_reference_check(sections),
             _gate_degree_relevance(sections, jd_vocab),
@@ -560,12 +567,32 @@ def _gate_metric_coverage(sections: Dict[str, str]) -> Dict[str, Any]:
     return _result("metric_coverage", "pass", detail)
 
 
-def _gate_skills_min_per_category(sections: Dict[str, str]) -> Dict[str, Any]:
+def _resolve_expected_skills_labels(jd_analysis: Dict[str, Any] | None) -> set[str]:
+    """Pick the expected Skills-section category labels for the role family.
+
+    Reads `category_labels` (a 3-element list) that the orchestrator attaches
+    to `jd_analysis` after running `resolve_role_family`. Falls back to the
+    tech-shaped {Technical, Soft, Other} set when no family is attached
+    (legacy resumes / unknown vertical).
     """
-    The ## Skills section must use exactly the three fixed categories —
-    Technical Skills, Soft Skills, Other Skills — and each line should
-    carry at least 3 skills (sub-groups separated by ` | ` are flattened
-    for the count).
+    fallback = {"technical skills", "soft skills", "other skills"}
+    if not jd_analysis:
+        return fallback
+    labels = jd_analysis.get("category_labels")
+    if not isinstance(labels, list) or len(labels) < 3:
+        return fallback
+    return {str(lbl).lower().strip() for lbl in labels if isinstance(lbl, str) and lbl.strip()}
+
+
+def _gate_skills_min_per_category(
+    sections: Dict[str, str], expected: set[str]
+) -> Dict[str, Any]:
+    """
+    The ## Skills section must use the three category labels appropriate for
+    the role family — Technical/Soft/Other for tech, Care/Soft/Other for
+    nursing, Core/Soft/Other for manual — and each line should carry at
+    least 3 skills (sub-groups separated by ` | ` are flattened for the
+    count).
     """
     body = _resolve_section(sections, _SKILLS_ALIASES)
     if not body:
@@ -574,7 +601,6 @@ def _gate_skills_min_per_category(sections: Dict[str, str]) -> Dict[str, Any]:
             "No skills section detected.",
         )
 
-    expected = {"technical skills", "soft skills", "other skills"}
     lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
 
     found_categories: List[str] = []
@@ -725,6 +751,14 @@ def _gate_highlights_reference_check(sections: Dict[str, str]) -> Dict[str, Any]
             _EXPERIENCE_ALIASES, _PROJECTS_ALIASES,
             _SKILLS_ALIASES,     _EDUCATION_ALIASES,
             ("certifications",),
+            # Family-specific sections that exist outside tech: nursing CVs
+            # cite awards / registration credentials that DO live in the
+            # body but in sections this gate didn't scan. Without these,
+            # the gate falsely flags "Staff Excellence Award" as a ghost
+            # reference (it's in ## Awards, not ## Experience).
+            ("awards", "honours", "honors", "recognition"),
+            ("registration & licences", "registration", "licences",
+             "registrations", "licenses"),
         )
     )
     body_lower = body_blob.lower()

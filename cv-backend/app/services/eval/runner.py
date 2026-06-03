@@ -88,10 +88,11 @@ async def compute_eval(
     grounding = compute_grounding(wr.tailored_md, cv_text)
 
     rescore_report = {
-        "injected_keywords": rescore.get("injected_keywords") or [],
-        "failed_to_inject": rescore.get("failed_to_inject") or [],
-        "honest_gaps": rescore.get("honest_gaps") or [],
-        "fabricated_keywords": rescore.get("fabricated_keywords") or [],
+        "injected_keywords":     rescore.get("injected_keywords") or [],
+        "failed_to_inject":      rescore.get("failed_to_inject") or [],
+        "filtered_as_non_skill": rescore.get("filtered_as_non_skill") or [],
+        "honest_gaps":           rescore.get("honest_gaps") or [],
+        "fabricated_keywords":   rescore.get("fabricated_keywords") or [],
     }
 
     timings_ms = {
