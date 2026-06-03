@@ -112,17 +112,43 @@ class AIClient:
             # native param. Provider default data policy applies until then.
             pass
 
-        async def _call(tokens: int):
-            return await client.messages.create(
-                model=self.model,
-                max_tokens=tokens,
-                temperature=temperature,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
+        # Some newer Anthropic models (Opus 4.7+, including 4.8) reject the
+        # `temperature` parameter with HTTP 400:
+        #   "`temperature` is deprecated for this model."
+        # Rather than maintain a model allow/denylist that drifts as Anthropic
+        # adds versions, mirror the OpenAI path: try with temperature, catch
+        # the specific error, retry once without. This keeps the tuned 0.1
+        # temperature for older Claude models that still accept it.
+        async def _call(tokens: int, include_temperature: bool = True):
+            kwargs: Dict[str, Any] = {
+                "model": self.model,
+                "max_tokens": tokens,
+                "system": system,
+                "messages": [{"role": "user", "content": user}],
+            }
+            if include_temperature:
+                kwargs["temperature"] = temperature
+            return await client.messages.create(**kwargs)
 
         try:
-            response = await _call(max_tokens)
+            try:
+                response = await _call(max_tokens)
+            except Exception as exc:
+                msg = str(exc)
+                temp_deprecated = (
+                    "temperature" in msg.lower()
+                    and ("deprecated" in msg.lower()
+                         or "not supported" in msg.lower()
+                         or "unsupported" in msg.lower())
+                )
+                if temp_deprecated:
+                    logger.info(
+                        "Anthropic model %s rejected temperature; retrying without it.",
+                        self.model,
+                    )
+                    response = await _call(max_tokens, include_temperature=False)
+                else:
+                    raise
             # Auto-retry once on max_tokens truncation — keeps cv-magic's
             # per-step max_tokens unchanged in the steps directory, just
             # adds resilience when a verbose JD overflows the cap.
