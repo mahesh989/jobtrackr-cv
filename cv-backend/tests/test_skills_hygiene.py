@@ -115,6 +115,15 @@ def test_predicate_rejects_non_skills():
         "Community Setting",
         "Rehabilitation Ward",
         "Acute Care Facility",
+        # Regression: production Rashmi CV listed bare "Residential Care" under
+        # Other Skills. A bare sector/setting name (no audience or "setting"
+        # suffix to trip the regex) — says WHERE the work happens, not WHAT the
+        # candidate can do. Caught via the exact blocklist.
+        "Residential Care",
+        "Nursing Home",
+        "Care Facility",
+        "Aged Care Facility",
+        "Residential Aged Care Facility",
     ]:
         assert _is_non_skill_phrase(junk), junk
 

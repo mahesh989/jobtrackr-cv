@@ -634,6 +634,12 @@ _NON_SKILL_EXACT: set[str] = {
     "aged care", "aged care practices", "aged care practice",
     "aged care experience", "ageing support", "ageing",
     "residential aged care", "home care", "community care",
+    # Bare care-sector / setting names — these say WHERE the work happens,
+    # not WHAT the candidate can do. "Residential Care" was leaking into the
+    # Other Skills line; the real competencies (Personal Care, Dementia Care)
+    # live on the Skills lines, the setting belongs in the summary/experience.
+    "residential care", "nursing home", "care facility",
+    "aged care facility", "residential aged care facility",
 }
 # Entries beginning with these are JD-phrasing fillers, not skills.
 _NON_SKILL_PREFIXES: tuple[str, ...] = (
