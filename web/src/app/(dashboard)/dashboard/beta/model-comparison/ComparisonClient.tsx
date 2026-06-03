@@ -17,6 +17,53 @@ type ComparisonRun = {
   label: string;
 };
 
+// Pricing per 1M tokens (as of 2026-06-03)
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "gpt-4o":           { input: 5,     output: 15 },
+  "gpt-4-turbo":      { input: 10,    output: 30 },
+  "gpt-5":            { input: 40,    output: 160 },
+  "gpt-5.1":          { input: 40,    output: 160 },
+  "gpt-5.2":          { input: 40,    output: 160 },
+  "gpt-5.5":          { input: 40,    output: 160 },
+  "claude-opus-4-7":  { input: 15,    output: 75 },
+  "claude-opus-4-8":  { input: 15,    output: 75 },
+  "claude-sonnet-4-6": { input: 3,    output: 15 },
+};
+
+const POLL_INTERVAL_MS = 3000;
+
+const OPENAI_MODELS = [
+  "gpt-4o",
+  "gpt-4-turbo",
+  "gpt-5",
+  "gpt-5.1",
+  "gpt-5.2",
+  "gpt-5.5",
+];
+
+const ANTHROPIC_MODELS = [
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+];
+
+function estimateCost(model: string, cvLength: number, jdLength: number): { input: number; output: number; total: number } {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return { input: 0, output: 0, total: 0 };
+
+  const inputTokens = Math.ceil((cvLength + jdLength) / 4);
+  const outputTokens = Math.ceil(inputTokens * 0.5);
+
+  const inputCost = (inputTokens / 1_000_000) * pricing.input;
+  const outputCost = (outputTokens / 1_000_000) * pricing.output;
+
+  return {
+    input: inputCost,
+    output: outputCost,
+    total: inputCost + outputCost,
+  };
+}
+
 type TriggerResult = {
   writer_variant: string;
   eval_run_id?: string;
@@ -30,15 +77,6 @@ type RunResponse = {
   model: string | null;
   triggers: TriggerResult[];
 };
-
-const POLL_INTERVAL_MS = 3000;
-
-const RUNS: ComparisonRun[] = [
-  { id: "openai_1",    provider: "openai",    model: "gpt-4o",              label: "OpenAI #1 (GPT-4o)" },
-  { id: "openai_2",    provider: "openai",    model: "gpt-4o",              label: "OpenAI #2 (GPT-4o)" },
-  { id: "anthropic_1", provider: "anthropic", model: "claude-opus-4-7",     label: "Anthropic #1 (Claude Opus 4.7)" },
-  { id: "anthropic_2", provider: "anthropic", model: "claude-opus-4-7",     label: "Anthropic #2 (Claude Opus 4.7)" },
-];
 
 export default function ComparisonClient({
   cvVersions,
@@ -57,12 +95,15 @@ export default function ComparisonClient({
   const [pastedCv, setPastedCv]     = useState("");
   const [cvLabel, setCvLabel]       = useState("");
   const [writer, setWriter]         = useState<string>("w8_verified");
+  const [selectedOpenAI, setSelectedOpenAI] = useState<Set<string>>(new Set(["gpt-4o"]));
+  const [selectedAnthropic, setSelectedAnthropic] = useState<Set<string>>(new Set(["claude-opus-4-8"]));
 
   const [running, setRunning]       = useState(false);
   const [runError, setRunError]     = useState<string | null>(null);
   const [experimentId, setExperimentId] = useState<string | null>(null);
   const [results, setResults]       = useState<Record<string, EvalRunRow>>({});
   const [evalRunIds, setEvalRunIds] = useState<Record<string, string>>({});
+  const [estimatedCosts, setEstimatedCosts] = useState<Record<string, { input: number; output: number; total: number }>>({});
 
   const pollTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
@@ -109,14 +150,16 @@ export default function ComparisonClient({
     if (cvMode === "paste"   && pastedCv.trim().length < 50) return false;
     if (cvMode === "version" && !cvVersionId) return false;
     if (connectedProviders.length === 0) return false;
+    if (selectedOpenAI.size === 0 && selectedAnthropic.size === 0) return false;
     return true;
-  }, [running, jdText, cvMode, pastedCv, cvVersionId, connectedProviders]);
+  }, [running, jdText, cvMode, pastedCv, cvVersionId, connectedProviders, selectedOpenAI, selectedAnthropic]);
 
   const onRun = async () => {
     setRunning(true);
     setRunError(null);
     setResults({});
     setEvalRunIds({});
+    setEstimatedCosts({});
     setExperimentId(null);
 
     let cvText = (pastedCv ?? "").trim();
@@ -147,13 +190,43 @@ export default function ComparisonClient({
       return;
     }
 
+    const runs: ComparisonRun[] = [];
+    let id = 0;
+    for (const model of Array.from(selectedOpenAI)) {
+      runs.push({
+        id: `openai_${id++}`,
+        provider: "openai",
+        model,
+        label: `OpenAI — ${model}`,
+      });
+    }
+    id = 0;
+    for (const model of Array.from(selectedAnthropic)) {
+      runs.push({
+        id: `anthropic_${id++}`,
+        provider: "anthropic",
+        model,
+        label: `Anthropic — ${model}`,
+      });
+    }
+
+    if (runs.length === 0) {
+      setRunError("Select at least one model");
+      setRunning(false);
+      return;
+    }
+
     const expId = crypto.randomUUID();
-
     const newEvalRunIds: Record<string, string> = {};
+    const costs: Record<string, { input: number; output: number; total: number }> = {};
 
-    // Fan out to all 4 runs in parallel
+    for (const run of runs) {
+      costs[run.id] = estimateCost(run.model, cvText.length, jdText.length);
+    }
+    setEstimatedCosts(costs);
+
     const triggers = await Promise.all(
-      RUNS.map(async (run) => {
+      runs.map(async (run) => {
         try {
           const payload = {
             jd_text:         jdText,
@@ -204,7 +277,6 @@ export default function ComparisonClient({
 
     setRunning(false);
 
-    // Check for errors
     const errors = triggers.filter((t) => "error" in t && t.error).map((t) => `${t.run.label}: ${t.error}`);
     if (errors.length > 0) {
       setRunError(errors.join("; "));
@@ -216,7 +288,7 @@ export default function ComparisonClient({
       <section className="bg-bg-2 border border-border rounded-lg p-4 space-y-4">
         <h2 className="text-[14px] font-semibold text-text">Model Comparison: OpenAI vs Anthropic</h2>
         <p className="text-[12px] text-text-3">
-          Run a single CV + JD through 4 analyses: 2 with OpenAI (GPT-4o) and 2 with Anthropic (Claude Opus 4.7).
+          Run a single CV + JD through multiple models. Select which OpenAI and Anthropic models to test. Estimated cost shown during analysis.
         </p>
 
         {/* JD Input */}
@@ -293,16 +365,6 @@ export default function ComparisonClient({
               placeholder="Paste CV text here…"
             />
           )}
-
-          {cvLabel && cvMode === "paste" && (
-            <input
-              type="text"
-              value={cvLabel}
-              onChange={(e) => setCvLabel(e.target.value)}
-              placeholder="Label this CV (optional)"
-              className="w-full text-[12px] border border-border rounded-md px-3 py-2 bg-bg text-text mt-2"
-            />
-          )}
         </div>
 
         {/* Vertical */}
@@ -335,6 +397,49 @@ export default function ComparisonClient({
           </select>
         </div>
 
+        {/* Model Selection */}
+        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+          <div>
+            <div className="text-[11px] font-semibold text-text-2 mb-2">OpenAI Models</div>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {OPENAI_MODELS.map((model) => (
+                <label key={model} className="flex items-center gap-2 text-[12px]">
+                  <input
+                    type="checkbox"
+                    checked={selectedOpenAI.has(model)}
+                    onChange={(e) => {
+                      const next = new Set(selectedOpenAI);
+                      if (e.target.checked) next.add(model); else next.delete(model);
+                      setSelectedOpenAI(next);
+                    }}
+                  />
+                  <span>{model}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] font-semibold text-text-2 mb-2">Anthropic Models</div>
+            <div className="space-y-1">
+              {ANTHROPIC_MODELS.map((model) => (
+                <label key={model} className="flex items-center gap-2 text-[12px]">
+                  <input
+                    type="checkbox"
+                    checked={selectedAnthropic.has(model)}
+                    onChange={(e) => {
+                      const next = new Set(selectedAnthropic);
+                      if (e.target.checked) next.add(model); else next.delete(model);
+                      setSelectedAnthropic(next);
+                    }}
+                  />
+                  <span>{model}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Run Button */}
         <div className="flex items-center gap-3">
           <button
@@ -342,7 +447,7 @@ export default function ComparisonClient({
             disabled={!canRun}
             className="gh-btn gh-btn-blue text-[12px] px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {running ? "Running 4 analyses…" : "Compare Models"}
+            {running ? `Running ${selectedOpenAI.size + selectedAnthropic.size} analyses…` : `Compare Models (${selectedOpenAI.size + selectedAnthropic.size})`}
           </button>
           {experimentId && (
             <span className="text-[11px] text-text-3 font-mono">exp: {experimentId.slice(0, 8)}…</span>
@@ -353,71 +458,115 @@ export default function ComparisonClient({
 
       {/* Results Grid */}
       {Object.keys(evalRunIds).length > 0 && (
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {RUNS.map((run) => {
-            const evalRunId = evalRunIds[run.id];
-            const row = evalRunId ? results[evalRunId] : undefined;
+        <section>
+          <h3 className="text-[12px] font-semibold text-text mb-3">Results</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from(selectedOpenAI)
+              .map((model) => ({ model, provider: "openai" as const }))
+              .concat(Array.from(selectedAnthropic).map((model) => ({ model, provider: "anthropic" as const })))
+              .map(({ model, provider }, idx) => {
+                const run = { id: `${provider}_${idx}`, provider, model, label: `${provider} — ${model}` };
+                const evalRunId = evalRunIds[run.id];
+                const row = evalRunId ? results[evalRunId] : undefined;
+                const cost = estimatedCosts[run.id];
 
-            return (
-              <div
-                key={run.id}
-                className="bg-bg-2 border border-border rounded-lg p-4 space-y-3"
-              >
-                <div className="text-[12px] font-semibold text-text">{run.label}</div>
-
-                {!evalRunId && (
-                  <div className="text-[11px] text-text-3">Queued…</div>
-                )}
-
-                {evalRunId && !row && (
-                  <div className="text-[11px] text-text-3 animate-pulse">Running…</div>
-                )}
-
-                {row && (
-                  <div className="space-y-2 text-[11px]">
+                return (
+                  <div
+                    key={run.id}
+                    className="bg-bg-2 border border-border rounded-lg p-4 space-y-3"
+                  >
                     <div>
-                      <span className="text-text-3">Status:</span>{" "}
-                      <span className={row.status === "completed" ? "text-[#2da44e]" : row.status === "failed" ? "text-[#CF222E]" : "text-text-3"}>
-                        {row.status}
-                      </span>
+                      <div className="text-[12px] font-semibold text-text">{run.label}</div>
+                      {cost && (
+                        <div className="text-[11px] text-text-3 mt-0.5">
+                          Est. cost: <span className="font-mono">${cost.total.toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
 
-                    {row.status === "completed" && row.auto_metrics && (
-                      <>
-                        <div className="border-t border-border pt-2 space-y-1">
-                          <div><span className="text-text-3">Initial ATS:</span> {row.initial_ats}%</div>
-                          <div><span className="text-text-3">Final ATS:</span> {row.final_ats}%</div>
-                          <div><span className="text-text-3">ATS Lift:</span> <span className={row.ats_lift > 0 ? "text-[#2da44e]" : ""}>{row.ats_lift > 0 ? "+" : ""}{row.ats_lift}%</span></div>
-                          <div><span className="text-text-3">Injected:</span> {row.auto_metrics.injected_count}</div>
-                          <div><span className="text-text-3">Fabricated:</span> {row.auto_metrics.fabricated_count}</div>
-                          <div><span className="text-text-3">Ungrounded:</span> {row.auto_metrics.ungrounded_count}</div>
-                          <div><span className="text-text-3">Word Count:</span> {row.auto_metrics.tailored_word_count}</div>
-                        </div>
-
-                        {row.tailored_md && (
-                          <button
-                            onClick={() => {
-                              const text = row.tailored_md || "";
-                              void navigator.clipboard.writeText(text);
-                            }}
-                            className="text-[11px] text-blue-500 hover:underline"
-                          >
-                            Copy Tailored MD
-                          </button>
-                        )}
-                      </>
+                    {!evalRunId && (
+                      <div className="text-[11px] text-text-3">Queued…</div>
                     )}
 
-                    {row.status === "failed" && row.error && (
-                      <div className="text-[#CF222E] text-[10px] border border-[#CF222E] rounded p-2">
-                        {row.error.slice(0, 200)}
+                    {evalRunId && !row && (
+                      <div className="text-[11px] text-text-3 animate-pulse">Running…</div>
+                    )}
+
+                    {row && (
+                      <div className="space-y-2 text-[11px]">
+                        <div>
+                          <span className="text-text-3">Status:</span>{" "}
+                          <span
+                            className={
+                              row.status === "completed"
+                                ? "text-[#2da44e]"
+                                : row.status === "failed"
+                                  ? "text-[#CF222E]"
+                                  : "text-text-3"
+                            }
+                          >
+                            {row.status}
+                          </span>
+                        </div>
+
+                        {row.status === "completed" && row.auto_metrics && (
+                          <>
+                            <div className="border-t border-border pt-2 space-y-1">
+                              <div>
+                                <span className="text-text-3">Initial ATS:</span> {row.initial_ats}%
+                              </div>
+                              <div>
+                                <span className="text-text-3">Final ATS:</span> {row.final_ats}%
+                              </div>
+                              <div>
+                                <span className="text-text-3">ATS Lift:</span>{" "}
+                                <span className={row.ats_lift > 0 ? "text-[#2da44e]" : ""}>
+                                  {row.ats_lift > 0 ? "+" : ""}
+                                  {row.ats_lift}%
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-text-3">Injected:</span> {row.auto_metrics.injected_count}
+                              </div>
+                              <div>
+                                <span className="text-text-3">Fabricated:</span>{" "}
+                                {row.auto_metrics.fabricated_count}
+                              </div>
+                              <div>
+                                <span className="text-text-3">Ungrounded:</span>{" "}
+                                {row.auto_metrics.ungrounded_count}
+                              </div>
+                              <div>
+                                <span className="text-text-3">Word Count:</span>{" "}
+                                {row.auto_metrics.tailored_word_count}
+                              </div>
+                            </div>
+
+                            {row.tailored_md && (
+                              <button
+                                onClick={() => {
+                                  const text = row.tailored_md || "";
+                                  void navigator.clipboard.writeText(text);
+                                }}
+                                className="text-[11px] text-blue-500 hover:underline"
+                              >
+                                Copy Tailored MD
+                              </button>
+                            )}
+                          </>
+                        )}
+
+                        {row.status === "failed" && row.error && (
+                          <div className="text-[#CF222E] text-[10px] border border-[#CF222E] rounded p-2">
+                            {row.error.slice(0, 200)}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+          </div>
         </section>
       )}
     </div>
