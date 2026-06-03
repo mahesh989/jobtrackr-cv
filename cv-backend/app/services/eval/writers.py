@@ -58,6 +58,7 @@ from app.services.eval.enforce_w3 import (
     restrict_domain_to_direct,
     enforce_summary_identity,
     enforce_summary_breadth_consistency,
+    enforce_summary_dedup,
 )
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
@@ -693,6 +694,15 @@ _NON_SKILL_PATTERN = re.compile(
     # "Infection Control Principles" → skill is "Infection Control". No meaningful
     # skills line entry ends with the word "principles".
     r"|\bprinciples\s*$"
+    # Professional-framework / boundary concepts — NOT discrete skills.
+    # "Nursing Scope of Practice", "Scope of Practice", "Duty of Care",
+    # "Code of Conduct", "Standards of Practice", "Model of Care". The
+    # underlying skill (e.g. "Clinical Documentation", "Wound Care") is what
+    # belongs on a Skills line — never the governing framework itself.
+    r"|\bscope\s+of\b"
+    r"|\bduty\s+of\s+care\b"
+    r"|\bcode\s+of\s+conduct\b"
+    r"|(?:of\s+(?:practice|conduct|care))\s*$"
     # Availability, shifts, schedules, hours, and days of the week
     r"|availability|available\b"
     r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"
@@ -2132,6 +2142,9 @@ async def _writer_w8_verified(
     # Summary breadth/single-employer consistency — when S1 frames breadth
     # ("multiple settings"), strip a cherry-picked single employer from S2.
     verified_md = enforce_summary_breadth_consistency(verified_md)
+    # Summary S1↔S2 de-duplication — drop any S2 clause that merely restates S1
+    # (a near-repeat that just re-lists the Skills section as prose).
+    verified_md = enforce_summary_dedup(verified_md)
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent
@@ -2230,6 +2243,10 @@ async def _writer_w8_critique(
     # rationale as w8_verified: verify's summary repair can re-add an off-axis
     # conjoined identity that's CV-true but not the JD's role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
+    # Summary consistency parity with w8_verified: align S1/S2 (breadth) and drop
+    # any S2 clause that merely restates S1.
+    verified_md = enforce_summary_breadth_consistency(verified_md)
+    verified_md = enforce_summary_dedup(verified_md)
     # Re-run the awards/section normalisers — verify_claims can rewrite the
     # Awards/Certifications section back to a messy shape; these deterministic
     # idempotent passes guarantee the structured Awards layout survives.

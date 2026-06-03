@@ -2,7 +2,10 @@
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import enforce_summary_breadth_consistency
+from app.services.eval.enforce_w3 import (
+    enforce_summary_breadth_consistency,
+    enforce_summary_dedup,
+)
 from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
@@ -1157,3 +1160,112 @@ def test_filler_excluded_from_feasibility_plan():
         for e in bucket
     ]
     assert "working knowledge of whs" not in all_kws
+
+
+# ---------------------------------------------------------------------------
+# Professional-framework phrases ("Scope of Practice", "Duty of Care") are not
+# discrete skills and must be stripped from the Skills section.
+# ---------------------------------------------------------------------------
+
+
+def test_framework_phrases_are_non_skills():
+    for junk in [
+        "Nursing Scope Of Practice",
+        "Scope of Practice",
+        "Duty of Care",
+        "Code of Conduct",
+        "Standards of Practice",
+        "Model of Care",
+    ]:
+        assert _is_non_skill_phrase(junk), junk
+
+
+def test_framework_phrases_keep_real_skills():
+    for real in [
+        "Personal Care",
+        "Wound Care",
+        "Dementia Care",
+        "Person-Centred Care",
+        "Medication Assistance",
+        "Project Scope Management",
+        "Communication",
+        "BESTMed",
+    ]:
+        assert not _is_non_skill_phrase(real), real
+
+
+def test_scope_of_practice_stripped_from_other_skills():
+    md = (
+        "## Skills\n"
+        "**Other Skills:** BESTMed, MedMobile, Nursing Scope Of Practice\n\n"
+        "## Experience\n"
+    )
+    out = _strip_non_skill_phrases(md)
+    assert "Scope Of Practice" not in out
+    assert "BESTMed, MedMobile" in out
+
+
+# ---------------------------------------------------------------------------
+# Professional Summary S1<->S2 de-duplication.
+# ---------------------------------------------------------------------------
+
+
+def test_summary_dedup_drops_fully_redundant_clause():
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing with experience across multiple residential aged care "
+        "settings, providing medication support and person-centred care for elderly "
+        "residents. Experienced in electronic medication administration, comprehensive "
+        "personal care, and supporting residents living with dementia.\n\n"
+        "## Skills\n- **Care Skills:** Personal Care\n"
+    )
+    out = enforce_summary_breadth_consistency(md)  # no-op precondition check
+    out = enforce_summary_dedup(md)
+    summary = out.split("## Skills")[0]
+    # The redundant "comprehensive personal care" clause is gone...
+    assert "personal care" not in summary.lower()
+    # ...but clauses carrying NEW info survive.
+    assert "electronic medication administration" in summary.lower()
+    assert "dementia" in summary.lower()
+
+
+def test_summary_dedup_keeps_distinct_s2():
+    """S2 with genuinely new content must be untouched."""
+    md = (
+        "## Professional Summary\n\n"
+        "Registered Nurse with three years in acute care, specialising in wound "
+        "management and triage. Reduced medication errors by 30% through a new "
+        "double-check protocol at Royal North Shore Hospital.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_dedup(md)
+    assert out == md
+
+
+def test_summary_dedup_preserves_semicolon_two_role_s2():
+    """The intentional two-role ';' shape is never thinned."""
+    md = (
+        "## Professional Summary\n\n"
+        "Care professional with experience in aged care and disability support. "
+        "Provided personal care at Jesmond Miranda Nursing Home; delivered personal "
+        "care at Uniting Marion.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_dedup(md)
+    assert out == md
+
+
+def test_summary_dedup_never_empties_s2():
+    """If every clause is redundant, keep the last one — never produce a 1-sentence
+    summary."""
+    md = (
+        "## Professional Summary\n\n"
+        "Carer providing personal care and medication support for elderly residents. "
+        "Personal care, medication support.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_dedup(md)
+    summary = out.split("## Experience")[0]
+    # S2 still has content (two sentences preserved).
+    sents = [s for s in summary.replace("## Professional Summary", "").split(".") if s.strip()]
+    assert len(sents) >= 2

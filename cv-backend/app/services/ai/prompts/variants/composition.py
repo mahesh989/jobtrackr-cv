@@ -383,6 +383,16 @@ place; do not emit until every item passes):
      METHOD + RESULT: every clause names a method and either a quantified
      result or a concrete non-numeric outcome from the CV (never a
      fabricated number).
+     S1<->S2 NON-DUPLICATION (HARD): S2 must introduce competencies/outcomes
+     NOT already stated in S1. Do not restate an S1 concept with a synonym or a
+     reworded form: S1 "medication support" -> S2 must NOT say "medication
+     administration"; S1 "person-centred care" -> S2 must NOT say "personal
+     care"; S1 "elderly residents" -> S2 must NOT say "residents". The summary
+     is NOT a prose re-list of the Skills section. If S2 would only echo S1,
+     REWRITE it around something distinct the CV supports — a named
+     system/process, a scope or quality outcome (incident-free record, audit
+     pass), or a different JD-aligned specialisation. Each S2 clause must add at
+     least one genuinely new idea.
 (5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
      client, tool, or achievement absent from kept sections).
 (6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence

@@ -488,6 +488,136 @@ def enforce_summary_breadth_consistency(md: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Summary S1↔S2 de-duplication
+# ---------------------------------------------------------------------------
+# The professional summary must be EXACTLY two sentences that tell a progressive
+# story — S2 should add competencies/outcomes NOT already in S1. The model
+# sometimes writes S2 as a near-restatement of S1 (S1 "medication support …
+# person-centred care" → S2 "electronic medication administration … personal
+# care …"), which reads as padding and just re-lists the Skills section.
+#
+# This deterministic gate removes any S2 *clause* (comma-separated span) whose
+# meaningful content words are ALL already covered by S1 — i.e. the clause adds
+# no new concept. It is conservative by construction:
+#   • generic modifier adjectives ("comprehensive", "ongoing", …) are ignored
+#     when judging redundancy, so "comprehensive personal care" is recognised as
+#     a restatement of S1's "person-centred care";
+#   • a clause survives the moment it carries ONE genuinely new content word
+#     ("electronic", "dementia", a named system), so distinct value is never
+#     lost;
+#   • the LAST surviving clause is never dropped — S2 always keeps real content;
+#   • a content word "covers" another when they share a 4-char prefix, catching
+#     morphological variants (residents/residential, support/supporting) without
+#     a stemmer.
+
+# Filler adjectives/adverbs that carry no distinct competency on their own — we
+# ignore them when deciding whether an S2 clause merely restates S1.
+_SUMMARY_FILLER_WORDS = {
+    "comprehensive", "extensive", "thorough", "detailed", "holistic", "ongoing",
+    "various", "varied", "strong", "excellent", "effective", "efficient", "broad",
+    "general", "advanced", "quality", "daily", "regular", "consistent", "dedicated",
+    "compassionate", "solid", "sound", "proven", "demonstrated", "professional",
+    "exceptional", "outstanding", "robust", "reliable", "diverse", "wide",
+    "extensively", "experienced", "skilled", "providing", "provided", "delivering",
+    "delivered", "supporting", "support", "including", "across", "within", "while",
+    "with", "and", "the", "for", "their", "them", "that", "this", "these", "those",
+    "from", "into", "onto", "over", "under", "throughout", "where", "which", "who",
+    "whom", "whose", "when", "what", "also", "both", "each", "every", "such", "very",
+    "more", "most", "much", "many", "some", "any", "all", "well",
+}
+
+_SUMMARY_WORD_RE = re.compile(r"[a-z][a-z'\-]*")
+
+
+def _summary_content_words(text: str) -> List[str]:
+    """Lowercased content tokens (≥4 chars, not filler), hyphens split out so
+    'person-centred' contributes both 'person' and 'centred'."""
+    out: List[str] = []
+    for tok in _SUMMARY_WORD_RE.findall(text.lower()):
+        for part in tok.split("-"):
+            part = part.strip("'")
+            if len(part) >= 4 and part not in _SUMMARY_FILLER_WORDS:
+                out.append(part)
+    return out
+
+
+def _word_covered_by(word: str, pool: List[str]) -> bool:
+    """A content word is 'covered' if `pool` holds a word sharing its 4-char
+    prefix (handles support/supporting, residents/residential, care/caring)."""
+    p = word[:4]
+    return any(w[:4] == p for w in pool)
+
+
+def enforce_summary_dedup(md: str) -> str:
+    """Drop fully-redundant S2 clauses that merely restate S1 (see header)."""
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    prose_idx = [
+        i for i in range(start + 1, end)
+        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
+    ]
+    if not prose_idx:
+        return md
+    full = " ".join(lines[i].strip() for i in prose_idx).strip()
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
+    if len(sentences) < 2:
+        return md
+
+    s1, s2 = sentences[0], sentences[1]
+    # A two-clause S2 joined by a SEMICOLON is the intentional "two distinct
+    # roles" shape — leave it untouched.
+    if ";" in s2:
+        return md
+
+    # Split S2 into comma clauses, stripping a leading "and " on each.
+    raw_clauses = [c.strip() for c in s2.rstrip(".!?").split(",")]
+    clauses = [re.sub(r"^(?:and|or)\s+", "", c, flags=re.IGNORECASE).strip() for c in raw_clauses]
+    clauses = [c for c in clauses if c]
+    if len(clauses) < 2:
+        return md  # nothing to thin out
+
+    s1_words = _summary_content_words(s1)
+
+    kept: List[str] = []
+    dropped = 0
+    for c in clauses:
+        cwords = _summary_content_words(c)
+        # Redundant = has content AND every content word is already covered by S1.
+        redundant = bool(cwords) and all(_word_covered_by(w, s1_words) for w in cwords)
+        if redundant and dropped < len(clauses) - 1:
+            dropped += 1
+            continue
+        kept.append(c)
+
+    if not dropped or not kept:
+        return md
+
+    # Reassemble: "A and B" for two, "A, B, and C" for three+.
+    if len(kept) == 1:
+        new_s2 = kept[0]
+    elif len(kept) == 2:
+        new_s2 = f"{kept[0]} and {kept[1]}"
+    else:
+        new_s2 = ", ".join(kept[:-1]) + f", and {kept[-1]}"
+    new_s2 = _tidy_clause(new_s2)
+
+    rest = sentences[2:] if len(sentences) > 2 else []
+    new_prose = " ".join([s1, new_s2] + rest)
+
+    for i in prose_idx:
+        lines[i] = ""
+    lines[prose_idx[0]] = new_prose
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Degree relevance
 # ---------------------------------------------------------------------------
 
