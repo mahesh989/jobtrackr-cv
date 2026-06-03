@@ -11,6 +11,7 @@ import { FeasibilityCard }      from "@/components/cv/FeasibilityCard";
 import { RecommendationsCard }  from "@/components/cv/RecommendationsCard";
 import { TailoredCvCard }       from "@/components/cv/TailoredCvCard";
 import { TailoredScoreCard }    from "@/components/cv/TailoredScoreCard";
+import { AnalyzeJobButton }     from "@/components/cv/AnalyzeJobButton";
 
 interface AnalysisRunRow {
   id:                          string;
@@ -316,15 +317,24 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
     <div className="space-y-6">
       {/* Steps */}
       <div className="bg-surface border border-border rounded-md">
-        <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
           <h2 className="text-[14px] font-semibold text-text">Pipeline steps</h2>
-          <span className={`text-[11px] uppercase tracking-wide ${
-            run.status === "failed"  ? "text-red" :
-            run.status === "completed" ? "text-green" :
-            "text-text-3"
-          }`}>
-            {run.status}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className={`text-[11px] uppercase tracking-wide ${
+              run.status === "failed"  ? "text-red" :
+              run.status === "completed" ? "text-green" :
+              "text-text-3"
+            }`}>
+              {run.status}
+            </span>
+            {/* Re-analyse — only once the current run is terminal so we never
+                spawn a second pipeline over a live one. Reuses AnalyzeJobButton,
+                which marks this run stale, creates a fresh run, and navigates
+                to it. */}
+            {isTerminal && run.job_id && (
+              <AnalyzeJobButton jobId={run.job_id} hasAnalysis />
+            )}
+          </div>
         </div>
         <div className="px-5 py-3 divide-y divide-border/50">
           {STEPS
