@@ -3849,6 +3849,24 @@ async def _writer_w8_verified(
     verified_md = _drop_subsumed_generic_skills(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
+    # ── PHASE 2 RE-RUN ──────────────────────────────────────────────────────
+    # verify_claims is an AI step that can rewrite ANY section, undoing the
+    # Phase 2 sprints that ran inside _writer_w8_integrated. Re-run them here
+    # so the final output is always Phase-2-canonical regardless of what the
+    # verifier emits. All passes are idempotent → cheap re-run.
+    #   • Sprint A: split mixed Certifications back into Awards + Certs
+    #   • Sprint B: chronological order + bullet tense
+    #   • Sprint C: body spelling, italic title case, date format
+    #   • Sprint E: enforce Summary S2 concreteness
+    # Sprint D is implicit in _normalise_awards_entries above (line 38).
+    verified_md = split_awards_and_certifications(verified_md)
+    verified_md = _normalise_awards_entries(verified_md)  # re-format any new Awards entries
+    verified_md = sort_experience_chronologically(verified_md)
+    verified_md = normalise_experience_tense(verified_md)
+    verified_md = canonicalise_body_spelling(verified_md)
+    verified_md = normalise_heading_title_case(verified_md)
+    verified_md = normalise_date_formats(verified_md)
+    verified_md = enforce_summary_concreteness(verified_md, cv_text)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -3953,6 +3971,17 @@ async def _writer_w8_critique(
     verified_md = _drop_subsumed_generic_skills(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
+    # ── PHASE 2 RE-RUN (mirrors _writer_w8_verified) ────────────────────────
+    # Same rationale: AI post-passes can undo Phase 2's deterministic shape.
+    # Re-run all Phase 2 sprints; they're idempotent.
+    verified_md = split_awards_and_certifications(verified_md)
+    verified_md = _normalise_awards_entries(verified_md)
+    verified_md = sort_experience_chronologically(verified_md)
+    verified_md = normalise_experience_tense(verified_md)
+    verified_md = canonicalise_body_spelling(verified_md)
+    verified_md = normalise_heading_title_case(verified_md)
+    verified_md = normalise_date_formats(verified_md)
+    verified_md = enforce_summary_concreteness(verified_md, cv_text)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
