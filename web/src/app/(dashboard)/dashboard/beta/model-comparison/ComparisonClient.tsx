@@ -461,10 +461,12 @@ export default function ComparisonClient({
         <section>
           <h3 className="text-[12px] font-semibold text-text mb-3">Results</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.from(selectedOpenAI)
-              .map((model) => ({ model, provider: "openai" as const }))
-              .concat(Array.from(selectedAnthropic).map((model) => ({ model, provider: "anthropic" as const })))
-              .map(({ model, provider }, idx) => {
+            {(
+              [
+                ...Array.from(selectedOpenAI).map((model) => ({ model, provider: "openai" as const })),
+                ...Array.from(selectedAnthropic).map((model) => ({ model, provider: "anthropic" as const })),
+              ] as Array<{ model: string; provider: "openai" | "anthropic" }>
+            ).map(({ model, provider }, idx) => {
                 const run = { id: `${provider}_${idx}`, provider, model, label: `${provider} — ${model}` };
                 const evalRunId = evalRunIds[run.id];
                 const row = evalRunId ? results[evalRunId] : undefined;
@@ -509,36 +511,38 @@ export default function ComparisonClient({
                           </span>
                         </div>
 
-                        {row.status === "completed" && row.auto_metrics && (
+                        {row.status === "completed" && row.auto_metrics && (() => {
+                          const m = row.auto_metrics as Record<string, number | string | null>;
+                          return (
                           <>
                             <div className="border-t border-border pt-2 space-y-1">
                               <div>
-                                <span className="text-text-3">Initial ATS:</span> {row.initial_ats}%
+                                <span className="text-text-3">Initial ATS:</span> {row.initial_ats ?? 0}%
                               </div>
                               <div>
-                                <span className="text-text-3">Final ATS:</span> {row.final_ats}%
+                                <span className="text-text-3">Final ATS:</span> {row.final_ats ?? 0}%
                               </div>
                               <div>
                                 <span className="text-text-3">ATS Lift:</span>{" "}
-                                <span className={row.ats_lift > 0 ? "text-[#2da44e]" : ""}>
-                                  {row.ats_lift > 0 ? "+" : ""}
-                                  {row.ats_lift}%
+                                <span className={row.ats_lift != null && row.ats_lift > 0 ? "text-[#2da44e]" : ""}>
+                                  {row.ats_lift != null && row.ats_lift > 0 ? "+" : ""}
+                                  {row.ats_lift ?? 0}%
                                 </span>
                               </div>
                               <div>
-                                <span className="text-text-3">Injected:</span> {row.auto_metrics.injected_count}
+                                <span className="text-text-3">Injected:</span> {String(m.injected_count ?? 0)}
                               </div>
                               <div>
                                 <span className="text-text-3">Fabricated:</span>{" "}
-                                {row.auto_metrics.fabricated_count}
+                                {String(m.fabricated_count ?? 0)}
                               </div>
                               <div>
                                 <span className="text-text-3">Ungrounded:</span>{" "}
-                                {row.auto_metrics.ungrounded_count}
+                                {String(m.ungrounded_count ?? 0)}
                               </div>
                               <div>
                                 <span className="text-text-3">Word Count:</span>{" "}
-                                {row.auto_metrics.tailored_word_count}
+                                {String(m.tailored_word_count ?? 0)}
                               </div>
                             </div>
 
@@ -554,7 +558,8 @@ export default function ComparisonClient({
                               </button>
                             )}
                           </>
-                        )}
+                          );
+                        })()}
 
                         {row.status === "failed" && row.error && (
                           <div className="text-[#CF222E] text-[10px] border border-[#CF222E] rounded p-2">
