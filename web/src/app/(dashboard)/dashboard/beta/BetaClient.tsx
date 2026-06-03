@@ -32,6 +32,18 @@ const SCORERS: VariantOpt[] = [
 
 const VERTICALS = ["it", "nursing", "cleaner", "admin", "master", "other"] as const;
 
+const MODELS = [
+  { id: "auto",      label: "Auto (key config)" },
+  { id: "gpt-4o",    label: "GPT-4o" },
+  { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
+  { id: "gpt-5",     label: "GPT-5" },
+  { id: "gpt-5.1",   label: "GPT-5.1" },
+  { id: "gpt-5.2",   label: "GPT-5.2" },
+  { id: "gpt-5.5",   label: "GPT-5.5" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+] as const;
+
 export type BetaCvVersion = {
   id: string;
   label: string;
@@ -75,6 +87,7 @@ export default function BetaClient({
   const [writers, setWriters]     = useState<Set<string>>(new Set(["w1_current"]));
   const [scorer, setScorer]       = useState<string>("s1_current");
   const [provider, setProvider]   = useState<string>("auto");
+  const [model, setModel]         = useState<string>("auto");
 
   // ─── Run state ─────────────────────────────────────────────────────────
   const [running, setRunning]     = useState(false);
@@ -152,6 +165,7 @@ export default function BetaClient({
       writer_variants: Array.from(writers),
       scorer_variant:  scorer,
       provider:        provider === "auto" ? undefined : provider,
+      ai_model:        model === "auto" ? undefined : model,
     };
     if (cvMode === "paste") {
       payload.cv_text   = pastedCv;
@@ -357,6 +371,36 @@ export default function BetaClient({
               {SCORERS.map((s) => (
                 <option key={s.id} value={s.id} disabled={!s.available}>
                   {s.label}{s.available ? "" : ` (${s.note})`}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-[11px] font-semibold text-text-2 mb-1.5">AI Provider</div>
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              className="text-[12px] border border-border rounded-md px-2 py-1.5 bg-bg text-text w-full"
+            >
+              <option value="auto">Auto (from key config)</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-text-2 mb-1.5">Model</div>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="text-[12px] border border-border rounded-md px-2 py-1.5 bg-bg text-text w-full"
+            >
+              {MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
                 </option>
               ))}
             </select>

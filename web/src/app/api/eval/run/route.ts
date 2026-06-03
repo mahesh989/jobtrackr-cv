@@ -32,6 +32,7 @@ type Body = {
   experiment_id?:  string;
   iteration?:      number;
   provider?:       Provider;
+  ai_model?:       string;
 };
 
 export async function POST(req: NextRequest) {
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
-  const aiModel = chosenEntry.model;
+  const aiModel = body.ai_model ?? chosenEntry.model;
 
   // ── 5. Optional contact details for the contact-line stamp ──────────────
   const { data: prefRow } = await admin
