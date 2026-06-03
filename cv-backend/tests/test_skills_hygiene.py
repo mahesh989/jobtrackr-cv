@@ -5,6 +5,8 @@ from app.services.eval.enforce import enforce_skills_section
 from app.services.eval.enforce_w3 import (
     enforce_summary_breadth_consistency,
     enforce_summary_dedup,
+    enforce_summary_title_dedup,
+    enforce_summary_skills_dedup,
 )
 from app.services.eval.writers import (
     _is_non_skill_phrase,
@@ -21,6 +23,7 @@ from app.services.eval.writers import (
     _inject_approved_skills,
     _drop_subsumed_generic_skills,
     _approved_skill_entries,
+    _tidy_skill_qualifiers,
 )
 from app.services.pipeline.steps.keyword_feasibility import (
     _is_filler_keyword,
@@ -1205,6 +1208,67 @@ def test_scope_of_practice_stripped_from_other_skills():
     assert "BESTMed, MedMobile" in out
 
 
+def test_care_values_phrases_are_non_skills():
+    for junk in [
+        "Resident Dignity And Independence",
+        "Dignity of Risk",
+        "Client Wellbeing",
+        "Well-being",
+        "Quality of Life",
+    ]:
+        assert _is_non_skill_phrase(junk), junk
+
+
+def test_care_values_keep_real_skills():
+    for real in [
+        "Personal Care",
+        "Person-Centred Care",
+        "Behavioural Management",
+        "Infection Control",
+        "Quality Assurance",
+    ]:
+        assert not _is_non_skill_phrase(real), real
+
+
+def test_resident_dignity_stripped_from_other_skills():
+    md = (
+        "## Skills\n"
+        "**Other Skills:** BESTMed, MedMobile, Resident Dignity And Independence\n\n"
+        "## Experience\n"
+    )
+    out = _strip_non_skill_phrases(md)
+    assert "Dignity" not in out
+    assert "BESTMed, MedMobile" in out
+
+
+# ---------------------------------------------------------------------------
+# Skill-entry qualifier tidy ("Strong Communication Skills" → "Communication").
+# ---------------------------------------------------------------------------
+
+
+def test_tidy_strips_leading_qualifier_and_trailing_skills():
+    assert _tidy_skill_qualifiers("Strong Communication Skills") == "Communication"
+    assert _tidy_skill_qualifiers("Excellent Time Management") == "Time Management"
+    assert _tidy_skill_qualifiers("Interpersonal Skills") == "Interpersonal"
+
+
+def test_tidy_preserves_plain_skills():
+    for s in ["Teamwork", "Problem Solving", "Time Management", "Adaptability", "BESTMed"]:
+        assert _tidy_skill_qualifiers(s) == s
+
+
+def test_strong_communication_tidied_in_soft_skills():
+    md = (
+        "## Skills\n"
+        "**Soft Skills:** Reliability, Teamwork, Strong Communication Skills\n\n"
+        "## Experience\n"
+    )
+    out = _strip_non_skill_phrases(md)
+    assert "Strong Communication Skills" not in out
+    assert "Communication" in out
+    assert "Reliability, Teamwork, Communication" in out
+
+
 # ---------------------------------------------------------------------------
 # Professional Summary S1<->S2 de-duplication.
 # ---------------------------------------------------------------------------
@@ -1269,3 +1333,148 @@ def test_summary_dedup_never_empties_s2():
     # S2 still has content (two sentences preserved).
     sents = [s for s in summary.replace("## Professional Summary", "").split(".") if s.strip()]
     assert len(sents) >= 2
+
+
+# ---------------------------------------------------------------------------
+# Summary title-slot synonym de-dup ("Assistant in Nursing and Care Worker"
+# → "Assistant in Nursing"). See enforce_summary_title_dedup.
+# ---------------------------------------------------------------------------
+
+
+def test_title_dedup_strips_synonymous_nursing_titles():
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing and Care Worker with experience across residential "
+        "aged care settings, including medication assistance and dementia support "
+        "for elderly residents. Delivered safe personal care at multiple "
+        "facilities, including incident-free shifts.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_title_dedup(md)
+    assert "Assistant in Nursing and Care Worker" not in out
+    assert "Assistant in Nursing with experience" in out
+
+
+def test_title_dedup_strips_data_analyst_synonyms():
+    md = (
+        "## Professional Summary\n\n"
+        "Data Analyst and BI Analyst with three years of experience delivering "
+        "dashboards. Reduced reporting time by 30% at iBuild.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_title_dedup(md)
+    assert "Data Analyst and BI Analyst" not in out
+    assert "Data Analyst with three years" in out
+
+
+def test_title_dedup_leaves_unrelated_roles_alone():
+    """'Cleaner and Receptionist' are NOT synonymous — must NOT collapse."""
+    md = (
+        "## Professional Summary\n\n"
+        "Cleaner and Receptionist with two years of experience supporting busy "
+        "offices. Maintained client-facing standards across multiple sites.\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_title_dedup(md)
+    assert "Cleaner and Receptionist" in out  # untouched
+
+
+def test_title_dedup_is_idempotent():
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing and Care Worker with experience across aged care. "
+        "Delivered safe personal care.\n\n"
+        "## Experience\n"
+    )
+    once = enforce_summary_title_dedup(md)
+    twice = enforce_summary_title_dedup(once)
+    assert once == twice
+
+
+# ---------------------------------------------------------------------------
+# Summary-vs-Skills de-dup — drop S2 clauses that merely re-list Skills.
+# See enforce_summary_skills_dedup.
+# ---------------------------------------------------------------------------
+
+
+def test_skills_dedup_drops_clause_fully_covered_by_skills_section():
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing with experience across residential aged care "
+        "settings, including medication assistance, dementia support and "
+        "person-centred care for elderly residents. Demonstrated reliability and "
+        "quality care, delivering safe personal care and behavioural support for "
+        "residents in multiple facilities.\n\n"
+        "## Skills\n"
+        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance, "
+        "Behavioural Management, Person-Centred Care\n"
+        "- **Soft Skills:** Reliability, Teamwork, Communication\n"
+        "- **Other Skills:** BESTMed, MedMobile\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_skills_dedup(md)
+    # The "Demonstrated reliability and quality care" clause has only
+    # 'reliability' and 'care' as content words — both in Skills → dropped.
+    assert "Demonstrated reliability and quality care" not in out
+    # The second clause survives — it contains 'residents', 'multiple',
+    # 'facilities' which are NOT in Skills.
+    assert "multiple facilities" in out
+
+
+def test_skills_dedup_keeps_clause_with_novel_content():
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing with experience across aged care. Reduced falls by "
+        "20% at Jesmond Miranda, achieving an incident-free six-month record.\n\n"
+        "## Skills\n"
+        "- **Care Skills:** Personal Care, Dementia Care\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_skills_dedup(md)
+    # Whole S2 introduces content not in Skills — untouched.
+    assert "Reduced falls by 20%" in out
+    assert "incident-free" in out
+
+
+def test_skills_dedup_never_empties_s2():
+    """If every clause is Skills-covered, the LAST clause is always kept."""
+    md = (
+        "## Professional Summary\n\n"
+        "Carer providing care for residents. Personal care, dementia care, "
+        "medication assistance.\n\n"
+        "## Skills\n"
+        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_skills_dedup(md)
+    # At least one clause survives — output still has two sentences.
+    summary = out.split("## Skills")[0]
+    sents = [s for s in summary.replace("## Professional Summary", "").split(".") if s.strip()]
+    assert len(sents) >= 2
+
+
+def test_skills_dedup_preserves_semicolon_two_role_s2():
+    """Two-distinct-role S2 (joined by ';') is intentional — never thin it."""
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing with experience across two aged care employers. "
+        "Delivered medication administration at Jesmond Miranda; provided "
+        "person-centred care at Uniting – The Marion.\n\n"
+        "## Skills\n"
+        "- **Care Skills:** Personal Care, Medication Assistance, "
+        "Person-Centred Care\n\n"
+        "## Experience\n"
+    )
+    out = enforce_summary_skills_dedup(md)
+    assert "Jesmond Miranda" in out
+    assert "Uniting – The Marion" in out
+
+
+def test_skills_dedup_noop_without_skills_section():
+    md = (
+        "## Professional Summary\n\n"
+        "Carer with experience. Reliability, teamwork.\n\n"
+        "## Experience\n"
+    )
+    # No ## Skills section — pool is empty — gate is a no-op.
+    assert enforce_summary_skills_dedup(md) == md

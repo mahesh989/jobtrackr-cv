@@ -59,6 +59,8 @@ from app.services.eval.enforce_w3 import (
     enforce_summary_identity,
     enforce_summary_breadth_consistency,
     enforce_summary_dedup,
+    enforce_summary_title_dedup,
+    enforce_summary_skills_dedup,
 )
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
@@ -703,6 +705,15 @@ _NON_SKILL_PATTERN = re.compile(
     r"|\bduty\s+of\s+care\b"
     r"|\bcode\s+of\s+conduct\b"
     r"|(?:of\s+(?:practice|conduct|care))\s*$"
+    # Care-values / philosophy statements — NOT discrete skills. "Resident
+    # Dignity and Independence", "Dignity of Risk", "Client Wellbeing",
+    # "Quality of Life", "Respect and Dignity". The concrete competency
+    # (Person-Centred Care, Personal Care) is the skill; the value it upholds
+    # is not. "dignity"/"wellbeing" never form part of a genuine skill label;
+    # "quality of life" is a care outcome, not a competency.
+    r"|\bdignity\b"
+    r"|\bwell[\s-]?being\b"
+    r"|\bquality\s+of\s+life\b"
     # Availability, shifts, schedules, hours, and days of the week
     r"|availability|available\b"
     r"|roster(?:ed)?\b(?![- ](?:management|planning|coordination|system|software|prep|creation|admin|lead|officer|design|building|maintenance|run))"
@@ -728,6 +739,33 @@ def _is_non_skill_phrase(term: str) -> bool:
 
 
 _SKILLS_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
+
+# Leading evaluative qualifiers the AI sometimes prepends to a soft skill
+# ("Strong Communication", "Excellent Time Management"). The qualifier is the
+# AI grading itself — it is not part of the skill. Strip it so entries read as
+# bare competencies consistent with their neighbours.
+_LEADING_SKILL_QUALIFIER_RE = re.compile(
+    r"^(?:strong|excellent|good|great|effective|proven|exceptional|outstanding"
+    r"|solid|superior|advanced|highly\s+developed|well[\s-]developed)\s+",
+    re.IGNORECASE,
+)
+# A redundant trailing "Skills" word inside the Skills section ("Communication
+# Skills" → "Communication", "Interpersonal Skills" → "Interpersonal").
+_TRAILING_SKILLS_WORD_RE = re.compile(r"\s+skills$", re.IGNORECASE)
+
+
+def _tidy_skill_qualifiers(entry: str) -> str:
+    """Strip a leading evaluative qualifier and a redundant trailing "Skills"
+    word from a single Skills-line entry. Never returns empty — if stripping
+    would empty the entry, the original token is preserved."""
+    t = entry.strip()
+    stripped_lead = _LEADING_SKILL_QUALIFIER_RE.sub("", t).strip()
+    if stripped_lead:
+        t = stripped_lead
+    stripped_tail = _TRAILING_SKILLS_WORD_RE.sub("", t).strip()
+    if stripped_tail:
+        t = stripped_tail
+    return t
 
 
 def _strip_non_skill_phrases(markdown: str) -> str:
@@ -757,8 +795,19 @@ def _strip_non_skill_phrases(markdown: str) -> str:
             continue
         prefix, body = m.group(1), m.group(2)
         parts = [p.strip() for p in body.split(",")]
-        kept = [p for p in parts if p and not _is_non_skill_phrase(p)]
-        removed += len([p for p in parts if p]) - len(kept)
+        non_empty = [p for p in parts if p]
+        kept: list[str] = []
+        seen: set[str] = set()
+        for p in non_empty:
+            if _is_non_skill_phrase(p):
+                continue
+            tidied = _tidy_skill_qualifiers(p)
+            key = tidied.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(tidied)
+        removed += len(non_empty) - len(kept)
         if kept:
             out.append(prefix + ", ".join(kept))
         # else: drop the now-empty category line entirely.
@@ -2139,12 +2188,20 @@ async def _writer_w8_verified(
     # off-axis conjoined identity the integrated gate already trimmed. Anchored
     # on the JD title, deterministic, touches only the summary's lead role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
+    # Summary title slot — strip a conjoined synonymous role from S1
+    # ("Assistant in Nursing and Care Worker" → "Assistant in Nursing").
+    # Only fires when both titles belong to the same curated synonym cluster.
+    verified_md = enforce_summary_title_dedup(verified_md)
     # Summary breadth/single-employer consistency — when S1 frames breadth
     # ("multiple settings"), strip a cherry-picked single employer from S2.
     verified_md = enforce_summary_breadth_consistency(verified_md)
     # Summary S1↔S2 de-duplication — drop any S2 clause that merely restates S1
     # (a near-repeat that just re-lists the Skills section as prose).
     verified_md = enforce_summary_dedup(verified_md)
+    # Summary-vs-Skills de-duplication — drop any S2 clause where every content
+    # word already appears in the ## Skills section (the clause is prose-form
+    # skill re-list). Always keeps at least one S2 clause.
+    verified_md = enforce_summary_skills_dedup(verified_md)
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent
@@ -2243,10 +2300,13 @@ async def _writer_w8_critique(
     # rationale as w8_verified: verify's summary repair can re-add an off-axis
     # conjoined identity that's CV-true but not the JD's role.
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
-    # Summary consistency parity with w8_verified: align S1/S2 (breadth) and drop
-    # any S2 clause that merely restates S1.
+    # Summary consistency parity with w8_verified: title-slot synonym trim, then
+    # align S1/S2 (breadth), then drop any S2 clause that merely restates S1
+    # or merely re-lists the Skills section as prose.
+    verified_md = enforce_summary_title_dedup(verified_md)
     verified_md = enforce_summary_breadth_consistency(verified_md)
     verified_md = enforce_summary_dedup(verified_md)
+    verified_md = enforce_summary_skills_dedup(verified_md)
     # Re-run the awards/section normalisers — verify_claims can rewrite the
     # Awards/Certifications section back to a messy shape; these deterministic
     # idempotent passes guarantee the structured Awards layout survives.

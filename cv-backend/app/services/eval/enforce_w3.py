@@ -618,6 +618,211 @@ def enforce_summary_dedup(md: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Summary title de-dup. The TITLE SLOT rule (a) in composition.py says:
+# when the candidate's CV has synonymous role variants (Assistant in Nursing /
+# Care Worker / Personal Care Assistant — same job, different employers; or
+# Data Analyst / BI Analyst / Reporting Analyst), the summary opener should
+# name ONLY ONE of them. The model sometimes chains both ("Assistant in
+# Nursing and Care Worker with experience…"). This gate strips the second
+# conjoined synonym so the opener reads as a single coherent identity.
+#
+# Conservative by design:
+# - Only fires when BOTH titles belong to the SAME curated cluster (so we
+#   never collapse genuinely-different roles like Cleaner + Receptionist).
+# - Only operates on the opener of S1, anchored by a small set of follower
+#   verbs ("with", "having", "delivering", "driving", "specialising").
+# - Idempotent.
+# ---------------------------------------------------------------------------
+
+# Synonym clusters — each frozenset contains lowercased phrases that refer
+# to the SAME job at different employers. Add to a cluster sparingly; never
+# include words from two genuinely-different roles in one cluster.
+_SYNONYM_TITLE_CLUSTERS: tuple = (
+    # Nursing / aged-care / disability — entry-level
+    frozenset({
+        "assistant in nursing", "ain", "care worker", "personal care assistant",
+        "pca", "personal care worker", "aged care worker", "support worker",
+        "disability support worker", "individual support worker",
+        "home care worker", "community care worker",
+    }),
+    # Nursing — licensed
+    frozenset({
+        "registered nurse", "rn", "division 1 nurse",
+        "enrolled nurse", "en", "division 2 nurse",
+    }),
+    # Data / analytics
+    frozenset({
+        "data analyst", "bi analyst", "business intelligence analyst",
+        "reporting analyst", "analytics analyst",
+    }),
+    # Software engineering
+    frozenset({
+        "software engineer", "software developer",
+        "backend engineer", "backend developer",
+        "full-stack developer", "full stack developer", "fullstack developer",
+        "frontend engineer", "frontend developer",
+    }),
+)
+
+_TITLE_OPENER_RE = re.compile(
+    r"^(?P<t1>[A-Z][\w\-\s]*?)\s+and\s+(?P<t2>[A-Z][\w\-\s]*?)\s+"
+    r"(?P<rest>with\b|having\b|delivering\b|driving\b|specialising\b|specializing\b)",
+)
+
+
+def enforce_summary_title_dedup(md: str) -> str:
+    """Strip a conjoined synonymous title from the summary opener (S1).
+    See section header for rationale and safety nets. Idempotent."""
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    prose_idx = [
+        i for i in range(start + 1, end)
+        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
+    ]
+    if not prose_idx:
+        return md
+    full = " ".join(lines[i].strip() for i in prose_idx).strip()
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
+    if not sentences:
+        return md
+    s1 = sentences[0]
+
+    m = _TITLE_OPENER_RE.match(s1)
+    if not m:
+        return md
+    t1_norm = re.sub(r"\s+", " ", m.group("t1").strip().lower())
+    t2_norm = re.sub(r"\s+", " ", m.group("t2").strip().lower())
+    same_cluster = any(t1_norm in c and t2_norm in c for c in _SYNONYM_TITLE_CLUSTERS)
+    if not same_cluster:
+        return md
+
+    # Keep t1, drop "and t2", keep follower verb + rest. Slice to preserve
+    # original casing of the kept title.
+    rest_start = m.start("rest")
+    new_s1 = m.group("t1") + " " + s1[rest_start:]
+    new_s1 = re.sub(r"\s+", " ", new_s1).strip()
+    if new_s1 == s1:
+        return md
+
+    rest_sentences = sentences[1:]
+    new_prose = " ".join([new_s1] + rest_sentences)
+    for i in prose_idx:
+        lines[i] = ""
+    lines[prose_idx[0]] = new_prose
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Summary-vs-Skills de-duplication. The IT-shaped summary template wants S2
+# to read "method + quantified result" — distinct from the keyword-dense
+# Skills section. For nursing/care CVs, the care-types ARE both the skill
+# keywords AND the methods (Personal Care, Dementia Care, Medication
+# Assistance). When the model has nothing quantified to put in S2, it
+# dutifully writes "delivering safe personal care and behavioural support"
+# — every content word of which already appears in the Skills section.
+# This gate drops any S2 clause where EVERY content word is already covered
+# by the Skills pool. Always keeps at least one clause as a safety net.
+# ---------------------------------------------------------------------------
+
+# Re-uses _SKILLS_LINE_RE from writers.py for the category-line shape, but
+# inlined here to avoid a cross-module import.
+_SKILLS_CATEGORY_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
+
+
+def _skills_section_pool(md: str) -> List[str]:
+    """Content words from every entry in every ## Skills category line.
+    Uses the same content-word machinery as the S1-dedup gate, so coverage
+    semantics match (4-char prefix, filler-word skip, hyphen split)."""
+    lines = md.split("\n")
+    bounds = _section_bounds(lines, lambda s: s.strip() == "## Skills")
+    if not bounds:
+        return []
+    start, end = bounds
+    pool: List[str] = []
+    for i in range(start + 1, end):
+        m = _SKILLS_CATEGORY_LINE_RE.match(lines[i])
+        if not m:
+            continue
+        pool.extend(_summary_content_words(m.group(2)))
+    return pool
+
+
+def enforce_summary_skills_dedup(md: str) -> str:
+    """Drop S2 clauses where EVERY content word is already in the ## Skills
+    section (the clause merely re-lists skills as prose). Always keeps at
+    least one S2 clause. Idempotent. See section header for rationale."""
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    prose_idx = [
+        i for i in range(start + 1, end)
+        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
+    ]
+    if not prose_idx:
+        return md
+    full = " ".join(lines[i].strip() for i in prose_idx).strip()
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
+    if len(sentences) < 2:
+        return md
+
+    s1, s2 = sentences[0], sentences[1]
+    if ";" in s2:
+        return md  # intentional two-distinct-roles shape — never thin it
+
+    raw_clauses = [c.strip() for c in s2.rstrip(".!?").split(",")]
+    clauses = [re.sub(r"^(?:and|or)\s+", "", c, flags=re.IGNORECASE).strip() for c in raw_clauses]
+    clauses = [c for c in clauses if c]
+    if len(clauses) < 2:
+        return md
+
+    skills_pool = _skills_section_pool(md)
+    if not skills_pool:
+        return md
+
+    kept: List[str] = []
+    dropped = 0
+    for c in clauses:
+        cwords = _summary_content_words(c)
+        all_in_skills = bool(cwords) and all(_word_covered_by(w, skills_pool) for w in cwords)
+        if all_in_skills and dropped < len(clauses) - 1:
+            dropped += 1
+            continue
+        kept.append(c)
+
+    if not dropped or not kept:
+        return md
+
+    if len(kept) == 1:
+        new_s2 = kept[0]
+    elif len(kept) == 2:
+        new_s2 = f"{kept[0]} and {kept[1]}"
+    else:
+        new_s2 = ", ".join(kept[:-1]) + f", and {kept[-1]}"
+    new_s2 = _tidy_clause(new_s2)
+
+    rest = sentences[2:] if len(sentences) > 2 else []
+    new_prose = " ".join([s1, new_s2] + rest)
+
+    for i in prose_idx:
+        lines[i] = ""
+    lines[prose_idx[0]] = new_prose
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Degree relevance
 # ---------------------------------------------------------------------------
 
