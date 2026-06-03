@@ -50,7 +50,7 @@ export default async function BetaPage() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
               <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
@@ -66,6 +66,12 @@ export default async function BetaPage() {
               analysis is unaffected. Copy each column into another agent for independent rating.
             </p>
           </div>
+        </div>
+        <div className="flex gap-3">
+          <span className="text-[11px] text-text-3">Other tools:</span>
+          <Link href="/dashboard/beta/model-comparison" className="text-[11px] text-blue-500 hover:underline">
+            Model Comparison (OpenAI vs Anthropic)
+          </Link>
         </div>
       </div>
 
