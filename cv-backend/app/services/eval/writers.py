@@ -1403,6 +1403,224 @@ def normalise_date_formats(markdown: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 Sprint E — Professional Summary S2 enforcer.
+#
+# The Summary's second sentence (S2) is supposed to ground the candidate's
+# capabilities in CONCRETE evidence — a named employer, a named tool, or a
+# numeric metric. The writer prompt asks for this, but the LLM frequently
+# emits generic filler:
+#
+#   "Provides safe, respectful support for older people in facility environments."
+#   "Delivered safe medication assistance and comprehensive personal care to
+#    elderly residents using electronic systems and behavioural management
+#    techniques and during placement across these settings."
+#
+# Both score the same on ATS (no extra keywords) but waste the recruiter's
+# 8-second skim window. Sprint E: when S2 contains NO concrete evidence
+# (no employer name from Experience, no CV-named brand tool, no metric),
+# REPLACE it with a deterministic employer/tool-naming sentence built from
+# the original CV.
+# ---------------------------------------------------------------------------
+
+_SUMMARY_HEADINGS = ("professional summary", "summary", "profile", "career highlights")
+_SENT_END_RE = re.compile(r"(?<=[.!?])\s+")
+_METRIC_TOKEN_RE = re.compile(r"\b\d+(?:[\.,]\d+)?\s*(?:%|years|yrs|hours|hrs|residents|patients|beds|shifts|clients|sites|rooms)\b", re.IGNORECASE)
+
+
+def _find_summary_section(lines: list[str]) -> Optional[tuple[int, int]]:
+    """Return (heading_index, body_end_exclusive). None if no Summary section."""
+    for i, ln in enumerate(lines):
+        if ln.startswith("## ") and ln[3:].strip().lower() in _SUMMARY_HEADINGS:
+            end = len(lines)
+            for j in range(i + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    end = j
+                    break
+            return (i, end)
+    return None
+
+
+def _extract_summary_prose(lines: list[str], start: int, end: int) -> tuple[str, list[int]]:
+    """Return (full_prose_string, list_of_line_indices_that_contained_prose)."""
+    prose_idx: list[int] = []
+    for i in range(start + 1, end):
+        s = lines[i].strip()
+        if s and not s.startswith(("- ", "* ", "•")):
+            prose_idx.append(i)
+    if not prose_idx:
+        return ("", [])
+    text = " ".join(lines[i].strip() for i in prose_idx)
+    return (text.strip(), prose_idx)
+
+
+def _extract_present_employers_from_experience(cv_text: str) -> list[str]:
+    """Pull employer/institution names from the CV's Experience section,
+    prioritising ongoing ('Present') roles. Returns unique names in their
+    original order.
+
+    Scans for the pattern: an Experience-section H3 line followed by a date
+    range ending in "Present". The employer is the leading segment of the
+    H3 before " | " or comma. Falls back to all employers when no Present
+    role is detected.
+    """
+    if not cv_text:
+        return []
+    lines = cv_text.split("\n")
+    in_experience = False
+    present: list[str] = []
+    all_emps: list[str] = []
+    seen_present: set[str] = set()
+    seen_all: set[str] = set()
+
+    # Walk: when we see an H3, capture the employer; look ahead a few lines
+    # for a Present-tense date range; if found, mark as ongoing.
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("## "):
+            heading = s[3:].strip().lower()
+            in_experience = heading in (
+                "experience", "work experience", "professional experience",
+                "clinical experience",
+            )
+            continue
+        if not in_experience:
+            continue
+        if s.startswith("### "):
+            # Extract employer: split on " | " (the canonical H3 separator).
+            # DON'T split on em-dash — "Uniting – The Marion" is a single
+            # brand name with an internal em-dash that must be preserved.
+            head = s[4:].strip()
+            employer = head.split("|", 1)[0].split(",")[0].strip()
+            if not employer or len(employer) < 4:
+                continue
+            # Look ahead up to 5 lines for a date range with "Present".
+            is_present = False
+            for j in range(i + 1, min(i + 6, len(lines))):
+                if re.search(r"\b(?:Present|current|ongoing)\b", lines[j], re.IGNORECASE):
+                    is_present = True
+                    break
+                if lines[j].strip().startswith(("### ", "## ")):
+                    break
+            if employer.lower() not in seen_all:
+                seen_all.add(employer.lower())
+                all_emps.append(employer)
+            if is_present and employer.lower() not in seen_present:
+                seen_present.add(employer.lower())
+                present.append(employer)
+
+    return present if present else all_emps
+
+
+def _extract_cv_named_tools_for_summary(cv_text: str) -> list[str]:
+    """Pull brand-name tools (BESTMed, MedMobile, ...) that appear in the
+    original CV. Reuses _KNOWN_CV_TOOLS — same list the Skills surfacer uses."""
+    if not cv_text:
+        return []
+    out: list[str] = []
+    for pattern, canonical in _KNOWN_CV_TOOLS:
+        if re.search(pattern, cv_text, re.IGNORECASE):
+            if canonical not in out:
+                out.append(canonical)
+    return out
+
+
+def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
+    """True if S2 contains an employer name, a CV-named tool, or a numeric metric."""
+    if not s2:
+        return False
+    low = s2.lower()
+    for emp in employer_names:
+        if emp.lower() in low:
+            return True
+    for tool in cv_tools:
+        if tool.lower() in low:
+            return True
+    if _METRIC_TOKEN_RE.search(s2):
+        return True
+    return False
+
+
+def _compose_concrete_s2(employer_names: list[str], cv_tools: list[str]) -> str:
+    """Build a deterministic S2 from Present-employer names + CV-named tools.
+
+    Templates (most preferred first):
+      • 2+ employers + 1+ tools  → "Currently delivering care at [Emp1] and [Emp2] using [tool1[ and tool2]]."
+      • 1 employer  + 1+ tools  → "Currently delivering care at [Emp1] using [tool1[ and tool2]]."
+      • 2+ employers + 0 tools  → "Recent experience at [Emp1] and [Emp2]."
+      • 1 employer  + 0 tools  → "Recent experience at [Emp1]."
+      • 0 employers             → None (caller leaves S2 untouched)
+    """
+    if not employer_names:
+        return ""
+    emps = employer_names[:2]
+    tools = cv_tools[:2]
+    emp_clause = emps[0] if len(emps) == 1 else f"{emps[0]} and {emps[1]}"
+    if tools:
+        tool_clause = tools[0] if len(tools) == 1 else f"{tools[0]} and {tools[1]}"
+        return f"Currently delivering care at {emp_clause} using {tool_clause}."
+    return f"Recent experience at {emp_clause}."
+
+
+def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
+    """Sprint E: replace a generic Professional Summary S2 with a deterministic
+    employer/tool-naming sentence built from the original CV.
+
+    'Generic' means S2 contains NO employer name from Experience, NO CV-named
+    brand tool, AND NO numeric metric. When that's true, the S2 is wasted
+    surface — the writer is filling space without selling. Replacing it is
+    safe because:
+      • S1 (the role-identity sentence) is preserved unchanged.
+      • The replacement only names content the original CV literally evidences.
+      • Idempotent: if S2 is already concrete, no change.
+
+    No-op when:
+      • No Summary section present.
+      • Less than 2 sentences in the Summary.
+      • S2 already has at least one concrete token.
+      • No Present-role employers can be extracted from the CV.
+    """
+    if not markdown or not original_cv_text:
+        return markdown
+    lines = markdown.split("\n")
+    bounds = _find_summary_section(lines)
+    if not bounds:
+        return markdown
+    start, end = bounds
+    prose, prose_idx = _extract_summary_prose(lines, start, end)
+    if not prose:
+        return markdown
+    sentences = [s.strip() for s in _SENT_END_RE.split(prose) if s.strip()]
+    if len(sentences) < 2:
+        return markdown
+
+    s1, s2 = sentences[0], sentences[1]
+    rest = sentences[2:] if len(sentences) > 2 else []
+
+    employers = _extract_present_employers_from_experience(original_cv_text)
+    tools = _extract_cv_named_tools_for_summary(original_cv_text)
+
+    if _s2_has_concrete_evidence(s2, employers, tools):
+        return markdown  # already concrete
+
+    new_s2 = _compose_concrete_s2(employers, tools)
+    if not new_s2:
+        return markdown  # no employers to name → leave S2 as is
+
+    # Compose new prose: S1 + new_s2 + any trailing sentences (rare).
+    new_prose = " ".join([s1, new_s2] + rest).strip()
+    # Emit on the first prose line; blank the others to avoid leftovers.
+    for i in prose_idx:
+        lines[i] = ""
+    lines[prose_idx[0]] = new_prose
+
+    logger.info(
+        "sprint-E summary S2 enforcer: replaced generic S2 with deterministic '%s'",
+        new_s2,
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # End-of-tailoring report
 # ---------------------------------------------------------------------------
 
@@ -3465,6 +3683,12 @@ async def _writer_w8_integrated(
     # 4i. Sprint C — strip day-of-month from CV dates. "Sept 20, 2024" →
     #     "Sept 2024". Standard CV convention.
     final_md = normalise_date_formats(final_md)
+    # 4j. Sprint E — enforce Professional Summary S2 concreteness. If S2
+    #     contains no employer/tool/metric token, replace with a deterministic
+    #     employer-naming sentence built from CV evidence. Fixes generic
+    #     filler like "Provides safe support for older people in facility
+    #     environments." S1 is preserved unchanged.
+    final_md = enforce_summary_concreteness(final_md, cv_text)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
