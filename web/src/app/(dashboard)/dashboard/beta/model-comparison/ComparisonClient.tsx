@@ -19,22 +19,19 @@ type ComparisonRun = {
 
 // Pricing per 1M tokens (as of 2026-06-03)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-4o":           { input: 5,     output: 15 },
-  "gpt-4-turbo":      { input: 10,    output: 30 },
-  "gpt-5":            { input: 40,    output: 160 },
-  "gpt-5.1":          { input: 40,    output: 160 },
-  "gpt-5.2":          { input: 40,    output: 160 },
-  "gpt-5.5":          { input: 40,    output: 160 },
-  "claude-opus-4-7":  { input: 15,    output: 75 },
-  "claude-opus-4-8":  { input: 15,    output: 75 },
-  "claude-sonnet-4-6": { input: 3,    output: 15 },
+  "gpt-5":             { input: 40, output: 160 },
+  "gpt-5.1":           { input: 40, output: 160 },
+  "gpt-5.2":           { input: 40, output: 160 },
+  "gpt-5.5":           { input: 40, output: 160 },
+  "claude-opus-4-6":   { input: 15, output: 75 },
+  "claude-opus-4-7":   { input: 15, output: 75 },
+  "claude-opus-4-8":   { input: 15, output: 75 },
+  "claude-sonnet-4-6": { input: 3,  output: 15 },
 };
 
 const POLL_INTERVAL_MS = 3000;
 
 const OPENAI_MODELS = [
-  "gpt-4o",
-  "gpt-4-turbo",
   "gpt-5",
   "gpt-5.1",
   "gpt-5.2",
@@ -44,6 +41,7 @@ const OPENAI_MODELS = [
 const ANTHROPIC_MODELS = [
   "claude-opus-4-8",
   "claude-opus-4-7",
+  "claude-opus-4-6",
   "claude-sonnet-4-6",
 ];
 

@@ -33,15 +33,15 @@ const SCORERS: VariantOpt[] = [
 const VERTICALS = ["it", "nursing", "cleaner", "admin", "master", "other"] as const;
 
 const MODELS = [
-  { id: "auto",      label: "Auto (key config)" },
-  { id: "gpt-4o",    label: "GPT-4o" },
-  { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
-  { id: "gpt-5",     label: "GPT-5" },
-  { id: "gpt-5.1",   label: "GPT-5.1" },
-  { id: "gpt-5.2",   label: "GPT-5.2" },
-  { id: "gpt-5.5",   label: "GPT-5.5" },
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "auto",              label: "Auto (key config)" },
+  { id: "gpt-5",             label: "GPT-5" },
+  { id: "gpt-5.1",           label: "GPT-5.1" },
+  { id: "gpt-5.2",           label: "GPT-5.2" },
+  { id: "gpt-5.5",           label: "GPT-5.5" },
   { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { id: "claude-opus-4-6",   label: "Claude Opus 4.6" },
+  { id: "claude-opus-4-7",   label: "Claude Opus 4.7" },
+  { id: "claude-opus-4-8",   label: "Claude Opus 4.8" },
 ] as const;
 
 export type BetaCvVersion = {
