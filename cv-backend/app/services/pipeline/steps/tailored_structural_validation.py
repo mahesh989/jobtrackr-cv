@@ -570,18 +570,32 @@ def _gate_metric_coverage(sections: Dict[str, str]) -> Dict[str, Any]:
 def _resolve_expected_skills_labels(jd_analysis: Dict[str, Any] | None) -> set[str]:
     """Pick the expected Skills-section category labels for the role family.
 
-    Reads `category_labels` (a 3-element list) that the orchestrator attaches
-    to `jd_analysis` after running `resolve_role_family`. Falls back to the
-    tech-shaped {Technical, Soft, Other} set when no family is attached
-    (legacy resumes / unknown vertical).
+    Reads `category_labels` that the orchestrator attaches to `jd_analysis`
+    after running `resolve_role_family`. The orchestrator emits it as a DICT
+    keyed by internal bucket name:
+        {"technical": "Other Skills",
+         "soft_skills": "Soft Skills",
+         "domain_knowledge": "Care Skills"}
+    (For nursing the headline bucket is domain_knowledge → "Care Skills";
+    for tech the headline is technical → "Technical Skills".)
+
+    Falls back to the tech-shaped {Technical, Soft, Other} set when no family
+    is attached (legacy resumes / unknown vertical).
     """
     fallback = {"technical skills", "soft skills", "other skills"}
     if not jd_analysis:
         return fallback
     labels = jd_analysis.get("category_labels")
-    if not isinstance(labels, list) or len(labels) < 3:
-        return fallback
-    return {str(lbl).lower().strip() for lbl in labels if isinstance(lbl, str) and lbl.strip()}
+    # Dict shape: pull the three values.
+    if isinstance(labels, dict) and labels:
+        out = {str(v).lower().strip() for v in labels.values()
+               if isinstance(v, str) and v.strip()}
+        return out or fallback
+    # Legacy list shape, just in case.
+    if isinstance(labels, list) and len(labels) >= 3:
+        return {str(lbl).lower().strip() for lbl in labels
+                if isinstance(lbl, str) and lbl.strip()}
+    return fallback
 
 
 def _gate_skills_min_per_category(

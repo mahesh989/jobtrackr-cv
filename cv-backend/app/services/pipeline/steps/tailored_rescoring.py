@@ -95,23 +95,34 @@ def run_tailored_rescoring(
     }
 
     # Reporting split for the UI chips: which approved keywords actually landed,
-    # which were DELIBERATELY filtered as non-skill phrases by the injector
-    # guards (would not have helped ATS — they're sector descriptors / fillers),
-    # and which the writer genuinely failed to surface.
+    # which were DELIBERATELY filtered as PURE sector / setting / filler junk
+    # (would never have helped ATS regardless of section), and which the writer
+    # genuinely failed to surface.
     #
-    # Pre-Phase 1.6 the deliberate filters were lumped into "failed_to_inject"
-    # which made the writer look worse than it was — "approved but missed"
-    # should only contain genuine misses, not keywords the hygiene pass
-    # correctly stripped as junk.
-    #
-    # Lazy import so this module stays loadable without pulling the entire
-    # writers.py chain (eval harness, role families, etc.) when only rescoring
-    # is needed.
-    from app.services.eval.writers import _is_non_skill_phrase
+    # Tight predicate: only the exact blocklist (sector names, JD verb-phrase
+    # fragments) counts as "filtered as non-skill". The broader regex catches
+    # credentials too ("First Aid Certificate", "Covid Vaccination", "NSW C
+    # Class Driver Licence") which are REAL content — they just belong in
+    # Registration & Licences, not Skills. When a credential keyword fails to
+    # match (synonym mismatch CV-vs-JD wording), report it as genuinely missed
+    # so the user knows the writer/verifier needs improvement. Phase 2 synonym
+    # work will close that gap.
+    from app.services.eval.writers import _NON_SKILL_EXACT, _NON_SKILL_PREFIXES
+
+    def _is_sector_only_phrase(kw: str) -> bool:
+        t = (kw or "").strip().lower()
+        if not t:
+            return False
+        if t in _NON_SKILL_EXACT:
+            return True
+        for prefix in _NON_SKILL_PREFIXES:
+            if t.startswith(prefix):
+                return True
+        return False
 
     injected = sorted(credited)
     _failed_raw = {kw for kw in approved if kw not in credited}
-    filtered_non_skill = sorted({kw for kw in _failed_raw if _is_non_skill_phrase(kw)})
+    filtered_non_skill = sorted({kw for kw in _failed_raw if _is_sector_only_phrase(kw)})
     failed = sorted(_failed_raw - set(filtered_non_skill))
 
     # Build a tailored matching by promoting the credited keywords.
