@@ -1325,16 +1325,19 @@ def _title_case_phrase(phrase: str) -> str:
 
 
 def normalise_heading_title_case(markdown: str) -> str:
-    """Title-case italic role/qualification lines (`*…*`) and H3 headings.
+    """Title-case italic role/qualification lines (`*…*`).
 
     Targets the lines we've seen LLM drift on:
       *Assistant In Nursing (Casual) | May 2025 – Present*
       *Bachelor Of Science | Sept 2019 – June 2022*
       *Certificate IV In Ageing Support | May 2025*
 
-    H3 employer lines are usually proper nouns ("Jesmond Miranda Nursing
-    Home") — title-case is fine because all words capitalise; the function
-    behaves the same way there.
+    H3 employer/institution lines are deliberately SKIPPED — they're
+    proper-noun heavy ("Uniting – The Marion", "Jesmond Miranda Nursing
+    Home", "Anglicare Mildred Symons House") where stop-word rules
+    don't apply cleanly. Lowercasing "the" in "Uniting – The Marion"
+    broke a brand-internal capitalisation (Sprint C hotfix learnt the
+    hard way: title-case on H3s is collateral damage, not the target).
     """
     lines = markdown.split("\n")
     out: list[str] = []
@@ -1349,7 +1352,7 @@ def normalise_heading_title_case(markdown: str) -> str:
             out.append(ln)
             continue
 
-        # Italic single-line `*…*`
+        # Italic single-line `*…*` — the only target.
         m = _TITLE_CASE_LINE_RE.match(ln)
         if m:
             prefix, body, suffix = m.groups()
@@ -1359,21 +1362,12 @@ def normalise_heading_title_case(markdown: str) -> str:
             out.append(prefix + new_body + suffix)
             continue
 
-        # H3 heading. Only touch when there are actual stop-words to fix —
-        # don't rewrite all H3s aggressively. Look for known offenders.
-        h = _H3_HEADING_RE.match(ln)
-        if h:
-            prefix, body, trail = h.groups()
-            new_body = _title_case_phrase(body)
-            if new_body != body:
-                changed += 1
-            out.append(prefix + new_body + trail)
-            continue
-
+        # H3 headings deliberately skipped — proper nouns, brand-internal
+        # capitalisation must be preserved.
         out.append(ln)
 
     if changed:
-        logger.info("sprint-C title-case: normalised %d heading/italic line(s)", changed)
+        logger.info("sprint-C title-case: normalised %d italic line(s)", changed)
     return "\n".join(out)
 
 

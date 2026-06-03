@@ -135,6 +135,22 @@ class TestTitleCaseInMarkdown:
         md = "### Jesmond Miranda Nursing Home | Miranda, NSW"
         assert normalise_heading_title_case(md) == md
 
+    def test_h3_brand_internal_The_preserved(self):
+        # Sprint C hotfix: H3 lines are NEVER touched. The earlier H3-rewrite
+        # behaviour lowercased "The" inside the brand-name "Uniting – The
+        # Marion" because "the" matched the stop-word rule. Brand internals
+        # must survive.
+        md = "### Uniting – The Marion | Leichhardt, NSW"
+        assert normalise_heading_title_case(md) == md
+
+    def test_h3_with_drift_NOT_rewritten(self):
+        # Even if an H3 has drifted to "Assistant In Nursing"-style caps,
+        # we don't touch it — the safer policy is "italic lines only".
+        # The Education entries that need fixing live in italic role lines
+        # below the H3 anyway.
+        md = "### Some Org In Town | Some Place"
+        assert normalise_heading_title_case(md) == md
+
     def test_education_qualification_line(self):
         md = "*Certificate IV In Ageing Support | May 2025*"
         out = normalise_heading_title_case(md)
