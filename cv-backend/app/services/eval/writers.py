@@ -3867,6 +3867,11 @@ async def _writer_w8_verified(
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    # Final hard-cap pass — DEFAULT_SKILL_CAPS=(14,6,6). _inject_approved_skills
+    # uses the larger _SURFACE_CAPS which can push Soft/Other past 6; this
+    # re-runs enforce so 6 is the final ceiling and an empty Other Skills line
+    # is dropped entirely.
+    verified_md = enforce_skills_section(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -3982,6 +3987,8 @@ async def _writer_w8_critique(
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    # Final hard-cap pass (see _writer_w8_verified).
+    verified_md = enforce_skills_section(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result

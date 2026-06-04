@@ -23,7 +23,11 @@ import re
 from typing import List, Tuple
 
 # Per-line caps: (line 1 technical/clinical/core, line 2 soft, line 3 other).
-DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (14, 6, 8)
+# Soft + Other hard-capped at 6 — recruiter scanability is the goal; a CV
+# with 8+ soft skills reads padded. Other Skills line is dropped entirely
+# when empty (see enforce_skills_section's `kept` check), so a candidate
+# with no tools/credentials worth surfacing won't get a dangling label.
+DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (14, 6, 6)
 
 _SKILLS_HEADING_RE = re.compile(r"^##\s+skills\s*$", re.IGNORECASE)
 # Matches both bullet-prefixed and bare bold-label lines:

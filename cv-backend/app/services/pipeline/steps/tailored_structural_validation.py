@@ -777,18 +777,34 @@ def _gate_highlights_reference_check(sections: Dict[str, str]) -> Dict[str, Any]
     )
     body_lower = body_blob.lower()
 
-    # Ignore noise: months, generic action words, common adjectives.
+    # Ignore noise: months, generic action words, common adjectives, and
+    # JD-title role-family words. The Summary's lead role often mirrors the
+    # JD title ('Personal Care Worker', 'Care Support Worker', 'Compassionate
+    # Care Worker') which won't literally appear in the candidate's
+    # historical CV body — that's expected. JD-title phrases aren't ghosts.
     stopcaps = {
+        # Tech role-family
         "data", "analyst", "engineer", "developer", "scientist", "manager",
         "lead", "senior", "principal", "staff", "director",
+        # Care / nursing role-family — added so JD-title phrases like
+        # "Personal Care Worker", "Compassionate Care Support Worker",
+        # "Registered Nurse" don't get falsely flagged as ghost references.
+        "personal", "care", "worker", "compassionate", "support", "assistant",
+        "nursing", "registered", "enrolled", "carer", "aide", "ain", "rn",
+        "en", "village", "in-home", "home", "community", "domiciliary",
+        # Months
         "january", "february", "march", "april", "may", "june",
         "july", "august", "september", "october", "november", "december",
-        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct",
-        "nov", "dec", "delivered", "built", "improved", "enhanced",
+        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct",
+        "nov", "dec",
+        # Verbs / generic action words
+        "delivered", "built", "improved", "enhanced",
         "optimised", "optimized", "automated", "managed", "designed",
-        "shipped", "migrated", "mentored", "skills", "technical", "soft",
-        "other", "career", "highlights", "professional", "experience",
-        "education", "projects", "certifications",
+        "shipped", "migrated", "mentored",
+        # Section labels
+        "skills", "technical", "soft", "other",
+        "career", "highlights", "professional", "experience",
+        "education", "projects", "certifications", "summary", "profile",
     }
 
     candidates: List[str] = []
