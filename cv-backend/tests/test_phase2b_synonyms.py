@@ -208,6 +208,120 @@ class TestQualifierStripping:
         assert _kw_present("currency exchange", cv.lower())
 
 
+class TestSynonymOverridesHonestGap:
+    """Sprint I+: when a feasibility-classified honest gap has a CURATED
+    synonym present in the tailored CV, override the gap classification.
+    The synonym map is authoritative for credential equivalences
+    (HLTAID011 ≡ CPR by AU national standard) — feasibility AI doesn't
+    know these and the curated map should win."""
+
+    def test_cpr_honest_gap_overridden_when_hltaid_in_cv(self):
+        from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+
+        tailored_md = """
+## Registration & Licences
+
+First Aid (HLTAID011) · Medication Competency
+
+## Skills
+
+- **Care Skills:** Personal Care, Dementia Care
+""".lstrip()
+
+        jd_analysis = {
+            "required_skills": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+            "preferred_skills": {
+                "technical": ["cpr certification"],
+                "soft_skills": [],
+                "domain_knowledge": [],
+            },
+        }
+        matching = {
+            "matched": {"required": {}, "preferred": {}},
+            "missed": {
+                "required": {},
+                "preferred": {
+                    "technical": ["cpr certification"],
+                    "soft_skills": [],
+                    "domain_knowledge": [],
+                },
+            },
+            "counts": {
+                "required": {},
+                "preferred": {"technical": {"matched": 0, "total": 1}},
+            },
+            "raw_match_score": 60,
+        }
+        feasibility = {
+            "feasibility_plan": {
+                "inject_directly": [],
+                "inject_as_extension": [],
+                "inject_with_inference": [],
+                "cannot_inject": [
+                    {"keyword": "cpr certification",
+                     "category": "technical",
+                     "bucket": "preferred",
+                     "reason": "no cpr in cv"},
+                ],
+            },
+            "summary": {},
+        }
+        original_ats = {"overall_score": 50}
+
+        result = run_tailored_rescoring(
+            tailored_md, jd_analysis, matching, feasibility, original_ats,
+        )
+        # 'cpr certification' must be credited (HLTAID011 in CV) and removed
+        # from honest gaps.
+        assert "cpr certification" in result["injected_keywords"]
+        assert "cpr certification" not in result["honest_gaps"]
+
+    def test_cpr_stays_honest_gap_when_no_hltaid(self):
+        from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+
+        tailored_md = """
+## Skills
+
+- **Care Skills:** Personal Care
+""".lstrip()
+
+        jd_analysis = {
+            "required_skills": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+            "preferred_skills": {"technical": ["cpr certification"], "soft_skills": [], "domain_knowledge": []},
+        }
+        matching = {
+            "matched": {"required": {}, "preferred": {}},
+            "missed": {
+                "required": {},
+                "preferred": {"technical": ["cpr certification"], "soft_skills": [], "domain_knowledge": []},
+            },
+            "counts": {"required": {}, "preferred": {"technical": {"matched": 0, "total": 1}}},
+            "raw_match_score": 60,
+        }
+        feasibility = {
+            "feasibility_plan": {
+                "inject_directly": [],
+                "inject_as_extension": [],
+                "inject_with_inference": [],
+                "cannot_inject": [
+                    {"keyword": "cpr certification",
+                     "category": "technical",
+                     "bucket": "preferred",
+                     "reason": "no cpr"},
+                ],
+            },
+            "summary": {},
+        }
+        original_ats = {"overall_score": 50}
+
+        result = run_tailored_rescoring(
+            tailored_md, jd_analysis, matching, feasibility, original_ats,
+        )
+        # No HLTAID011 in CV → stays in honest gaps.
+        assert "cpr certification" in result["honest_gaps"]
+        assert "cpr certification" not in result["injected_keywords"]
+
+
 class TestFabricationCheckLiteralOnly:
     """Sprint G hotfix: fabrication detection must use LITERAL match only,
     NOT the credit-side synonym map. Otherwise an honest gap that gets

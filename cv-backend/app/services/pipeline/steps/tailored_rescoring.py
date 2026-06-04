@@ -94,6 +94,36 @@ def run_tailored_rescoring(
         if kw and kw not in blocked and _kw_present(kw, tailored_lower)
     }
 
+    # Sprint I+ — synonym override on honest gaps.
+    # Feasibility AI doesn't know credential equivalences (HLTAID011 ≡ CPR
+    # by AU national standard). When an honest-gap keyword has a CURATED
+    # synonym present in the tailored CV, override the honest-gap classification
+    # and credit it. The curated synonym map is authoritative for these
+    # equivalences because every entry was researched against the AU standard.
+    overridden: Set[str] = set()
+    for kw in list(blocked):
+        syns = _KW_SYNONYM_MAP.get(kw)
+        # Also try qualifier-stripped form (e.g. 'current cpr certificate' →
+        # 'cpr certificate' → synonym lookup).
+        if not syns:
+            stripped = _strip_credential_qualifiers(kw)
+            if stripped != kw and stripped:
+                syns = _KW_SYNONYM_MAP.get(stripped)
+        if not syns:
+            continue
+        for syn in syns:
+            if _literal_match(syn, tailored_lower):
+                overridden.add(kw)
+                credited.add(kw)
+                break
+    if overridden:
+        honest_gaps = [g for g in honest_gaps if g not in overridden]
+        blocked -= overridden
+        logger.info(
+            "tailored rescorer: synonym override moved %d honest gap(s) to credited: %s",
+            len(overridden), sorted(overridden),
+        )
+
     # Reporting split for the UI chips: which approved keywords actually landed,
     # which were DELIBERATELY filtered as PURE sector / setting / filler junk
     # (would never have helped ATS regardless of section), and which the writer
