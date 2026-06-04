@@ -142,3 +142,39 @@ class TestPriorityIsLiteralThenSuffixThenSynonym:
         # before the synonym map is consulted.
         cv = "first aid"
         assert _kw_present("first aid certificate", cv.lower())
+
+
+class TestApostropheDriverLicenseVariants:
+    """Sprint G hotfix: JDs use 'driver's license' with apostrophe and
+    American spelling. The synonym keys are exact-match, so each
+    common phrasing must have its own entry."""
+
+    def test_valid_australian_drivers_license_apostrophe(self):
+        cv = "Registration: Driver Licence (Open)"
+        assert _kw_present("valid australian driver's license", cv.lower())
+
+    def test_valid_australian_drivers_license_no_apostrophe(self):
+        cv = "Driver Licence (Open)"
+        assert _kw_present("valid australian drivers license", cv.lower())
+
+    def test_australian_drivers_license_apostrophe(self):
+        cv = "Driver Licence (Open)"
+        assert _kw_present("australian driver's license", cv.lower())
+
+
+class TestFabricationCheckLiteralOnly:
+    """Sprint G hotfix: fabrication detection must use LITERAL match only,
+    NOT the credit-side synonym map. Otherwise an honest gap that gets
+    'credited' via a synonym (e.g. CPR via HLTAID011) ALSO shows up as
+    fabricated → contradictory UI state."""
+
+    def test_literal_match_helper_does_not_use_synonyms(self):
+        from app.services.pipeline.steps.tailored_rescoring import _literal_match
+        # 'cpr' is NOT literally in this CV (only HLTAID011 is) — fabrication
+        # check uses _literal_match so this returns False.
+        cv = "first aid (hltaid011) · medication competency"
+        assert not _literal_match("cpr", cv)
+        assert not _literal_match("cpr certification", cv)
+        # But the credit path (which uses _kw_present with synonyms) DOES
+        # match — verified by Phase 2B tests already.
+        assert _kw_present("cpr certification", cv)

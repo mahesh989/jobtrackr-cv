@@ -154,12 +154,22 @@ def run_tailored_rescoring(
     tailored_score = int(tailored_ats.get("overall_score") or 0)
     lift = tailored_score - original_score
 
-    # Fabrication check — if any blocked keyword literally appears in the
+    # Fabrication check — if any blocked keyword LITERALLY appears in the
     # tailored CV, the writer broke the honesty contract. Surface it so the
     # user can see what was wrongly added; it earns no points and doesn't fail
     # the run.
+    #
+    # Uses LITERAL match (no synonyms / suffix-strip) — Phase 2B added a
+    # credential-synonym map to _kw_present, which the credit path needs but
+    # the fabrication path explicitly must NOT use. The conflict surfaced on
+    # the Anglicare run: feasibility flagged CPR as an honest gap (no literal
+    # CPR in CV), Phase 2B synonyms credited CPR via HLTAID011 in tailored
+    # CV, fabrication check then flagged CPR as fabricated → user sees same
+    # keyword in both honest-gap AND fabricated lists, which is contradictory.
+    # The right answer: 'CPR' wasn't fabricated, the tailored CV literally
+    # says 'First Aid (HLTAID011)'. Equivalence ≠ fabrication.
     fabricated: List[str] = sorted(
-        {kw for kw in blocked if _kw_present(kw, tailored_lower)}
+        {kw for kw in blocked if _literal_match(kw, tailored_lower)}
     )
     if fabricated:
         logger.warning(
@@ -305,6 +315,37 @@ _KW_SYNONYM_MAP: Dict[str, List[str]] = {
         "driver licence", "drivers licence", "driver's licence",
     ],
     "driving nsw c class motor vehicle": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+
+    # Bare "australian driver's licence" (no NSW C-class prefix) — common
+    # JD phrasing across Aus job boards. Apostrophe and American spelling
+    # variants both covered.
+    "valid australian driver's license": [
+        "driver licence", "drivers licence", "driver's licence",
+        "driver license", "drivers license", "driver's license",
+    ],
+    "valid australian drivers license": [
+        "driver licence", "drivers licence", "driver's licence",
+        "driver license", "drivers license", "driver's license",
+    ],
+    "valid australian driver licence": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "australian driver's license": [
+        "driver licence", "drivers licence", "driver's licence",
+        "driver license", "drivers license", "driver's license",
+    ],
+    "australian drivers license": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "australian driver licence": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "driver's license": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "drivers license": [
         "driver licence", "drivers licence", "driver's licence",
     ],
 
