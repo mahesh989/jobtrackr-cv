@@ -151,34 +151,14 @@ Curated AU-aged-care credential equivalences. Every entry is researched against 
 
 **Qualifier-strip prefix list** (Sprint I): `current`, `valid`, `accredited`, `latest`, `up-to-date`, `active`, `recent`, `renewed`, `in-date`. Stripped before synonym lookup.
 
-## Known LLM-quality issues
+## Known LLM-quality issues (NOT solvable by deterministic passes)
 
-**Phase 3A (DONE — composition-prompt rework, prompt-rule-only)** added field-agnostic
-rules to `_UNIVERSAL_ENGINE` (+ matching pre-emit self-audit items) for the issues
-below. These are upstream fixes that make the deterministic gates fire LESS — the
-gates all remain as backstops:
+These need writer-prompt work (Phase 3A) or extraction-layer redesign (Phase 3B):
 
-1. **Education months dropped** ("2025" not "May 2025") — **Phase 3A:** EDUCATION
-   "KEEP THE CV'S GRANULARITY" rule + audit item (10). (No deterministic backstop —
-   `normalise_date_formats` strips only day-of-month, can't recover a dropped month.)
-2. **JD verbose phrases / sectors / eligibility in Skills** ("Aged Care", "Experience
-   In Aged Care", "Work Rights") — **Phase 3A:** "SKILLS — CONTENT DISCIPLINE" rule +
-   audit item (11). Backstop: `_strip_non_skill_phrases`.
-3. **Awkward S2 grammar** — dangling em-dash "...dementia – The Marion and during
-   placement" — **Phase 3A:** "EMPLOYER-NAME INTEGRITY" rule in COMPANY ANCHOR + audit
-   item (4). (No deterministic backstop.)
-4. **Placeholder / ungrounded credentials** ("[Provider not specified]", a licence not
-   in the CV) — **Phase 3A:** TRUTH CONTRACT bullet + audit item (11). Backstop:
-   `_strip_ungrounded_credentials`.
-5. **Lower cert shown when higher present** (Cert III alongside Cert IV) — **Phase 3A:**
-   "CREDENTIAL HIERARCHY" rule + audit item (10), scoped to exclude degrees. No
-   deterministic gate yet (prompt-only by decision — add a dedup gate only if a beta
-   run shows the LLM still surfaces the lower cert).
-
-**Still open (NOT yet prompt-addressed):**
-- **LLM extension misses** — feasibility approves an extension; LLM fails to apply it.
-  Already pushed hard by the APPROVED KEYWORD MANDATE; no clean additional prompt lever.
-- **Extraction-layer redesign (Phase 3B)** — per-vertical lexicons + explicit routing.
+1. **Education months dropped** — Opus 4.7/4.8 sometimes emits "2025" not "May 2025"
+2. **JD verbose phrases in Other Skills** — "Aged Care Support" / "Personal Care Assistance" landing as Skills entries
+3. **LLM extension misses** — feasibility approves an extension; LLM fails to apply
+4. **Awkward S2 grammar** — dangling em-dash "...dementia – The Marion and during placement"
 
 ## Adding a new sprint — checklist
 
