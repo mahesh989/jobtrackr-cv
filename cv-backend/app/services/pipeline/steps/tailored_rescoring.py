@@ -270,6 +270,47 @@ _CREDENTIAL_SUFFIXES = (
     "check", "clearance",
 )
 
+# Sprint I — JD-side qualifier words that decorate a credential without
+# changing what it IS. AU JDs commonly prepend 'current', 'valid',
+# 'accredited', etc. before credential names ('current accredited first
+# aid certificate'). These prefixes prevent the synonym map (which keys
+# on the bare credential name) from matching. Strip them before lookup.
+_CREDENTIAL_PREFIX_QUALIFIERS = (
+    "current",
+    "valid",
+    "accredited",
+    "latest",
+    "up-to-date",
+    "up to date",
+    "active",
+    "recent",
+    "renewed",
+    "in-date",
+    "in date",
+)
+
+
+def _strip_credential_qualifiers(kw: str) -> str:
+    """Strip leading JD qualifier words from a credential keyword.
+
+    'current accredited first aid certificate' → 'first aid certificate'
+    'valid driver's licence' → 'driver's licence'
+
+    Idempotent: re-running has no further effect. Returns the original
+    keyword when no qualifier prefix is found.
+    """
+    cleaned = kw.strip()
+    changed = True
+    while changed:
+        changed = False
+        low = cleaned.lower()
+        for q in _CREDENTIAL_PREFIX_QUALIFIERS:
+            if low.startswith(q + " "):
+                cleaned = cleaned[len(q):].lstrip()
+                changed = True
+                break
+    return cleaned
+
 
 # Phase 2B — conservative credential synonym map.
 #
@@ -415,6 +456,28 @@ def _kw_present(keyword: str, text_lower: str) -> bool:
 
     if _literal_match(kw, text_lower):
         return True
+
+    # Sprint I — strip JD qualifier-prefix words ('current', 'valid',
+    # 'accredited', etc.) and re-run the entire matcher on the stripped
+    # form. 'current accredited first aid certificate' → 'first aid
+    # certificate' → suffix-strip / synonym lookup. Only retries when
+    # something was actually stripped (avoids infinite recursion).
+    stripped = _strip_credential_qualifiers(kw)
+    if stripped != kw and stripped:
+        if _literal_match(stripped, text_lower):
+            return True
+        # Suffix-strip on the qualifier-stripped form too.
+        sparts = stripped.split()
+        if len(sparts) >= 2 and sparts[-1] in _CREDENTIAL_SUFFIXES:
+            bare_stripped = " ".join(sparts[:-1])
+            if _literal_match(bare_stripped, text_lower):
+                return True
+        # Synonym lookup on stripped form.
+        syns_stripped = _KW_SYNONYM_MAP.get(stripped)
+        if syns_stripped:
+            for syn in syns_stripped:
+                if _literal_match(syn, text_lower):
+                    return True
 
     # Suffix-strip retry for credentials.
     parts = kw.split()

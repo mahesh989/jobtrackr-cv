@@ -162,6 +162,52 @@ class TestApostropheDriverLicenseVariants:
         assert _kw_present("australian driver's license", cv.lower())
 
 
+class TestQualifierStripping:
+    """Sprint I: JD-side qualifier words ('current', 'valid', 'accredited')
+    must not block synonym lookup. JDs commonly prepend these to credential
+    names without changing what the credential IS."""
+
+    def test_current_accredited_first_aid_certificate(self):
+        # The exact post-Sprint-H Anglicare bug.
+        cv = "Registration & Licences: First Aid (HLTAID011)"
+        assert _kw_present("current accredited first aid certificate", cv.lower())
+
+    def test_current_cpr_certificate(self):
+        # CPR via HLTAID011 + qualifier strip.
+        cv = "First Aid (HLTAID011)"
+        assert _kw_present("current cpr certificate", cv.lower())
+
+    def test_valid_drivers_license(self):
+        cv = "Driver Licence (Open)"
+        assert _kw_present("valid drivers license", cv.lower())
+
+    def test_accredited_first_aid(self):
+        cv = "First Aid Training Certificate"
+        # 'accredited first aid' → strip 'accredited' → 'first aid' → matches.
+        assert _kw_present("accredited first aid", cv.lower())
+
+    def test_up_to_date_police_check(self):
+        cv = "National Police Check"
+        assert _kw_present("up-to-date police check", cv.lower())
+
+    def test_multiple_qualifiers_stripped(self):
+        # 'current valid accredited' all strip.
+        cv = "First Aid (HLTAID011)"
+        assert _kw_present("current valid accredited first aid certificate", cv.lower())
+
+    def test_qualifier_alone_does_not_match(self):
+        # Stripping shouldn't make 'current' alone into a match.
+        cv = "Random text"
+        assert not _kw_present("current", cv.lower())
+
+    def test_unrelated_word_starting_with_qualifier_substring(self):
+        # 'currency' starts with 'curren' but not 'current ' (with space).
+        # The qualifier list keys are word + space, so 'currency exchange'
+        # doesn't lose 'currency'.
+        cv = "skills: currency exchange"
+        assert _kw_present("currency exchange", cv.lower())
+
+
 class TestFabricationCheckLiteralOnly:
     """Sprint G hotfix: fabrication detection must use LITERAL match only,
     NOT the credit-side synonym map. Otherwise an honest gap that gets
