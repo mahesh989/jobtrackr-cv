@@ -620,26 +620,27 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
     if skills_start is None:
         return markdown  # no Skills section present, nothing to do
 
+    # Map each category to its line index within the Skills section
+    cat_to_line_idx: dict[str, int] = {}
+    for i in range(skills_start + 1, skills_end):
+        # Tolerate an optional leading list bullet ("- ", "* ", "• ") that the
+        # renderer-facing prefix may have stamped on the category line.
+        stripped = re.sub(r"^[-*•]\s+", "", lines[i].lstrip())
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if stripped.startswith(label):
+                cat_to_line_idx[cat] = i
+                break
+
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+
     # Lazy import to avoid circular dependency — writers.py imports from this
     # module. _is_non_skill_phrase encodes the same blocklist used by
     # _surface_matched_skills + _inject_approved_skills; this injector was the
     # only one missing the guard, which is why approved-but-junk keywords
     # ("Residential Care", "Aged Care Delivery") were dumped into Skills only
     # to be scrubbed later by _strip_non_skill_phrases. Skipping them up front
-    # prevents the leak at source. _resolve_skills_category_map is the
-    # family-aware mapping so nursing's matched domain_knowledge content
-    # routes to the Care/Clinical/Core Skills line, NOT into the tools line.
-    from app.services.eval.writers import (
-        _is_non_skill_phrase,
-        _resolve_skills_category_map,
-    )
-
-    # Family-aware {category → line_idx}. For nursing/manual the first line
-    # ("Care/Clinical/Core Skills") receives domain_knowledge, the third
-    # ("Other Skills") receives technical. Tech/master uses the canonical map.
-    cat_to_line_idx = _resolve_skills_category_map(lines, skills_start, skills_end)
-
-    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+    # prevents the leak at source.
+    from app.services.eval.writers import _is_non_skill_phrase
 
     appended_count = 0
     skipped_junk = 0

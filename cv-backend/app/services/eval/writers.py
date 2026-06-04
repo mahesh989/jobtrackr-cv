@@ -399,78 +399,6 @@ def _line_starts_label(line: str, label: str) -> bool:
     return _LEADING_BULLET_RE.sub("", line.lstrip()).startswith(label)
 
 
-# Skills-line labels that signal a NURSING / MANUAL layout where the first
-# Skills line is the family's headline_bucket=domain_knowledge content
-# (clinical / care / core competencies). For these layouts, "Other Skills" =
-# technical content (tools), NOT domain_knowledge. The canonical
-# _SKILLS_CATEGORY_LABEL is built for the tech layout — these labels need
-# different per-line semantics.
-_NURSING_LAYOUT_HEADLINE_LABELS = (
-    "**Care Skills:**",
-    "**Clinical Skills:**",
-    "**Core Skills:**",
-)
-
-
-def _resolve_skills_category_map(
-    lines: list[str], skills_start: int, skills_end: int
-) -> Dict[str, int]:
-    """Map semantic category → line index within the Skills section, with
-    family-aware label semantics.
-
-    Two layouts handled:
-
-    **Tech / master layout** — first line is "Technical Skills":
-      ``technical`` → "Technical Skills" line
-      ``soft_skills`` → "Soft Skills" line
-      ``domain_knowledge`` → "Other Skills" line
-
-    **Nursing / manual layout** — first line is "Care/Clinical/Core Skills":
-      ``domain_knowledge`` → "Care/Clinical/Core Skills" line   ← FAMILY HEADLINE
-      ``soft_skills`` → "Soft Skills" line
-      ``technical`` → "Other Skills" line                         ← FAMILY TOOLS
-
-    The nursing/manual layout is detected by the FIRST Skills line's label.
-    Without this, every surfacer that maps `domain_knowledge → Other Skills`
-    via the universal table routes nursing's matched Care-Skill items (the
-    JD's CARE/clinical bucket) into the tools line — the "Infection Prevention
-    And Control Requirements"-in-Other-Skills leak this fix targets.
-    """
-    line_labels: list[tuple[int, str]] = []  # (line_idx, bold-label-form)
-    for i in range(skills_start + 1, skills_end):
-        stripped = _LEADING_BULLET_RE.sub("", lines[i].lstrip())
-        if not stripped.startswith("**") or ":**" not in stripped:
-            continue
-        # Extract the bold label form: "**Care Skills:**".
-        end = stripped.index(":**") + 3
-        line_labels.append((i, stripped[:end]))
-
-    out: Dict[str, int] = {}
-    if not line_labels:
-        return out
-
-    first_label = line_labels[0][1]
-    is_nursing_layout = first_label in _NURSING_LAYOUT_HEADLINE_LABELS
-
-    if is_nursing_layout:
-        # Position-based assignment. Position 0 = domain_knowledge (headline),
-        # 1 = soft_skills, 2 = technical (the tools line labelled "Other
-        # Skills" for nursing/manual). Extra positions (rare) are ignored.
-        positions = ["domain_knowledge", "soft_skills", "technical"]
-        for pos, (idx, _label) in enumerate(line_labels):
-            if pos < len(positions):
-                out[positions[pos]] = idx
-    else:
-        # Tech / master / unknown: label-driven via the canonical map.
-        for idx, label in line_labels:
-            for cat, canonical_label in _SKILLS_CATEGORY_LABEL.items():
-                if label == canonical_label:
-                    out[cat] = idx
-                    break
-
-    return out
-
-
 def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
     """
     Re-surface JD terms the matcher confirmed the candidate has into the tailored
@@ -509,12 +437,13 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
     if skills_start is None:
         return markdown
 
-    # Map each semantic category to its line index, family-aware. For nursing
-    # / manual, the first line ("Care/Clinical/Core Skills") receives
-    # domain_knowledge content, the third line ("Other Skills") receives
-    # technical (tools) content. The universal _SKILLS_CATEGORY_LABEL would
-    # incorrectly route domain_knowledge → "Other Skills" for nursing.
-    cat_to_line_idx = _resolve_skills_category_map(lines, skills_start, skills_end)
+    # Map each category to its line index within the Skills section.
+    cat_to_line_idx: Dict[str, int] = {}
+    for i in range(skills_start + 1, skills_end):
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if _line_starts_label(lines[i], label):
+                cat_to_line_idx[cat] = i
+                break
 
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
     appended = 0
@@ -621,15 +550,23 @@ def _surface_cv_named_tools(
     if not missing:
         return markdown
 
-    # Tools always go to the family's TECHNICAL bucket. The family-aware
-    # resolver maps technical → the right line per layout:
-    #   • tech / master: → "Technical Skills" line (headline)
-    #   • nursing / manual: → "Other Skills" line (the tools line for these
-    #     families — distinct from Care/Clinical/Core Skills which carries
-    #     domain_knowledge content).
-    target_cat = "technical"
-    cat_to_line = _resolve_skills_category_map(lines, skills_start, skills_end)
-    target_idx = cat_to_line.get(target_cat)
+    # Pick the target category: for tech roles 'technical' maps to the
+    # 'Technical Skills' line (headline). For nursing/manual the LLM emits
+    # 'Care Skills' / 'Core Skills' (NOT in _SKILLS_CATEGORY_LABEL); the
+    # canonical mapping has 'domain_knowledge' → 'Other Skills' which is
+    # where tools land in nursing/manual. So:
+    #   • tech: target = 'technical' (Technical Skills line)
+    #   • nursing/manual: target = 'domain_knowledge' (Other Skills line)
+    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
+
+    target_idx = None
+    for i in range(skills_start + 1, skills_end):
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if _line_starts_label(lines[i], label) and cat == target_cat:
+                target_idx = i
+                break
+        if target_idx is not None:
+            break
     if target_idx is None:
         return markdown
 
@@ -687,11 +624,18 @@ def _move_misplaced_technical_skills(markdown: str, role_family) -> str:
         len(lines),
     )
 
-    # The tools line is always the family's TECHNICAL bucket. The family-
-    # aware resolver picks the right line for each family layout: "Technical
-    # Skills" for tech/master, "Other Skills" for nursing/manual.
-    cat_to_line = _resolve_skills_category_map(lines, skills_start, skills_end)
-    target_idx = cat_to_line.get("technical")
+    # Find the target line (where tools belong) via the canonical label map.
+    # For nursing, the Care Skills line label is NOT in _SKILLS_CATEGORY_LABEL
+    # (it's family-specific), so we can't depend on cat_to_line_idx covering
+    # all Skills lines. Locate target via the canonical label, then enumerate
+    # ALL other Skills lines as candidates regardless of label.
+    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
+    target_label = _SKILLS_CATEGORY_LABEL.get(target_cat, "")
+    target_idx = None
+    for i in range(skills_start + 1, skills_end):
+        if target_label and _line_starts_label(lines[i], target_label):
+            target_idx = i
+            break
     if target_idx is None:
         return markdown  # no target line to move into
 
@@ -749,8 +693,8 @@ def _move_misplaced_technical_skills(markdown: str, role_family) -> str:
             existing.add(entry.lower())
     if additions:
         lines[target_idx] = f"{lines[target_idx].rstrip()}, " + ", ".join(additions)
-        logger.info("w8: moved %d misplaced technical skill(s) to tools line: %s",
-                    len(additions), additions)
+        logger.info("w8: moved %d misplaced technical skill(s) to %s line: %s",
+                    len(additions), target_cat, additions)
 
     return "\n".join(lines)
 
@@ -841,22 +785,30 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
     if skills_start is None:
         return markdown
 
-    # Family-aware {category → line_idx} mapping. For nursing/manual the
-    # first line carries domain_knowledge, the third (labelled "Other Skills")
-    # carries technical (tools). For tech/master the canonical map applies.
-    line_to_cat = _resolve_skills_category_map(lines, skills_start, skills_end)
-    # Augment with line position for the DEFAULT_SKILL_CAPS lookup:
-    # first line 14, second 6, third 6. Position is the ORDER among labelled
-    # Skills lines.
-    line_idxs_in_order: list[int] = []
+    # Map category → (line_idx, position_in_skills_section). Position drives
+    # the DEFAULT_SKILL_CAPS lookup: first line 14, second 6, third 6.
+    cat_to: Dict[str, tuple[int, int]] = {}
+    pos = 0
     for i in range(skills_start + 1, skills_end):
         stripped = _LEADING_BULLET_RE.sub("", lines[i].lstrip())
-        if stripped.startswith("**") and ":**" in stripped:
-            line_idxs_in_order.append(i)
-    idx_to_pos: Dict[int, int] = {idx: p for p, idx in enumerate(line_idxs_in_order)}
-    cat_to: Dict[str, tuple[int, int]] = {
-        cat: (idx, idx_to_pos.get(idx, 0)) for cat, idx in line_to_cat.items()
-    }
+        if not stripped.startswith("**") or ":**" not in stripped:
+            continue
+        matched_cat: Optional[str] = None
+        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+            if _line_starts_label(lines[i], label):
+                matched_cat = cat
+                break
+        if matched_cat is None:
+            # Nursing headline ("Care Skills" / "Clinical Skills" / "Core
+            # Skills") carries domain_knowledge content but doesn't match any
+            # canonical label. When it's the first Skills line, infer
+            # domain_knowledge. For non-nursing families the first line will
+            # match a canonical label so this fallback doesn't apply.
+            if pos == 0 and "domain_knowledge" not in cat_to:
+                matched_cat = "domain_knowledge"
+        if matched_cat is not None and matched_cat not in cat_to:
+            cat_to[matched_cat] = (i, pos)
+        pos += 1
 
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
     appended = 0
