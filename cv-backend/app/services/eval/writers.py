@@ -2494,6 +2494,18 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
             org_clean,
             flags=re.IGNORECASE,
         ).rstrip(" ,")
+        # Bare-year tail when the same year is already in `date`. Fixes
+        # 'Jesmond Miranda Nursing Home, 2025 (August 2025)' from the
+        # ADS Care run (Opus 4.8) where the org field had ', 2025'
+        # appended even though the date field carried 'August 2025'.
+        date_year_m = re.search(r"\b(\d{4})\b", date.strip())
+        if date_year_m:
+            year = date_year_m.group(1)
+            org_clean = re.sub(
+                r"\s*,?\s*" + re.escape(year) + r"\s*$",
+                "",
+                org_clean,
+            ).rstrip(" ,")
 
     first = name or "(unnamed award)"
     if org_clean:

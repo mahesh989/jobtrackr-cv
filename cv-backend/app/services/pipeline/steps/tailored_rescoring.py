@@ -261,6 +261,99 @@ _CREDENTIAL_SUFFIXES = (
 )
 
 
+# Phase 2B — conservative credential synonym map.
+#
+# Maps JD-side phrasings (lowercased, no punctuation) to ALTERNATIVE CV-side
+# tokens that mean the SAME underlying credential by Australian standards.
+# Verifier credits the keyword if ANY synonym appears literally in the
+# tailored markdown.
+#
+# Curated for honesty: every pair is an equivalence any AU aged-care
+# recruiter would accept. Excluded:
+#   • Different credentials (NDIS Workers Check ≠ Police Check)
+#   • Different populations (disability ≠ aged care)
+#   • Soft-skill morphology (commitment ↔ "Dedicated" — too noisy)
+#
+# Sources of equivalence:
+#   • NSW road authority: 'C class' = unrestricted car licence in NSW;
+#     "Driver Licence" / "Driver's Licence" all refer to the same credential.
+#   • Australian VET system: HLTAID011 ("Provide First Aid") is the current
+#     national First Aid qualification AND explicitly includes CPR
+#     competency (supersedes the older standalone HLTAID009 "Provide CPR").
+#     Holding HLTAID011 demonstrably means you can perform CPR.
+#   • Vaccine naming: "Flu" / "Influenza" are the same vaccine — used
+#     interchangeably by AU clinical settings.
+#   • Working rights: AU profile-stamped credentials are equivalent to JD
+#     phrasings like "Australian work rights".
+_KW_SYNONYM_MAP: Dict[str, List[str]] = {
+    # ── Driver licence variants ──────────────────────────────────────────
+    # JD wording → CV-equivalent phrasings. NSW C-class = the unrestricted
+    # car licence held by adults. "Open" = unrestricted Australian licence.
+    "nsw c class motor vehicle licence": [
+        "driver licence", "drivers licence", "driver's licence",
+        "drivers license", "driver license", "driver's license",
+        "car licence", "car license",
+    ],
+    "nsw c class driver licence": [
+        "driver licence", "drivers licence", "driver's licence",
+        "drivers license", "driver license", "driver's license",
+    ],
+    "c class motor vehicle licence": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "motor vehicle licence": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+    "driving nsw c class motor vehicle": [
+        "driver licence", "drivers licence", "driver's licence",
+    ],
+
+    # ── First Aid (HLTAID011) ────────────────────────────────────────────
+    # HLTAID011 is the current AU "Provide First Aid" qualification.
+    "first aid certificate": [
+        "first aid", "first aid (hltaid011)", "hltaid011", "hltaid",
+    ],
+    "first aid certification": [
+        "first aid", "first aid (hltaid011)", "hltaid011", "hltaid",
+    ],
+
+    # ── CPR (covered by HLTAID011) ───────────────────────────────────────
+    # HLTAID011 explicitly INCLUDES CPR competency. AU aged-care recruiters
+    # accept First Aid (HLTAID011) as proof of CPR ability — standalone
+    # HLTAID009 "Provide CPR" is the older unit that HLTAID011 supersedes.
+    "cpr certificate": [
+        "first aid (hltaid011)", "hltaid011", "cpr",
+    ],
+    "cpr certification": [
+        "first aid (hltaid011)", "hltaid011", "cpr",
+    ],
+
+    # ── Vaccinations ─────────────────────────────────────────────────────
+    # AU clinical settings use "Flu" and "Influenza" interchangeably.
+    "flu vaccination": [
+        "influenza vaccination", "flu vaccine", "influenza vaccine",
+    ],
+    "influenza vaccination": [
+        "flu vaccination", "flu vaccine", "influenza vaccine",
+    ],
+
+    # ── Working rights ───────────────────────────────────────────────────
+    "australian working rights": [
+        "work rights", "right to work", "permanent resident",
+        "australian citizen", "australian working rights",
+    ],
+    "australian work rights": [
+        "work rights", "right to work", "permanent resident",
+        "australian citizen",
+    ],
+    "working rights": ["work rights", "right to work"],
+
+    # ── Police check ─────────────────────────────────────────────────────
+    "police check": ["national police check", "police clearance"],
+    "national police check": ["police check", "police clearance"],
+}
+
+
 def _kw_present(keyword: str, text_lower: str) -> bool:
     """
     Detect a keyword in the tailored CV text.
@@ -288,6 +381,17 @@ def _kw_present(keyword: str, text_lower: str) -> bool:
         bare = " ".join(parts[:-1])
         if _literal_match(bare, text_lower):
             return True
+
+    # Phase 2B — credential synonym map. JD-side phrasing → CV-side
+    # equivalent term(s). Honest by curation: every entry is an
+    # equivalence any AU aged-care recruiter would accept (e.g. NSW C
+    # class motor vehicle licence ≡ Driver Licence; First Aid Certificate
+    # ≡ First Aid HLTAID011; HLTAID011 covers CPR by inclusion).
+    synonyms = _KW_SYNONYM_MAP.get(kw)
+    if synonyms:
+        for syn in synonyms:
+            if _literal_match(syn, text_lower):
+                return True
 
     # Conjunction split: "covid and flu vaccination" → "covid vaccination"
     # AND "flu vaccination" — both must be present.

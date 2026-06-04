@@ -193,6 +193,30 @@ class TestSprintDLocationStripping:
         # 'Co' is a corporate suffix → not stripped. 'Big Big Co' stays.
         assert "Co" in lines[0]
 
+    def test_bare_year_tail_in_org_stripped_when_date_has_same_year(self):
+        # Post-Sprint-F ADS Care run (Opus 4.8) rendered:
+        #   'Staff Excellence Award, Jesmond Miranda Nursing Home, 2025 (August 2025)'
+        # The org field had ', 2025' appended even though date carries
+        # 'August 2025'. Same year appears twice in different forms.
+        lines = _format_award_entry(
+            name="Staff Excellence Award",
+            org="Jesmond Miranda Nursing Home, 2025",
+            date="August 2025",
+        )
+        assert lines[0] == "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)"
+        assert lines[0].count("2025") == 1
+
+    def test_bare_year_not_stripped_when_date_has_different_year(self):
+        # If the org's tail year and date's year are different, leave both —
+        # might be a real two-year context (e.g. 'Org, 2020' + date '2024').
+        lines = _format_award_entry(
+            name="Award",
+            org="Some Org, 2020",
+            date="2024",
+        )
+        assert "2020" in lines[0]
+        assert "2024" in lines[0]
+
 
 # ---------------------------------------------------------------------------
 # Phase 1.8 — skills tidier should not truncate generic "X Skills" entries
