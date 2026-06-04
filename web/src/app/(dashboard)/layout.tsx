@@ -12,30 +12,39 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // These three only depend on the authenticated user.id, not on each other,
+  // so run them concurrently instead of as a 3-deep waterfall:
+  //   - entitlement (subscription gate)
+  //   - search_profiles (sidebar badges)
+  //   - users.applications_seen_at (applications badge baseline)
+  // For a brand-new no-subscription user this does the profiles/userRow reads
+  // before the plan-gate redirect — negligible wasted work on that rare path,
+  // in exchange for removing two sequential round-trips on every normal load.
+  const [ent, { data: profileRows }, { data: userRow }] = await Promise.all([
+    getEntitlement(user.id),
+    // Fetch profiles with new-job counts for sidebar badges
+    supabase
+      .from("search_profiles")
+      .select("id, name")
+      .order("created_at", { ascending: true }),
+    // When did the user last open the Applications outbox? The badge only
+    // counts pool items that completed after this, so once they view the page
+    // the badge clears and stays cleared until a new cover letter lands.
+    supabase
+      .from("users")
+      .select("applications_seen_at")
+      .eq("id", user.id)
+      .single(),
+  ]);
+
   // Subscription gate: a brand-new user with NO subscription row must pick a
   // plan to start their trial before they can use the dashboard. Canceled /
   // expired users keep read-only access here (enforcement is at the choke
   // points), and grandfathered beta / founder / admin resolve to "full".
-  const ent = await getEntitlement(user.id);
   if (ent.status === "none") redirect("/onboarding/plan");
-
-  // Fetch profiles with new-job counts for sidebar badges
-  const { data: profileRows } = await supabase
-    .from("search_profiles")
-    .select("id, name")
-    .order("created_at", { ascending: true });
 
   const profiles = (profileRows ?? []) as { id: string; name: string }[];
   const profileIds = profiles.map((p) => p.id);
-
-  // When did the user last open the Applications outbox? The badge only counts
-  // pool items that completed after this, so once they view the page the badge
-  // clears and stays cleared until a new cover letter lands.
-  const { data: userRow } = await supabase
-    .from("users")
-    .select("applications_seen_at")
-    .eq("id", user.id)
-    .single();
   const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
 
   // Applications pool count: completed non-stale cover letters whose job is
