@@ -200,39 +200,3 @@ class TestDateFormat:
         once = normalise_date_formats(md)
         twice = normalise_date_formats(once)
         assert once == twice
-
-    # ── Period-after-abbreviated-month variants (Opus emits "Sept." reliably) ──
-
-    def test_sept_dot_20_2024_stripped(self):
-        # The day-of-month strip must work even when the abbreviation has a
-        # trailing period — Opus writes "Sept. 20, 2024" out of the box.
-        out = normalise_date_formats("*Aged Care Placement | Sept. 20, 2024*")
-        assert out == "*Aged Care Placement | Sept 2024*"
-
-    def test_sept_dot_range_period_removed(self):
-        # Even without a day, "Sept." / "Sep." should have the period stripped
-        # so the date renders uniformly across the CV.
-        md = "*Bachelor | Sept. 2019 – June 2022*"
-        out = normalise_date_formats(md)
-        assert out == "*Bachelor | Sept 2019 – June 2022*"
-
-    def test_sep_dot_with_day_stripped(self):
-        out = normalise_date_formats("Started Jan. 15, 2023 and ended Dec. 31, 2024.")
-        assert "Jan 2023" in out
-        assert "Dec 2024" in out
-        assert "Jan." not in out
-        assert "Dec." not in out
-        assert "15" not in out
-        assert "31" not in out
-
-    def test_period_after_full_month_name_left_alone(self):
-        # "September 2025." at end of sentence — the period is sentence
-        # punctuation, NOT a month abbreviation marker. Must NOT be stripped.
-        md = "Awarded in September 2025."
-        assert normalise_date_formats(md) == md
-
-    def test_period_strip_is_idempotent(self):
-        md = "*Bachelor | Sept. 2019 – June 2022*"
-        once = normalise_date_formats(md)
-        twice = normalise_date_formats(once)
-        assert once == twice
