@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface RunSnapshot {
   id:            string;
@@ -22,13 +23,14 @@ interface Toast {
   href:  string;
 }
 
-// Adaptive polling: poll fast only while a run is actually in flight (so the
-// completion toast stays snappy), back off hard when idle, and pause entirely
-// when the tab is backgrounded. Previously this was a fixed 3s heartbeat that
-// ran forever regardless of activity — ~1,200 needless requests/hour/tab.
-const ACTIVE_MS = 3000;   // a run is running — keep toasts responsive
-const IDLE_MS   = 30000;  // nothing running — quiet heartbeat
-const TOAST_MS  = 8000;
+// Run-status changes arrive via Supabase Realtime (postgres_changes on
+// run_logs — see migration 052), so there's no steady polling. A slow backstop
+// poll only covers the rare dropped event and seeds initial state on mount;
+// it pauses while the tab is hidden (Realtime still pushes instant toasts
+// there). Previously this was a fixed 3s heartbeat that ran forever regardless
+// of activity — ~1,200 needless requests/hour/tab.
+const BACKSTOP_MS = 20000; // safety-net poll, visible tabs only
+const TOAST_MS    = 8000;
 
 export function RunNotifier() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -49,18 +51,15 @@ export function RunNotifier() {
     }
 
     async function poll() {
-      // Guard against overlapping runs (e.g. a visibilitychange firing while a
-      // request is already in flight).
+      // Guard against overlapping runs (e.g. a Realtime event or a
+      // visibilitychange firing while a request is already in flight).
       if (cancelled || inFlight) return;
       inFlight = true;
-      let anyRunning = false;
       try {
         const res = await fetch("/api/user/runs", { cache: "no-store" });
         if (!res.ok) return;
         const { runs }: { runs: RunSnapshot[] } = await res.json();
         if (cancelled) return;
-
-        anyRunning = runs.some((r) => r.status === "running");
 
         const next: Record<string, string> = {};
         for (const r of runs) next[r.id] = r.status;
@@ -107,14 +106,32 @@ export function RunNotifier() {
         /* silent */
       } finally {
         inFlight = false;
-        // Reschedule based on what we just observed: fast while a run is in
-        // flight, slow when idle. schedule() no-ops if the tab is hidden.
-        schedule(anyRunning ? ACTIVE_MS : IDLE_MS);
+        // Backstop only — Realtime is the primary path. schedule() no-ops when
+        // the tab is hidden.
+        schedule(BACKSTOP_MS);
       }
     }
 
-    // Pause polling when the tab is hidden; resume (and poll immediately) when
-    // it comes back so a run that finished in the background toasts right away.
+    // Primary path: Supabase Realtime pushes run_logs changes the instant the
+    // worker writes them. RLS at the broadcast layer restricts delivery to this
+    // user's rows. We act only on a flip to a terminal status, then run the
+    // same enrich-and-toast pass as the backstop (the Realtime payload lacks
+    // the joined profile name, so we re-fetch the enriched feed).
+    const supabase = createClient();
+    const channel = supabase
+      .channel("run_logs:user")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "run_logs" },
+        (payload) => {
+          const status = (payload.new as { status?: string }).status;
+          if (status === "completed" || status === "failed") poll();
+        },
+      )
+      .subscribe();
+
+    // Pause the backstop poll when the tab is hidden; resume (and poll once)
+    // when it returns. Realtime keeps delivering toasts while hidden.
     function onVisibility() {
       if (document.hidden) {
         if (timer) { clearTimeout(timer); timer = null; }
@@ -129,6 +146,7 @@ export function RunNotifier() {
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", onVisibility);
       for (const h of timeoutHandles) clearTimeout(h);
     };
