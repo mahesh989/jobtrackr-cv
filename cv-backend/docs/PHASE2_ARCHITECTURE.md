@@ -124,6 +124,7 @@ E. _log_tailoring_report (single log line per run)
 | **2B** | `_KW_SYNONYM_MAP` (curated AU credential synonyms) | "nsw c class motor vehicle licence" ≡ Driver Licence; HLTAID011 ≡ First Aid + CPR | `test_phase2b_synonyms.py` (26) |
 | **C2** | `normalise_date_formats` regex: `\.?` after month + period-strip pass | "Sept. 20, 2024" → "Sept 2024"; "Sept. 2019" → "Sept 2019" — Opus emits "Sept." reliably | `test_sprint_c_polish.py::TestDateFormat` (10 incl. 5 new period tests) |
 | **J** | `_inject_approved_skills` rewritten cap-aware + reordered AFTER final `enforce_skills_section` | 8 approved soft skills (verbal/written communication, work planning) no longer dropped by the final cap | `test_skills_hygiene.py` (4 new: writer-only displaced, cap respected, no-followup-enforce) |
+| **K** | `_resolve_skills_category_map` — family-aware label↔category mapping in all 4 surfacers (`_surface_matched_skills`, `_surface_cv_named_tools`, `_move_misplaced_technical_skills`, `_inject_missing_skills`, `_inject_approved_skills`) | Nursing's matched JD CARE items (e.g. "Infection Prevention And Control Requirements") no longer leak into the "Other Skills" tools line — they route to the Care/Clinical/Core Skills line where they belong. Tech path unchanged. | `test_sprint_h_tool_placement.py::TestNursingCategoryMapping` (7 new) |
 | **Phase 2 re-run** | `_writer_w8_verified` re-fires all sprints after `verify_claims` | Phase 2 invariants always hold regardless of LLM output | (integration via 4j wiring) |
 
 ## Per-family config (`role_families.py`)
@@ -234,5 +235,6 @@ b55e524  Sprint H: scope tool surfacer to Skills section; move misplaced tech en
 82080e9  Sprint I+: synonym map overrides feasibility honest-gap classification
 
 5ad328b  feat(prompt): Phase 3A — fold five LLM-quality rules into composition prompt
-[NEXT]   Sprint C2 + Sprint J: period-month dates + cap-aware approved-skill inject
+7806e30  Sprint C2 + Sprint J: period-month dates + cap-aware approved-skill inject
+[NEXT]   Sprint A2 + Sprint K: awards parser (desc, date) + family-aware skills routing
 ```

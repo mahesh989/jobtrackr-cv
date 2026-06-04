@@ -18,6 +18,8 @@ from __future__ import annotations
 from app.services.eval.writers import (
     _surface_cv_named_tools,
     _move_misplaced_technical_skills,
+    _surface_matched_skills,
+    _resolve_skills_category_map,
 )
 from app.services.eval.role_families import resolve_role_family
 
@@ -193,3 +195,121 @@ class TestMoveMisplacedTechnical:
         assert "Computer Skills" not in soft_line
         tech_line = [ln for ln in out.split("\n") if "Technical Skills" in ln][0]
         assert "Computer Skills" in tech_line
+
+
+# ---------------------------------------------------------------------------
+# Sprint K — nursing label↔category mapping. The "Infection Prevention
+# And Control Requirements"-in-Other-Skills leak. For nursing/manual the
+# JD's CARE/Care skill content (matched as domain_knowledge) MUST land in
+# the "Care/Clinical/Core Skills" line, NOT in "Other Skills" (which is the
+# tools line for these families). The universal _SKILLS_CATEGORY_LABEL maps
+# domain_knowledge → "Other Skills" which is correct for tech but inverted
+# for nursing.
+# ---------------------------------------------------------------------------
+
+
+class TestNursingCategoryMapping:
+
+    NURSING_MD = (
+        "## Skills\n\n"
+        "- **Care Skills:** Person-Centred Care, Medication Assistance\n"
+        "- **Soft Skills:** Teamwork\n"
+        "- **Other Skills:** BESTMed, MedMobile\n\n"
+        "## Experience\n"
+    )
+
+    TECH_MD = (
+        "## Skills\n\n"
+        "- **Technical Skills:** Python, SQL\n"
+        "- **Soft Skills:** Teamwork\n"
+        "- **Other Skills:** Healthcare Domain\n\n"
+        "## Experience\n"
+    )
+
+    def _line_of(self, md, label):
+        return next(ln for ln in md.split("\n") if label in ln)
+
+    def test_nursing_layout_resolves_first_line_as_domain_knowledge(self):
+        lines = self.NURSING_MD.split("\n")
+        ss = lines.index("## Skills")
+        se = lines.index("## Experience")
+        m = _resolve_skills_category_map(lines, ss, se)
+        # Care Skills (line 2) carries clinical/care = domain_knowledge content
+        # Other Skills (line 4) carries tools = technical content
+        assert m["domain_knowledge"] == 2, f"map={m}"
+        assert m["soft_skills"] == 3, f"map={m}"
+        assert m["technical"] == 4, f"map={m}"
+
+    def test_tech_layout_resolves_canonically(self):
+        lines = self.TECH_MD.split("\n")
+        ss = lines.index("## Skills")
+        se = lines.index("## Experience")
+        m = _resolve_skills_category_map(lines, ss, se)
+        # Technical Skills (line 2) = technical; Other Skills (line 4) = domain
+        assert m["technical"] == 2, f"map={m}"
+        assert m["soft_skills"] == 3, f"map={m}"
+        assert m["domain_knowledge"] == 4, f"map={m}"
+
+    def test_clinical_skills_headline_also_resolves(self):
+        md = self.NURSING_MD.replace("**Care Skills:**", "**Clinical Skills:**")
+        lines = md.split("\n")
+        ss = lines.index("## Skills")
+        se = lines.index("## Experience")
+        m = _resolve_skills_category_map(lines, ss, se)
+        assert m["domain_knowledge"] == 2
+
+    def test_core_skills_headline_also_resolves(self):
+        md = self.NURSING_MD.replace("**Care Skills:**", "**Core Skills:**")
+        lines = md.split("\n")
+        ss = lines.index("## Skills")
+        se = lines.index("## Experience")
+        m = _resolve_skills_category_map(lines, ss, se)
+        assert m["domain_knowledge"] == 2
+
+    def test_nursing_matched_domain_lands_in_care_not_other_skills(self):
+        """The user-reported bug: 'Infection Prevention And Control Requirements'
+        was a JD CARE term (domain_knowledge for nursing). Under the old map,
+        domain_knowledge → "Other Skills" label → it bled into the tools line.
+        With the fix it lands in the Care Skills line, where it belongs.
+        """
+        matching = {"matched": {"required": {
+            "domain_knowledge": ["infection prevention and control requirements"],
+            "technical": [],
+            "soft_skills": [],
+        }}}
+        out = _surface_matched_skills(self.NURSING_MD, matching)
+        care_line = self._line_of(out, "Care Skills")
+        other_line = self._line_of(out, "Other Skills")
+        assert "Infection Prevention And Control Requirements" in care_line
+        assert "Infection Prevention And Control Requirements" not in other_line
+        # Tools line must STAY tools-only.
+        assert "BESTMed" in other_line
+        assert "MedMobile" in other_line
+
+    def test_nursing_matched_technical_lands_in_other_skills(self):
+        """The inverse: a matched 'technical' item (tool name) routes to
+        Other Skills for nursing, NOT Care Skills."""
+        matching = {"matched": {"required": {
+            "domain_knowledge": [],
+            "technical": ["epic emr"],
+            "soft_skills": [],
+        }}}
+        out = _surface_matched_skills(self.NURSING_MD, matching)
+        care_line = self._line_of(out, "Care Skills")
+        other_line = self._line_of(out, "Other Skills")
+        assert "Epic EMR" in other_line or "Epic Emr" in other_line
+        assert "epic" not in care_line.lower()
+
+    def test_tech_matched_technical_lands_in_technical_skills(self):
+        """For tech, matched 'technical' goes to Technical Skills line (headline).
+        No regression from the nursing fix."""
+        matching = {"matched": {"required": {
+            "technical": ["kubernetes"],
+            "domain_knowledge": ["saas"],
+            "soft_skills": [],
+        }}}
+        out = _surface_matched_skills(self.TECH_MD, matching)
+        tech_line = self._line_of(out, "Technical Skills")
+        other_line = self._line_of(out, "Other Skills")
+        assert "Kubernetes" in tech_line
+        assert "Saas" in other_line or "SaaS" in other_line
