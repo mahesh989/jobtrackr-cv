@@ -522,24 +522,6 @@ def _surface_cv_named_tools(
     if not original_cv_text or not markdown:
         return markdown
 
-    # Match brand tools present in the original CV but NOT yet in the tailored
-    # Skills section (anywhere — lowercase substring is enough).
-    md_lower = markdown.lower()
-    missing: list[str] = []
-    for pattern, canonical in _KNOWN_CV_TOOLS:
-        if re.search(pattern, original_cv_text, flags=re.IGNORECASE):
-            if canonical.lower() not in md_lower:
-                missing.append(canonical)
-
-    if not missing:
-        return markdown
-
-    # Pick the target category: technical for tech-style families, otherwise
-    # domain_knowledge (Other Skills for nursing under the canonical sandwich,
-    # since headline_bucket == domain_knowledge places "Care Skills" on the
-    # technical line and "Other Skills" on the domain_knowledge line).
-    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
-
     lines = markdown.split("\n")
     skills_start = next(
         (i for i, l in enumerate(lines) if l.strip() == "## Skills"), None,
@@ -550,6 +532,32 @@ def _surface_cv_named_tools(
         (j for j in range(skills_start + 1, len(lines)) if lines[j].startswith("## ")),
         len(lines),
     )
+
+    # Bug fix (Sprint G+): scope the "already present" check to the SKILLS
+    # SECTION only. Previous behaviour scanned the whole markdown — so when
+    # BESTMed/MedMobile appeared in Summary / Experience bullets but were
+    # absent from the Skills section, the surfacer thought they were "found"
+    # and skipped. The candidate's named tools belong on the Skills line
+    # regardless of being mentioned in body prose.
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+    missing: list[str] = []
+    for pattern, canonical in _KNOWN_CV_TOOLS:
+        if re.search(pattern, original_cv_text, flags=re.IGNORECASE):
+            # Must appear in the SKILLS SECTION, not just anywhere.
+            if canonical.lower() not in skills_text_lower:
+                missing.append(canonical)
+
+    if not missing:
+        return markdown
+
+    # Pick the target category: for tech roles 'technical' maps to the
+    # 'Technical Skills' line (headline). For nursing/manual the LLM emits
+    # 'Care Skills' / 'Core Skills' (NOT in _SKILLS_CATEGORY_LABEL); the
+    # canonical mapping has 'domain_knowledge' → 'Other Skills' which is
+    # where tools land in nursing/manual. So:
+    #   • tech: target = 'technical' (Technical Skills line)
+    #   • nursing/manual: target = 'domain_knowledge' (Other Skills line)
+    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
 
     target_idx = None
     for i in range(skills_start + 1, skills_end):
@@ -575,6 +583,118 @@ def _surface_cv_named_tools(
     if appended:
         logger.info("w8 surfacing: re-added %d CV-named tool(s): %s",
                     appended, missing[:appended])
+
+    return "\n".join(lines)
+
+
+# Skills entries whose category placement is obvious — anything matching
+# these patterns belongs in the TECHNICAL bucket (= Other Skills for
+# nursing/manual, = Technical Skills for tech), never Soft or Care Skills.
+# The LLM occasionally misfiles these (post-Sprint-G Anglicare run put
+# 'Basic Smartphone Skills' under Soft Skills). This pass moves them.
+_TECHNICAL_SKILL_PATTERNS = re.compile(
+    r"\b("
+    r"computer|smartphone|tablet|mobile\s+app|mobile\s+apps|software|hardware"
+    r"|laptop|desktop|operating\s+system|database|spreadsheet"
+    r"|bestmed|medmobile|leecare|manad|epas|epic|cerner"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _move_misplaced_technical_skills(markdown: str, role_family) -> str:
+    """Move obviously-technical Skills entries (computer / smartphone / app /
+    named brand tools) from Soft Skills or Care Skills to the technical-bucket
+    line (Other Skills for nursing/manual; Technical Skills for tech).
+
+    Honest by construction: only moves entries that match a hardcoded
+    technical-vocabulary pattern. Idempotent — re-running produces same
+    output. No-op when no misplaced entries are detected.
+    """
+    if not markdown:
+        return markdown
+    lines = markdown.split("\n")
+    skills_start = next(
+        (i for i, l in enumerate(lines) if l.strip() == "## Skills"), None,
+    )
+    if skills_start is None:
+        return markdown
+    skills_end = next(
+        (j for j in range(skills_start + 1, len(lines)) if lines[j].startswith("## ")),
+        len(lines),
+    )
+
+    # Find the target line (where tools belong) via the canonical label map.
+    # For nursing, the Care Skills line label is NOT in _SKILLS_CATEGORY_LABEL
+    # (it's family-specific), so we can't depend on cat_to_line_idx covering
+    # all Skills lines. Locate target via the canonical label, then enumerate
+    # ALL other Skills lines as candidates regardless of label.
+    target_cat = "technical" if role_family.headline_bucket == "technical" else "domain_knowledge"
+    target_label = _SKILLS_CATEGORY_LABEL.get(target_cat, "")
+    target_idx = None
+    for i in range(skills_start + 1, skills_end):
+        if target_label and _line_starts_label(lines[i], target_label):
+            target_idx = i
+            break
+    if target_idx is None:
+        return markdown  # no target line to move into
+
+    # Source lines: every Skills line EXCEPT the target. Detect Skills lines
+    # by the **Label:** pattern so family-specific labels (Care Skills /
+    # Clinical Skills / Core Skills) are included.
+    source_indices: list[int] = []
+    for i in range(skills_start + 1, skills_end):
+        if i == target_idx:
+            continue
+        if _SKILLS_LINE_RE.match(lines[i]):
+            source_indices.append(i)
+
+    moved: list[str] = []
+    for src_idx in source_indices:
+        m = _SKILLS_LINE_RE.match(lines[src_idx])
+        if not m:
+            continue
+        prefix, body = m.group(1), m.group(2)
+        parts = [p.strip() for p in body.split(",")]
+        kept: list[str] = []
+        for p in parts:
+            if not p:
+                continue
+            if _TECHNICAL_SKILL_PATTERNS.search(p):
+                # Move to target line; preserve canonical form.
+                moved.append(p)
+            else:
+                kept.append(p)
+        if moved and len(kept) != len(parts):
+            # The body changed; re-emit the source line.
+            if kept:
+                lines[src_idx] = prefix + ", ".join(kept)
+            else:
+                # Don't leave an empty category line — mark it for later drop
+                # by enforce_skills_section (which handles the empty-line drop).
+                lines[src_idx] = prefix.rstrip() + " "  # blank body → cap pass will drop
+
+    if not moved:
+        return markdown
+
+    # Append moved entries to target line (deduping against existing content).
+    # Strip the '**Label:**' prefix before splitting so the first entry isn't
+    # bundled into the label token.
+    target_m = _SKILLS_LINE_RE.match(lines[target_idx])
+    if target_m:
+        target_body = target_m.group(2)
+    else:
+        target_body = lines[target_idx]
+    existing = {p.strip().lower() for p in target_body.split(",") if p.strip()}
+    additions = []
+    for entry in moved:
+        if entry.lower() not in existing:
+            additions.append(entry)
+            existing.add(entry.lower())
+    if additions:
+        lines[target_idx] = f"{lines[target_idx].rstrip()}, " + ", ".join(additions)
+        logger.info("w8: moved %d misplaced technical skill(s) to %s line: %s",
+                    len(additions), target_cat, additions)
 
     return "\n".join(lines)
 
@@ -3677,6 +3797,11 @@ async def _writer_w8_integrated(
     #     prompt biases toward JD-required generics ("Basic Computer Skills").
     if role_family.injection_policy != "none":
         md = _surface_cv_named_tools(md, cv_text, role_family)
+    # 3a-pre-2. Move obviously-technical skills out of Soft/Care lines.
+    #     'Basic Smartphone Skills' / 'Computer Skills' / brand tools that
+    #     end up on the wrong line because the LLM mis-classified them.
+    if role_family.injection_policy != "none":
+        md = _move_misplaced_technical_skills(md, role_family)
     # 3a-bis. Strip non-skill entries (qualifications, eligibility/compliance,
     #     bare sector names, JD-phrasing fillers) from the Skills section, no
     #     matter whether the base classifier or the surfacing pass added them.
