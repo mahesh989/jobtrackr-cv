@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Sofia_Sans, DM_Serif_Display, DM_Sans, Manrope, Noto_Serif } from "next/font/google";
+import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif } from "next/font/google";
 import "./globals.css";
 
-// ── Default theme fonts (current JobTrackr look) ──────────────────────────
+// ── "Default" theme fonts (original JobTrackr look) ───────────────────────
+// The user-facing default theme is 'notion' (see the FOUC guard below), which
+// uses the cv-magic fonts (Manrope / Noto Serif) declared further down. These
+// two only apply when a user explicitly picks the "Default" theme, so we set
+// preload: false — the browser fetches them lazily on theme switch instead of
+// preloading them on every route (incl. the public marketing/login pages).
 const sofiaSans = Sofia_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+  display: "swap",
+  preload: false,
 });
 
 const dmSerif = DM_Serif_Display({
@@ -14,16 +21,12 @@ const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
   weight: ["400"],
   style:   ["normal", "italic"],
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-marketing",
-  subsets: ["latin"],
-  weight: ["300", "400", "500"],
+  display: "swap",
+  preload: false,
 });
 
 // ── cv-magic theme fonts (Classic / Gilded Noir / Notion / Clay) ──────────
-// Themes other than 'default' swap to these via CSS @ font-family override.
+// The 'notion' default theme uses these, so they keep the default preload.
 const manrope = Manrope({
   variable: "--font-cv-sans",
   subsets: ["latin"],
@@ -48,12 +51,34 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Origin of the Supabase project — every page makes auth/data calls here, so
+  // warming the TLS handshake early shaves latency off the first request.
+  // Derived from the public env var so there's no hardcoded project ref.
+  let supabaseOrigin: string | null = null;
+  try {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      supabaseOrigin = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin;
+    }
+  } catch {
+    supabaseOrigin = null;
+  }
+
   return (
     <html
       lang="en"
-      className={`${sofiaSans.variable} ${dmSerif.variable} ${dmSans.variable} ${manrope.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${sofiaSans.variable} ${dmSerif.variable} ${manrope.variable} ${notoSerif.variable} h-full antialiased`}
     >
       <head>
+        {/* Resource hints — warm connections to third parties we always hit.
+            next/font self-hosts fonts, so no Google Fonts preconnect needed. */}
+        {supabaseOrigin && (
+          <>
+            <link rel="preconnect" href={supabaseOrigin} crossOrigin="" />
+            <link rel="dns-prefetch" href={supabaseOrigin} />
+          </>
+        )}
+        <link rel="dns-prefetch" href="https://js.stripe.com" />
+        <link rel="dns-prefetch" href="https://accounts.google.com" />
         {/*
           FOUC guard for the theme system. Runs synchronously before any
           React code, so users on a non-Classic theme don't briefly see
