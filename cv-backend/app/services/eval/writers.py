@@ -52,7 +52,7 @@ from app.services.ai.prompts.variants.composition import (
     build_surfacing_system,
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
-from app.services.eval.enforce import enforce_skills_section
+from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
@@ -729,20 +729,49 @@ def _approved_skill_entries(feasibility: Optional[Dict[str, Any]]) -> list[tuple
     return out
 
 
-def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]) -> str:
-    """Deterministic POST-CAP safety net for approved-but-missing skill keywords.
+_INJECT_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
 
-    enforce_skills_section caps each Skills line (soft skills at 6), which can
-    drop a JD-approved soft skill (e.g. "verbal communication" / "written
-    communication") the writer never surfaced, leaving it stuck on the
-    "Approved but missed" list forever. This runs AFTER the cap and re-injects
-    such keywords into their own category line, bounded by the (more generous)
-    surfacing caps, skipping anything already present or flagged as a non-skill
-    phrase. Honest: only keywords the feasibility classifier approved.
+
+def _norm_item(item: str) -> str:
+    """Lower + collapse non-alphanumerics for cross-form comparison."""
+    return re.sub(r"[^a-z0-9]+", " ", item.lower()).strip()
+
+
+def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]) -> str:
+    """Cap-aware safety net for approved-but-missing skill keywords.
+
+    For each Skills line:
+      • Take the current items, split by approved (in feasibility) vs
+        writer-only (everything else).
+      • Append the missing approved keywords (those classified for this
+        category) to the approved-keep list.
+      • Build the final list = approved-keep + writer-only.
+      • Truncate to the position-based DEFAULT_SKILL_CAPS (first line 14,
+        second 6, third 6).
+
+    Effect: every approved keyword the feasibility plan classified for this
+    category lands in the line, and writer-only items at the tail get
+    truncated when over cap. If the line already has > cap approved items
+    it stays at that size and the writer-only items get dropped.
+
+    Non-skill phrases (qualifications, eligibility, sector descriptors) are
+    always skipped — those belong in other sections, not Skills.
+
+    This function makes the line ≤ cap; no follow-up ``enforce_skills_section``
+    is required (and would in fact be harmful, truncating from the end and
+    dropping the just-placed approved items).
     """
     entries = _approved_skill_entries(feasibility)
     if not entries:
         return markdown
+
+    # Approved-keyword set for "is this item approved?" checks on existing
+    # line items. Built from every injectable bucket of the feasibility plan.
+    approved_set: set[str] = {_norm_item(kw) for kw, _ in entries}
+    # Entries grouped by category so we know what to add per line.
+    by_cat: Dict[str, list[str]] = {}
+    for kw, cat in entries:
+        by_cat.setdefault(cat, []).append(kw)
 
     lines = markdown.split("\n")
     skills_start = None
@@ -756,31 +785,103 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
     if skills_start is None:
         return markdown
 
-    cat_to_line_idx: Dict[str, int] = {}
+    # Map category → (line_idx, position_in_skills_section). Position drives
+    # the DEFAULT_SKILL_CAPS lookup: first line 14, second 6, third 6.
+    cat_to: Dict[str, tuple[int, int]] = {}
+    pos = 0
     for i in range(skills_start + 1, skills_end):
+        stripped = _LEADING_BULLET_RE.sub("", lines[i].lstrip())
+        if not stripped.startswith("**") or ":**" not in stripped:
+            continue
+        matched_cat: Optional[str] = None
         for cat, label in _SKILLS_CATEGORY_LABEL.items():
             if _line_starts_label(lines[i], label):
-                cat_to_line_idx[cat] = i
+                matched_cat = cat
                 break
+        if matched_cat is None:
+            # Nursing headline ("Care Skills" / "Clinical Skills" / "Core
+            # Skills") carries domain_knowledge content but doesn't match any
+            # canonical label. When it's the first Skills line, infer
+            # domain_knowledge. For non-nursing families the first line will
+            # match a canonical label so this fallback doesn't apply.
+            if pos == 0 and "domain_knowledge" not in cat_to:
+                matched_cat = "domain_knowledge"
+        if matched_cat is not None and matched_cat not in cat_to:
+            cat_to[matched_cat] = (i, pos)
+        pos += 1
 
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
     appended = 0
-    for kw, cat in entries:
-        target_idx = cat_to_line_idx.get(cat)
-        if target_idx is None:
-            continue
-        if _kw_in_skills(kw, skills_text_lower) or _is_non_skill_phrase(kw):
-            continue
-        cap = _SURFACE_CAPS.get(cat, 8)
-        if len(lines[target_idx].split(",")) >= cap:
-            continue
-        display = _format_skill_label(kw)
-        lines[target_idx] = f"{lines[target_idx].rstrip()}, {display}"
-        skills_text_lower += ", " + display.lower()
-        appended += 1
+    dropped = 0
 
-    if appended:
-        logger.info("w8 approved-skill injector: re-added %d approved keyword(s)", appended)
+    for cat, target in cat_to.items():
+        target_idx, target_pos = target
+
+        line = lines[target_idx]
+        m = _INJECT_LINE_RE.match(line)
+        if not m:
+            continue
+        prefix, body = m.group(1), m.group(2)
+        items = [it.strip() for it in body.split(",") if it.strip()]
+        if not items:
+            continue
+
+        # Position-based cap from DEFAULT_SKILL_CAPS (14, 6, 6).
+        cap = (
+            DEFAULT_SKILL_CAPS[target_pos]
+            if target_pos < len(DEFAULT_SKILL_CAPS)
+            else DEFAULT_SKILL_CAPS[-1]
+        )
+
+        # Classify existing items: approved-keep vs writer-only. Preserve
+        # the writer's intra-class ordering for both buckets.
+        approved_existing: list[str] = []
+        writer_only: list[str] = []
+        seen_existing: set[str] = set()
+        for it in items:
+            key = _norm_item(it)
+            if key in seen_existing:
+                continue
+            seen_existing.add(key)
+            if key in approved_set:
+                approved_existing.append(it)
+            else:
+                writer_only.append(it)
+
+        # Pending = approved keywords for THIS category not already in line
+        # and not a non-skill phrase. Display-formatted.
+        pending: list[str] = []
+        for kw in by_cat.get(cat, []):
+            if _is_non_skill_phrase(kw):
+                continue
+            if _kw_in_skills(kw, skills_text_lower):
+                continue
+            display = _format_skill_label(kw)
+            if _norm_item(display) in seen_existing:
+                continue
+            seen_existing.add(_norm_item(display))
+            pending.append(display)
+            skills_text_lower += ", " + display.lower()
+
+        if not pending and len(items) <= cap:
+            continue  # nothing to add and line within cap → no work needed
+
+        # Final list = approved-keep + new approved + writer-only, truncated.
+        merged = approved_existing + pending + writer_only
+        before = len(items)
+        truncated = merged[:cap]
+        after = len(truncated)
+        appended += sum(1 for p in pending if p in truncated)
+        if before > after:
+            dropped += before - after
+
+        lines[target_idx] = prefix + ", ".join(truncated)
+
+    if appended or dropped:
+        logger.info(
+            "w8 approved-skill injector: added %d approved keyword(s); dropped %d writer-only tail item(s)",
+            appended, dropped,
+        )
 
     return "\n".join(lines)
 
@@ -1499,27 +1600,51 @@ def normalise_heading_title_case(markdown: str) -> str:
 # next to month-only siblings.
 # ---------------------------------------------------------------------------
 
+# Day-of-month strip — handles trailing period after abbreviation
+# ("Sept. 20, 2024" as well as "Sept 20, 2024").
 _DATE_WITH_DAY_RE = re.compile(
-    r"\b([A-Za-z]{3,9})\s+\d{1,2}\s*,\s*(\d{4})\b"
+    r"\b([A-Za-z]{3,9})\.?\s+\d{1,2}\s*,\s*(\d{4})\b"
+)
+
+# Trailing period after a recognised abbreviated month name anywhere in the
+# markdown. ("Sept. 2019" / "Sep. 2024" / "Oct." → "Sept" / "Sep" / "Oct".)
+# Opus and some other LLMs reliably emit "Sept." with the period; this is the
+# canonical Phase-2 cleanup so dates render uniformly across the CV.
+_MONTH_NAMES_ABBR = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+    "Sept", "Oct", "Nov", "Dec",
+)
+_MONTH_DOT_RE = re.compile(
+    r"\b(" + "|".join(_MONTH_NAMES_ABBR) + r")\.(?=\s|$)",
+    re.IGNORECASE,
 )
 
 
 def normalise_date_formats(markdown: str) -> str:
-    """Strip day-of-month from `Month DD, YYYY` patterns to `Month YYYY`.
+    """Normalise CV date formats:
+      1. Strip the trailing period from abbreviated month names — ``Sept.`` →
+         ``Sept``, ``Sep.`` → ``Sep`` — anywhere in the markdown.
+      2. Strip day-of-month from ``Month DD, YYYY`` patterns → ``Month YYYY``.
 
-    Conservative — only matches month names + 1-2 digit day + comma + 4-digit
-    year. Doesn't touch single-month-name dates or month-year ranges.
+    Both passes are conservative: only matches recognised month
+    abbreviations/names, and the period strip only fires when followed by
+    whitespace/digit/end-of-line (so abbreviations inside other words are
+    left alone).
     """
     if not markdown:
         return markdown
-    # Replace only when the leading token is a recognised month abbreviation/name.
+    # Pass 1: month abbreviations with trailing period.
+    def _strip_dot(m: "re.Match") -> str:
+        return m.group(1)
+    out = _MONTH_DOT_RE.sub(_strip_dot, markdown)
+    # Pass 2: day-of-month strip (`Sept 20, 2024` → `Sept 2024`).
     def _sub(m: "re.Match") -> str:
         month = m.group(1)
         year = m.group(2)
         if month.lower() not in _MONTH_TO_NUM:
             return m.group(0)  # not a month name → leave alone
         return f"{month} {year}"
-    return _DATE_WITH_DAY_RE.sub(_sub, markdown)
+    return _DATE_WITH_DAY_RE.sub(_sub, out)
 
 
 # ---------------------------------------------------------------------------
@@ -3979,13 +4104,6 @@ async def _writer_w8_verified(
     verified_md = _strip_non_skill_phrases(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
-    # Post-cap safety net: re-inject any approved keyword the cap dropped, then
-    # drop generics the now-present specific entries subsume. Final word on
-    # Skills so approved soft skills (verbal/written communication) actually land.
-    verified_md = _inject_approved_skills(verified_md, result.feasibility)
-    verified_md = _drop_subsumed_generic_skills(verified_md)
-    verified_md = _normalise_skills_case(verified_md)
-    verified_md = _dedupe_skills_across_lines(verified_md)
     # ── PHASE 2 RE-RUN ──────────────────────────────────────────────────────
     # verify_claims is an AI step that can rewrite ANY section, undoing the
     # Phase 2 sprints that ran inside _writer_w8_integrated. Re-run them here
@@ -3995,7 +4113,7 @@ async def _writer_w8_verified(
     #   • Sprint B: chronological order + bullet tense
     #   • Sprint C: body spelling, italic title case, date format
     #   • Sprint E: enforce Summary S2 concreteness
-    # Sprint D is implicit in _normalise_awards_entries above (line 38).
+    # Sprint D is implicit in _normalise_awards_entries above.
     verified_md = split_awards_and_certifications(verified_md)
     verified_md = _normalise_awards_entries(verified_md)  # re-format any new Awards entries
     verified_md = sort_experience_chronologically(verified_md)
@@ -4004,11 +4122,18 @@ async def _writer_w8_verified(
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
-    # Final hard-cap pass — DEFAULT_SKILL_CAPS=(14,6,6). _inject_approved_skills
-    # uses the larger _SURFACE_CAPS which can push Soft/Other past 6; this
-    # re-runs enforce so 6 is the final ceiling and an empty Other Skills line
-    # is dropped entirely.
+    # Hard-cap pass FIRST so we know what survived: DEFAULT_SKILL_CAPS=(14,6,6).
+    # An empty Other Skills line is dropped entirely.
     verified_md = enforce_skills_section(verified_md)
+    # Cap-aware approved-skill injection — appends approved keywords if there's
+    # room under the cap, or swaps out the LAST non-approved (writer-only) tail
+    # item when at cap. Sits AFTER the cap so its work isn't truncated; respects
+    # the cap so no follow-up enforce is needed. Approved soft skills the writer
+    # never surfaced (verbal/written communication, work planning) actually land.
+    verified_md = _inject_approved_skills(verified_md, result.feasibility)
+    verified_md = _drop_subsumed_generic_skills(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -4106,13 +4231,6 @@ async def _writer_w8_critique(
     verified_md = _strip_non_skill_phrases(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
-    # Post-cap safety net: re-inject any approved keyword the cap dropped, then
-    # drop generics the now-present specific entries subsume. Final word on
-    # Skills so approved soft skills (verbal/written communication) actually land.
-    verified_md = _inject_approved_skills(verified_md, result.feasibility)
-    verified_md = _drop_subsumed_generic_skills(verified_md)
-    verified_md = _normalise_skills_case(verified_md)
-    verified_md = _dedupe_skills_across_lines(verified_md)
     # ── PHASE 2 RE-RUN (mirrors _writer_w8_verified) ────────────────────────
     # Same rationale: AI post-passes can undo Phase 2's deterministic shape.
     # Re-run all Phase 2 sprints; they're idempotent.
@@ -4124,8 +4242,14 @@ async def _writer_w8_critique(
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
-    # Final hard-cap pass (see _writer_w8_verified).
+    # Hard-cap FIRST, THEN cap-aware approved-skill injection — same order as
+    # _writer_w8_verified. The inject respects DEFAULT_SKILL_CAPS so no
+    # follow-up enforce is needed (it would truncate the injected entries).
     verified_md = enforce_skills_section(verified_md)
+    verified_md = _inject_approved_skills(verified_md, result.feasibility)
+    verified_md = _drop_subsumed_generic_skills(verified_md)
+    verified_md = _normalise_skills_case(verified_md)
+    verified_md = _dedupe_skills_across_lines(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result

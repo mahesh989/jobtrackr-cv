@@ -95,11 +95,17 @@ E. _log_tailoring_report (single log line per run)
      normalise_experience_tense
      canonicalise_body_spelling
      normalise_heading_title_case
-     normalise_date_formats
+     normalise_date_formats          ← Sprint C2: also strips period after abbrev
      enforce_summary_concreteness
-5. Final hard-cap pass:
+5. Final cap + cap-aware approved-skill inject (Sprint J):
      enforce_skills_section          ← Sprint F: (14, 6, 6); drops empty Other line
+     _inject_approved_skills         ← Sprint J: cap-aware, runs AFTER cap (was: BEFORE)
+     _drop_subsumed_generic_skills
+     _normalise_skills_case
+     _dedupe_skills_across_lines
 ```
+
+**CRITICAL ORDERING** (Sprint J): `_inject_approved_skills` MUST run AFTER the final `enforce_skills_section`, not before. Previously (pre-Sprint-J) the inject appended approved keywords to the end of the line up to `_SURFACE_CAPS=8`, then the final cap truncated back to `DEFAULT_SKILL_CAPS=6` — dropping every just-injected keyword off the tail. The Sprint J inject is itself cap-aware (uses position-based `DEFAULT_SKILL_CAPS` and swaps out writer-only tail items when at cap), so no follow-up enforce is needed (and would be harmful).
 
 ## Sprint inventory
 
@@ -116,6 +122,8 @@ E. _log_tailoring_report (single log line per run)
 | **I** | `_strip_credential_qualifiers` + retry pass in `_kw_present` | "current accredited first aid certificate" → strips → matches HLTAID011 | `test_phase2b_synonyms.py::TestQualifierStripping` (8) |
 | **I+** | Synonym override on honest gaps in `tailored_rescoring` | CPR with HLTAID011 in CV → credited, not gap | `test_phase2b_synonyms.py::TestSynonymOverridesHonestGap` (2) |
 | **2B** | `_KW_SYNONYM_MAP` (curated AU credential synonyms) | "nsw c class motor vehicle licence" ≡ Driver Licence; HLTAID011 ≡ First Aid + CPR | `test_phase2b_synonyms.py` (26) |
+| **C2** | `normalise_date_formats` regex: `\.?` after month + period-strip pass | "Sept. 20, 2024" → "Sept 2024"; "Sept. 2019" → "Sept 2019" — Opus emits "Sept." reliably | `test_sprint_c_polish.py::TestDateFormat` (10 incl. 5 new period tests) |
+| **J** | `_inject_approved_skills` rewritten cap-aware + reordered AFTER final `enforce_skills_section` | 8 approved soft skills (verbal/written communication, work planning) no longer dropped by the final cap | `test_skills_hygiene.py` (4 new: writer-only displaced, cap respected, no-followup-enforce) |
 | **Phase 2 re-run** | `_writer_w8_verified` re-fires all sprints after `verify_claims` | Phase 2 invariants always hold regardless of LLM output | (integration via 4j wiring) |
 
 ## Per-family config (`role_families.py`)
@@ -134,7 +142,7 @@ All weights sum to 50. Nursing/manual flip the technical↔domain emphasis so cl
 1. **Idempotency** — every Phase 2 pass produces identical output on re-run. Guaranteed by sort-order checks and equality early-exits.
 2. **Honesty** — no Phase 2 pass invents content. Synonym overrides require both: a curated synonym AND that synonym literally present in CV.
 3. **Order matters** — within the writer pipeline, the order in the canonical sandwich and the Phase 2 re-run section is load-bearing. Re-ordering will introduce subtle bugs.
-4. **CAPS are final** — `enforce_skills_section` runs LAST in `_writer_w8_verified` to enforce `(14, 6, 6)` after all the post-cap injection paths.
+4. **CAPS are honoured by every Skills writer** — `enforce_skills_section` runs once, THEN `_inject_approved_skills` runs cap-aware. The injector's output is the final Skills shape; running `enforce_skills_section` after it would truncate the just-placed approved keywords (the pre-Sprint-J regression).
 
 ## Synonym map (`tailored_rescoring._KW_SYNONYM_MAP`)
 
@@ -224,4 +232,7 @@ ffc835a  Phase 2B: conservative AU credential synonym table for the verifier
 b55e524  Sprint H: scope tool surfacer to Skills section; move misplaced tech entries
 4076517  Sprint I: pre-strip JD qualifier words from credential keywords
 82080e9  Sprint I+: synonym map overrides feasibility honest-gap classification
+
+5ad328b  feat(prompt): Phase 3A — fold five LLM-quality rules into composition prompt
+[NEXT]   Sprint C2 + Sprint J: period-month dates + cap-aware approved-skill inject
 ```
