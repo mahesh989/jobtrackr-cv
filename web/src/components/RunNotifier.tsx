@@ -22,8 +22,13 @@ interface Toast {
   href:  string;
 }
 
-const POLL_MS  = 3000;
-const TOAST_MS = 8000;
+// Adaptive polling: poll fast only while a run is actually in flight (so the
+// completion toast stays snappy), back off hard when idle, and pause entirely
+// when the tab is backgrounded. Previously this was a fixed 3s heartbeat that
+// ran forever regardless of activity — ~1,200 needless requests/hour/tab.
+const ACTIVE_MS = 3000;   // a run is running — keep toasts responsive
+const IDLE_MS   = 30000;  // nothing running — quiet heartbeat
+const TOAST_MS  = 8000;
 
 export function RunNotifier() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -33,14 +38,29 @@ export function RunNotifier() {
 
   useEffect(() => {
     let cancelled = false;
-    let timeoutHandles: ReturnType<typeof setTimeout>[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
+    const timeoutHandles: ReturnType<typeof setTimeout>[] = [];
+
+    function schedule(delay: number) {
+      if (cancelled || document.hidden) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(poll, delay);
+    }
 
     async function poll() {
+      // Guard against overlapping runs (e.g. a visibilitychange firing while a
+      // request is already in flight).
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      let anyRunning = false;
       try {
         const res = await fetch("/api/user/runs", { cache: "no-store" });
         if (!res.ok) return;
         const { runs }: { runs: RunSnapshot[] } = await res.json();
         if (cancelled) return;
+
+        anyRunning = runs.some((r) => r.status === "running");
 
         const next: Record<string, string> = {};
         for (const r of runs) next[r.id] = r.status;
@@ -85,15 +105,31 @@ export function RunNotifier() {
         if (anyTransition) router.refresh();
       } catch {
         /* silent */
+      } finally {
+        inFlight = false;
+        // Reschedule based on what we just observed: fast while a run is in
+        // flight, slow when idle. schedule() no-ops if the tab is hidden.
+        schedule(anyRunning ? ACTIVE_MS : IDLE_MS);
+      }
+    }
+
+    // Pause polling when the tab is hidden; resume (and poll immediately) when
+    // it comes back so a run that finished in the background toasts right away.
+    function onVisibility() {
+      if (document.hidden) {
+        if (timer) { clearTimeout(timer); timer = null; }
+      } else {
+        poll();
       }
     }
 
     poll();
-    const interval = setInterval(poll, POLL_MS);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
       for (const h of timeoutHandles) clearTimeout(h);
     };
   }, [router]);
