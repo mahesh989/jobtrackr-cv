@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 // ── "Default" theme fonts (original JobTrackr look) ───────────────────────
@@ -98,7 +99,13 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-bg text-text">{children}</body>
+      <body className="min-h-full flex flex-col bg-bg text-text">
+        {children}
+        {/* Real-user Core Web Vitals (LCP/CLS/INP) per route — feeds the
+            Vercel Speed Insights dashboard. Loads after hydration, so it
+            doesn't affect the metrics it measures. */}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
