@@ -419,6 +419,38 @@ def test_normalise_paren_date_with_description_keeps_description():
     assert "recognised for hard work" in out.lower()
 
 
+def test_normalise_desc_inside_paren_then_date():
+    """LLM shape '(Description, Date)' inside the parens — the parser used to
+    treat the entire paren body as the date, leaking the full description text
+    into the rendered date slot (then duplicating it on the description line).
+    Pull the trailing date out, route the leading description to the proper
+    description line (deduped against any after-paren description).
+    """
+    md = (
+        "## Awards\n"
+        "- Staff Excellence Award, Jesmond Miranda Nursing Home "
+        "(Recognised for hard work, caring nature, and positive attitude, "
+        "August 2025)\n"
+    )
+    out = _normalise_awards_entries(md)
+    # Date slot is just the date — not the description.
+    assert "(August 2025)" in out
+    # Description renders on its own line (case-insensitive — title-case pass may run).
+    assert "recognised for hard work" in out.lower()
+    # And the date does NOT also appear inside the description text.
+    desc_lines = [l for l in out.split("\n") if "ecognised" in l]
+    assert desc_lines, "description line missing"
+    assert "August 2025" not in desc_lines[0], (
+        f"Date leaked into description: {desc_lines[0]!r}"
+    )
+    # The description must NOT also appear inside the parens (single source of truth).
+    name_lines = [l for l in out.split("\n") if "Staff Excellence Award" in l]
+    assert name_lines, "name line missing"
+    assert "ecognised" not in name_lines[0].lower(), (
+        f"Description leaked into name line: {name_lines[0]!r}"
+    )
+
+
 def test_normalise_strips_date_prefix_from_description():
     """Regression: when verify_claims or a re-run prepends the date to the
     description (e.g. 'August 2025. Recognised for...'), it must be stripped

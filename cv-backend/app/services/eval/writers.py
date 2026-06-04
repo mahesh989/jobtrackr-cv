@@ -2588,10 +2588,25 @@ def _parse_award_parts(content: str) -> tuple:
     else:
         m = re.search(r"\(([^()]+)\)", content)
         if m:
-            date = m.group(1).strip()
+            paren_body = m.group(1).strip()
             before = content[:m.start()].strip()
             after = content[m.end():].strip().lstrip(",").strip()
             description = after
+            # The paren may carry just the date — "(August 2025)" — OR the LLM
+            # may stuff "(Description, Date)" inside, e.g.:
+            #   "Staff Excellence Award, ABC (Recognised …, August 2025)"
+            # Pull the trailing month/year off the paren content with
+            # _DATE_TAIL_RE; whatever remains in front is description text that
+            # belongs on the description line. _add_desc_sentence dedupes
+            # against any description that came AFTER the parens.
+            date_m = _DATE_TAIL_RE.search(paren_body)
+            if date_m:
+                date = date_m.group(0).strip()
+                leading = paren_body[:date_m.start()].rstrip(",;: ").strip()
+                if leading:
+                    description = _add_desc_sentence(description, leading)
+            else:
+                date = paren_body
             parsed_name, parsed_org = _split_award_name_org(before)
             if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
                 description = _add_desc_sentence(description, parsed_org)
