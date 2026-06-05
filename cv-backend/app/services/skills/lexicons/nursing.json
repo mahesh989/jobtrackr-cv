@@ -17,7 +17,7 @@
 
   "domain_knowledge": [
     { "canonical": "personal care", "variants": ["personal care delivery", "personal hygiene care", "personal care services", "personal care for elderly residents", "assistance with personal care", "personal care assistance", "provision of personal care"] },
-    { "canonical": "activities of daily living", "variants": ["adls", "adl support", "daily living activities", "functions of daily living", "activities of daily living support", "daily living assistance", "daily living support", "assistance with daily living", "assisting with daily living activities"] },
+    { "canonical": "activities of daily living", "variants": ["adls", "adl support", "daily living activities", "functions of daily living", "activities of daily living support", "daily living assistance", "daily living support", "assistance with daily living", "assisting with daily living activities", "support with daily living", "daily living care", "assistance with activities of daily living"] },
     { "canonical": "showering and bathing", "variants": ["showering", "bathing", "bathing and showering", "assistance with showering"] },
     { "canonical": "dressing and grooming", "variants": ["dressing", "grooming", "dressing assistance", "assistance with dressing"] },
     { "canonical": "toileting assistance", "variants": ["toileting", "assistance with toileting"] },
@@ -28,13 +28,13 @@
     { "canonical": "dementia care", "variants": ["dementia support", "caring for residents with dementia", "supporting residents with dementia"] },
     { "canonical": "behaviour management", "variants": ["behavioural management", "behaviour management techniques", "behavioural management techniques", "behaviours of concern", "managing challenging behaviours", "responsive behaviours"] },
     { "canonical": "palliative care", "variants": ["end of life care", "end-of-life care", "palliative support"] },
-    { "canonical": "person-centred care", "variants": ["person centred care", "person-centered care", "person centered care", "individualised care", "individualized care", "person-centred support", "person centred support", "person-centered support", "resident-centred care", "resident centred care", "resident centered care", "client-centred care", "client centred care"] },
+    { "canonical": "person-centred care", "variants": ["person centred care", "person-centered care", "person centered care", "individualised care", "individualized care", "person-centred support", "person centred support", "person-centered support", "resident-centred care", "resident centred care", "resident centered care", "client-centred care", "client centred care", "consumer focused care", "consumer-focused care", "consumer centred care"] },
     { "canonical": "wound care", "variants": ["wound management", "wound dressing", "wound dressings", "basic wound care", "simple wound care"] },
     { "canonical": "pressure injury care", "variants": ["pressure area care", "pressure injury prevention", "pressure ulcer care", "skin integrity"] },
     { "canonical": "continence care", "variants": ["continence management", "continence support", "continence assistance"] },
     { "canonical": "infection control", "variants": ["infection prevention and control", "infection prevention", "infection control practices", "infection prevention and control requirements", "infection control procedures", "infection control protocols", "infection control and ppe use", "infection control and ppe", "infection control and personal protective equipment", "ppe use", "standard precautions"] },
     { "canonical": "manual handling", "variants": ["safe manual handling", "manual handling techniques", "no lift", "safe handling", "safe patient handling", "safe patient handling and mobility assistance", "safe patient handling and mobility", "patient handling"] },
-    { "canonical": "mobility support", "variants": ["mobility assistance", "assisting with mobility", "mobility and transfers", "transfers", "patient transfers", "hoist transfers", "use of hoists", "hoisting"] },
+    { "canonical": "mobility support", "variants": ["mobility assistance", "assisting with mobility", "mobility and transfers", "transfers", "patient transfers", "hoist transfers", "use of hoists", "hoisting", "patient mobility", "resident mobility", "client mobility", "mobility and repositioning"] },
     { "canonical": "clinical observations", "variants": ["observations", "health observations", "monitoring observations"] },
     { "canonical": "vital signs", "variants": ["vital signs monitoring", "recording vital signs", "obs", "taking observations"] },
     { "canonical": "clinical assessments", "variants": ["clinical assessment", "health assessments", "resident assessments"] },
@@ -61,6 +61,8 @@
     { "canonical": "emergency response", "variants": ["responding to emergencies", "emergency care", "first response"] },
     { "canonical": "risk management", "variants": ["clinical risk management", "risk management in care", "resident safety and risk management", "personal safety and risk management", "safety and risk management", "risk assessment"] },
     { "canonical": "acute care", "variants": ["acute care nursing", "acute hospital care", "acute inpatient care", "acute ward", "acute care setting"] },
+    { "canonical": "high support needs care", "variants": ["high support needs", "high care needs", "complex care needs", "complex support needs", "complex needs care", "high level care", "high dependency care"] },
+    { "canonical": "multidisciplinary team care", "variants": ["multidisciplinary team", "mdt", "multidisciplinary care", "interdisciplinary care", "multidisciplinary team work", "working in a multidisciplinary team", "collaborative care team"] },
     { "canonical": "primary care", "variants": ["primary health care", "primary care nursing", "primary healthcare"] },
     { "canonical": "specimen collection", "variants": ["collecting specimens", "urine specimen collection"] },
 
@@ -98,7 +100,7 @@
     { "canonical": "patience", "variants": ["patient", "patient nature", "patient approach"] },
     { "canonical": "tolerance", "variants": ["tolerant", "tolerant nature"] },
     { "canonical": "problem solving", "variants": ["problem-solving", "problem solving skills", "critical thinking", "analytical thinking"] },
-    { "canonical": "adaptability", "variants": ["adaptable", "flexible", "flexibility", "adapting to change"] },
+    { "canonical": "adaptability", "variants": ["adaptable", "flexible", "flexibility", "adapting to change", "flexible attitude", "flexible approach", "open to change"] },
     { "canonical": "reliability", "variants": ["reliable", "dependable", "dependability"] },
     { "canonical": "attention to detail", "variants": ["detail-oriented", "detail oriented", "thoroughness"] },
     { "canonical": "de-escalation", "variants": ["de-escalation techniques", "de escalation", "conflict resolution", "conflict management"] },
@@ -113,7 +115,10 @@
     { "canonical": "safety awareness", "variants": ["safety focus", "safety conscious", "safety mindset", "safety-focused", "awareness of safety", "safety-oriented"] },
     { "canonical": "initiative", "variants": ["showing initiative", "taking initiative", "proactive", "proactively", "self-motivated", "self motivated"] },
     { "canonical": "interpersonal skills", "variants": ["interpersonal", "strong interpersonal skills", "interpersonal abilities", "people skills"] },
-    { "canonical": "relationship building", "variants": ["building relationships", "building rapport", "developing relationships", "meaningful engagement"] }
+    { "canonical": "relationship building", "variants": ["building relationships", "building rapport", "developing relationships", "meaningful engagement"] },
+    { "canonical": "leadership", "variants": ["leading", "lead", "leading a team", "team leadership", "clinical leadership", "providing leadership"] },
+    { "canonical": "motivation", "variants": ["motivated", "self-motivated", "highly motivated", "drive and motivation"] },
+    { "canonical": "customer service", "variants": ["client service", "service delivery", "service excellence", "quality service", "resident service"] }
   ],
 
   "technical": [

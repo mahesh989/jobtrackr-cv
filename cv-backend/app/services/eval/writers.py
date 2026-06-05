@@ -1980,8 +1980,8 @@ _NON_SKILL_EXACT: set[str] = {
     # "home care support" is the sector + "support" — names a category of work,
     # not a discrete competency the candidate has.
     "ageing care", "home care support",
-    # Bare profession name — the job title, not a skill.
-    "nursing",
+    # Bare profession name / over-generic descriptors — not skills.
+    "nursing", "nursing care", "nursing studies", "clinical care",
     # JD-sourced setting/sector phrase variants not yet covered above.
     "aged care support",
     # Non-skill: describes basic equipment access, not a competency.
@@ -2002,6 +2002,7 @@ _NON_SKILL_PREFIXES: tuple[str, ...] = (
     "willingness to", "commitment to", "passion for",
     "use of ",  # "use of laptop/tablet/computer" — describes access, not competency
     "availability for ",  # "availability for day/night/morning shifts X-Y" — requirement, not skill
+    "nursing student",  # "nursing student with aged care placement" — candidate attribute, not skill
 )
 # Qualification / eligibility / compliance signals — never genuine skills.
 # Also catches JD-phrasing "experience in/with/of X" anywhere in the term
