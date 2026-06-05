@@ -118,14 +118,27 @@ export default async function SkillsAuditPage() {
     }
   }
 
-  // ── 1. Fetch recent runs that have a tailored CV in storage ───────────────
-  const { data: runs } = await admin
+  // ── 1. Fetch recent runs that have a tailored CV in storage ──────────────
+  // Primary: non-stale runs. Fallback: if all new runs failed (e.g. empty
+  // API credit balance), include stale runs so the audit still shows data.
+  let { data: runs } = await admin
     .from("analysis_runs")
     .select("id, job_id, tailored_cv_storage_path, jd_analysis_result, created_at")
     .not("tailored_cv_storage_path", "is", null)
     .or("is_stale.is.null,is_stale.eq.false")
     .order("created_at", { ascending: false })
     .limit(200);
+
+  // Fallback to stale runs if fresh query returned nothing
+  if (!runs || runs.length === 0) {
+    const { data: staleRuns } = await admin
+      .from("analysis_runs")
+      .select("id, job_id, tailored_cv_storage_path, jd_analysis_result, created_at")
+      .not("tailored_cv_storage_path", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    runs = staleRuns;
+  }
 
   // ── 2. Fetch job metadata ─────────────────────────────────────────────────
   const jobIds = [...new Set((runs ?? []).map((r) => r.job_id as string).filter(Boolean))];

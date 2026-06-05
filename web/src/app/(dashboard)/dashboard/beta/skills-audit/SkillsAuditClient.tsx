@@ -235,7 +235,9 @@ export default function SkillsAuditClient({
     });
   }, [buildReport]);
 
-  const classificationDone = totalLoading === 0 && audited.length > 0;
+  // Enable export as soon as we have any rows — don't wait for all classification
+  // calls to finish (they can take 10-20s for many rows).
+  const classificationDone = audited.length > 0;
   const reanalyseAllDone   = reQueued + reFailed === fullJdJobs.length && fullJdJobs.length > 0 && !reRunning;
 
   return (
