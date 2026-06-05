@@ -35,7 +35,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 type FilterMode = "all" | "gaps_only";
 
-export default function SkillsAuditClient({ rows }: { rows: RunRow[] }) {
+export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[]; totalRuns: number }) {
   const [audited, setAudited] = useState<AuditedRow[]>(
     rows.map((r) => ({ ...r, classified: [], loading: true }))
   );
@@ -97,7 +97,7 @@ export default function SkillsAuditClient({ rows }: { rows: RunRow[] }) {
     <div className="space-y-6">
       {/* Status bar */}
       <div className="flex items-center gap-4 text-[12px] text-text-2">
-        <span>{totalComplete}/{audited.length} classified</span>
+        <span>{totalRuns} runs fetched · {audited.length} with Other Skills · {totalComplete}/{audited.length} classified</span>
         {totalLoading > 0 && (
           <span className="text-blue-500 animate-pulse">classifying {totalLoading} remaining…</span>
         )}
@@ -144,7 +144,11 @@ export default function SkillsAuditClient({ rows }: { rows: RunRow[] }) {
       {/* Run table */}
       <div className="space-y-3">
         {displayRows.length === 0 && !totalLoading && (
-          <p className="text-[12px] text-text-3 py-8 text-center">No runs with Other Skills issues.</p>
+          <p className="text-[12px] text-text-3 py-8 text-center">
+            {audited.length === 0
+              ? `No analysis runs found with Other Skills — check DB query or try "All runs".`
+              : `No issues found — all Other Skills items are correctly classified.`}
+          </p>
         )}
 
         {displayRows.map((row) => {

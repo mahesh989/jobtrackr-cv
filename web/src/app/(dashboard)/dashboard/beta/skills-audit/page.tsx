@@ -69,7 +69,7 @@ export default async function SkillsAuditPage() {
     .from("analysis_runs")
     .select("id, job_id, tailored_md, jd_analysis_result, created_at")
     .not("tailored_md", "is", null)
-    .eq("is_stale", false)
+    .or("is_stale.is.null,is_stale.eq.false")
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -99,20 +99,20 @@ export default async function SkillsAuditPage() {
     );
     const otherItems = otherKey ? allLabels[otherKey] : [];
 
-    if (otherItems.length > 0) {
-      const job = jobMap.get(jid);
-      rows.push({
-        run_id:       run.id as string,
-        job_id:       jid,
-        job_title:    (job?.title as string) ?? "",
-        company:      (job?.company as string) ?? "",
-        role_family:  roleFamily,
-        lex_vertical: lexVertical,
-        other_items:  otherItems,
-        all_labels:   allLabels,
-      });
-    }
+    const job = jobMap.get(jid);
+    rows.push({
+      run_id:       run.id as string,
+      job_id:       jid,
+      job_title:    (job?.title as string) ?? "",
+      company:      (job?.company as string) ?? "",
+      role_family:  roleFamily,
+      lex_vertical: lexVertical,
+      other_items:  otherItems,
+      all_labels:   allLabels,
+    });
   }
+
+  const totalRuns = (runs ?? []).length;
 
   return (
     <div className="min-h-full">
@@ -138,7 +138,7 @@ export default async function SkillsAuditPage() {
       </div>
 
       <div className="px-6 py-5">
-        <SkillsAuditClient rows={rows} />
+        <SkillsAuditClient rows={rows} totalRuns={totalRuns} />
       </div>
     </div>
   );
