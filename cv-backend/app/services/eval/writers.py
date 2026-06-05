@@ -4282,9 +4282,14 @@ async def run_tailored_cv_w8_verified(
         "input_recs":  input_recs,
         "feasibility": feasibility,
     }
+    # Derive lexicon vertical from the already-resolved role_family stored in
+    # jd_analysis. Without this the re-router (and any future vertical-aware
+    # pass) silently no-ops because vertical=None bypasses all lexicon logic.
+    _FAMILY_TO_VERTICAL = {"tech": "tech", "nursing": "nursing", "manual": "cleaning"}
+    vertical = _FAMILY_TO_VERTICAL.get(str(jd_analysis.get("role_family") or ""))
     result = await _writer_w8_verified(
         client, cv_text, jd_text, contact_details,
-        vertical=None, upstream=upstream,
+        vertical=vertical, upstream=upstream,
     )
     md = result.tailored_md
     if not md or len(md.strip()) < 200:
