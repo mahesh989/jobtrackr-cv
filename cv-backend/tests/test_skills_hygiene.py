@@ -1008,6 +1008,76 @@ def test_breadth_unknown_org_not_stripped():
     assert "at Christmas events" in out  # not an employer → untouched
 
 
+# ---------------------------------------------------------------------------
+# Plain-text Experience format (W8 nursing CVs) — employer extraction + strip
+# ---------------------------------------------------------------------------
+
+_PLAIN_EXP = (
+    "\n\n## Experience\n\n"
+    "Uniting – The Marion\n"
+    "Leichhardt, NSW, Australia\n"
+    "Care Worker (Casual)\n"
+    "Mar 2026 – Present\n"
+    "- Provided person-centred care.\n\n"
+    "Jesmond Miranda Nursing Home\n"
+    "Miranda, NSW, Australia\n"
+    "Assistant in Nursing (Casual)\n"
+    "May 2025 – Present\n"
+    "- Medication administration.\n"
+)
+
+
+def _plain_breadth_md(s2: str) -> str:
+    return f"## Professional Summary\n{_BREADTH_S1} {s2}{_PLAIN_EXP}"
+
+
+def test_plain_text_employer_extracted_and_stripped():
+    """Plain-text format (no ### heading): employer from Experience is stripped
+    from S2 when S1 uses breadth framing — the Hardi nursing run bug."""
+    md = _plain_breadth_md(
+        "Currently delivering care at Jesmond Miranda Nursing Home using BESTMed."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    summary = out.split("## Experience")[0]
+    assert "Jesmond Miranda Nursing Home" not in summary
+    assert "BESTMed" in summary  # continuation preserved
+
+
+def test_plain_text_two_employers_and_joined_untouched():
+    """S2 naming TWO known employers joined by 'and' is breadth-consistent —
+    must NOT be stripped (old code only allowed ';' as the two-employer signal)."""
+    md = _plain_breadth_md(
+        "Currently delivering care at Uniting – The Marion "
+        "and Jesmond Miranda Nursing Home using BESTMed and MedMobile."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    summary = out.split("## Experience")[0]
+    # Both employers should survive since S2 names two
+    assert "Uniting" in summary
+    assert "Jesmond Miranda Nursing Home" in summary
+
+
+def test_plain_text_dangling_dash_fragment_stripped():
+    """LLM drops 'Uniting' and writes 'care – The Marion': the dangling
+    '– The Marion' fragment is stripped even without the 'at' prefix."""
+    md = _plain_breadth_md(
+        "Currently delivering care – The Marion and Jesmond Miranda Nursing Home."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    summary = out.split("## Experience")[0]
+    assert "– The Marion" not in summary
+
+
+def test_plain_text_location_lines_not_mistaken_for_employer():
+    """'Leichhardt, NSW, Australia' must not be collected as an employer name."""
+    md = _plain_breadth_md(
+        "Delivered care to elderly residents."
+    )
+    out = enforce_summary_breadth_consistency(md)
+    # 'Leichhardt' should never appear in the summary (it's a location, not employer)
+    assert "Leichhardt" not in out.split("## Experience")[0]
+
+
 def test_post_verify_care_setting_stripped():
     """verify_claims sometimes reintroduces care-setting descriptors
     ('Acute Healthcare Environment', 'Hospital Setting') into Skills.

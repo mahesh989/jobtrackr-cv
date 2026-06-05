@@ -352,13 +352,38 @@ _HEADING_DATE_PAREN_RE = re.compile(r"\s*\([^)]*\)\s*$")
 _HEADING_FIELD_SPLIT_RE = re.compile(r"\s+[|–—]\s+|\s+-\s+")
 
 
+_AU_LOCATION_RE = re.compile(
+    r",\s*(?:NSW|VIC|QLD|WA|SA|TAS|NT|ACT)\b|,\s*Australia\b",
+    re.IGNORECASE,
+)
+_DATE_LINE_RE = re.compile(r"\b20\d{2}\b|\bPresent\b|\bCurrent\b", re.IGNORECASE)
+
+
+def _looks_like_org_name(line: str) -> bool:
+    """Return True if `line` looks like a plain-text employer name rather than
+    a location, date range, role title, or bullet."""
+    s = line.strip()
+    if not s or len(s) < 6:
+        return False
+    if s.startswith(("## ", "### ", "-", "*", "•", "·")):
+        return False
+    if _AU_LOCATION_RE.search(s):     # "Leichhardt, NSW, Australia"
+        return False
+    if _DATE_LINE_RE.search(s):       # "Mar 2026 – Present"
+        return False
+    return True
+
+
 def _employer_candidates(lines: List[str]) -> List[str]:
     """Collect real employer-name strings from the Experience section(s).
 
-    Each `### Role | Org (Dates)` heading contributes BOTH sides of the
-    role/org split as candidates (we don't need to know which side is the
-    employer — the 'at <name>' gate below only ever fires on the org). Returns
-    candidates longest-first so the fullest name matches before any prefix.
+    Handles two formats:
+      1. ``### Role | Org (Dates)`` heading format — both sides of the split.
+      2. Plain-text format (W8 nursing CVs) — the first non-blank, non-bullet
+         line of each block within the Experience section.
+
+    Returns candidates longest-first so the fullest name is tried before
+    any prefix (avoids "Uniting" matching before "Uniting – The Marion").
     """
     cands: Set[str] = set()
     i = 0
@@ -367,17 +392,26 @@ def _employer_candidates(lines: List[str]) -> List[str]:
         s = lines[i].strip()
         if s.startswith("## ") and s[3:].strip().lower() in _SUMMARY_EXPERIENCE_HEADINGS:
             i += 1
+            prev_blank = True  # treat section start as after a blank line
             while i < n and not lines[i].strip().startswith("## "):
                 h = lines[i].strip()
                 if h.startswith("### "):
+                    # Format 1: ### heading
                     head = _HEADING_DATE_PAREN_RE.sub("", h[4:].strip())
                     parts = _HEADING_FIELD_SPLIT_RE.split(head)
                     for p in parts:
-                        # Drop a trailing ", City, STATE" location tail.
                         name = p.split(",")[0].strip()
-                        # Real org names are ≥6 chars (filters "RN", "EN", "NSW").
                         if len(name) >= 6:
                             cands.add(name)
+                    prev_blank = False
+                elif not h:
+                    prev_blank = True
+                elif prev_blank and _looks_like_org_name(h):
+                    # Format 2: plain-text org name at start of block
+                    cands.add(h)
+                    prev_blank = False
+                else:
+                    prev_blank = False
                 i += 1
             continue
         i += 1
@@ -421,6 +455,23 @@ def _strip_named_employers(s2: str, candidates: List[str]) -> str:
             is_tail = after.strip() == "" or after.lstrip()[:1] in (".", "!", "?")
             replacement = " across these settings" if is_tail else ""
             out = out[: m.start()] + replacement + out[m.end():]
+
+        # Dangling fragment fix: LLM sometimes drops the first word of a
+        # compound org name like "Uniting – The Marion", writing "care – The Marion"
+        # instead of "care at Uniting – The Marion". The "at … name" pattern above
+        # won't fire, but "– <partial_name>" is stranded. Strip it.
+        if "–" in name or "—" in name or "-" in name:
+            # Try each suffix after a dash separator.
+            for sep in ("–", "—", "-"):
+                if sep in name:
+                    suffix = name.split(sep, 1)[1].strip()
+                    if len(suffix) >= 4:
+                        frag_pat = re.compile(
+                            r"\s*[–—-]\s+" + re.escape(suffix) + r"(?![\w'])",
+                            re.IGNORECASE,
+                        )
+                        out = frag_pat.sub("", out)
+
     return _tidy_clause(out) if out != s2 else s2
 
 
@@ -468,11 +519,18 @@ def enforce_summary_breadth_consistency(md: str) -> str:
     if not _BREADTH_RE.search(s1):
         return md  # S1 isn't breadth-framed — nothing to enforce.
     if ";" in s2:
-        return md  # Two-clause S2 (allowed when two dominant roles exist).
+        return md  # Two-clause S2 via semicolon (allowed when two dominant roles exist).
 
     candidates = _employer_candidates(lines)
     if not candidates:
         return md  # No employer names to match against.
+
+    # Also allow S2 that explicitly mentions TWO known employers joined by "and"
+    # (e.g. "at Uniting – The Marion and Jesmond Miranda Nursing Home"). That is
+    # breadth-consistent — naming both dominant roles is fine.
+    named_in_s2 = [c for c in candidates if re.search(re.escape(c), s2, re.IGNORECASE)]
+    if len(named_in_s2) >= 2:
+        return md
 
     new_s2 = _strip_named_employers(s2, candidates)
     if new_s2 == s2:
