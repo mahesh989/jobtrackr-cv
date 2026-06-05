@@ -69,3 +69,23 @@ Just edit the JSON. Keep `canonical` in display form (proper case for product
 names like `BESTMed`; lowercase for generic skills like `wound care` — the
 renderer title-cases). Put every alternate spelling/phrasing in `variants`.
 No code change needed to add a term.
+
+## Deferred types (do NOT add yet)
+
+The following type ideas were proposed and are intentionally NOT in the
+schema. They'd require new downstream pipeline consumers; without those,
+adding the type buys nothing over the existing `noise` / `credential`
+classification. Notes here so the idea isn't lost:
+
+- **`regulatory_body`** — AHPRA / NMBA / ACQSC / NDIS Commission. Currently
+  AHPRA/NMBA live under `credential` (which correctly matches against the
+  user profile). The separate-type idea only pays off when there's a
+  *reporting/compliance dashboard* downstream that surfaces "this role is
+  reportable to X." Add the type then.
+- **`shift_requirement`** — morning/afternoon/night/sleepover/on-call. Today
+  these correctly hit `noise` (dropped from skill buckets). The separate
+  type only matters when there's a *schedule-matching* pipeline.
+- **`location_requirement`** — willing to travel / regional / Central Coast
+  / Gold Coast. Same argument; treat as `noise` until there's *geo
+  matching*. When you add the type, ALSO move the matching values out of
+  `noise` so a single source of truth holds them.

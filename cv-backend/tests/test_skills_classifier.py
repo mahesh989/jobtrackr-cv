@@ -313,3 +313,178 @@ class TestBatch:
         assert out["wound management"].canonical == "wound care"  # type: ignore[union-attr]
         assert out["BESTMed"].category == "technical"  # type: ignore[union-attr]
         assert out["frobnicate"] is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 0.5 — AU-market coverage. AHPRA + visa subclasses are the highest-
+# leverage additions (every clinical AU JD asks for AHPRA; every JD that
+# mentions sponsorship uses visa subclass numbers literally).
+# ---------------------------------------------------------------------------
+
+
+class TestAuCredentialCoverage:
+
+    @pytest.mark.parametrize("kw", [
+        "AHPRA",
+        "AHPRA registered",
+        "AHPRA registration",
+        "NMBA",
+        "nursing and midwifery board",
+        "RN registration",
+        "BLS",
+        "basic life support",
+        "manual handling certificate",
+        "dementia training",
+        "NDIS worker orientation",
+        "food safety certificate",
+        "WWVP",
+        "work with vulnerable people",
+        "annual flu shot",
+    ])
+    def test_au_credential_in_noise(self, kw):
+        c = classify(kw, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "credential"
+
+
+class TestAuEligibilityCoverage:
+
+    @pytest.mark.parametrize("kw", [
+        "482 visa",
+        "subclass 482",
+        "186 visa",
+        "189 visa",
+        "417 visa",
+        "WHV",
+        "working holiday visa",
+        "NZ citizen",
+        "Special Category Visa",
+        "SCV",
+        "full work rights",
+        "no sponsorship required",
+        "does not require sponsorship",
+        "australian citizen or PR",
+    ])
+    def test_au_eligibility_in_noise(self, kw):
+        c = classify(kw, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "eligibility"
+
+
+class TestAuFluffNoise:
+
+    @pytest.mark.parametrize("kw", [
+        "self-starter",
+        "hit the ground running",
+        "passionate about care",
+        "culture fit",
+        "competitive salary",
+    ])
+    def test_jd_fluff_dropped_as_noise(self, kw):
+        c = classify(kw, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+
+class TestNursingClinicalExpansion:
+
+    @pytest.mark.parametrize("phrase,canonical", [
+        ("trachy care", "tracheostomy care"),
+        ("bowel management", "bowel care"),
+        ("epilepsy management", "seizure management"),
+        ("oxygen administration", "oxygen therapy"),
+        ("o2 therapy", "oxygen therapy"),
+        ("CPAP", "respiratory support"),
+        ("BiPAP", "respiratory support"),
+        ("thickened fluids", "dysphagia management"),
+        ("subcut injection", "subcutaneous medication"),
+        ("early warning score", "deteriorating patient recognition"),
+        ("chemical restraint", "restraint minimisation"),
+        # midwife
+        ("CTG", "fetal monitoring"),
+        ("postpartum care", "postnatal care"),
+        ("active labour", "labour and birth"),
+    ])
+    def test_clinical_resolves_to_canonical(self, phrase, canonical):
+        c = classify(phrase, "nursing")
+        assert c is not None and c.is_skill, f"{phrase!r} did not resolve"
+        assert c.canonical == canonical
+        assert c.category == "domain_knowledge"
+
+
+class TestAuAgedCareSoftware:
+
+    @pytest.mark.parametrize("phrase,canonical", [
+        ("eCase", "eCase"),
+        ("ecase", "eCase"),
+        ("e-case", "eCase"),
+        ("SupportAbility", "SupportAbility"),
+        ("Sandstone", "Sandstone"),
+        ("VCare", "VCare"),
+        ("HealthMetrics", "HealthMetrics"),
+        ("Nexus", "Nexus"),
+        ("PeoplePoint", "PeoplePoint"),
+    ])
+    def test_au_care_software_in_technical(self, phrase, canonical):
+        c = classify(phrase, "nursing")
+        assert c is not None and c.is_skill
+        assert c.canonical == canonical
+        assert c.category == "technical"
+
+
+class TestTechModernStack:
+
+    @pytest.mark.parametrize("phrase,canonical,category", [
+        ("Bun", "Bun", "technical"),
+        ("Deno", "Deno", "technical"),
+        ("astro", "Astro", "technical"),
+        ("SolidJS", "SolidJS", "technical"),
+        ("vLLM", "vLLM", "technical"),
+        ("Ollama", "Ollama", "technical"),
+        ("llama index", "LlamaIndex", "technical"),
+        ("DVC", "DVC", "technical"),
+        ("wandb", "Weights & Biases", "technical"),
+        ("zero trust architecture", "zero trust", "domain_knowledge"),
+        ("SRE", "site reliability engineering", "domain_knowledge"),
+        ("feature toggles", "feature flags", "domain_knowledge"),
+        ("observability", "observability", "domain_knowledge"),
+    ])
+    def test_modern_tech_stack_resolves(self, phrase, canonical, category):
+        c = classify(phrase, "tech")
+        assert c is not None and c.is_skill
+        assert c.canonical == canonical
+        assert c.category == category
+
+
+class TestCleaningAuExpansion:
+
+    @pytest.mark.parametrize("phrase,canonical", [
+        ("oven degreasing", "oven cleaning"),
+        ("venetian blind cleaning", "blind cleaning"),
+        ("sofa cleaning", "upholstery cleaning"),
+        ("chewing gum removal", "gum removal"),
+        ("tag removal", "graffiti removal"),
+        ("high-touch cleaning", "touchpoint cleaning"),
+        ("acm cleaning", "asbestos aware cleaning"),
+        ("kindergarten cleaning", "childcare centre cleaning"),
+        ("change room cleaning", "gym cleaning"),
+        ("tab cleaning", "pub cleaning"),
+        ("Tennant", "Tennant"),
+        ("nilfisk vacuum", "Nilfisk"),
+        ("imop", "i-mop"),
+    ])
+    def test_cleaning_expansion_resolves(self, phrase, canonical):
+        c = classify(phrase, "cleaning")
+        assert c is not None and c.is_skill
+        assert c.canonical == canonical
+
+
+class TestTeamPlayerNotNoise:
+    """Sanity check: team player MUST remain a soft skill (not added to
+    noise), since the user explicitly flagged this conflict."""
+
+    def test_team_player_resolves_to_teamwork(self):
+        c = classify("team player", "nursing")
+        assert c is not None and c.is_skill
+        assert c.category == "soft_skills"
+        assert c.canonical == "teamwork"

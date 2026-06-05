@@ -70,7 +70,73 @@
     "proof of immunity",
     "proof of immunity to specified infectious diseases",
     "vaccination status",
-    "current vaccinations"
+    "current vaccinations",
+
+    "ahpra",
+    "ahpra registered",
+    "ahpra registration",
+    "ahpra-registered",
+    "australian health practitioner regulation agency",
+    "nmba",
+    "nmba registration",
+    "nursing and midwifery board",
+    "nursing and midwifery board of australia",
+    "rn registration",
+    "en registration",
+    "midwife registration",
+    "registered nurse registration",
+
+    "basic life support",
+    "bls",
+    "bls certificate",
+    "bls certification",
+    "advanced life support",
+    "als certification",
+
+    "manual handling certificate",
+    "manual handling certification",
+    "certificate in manual handling",
+    "no lift training",
+
+    "dementia training",
+    "dementia essentials",
+    "dementia care training",
+    "dementia care essentials",
+
+    "ndis worker orientation module",
+    "ndis worker orientation",
+    "ndis orientation",
+    "ndis quality and safeguarding",
+    "ndis worker check",
+    "disability inclusion training",
+
+    "aged care quality standards training",
+    "aged care quality standards",
+    "acqs training",
+
+    "food safety certificate",
+    "food safety supervisor",
+    "safefood handler",
+    "safe food handling certificate",
+
+    "covid-19 vaccination certificate",
+    "influenza vaccination certificate",
+    "annual flu shot",
+    "annual influenza vaccination",
+
+    "wwvp",
+    "work with vulnerable people",
+    "working with vulnerable people",
+    "act working with vulnerable people",
+    "tasmania working with vulnerable people",
+    "qld blue card",
+    "wa working with children",
+    "nt ochre card",
+    "sa dhs working with children",
+    "ochre card",
+
+    "national police certificate",
+    "npc"
   ],
 
   "eligibility": [
@@ -94,7 +160,51 @@
     "working visa",
     "eligibility to work",
     "eligible to work",
-    "legally entitled to work"
+    "legally entitled to work",
+
+    "australian citizen or permanent resident",
+    "australian citizen or pr",
+    "australian citizen or permanent residency",
+
+    "new zealand citizen",
+    "nz citizen",
+    "special category visa",
+    "scv",
+
+    "full work rights",
+    "no work restrictions",
+    "unrestricted work rights",
+    "does not require sponsorship",
+    "no sponsorship required",
+    "no visa sponsorship",
+    "valid visa with work rights",
+
+    "partner visa",
+    "spouse visa",
+    "temporary skills shortage visa",
+    "tss visa",
+    "482 visa",
+    "subclass 482",
+    "186 visa",
+    "subclass 186",
+    "189 visa",
+    "subclass 189",
+    "190 visa",
+    "subclass 190",
+    "491 visa",
+    "subclass 491",
+
+    "working holiday visa",
+    "whv",
+    "417 visa",
+    "subclass 417",
+    "462 visa",
+    "subclass 462",
+
+    "graduate visa",
+    "subclass 485",
+    "student visa",
+    "subclass 500"
   ],
 
   "noise": [
@@ -158,6 +268,30 @@
     "values",
     "mission statement",
     "company values",
-    "organisational values"
+    "organisational values",
+
+    "self-starter",
+    "self starter",
+    "hit the ground running",
+    "can-do attitude",
+    "can do attitude",
+    "go-getter",
+    "go getter",
+    "passionate about care",
+    "passionate about people",
+    "driven by compassion",
+    "love working with people",
+    "love what you do",
+    "culture fit",
+    "values alignment",
+    "values aligned",
+    "boutique provider",
+    "supportive environment",
+    "supportive team environment",
+    "great team culture",
+    "fun and dynamic team",
+    "competitive salary",
+    "career progression opportunities",
+    "career development opportunities"
   ]
 }

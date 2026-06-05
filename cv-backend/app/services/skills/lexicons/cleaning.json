@@ -62,7 +62,22 @@
     { "canonical": "manual handling", "variants": ["safe manual handling", "manual handling techniques", "lifting techniques"] },
     { "canonical": "warehouse duties", "variants": ["warehouse work", "pick and pack", "picking and packing", "order picking", "packing orders"] },
     { "canonical": "stock movement", "variants": ["loading and unloading", "loading", "unloading", "moving stock"] },
-    { "canonical": "store presentation", "variants": ["store cleanliness", "store standards", "merchandising support"] }
+    { "canonical": "store presentation", "variants": ["store cleanliness", "store standards", "merchandising support"] },
+
+    { "canonical": "oven cleaning", "variants": ["oven degreasing", "commercial oven cleaning", "pyrolytic oven cleaning"] },
+    { "canonical": "blind cleaning", "variants": ["venetian blind cleaning", "vertical blind cleaning", "curtain cleaning"] },
+    { "canonical": "upholstery cleaning", "variants": ["sofa cleaning", "lounge cleaning", "fabric cleaning", "leather cleaning"] },
+    { "canonical": "gum removal", "variants": ["chewing gum removal", "steam gum removal"] },
+    { "canonical": "graffiti removal", "variants": ["graffiti cleaning", "tag removal", "anti-graffiti cleaning"] },
+    { "canonical": "touchpoint cleaning", "variants": ["high-touch cleaning", "frequently touched surfaces", "handrail cleaning", "door handle cleaning"] },
+    { "canonical": "clean as you go", "variants": ["caygo", "continuous cleaning", "clean on the go"] },
+    { "canonical": "asbestos aware cleaning", "variants": ["asbestos safety", "asbestos containing material", "acm cleaning", "asbestos awareness"] },
+    { "canonical": "HACCP cleaning", "variants": ["haccp cleaning", "food safety cleaning", "ssop cleaning", "sanitation standard operating procedure"] },
+
+    { "canonical": "school cleaning", "variants": ["education facility cleaning", "classroom cleaning", "school holiday cleaning"] },
+    { "canonical": "childcare centre cleaning", "variants": ["kindergarten cleaning", "early learning cleaning", "creche cleaning", "nappy change area cleaning"] },
+    { "canonical": "gym cleaning", "variants": ["fitness centre cleaning", "change room cleaning", "locker room cleaning", "equipment wiping"] },
+    { "canonical": "pub cleaning", "variants": ["hotel venue cleaning", "bistro cleaning", "gaming room cleaning", "tab cleaning", "bar cleaning"] }
   ],
 
   "soft_skills": [
@@ -95,6 +110,10 @@
     { "canonical": "Microsoft Office", "variants": ["ms office", "microsoft office suite"] },
     { "canonical": "Microsoft Outlook", "variants": ["ms outlook", "outlook", "email"] },
     { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "data entry"] },
-    { "canonical": "rostering software", "variants": ["timesheet app", "shift app", "clock-in app", "swipe in/out system"] }
+    { "canonical": "rostering software", "variants": ["timesheet app", "shift app", "clock-in app", "swipe in/out system"] },
+    { "canonical": "Tennant", "variants": ["tennant scrubber", "tennant sweeper"] },
+    { "canonical": "Nilfisk", "variants": ["nilfisk vacuum", "nilfisk pressure washer"] },
+    { "canonical": "i-mop", "variants": ["imop", "i mop"] },
+    { "canonical": "Chemwatch", "variants": ["chemwatch", "chemical safety data management"] }
   ]
 }

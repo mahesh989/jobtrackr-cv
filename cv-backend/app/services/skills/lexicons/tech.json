@@ -57,6 +57,12 @@
     { "canonical": "Prettier", "variants": ["prettier"] },
     { "canonical": "Storybook", "variants": ["storybook.js"] },
 
+    { "canonical": "Bun", "variants": ["bun runtime", "bun.js", "bun.sh"] },
+    { "canonical": "Deno", "variants": ["deno runtime"] },
+    { "canonical": "Astro", "variants": ["astro.js", "astro framework", "astrojs"] },
+    { "canonical": "SolidJS", "variants": ["solid.js", "solidjs", "solid js"] },
+    { "canonical": "Qwik", "variants": ["qwik framework", "qwik.js", "qwikjs"] },
+
     { "canonical": "Node.js", "variants": ["node", "nodejs", "node js"] },
     { "canonical": "Express", "variants": ["express.js", "expressjs"] },
     { "canonical": "NestJS", "variants": ["nest.js", "nest js"] },
@@ -173,6 +179,12 @@
     { "canonical": "Anthropic API", "variants": ["claude api", "anthropic"] },
     { "canonical": "MLflow", "variants": ["ml flow"] },
     { "canonical": "vector database", "variants": ["pinecone", "weaviate", "chroma", "qdrant", "milvus"] },
+    { "canonical": "vLLM", "variants": ["vllm", "v llm"] },
+    { "canonical": "Ollama", "variants": ["ollama", "local llm"] },
+    { "canonical": "LlamaIndex", "variants": ["llama index", "llamaindex"] },
+    { "canonical": "Weights & Biases", "variants": ["wandb", "weights and biases", "weights & biases"] },
+    { "canonical": "DVC", "variants": ["data version control", "dvc"] },
+    { "canonical": "Ray", "variants": ["ray framework", "distributed ray", "ray.io"] },
 
     { "canonical": "Jest", "variants": ["jest tests"] },
     { "canonical": "Mocha", "variants": ["mocha tests"] },
@@ -259,6 +271,12 @@
     { "canonical": "fintech", "variants": ["financial technology", "banking technology"] },
     { "canonical": "e-commerce", "variants": ["ecommerce", "online retail", "online commerce"] },
     { "canonical": "healthtech", "variants": ["health tech", "digital health", "clinical informatics"] },
-    { "canonical": "IoT", "variants": ["internet of things", "embedded systems"] }
+    { "canonical": "IoT", "variants": ["internet of things", "embedded systems"] },
+    { "canonical": "platform engineering", "variants": ["internal developer platform", "idp", "developer platform"] },
+    { "canonical": "zero trust", "variants": ["zero trust architecture", "zta", "beyondcorp"] },
+    { "canonical": "site reliability engineering", "variants": ["sre", "sre practices", "error budgets", "slo", "sla"] },
+    { "canonical": "chaos engineering", "variants": ["chaos testing", "gremlin", "litmus chaos"] },
+    { "canonical": "feature flags", "variants": ["feature toggles", "launchdarkly", "split.io", "flagsmith", "unleash feature flags"] },
+    { "canonical": "observability", "variants": ["o11y", "tracing", "distributed tracing", "opentelemetry"] }
   ]
 }

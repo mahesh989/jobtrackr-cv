@@ -56,7 +56,26 @@
     { "canonical": "restorative care", "variants": ["reablement", "restorative support", "wellness and reablement"] },
     { "canonical": "emotional support", "variants": ["emotional and social support", "providing emotional support", "social support", "companionship"] },
     { "canonical": "emergency response", "variants": ["responding to emergencies", "emergency care", "first response"] },
-    { "canonical": "specimen collection", "variants": ["collecting specimens", "urine specimen collection"] }
+    { "canonical": "specimen collection", "variants": ["collecting specimens", "urine specimen collection"] },
+
+    { "canonical": "tracheostomy care", "variants": ["trachy care", "tracheostomy suctioning", "trache management", "trachy management"] },
+    { "canonical": "bowel care", "variants": ["bowel management", "digital removal of faeces", "manual evacuation", "enema administration", "suppository administration"] },
+    { "canonical": "seizure management", "variants": ["epilepsy management", "seizure care", "post-seizure care", "midazolam administration", "seizure response"] },
+    { "canonical": "oxygen therapy", "variants": ["oxygen administration", "o2 therapy", "oxygen saturation monitoring", "spo2 monitoring", "nasal prongs", "oxygen mask"] },
+    { "canonical": "pain management", "variants": ["pain assessment", "analgesia administration", "pain scoring", "pain relief", "analgesia"] },
+    { "canonical": "respiratory support", "variants": ["cpap", "bipap", "non-invasive ventilation", "niv", "suctioning", "oropharyngeal suction"] },
+    { "canonical": "dysphagia management", "variants": ["swallowing difficulties", "texture-modified food", "thickened fluids", "speech pathology recommendations", "modified diet"] },
+    { "canonical": "palliative symptom management", "variants": ["terminal care", "end-of-life symptom control", "pain and symptom management", "breakthrough pain", "anticipatory medications"] },
+    { "canonical": "subcutaneous medication", "variants": ["subcut injection", "subcut fluids", "subcutaneous fluids", "clexane administration", "insulin injection", "subcutaneous injection"] },
+    { "canonical": "deteriorating patient recognition", "variants": ["deteriorating resident", "deteriorating patient", "early warning score", "news", "obs monitoring", "calling a code", "rapid response"] },
+    { "canonical": "restraint minimisation", "variants": ["restraint use", "chemical restraint", "physical restraint", "least restraint practice", "restrictive practices"] },
+    { "canonical": "skin integrity assessment", "variants": ["skin assessment", "pressure injury assessment", "braden score"] },
+
+    { "canonical": "antenatal care", "variants": ["antenatal assessments", "pregnancy care", "routine antenatal checks", "booking visits", "antenatal clinic"] },
+    { "canonical": "postnatal care", "variants": ["postpartum care", "newborn care", "breastfeeding support", "perineal care", "baby checks", "lactation support"] },
+    { "canonical": "labour and birth", "variants": ["intrapartum care", "active labour", "delivery suite", "vaginal birth", "normal birth", "water birth", "birth support"] },
+    { "canonical": "fetal monitoring", "variants": ["ctg", "cardiotocography", "fetal heart rate", "doppler", "intermittent auscultation", "fhr monitoring"] },
+    { "canonical": "perinatal mental health", "variants": ["antenatal depression", "postnatal depression", "pnd screening", "perinatal depression"] }
   ],
 
   "soft_skills": [
@@ -79,7 +98,10 @@
     { "canonical": "de-escalation", "variants": ["de-escalation techniques", "de escalation", "conflict resolution", "conflict management"] },
     { "canonical": "active listening", "variants": ["listening skills"] },
     { "canonical": "cultural sensitivity", "variants": ["cultural awareness", "culturally sensitive", "cultural competence", "working with diverse cultures"] },
-    { "canonical": "positive attitude", "variants": ["positive", "can-do attitude", "enthusiasm"] }
+    { "canonical": "positive attitude", "variants": ["positive", "enthusiasm", "enthusiastic"] },
+    { "canonical": "advocacy", "variants": ["patient advocacy", "resident advocacy", "advocating for clients", "client advocacy"] },
+    { "canonical": "clinical reasoning", "variants": ["critical thinking in care", "clinical judgement", "nursing judgement", "clinical decision making"] },
+    { "canonical": "resilience", "variants": ["emotional resilience", "coping with pressure", "self-care", "self care"] }
   ],
 
   "technical": [
@@ -99,6 +121,13 @@
     { "canonical": "Microsoft Word", "variants": ["ms word", "word"] },
     { "canonical": "Microsoft Excel", "variants": ["ms excel", "excel", "spreadsheets"] },
     { "canonical": "Microsoft Outlook", "variants": ["ms outlook", "outlook", "email"] },
-    { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "digital literacy", "data entry"] }
+    { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "digital literacy", "data entry"] },
+    { "canonical": "eCase", "variants": ["ecase", "e-case", "e case"] },
+    { "canonical": "SupportAbility", "variants": ["support ability", "supportability software"] },
+    { "canonical": "Sandstone", "variants": ["sandstone care", "sandstone aged care"] },
+    { "canonical": "VCare", "variants": ["vcare", "v care", "v-care"] },
+    { "canonical": "HealthMetrics", "variants": ["health metrics", "healthmetrics software"] },
+    { "canonical": "Nexus", "variants": ["nexus aged care", "nexus care"] },
+    { "canonical": "PeoplePoint", "variants": ["people point", "peoplepoint software"] }
   ]
 }
