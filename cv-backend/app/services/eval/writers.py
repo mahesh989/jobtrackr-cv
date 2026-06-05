@@ -70,6 +70,7 @@ from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
     apply_equivalences,
+    category_labels,
 )
 from app.services.cv.contact_line import stamp_contact_line, stamp_credentials
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
@@ -86,6 +87,7 @@ from app.services.pipeline.steps.tailored_cv import (
     _SKILLS_CATEGORY_LABEL,    # canonical "**Technical/Soft/Other Skills:**" labels
     _kw_in_skills,             # word-boundary "already listed?" check
     _format_skill_label,       # title-case while preserving acronyms
+    build_family_label_map,    # convert RoleFamilyProfile → bold label map for injector
 )
 
 logger = logging.getLogger(__name__)
@@ -3768,7 +3770,11 @@ async def _writer_w8_integrated(
     # 2. Run the VERBATIM production post-processors (structural caps, bullet
     #    method, summary clamp, education rules, skills safety-net injector).
     md = _enforce_structure(md)
-    md = _inject_missing_skills(md, up["feasibility"])
+    # Pass the family-aware label map so inject_directly domain keywords land on
+    # the correct category line. For nursing: domain_knowledge → "**Care Skills:**"
+    # not "**Other Skills:**". Without this, wound care / continence care injected
+    # here would wrongly appear on the Other Skills line.
+    md = _inject_missing_skills(md, up["feasibility"], family_label_map=build_family_label_map(role_family))
     md = stamp_contact_line(md, contact_details)
     # 3. Proven W3 deterministic gates (suppression / degree relevance /
     #    ungrounded-strip) + skills hygiene — all expect canonical names.
@@ -4054,7 +4060,7 @@ async def _writer_w8_critique(
         # Parity with the integrated path: re-assert the deterministic skills
         # injector and the authoritative contact line, in case the critique
         # dropped an injected keyword or touched the contact/H1 lines.
-        md = _inject_missing_skills(md, result.feasibility)
+        md = _inject_missing_skills(md, result.feasibility, family_label_map=build_family_label_map(role_family))
         md = stamp_contact_line(md, contact_details)
         md = apply_w3_gates(
             md,

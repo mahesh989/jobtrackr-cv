@@ -538,11 +538,27 @@ def _strip_education_bullets(markdown: str) -> str:
 # ---------------------------------------------------------------------------
 
 # Maps the feasibility classifier's category enum to the Skills line label.
+# This is the UNIVERSAL (family-agnostic) map. Pass ``family_label_map`` to
+# ``_inject_missing_skills`` to override for a specific role family (e.g.
+# nursing maps domain_knowledge → "**Care Skills:**" not "**Other Skills:**").
 _SKILLS_CATEGORY_LABEL: dict[str, str] = {
     "technical": "**Technical Skills:**",
     "soft_skills": "**Soft Skills:**",
     "domain_knowledge": "**Other Skills:**",
 }
+
+
+def build_family_label_map(rf) -> dict[str, str]:
+    """Convert a RoleFamilyProfile's category_labels to the bold "**Label:**"
+    format expected by ``_inject_missing_skills``.
+
+    ``category_labels(rf)`` returns e.g. ``{"domain_knowledge": "Care Skills",
+    "soft_skills": "Soft Skills", "technical": "Other Skills"}`` for nursing.
+    This function converts that to ``{"domain_knowledge": "**Care Skills:**",
+    ...}`` so the injector can match against actual Skills section lines.
+    """
+    from app.services.eval.role_families import category_labels
+    return {cat: f"**{label}:**" for cat, label in category_labels(rf).items()}
 
 
 def _kw_in_skills(keyword: str, skills_text_lower: str) -> bool:
@@ -582,10 +598,26 @@ def _format_skill_label(keyword: str) -> str:
     return " ".join(out)
 
 
-def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
+def _inject_missing_skills(
+    markdown: str,
+    feasibility: dict | None,
+    *,
+    family_label_map: dict[str, str] | None = None,
+) -> str:
     """
     Append any inject_directly keyword (target=skills_section) that's missing
     from the Skills section to the appropriate category line. AI-free.
+
+    ``family_label_map`` is a {category_key: "**Label:**"} dict that overrides
+    the default ``_SKILLS_CATEGORY_LABEL`` for the current role family. Pass
+    the output of ``category_labels(rf)`` (from role_families.py) converted to
+    bold-label form to make the injector family-aware. When None, the legacy
+    universal label map is used (backward-compatible).
+
+    Why this matters: for nursing, ``domain_knowledge`` maps to ``"Care Skills"``
+    (the headline), NOT ``"Other Skills"`` (which is what the universal map says).
+    Without this override, inject_directly domain keywords (e.g. ``wound care``,
+    ``continence care``) land on the Other Skills line instead of Care Skills.
     """
     markdown = _split_compound_skills(markdown)
     plan = (feasibility or {}).get("feasibility_plan") or {}
@@ -606,6 +638,10 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
     if not targets:
         return markdown
 
+    # Use the caller-supplied family label map when available; fall back to the
+    # universal map so existing callers that don't supply one still work.
+    effective_label_map = family_label_map if family_label_map is not None else _SKILLS_CATEGORY_LABEL
+
     lines = markdown.split("\n")
 
     # Locate the Skills section
@@ -620,13 +656,14 @@ def _inject_missing_skills(markdown: str, feasibility: dict | None) -> str:
     if skills_start is None:
         return markdown  # no Skills section present, nothing to do
 
-    # Map each category to its line index within the Skills section
+    # Map each category to its line index within the Skills section, using the
+    # family-specific label map so nursing's "Care Skills" label is recognised.
     cat_to_line_idx: dict[str, int] = {}
     for i in range(skills_start + 1, skills_end):
         # Tolerate an optional leading list bullet ("- ", "* ", "• ") that the
         # renderer-facing prefix may have stamped on the category line.
         stripped = re.sub(r"^[-*•]\s+", "", lines[i].lstrip())
-        for cat, label in _SKILLS_CATEGORY_LABEL.items():
+        for cat, label in effective_label_map.items():
             if stripped.startswith(label):
                 cat_to_line_idx[cat] = i
                 break
