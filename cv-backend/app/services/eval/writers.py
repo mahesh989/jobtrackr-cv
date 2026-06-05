@@ -1986,6 +1986,21 @@ _NON_SKILL_EXACT: set[str] = {
     "aged care support",
     # Non-skill: describes basic equipment access, not a competency.
     "use of laptop or tablet", "use of computer and tablet", "use of tablet",
+    # JD-phrasing: aspirations / values / availability — not a competency.
+    "interest in leadership development pathways", "interest in leadership development",
+    "interest in career development", "interest in professional development",
+    "commitment to excellence", "commitment to quality care",
+    "work ethic suitable for rotating rosters",
+    "nursing studies in progress",
+    "willingness to engage in ongoing learning and development",
+    "understanding of residential care community operations",
+    "understanding of residential aged care operations",
+    # Pre-employment requirements — not a skill.
+    "pre-employment medical", "pre employment medical",
+    "ability to complete pre-employment medical",
+    "ability to complete police check",
+    "ability to use sector-leading care systems and technology",
+    "ability to use sector-leading care systems",
     # Workplace Health & Safety with/without the (WHS) suffix. WHS is a domain
     # category, not a discrete competency — the real skill is e.g. "Infection
     # Control", "Manual Handling".
@@ -2003,6 +2018,9 @@ _NON_SKILL_PREFIXES: tuple[str, ...] = (
     "use of ",  # "use of laptop/tablet/computer" — describes access, not competency
     "availability for ",  # "availability for day/night/morning shifts X-Y" — requirement, not skill
     "nursing student",  # "nursing student with aged care placement" — candidate attribute, not skill
+    "interest in ",  # "interest in leadership / career / professional development" — aspiration, not skill
+    "ability to complete ",  # "ability to complete police check / pre-employment medical" — requirement
+    "ability to obtain ",  # "ability to obtain NDIS screening" — requirement
 )
 # Qualification / eligibility / compliance signals — never genuine skills.
 # Also catches JD-phrasing "experience in/with/of X" anywhere in the term

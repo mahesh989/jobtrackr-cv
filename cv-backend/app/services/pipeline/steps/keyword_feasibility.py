@@ -45,6 +45,7 @@ from app.services.ai.prompts import (
     KEYWORD_FEASIBILITY_SYSTEM,
     KEYWORD_FEASIBILITY_USER_TEMPLATE,
 )
+from app.services.skills.classifier import is_noise as _lex_is_noise
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ _FILLER_KEYWORD_RE = re.compile(
     r"|^ability\s+to\b"
     r"|^experience\s+(?:in|with|of)\b"
     r"|^familiarity\s+with\b"
-    r"|^(?:willingness|commitment|passion|aptitude)\s+(?:to|for)\b"
+    r"|^(?:willingness|commitment|passion|aptitude|interest)\s+(?:to|for|in)\b"
     r"|^(?:demonstrated|proven)\s+(?:ability|understanding|knowledge|experience)\b",
     re.IGNORECASE,
 )
@@ -360,6 +361,14 @@ def _reconcile_with_missing(
                 # not a plannable gap — exclude from the feasibility plan
                 # entirely so they never surface as "Approved but missed".
                 if _is_filler_keyword(k):
+                    continue
+                # Safety net for old cached runs: if the phrase resolves to
+                # universal noise (credential / eligibility / framework noise)
+                # in the current lexicon, skip it here too.  New runs have these
+                # already stripped by post_process_jd_analysis; this catches
+                # runs where lexicon_meta was computed before the new entries
+                # were added.
+                if _lex_is_noise(k) is not None:
                     continue
                 expected[k] = (bucket, cat)
 

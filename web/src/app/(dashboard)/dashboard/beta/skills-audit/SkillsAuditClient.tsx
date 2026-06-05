@@ -199,21 +199,50 @@ export default function SkillsAuditClient({
       // ALL jobs — including those with no issues — so Claude has the full picture
       jobs: audited
         .filter((r) => !r.loading)
-        .map((r) => ({
-          job_id:               r.job_id,
-          job_title:            r.job_title,
-          company:              r.company,
-          role_family:          r.role_family,
-          lex_vertical:         r.lex_vertical,
-          // Full Skills section (all lines, not just Other Skills)
-          all_skills:           r.all_labels,
-          // Other Skills breakdown
-          other_skills_raw:     r.other_items,
-          needs_lexicon:        r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item),
-          should_be_care_skills: r.classified.filter((c) => c.action === "should_be_care_skills").map((c) => c.item),
-          should_be_stripped:   r.classified.filter((c) => c.action === "should_be_stripped").map((c) => c.item),
-          classified:           r.classified,
-        })),
+        .map((r) => {
+          // Flatten lexicon_meta sidecar for easy reading
+          const meta = r.jd_lexicon_meta as Record<string, Record<string, unknown[]>> | null;
+          const lexFiltered = meta ? {
+            credentials_dropped_required:  (meta.required?.credential  as string[] | undefined) ?? [],
+            credentials_dropped_preferred: (meta.preferred?.credential as string[] | undefined) ?? [],
+            noise_dropped_required:        (meta.required?.noise       as string[] | undefined) ?? [],
+            noise_dropped_preferred:       (meta.preferred?.noise      as string[] | undefined) ?? [],
+            eligibility_dropped:           [
+              ...((meta.required?.eligibility  as string[] | undefined) ?? []),
+              ...((meta.preferred?.eligibility as string[] | undefined) ?? []),
+            ],
+            moved: [
+              ...((meta.required?.moved  as unknown[] | undefined) ?? []),
+              ...((meta.preferred?.moved as unknown[] | undefined) ?? []),
+            ],
+            unknown: [
+              ...((meta.required?.unknown  as unknown[] | undefined) ?? []),
+              ...((meta.preferred?.unknown as unknown[] | undefined) ?? []),
+            ],
+          } : null;
+
+          return {
+            job_id:               r.job_id,
+            job_title:            r.job_title,
+            company:              r.company,
+            role_family:          r.role_family,
+            lex_vertical:         r.lex_vertical,
+            // Full Skills section (all lines, not just Other Skills)
+            all_skills:           r.all_labels,
+            // Other Skills breakdown
+            other_skills_raw:     r.other_items,
+            needs_lexicon:        r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item),
+            should_be_care_skills: r.classified.filter((c) => c.action === "should_be_care_skills").map((c) => c.item),
+            should_be_stripped:   r.classified.filter((c) => c.action === "should_be_stripped").map((c) => c.item),
+            classified:           r.classified,
+            // JD keyword chain — what the AI extracted + what lexicon filtered
+            jd_keywords_required:  r.jd_skills_required,
+            jd_keywords_preferred: r.jd_skills_preferred,
+            jd_lexicon_filtered:   lexFiltered,
+            // Feasibility: what ended up as honest gaps (cannot inject)
+            feasibility_honest_gaps: r.feasibility_gaps,
+          };
+        }),
     };
   }, [audited, totalRuns]);
 
@@ -497,6 +526,65 @@ export default function SkillsAuditClient({
                       ))}
                     </div>
                   </div>
+
+                  {/* JD keyword chain */}
+                  {row.jd_lexicon_meta && (() => {
+                    const meta = row.jd_lexicon_meta as Record<string, Record<string, unknown[]>>;
+                    const reqCreds  = (meta.required?.credential  as string[] | undefined) ?? [];
+                    const prefCreds = (meta.preferred?.credential as string[] | undefined) ?? [];
+                    const reqNoise  = (meta.required?.noise       as string[] | undefined) ?? [];
+                    const prefNoise = (meta.preferred?.noise      as string[] | undefined) ?? [];
+                    const unknown   = [
+                      ...((meta.required?.unknown  as Array<{phrase:string}> | undefined) ?? []).map(u => u.phrase),
+                      ...((meta.preferred?.unknown as Array<{phrase:string}> | undefined) ?? []).map(u => u.phrase),
+                    ];
+                    const allCreds = [...reqCreds, ...prefCreds];
+                    const allNoise = [...reqNoise, ...prefNoise];
+                    if (!allCreds.length && !allNoise.length && !unknown.length) return null;
+                    return (
+                      <div>
+                        <p className="text-[11px] text-text-3 mb-1 font-medium uppercase tracking-wide">
+                          JD lexicon filter
+                        </p>
+                        <div className="space-y-1 text-[11px]">
+                          {allCreds.length > 0 && (
+                            <div>
+                              <span className="text-text-3">Credentials dropped ({allCreds.length}):</span>{" "}
+                              <span className="text-blue-600">{allCreds.join(", ")}</span>
+                            </div>
+                          )}
+                          {allNoise.length > 0 && (
+                            <div>
+                              <span className="text-text-3">Noise dropped ({allNoise.length}):</span>{" "}
+                              <span className="text-gray-500">{allNoise.join(", ")}</span>
+                            </div>
+                          )}
+                          {unknown.length > 0 && (
+                            <div>
+                              <span className="text-text-3">Unknown (kept as-is, {unknown.length}):</span>{" "}
+                              <span className="text-amber-600">{unknown.join(", ")}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Feasibility honest gaps */}
+                  {row.feasibility_gaps.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-text-3 mb-1 font-medium uppercase tracking-wide">
+                        Feasibility honest gaps ({row.feasibility_gaps.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {row.feasibility_gaps.map((gap) => (
+                          <span key={gap} className="px-1.5 py-0.5 rounded border text-[10px] bg-orange-50 text-orange-700 border-orange-200">
+                            {gap}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

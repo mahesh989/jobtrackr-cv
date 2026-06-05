@@ -22,16 +22,21 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export interface RunRow {
-  run_id:       string;
-  job_id:       string;
-  job_title:    string;
-  company:      string;
-  role_family:  string;
-  lex_vertical: string | null;
-  jd_quality:   string | null;
-  jd_length:    number;
-  other_items:  string[];
-  all_labels:   Record<string, string[]>;
+  run_id:              string;
+  job_id:              string;
+  job_title:           string;
+  company:             string;
+  role_family:         string;
+  lex_vertical:        string | null;
+  jd_quality:          string | null;
+  jd_length:           number;
+  other_items:         string[];
+  all_labels:          Record<string, string[]>;
+  // JD keyword chain (for diagnosing what the lexicon filtered)
+  jd_skills_required:  Record<string, string[]> | null;
+  jd_skills_preferred: Record<string, string[]> | null;
+  jd_lexicon_meta:     Record<string, unknown> | null;
+  feasibility_gaps:    string[];  // honest_gaps from keyword_feasibility.summary
 }
 
 export interface FullJdJob {
@@ -121,9 +126,11 @@ export default async function SkillsAuditPage() {
   // ── 1. Fetch recent runs that have a tailored CV in storage ──────────────
   // Primary: non-stale runs. Fallback: if all new runs failed (e.g. empty
   // API credit balance), include stale runs so the audit still shows data.
+  const _RUN_COLS = "id, job_id, tailored_cv_storage_path, jd_analysis_result, keyword_feasibility, created_at";
+
   let { data: runs } = await admin
     .from("analysis_runs")
-    .select("id, job_id, tailored_cv_storage_path, jd_analysis_result, created_at")
+    .select(_RUN_COLS)
     .not("tailored_cv_storage_path", "is", null)
     .or("is_stale.is.null,is_stale.eq.false")
     .order("created_at", { ascending: false })
@@ -133,7 +140,7 @@ export default async function SkillsAuditPage() {
   if (!runs || runs.length === 0) {
     const { data: staleRuns } = await admin
       .from("analysis_runs")
-      .select("id, job_id, tailored_cv_storage_path, jd_analysis_result, created_at")
+      .select(_RUN_COLS)
       .not("tailored_cv_storage_path", "is", null)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -179,8 +186,8 @@ export default async function SkillsAuditPage() {
   const rows: RunRow[] = dedupedRuns.map((run, i) => {
     const jid        = run.job_id as string;
     const tailored   = mdResults[i] ?? "";
-    const jdAnalysis = (run.jd_analysis_result as Record<string, string> | null) ?? {};
-    const roleFamily = jdAnalysis.role_family ?? "master";
+    const jdAnalysis = (run.jd_analysis_result as Record<string, unknown> | null) ?? {};
+    const roleFamily = (jdAnalysis.role_family as string | undefined) ?? "master";
     const lexVertical = VERT_MAP[roleFamily] ?? null;
 
     const allLabels  = extractSkills(tailored);
@@ -193,17 +200,31 @@ export default async function SkillsAuditPage() {
     const manualLen = ((job?.manual_jd_text as string) ?? "").trim().length;
     const descLen   = ((job?.description   as string) ?? "").trim().length;
 
+    // JD keyword chain — for diagnosing lexicon filter coverage
+    const jdSkillsRequired  = (jdAnalysis.required_skills  as Record<string, string[]> | null) ?? null;
+    const jdSkillsPreferred = (jdAnalysis.preferred_skills as Record<string, string[]> | null) ?? null;
+    const jdLexiconMeta     = (jdAnalysis.lexicon_meta     as Record<string, unknown>  | null) ?? null;
+
+    // Feasibility honest gaps — items the planner could not inject
+    const kwFeasibility  = (run.keyword_feasibility as Record<string, unknown> | null) ?? {};
+    const feasSummary    = (kwFeasibility.summary as Record<string, unknown> | undefined) ?? {};
+    const feasibilityGaps = (feasSummary.honest_gaps as string[] | undefined) ?? [];
+
     return {
-      run_id:       run.id as string,
-      job_id:       jid,
-      job_title:    (job?.title       as string) ?? "",
-      company:      (job?.company     as string) ?? "",
-      role_family:  roleFamily,
-      lex_vertical: lexVertical,
-      jd_quality:   (job?.jd_quality  as string | null) ?? null,
-      jd_length:    Math.max(manualLen, descLen),
-      other_items:  otherItems,
-      all_labels:   allLabels,
+      run_id:              run.id as string,
+      job_id:              jid,
+      job_title:           (job?.title    as string) ?? "",
+      company:             (job?.company  as string) ?? "",
+      role_family:         roleFamily,
+      lex_vertical:        lexVertical,
+      jd_quality:          (job?.jd_quality as string | null) ?? null,
+      jd_length:           Math.max(manualLen, descLen),
+      other_items:         otherItems,
+      all_labels:          allLabels,
+      jd_skills_required:  jdSkillsRequired,
+      jd_skills_preferred: jdSkillsPreferred,
+      jd_lexicon_meta:     jdLexiconMeta,
+      feasibility_gaps:    feasibilityGaps,
     };
   });
 

@@ -145,7 +145,25 @@
     "ochre card",
 
     "national police certificate",
-    "npc"
+    "npc",
+
+    "pre-employment medical",
+    "pre employment medical",
+    "pre-employment health check",
+    "pre employment health check",
+
+    "certificate in disability",
+    "cert in disability",
+    "certificate iii in disability",
+    "certificate iv in disability",
+    "certificate iii in community services",
+    "certificate iv in community services",
+    "cert iii in disability",
+    "cert iv in disability",
+    "cert iii in community services",
+    "cert iv in community services",
+
+    "ndis worker screening clearance"
   ],
 
   "eligibility": [
@@ -393,6 +411,40 @@
     "fun and dynamic team",
     "competitive salary",
     "career progression opportunities",
-    "career development opportunities"
+    "career development opportunities",
+
+    "work ethic suitable for rotating rosters",
+    "rotating roster availability",
+    "ability to work rotating rosters",
+    "available for rotating rosters",
+
+    "nursing studies in progress",
+    "interest in leadership development pathways",
+    "interest in leadership development",
+    "interest in career development",
+    "interest in professional development",
+
+    "commitment to excellence",
+    "commitment to quality care",
+    "commitment to high quality care",
+
+    "willingness to engage in ongoing learning and development",
+    "willingness to engage in ongoing professional development",
+    "willingness to learn and develop",
+
+    "ability to complete pre-employment medical",
+    "ability to complete police check",
+    "ability to obtain police check",
+    "ability to complete ndis worker screening",
+    "ability to obtain ndis worker screening",
+    "ability to complete working with children check",
+
+    "ability to use sector-leading care systems and technology",
+    "ability to use sector-leading care systems",
+    "ability to use industry-standard care systems",
+
+    "understanding of residential care community operations",
+    "understanding of residential aged care operations",
+    "understanding of community care operations"
   ]
 }
