@@ -18,6 +18,11 @@ from app.services.skills.classifier import (
     lexicon_stats,
     normalise,
 )
+from app.services.skills.post_process import (
+    post_process_cv_skills,
+    post_process_jd_analysis,
+    post_process_skills,
+)
 
 __all__ = [
     "Classification",
@@ -26,4 +31,7 @@ __all__ = [
     "is_noise",
     "lexicon_stats",
     "normalise",
+    "post_process_cv_skills",
+    "post_process_jd_analysis",
+    "post_process_skills",
 ]

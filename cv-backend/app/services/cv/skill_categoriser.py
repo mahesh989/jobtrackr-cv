@@ -55,7 +55,17 @@ async def categorise_cv_skills(client: AIClient, cv_text: str) -> Dict[str, List
         temperature=0.1,
     )
 
-    return _normalise(raw)
+    normalised = _normalise(raw)
+
+    # Lexicon noise filter — strip credentials, eligibility statements, and
+    # framework/value noise that the LLM may have categorised as a skill.
+    # This is the CV-side counterpart to the JD post-processor; both share
+    # the same universal_noise list so CV and JD agree on what's a skill.
+    # Vertical-specific lexicons are NOT applied here (no JD context at
+    # upload time) — that happens at JD-analysis time on the matching path.
+    from app.services.skills import post_process_cv_skills
+    cleaned, _sidecar = post_process_cv_skills(normalised)
+    return cleaned
 
 
 # ---------------------------------------------------------------------------

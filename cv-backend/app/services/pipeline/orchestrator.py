@@ -138,6 +138,22 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             jd_analysis["category_order"] = category_order(_rf)
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
+        # Lexicon post-process — re-classify the LLM's raw skill buckets via
+        # the curated per-vertical lexicon. Drops universal noise (credentials,
+        # eligibility statements, framework/value phrases) from skill buckets,
+        # moves mis-bucketed skills to their canonical category, dedupes by
+        # canonical form. Unknown phrases stay in the LLM-assigned bucket (safe
+        # fallback). The sidecar (lexicon_meta) holds the dropped/moved items
+        # for downstream routing (credentials → Registration & Licences) and
+        # diagnostics. Idempotent — keyed on the presence of `lexicon_meta`.
+        if "lexicon_meta" not in jd_analysis:
+            from app.services.skills import post_process_jd_analysis
+            jd_analysis = post_process_jd_analysis(
+                jd_analysis,
+                role_family_id=str(jd_analysis.get("role_family") or "master"),
+            )
+            await save_step_result(run_id, "jd_analysis_result", jd_analysis)
+
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
         matching = cached.get("cv_jd_matching_result")
         if matching is not None:
