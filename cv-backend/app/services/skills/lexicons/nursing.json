@@ -17,7 +17,7 @@
 
   "domain_knowledge": [
     { "canonical": "personal care", "variants": ["personal care delivery", "personal hygiene care", "personal care services", "personal care for elderly residents", "assistance with personal care", "personal care assistance", "provision of personal care"] },
-    { "canonical": "activities of daily living", "variants": ["adls", "adl support", "daily living activities", "functions of daily living", "activities of daily living support"] },
+    { "canonical": "activities of daily living", "variants": ["adls", "adl support", "daily living activities", "functions of daily living", "activities of daily living support", "daily living assistance", "daily living support", "assistance with daily living", "assisting with daily living activities"] },
     { "canonical": "showering and bathing", "variants": ["showering", "bathing", "bathing and showering", "assistance with showering"] },
     { "canonical": "dressing and grooming", "variants": ["dressing", "grooming", "dressing assistance", "assistance with dressing"] },
     { "canonical": "toileting assistance", "variants": ["toileting", "assistance with toileting"] },
@@ -45,7 +45,7 @@
     { "canonical": "aged care", "variants": ["residential aged care", "aged care services", "elderly care", "elder care"] },
     { "canonical": "patient care", "variants": ["patient care assistance", "direct patient care", "patient support"] },
     { "canonical": "home care", "variants": ["in-home care", "in home care", "home care packages", "domiciliary care", "home care support work", "home care support", "home and community care", "home care worker"] },
-    { "canonical": "domestic assistance", "variants": ["domestic support", "household assistance", "domestic duties", "domestic tasks", "domestic cleaning", "home duties", "household tasks", "laundry and household tasks"] },
+    { "canonical": "domestic assistance", "variants": ["domestic support", "household assistance", "domestic duties", "domestic tasks", "domestic cleaning", "home duties", "household tasks", "laundry and household tasks", "domestic assistance in home care", "domestic assistance and home care", "domestic support services"] },
     { "canonical": "community care", "variants": ["community aged care", "community support"] },
     { "canonical": "disability support", "variants": ["disability care", "supporting people with disabilities", "disability support work"] },
     { "canonical": "individual support", "variants": ["individualised support"] },
@@ -60,6 +60,8 @@
     { "canonical": "emotional support", "variants": ["emotional and social support", "providing emotional support", "social support", "companionship"] },
     { "canonical": "emergency response", "variants": ["responding to emergencies", "emergency care", "first response"] },
     { "canonical": "risk management", "variants": ["clinical risk management", "risk management in care", "resident safety and risk management", "personal safety and risk management", "safety and risk management", "risk assessment"] },
+    { "canonical": "acute care", "variants": ["acute care nursing", "acute hospital care", "acute inpatient care", "acute ward", "acute care setting"] },
+    { "canonical": "primary care", "variants": ["primary health care", "primary care nursing", "primary healthcare"] },
     { "canonical": "specimen collection", "variants": ["collecting specimens", "urine specimen collection"] },
 
     { "canonical": "tracheostomy care", "variants": ["trachy care", "tracheostomy suctioning", "trache management", "trachy management"] },
@@ -83,7 +85,7 @@
   ],
 
   "soft_skills": [
-    { "canonical": "communication", "variants": ["effective communication", "communication skills", "interpersonal communication"] },
+    { "canonical": "communication", "variants": ["effective communication", "communication skills", "interpersonal communication", "strong communication", "strong communication skills", "clear communication", "verbal and written communication"] },
     { "canonical": "verbal communication", "variants": ["effective verbal communication", "verbal communication skills", "oral communication"] },
     { "canonical": "written communication", "variants": ["effective written communication", "written communication skills", "writing skills"] },
     { "canonical": "teamwork", "variants": ["team work", "working in a team", "ability to work in a team", "collaborative working", "team player"] },
@@ -92,7 +94,7 @@
     { "canonical": "time management", "variants": ["managing time", "time-management"] },
     { "canonical": "organisation", "variants": ["organisational skills", "organization", "organizational skills", "well organised"] },
     { "canonical": "prioritisation", "variants": ["work prioritisation", "prioritization", "prioritising tasks", "ability to prioritise"] },
-    { "canonical": "empathy", "variants": ["empathetic", "empathetic nature", "compassion", "compassionate", "caring nature"] },
+    { "canonical": "empathy", "variants": ["empathetic", "empathetic nature", "compassion", "compassionate", "caring nature", "caring attitude", "compassionate approach", "compassionate care"] },
     { "canonical": "patience", "variants": ["patient", "patient nature", "patient approach"] },
     { "canonical": "tolerance", "variants": ["tolerant", "tolerant nature"] },
     { "canonical": "problem solving", "variants": ["problem-solving", "problem solving skills", "critical thinking", "analytical thinking"] },
@@ -105,7 +107,13 @@
     { "canonical": "positive attitude", "variants": ["positive", "enthusiasm", "enthusiastic"] },
     { "canonical": "advocacy", "variants": ["patient advocacy", "resident advocacy", "advocating for clients", "client advocacy"] },
     { "canonical": "clinical reasoning", "variants": ["critical thinking in care", "clinical judgement", "nursing judgement", "clinical decision making"] },
-    { "canonical": "resilience", "variants": ["emotional resilience", "coping with pressure", "self-care", "self care"] }
+    { "canonical": "resilience", "variants": ["emotional resilience", "coping with pressure", "self-care", "self care", "calm under pressure", "composure under pressure", "working under pressure"] },
+    { "canonical": "accountability", "variants": ["accountable", "taking accountability", "professional accountability", "personal accountability"] },
+    { "canonical": "respect", "variants": ["respectful", "respectfulness", "showing respect", "treating with respect", "treating residents with respect", "respect and dignity"] },
+    { "canonical": "safety awareness", "variants": ["safety focus", "safety conscious", "safety mindset", "safety-focused", "awareness of safety", "safety-oriented"] },
+    { "canonical": "initiative", "variants": ["showing initiative", "taking initiative", "proactive", "proactively", "self-motivated", "self motivated"] },
+    { "canonical": "interpersonal skills", "variants": ["interpersonal", "strong interpersonal skills", "interpersonal abilities", "people skills"] },
+    { "canonical": "relationship building", "variants": ["building relationships", "building rapport", "developing relationships", "meaningful engagement"] }
   ],
 
   "technical": [
@@ -125,7 +133,7 @@
     { "canonical": "Microsoft Word", "variants": ["ms word", "word"] },
     { "canonical": "Microsoft Excel", "variants": ["ms excel", "excel", "spreadsheets"] },
     { "canonical": "Microsoft Outlook", "variants": ["ms outlook", "outlook", "email"] },
-    { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "digital literacy", "data entry"] },
+    { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "digital literacy", "data entry", "smartphone and mobile applications", "mobile applications", "smartphone skills", "smartphone use", "tablet and mobile applications", "digital tools", "digital devices"] },
     { "canonical": "eCase", "variants": ["ecase", "e-case", "e case"] },
     { "canonical": "SupportAbility", "variants": ["support ability", "supportability software"] },
     { "canonical": "Sandstone", "variants": ["sandstone care", "sandstone aged care"] },
