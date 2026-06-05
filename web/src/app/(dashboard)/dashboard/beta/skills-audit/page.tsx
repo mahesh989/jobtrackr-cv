@@ -34,6 +34,12 @@ export interface RunRow {
   all_labels:   Record<string, string[]>;
 }
 
+export interface FullJdJob {
+  job_id:    string;
+  job_title: string;
+  company:   string;
+}
+
 const VERT_MAP: Record<string, string> = {
   nursing: "nursing",
   tech:    "tech",
@@ -77,6 +83,40 @@ export default async function SkillsAuditPage() {
   if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard");
 
   const admin = createAdminClient();
+
+  // ── 0. Fetch ALL full-JD jobs owned by this user (for re-analyse button) ──
+  // A job is "full JD" when jd_quality != 'thin' (worker-set) OR manual_jd_text
+  // is present. We query via profile ownership to scope to this user only.
+  const { data: profileRows } = await admin
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", user.id);
+  const profileIds = (profileRows ?? []).map((p) => p.id as string);
+
+  const fullJdJobs: FullJdJob[] = [];
+  if (profileIds.length > 0) {
+    // Supabase doesn't expose LENGTH() — fetch all non-thin jobs and filter by
+    // manual_jd_text presence client-side. description length filtering is done
+    // by the analyze route anyway (it scrapes if short).
+    const { data: allJobs } = await admin
+      .from("jobs")
+      .select("id, title, company, jd_quality, manual_jd_text")
+      .in("profile_id", profileIds)
+      .or("jd_quality.neq.thin,manual_jd_text.not.is.null")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    for (const j of allJobs ?? []) {
+      const hasManual = !!(j.manual_jd_text && (j.manual_jd_text as string).trim().length >= 200);
+      if (hasManual || (j.jd_quality && j.jd_quality !== "thin")) {
+        fullJdJobs.push({
+          job_id:    j.id as string,
+          job_title: (j.title as string) ?? "",
+          company:   (j.company as string) ?? "",
+        });
+      }
+    }
+  }
 
   // ── 1. Fetch recent runs that have a tailored CV in storage ───────────────
   const { data: runs } = await admin
@@ -179,7 +219,7 @@ export default async function SkillsAuditPage() {
       </div>
 
       <div className="px-6 py-5">
-        <SkillsAuditClient rows={rows} totalRuns={totalRuns} />
+        <SkillsAuditClient rows={rows} totalRuns={totalRuns} fullJdJobs={fullJdJobs} />
       </div>
     </div>
   );

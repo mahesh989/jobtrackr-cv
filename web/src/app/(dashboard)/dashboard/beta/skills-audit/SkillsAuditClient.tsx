@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RunRow } from "./page";
+import type { FullJdJob, RunRow } from "./page";
 
 interface ClassifiedItem {
   item:      string;
@@ -37,7 +37,15 @@ const ACTION_LABELS: Record<string, string> = {
 
 type FilterMode = "all" | "gaps_only";
 
-export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[]; totalRuns: number }) {
+export default function SkillsAuditClient({
+  rows,
+  totalRuns,
+  fullJdJobs,
+}: {
+  rows:        RunRow[];
+  totalRuns:   number;
+  fullJdJobs:  FullJdJob[];
+}) {
   const [audited, setAudited] = useState<AuditedRow[]>(
     rows.map((r) => ({ ...r, classified: [], loading: true }))
   );
@@ -106,43 +114,43 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
     ? audited.filter((r) => !r.loading && r.classified.some((c) => c.action !== "correct" && c.action !== "correct_technical"))
     : audited;
 
-  // ── Jobs eligible for re-analysis (jd_quality != thin, jd_length >= 1400) ─
-  const fullJdRows = rows.filter((r) => r.jd_quality !== "thin" && r.jd_length >= 1400);
+  // fullJdJobs comes from the server — all jobs owned by this user with full JDs,
+  // regardless of whether they already have a tailored CV in the audit table.
 
   // ── Re-analyse all ──────────────────────────────────────────────────────
   const startReanalyse = useCallback(async () => {
-    if (reRunning || fullJdRows.length === 0) return;
+    if (reRunning || fullJdJobs.length === 0) return;
     setReRunning(true);
     setReQueued(0);
     setReFailed(0);
 
     const initial: Record<string, ReanalyseJobState> = {};
-    for (const row of fullJdRows) initial[row.job_id] = "queued";
+    for (const job of fullJdJobs) initial[job.job_id] = "queued";
     setReState(initial);
 
     let queued = 0, failed = 0;
 
     await Promise.all(
-      fullJdRows.map(async (row) => {
+      fullJdJobs.map(async (job) => {
         try {
-          const res  = await fetch(`/api/jobs/${row.job_id}/analyze`, {
+          const res = await fetch(`/api/jobs/${job.job_id}/analyze`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    JSON.stringify({}),
           });
           if (res.ok) {
             queued++;
-            setReState((p) => ({ ...p, [row.job_id]: "done" }));
+            setReState((p) => ({ ...p, [job.job_id]: "done" }));
           } else {
             const data = (await res.json().catch(() => ({}))) as { error?: string };
-            console.warn(`[skills-audit] re-analyse failed for ${row.job_title}:`, data.error);
+            console.warn(`[skills-audit] re-analyse failed for ${job.job_title}:`, data.error);
             failed++;
-            setReState((p) => ({ ...p, [row.job_id]: "failed" }));
+            setReState((p) => ({ ...p, [job.job_id]: "failed" }));
           }
         } catch (err) {
-          console.error(`[skills-audit] re-analyse error for ${row.job_title}:`, err);
+          console.error(`[skills-audit] re-analyse error for ${job.job_title}:`, err);
           failed++;
-          setReState((p) => ({ ...p, [row.job_id]: "failed" }));
+          setReState((p) => ({ ...p, [job.job_id]: "failed" }));
         }
       })
     );
@@ -150,7 +158,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
     setReQueued(queued);
     setReFailed(failed);
     setReRunning(false);
-  }, [reRunning, fullJdRows]);
+  }, [reRunning, fullJdJobs]);
 
   // ── Export gap report ───────────────────────────────────────────────────
   const buildReport = useCallback(() => {
@@ -162,26 +170,30 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
 
     return {
       summary: {
-        runs_analysed:               totalRuns,
-        unique_jobs:                 audited.length,
+        runs_analysed:                 totalRuns,
+        unique_jobs:                   audited.length,
         jobs_with_other_skills_issues: audited.filter((r) =>
           r.classified.some((c) => c.action !== "correct" && c.action !== "correct_technical")
         ).length,
         lexicon_gaps_by_frequency: Object.entries(freqMap).sort((a, b) => b[1] - a[1]),
       },
+      // ALL jobs — including those with no issues — so Claude has the full picture
       jobs: audited
-        .filter((r) => !r.loading && r.classified.length > 0)
+        .filter((r) => !r.loading)
         .map((r) => ({
-          job_id:           r.job_id,
-          job_title:        r.job_title,
-          company:          r.company,
-          role_family:      r.role_family,
-          lex_vertical:     r.lex_vertical,
-          other_skills_raw: r.other_items,
+          job_id:               r.job_id,
+          job_title:            r.job_title,
+          company:              r.company,
+          role_family:          r.role_family,
+          lex_vertical:         r.lex_vertical,
+          // Full Skills section (all lines, not just Other Skills)
+          all_skills:           r.all_labels,
+          // Other Skills breakdown
+          other_skills_raw:     r.other_items,
           needs_lexicon:        r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item),
           should_be_care_skills: r.classified.filter((c) => c.action === "should_be_care_skills").map((c) => c.item),
-          should_be_stripped:    r.classified.filter((c) => c.action === "should_be_stripped").map((c) => c.item),
-          classified:       r.classified,
+          should_be_stripped:   r.classified.filter((c) => c.action === "should_be_stripped").map((c) => c.item),
+          classified:           r.classified,
         })),
     };
   }, [audited, totalRuns]);
@@ -209,7 +221,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
   }, [buildReport]);
 
   const classificationDone = totalLoading === 0 && audited.length > 0;
-  const reanalyseAllDone   = reQueued + reFailed === fullJdRows.length && fullJdRows.length > 0 && !reRunning;
+  const reanalyseAllDone   = reQueued + reFailed === fullJdJobs.length && fullJdJobs.length > 0 && !reRunning;
 
   return (
     <div className="space-y-5">
@@ -221,7 +233,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
         <div className="flex items-center gap-2">
           <button
             onClick={() => void startReanalyse()}
-            disabled={reRunning || fullJdRows.length === 0}
+            disabled={reRunning || fullJdJobs.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-medium transition-colors
               bg-indigo-600 border-indigo-700 text-white hover:bg-indigo-700
               disabled:opacity-50 disabled:cursor-not-allowed"
@@ -232,14 +244,14 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
                 Queueing…
               </>
             ) : (
-              <>Re-analyse all ({fullJdRows.length} full-JD jobs)</>
+              <>Re-analyse all ({fullJdJobs.length} full-JD jobs)</>
             )}
           </button>
 
           {/* Per-job status chips */}
           {Object.entries(reState).map(([jid, st]) => {
-            const row = rows.find((r) => r.job_id === jid);
-            const label = row?.job_title ?? jid.slice(0, 8);
+            const job = fullJdJobs.find((j) => j.job_id === jid);
+            const label = job?.job_title ?? jid.slice(0, 8);
             const color =
               st === "done"   ? "bg-green-50 text-green-700 border-green-200" :
               st === "failed" ? "bg-red-50 text-red-700 border-red-200" :
@@ -274,9 +286,9 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
             className="px-2.5 py-1.5 rounded border text-[11px] font-medium transition-colors
               bg-surface border-border text-text hover:bg-surface-hover
               disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Download gap report as JSON (same format as skills_audit.py)"
+            title="Download full audit as JSON — all jobs, all skills lines, classified items"
           >
-            Export JSON
+            Export all (JSON)
           </button>
           <button
             onClick={copyReport}
@@ -284,9 +296,9 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
             className="px-2.5 py-1.5 rounded border text-[11px] font-medium transition-colors
               bg-surface border-border text-text hover:bg-surface-hover
               disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Copy gap report to clipboard — paste into Claude for lexicon improvements"
+            title="Copy full audit to clipboard — paste into Claude to update the lexicon"
           >
-            {copyDone ? "Copied!" : "Copy to clipboard"}
+            {copyDone ? "Copied!" : "Copy all (paste to Claude)"}
           </button>
         </div>
       </div>
