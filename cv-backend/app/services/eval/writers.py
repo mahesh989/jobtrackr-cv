@@ -52,7 +52,7 @@ from app.services.ai.prompts.variants.composition import (
     build_surfacing_system,
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
-from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS
+from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS, reroute_skills_by_lexicon
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
@@ -3896,6 +3896,12 @@ async def _writer_w8_integrated(
     #     bare sector names, JD-phrasing fillers) from the Skills section, no
     #     matter whether the base classifier or the surfacing pass added them.
     md = _strip_non_skill_phrases(md)
+    # 3a-ter-pre. Re-route mis-bucketed Skills entries to the lexicon-correct
+    #     line (e.g. 'Clinical Documentation' on Other Skills → Care Skills for
+    #     nursing). Uses classify(entry, vertical) as the authority. Unknown
+    #     entries stay put. Follow with enforce to re-cap any line that grew.
+    md = reroute_skills_by_lexicon(md, vertical)
+    md = enforce_skills_section(md)
     # 3a-ter. Normalise case across all Skills entries — Title Case with
     #     preservation rules for acronyms (SQL/NDIS), digit tokens (GA4), and
     #     mixed-case product names (BESTMed/MedMobile). Fixes inconsistent
@@ -4067,6 +4073,8 @@ async def _writer_w8_verified(
     # These passes are idempotent; the cost is negligible.
     verified_md = enforce_skills_section(verified_md)
     verified_md = _strip_non_skill_phrases(verified_md)
+    verified_md = reroute_skills_by_lexicon(verified_md, vertical)
+    verified_md = enforce_skills_section(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
     # ── PHASE 2 RE-RUN ──────────────────────────────────────────────────────
@@ -4192,6 +4200,8 @@ async def _writer_w8_critique(
     # These passes are idempotent; the cost is negligible.
     verified_md = enforce_skills_section(verified_md)
     verified_md = _strip_non_skill_phrases(verified_md)
+    verified_md = reroute_skills_by_lexicon(verified_md, vertical)
+    verified_md = enforce_skills_section(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
     # ── PHASE 2 RE-RUN (mirrors _writer_w8_verified) ────────────────────────

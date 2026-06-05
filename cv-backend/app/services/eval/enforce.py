@@ -20,7 +20,7 @@ skills hygiene they don't cover.
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 # Per-line caps: (line 1 technical/clinical/core, line 2 soft, line 3 other).
 # Soft + Other hard-capped at 6 — recruiter scanability is the goal; a CV
@@ -196,5 +196,93 @@ def enforce_skills_section(
 
     if drop_idx:
         lines = [ln for idx, ln in enumerate(lines) if idx not in drop_idx]
+
+    return "\n".join(lines)
+
+
+def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
+    """Move Skills-section entries to the lexicon-correct line.
+
+    classify(entry, vertical) is the authority on category. Entries the
+    lexicon doesn't recognise stay on their current line. Runs only when a
+    vertical lexicon is available (vertical != None).
+
+    Examples (nursing):
+        'Clinical Documentation' on Other Skills → Care Skills
+        'Patient Care' on Other Skills → Care Skills
+        'Elderly Care' on Other Skills → Care Skills
+
+    Call AFTER _strip_non_skill_phrases and BEFORE _normalise_skills_case.
+    Follow with enforce_skills_section to re-cap any line that gained items.
+    """
+    if not vertical:
+        return markdown
+
+    from app.services.skills.classifier import classify as lex_classify, is_noise as lex_is_noise
+
+    lines = markdown.split("\n")
+
+    start = next(
+        (i for i, ln in enumerate(lines) if _SKILLS_HEADING_RE.match(ln.strip())),
+        None,
+    )
+    if start is None:
+        return markdown
+
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if lines[i].startswith("## "):
+            end = i
+            break
+
+    # Collect all skill lines in section order.
+    skill_idxs: List[int] = []
+    skill_labels: List[str] = []
+    skill_items_list: List[List[str]] = []
+
+    for i in range(start + 1, end):
+        m = _LABEL_LINE_RE.match(lines[i])
+        if m:
+            skill_idxs.append(i)
+            skill_labels.append(m.group(1).strip())
+            skill_items_list.append(_split_items(m.group(2).strip()))
+
+    if not skill_idxs:
+        return markdown
+
+    def _label_cat(label: str) -> str:
+        ll = label.lower()
+        if "soft" in ll:
+            return "soft_skills"
+        if "other" in ll or "technical" in ll:
+            return "technical"
+        return "domain_knowledge"  # Care, Clinical, Core, Domain, etc.
+
+    # Redistribute entries: classify each, route to lexicon-correct category.
+    cat_buckets: dict = {"domain_knowledge": [], "soft_skills": [], "technical": []}
+    seen: set = set()
+
+    for label, items in zip(skill_labels, skill_items_list):
+        src_cat = _label_cat(label)
+        for item in items:
+            key = item.lower().strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            if lex_is_noise(item) is not None:
+                continue  # belt-and-suspenders: should already be stripped upstream
+            c = lex_classify(item, vertical)
+            tgt_cat = c.category if (c is not None and c.is_skill) else src_cat
+            cat_buckets[tgt_cat].append(item)
+
+    # Rebuild lines in-place (preserve the existing label name on each line).
+    for line_idx, label in zip(skill_idxs, skill_labels):
+        cat = _label_cat(label)
+        items = cat_buckets[cat]
+        if items:
+            lines[line_idx] = f"- **{label}:** " + ", ".join(items)
+        else:
+            # Empty line — enforce_skills_section will drop it on the next pass.
+            lines[line_idx] = f"- **{label}:**"
 
     return "\n".join(lines)
