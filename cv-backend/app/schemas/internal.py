@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -235,3 +235,22 @@ class ExtractStoriesRequest(BaseModel):
     # Optional model override. When null, cv-backend falls back to
     # _DEFAULT_MODELS[provider]. Never hardcode a model name here (BUG-2).
     ai_model:    Optional[str] = None
+
+
+# ── /internal/classify-skills ─────────────────────────────────────────────────
+
+class ClassifySkillsRequest(BaseModel):
+    items:    List[str] = Field(min_length=1)
+    vertical: Optional[str] = None  # "nursing" | "tech" | "cleaning" | None
+
+
+class ClassifiedSkillItem(BaseModel):
+    item:         str
+    category:     Optional[str]  # domain_knowledge | soft_skills | technical | None
+    canonical:    Optional[str]
+    is_noise:     bool
+    action:       str  # correct | should_be_care_skills | should_be_stripped | add_to_lexicon
+
+
+class ClassifySkillsResponse(BaseModel):
+    results: List[ClassifiedSkillItem]

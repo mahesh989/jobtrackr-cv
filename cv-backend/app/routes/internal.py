@@ -17,6 +17,7 @@ Endpoints:
   - POST /internal/select-company-fact      — deterministic fact ranking (no AI)
   - POST /internal/generate-cover-letter        — single-call cover letter pipeline (BackgroundTask)
   - POST /internal/generate-opening-variants    — 3-4 P1 opener variants, synchronous
+  - POST /internal/classify-skills              — deterministic lexicon classify, no AI
 """
 from __future__ import annotations
 
@@ -34,6 +35,9 @@ from app.schemas.internal import (
     AnalyzeRequest,
     AnalyzeResponse,
     CategoriseCvRequest,
+    ClassifiedSkillItem,
+    ClassifySkillsRequest,
+    ClassifySkillsResponse,
     EvalRunResponse,
     CategoriseCvResponse,
     ExtractCvTextRequest,
@@ -737,3 +741,44 @@ async def voice_rewrite_email_endpoint(
         )
 
     return VoiceRewriteEmailResponse(body=cleaned)
+
+
+# ── /internal/classify-skills ─────────────────────────────────────────────────
+
+@router.post(
+    "/classify-skills",
+    response_model=ClassifySkillsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def classify_skills_endpoint(body: ClassifySkillsRequest) -> ClassifySkillsResponse:
+    """
+    Deterministic skill classification — no AI call.
+
+    Runs each item through the lexicon classify() + is_noise() and returns
+    the result. Used by the /beta/skills-audit page to show per-item
+    category assignments without re-running a full analysis.
+    """
+    from app.services.skills.classifier import classify as lex_classify, is_noise as lex_is_noise
+
+    results = []
+    for item in body.items:
+        c = lex_classify(item, body.vertical)
+        n = lex_is_noise(item)
+        if n:
+            action = "should_be_stripped"
+        elif c and c.is_skill and c.category == "domain_knowledge":
+            action = "should_be_care_skills"
+        elif c and c.is_skill:
+            action = "correct"
+        else:
+            action = "add_to_lexicon"
+
+        results.append(ClassifiedSkillItem(
+            item=item,
+            category=c.category if c and c.is_skill else None,
+            canonical=c.canonical if c and c.is_skill else None,
+            is_noise=n,
+            action=action,
+        ))
+
+    return ClassifySkillsResponse(results=results)
