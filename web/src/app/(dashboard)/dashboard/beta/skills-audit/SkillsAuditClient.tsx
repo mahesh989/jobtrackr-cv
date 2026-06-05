@@ -124,6 +124,10 @@ export default function SkillsAuditClient({
     setReQueued(0);
     setReFailed(0);
 
+    // Read the same provider preference the dashboard uses (AnalyzeJobButton).
+    let preferredProvider: string | null = null;
+    try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
+
     const initial: Record<string, ReanalyseJobState> = {};
     for (const job of fullJdJobs) initial[job.job_id] = "queued";
     setReState(initial);
@@ -144,7 +148,7 @@ export default function SkillsAuditClient({
             const res = await fetch(`/api/jobs/${job.job_id}/analyze`, {
               method:  "POST",
               headers: { "Content-Type": "application/json" },
-              body:    JSON.stringify({}),
+              body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
             });
             if (res.ok) {
               queued++;
@@ -238,7 +242,11 @@ export default function SkillsAuditClient({
   // Enable export as soon as we have any rows — don't wait for all classification
   // calls to finish (they can take 10-20s for many rows).
   const classificationDone = audited.length > 0;
-  const reanalyseAllDone   = reQueued + reFailed === fullJdJobs.length && fullJdJobs.length > 0 && !reRunning;
+  const reanalyseAllDone = reQueued + reFailed === fullJdJobs.length && fullJdJobs.length > 0 && !reRunning;
+  const [preferredProvider, setPreferredProvider] = useState<string | null>(null);
+  useEffect(() => {
+    try { setPreferredProvider(localStorage.getItem("jobtrackr-preferred-provider")); } catch {}
+  }, []);
 
   return (
     <div className="space-y-5">
@@ -261,7 +269,7 @@ export default function SkillsAuditClient({
                 Queueing… ({reQueued + reFailed}/{fullJdJobs.length})
               </>
             ) : (
-              <>Re-analyse all ({fullJdJobs.length} full-JD jobs)</>
+              <>Re-analyse all ({fullJdJobs.length} jobs{preferredProvider ? ` · ${preferredProvider}` : ""})</>
             )}
           </button>
 
