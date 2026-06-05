@@ -768,6 +768,8 @@ async def classify_skills_endpoint(body: ClassifySkillsRequest) -> ClassifySkill
             action = "should_be_stripped"
         elif c and c.is_skill and c.category == "domain_knowledge":
             action = "should_be_care_skills"
+        elif c and c.is_skill and c.category == "technical":
+            action = "correct_technical"
         elif c and c.is_skill:
             action = "correct"
         else:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunRow } from "./page";
 
 interface ClassifiedItem {
@@ -12,10 +12,12 @@ interface ClassifiedItem {
 }
 
 interface AuditedRow extends RunRow {
-  classified:  ClassifiedItem[];
-  loading:     boolean;
-  error?:      string;
+  classified: ClassifiedItem[];
+  loading:    boolean;
+  error?:     string;
 }
+
+type ReanalyseJobState = "idle" | "queued" | "done" | "failed";
 
 const ACTION_COLORS: Record<string, string> = {
   add_to_lexicon:        "bg-red-50 text-red-700 border-red-200",
@@ -39,11 +41,30 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
   const [audited, setAudited] = useState<AuditedRow[]>(
     rows.map((r) => ({ ...r, classified: [], loading: true }))
   );
-  const [filter, setFilter] = useState<FilterMode>("gaps_only");
+  const [filter, setFilter]           = useState<FilterMode>("gaps_only");
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
+  // Re-analyse state
+  const [reState, setReState]         = useState<Record<string, ReanalyseJobState>>({});
+  const [reRunning, setReRunning]     = useState(false);
+  const [reQueued, setReQueued]       = useState(0);
+  const [reFailed, setReFailed]       = useState(0);
+  const [copyDone, setCopyDone]       = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Classify all rows on mount ──────────────────────────────────────────
   useEffect(() => {
     rows.forEach((row, i) => {
+      // Skip rows with no Other Skills — nothing to classify
+      if (row.other_items.length === 0) {
+        setAudited((prev) => {
+          const next = [...prev];
+          next[i] = { ...next[i], classified: [], loading: false };
+          return next;
+        });
+        return;
+      }
+
       fetch("/api/internal/classify-skills", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,12 +74,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
         .then((data: { results?: ClassifiedItem[]; error?: string }) => {
           setAudited((prev) => {
             const next = [...prev];
-            next[i] = {
-              ...next[i],
-              classified: data.results ?? [],
-              loading:    false,
-              error:      data.error,
-            };
+            next[i] = { ...next[i], classified: data.results ?? [], loading: false, error: data.error };
             return next;
           });
         })
@@ -70,11 +86,10 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
           });
         });
     });
-  // only run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Summary stats
+  // ── Summary stats ───────────────────────────────────────────────────────
   const allGaps = audited.flatMap((r) =>
     r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item.toLowerCase())
   );
@@ -82,9 +97,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
     acc[item] = (acc[item] ?? 0) + 1;
     return acc;
   }, {});
-  const topGaps = Object.entries(gapFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20);
+  const topGaps = Object.entries(gapFreq).sort((a, b) => b[1] - a[1]).slice(0, 20);
 
   const totalLoading  = audited.filter((r) => r.loading).length;
   const totalComplete = audited.length - totalLoading;
@@ -93,11 +106,196 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
     ? audited.filter((r) => !r.loading && r.classified.some((c) => c.action !== "correct" && c.action !== "correct_technical"))
     : audited;
 
+  // ── Jobs eligible for re-analysis (jd_quality != thin, jd_length >= 1400) ─
+  const fullJdRows = rows.filter((r) => r.jd_quality !== "thin" && r.jd_length >= 1400);
+
+  // ── Re-analyse all ──────────────────────────────────────────────────────
+  const startReanalyse = useCallback(async () => {
+    if (reRunning || fullJdRows.length === 0) return;
+    setReRunning(true);
+    setReQueued(0);
+    setReFailed(0);
+
+    const initial: Record<string, ReanalyseJobState> = {};
+    for (const row of fullJdRows) initial[row.job_id] = "queued";
+    setReState(initial);
+
+    let queued = 0, failed = 0;
+
+    await Promise.all(
+      fullJdRows.map(async (row) => {
+        try {
+          const res  = await fetch(`/api/jobs/${row.job_id}/analyze`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({}),
+          });
+          if (res.ok) {
+            queued++;
+            setReState((p) => ({ ...p, [row.job_id]: "done" }));
+          } else {
+            const data = (await res.json().catch(() => ({}))) as { error?: string };
+            console.warn(`[skills-audit] re-analyse failed for ${row.job_title}:`, data.error);
+            failed++;
+            setReState((p) => ({ ...p, [row.job_id]: "failed" }));
+          }
+        } catch (err) {
+          console.error(`[skills-audit] re-analyse error for ${row.job_title}:`, err);
+          failed++;
+          setReState((p) => ({ ...p, [row.job_id]: "failed" }));
+        }
+      })
+    );
+
+    setReQueued(queued);
+    setReFailed(failed);
+    setReRunning(false);
+  }, [reRunning, fullJdRows]);
+
+  // ── Export gap report ───────────────────────────────────────────────────
+  const buildReport = useCallback(() => {
+    const allGapsRaw = audited.flatMap((r) =>
+      r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item.toLowerCase())
+    );
+    const freqMap: Record<string, number> = {};
+    for (const item of allGapsRaw) freqMap[item] = (freqMap[item] ?? 0) + 1;
+
+    return {
+      summary: {
+        runs_analysed:               totalRuns,
+        unique_jobs:                 audited.length,
+        jobs_with_other_skills_issues: audited.filter((r) =>
+          r.classified.some((c) => c.action !== "correct" && c.action !== "correct_technical")
+        ).length,
+        lexicon_gaps_by_frequency: Object.entries(freqMap).sort((a, b) => b[1] - a[1]),
+      },
+      jobs: audited
+        .filter((r) => !r.loading && r.classified.length > 0)
+        .map((r) => ({
+          job_id:           r.job_id,
+          job_title:        r.job_title,
+          company:          r.company,
+          role_family:      r.role_family,
+          lex_vertical:     r.lex_vertical,
+          other_skills_raw: r.other_items,
+          needs_lexicon:        r.classified.filter((c) => c.action === "add_to_lexicon").map((c) => c.item),
+          should_be_care_skills: r.classified.filter((c) => c.action === "should_be_care_skills").map((c) => c.item),
+          should_be_stripped:    r.classified.filter((c) => c.action === "should_be_stripped").map((c) => c.item),
+          classified:       r.classified,
+        })),
+    };
+  }, [audited, totalRuns]);
+
+  const downloadReport = useCallback(() => {
+    const report = buildReport();
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `skills-audit-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [buildReport]);
+
+  const copyReport = useCallback(() => {
+    const report = buildReport();
+    void navigator.clipboard.writeText(JSON.stringify(report, null, 2)).then(() => {
+      setCopyDone(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopyDone(false), 2500);
+    });
+  }, [buildReport]);
+
+  const classificationDone = totalLoading === 0 && audited.length > 0;
+  const reanalyseAllDone   = reQueued + reFailed === fullJdRows.length && fullJdRows.length > 0 && !reRunning;
+
   return (
-    <div className="space-y-6">
-      {/* Status bar */}
+    <div className="space-y-5">
+
+      {/* ── Action bar ── */}
+      <div className="flex flex-wrap items-center gap-2">
+
+        {/* Re-analyse all */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void startReanalyse()}
+            disabled={reRunning || fullJdRows.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-medium transition-colors
+              bg-indigo-600 border-indigo-700 text-white hover:bg-indigo-700
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {reRunning ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Queueing…
+              </>
+            ) : (
+              <>Re-analyse all ({fullJdRows.length} full-JD jobs)</>
+            )}
+          </button>
+
+          {/* Per-job status chips */}
+          {Object.entries(reState).map(([jid, st]) => {
+            const row = rows.find((r) => r.job_id === jid);
+            const label = row?.job_title ?? jid.slice(0, 8);
+            const color =
+              st === "done"   ? "bg-green-50 text-green-700 border-green-200" :
+              st === "failed" ? "bg-red-50 text-red-700 border-red-200" :
+                                "bg-blue-50 text-blue-600 border-blue-100";
+            return (
+              <span key={jid} className={`px-1.5 py-0.5 rounded border text-[10px] ${color}`}>
+                {st === "done" ? "✓" : st === "failed" ? "✗" : "…"} {label}
+              </span>
+            );
+          })}
+
+          {reanalyseAllDone && (
+            <span className="text-[11px] text-text-2">
+              {reQueued} queued{reFailed > 0 ? `, ${reFailed} failed` : ""} — runs take ~1–2 min each.{" "}
+              <button
+                onClick={() => window.location.reload()}
+                className="underline text-indigo-600 hover:text-indigo-800"
+              >
+                Refresh page when done
+              </button>
+            </span>
+          )}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Export / copy */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={downloadReport}
+            disabled={!classificationDone}
+            className="px-2.5 py-1.5 rounded border text-[11px] font-medium transition-colors
+              bg-surface border-border text-text hover:bg-surface-hover
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Download gap report as JSON (same format as skills_audit.py)"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={copyReport}
+            disabled={!classificationDone}
+            className="px-2.5 py-1.5 rounded border text-[11px] font-medium transition-colors
+              bg-surface border-border text-text hover:bg-surface-hover
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Copy gap report to clipboard — paste into Claude for lexicon improvements"
+          >
+            {copyDone ? "Copied!" : "Copy to clipboard"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Status bar ── */}
       <div className="flex items-center gap-4 text-[12px] text-text-2">
-        <span>{totalRuns} runs fetched · {audited.length} with Other Skills · {totalComplete}/{audited.length} classified</span>
+        <span>
+          {totalRuns} runs fetched · {audited.length} with Other Skills · {totalComplete}/{audited.length} classified
+        </span>
         {totalLoading > 0 && (
           <span className="text-blue-500 animate-pulse">classifying {totalLoading} remaining…</span>
         )}
@@ -105,7 +303,9 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
           <button
             onClick={() => setFilter("gaps_only")}
             className={`px-2 py-0.5 rounded border text-[11px] transition-colors ${
-              filter === "gaps_only" ? "bg-surface border-border text-text font-medium" : "border-transparent text-text-3 hover:text-text"
+              filter === "gaps_only"
+                ? "bg-surface border-border text-text font-medium"
+                : "border-transparent text-text-3 hover:text-text"
             }`}
           >
             Gaps only
@@ -113,7 +313,9 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
           <button
             onClick={() => setFilter("all")}
             className={`px-2 py-0.5 rounded border text-[11px] transition-colors ${
-              filter === "all" ? "bg-surface border-border text-text font-medium" : "border-transparent text-text-3 hover:text-text"
+              filter === "all"
+                ? "bg-surface border-border text-text font-medium"
+                : "border-transparent text-text-3 hover:text-text"
             }`}
           >
             All runs
@@ -121,7 +323,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
         </div>
       </div>
 
-      {/* Top gaps summary */}
+      {/* ── Top gaps summary ── */}
       {topGaps.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <h2 className="text-[12px] font-semibold text-red-800 mb-2">
@@ -141,7 +343,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
         </div>
       )}
 
-      {/* Run table */}
+      {/* ── Run table ── */}
       <div className="space-y-3">
         {displayRows.length === 0 && !totalLoading && (
           <p className="text-[12px] text-text-3 py-8 text-center">
@@ -157,6 +359,7 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
           const strips  = row.classified.filter((c) => c.action === "should_be_stripped");
           const correct = row.classified.filter((c) => c.action === "correct" || c.action === "correct_technical");
           const isOpen  = expandedRun === row.run_id;
+          const jobRe   = reState[row.job_id];
 
           return (
             <div key={row.run_id} className="border border-border rounded-lg bg-surface overflow-hidden">
@@ -164,7 +367,6 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
                 className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-surface-hover transition-colors"
                 onClick={() => setExpandedRun(isOpen ? null : row.run_id)}
               >
-                {/* Job info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-medium text-text truncate">{row.job_title || "(untitled)"}</span>
@@ -172,10 +374,24 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-text-3 shrink-0 font-mono">
                       {row.role_family}
                     </span>
+                    {row.jd_quality === "thin" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
+                        thin JD
+                      </span>
+                    )}
+                    {jobRe === "done" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 shrink-0">
+                        re-queued ✓
+                      </span>
+                    )}
+                    {jobRe === "failed" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200 shrink-0">
+                        queue failed
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Counts */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   {row.loading && (
                     <span className="text-[11px] text-blue-400 animate-pulse">classifying…</span>
@@ -196,27 +412,23 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
                     </span>
                   )}
                   {!row.loading && correct.length > 0 && (
-                    <span className="text-[11px] text-text-3">
-                      {correct.length} ✓
-                    </span>
+                    <span className="text-[11px] text-text-3">{correct.length} ✓</span>
                   )}
                   <svg
                     className={`w-3.5 h-3.5 text-text-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
               </button>
 
-              {/* Expanded detail */}
               {isOpen && (
                 <div className="border-t border-border px-4 py-3 space-y-3">
                   {row.error && (
                     <p className="text-[11px] text-red-600">Error: {row.error}</p>
                   )}
 
-                  {/* All classified items */}
                   {row.classified.length > 0 && (
                     <div>
                       <p className="text-[11px] text-text-3 mb-2 font-medium uppercase tracking-wide">Other Skills items</p>
@@ -237,7 +449,6 @@ export default function SkillsAuditClient({ rows, totalRuns }: { rows: RunRow[];
                     </div>
                   )}
 
-                  {/* All skills labels for context */}
                   <div>
                     <p className="text-[11px] text-text-3 mb-1 font-medium uppercase tracking-wide">Full Skills section</p>
                     <div className="space-y-0.5">
