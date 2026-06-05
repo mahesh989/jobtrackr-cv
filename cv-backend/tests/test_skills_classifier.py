@@ -488,3 +488,30 @@ class TestTeamPlayerNotNoise:
         assert c is not None and c.is_skill
         assert c.category == "soft_skills"
         assert c.canonical == "teamwork"
+
+
+class TestFixDRegressions:
+    """Fix D — two environment/eligibility phrases that leaked through in
+    the Nepean and Hardi runs (2026-06-05)."""
+
+    @pytest.mark.parametrize("phrase", [
+        "acute hospital environment",
+        "acute hospital setting",
+        "acute care environment",
+        "acute care setting",
+        "acute clinical environment",
+    ])
+    def test_acute_environment_is_noise(self, phrase):
+        c = classify(phrase, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+    @pytest.mark.parametrize("phrase", [
+        "australian aged care work rights and compliance",
+        "aged care work rights and compliance",
+        "work rights and compliance",
+    ])
+    def test_aged_care_work_rights_compliance_is_eligibility(self, phrase):
+        c = classify(phrase, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "eligibility"

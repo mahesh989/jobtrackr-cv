@@ -208,7 +208,12 @@
     "graduate visa",
     "subclass 485",
     "student visa",
-    "subclass 500"
+    "subclass 500",
+
+    "australian aged care work rights and compliance",
+    "aged care work rights and compliance",
+    "work rights and compliance",
+    "right to work and compliance"
   ],
 
   "noise": [
@@ -275,6 +280,11 @@
     "hospital clinical environment",
     "hospital environment",
     "hospital setting",
+    "acute hospital environment",
+    "acute hospital setting",
+    "acute care environment",
+    "acute care setting",
+    "acute clinical environment",
     "community setting",
     "care setting",
     "values",
