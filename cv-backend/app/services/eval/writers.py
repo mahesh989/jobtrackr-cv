@@ -1960,7 +1960,7 @@ def _log_tailoring_report(
 _NON_SKILL_EXACT: set[str] = {
     "aged care", "aged care practices", "aged care practice",
     "aged care experience", "ageing support", "ageing",
-    "residential aged care", "home care", "community care",
+    "residential aged care", "community care",
     # Bare care-sector / setting names — these say WHERE the work happens,
     # not WHAT the candidate can do. "Residential Care" was leaking into the
     # Other Skills line; the real competencies (Personal Care, Dementia Care)
@@ -1984,7 +1984,9 @@ _NON_SKILL_EXACT: set[str] = {
     # category, not a discrete competency — the real skill is e.g. "Infection
     # Control", "Manual Handling".
     "workplace health and safety", "workplace health and safety (whs)",
-    "work health and safety", "whs",
+    "work health and safety", "work health and safety policies",
+    "work health and safety procedures", "whs", "whs policies",
+    "health and safety policies", "health and safety procedures",
 }
 # Entries beginning with these are JD-phrasing fillers, not skills.
 _NON_SKILL_PREFIXES: tuple[str, ...] = (

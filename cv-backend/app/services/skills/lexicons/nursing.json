@@ -49,6 +49,7 @@
     { "canonical": "community care", "variants": ["community aged care", "community support"] },
     { "canonical": "disability support", "variants": ["disability care", "supporting people with disabilities", "disability support work"] },
     { "canonical": "individual support", "variants": ["individualised support"] },
+    { "canonical": "individual planning process", "variants": ["individual support plan", "individual plan", "care planning process", "support planning", "goal setting with clients"] },
     { "canonical": "catheter care", "variants": ["catheter management", "urinary catheter care"] },
     { "canonical": "stoma care", "variants": ["stoma management", "ostomy care"] },
     { "canonical": "peg feeding", "variants": ["peg feed", "enteral feeding", "tube feeding"] },
@@ -131,6 +132,8 @@
     { "canonical": "VCare", "variants": ["vcare", "v care", "v-care"] },
     { "canonical": "HealthMetrics", "variants": ["health metrics", "healthmetrics software"] },
     { "canonical": "Nexus", "variants": ["nexus aged care", "nexus care"] },
-    { "canonical": "PeoplePoint", "variants": ["people point", "peoplepoint software"] }
+    { "canonical": "PeoplePoint", "variants": ["people point", "peoplepoint software"] },
+    { "canonical": "Sara Steady", "variants": ["sara steady", "sara stedy", "sara plus", "arjo sara"] },
+    { "canonical": "Hoyer lift", "variants": ["hoyer", "hoyer lift", "mechanical lift", "patient lift"] }
   ]
 }
