@@ -515,3 +515,16 @@ class TestFixDRegressions:
         c = classify(phrase, "nursing")
         assert c is not None and c.is_noise
         assert c.noise_type == "eligibility"
+
+    @pytest.mark.parametrize("phrase", [
+        "permanent residency or citizenship",
+        "citizenship or permanent residency",
+        "australian full working rights",
+        "full working rights",
+    ])
+    def test_residency_and_working_rights_variants_are_eligibility(self, phrase):
+        """Exact-match variants that were below the fuzzy threshold (0.88)
+        and leaked into JD skill buckets in the Hardi run (2026-06-05)."""
+        c = classify(phrase, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "eligibility"
