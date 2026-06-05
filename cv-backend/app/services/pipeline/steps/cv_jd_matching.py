@@ -60,6 +60,7 @@ async def run_cv_jd_matching(
     client: AIClient,
     cv_text: str,
     jd_analysis: Dict[str, Any],
+    contact_details: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     user_prompt = CV_JD_MATCHING_USER_TEMPLATE.format(
         cv_text=cv_text,
@@ -105,6 +106,22 @@ async def run_cv_jd_matching(
             len(promoted), _rf.id, promoted,
         )
 
+    # Promote missed keywords that the user's profile already satisfies
+    # (police check, work rights, first aid, vaccination, etc.) from
+    # missed → matched, so the matching panel agrees with the feasibility
+    # plan ("Stamps from user profile credentials settings").
+    if contact_details:
+        from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+        cred_promoted = _promote_profile_credentials(
+            result["matched"], result["missed"], contact_details, user_has_credential,
+        )
+        if cred_promoted:
+            result["credential_promoted"] = cred_promoted
+            logger.info(
+                "CV-JD matching: promoted %d keyword(s) via profile credentials: %s",
+                len(cred_promoted), cred_promoted,
+            )
+
     # Derived counts and rates — computed by us, not the AI.
     result["counts"] = _compute_counts(result["matched"], jd_analysis)
     result["match_rates"] = _compute_match_rates(result["counts"])
@@ -127,6 +144,42 @@ async def run_cv_jd_matching(
     } if isinstance(raw_ev, dict) else {}
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Profile credential promotion
+# ---------------------------------------------------------------------------
+
+
+def _promote_profile_credentials(
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
+    contact_details: Dict[str, Any],
+    user_has_credential_fn,
+) -> List[str]:
+    """Move missed keywords satisfied by the user's profile from missed → matched.
+
+    Uses the same user_has_credential() check as the feasibility planner so the
+    matching panel and the feasibility plan always agree on what's covered.
+
+    Examples: 'national police check', 'work rights', 'influenza vaccination',
+    'first aid' — all show as Missing Keywords today because the matcher only
+    reads cv_text, not contact_details.
+
+    Mutates matched/missed in-place. Returns the list of promoted keywords.
+    """
+    promoted: List[str] = []
+    for bucket in _BUCKETS:
+        for cat in _CATEGORIES:
+            still_missed: List[str] = []
+            for kw in missed[bucket][cat]:
+                if user_has_credential_fn(kw, contact_details):
+                    matched[bucket][cat].append(kw)
+                    promoted.append(kw)
+                else:
+                    still_missed.append(kw)
+            missed[bucket][cat] = still_missed
+    return promoted
 
 
 # ---------------------------------------------------------------------------

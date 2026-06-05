@@ -263,8 +263,9 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         return has("car_insurance")
 
     # 2. Compound Licence + Car (e.g. "driving and access to reliable car")
+    # Use word-boundary match for 'car' to avoid matching 'care', 'cardiac', etc.
     is_licence_kw = "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw
-    is_car_kw = "car" in kw or "vehicle" in kw or "transport" in kw or "automobile" in kw
+    is_car_kw = bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw
     if is_licence_kw and is_car_kw:
         return has("drivers_licence") and has("own_car")
 
@@ -276,8 +277,9 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw:
         return has("drivers_licence")
 
-    # 5. Own car
-    if "car" in kw or "vehicle" in kw or "transport" in kw or "automobile" in kw:
+    # 5. Own car — word-boundary match prevents 'wound care' / 'continence care'
+    #    from triggering via the 'car' substring inside 'care'.
+    if bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw:
         return has("own_car")
 
     # 6. Police check

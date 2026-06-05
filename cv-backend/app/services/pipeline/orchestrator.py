@@ -161,7 +161,10 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             await mark_step(run_id, step_status, "cv_jd_matching", "completed")
         else:
             await mark_step(run_id, step_status, "cv_jd_matching", "running")
-            matching = await run_cv_jd_matching(ai_client, payload.cv_text, jd_analysis)
+            matching = await run_cv_jd_matching(
+                ai_client, payload.cv_text, jd_analysis,
+                contact_details=payload.contact_details,
+            )
             await save_step_result(run_id, "cv_jd_matching_result", matching)
             await mark_step(run_id, step_status, "cv_jd_matching", "completed")
 
