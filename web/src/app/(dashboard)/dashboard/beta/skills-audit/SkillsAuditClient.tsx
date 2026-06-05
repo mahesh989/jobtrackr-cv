@@ -130,33 +130,48 @@ export default function SkillsAuditClient({
 
     let queued = 0, failed = 0;
 
-    await Promise.all(
-      fullJdJobs.map(async (job) => {
-        try {
-          const res = await fetch(`/api/jobs/${job.job_id}/analyze`, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({}),
-          });
-          if (res.ok) {
-            queued++;
-            setReState((p) => ({ ...p, [job.job_id]: "done" }));
-          } else {
-            const data = (await res.json().catch(() => ({}))) as { error?: string };
-            console.warn(`[skills-audit] re-analyse failed for ${job.job_title}:`, data.error);
+    // Rate limit on analyze route is 20/60s — fire in batches of 5 with a 16s
+    // gap between batches so we never exceed ~18 calls per 60s.
+    const BATCH_SIZE  = 5;
+    const BATCH_DELAY = 16_000; // ms between batches
+
+    for (let i = 0; i < fullJdJobs.length; i += BATCH_SIZE) {
+      const batch = fullJdJobs.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(
+        batch.map(async (job) => {
+          try {
+            const res = await fetch(`/api/jobs/${job.job_id}/analyze`, {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body:    JSON.stringify({}),
+            });
+            if (res.ok) {
+              queued++;
+              setReState((p) => ({ ...p, [job.job_id]: "done" }));
+            } else {
+              const data = (await res.json().catch(() => ({}))) as { error?: string };
+              console.warn(`[skills-audit] failed for ${job.job_title}:`, data.error);
+              failed++;
+              setReState((p) => ({ ...p, [job.job_id]: "failed" }));
+            }
+          } catch (err) {
+            console.error(`[skills-audit] error for ${job.job_title}:`, err);
             failed++;
             setReState((p) => ({ ...p, [job.job_id]: "failed" }));
           }
-        } catch (err) {
-          console.error(`[skills-audit] re-analyse error for ${job.job_title}:`, err);
-          failed++;
-          setReState((p) => ({ ...p, [job.job_id]: "failed" }));
-        }
-      })
-    );
+        })
+      );
 
-    setReQueued(queued);
-    setReFailed(failed);
+      setReQueued(queued);
+      setReFailed(failed);
+
+      // Wait before next batch (skip delay after the last batch)
+      if (i + BATCH_SIZE < fullJdJobs.length) {
+        await new Promise<void>((resolve) => setTimeout(resolve, BATCH_DELAY));
+      }
+    }
+
     setReRunning(false);
   }, [reRunning, fullJdJobs]);
 
@@ -241,7 +256,7 @@ export default function SkillsAuditClient({
             {reRunning ? (
               <>
                 <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Queueing…
+                Queueing… ({reQueued + reFailed}/{fullJdJobs.length})
               </>
             ) : (
               <>Re-analyse all ({fullJdJobs.length} full-JD jobs)</>
