@@ -1,0 +1,315 @@
+"""Phase 1 — lexicon-based skill classifier.
+
+Locks in the deterministic resolver: phrase → canonical taxonomy entry.
+
+Failure of any of these = a regression in the categorisation layer. The
+"real cases" section asserts the exact symptoms from the Hardi/Nepean/
+Rashmi nursing runs that triggered this rewrite — they MUST stay green.
+
+This module is pure functions + bundled JSON, no DB / AI / network — so
+the conftest's Supabase env stubs are sufficient.
+"""
+from __future__ import annotations
+
+import pytest
+
+from app.services.skills import (
+    Classification,
+    classify,
+    classify_many,
+    is_noise,
+    lexicon_stats,
+    normalise,
+)
+
+
+# ---------------------------------------------------------------------------
+# Smoke / structural
+# ---------------------------------------------------------------------------
+
+
+class TestStructural:
+
+    def test_lexicons_loaded(self):
+        stats = lexicon_stats()
+        # Sanity floors — if any lexicon is empty something is structurally wrong.
+        assert stats["noise_keys"] >= 100
+        assert stats["nursing_keys"] >= 200
+        assert stats["cleaning_keys"] >= 200
+        assert stats["tech_keys"] >= 400
+
+    def test_unknown_returns_none(self):
+        assert classify("completely-made-up term xyz", "nursing") is None
+        assert classify("frobnicate the widget", "tech") is None
+
+    def test_empty_input(self):
+        assert classify("", "nursing") is None
+        assert classify("   ", "nursing") is None
+        assert classify(None, "nursing") is None  # type: ignore[arg-type]
+        assert is_noise("") is None
+        assert is_noise(None) is None  # type: ignore[arg-type]
+
+    def test_invalid_vertical_returns_none(self):
+        # Noise still matches (universal); skill lookup yields nothing
+        # because no vertical lexicon is named "narnia".
+        assert classify("wound care", "narnia") is None  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# Normalisation
+# ---------------------------------------------------------------------------
+
+
+class TestNormalise:
+
+    def test_lowercase(self):
+        assert normalise("BESTMed") == "bestmed"
+
+    def test_collapse_whitespace(self):
+        assert normalise("  wound   care\n") == "wound care"
+
+    def test_strips_qualifier_prefix(self):
+        assert normalise("current First Aid") == "first aid"
+        assert normalise("valid driver licence") == "driver licence"
+        assert normalise("knowledge of infection control") == "infection control"
+        assert normalise("ability to work autonomously") == "work autonomously"
+        assert normalise("strong communication") == "communication"
+
+    def test_strips_multiple_prefixes(self):
+        # "current valid first aid certificate" — both prefixes peeled
+        assert normalise("current valid first aid") == "first aid"
+
+    def test_preserves_internal_hyphen(self):
+        assert normalise("person-centred care") == "person-centred care"
+
+    def test_preserves_tech_punctuation(self):
+        # C++ / C# / .NET / CI/CD must survive normalisation
+        assert "+" in normalise("C++")
+        assert "#" in normalise("C#")
+        assert "." in normalise(".NET")
+        assert "/" in normalise("CI/CD")
+
+
+# ---------------------------------------------------------------------------
+# Real cases — Hardi / Nepean / Rashmi nursing runs.
+# These were the actual leaks. They MUST stay green.
+# ---------------------------------------------------------------------------
+
+
+class TestRealNursingLeaks:
+
+    def test_australian_permanent_residency_is_eligibility(self):
+        """The Hardi JD leaked this into Care Skills."""
+        c = classify("Australian permanent residency or citizenship", "nursing")
+        assert c is not None
+        assert c.is_noise
+        assert c.noise_type == "eligibility"
+
+    def test_personal_safety_and_risk_management_is_noise(self):
+        """The Hardi JD leaked this into Other Skills."""
+        c = classify("Personal safety and risk management", "nursing")
+        assert c is not None
+        assert c.is_noise
+        assert c.noise_type == "noise"
+
+    def test_infection_prevention_and_control_requirements_resolves(self):
+        """The Nepean JD leaked this into Other Skills as JD-phrasing."""
+        c = classify("infection prevention and control requirements", "nursing")
+        assert c is not None
+        # Either it's blocked as noise (the `requirements` suffix) OR it
+        # resolves to the canonical clinical skill. Both are correct
+        # outcomes; what's wrong is the previous behaviour of dumping it
+        # verbatim into Other Skills.
+        assert c.is_skill or c.is_noise
+        if c.is_skill:
+            assert c.canonical == "infection control"
+            assert c.category == "domain_knowledge"
+
+    def test_wound_management_resolves_to_domain(self):
+        """The LLM put this in `technical` (Other Skills). Must be domain."""
+        c = classify("wound management", "nursing")
+        assert c is not None and c.is_skill
+        assert c.category == "domain_knowledge"
+        assert c.canonical == "wound care"
+
+    def test_continence_management_resolves_to_domain(self):
+        c = classify("continence management", "nursing")
+        assert c is not None and c.is_skill
+        assert c.category == "domain_knowledge"
+        assert c.canonical == "continence care"
+
+    def test_clinical_assessments_resolves_to_domain(self):
+        c = classify("clinical assessments", "nursing")
+        assert c is not None and c.is_skill
+        assert c.category == "domain_knowledge"
+
+    def test_resident_charting_resolves_to_domain(self):
+        c = classify("resident charting", "nursing")
+        assert c is not None and c.is_skill
+        assert c.category == "domain_knowledge"
+
+    def test_only_named_tools_are_technical_for_nursing(self):
+        """For nursing, the technical bucket holds tool/software only."""
+        for tool in ("BESTMed", "MedMobile", "Leecare", "Manad Plus"):
+            c = classify(tool, "nursing")
+            assert c is not None and c.is_skill, f"{tool} should be a skill"
+            assert c.category == "technical", f"{tool} should be technical"
+
+    def test_compliance_state_legislation_is_noise(self):
+        c = classify("compliance with state healthcare legislation", "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+    def test_credentials_are_credential_type_not_skills(self):
+        for kw in ("police check", "first aid", "HLTAID011", "WWCC", "covid vaccination"):
+            c = classify(kw, "nursing")
+            assert c is not None, f"{kw} should resolve"
+            assert c.is_noise, f"{kw} should be noise, not skill"
+            assert c.noise_type == "credential", f"{kw} should be credential"
+
+
+# ---------------------------------------------------------------------------
+# CV ↔ JD agreement — the whole point of a shared lexicon.
+# ---------------------------------------------------------------------------
+
+
+class TestCvJdAgreement:
+
+    @pytest.mark.parametrize("a,b", [
+        ("wound care", "wound management"),
+        ("medication administration", "administering medication"),
+        ("person-centred care", "individualised care"),
+        ("activities of daily living", "ADLs"),
+        ("teamwork", "ability to work in a team"),
+    ])
+    def test_variants_resolve_to_same_canonical(self, a, b):
+        """A skill written differently on CV vs JD must still match."""
+        ca = classify(a, "nursing")
+        cb = classify(b, "nursing")
+        assert ca is not None and cb is not None
+        assert ca.canonical == cb.canonical
+        assert ca.category == cb.category
+
+
+# ---------------------------------------------------------------------------
+# Tech vertical sanity
+# ---------------------------------------------------------------------------
+
+
+class TestTechVertical:
+
+    @pytest.mark.parametrize("phrase,canonical,category", [
+        ("python", "Python", "technical"),
+        ("Py", "Python", "technical"),
+        ("postgres", "PostgreSQL", "technical"),
+        ("PostgreSQL", "PostgreSQL", "technical"),
+        ("MySQL", "MySQL", "technical"),
+        ("react", "React", "technical"),
+        ("ReactJS", "React", "technical"),
+        ("typescript", "TypeScript", "technical"),
+        ("ts", "TypeScript", "technical"),
+        ("AWS", "AWS", "technical"),
+        ("Amazon Web Services", "AWS", "technical"),
+        ("docker", "Docker", "technical"),
+        ("k8s", "Kubernetes", "technical"),
+        ("agile", "agile", "domain_knowledge"),
+        ("ci/cd", "CI/CD", "domain_knowledge"),
+        ("continuous integration", "CI/CD", "domain_knowledge"),
+        ("microservices", "microservices", "domain_knowledge"),
+        ("rest api", "REST API", "technical"),
+        ("graphql", "GraphQL", "technical"),
+    ])
+    def test_tech_head_terms(self, phrase, canonical, category):
+        c = classify(phrase, "tech")
+        assert c is not None, f"{phrase!r} should resolve in tech"
+        assert c.is_skill
+        assert c.canonical == canonical, (phrase, c.canonical, canonical)
+        assert c.category == category
+
+
+# ---------------------------------------------------------------------------
+# Cleaning vertical sanity
+# ---------------------------------------------------------------------------
+
+
+class TestCleaningVertical:
+
+    @pytest.mark.parametrize("phrase,canonical", [
+        ("vacuuming", "vacuuming"),
+        ("vacuum", "vacuuming"),
+        ("bond clean", "end of lease cleaning"),
+        ("vacate clean", "end of lease cleaning"),
+        ("pressure washing", "high-pressure cleaning"),
+        ("toilet cleaning", "bathroom cleaning"),
+        ("ms office", "Microsoft Office"),
+        ("manual handling", "manual handling"),
+    ])
+    def test_cleaning_head_terms(self, phrase, canonical):
+        c = classify(phrase, "cleaning")
+        assert c is not None, f"{phrase!r} should resolve in cleaning"
+        assert c.canonical == canonical
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy match — typo tolerance only, NOT semantic guessing.
+# ---------------------------------------------------------------------------
+
+
+class TestFuzzyMatch:
+
+    def test_minor_typo_catches(self):
+        """`wound managment` (missing e) → wound care via fuzzy."""
+        c = classify("wound managment", "nursing")
+        assert c is not None and c.is_skill
+        assert c.canonical == "wound care"
+        assert c.match_kind == "fuzzy"
+
+    def test_fuzzy_rejects_unrelated(self):
+        """A semantically distant phrase must NOT fuzzy-match into any
+        bucket — the cutoff (0.88) is tight enough that 'organisational
+        leadership' doesn't bleed into 'organisation'."""
+        c = classify("organisational leadership", "nursing", fuzzy_cutoff=0.88)
+        # No exact "organisational leadership" in the lexicon; the fuzzy
+        # cutoff should reject 'organisation' as too distant.
+        assert c is None or c.match_kind != "fuzzy" or c.canonical != "organisation"
+
+    def test_fuzzy_can_be_disabled(self):
+        c = classify("wound managment", "nursing", allow_fuzzy=False)
+        assert c is None  # without fuzzy, the typo has no exact match
+
+
+# ---------------------------------------------------------------------------
+# Universal noise dominates verticals
+# ---------------------------------------------------------------------------
+
+
+class TestNoiseDominatesVertical:
+
+    def test_noise_blocks_even_if_phrase_also_in_vertical(self):
+        """Universal noise check runs FIRST. Even if a term appeared in
+        a vertical lexicon (it shouldn't), the noise classification
+        would win. Currently we use this to keep eligibility/credential
+        statements out of skill buckets regardless of how the JD phrased
+        them."""
+        # `work rights` is in noise (eligibility) and nowhere in any
+        # vertical's skill lists — so it must always come back as noise.
+        for v in ("nursing", "cleaning", "tech"):
+            c = classify("work rights", v)  # type: ignore[arg-type]
+            assert c is not None and c.is_noise
+            assert c.noise_type == "eligibility"
+
+
+# ---------------------------------------------------------------------------
+# Batch API
+# ---------------------------------------------------------------------------
+
+
+class TestBatch:
+
+    def test_classify_many_preserves_input_keys(self):
+        phrases = ["wound management", "BESTMed", "frobnicate"]
+        out = classify_many(phrases, "nursing")
+        assert set(out.keys()) == set(phrases)
+        assert out["wound management"].canonical == "wound care"  # type: ignore[union-attr]
+        assert out["BESTMed"].category == "technical"  # type: ignore[union-attr]
+        assert out["frobnicate"] is None

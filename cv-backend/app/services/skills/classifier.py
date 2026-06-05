@@ -1,0 +1,285 @@
+"""Lexicon-based skill classifier.
+
+A pure, deterministic resolver: phrase → canonical taxonomy entry.
+
+    classify("wound management", "nursing")
+        → Classification(canonical="wound care", category="domain_knowledge",
+                         vertical="nursing", noise_type=None, match_kind="exact")
+
+    classify("Australian permanent residency or citizenship", "nursing")
+        → Classification(canonical="...", category=None, vertical=None,
+                         noise_type="eligibility", match_kind="exact")
+
+    classify("completely made up term xyz", "nursing")
+        → None   # caller treats as unknown (safe-drop + log upstream)
+
+Design rules
+------------
+- The category comes from the LEXICON, never from the LLM.
+- The SAME lexicon classifies CV and JD, so a phrase is bucketed
+  identically on both sides — which is what makes the matching table
+  trustworthy.
+- Universal noise (credentials / eligibility / framework noise) is
+  checked FIRST. If a phrase is noise it can never be a "skill" — it is
+  routed by its noise_type (credential → Registration & Licences;
+  eligibility → profile work-rights match; noise → dropped).
+- Resolution order inside a vertical lexicon:
+      1. Exact match (case + punctuation insensitive via `normalise()`).
+      2. Fuzzy match (difflib SequenceMatcher, cutoff 0.88) — catches
+         minor misspellings ("wound managment", "infectoin control").
+- Unknowns return None. Callers should LOG the unknown phrase (so the
+  vocabulary can grow) but NEVER guess a category.
+
+No I/O or pipeline dependencies — this module is pure functions over
+the bundled JSON lexicons. Loaded once at import time into in-memory
+dicts.
+"""
+from __future__ import annotations
+
+import difflib
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Literal, Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# Types
+# ---------------------------------------------------------------------------
+
+VerticalT = Literal["nursing", "cleaning", "tech"]
+CategoryT = Literal["technical", "soft_skills", "domain_knowledge"]
+NoiseT = Literal["credential", "eligibility", "noise"]
+MatchKindT = Literal["exact", "normalised", "fuzzy"]
+
+_VERTICALS: Tuple[VerticalT, ...] = ("nursing", "cleaning", "tech")
+_CATEGORIES: Tuple[CategoryT, ...] = ("technical", "soft_skills", "domain_knowledge")
+_NOISE_TYPES: Tuple[NoiseT, ...] = ("credential", "eligibility", "noise")
+
+
+@dataclass(frozen=True)
+class Classification:
+    """Result of resolving a phrase against the lexicon.
+
+    For SKILL hits: `canonical` + `category` + `vertical` are set;
+    `noise_type` is None.
+
+    For NOISE hits: `noise_type` is set ("credential" / "eligibility" /
+    "noise"); `category` and `vertical` are None — noise is universal.
+    """
+    canonical: str
+    category: Optional[CategoryT]
+    vertical: Optional[VerticalT]
+    noise_type: Optional[NoiseT]
+    match_kind: MatchKindT
+
+    @property
+    def is_skill(self) -> bool:
+        return self.noise_type is None and self.category is not None
+
+    @property
+    def is_noise(self) -> bool:
+        return self.noise_type is not None
+
+
+# ---------------------------------------------------------------------------
+# Normalisation
+# ---------------------------------------------------------------------------
+
+# Stripped from the START of a phrase before matching. JDs commonly
+# decorate credentials/skills with these qualifiers; they don't change
+# the underlying entity. ("current First Aid" → "first aid".)
+_QUALIFIER_PREFIXES: Tuple[str, ...] = (
+    "current ", "valid ", "accredited ", "latest ", "up-to-date ", "up to date ",
+    "active ", "renewed ", "in-date ", "in date ", "ongoing ",
+    "strong ", "excellent ", "good ", "demonstrated ",
+    "proven ", "extensive ", "solid ", "deep ",
+    "advanced ", "intermediate ", "basic ", "fundamental ",
+    "working knowledge of ", "knowledge of ", "understanding of ",
+    "experience in ", "experience with ", "experience of ",
+    "ability to ", "able to ", "skilled in ", "skilled at ",
+    "familiarity with ", "familiar with ", "proficient in ", "proficient with ",
+)
+
+# Match dashes / slashes / plus / ampersand etc. but KEEP internal hyphens
+# inside multi-word skills (person-centred care, end-of-life).
+_PUNCT_RE = re.compile(r"[^\w\s\-+#./]")
+_WS_RE = re.compile(r"\s+")
+
+
+def normalise(phrase: str) -> str:
+    """Canonicalise a phrase to its lookup key.
+
+    Lowercases, strips qualifier prefixes, collapses punctuation/whitespace.
+    Internal hyphens are preserved (so 'person-centred care' stays one token).
+    Keeps `+`, `#`, `.`, `/` so "C++", "C#", ".NET", "CI/CD" survive lookup.
+    """
+    if not phrase:
+        return ""
+    s = phrase.strip().lower()
+    # iterate: strip ALL leading qualifier prefixes (some may compose)
+    changed = True
+    while changed:
+        changed = False
+        for q in _QUALIFIER_PREFIXES:
+            if s.startswith(q):
+                s = s[len(q):]
+                changed = True
+                break
+    s = _PUNCT_RE.sub(" ", s)
+    s = _WS_RE.sub(" ", s).strip()
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Lexicon loading (once at import)
+# ---------------------------------------------------------------------------
+
+_LEXICON_DIR = Path(__file__).parent / "lexicons"
+
+
+def _load_noise() -> Dict[str, NoiseT]:
+    """Build {normalised_phrase: noise_type} from _universal_noise.json."""
+    path = _LEXICON_DIR / "_universal_noise.json"
+    data = json.loads(path.read_text())
+    out: Dict[str, NoiseT] = {}
+    for typ in _NOISE_TYPES:
+        for term in data.get(typ, []):
+            key = normalise(term)
+            if key:
+                out[key] = typ  # type: ignore[assignment]
+    return out
+
+
+def _load_vertical(vertical: VerticalT) -> Dict[str, Tuple[str, CategoryT]]:
+    """Build {normalised_phrase: (canonical, category)} for one vertical."""
+    path = _LEXICON_DIR / f"{vertical}.json"
+    data = json.loads(path.read_text())
+    out: Dict[str, Tuple[str, CategoryT]] = {}
+    for cat in _CATEGORIES:
+        for entry in data.get(cat, []):
+            canon = entry["canonical"]
+            # canonical itself is a valid lookup key
+            key = normalise(canon)
+            if key:
+                out[key] = (canon, cat)  # type: ignore[assignment]
+            for variant in entry.get("variants", []) or []:
+                vkey = normalise(variant)
+                if vkey and vkey not in out:
+                    out[vkey] = (canon, cat)  # type: ignore[assignment]
+    return out
+
+
+_NOISE_LOOKUP: Dict[str, NoiseT] = _load_noise()
+_VERTICAL_LOOKUPS: Dict[VerticalT, Dict[str, Tuple[str, CategoryT]]] = {
+    v: _load_vertical(v) for v in _VERTICALS
+}
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def is_noise(phrase: str) -> Optional[NoiseT]:
+    """Return the noise_type if `phrase` resolves to the universal noise
+    list, else None. Used to short-circuit anything that should never
+    be treated as a skill (credentials, eligibility statements,
+    framework/value/availability noise).
+    """
+    if not phrase:
+        return None
+    return _NOISE_LOOKUP.get(normalise(phrase))
+
+
+def classify(
+    phrase: str,
+    vertical: VerticalT,
+    *,
+    fuzzy_cutoff: float = 0.88,
+    allow_fuzzy: bool = True,
+) -> Optional[Classification]:
+    """Resolve `phrase` to a canonical taxonomy entry.
+
+    Order:
+      1. Universal noise → Classification with noise_type set.
+      2. Vertical lexicon exact (normalised) match.
+      3. Vertical lexicon fuzzy match (difflib ratio ≥ fuzzy_cutoff).
+      4. None — caller logs as unknown.
+
+    fuzzy_cutoff defaults to 0.88: catches minor typos (`infectoin
+    control` → `infection control`) without bleeding semantically
+    distinct phrases into one bucket.
+    """
+    if not phrase or not phrase.strip():
+        return None
+
+    # 1. Universal noise first — never a skill regardless of vertical.
+    norm = normalise(phrase)
+    if not norm:
+        return None
+    nt = _NOISE_LOOKUP.get(norm)
+    if nt is not None:
+        return Classification(
+            canonical=phrase.strip(),
+            category=None,
+            vertical=None,
+            noise_type=nt,
+            match_kind="exact",
+        )
+
+    lookup = _VERTICAL_LOOKUPS.get(vertical)
+    if lookup is None:
+        return None
+
+    # 2. Exact / normalised match.
+    hit = lookup.get(norm)
+    if hit is not None:
+        canon, cat = hit
+        match_kind: MatchKindT = "exact" if norm == phrase.strip().lower() else "normalised"
+        return Classification(
+            canonical=canon,
+            category=cat,
+            vertical=vertical,
+            noise_type=None,
+            match_kind=match_kind,
+        )
+
+    # 3. Fuzzy fallback.
+    if allow_fuzzy:
+        matches = difflib.get_close_matches(norm, lookup.keys(), n=1, cutoff=fuzzy_cutoff)
+        if matches:
+            canon, cat = lookup[matches[0]]
+            return Classification(
+                canonical=canon,
+                category=cat,
+                vertical=vertical,
+                noise_type=None,
+                match_kind="fuzzy",
+            )
+
+    # 4. Unknown.
+    return None
+
+
+def classify_many(
+    phrases: List[str],
+    vertical: VerticalT,
+    *,
+    fuzzy_cutoff: float = 0.88,
+) -> Dict[str, Optional[Classification]]:
+    """Batch helper. Returns {phrase: Classification | None}, preserving
+    the input phrase strings as keys."""
+    return {
+        p: classify(p, vertical, fuzzy_cutoff=fuzzy_cutoff)
+        for p in phrases
+    }
+
+
+def lexicon_stats() -> Dict[str, int]:
+    """Diagnostic — counts of loaded lookup keys per source. Useful
+    for confirming the bundled JSON was loaded successfully."""
+    return {
+        "noise_keys": len(_NOISE_LOOKUP),
+        **{f"{v}_keys": len(_VERTICAL_LOOKUPS[v]) for v in _VERTICALS},
+    }
