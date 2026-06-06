@@ -4050,6 +4050,60 @@ def _strip_canned_summary_phrase(md: str) -> str:
     return "\n".join(out)
 
 
+# Patterns that match common ways the model writes the residential setting
+# phrase in Career Highlights S1.
+_S1_RESIDENTIAL_RE = re.compile(
+    r"(?:experience (?:in|across)(?: multiple)? )"
+    r"(?:residential aged care|aged care)(?: and (?:dementia|community) care)?"
+    r"(?: (?:settings?|facilities?|environments?|contexts?|backgrounds?))?",
+    re.IGNORECASE,
+)
+
+# Bridge replacements by setting type — honest framing that acknowledges the
+# CV background while orienting toward the JD's target setting.
+_SETTING_BRIDGES = {
+    _SETTING_HOME:     "experience in residential aged care, delivering care in home and community settings",
+    _SETTING_HOSPITAL: "experience across residential aged care and acute clinical settings",
+    _SETTING_NDIS:     "experience in aged care and disability support settings",
+    _SETTING_THEATRE:  "experience in aged care and healthcare settings",
+}
+
+
+def _apply_setting_bridge(md: str, setting: str) -> str:
+    """Deterministically replace the residential setting phrase in S1 of Career
+    Highlights with a bridge phrase that acknowledges the CV background while
+    orienting toward the JD's actual setting.
+
+    Only touches S1 (the first prose line) of the Career Highlights section.
+    No-op for residential JDs or lifestyle coordinator (setting is correct).
+    """
+    bridge = _SETTING_BRIDGES.get(setting)
+    if not bridge:
+        return md  # residential or lifestyle — no replacement needed
+
+    lines = md.split("\n")
+    in_section = False
+    first_prose_done = False
+    out = []
+    for line in lines:
+        s = line.strip()
+        if s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS_SET:
+            in_section = True
+            out.append(line)
+            continue
+        if in_section and s.startswith("## "):
+            in_section = False
+        # Only replace in the first non-empty, non-bullet prose line (= S1)
+        if in_section and not first_prose_done and s and not re.match(r"^\s*[-*•]", line):
+            new_line = _S1_RESIDENTIAL_RE.sub(bridge, line)
+            if new_line != line:
+                first_prose_done = True
+                logger.debug("_apply_setting_bridge[%s]: replaced S1 setting phrase", setting)
+            line = new_line
+        out.append(line)
+    return "\n".join(out)
+
+
 async def _writer_w8_integrated(
     client: AIClient,
     cv_text: str,
@@ -4263,6 +4317,7 @@ async def _writer_w8_integrated(
             "seniority": seniority,
             "section_order": role_family.section_order,
             "knockouts": knockouts,
+            "jd_setting": _setting,  # passed to _writer_w8_verified for bridge pass
         },
     )
 
@@ -4346,6 +4401,12 @@ async def _writer_w8_verified(
     # MedMobile" phrase BEFORE enforce_summary_concreteness so the concreteness
     # pass can replace it with a specific, JD-relevant achievement.
     verified_md = _strip_canned_summary_phrase(verified_md)
+    # Deterministic setting bridge — replaces "residential aged care settings"
+    # in S1 with the correct bridge phrase for home care, hospital, NDIS, or
+    # theatre JDs. Runs after the canned-phrase strip so S1 is already clean.
+    # No-op for residential JDs.
+    _setting_for_bridge = result.extras.get("jd_setting", _SETTING_RESIDENTIAL)
+    verified_md = _apply_setting_bridge(verified_md, _setting_for_bridge)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
     # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
     # injection. Then cap-aware inject: approved keywords get priority over
