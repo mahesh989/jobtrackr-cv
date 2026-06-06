@@ -277,6 +277,29 @@
     { "canonical": "site reliability engineering", "variants": ["sre", "sre practices", "error budgets", "slo", "sla"] },
     { "canonical": "chaos engineering", "variants": ["chaos testing", "gremlin", "litmus chaos"] },
     { "canonical": "feature flags", "variants": ["feature toggles", "launchdarkly", "split.io", "flagsmith", "unleash feature flags"] },
-    { "canonical": "observability", "variants": ["o11y", "tracing", "distributed tracing", "opentelemetry"] }
+    { "canonical": "observability", "variants": ["o11y", "tracing", "distributed tracing", "opentelemetry"] },
+
+    { "canonical": "software engineering", "variants": ["software development", "software design"] },
+    { "canonical": "full-stack development", "variants": ["full stack development", "fullstack development", "fullstack", "full stack", "full-stack", "full-stack developer skills"] },
+    { "canonical": "backend development", "variants": ["back-end development", "back end development", "server-side development", "server side development"] },
+    { "canonical": "frontend development", "variants": ["front-end development", "front end development", "client-side development"] },
+    { "canonical": "object-oriented programming", "variants": ["oop", "object oriented programming", "object-oriented design", "oop principles"] },
+    { "canonical": "functional programming", "variants": ["functional paradigm", "fp", "pure functions"] },
+    { "canonical": "cloud computing", "variants": ["cloud platforms", "cloud infrastructure", "cloud services", "cloud architecture"] },
+    { "canonical": "test automation", "variants": ["automated testing", "automation testing", "test scripts", "automated tests"] },
+    { "canonical": "unit testing", "variants": ["unit tests", "unit test", "unit level testing"] },
+    { "canonical": "integration testing", "variants": ["integration tests", "api testing", "service testing"] },
+    { "canonical": "version control", "variants": ["source control", "code versioning", "vcs"] },
+    { "canonical": "cybersecurity", "variants": ["cyber security", "information security", "infosec", "it security", "network security"] },
+    { "canonical": "network administration", "variants": ["network admin", "network management", "networking"] },
+    { "canonical": "linux administration", "variants": ["linux admin", "linux system administration", "linux sysadmin", "unix administration"] },
+    { "canonical": "data analysis", "variants": ["data analytics", "data-driven analysis", "exploratory data analysis", "eda"] },
+    { "canonical": "data science", "variants": ["data scientist skills", "applied data science"] },
+    { "canonical": "business intelligence", "variants": ["bi", "bi reporting", "bi analytics", "bi tools"] },
+    { "canonical": "robotic process automation", "variants": ["rpa", "process automation", "workflow automation", "automation bots"] },
+    { "canonical": "API development", "variants": ["api development", "api design", "api integration", "api first", "api-first design", "building apis"] },
+    { "canonical": "database administration", "variants": ["dba", "db admin", "database management"] },
+    { "canonical": "penetration testing", "variants": ["pen testing", "pentest", "pentesting", "ethical hacking", "ethical hacker"] },
+    { "canonical": "load testing", "variants": ["performance testing", "stress testing", "load and performance testing"] }
   ]
 }
