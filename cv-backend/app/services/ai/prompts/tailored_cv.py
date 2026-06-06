@@ -442,6 +442,35 @@ STRUCTURE — exactly two sentences, no exceptions:
   - If you cannot generalise honestly, OMIT the industry tail
     entirely. The sentence still works.
 
+  KEYWORD SUBSTITUTION RULE (HARD — applies to all Career Highlights
+  content, both S1 and S2):
+  If a JD keyword, skill, certification, or duty is NOT evidenced in
+  the candidate's CV, do NOT use it in Career Highlights — even if it
+  appears in jd_analysis.required_skills or responsibilities.
+
+  Instead, follow this substitution pipeline:
+    1. Identify the CLOSEST skill in the candidate's CV that transfers
+       to the JD keyword (same domain, adjacent capability, or
+       enabling foundation).
+    2. Use that transferable skill, framed toward the JD's context.
+       Example: JD mentions "PEG feeding" but CV has no PEG experience
+       → substitute "complex personal care" or "care under RN
+       supervision" — whichever the CV supports.
+    3. If no transferable skill exists and honest framing is impossible
+       → omit the term entirely. A shorter, truthful sentence is always
+       better than a padded, fabricated one.
+
+  HARD BANS — never fabricate these regardless of JD pressure:
+    • Patient or resident counts ("50+ residents", "120-bed facility")
+      unless the candidate's CV states a specific number.
+    • Clinical skills not in the CV (e.g. tracheostomy care, IV
+      therapy, PEG management) — even if the JD requires them.
+    • Certifications not held (e.g. "Certificate IV in Ageing Support"
+      if the CV only shows Certificate III or student status).
+    • Metrics or outcomes not in the CV ("reduced incidents by X%",
+      "achieved 98% medication accuracy") — the CV must state the
+      number, not the JD requirement.
+
   The role title MUST come from the candidate's actual CV titles
   unless the JD title is the SAME or LOWER seniority (see Seniority
   Literal-Match rule).
