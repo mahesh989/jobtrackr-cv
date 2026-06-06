@@ -72,6 +72,12 @@ export default async function BetaPage() {
           <Link href="/dashboard/beta/model-comparison" className="text-[11px] text-blue-500 hover:underline">
             Model Comparison (OpenAI vs Anthropic)
           </Link>
+          <Link href="/dashboard/beta/skills-audit" className="text-[11px] text-blue-500 hover:underline">
+            Skills Audit
+          </Link>
+          <Link href="/dashboard/beta/summary-audit" className="text-[11px] text-blue-500 hover:underline">
+            Summary Audit
+          </Link>
         </div>
       </div>
 
