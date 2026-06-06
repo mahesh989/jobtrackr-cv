@@ -1980,6 +1980,9 @@ _NON_SKILL_EXACT: set[str] = {
     # "home care support" is the sector + "support" — names a category of work,
     # not a discrete competency the candidate has.
     "ageing care", "home care support",
+    # Sector/setting descriptors — not skills.
+    "aged care sector", "disability sector", "health sector",
+    "community services sector",
     # Bare profession name / over-generic descriptors — not skills.
     "nursing", "nursing care", "nursing studies", "clinical care",
     # JD-sourced setting/sector phrase variants not yet covered above.
@@ -1990,17 +1993,48 @@ _NON_SKILL_EXACT: set[str] = {
     "interest in leadership development pathways", "interest in leadership development",
     "interest in career development", "interest in professional development",
     "commitment to excellence", "commitment to quality care",
+    "commitment to high-quality care", "commitment to best-practice care",
+    "commitment to patient-centred care", "commitment to organisational values",
     "work ethic suitable for rotating rosters",
     "nursing studies in progress",
     "willingness to engage in ongoing learning and development",
     "understanding of residential care community operations",
     "understanding of residential aged care operations",
+    "ethical conduct", "ethical behaviour",
     # Pre-employment requirements — not a skill.
     "pre-employment medical", "pre employment medical",
     "ability to complete pre-employment medical",
     "ability to complete police check",
+    "ability to pass pre-employment medical", "ability to pass police check",
     "ability to use sector-leading care systems and technology",
     "ability to use sector-leading care systems",
+    # OHS / compliance / institutional — not a competency.
+    "occupational health and safety in healthcare",
+    "work health and safety in healthcare",
+    "work health and safety practices", "work health and safety compliance",
+    "worker health and safety compliance",
+    "quality improvement in healthcare", "quality and safety in healthcare",
+    "accreditation requirements",
+    "nsw health policies and procedures",
+    "child safe standards", "child safety and protection practices",
+    "child-safe practice principles", "child safe practice",
+    "public health sector work environment",
+    "awareness of public sector inclusion and diversity principles",
+    "multi-purpose service model", "rural and regional healthcare context",
+    "acute surgical care environment", "rehabilitation care environment",
+    "ndis worker clearance requirements",
+    "infection control and immunity requirements",
+    "compliance with vaccination and screening protocols",
+    "vaccine preventable diseases compliance",
+    "infection prevention and vaccination awareness",
+    # Student / qualification descriptions — not skills.
+    "overseas nursing qualification", "overseas qualified nurse",
+    "nursing assistance in residential aged care",
+    "rn student", "en student", "nursing student clinical skills",
+    "female gender as per client request",
+    # Eligibility appearing in skills — not a competency.
+    "permanent residency or citizenship in australia",
+    "australian or new zealand work rights", "australian work rights requirements",
     # Workplace Health & Safety with/without the (WHS) suffix. WHS is a domain
     # category, not a discrete competency — the real skill is e.g. "Infection
     # Control", "Manual Handling".

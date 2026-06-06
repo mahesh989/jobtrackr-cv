@@ -86,8 +86,17 @@ _FILLER_KEYWORD_RE = re.compile(
     r"|^ability\s+to\b"
     r"|^experience\s+(?:in|with|of)\b"
     r"|^familiarity\s+with\b"
-    r"|^(?:willingness|commitment|passion|aptitude|interest)\s+(?:to|for|in)\b"
-    r"|^(?:demonstrated|proven)\s+(?:ability|understanding|knowledge|experience)\b",
+    r"|^(?:willingness|commitment|passion|aptitude|interest|dedication)\s+(?:to|for|in)\b"
+    r"|^(?:demonstrated|proven)\s+(?:ability|understanding|knowledge|experience)\b"
+    # Qualification / credential phrases — always dropped from the feasibility plan.
+    r"|^(?:certificate|cert\.?|diploma|advanced\s+diploma|bachelor|graduate|master)\s+"
+    r"(?:i{1,4}|iv|[1-4]|of|in)\b"
+    r"|^enrolled\s+in\b"
+    r"|^completion\s+of\b"
+    r"|^(?:rn|en|nursing)\s+student\b"
+    r"|^overseas\s+(?:nursing|qualified)\b"
+    r"|^(?:allied\s+health\s+student|assistant\s+in\s+nursing\s+qualification"
+    r"|enrolled\s+nurse\s+qualification|registered\s+nurse\s+qualification)\b",
     re.IGNORECASE,
 )
 

@@ -163,7 +163,20 @@
     "cert iii in community services",
     "cert iv in community services",
 
-    "ndis worker screening clearance"
+    "ndis worker screening clearance",
+
+    "cpr certification",
+    "cpr certify",
+    "current cpr",
+
+    "immunisation compliance",
+    "immunization compliance",
+    "vaccination compliance",
+    "vaccine preventable diseases compliance",
+    "vaccine preventable disease compliance",
+    "new worker ndis induction module",
+    "ndis induction module",
+    "ndis worker induction module"
   ],
 
   "eligibility": [
@@ -247,7 +260,18 @@
     "australian aged care work rights and compliance",
     "aged care work rights and compliance",
     "work rights and compliance",
-    "right to work and compliance"
+    "right to work and compliance",
+
+    "permanent residency or citizenship in australia",
+    "australian citizenship or permanent residency",
+    "australian citizenship and permanent residency",
+    "australian or new zealand work rights",
+    "nz or australian work rights",
+    "australian work rights requirements",
+    "australian citizenship eligibility",
+    "national police check or ndis workers check requirements",
+    "national police check and ndis worker check",
+    "australian aged care employment compliance"
   ],
 
   "noise": [
@@ -435,9 +459,12 @@
     "ability to complete pre-employment medical",
     "ability to complete police check",
     "ability to obtain police check",
+    "ability to pass police check",
+    "ability to pass pre-employment medical",
     "ability to complete ndis worker screening",
     "ability to obtain ndis worker screening",
     "ability to complete working with children check",
+    "ability to obtain ndis worker screening clearance",
 
     "ability to use sector-leading care systems and technology",
     "ability to use sector-leading care systems",
@@ -445,6 +472,125 @@
 
     "understanding of residential care community operations",
     "understanding of residential aged care operations",
-    "understanding of community care operations"
+    "understanding of community care operations",
+
+    "ethical conduct",
+    "ethical behaviour",
+    "code of ethical conduct",
+
+    "occupational health and safety in healthcare",
+    "occupational health and safety",
+    "work health and safety in healthcare",
+    "work health and safety practices",
+    "work health and safety compliance",
+    "worker health and safety compliance",
+    "working knowledge of whs",
+    "quality improvement in healthcare",
+    "quality and safety in healthcare",
+    "safety and quality improvement",
+
+    "accreditation requirements",
+    "aged care accreditation",
+    "compliance with accreditation standards",
+
+    "nsw health policies and procedures",
+    "nsw health vaccination and screening policy",
+    "government health policies",
+    "health service policies",
+    "clinical governance policies",
+
+    "child safe standards",
+    "child safety and protection practices",
+    "child-safe practice principles",
+    "child safe practice",
+    "child safe framework",
+    "mandatory reporting requirements",
+
+    "public health sector work environment",
+    "awareness of public sector inclusion and diversity principles",
+    "public sector values",
+    "government sector environment",
+
+    "multi-purpose service model",
+    "rural and regional healthcare context",
+    "rural and remote healthcare setting",
+    "rural health context",
+    "regional healthcare context",
+    "geographically isolated community",
+    "understanding of geographically isolated communities",
+
+    "reconciliation and aboriginal and torres strait islander health perspectives",
+    "aboriginal and torres strait islander health",
+    "cultural safety for aboriginal and torres strait islander people",
+    "research project participation in healthcare settings",
+
+    "rehabilitation care environment",
+    "acute surgical care environment",
+    "acute and primary care settings",
+    "general medicine care",
+    "aged care placement experience",
+
+    "ndis worker clearance requirements",
+    "overseas nursing qualification",
+    "overseas qualified nurse",
+    "overseas nursing registration",
+    "nursing assistance in residential aged care",
+    "rn student",
+    "en student",
+    "nursing student clinical skills",
+    "fundamental clinical nursing skills",
+    "health service assistance",
+    "female gender as per client request",
+    "gender requirement as per client request",
+
+    "commitment to high-quality care",
+    "commitment to best-practice care",
+    "commitment to caring for others",
+    "commitment to quality care",
+    "commitment to organisational values",
+    "commitment to ongoing professional development",
+    "commitment to a professional work ethic",
+    "commitment to patient-centred care",
+    "commitment to bayside health values",
+    "commitment to quality aged care",
+
+    "ability to work under supervision",
+    "ability to work under direction",
+    "ability to work collaboratively as part of an interdisciplinary team",
+    "ability to work in a busy environment",
+    "ability to work in a mission-based organisation",
+    "ability to work rotating roster",
+    "ability to work rotating 24/7 shifts",
+    "ability to follow guidelines",
+    "ability to follow instructions",
+    "ability to communicate effectively with staff patients and families",
+    "ability to complete delegated tasks within required timeframes",
+    "ability to work independently under delegation",
+
+    "supporting independence and dignity",
+    "promoting independence and dignity",
+    "independence and wellbeing",
+    "awareness of limitations in knowledge and willingness to seek support",
+
+    "willingness to contribute to quality patient care",
+    "willingness to learn",
+    "willingness to travel",
+
+    "infection control and immunity requirements",
+    "compliance with vaccination and screening protocols",
+    "mandatory vaccination requirements for healthcare workers",
+    "vaccination and screening requirements",
+    "infection prevention and vaccination awareness",
+
+    "retirement living environment",
+    "community nursing environment",
+    "general medicine environment",
+
+    "person-centred care principles",
+    "quality of care",
+    "high quality care",
+    "striving for excellence in care",
+
+    "local area familiarity"
   ]
 }

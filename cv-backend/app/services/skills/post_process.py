@@ -19,12 +19,63 @@ into the wrong one.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.skills.classifier import (
     classify,
     is_noise,
 )
+
+# ---------------------------------------------------------------------------
+# Pattern-based qualification / student-status filter
+# ---------------------------------------------------------------------------
+# These phrases are ALWAYS credentials/prerequisites, never a skill the
+# candidate demonstrates.  A single regex is more maintainable than
+# listing every "Certificate III in …" / "Diploma of …" variant explicitly.
+#
+# Conservative: anchored at the START so "individual support certificate"
+# doesn't accidentally match.  Route to sidecar["credential"].
+_QUAL_PATTERN = re.compile(
+    r"^(?:"
+    r"certificate\s+(?:i{1,4}|iv|[1-4]|in\b|of\b)|"     # certificate III/IV/in
+    r"cert\.?\s+(?:i{1,4}|iv|[1-4]|in\b)|"               # cert III / cert. IV
+    r"diploma\s+of\b|"
+    r"advanced\s+diploma\b|"
+    r"bachelor\s+(?:of|degree)\b|"
+    r"graduate\s+(?:certificate|diploma|entry)\b|"
+    r"master\s+of\b|"
+    r"enrolled\s+in\b|"
+    r"completion\s+of\b|"
+    r"hltaid\d"                                            # HLTAID011 etc.
+    r")",
+    re.IGNORECASE,
+)
+
+# Student / qualification descriptions that are NOT captured by the pattern
+# above but should still route to the credential sidecar.
+_STUDENT_NOISE = frozenset({
+    "rn student", "en student",
+    "nursing student clinical skills",
+    "overseas nursing qualification",
+    "overseas qualified nurse",
+    "overseas nursing registration",
+    "assistant in nursing qualification",
+    "enrolled nurse qualification",
+    "registered nurse qualification",
+    "allied health student background",
+    "nursing assistance in residential aged care",
+    "fundamental clinical nursing skills",
+    "health service assistance",
+})
+
+
+def _is_qualification_phrase(phrase: str) -> bool:
+    """True if the phrase describes a qualification/credential, not a skill."""
+    lowered = phrase.strip().lower()
+    if _QUAL_PATTERN.match(lowered):
+        return True
+    return lowered in _STUDENT_NOISE
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +147,12 @@ def post_process_skills(
             if not phrase:
                 continue
 
-            # 1. Universal noise — runs for ALL families. A phrase here
+            # 1a. Qualification / student-status phrases — always credentials.
+            if _is_qualification_phrase(phrase):
+                sidecar["credential"].append(phrase)
+                continue
+
+            # 1b. Universal noise — runs for ALL families. A phrase here
             #    is never a skill regardless of vertical.
             nt = is_noise(phrase)
             if nt is not None:

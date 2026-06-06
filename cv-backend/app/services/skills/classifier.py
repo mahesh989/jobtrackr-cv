@@ -113,10 +113,19 @@ def normalise(phrase: str) -> str:
     Lowercases, strips qualifier prefixes, collapses punctuation/whitespace.
     Internal hyphens are preserved (so 'person-centred care' stays one token).
     Keeps `+`, `#`, `.`, `/` so "C++", "C#", ".NET", "CI/CD" survive lookup.
+
+    Also normalises Unicode dash-like characters (non-breaking hyphen U+2011,
+    figure dash U+2012, en-dash U+2013) to a standard ASCII hyphen so JD text
+    that uses smart punctuation matches the plain-ASCII noise/lexicon entries.
     """
     if not phrase:
         return ""
     s = phrase.strip().lower()
+    # Normalise Unicode dash variants → standard ASCII hyphen before any lookup.
+    # U+2010 hyphen, U+2011 non-breaking hyphen, U+2012 figure dash,
+    # U+2013 en dash, U+2014 em dash, U+2212 minus sign.
+    for ch in "‐‑‒–—−":
+        s = s.replace(ch, "-")
     # iterate: strip ALL leading qualifier prefixes (some may compose)
     changed = True
     while changed:
