@@ -1988,6 +1988,11 @@ _NON_SKILL_EXACT: set[str] = {
     "nursing practice",  # profession name, not a discrete skill
     "clinical placement experience",  # student status, not a skill
     "undergraduate nursing education",  # education status, not a skill
+    "work under supervision of registered nurse",  # work arrangement descriptor
+    "driver licensing requirements",  # credential requirement descriptor
+    "ndis worker screening requirements", "working with children check requirements",
+    "rn studies", "en studies",  # student enrollment status
+    "allied health training", "assistant in nursing skills", "aged care worker skills",
     # JD-sourced setting/sector phrase variants not yet covered above.
     "aged care support",
     # Non-skill: describes basic equipment access, not a competency.

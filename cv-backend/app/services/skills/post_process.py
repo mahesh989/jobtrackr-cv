@@ -66,11 +66,16 @@ _STUDENT_NOISE = frozenset({
     "enrolled nurse qualification",
     "registered nurse qualification",
     "allied health student background",
+    "allied health training",
     "nursing assistance in residential aged care",
     "fundamental clinical nursing skills",
     "fundamental clinical skills",
     "health service assistance",
     "basic clinical nursing skills",
+    "rn studies",
+    "en studies",
+    "assistant in nursing skills",
+    "aged care worker skills",
 })
 
 
