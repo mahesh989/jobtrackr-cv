@@ -3902,21 +3902,32 @@ _SETTING_RESIDENTIAL = "residential"
 
 
 def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
-    """Return one of the _SETTING_* constants based on keyword matching."""
+    """Return one of the _SETTING_* constants based on keyword matching.
+
+    Precedence (highest → lowest):
+      Theatre/CSSD → Lifestyle → Home/Community → NDIS/Disability → Hospital → Residential
+
+    HOME before NDIS: many home-care JDs mention 'disability' or 'individuals
+    living with disability' as client types without being NDIS-specific. resp0
+    and the job title are the most reliable signals; the JD body text can
+    contain 'disability' incidentally in a home-care context.
+    """
     responsibilities = jd_analysis.get("responsibilities") or []
     resp0 = (responsibilities[0] if responsibilities else "").lower()
     job_title = (jd_analysis.get("job_title") or "").lower()
-    combined = resp0 + " " + job_title + " " + (jd_text or "")[:2000].lower()
+    # Use resp0 + job_title as primary signals; full JD text as tiebreaker only.
+    primary   = resp0 + " " + job_title
+    full_text = primary + " " + (jd_text or "")[:2000].lower()
 
-    # Theatre / CSSD (most specific — check first)
-    if any(kw in combined for kw in [
+    # 1. Theatre / CSSD (most specific — check first)
+    if any(kw in full_text for kw in [
         "theatre cases", "instrument tray", "cssd", "sterile stock",
         "set up consumables", "sterile stock room",
     ]):
         return _SETTING_THEATRE
 
-    # Lifestyle / Activities coordinator
-    if any(kw in combined for kw in [
+    # 2. Lifestyle / Activities coordinator
+    if any(kw in full_text for kw in [
         "activities program", "group activities", "lifestyle program",
         "recreational activities", "organise and schedule",
     ]) or any(kw in job_title for kw in [
@@ -3924,29 +3935,37 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
     ]):
         return _SETTING_LIFESTYLE
 
-    # NDIS / disability
-    if any(kw in combined for kw in [
+    # 3. Home / community care — BEFORE NDIS so home-care JDs that incidentally
+    #    mention 'disability' as a client type are not mis-labelled as NDIS.
+    #    Check PRIMARY (resp0 + job_title) first for highest confidence.
+    _home_kws = [
+        "in their home", "in the home", "clients' home", "clients in their home",
+        "domestic assistance", "domestic help",
+        "meal preparation",
+        "transport to appointments", "transportation to appointments",
+        "social outings",
+        "retirement living residents in their homes",
+        "home visit", "visit clients",
+        "home care support worker", "home care worker",
+    ]
+    if any(kw in primary for kw in _home_kws):
+        return _SETTING_HOME
+    # Also check full text, but only if the job title doesn't signal NDIS.
+    _ndis_title_kws = ["ndis", "disability support worker"]
+    if (not any(kw in job_title for kw in _ndis_title_kws)
+            and any(kw in full_text for kw in _home_kws)):
+        return _SETTING_HOME
+
+    # 4. NDIS / disability
+    if any(kw in full_text for kw in [
         "ndis", "disability support", "non-verbal participant",
         "acquired brain injury", "high intensity support",
         "disability worker",
     ]):
         return _SETTING_NDIS
 
-    # Home / community care
-    if any(kw in combined for kw in [
-        "in their home", "in the home", "clients' home", "clients in their home",
-        "domestic assistance", "domestic help",
-        "meal preparation",
-        "transport to appointments", "transportation to appointments",
-        "shopping and transport", "transport.*shopping",
-        "retirement living residents in their homes",
-        "home visit", "visit clients",
-        "social outings",  # community care indicator
-    ]):
-        return _SETTING_HOME
-
-    # Hospital / acute
-    if any(kw in combined for kw in [
+    # 5. Hospital / acute
+    if any(kw in full_text for kw in [
         "surgical ward", "orthopaedic", "acute care",
         "medical department", "hospital setting", "hospital staff",
         "hospital settings", "acute clinical",
@@ -4090,6 +4109,18 @@ def _apply_setting_bridge(md: str, setting: str) -> str:
             if new_line != line:
                 first_prose_done = True
                 logger.debug("_apply_setting_bridge[%s]: replaced S1 setting phrase", setting)
+                # After applying the bridge, strip any residual "in residential
+                # settings" or "in a residential setting" elsewhere in S1 that
+                # wasn't part of the matched span — avoids doubled phrases like
+                # "delivering care in home settings, ...for older people in
+                # residential settings".
+                new_line = re.sub(
+                    r"\s+(?:in|at|within)(?: (?:a|an))? (?:residential|facility)(?: (?:aged care|care))? "
+                    r"(?:settings?|facilities?|environments?)",
+                    "",
+                    new_line,
+                    flags=re.IGNORECASE,
+                )
             line = new_line
         out.append(line)
     return "\n".join(out)
