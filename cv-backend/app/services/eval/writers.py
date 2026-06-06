@@ -4031,23 +4031,11 @@ _HIGHLIGHT_HEADINGS_SET = frozenset([
 
 def _strip_canned_summary_phrase(md: str) -> str:
     """Remove the generic 'Currently delivering care at X using BESTMed and
-    MedMobile' sentence from Career Highlights. Called before
-    enforce_summary_concreteness so the concreteness pass can replace it."""
-    lines = md.split("\n")
-    in_section = False
-    out = []
-    for line in lines:
-        s = line.strip()
-        if s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS_SET:
-            in_section = True
-            out.append(line)
-            continue
-        if in_section and s.startswith("## "):
-            in_section = False
-        if in_section and _CANNED_SUMMARY_RE.search(line):
-            line = _CANNED_SUMMARY_RE.sub("", line).rstrip()
-        out.append(line)
-    return "\n".join(out)
+    MedMobile' sentence wherever it appears. The phrase is distinctive enough
+    that a global substitution is safe — it is never generated outside Career
+    Highlights. Called before enforce_summary_concreteness so the concreteness
+    pass can replace the gap with a specific, JD-relevant achievement."""
+    return _CANNED_SUMMARY_RE.sub("", md)
 
 
 # Patterns that match common ways the model writes the residential setting
@@ -4403,9 +4391,11 @@ async def _writer_w8_verified(
     verified_md = _strip_canned_summary_phrase(verified_md)
     # Deterministic setting bridge — replaces "residential aged care settings"
     # in S1 with the correct bridge phrase for home care, hospital, NDIS, or
-    # theatre JDs. Runs after the canned-phrase strip so S1 is already clean.
+    # theatre JDs. Re-classifies directly from jd_text + result.jd_analysis
+    # rather than trusting result.extras, which can be stale in resume paths.
     # No-op for residential JDs.
-    _setting_for_bridge = result.extras.get("jd_setting", _SETTING_RESIDENTIAL)
+    _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
+    logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
     verified_md = _apply_setting_bridge(verified_md, _setting_for_bridge)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
     # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
