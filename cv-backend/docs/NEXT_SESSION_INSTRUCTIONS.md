@@ -10,8 +10,8 @@
 ## Current production state
 
 **Branch:** `main`  
-**Latest commit:** `02b267e`  
-**Production:** Fly.io `jobtrackr-cv-api` v222, 494 tests passing  
+**Latest commit:** `6f1a326`  
+**Production:** Fly.io `jobtrackr-cv-api` v223, 494 tests passing  
 **Uncommitted changes:** none
 
 ---
@@ -122,30 +122,34 @@ dementia care" even for home care, hospital, and NDIS roles.
 
 ---
 
+## What was completed this session (2026-06-06 second session)
+
+### Cross-vertical lexicon validation — DONE, deployed v223 (`6f1a326`)
+
+Root cause found: `reroute_skills_by_lexicon` (enforce.py:275) keeps `None`-classified
+entries on their **source line**, not dropping them. So any noise phrase the LLM emits
+in a Skills section that isn't in `_universal_noise.json` will survive unchanged.
+
+**Fixed in `_universal_noise.json`:**
+- Credential: own transport, own vehicle, full drivers licence, drivers license (US),
+  must have own car, ability to obtain police clearance, ability to pass background check
+- Eligibility: australian permanent resident
+- Noise: passion for technology/coding/cleaning/data, fast/quick learner, results-driven,
+  hardworking, strong work ethic, self-motivated, motivated individual,
+  works well under pressure, presentable appearance, police clearance required
+
+**Fixed in `tech.json` (24 new domain_knowledge entries):**
+object-oriented programming (OOP), functional programming, full-stack/backend/frontend
+development, test automation, unit testing, integration testing, version control,
+cybersecurity, data analysis, data science, business intelligence, API development,
+cloud computing, RPA, software engineering, penetration testing, linux/network
+administration, load testing.
+
+---
+
 ## Primary next tasks
 
-### 1. Cross-vertical validation — tech and cleaning roles
-
-The lexicon infrastructure (classifier, rerouter, noise filter) was built and
-battle-tested on nursing. Tech and cleaning verticals were added but never
-systematically validated at scale.
-
-**What to do:**
-- Open `/dashboard/beta/skills-audit` and switch to `tech` and `cleaning` filters
-- Check "Other Skills" items for each vertical:
-  - Tech: are there obvious noise items leaking into Other Skills?
-  - Cleaning: does the cleaning vertical have enough lexicon coverage?
-- Run the classifier spot-check for a few tech/cleaning phrases:
-  ```python
-  from app.services.skills.classifier import classify
-  print(classify('azure devops', 'tech'))
-  print(classify('steam cleaning', 'cleaning'))
-  print(classify('customer service', 'cleaning'))
-  ```
-- If gaps found: add entries to `tech.json` / `cleaning.json` in
-  `cv-backend/app/services/skills/lexicons/`
-
-### 2. Phase 3A real-run validation — full 35-job eval harness
+### 1. Phase 3A real-run validation — full 35-job eval harness
 
 Run the full eval suite against production (w8_verified writer) and check for
 regressions vs the last stable baseline.
