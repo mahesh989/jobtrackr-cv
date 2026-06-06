@@ -3888,6 +3888,168 @@ async def _writer_w7_converged(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# JD setting classifier — deterministic, injected at top of user message so
+# the model cannot ignore the setting constraint in favour of the CV's prior.
+# ---------------------------------------------------------------------------
+
+_SETTING_HOME       = "home_community"
+_SETTING_HOSPITAL   = "hospital_acute"
+_SETTING_NDIS       = "ndis_disability"
+_SETTING_LIFESTYLE  = "lifestyle_coordinator"
+_SETTING_THEATRE    = "theatre_cssd"
+_SETTING_RESIDENTIAL = "residential"
+
+
+def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
+    """Return one of the _SETTING_* constants based on keyword matching."""
+    responsibilities = jd_analysis.get("responsibilities") or []
+    resp0 = (responsibilities[0] if responsibilities else "").lower()
+    job_title = (jd_analysis.get("job_title") or "").lower()
+    combined = resp0 + " " + job_title + " " + (jd_text or "")[:2000].lower()
+
+    # Theatre / CSSD (most specific — check first)
+    if any(kw in combined for kw in [
+        "theatre cases", "instrument tray", "cssd", "sterile stock",
+        "set up consumables", "sterile stock room",
+    ]):
+        return _SETTING_THEATRE
+
+    # Lifestyle / Activities coordinator
+    if any(kw in combined for kw in [
+        "activities program", "group activities", "lifestyle program",
+        "recreational activities", "organise and schedule",
+    ]) or any(kw in job_title for kw in [
+        "lifestyle coordinator", "leisure coordinator", "activities coordinator",
+    ]):
+        return _SETTING_LIFESTYLE
+
+    # NDIS / disability
+    if any(kw in combined for kw in [
+        "ndis", "disability support", "non-verbal participant",
+        "acquired brain injury", "high intensity support",
+        "disability worker",
+    ]):
+        return _SETTING_NDIS
+
+    # Home / community care
+    if any(kw in combined for kw in [
+        "in their home", "in the home", "clients' home", "clients in their home",
+        "domestic assistance", "domestic help",
+        "meal preparation",
+        "transport to appointments", "transportation to appointments",
+        "shopping and transport", "transport.*shopping",
+        "retirement living residents in their homes",
+        "home visit", "visit clients",
+        "social outings",  # community care indicator
+    ]):
+        return _SETTING_HOME
+
+    # Hospital / acute
+    if any(kw in combined for kw in [
+        "surgical ward", "orthopaedic", "acute care",
+        "medical department", "hospital setting", "hospital staff",
+        "hospital settings", "acute clinical",
+    ]):
+        return _SETTING_HOSPITAL
+
+    return _SETTING_RESIDENTIAL
+
+
+def _build_jd_setting_block(setting: str) -> str:
+    """Return a hard-constraint block to prepend to the user message.
+    Empty string for residential (no constraint needed)."""
+    if setting == _SETTING_RESIDENTIAL:
+        return ""
+    blocks = {
+        _SETTING_HOME: (
+            "⚠ SYSTEM-COMPUTED JD SETTING: HOME / COMMUNITY CARE\n"
+            "This JD is for care delivered in clients' homes or the community — NOT a residential facility.\n"
+            "HARD RULES for Career Highlights (cannot be overridden by any other instruction):\n"
+            "• S1 MUST NOT say 'residential aged care settings' as the main setting noun.\n"
+            "• Use a BRIDGE phrase instead — e.g.:\n"
+            "  'residential aged care background, now delivering in-home support'\n"
+            "  'aged care and in-home community care experience'\n"
+            "  'aged care experience applied to home-based support'\n"
+            "• S2 must evidence personal care, daily living, or community support — NOT medication admin as the lead."
+        ),
+        _SETTING_HOSPITAL: (
+            "⚠ SYSTEM-COMPUTED JD SETTING: HOSPITAL / ACUTE CARE\n"
+            "This JD is for a hospital ward or acute clinical environment — NOT a residential aged care facility.\n"
+            "HARD RULES for Career Highlights:\n"
+            "• S1 MUST NOT say just 'residential aged care settings'.\n"
+            "• Use a BRIDGE: e.g. 'residential aged care, transitioning into hospital-based care'\n"
+            "  or 'aged care and acute clinical settings'.\n"
+            "• S2 must evidence working under RN direction, within scope of practice, in a clinical team."
+        ),
+        _SETTING_NDIS: (
+            "⚠ SYSTEM-COMPUTED JD SETTING: NDIS / DISABILITY SUPPORT\n"
+            "This JD is for disability or NDIS support — NOT residential aged care.\n"
+            "HARD RULES for Career Highlights:\n"
+            "• S1 MUST NOT say just 'residential aged care settings'.\n"
+            "• Use a BRIDGE: e.g. 'aged care and disability support contexts'\n"
+            "  or 'applying aged care skills to NDIS-funded support'.\n"
+            "• S2 must evidence personal care, behavioural support, or complex care — not medication as lead."
+        ),
+        _SETTING_LIFESTYLE: (
+            "⚠ SYSTEM-COMPUTED JD SETTING: LIFESTYLE / ACTIVITIES COORDINATOR\n"
+            "This JD is for planning and coordinating resident activities — NOT direct personal care.\n"
+            "HARD RULES for Career Highlights:\n"
+            "• S1 specialisations MUST reference activities, engagement, wellbeing, or lifestyle programming.\n"
+            "• S1 MUST NOT mention medication assistance, medication administration, or dementia care\n"
+            "  as the lead specialisations.\n"
+            "• S2 must evidence resident engagement, social participation, or activities support from the CV.\n"
+            "• If the CV has no direct activities coordination, use the closest transferable skill\n"
+            "  (e.g. person-centred care that supported resident wellbeing and social engagement)."
+        ),
+        _SETTING_THEATRE: (
+            "⚠ SYSTEM-COMPUTED JD SETTING: THEATRE / CSSD CLINICAL SUPPORT\n"
+            "This JD is for instrument/theatre/CSSD support — NOT personal care.\n"
+            "HARD RULES for Career Highlights:\n"
+            "• Do NOT write a care-worker summary.\n"
+            "• Frame the candidate as bringing healthcare exposure, attention to clinical protocols,\n"
+            "  and accuracy from their aged care background.\n"
+            "• S2 should draw on documentation, clinical protocol compliance, and structured\n"
+            "  healthcare environment experience."
+        ),
+    }
+    return blocks.get(setting, "")
+
+
+# Regex to strip the canned 'Currently delivering care at X using BESTMed'
+# phrase from Career Highlights — it's not JD-tailored and appears verbatim
+# across many summaries. After stripping, enforce_summary_concreteness fills
+# the gap with a concrete achievement derived from the CV.
+_CANNED_SUMMARY_RE = re.compile(
+    r"Currently delivering care at [^.!?]+using (?:BESTMed|MedMobile)[^.!?]*[.!?]?",
+    re.IGNORECASE,
+)
+_HIGHLIGHT_HEADINGS_SET = frozenset([
+    "career highlights", "professional summary", "summary", "profile",
+])
+
+
+def _strip_canned_summary_phrase(md: str) -> str:
+    """Remove the generic 'Currently delivering care at X using BESTMed and
+    MedMobile' sentence from Career Highlights. Called before
+    enforce_summary_concreteness so the concreteness pass can replace it."""
+    lines = md.split("\n")
+    in_section = False
+    out = []
+    for line in lines:
+        s = line.strip()
+        if s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS_SET:
+            in_section = True
+            out.append(line)
+            continue
+        if in_section and s.startswith("## "):
+            in_section = False
+        if in_section and _CANNED_SUMMARY_RE.search(line):
+            line = _CANNED_SUMMARY_RE.sub("", line).rstrip()
+        out.append(line)
+    return "\n".join(out)
+
+
 async def _writer_w8_integrated(
     client: AIClient,
     cv_text: str,
@@ -3911,7 +4073,16 @@ async def _writer_w8_integrated(
     system_prompt = build_composition_system(role_family, seniority)
 
     plan_for_prompt = (up["feasibility"] or {}).get("feasibility_plan") or {}
-    user_prompt = COMPOSITION_USER_TEMPLATE.format(
+
+    # Deterministic JD setting classification — prepended to the user message so
+    # it arrives before the CV text and cannot be overridden by the model's
+    # residential-setting prior derived from the candidate's employer history.
+    _setting       = _classify_jd_setting(jd_text, up["jd_analysis"])
+    _setting_block = _build_jd_setting_block(_setting)
+    _setting_prefix = (_setting_block + "\n\n") if _setting_block else ""
+    logger.info("w8_integrated: JD setting classified as %s", _setting)
+
+    user_prompt = _setting_prefix + COMPOSITION_USER_TEMPLATE.format(
         cv_text=cv_text,
         jd_text=jd_text,
         feasibility_json=json.dumps(plan_for_prompt, indent=2),
@@ -4171,6 +4342,10 @@ async def _writer_w8_verified(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
+    # Strip the canned "Currently delivering care at X using BESTMed and
+    # MedMobile" phrase BEFORE enforce_summary_concreteness so the concreteness
+    # pass can replace it with a specific, JD-relevant achievement.
+    verified_md = _strip_canned_summary_phrase(verified_md)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
     # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
     # injection. Then cap-aware inject: approved keywords get priority over
