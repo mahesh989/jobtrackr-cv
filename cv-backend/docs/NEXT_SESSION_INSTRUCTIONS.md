@@ -10,8 +10,8 @@
 ## Current production state
 
 **Branch:** `main`  
-**Latest commit:** `09bca88`  
-**Production:** Fly.io `jobtrackr-cv-api`, 494 tests passing  
+**Latest commit:** `02b267e`  
+**Production:** Fly.io `jobtrackr-cv-api` v222, 494 tests passing  
 **Uncommitted changes:** none
 
 ---
@@ -29,7 +29,7 @@ python3 -m pytest tests/ -q --ignore=tests/test_pdf_adaptive.py
 # 2. Commit (from repo root)
 cd /Users/mahesh/Documents/Github/jobtrackr-cv
 git add <specific files — never git add -A>
-git commit -m "fix(lexicon): <description>
+git commit -m "fix(scope): <description>
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
@@ -50,156 +50,155 @@ git push origin main
 
 ---
 
-## Verification after deploy
+## What was completed this session
 
-After deploy, run the classifier check to confirm entries resolve correctly:
+### Lexicon fixes (committed e30403f, deployed v212)
+- `_NON_SKILL_EXACT` in writers.py: added "workplace health and safety in healthcare",
+  "health and safety guidelines", "transport to appointments"
+- `nursing.json`: added `"patient-centred care models"` → person-centred care,
+  `"kindness"` → empathy
+- `_universal_noise.json`: 20 new credential/eligibility/noise entries
+
+### Sprint L — credential matching (pre-existing, already shipped)
+- `_promote_profile_credentials()` in `cv_jd_matching.py` already implemented and tested
+- 8 tests in `tests/test_sprint_l_credential_matching.py` — all pass
+- `contact_details` already passed from orchestrator at line 166
+- **Nothing to do here — fully shipped**
+
+### Career Highlights quality (commits b06d21b → 02b267e, deployed v213–v222)
+
+The problem: all tailored CV Career Highlights summaries were ~80–93% token-identical
+regardless of JD type, all saying "residential aged care settings, medication assistance,
+dementia care" even for home care, hospital, and NDIS roles.
+
+**What was added to `tailored_cv.py` prompt:**
+- SPECIALISATION UNIQUENESS RULE — forces S1 specialisations to come from
+  `jd_analysis.summary` and `responsibilities`, not generic skill lists
+- S2 PIVOT RULE — S2 must respond to `responsibilities[0]`, not default to same achievement
+- SETTING ADAPTATION RULE + ROLE-TYPE AWARENESS RULE — bridge phrases and
+  role-specific specialisation rules
+- KEYWORD SUBSTITUTION RULE — transferable skills substitution + hard bans on
+  fabricated metrics/credentials/patient counts
+- MANDATORY PRE-CHECK — setting classification before writing (partially effective;
+  model still defaulted to CV setting)
+
+**What was added to `writers.py` (the deterministic layer — actually worked):**
+- `_classify_jd_setting(jd_text, jd_analysis)` — Python keyword classifier returning
+  one of: home_community, hospital_acute, ndis_disability, lifestyle_coordinator,
+  theatre_cssd, residential
+- `_build_jd_setting_block(setting)` — hard-constraint block prepended to user message
+- `_strip_canned_summary_phrase(md)` — global regex strips "Currently delivering care
+  at X using BESTMed and MedMobile" from Career Highlights
+- `_S1_RESIDENTIAL_RE` + `_apply_setting_bridge(md, setting)` — deterministic S1
+  setting replacement after verify_claims runs
+- HOME before NDIS in classifier precedence
+- Residual "in residential settings" cleanup after bridge replacement
+
+**Confirmed working in production (v222):**
+- Anglicare (home care): S1 = "residential aged care, delivering care in home and
+  community settings" ✓
+- NDIS (Sanctuary): S1 = "aged care and disability support settings" ✓
+- Hospital (Nepean): S1 = "residential aged care and acute clinical settings" ✓
+- Canned phrase gone from all summaries ✓
+- Similarity scores: 39–61% (down from 66–93%)
+
+**Known remaining limitations (acceptable, leave as-is):**
+- Lifestyle Coordinator (Kyogle NSW Health): still says "residential aged care settings,
+  providing daily living assistance" — candidate has NO activities coordination experience
+  in CV, so "daily living and wellbeing" is the honest closest transferable skill.
+  39% similarity, below warning threshold. Not worth fabricating activities experience.
+- Australian Unity (domestic assistance): no bridge phrase (model wrote "aged care
+  experience delivering..." — non-standard word order regex can't catch). Content is
+  reasonable, no "residential settings" claim. 61% similarity borderline but acceptable.
+
+**Beta page: `/dashboard/beta/summary-audit`**
+- Fetches all recent tailored CVs, extracts Career Highlights
+- Classifies each JD setting in TypeScript (mirrors Python classifier)
+- Default view: "Problematic" — shows only non-residential JDs
+- Badges: Home/Community (blue), Hospital (purple), NDIS (orange), Lifestyle (green),
+  Theatre (red)
+- "Re-analyse problematic" button targets only the non-residential jobs
+- "Copy (paste to Claude)" exports formatted report
+
+---
+
+## Primary next tasks
+
+### 1. Cross-vertical validation — tech and cleaning roles
+
+The lexicon infrastructure (classifier, rerouter, noise filter) was built and
+battle-tested on nursing. Tech and cleaning verticals were added but never
+systematically validated at scale.
+
+**What to do:**
+- Open `/dashboard/beta/skills-audit` and switch to `tech` and `cleaning` filters
+- Check "Other Skills" items for each vertical:
+  - Tech: are there obvious noise items leaking into Other Skills?
+  - Cleaning: does the cleaning vertical have enough lexicon coverage?
+- Run the classifier spot-check for a few tech/cleaning phrases:
+  ```python
+  from app.services.skills.classifier import classify
+  print(classify('azure devops', 'tech'))
+  print(classify('steam cleaning', 'cleaning'))
+  print(classify('customer service', 'cleaning'))
+  ```
+- If gaps found: add entries to `tech.json` / `cleaning.json` in
+  `cv-backend/app/services/skills/lexicons/`
+
+### 2. Phase 3A real-run validation — full 35-job eval harness
+
+Run the full eval suite against production (w8_verified writer) and check for
+regressions vs the last stable baseline.
 
 ```bash
-cd cv-backend
-python3 -c "
-from app.services.skills.classifier import classify, is_noise
-# spot-check a few new entries
-print(classify('transport to appointments', 'nursing'))
-print(is_noise('health and safety guidelines'))
-print(is_noise('kindness'))
-"
+cd /Users/mahesh/Documents/Github/jobtrackr-cv/cv-backend
+# Run eval on all 35 test jobs (requires BYOK keys)
+python3 -m pytest tests/ -q --ignore=tests/test_pdf_adaptive.py -k "eval"
 ```
 
-Always show the user the test count and spot-check output before declaring done.
+**What to look for:**
+- ATS score regressions (tailored score should be ≥ original for all jobs)
+- Skills section: no Other Skills leakage for nursing vertical
+- Career Highlights: bridge phrases applying correctly for non-residential JDs
+- No fabricated credentials in any output
 
----
+### 3. Update MEMORY.md session summary
 
-## Primary task: fix 3 tailored CV leaks + add missing lexicon entries
-
-### A. Tailored CV leaks (writers.py — highest priority)
-
-These appear in the `all_skills` of fresh tailored CVs but shouldn't be there:
-
-| Item | Job | Where it appears | Fix |
-|------|-----|-----------------|-----|
-| `"Workplace Health And Safety In Healthcare"` | Queensland Gov AIN | Care Skills | Add to `_NON_SKILL_EXACT` in writers.py |
-| `"Health And Safety Guidelines"` | Australian Unity Home Care | Other Skills | Add to `_NON_SKILL_EXACT` in writers.py |
-| `"Transport To Appointments"` | Dovida Aged Care | Other Skills | Add to `_NON_SKILL_EXACT` in writers.py |
-
-File: `cv-backend/app/services/eval/writers.py`  
-Location: `_NON_SKILL_EXACT` set (~line 1987)  
-Add these three strings to that set.
-
-### B. nursing.json variants (2 entries)
-
-File: `cv-backend/app/services/skills/lexicons/nursing.json`
-
-1. `person-centred care` ← add variant `"patient-centred care models"`
-2. `empathy` ← add variant `"kindness"`
-
-### C. _universal_noise.json additions (21 entries)
-
-File: `cv-backend/app/services/skills/lexicons/_universal_noise.json`
-
-**Credential section** (add near other driver licence entries ~line 45):
-```
-"driver's license",
-"current australian driver's license",
-"current australian drivers license",
-"valid australian open driver licence",
-"valid australian open driver license",
-"access to reliable car",
-"comprehensive car insurance",
-"ownership of a reliable comprehensively insured vehicle",
-```
-
-**Eligibility section** (add near other work rights entries):
-```
-"eligibility to work in australia",
-```
-
-**Noise section** (add near end of noise list):
-```
-"ability to use laptop or tablet",
-"ability to promote independence and choice",
-"availability for day shifts 8am-4pm monday tuesday and friday",
-"willingness to travel between clients within local area",
-"professional experience in aged care",
-"professional experience in disability support",
-"personal experience in aged care",
-"personal experience in disability support",
-"driving and transport of clients",
-"health and safety guidelines",
-"patient-centred care models",
-"knowledge of queensland public health system",
-"awareness of inclusion and diversity principles in public sector",
-```
-
-Also add the long credential phrase to credential section:
-```
-"assistant in nursing certificate iii acute care or equivalent student nurse status",
-```
-
----
-
-## Verification classifier check (paste output to user)
-
-After making all changes, run this and show the user the results:
-
-```bash
-cd cv-backend
-python3 -c "
-from app.services.skills.classifier import classify, is_noise
-
-checks = [
-    # Tailored CV strips (tested via writers.py — just confirm noise logic)
-    ('health and safety guidelines', None, 'noise'),
-    ('patient-centred care models', None, 'noise'),
-    ('driving and transport of clients', None, 'noise'),
-    # Variants
-    ('patient-centred care models', 'nursing', 'person-centred care'),
-    ('kindness', 'nursing', 'empathy'),
-    # Credentials / noise
-    (\"driver's license\", None, 'noise'),
-    ('eligibility to work in australia', None, 'noise'),
-    ('ability to use laptop or tablet', None, 'noise'),
-    ('professional experience in aged care', None, 'noise'),
-]
-for phrase, vert, exp in checks:
-    if vert:
-        c = classify(phrase, vert)
-        ok = c and c.canonical == exp
-        print(('OK  ' if ok else 'FAIL') + f' {phrase!r} -> {c.canonical if c else None}')
-    else:
-        n = is_noise(phrase)
-        print(('OK  ' if n else 'FAIL') + f' {phrase!r} -> noise:{n}')
-"
-```
-
----
-
-## After lexicon work: primary next feature — Sprint L (credential matching)
-
-Once lexicon changes are committed and deployed, move to Sprint L.
-
-**Goal:** Profile-stamped credentials (police check, work rights, first aid, certificate IV) currently show as "Missing Keywords" in the CV-JD matching panel. Sprint L promotes them from missed → matched.
-
-**Design (from earlier session):**
-
-1. In `cv-backend/app/services/pipeline/orchestrator.py`:
-   - Pass `contact_details` to `run_cv_jd_matching()` (it's already fetched at orchestrator startup)
-
-2. In `cv-backend/app/services/pipeline/steps/cv_jd_matching.py`:
-   - Add `_promote_profile_credentials(matching_result, contact_details)` function
-   - After the LLM matching call, scan `contact_details` for credential markers (police check, work rights, NDIS screening, first aid, cert IV) 
-   - Move matching JD keywords from `missing` → `matched` when the profile confirms them
-
-**Key files:**
-- `cv-backend/app/services/pipeline/orchestrator.py` — pass contact_details
-- `cv-backend/app/services/pipeline/steps/cv_jd_matching.py` — add promoter function
-- `cv-backend/app/services/pipeline/steps/keyword_feasibility.py` — already uses contact_details for honest gaps, same pattern
+After completing 1 or 2 above, update the session highlights in
+`/Users/mahesh/.claude/projects/-Users-mahesh-Documents-Github-cv-new/memory/MEMORY.md`
 
 ---
 
 ## Architecture invariants (never break these)
 
-1. **Lexicon wins over deny-list**: if phrase is in lexicon as domain_knowledge, remove it from `_NON_SKILL_EXACT`
-2. **`reroute_skills_by_lexicon`** must be wired into all 3 writer paths (w8_integrated + both post-verify blocks)
-3. **`_inject_approved_skills` ordering**: `enforce_skills_section` FIRST → inject AFTER → no enforce after inject
-4. **`run_tailored_cv_w8_verified`** must pass `vertical` derived from `jd_analysis["role_family"]` — never `vertical=None`
-5. **494 tests must pass** before every commit (run with `--ignore=tests/test_pdf_adaptive.py`)
+1. **Lexicon wins over deny-list**: if phrase is in lexicon as domain_knowledge,
+   remove it from `_NON_SKILL_EXACT`
+2. **`reroute_skills_by_lexicon`** must be wired into all 3 writer paths
+   (w8_integrated + both post-verify blocks)
+3. **`_inject_approved_skills` ordering**: `enforce_skills_section` FIRST →
+   inject AFTER → no enforce after inject
+4. **`run_tailored_cv_w8_verified`** must pass `vertical` derived from
+   `jd_analysis["role_family"]` — never `vertical=None`
+5. **494 tests must pass** before every commit (`--ignore=tests/test_pdf_adaptive.py`)
+6. **Career Highlights deterministic passes run order** (in `_writer_w8_verified`):
+   verify_claims → many deterministic passes → `_strip_canned_summary_phrase` →
+   `_apply_setting_bridge` → `enforce_summary_concreteness` → final skills passes
+   **Never reorder these — each depends on the previous being complete**
+7. **`_classify_jd_setting` precedence**: Theatre → Lifestyle → HOME → NDIS →
+   Hospital → Residential. HOME before NDIS is intentional — home-care JDs
+   incidentally mention 'disability' as client type.
+
+---
+
+## Key files reference
+
+| File | Purpose |
+|------|---------|
+| `cv-backend/app/services/eval/writers.py` | W8 writer, all deterministic gates, JD setting classifier + bridge |
+| `cv-backend/app/services/ai/prompts/tailored_cv.py` | TAILORED_CV_SYSTEM prompt + Career Highlights rules |
+| `cv-backend/app/services/ai/prompts/variants/composition.py` | COMPOSITION_USER_TEMPLATE (W8 user prompt) |
+| `cv-backend/app/services/skills/lexicons/nursing.json` | Nursing skill canonicals + variants |
+| `cv-backend/app/services/skills/lexicons/_universal_noise.json` | Cross-vertical noise/credential/eligibility |
+| `cv-backend/app/services/pipeline/steps/cv_jd_matching.py` | CV-JD matcher + credential promotion (Sprint L) |
+| `web/src/app/(dashboard)/dashboard/beta/summary-audit/` | Career Highlights audit beta page |
+| `web/src/app/(dashboard)/dashboard/beta/skills-audit/` | Skills Other-Skills audit beta page |
