@@ -3957,7 +3957,16 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
         return _SETTING_HOME
 
     # 4. NDIS / disability
-    if any(kw in full_text for kw in [
+    # Strip credential-only "ndis" mentions (e.g. "NDIS Workers Check", "NDIS
+    # worker screening") before testing — these appear in residential aged care
+    # JDs as background-check requirements and must not trigger the NDIS bridge.
+    import re as _re
+    _ndis_cred_re = _re.compile(
+        r"ndis\s+worker[s]?\s+(?:check|screening|clearance|induction|orientation|module)"
+        r"|ndis\s+(?:worker\s+)?screening\s+(?:check|clearance|requirements?)"
+    )
+    full_text_ndis = _ndis_cred_re.sub("", full_text)
+    if any(kw in full_text_ndis for kw in [
         "ndis", "disability support", "non-verbal participant",
         "acquired brain injury", "high intensity support",
         "disability worker",

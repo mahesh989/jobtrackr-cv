@@ -293,3 +293,48 @@ class TestRerouteCleaning:
         other_line = next((l for l in out.splitlines() if "Other Skills" in l), "")
         assert "steam cleaning" in core_line.lower() or "Steam Cleaning" in core_line
         assert "steam cleaning" not in other_line.lower()
+
+
+# ---------------------------------------------------------------------------
+# Canonical synonym dedup (Bolton Clarke regression, 2026-06-06)
+#
+# When the LLM emits two items that resolve to the same lexicon canonical
+# (e.g. "Mobility Assistance" and "Mobility Support" → both canonical
+# "mobility support"), only the FIRST should survive.
+# ---------------------------------------------------------------------------
+
+_SKILLS_SYNONYM_DUPES = """\
+## Skills
+
+- **Care Skills:** Personal Care, Mobility Assistance, Electronic Documentation, Mobility Support, Clinical Documentation
+- **Soft Skills:** Teamwork
+- **Other Skills:** BESTMed
+"""
+
+
+class TestCanonicalSynonymDedup:
+
+    def test_mobility_support_deduplicated(self):
+        """'Mobility Assistance' and 'Mobility Support' share canonical
+        'mobility support' — only the first should remain."""
+        out = reroute_skills_by_lexicon(_SKILLS_SYNONYM_DUPES, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        items_lower = [x.strip().lower() for x in care_line.split(":**")[1].split(",") if x.strip()]
+        mobility_items = [i for i in items_lower if "mobility" in i]
+        assert len(mobility_items) == 1, f"Expected 1 mobility item, got: {mobility_items}"
+
+    def test_clinical_documentation_deduplicated(self):
+        """'Electronic Documentation' and 'Clinical Documentation' share
+        canonical 'clinical documentation' — only the first should remain."""
+        out = reroute_skills_by_lexicon(_SKILLS_SYNONYM_DUPES, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        items_lower = [x.strip().lower() for x in care_line.split(":**")[1].split(",") if x.strip()]
+        doc_items = [i for i in items_lower if "documentation" in i]
+        assert len(doc_items) == 1, f"Expected 1 documentation item, got: {doc_items}"
+
+    def test_total_item_count_reduced(self):
+        """5 Care Skills input → 3 after canonical dedup (2 pairs collapsed)."""
+        out = reroute_skills_by_lexicon(_SKILLS_SYNONYM_DUPES, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        items = [x.strip() for x in care_line.split(":**")[1].split(",") if x.strip()]
+        assert len(items) == 3, f"Expected 3 deduplicated items, got {len(items)}: {items}"

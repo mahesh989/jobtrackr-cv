@@ -269,7 +269,8 @@ def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
     # INVARIANT: if the lexicon's target category has no label in this family,
     # keep the item on its current line — never silently drop it.
     cat_buckets: dict = {"domain_knowledge": [], "soft_skills": [], "technical": []}
-    seen: set = set()
+    seen: set = set()          # raw text dedup
+    seen_canonicals: set = set()  # lexicon canonical dedup — drops synonyms
 
     for label, items in zip(skill_labels, skill_items_list):
         src_cat = _label_cat(label)
@@ -281,6 +282,11 @@ def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
             if lex_is_noise(item) is not None:
                 continue  # belt-and-suspenders: should already be stripped upstream
             c = lex_classify(item, vertical)
+            if c is not None and c.is_skill:
+                canon_key = c.canonical.lower()
+                if canon_key in seen_canonicals:
+                    continue  # Same canonical as a prior item — drop the synonym
+                seen_canonicals.add(canon_key)
             tgt_cat = c.category if (c is not None and c.is_skill) else src_cat
             # If the target category has no label line, keep item on its current line.
             if tgt_cat not in covered_cats:
