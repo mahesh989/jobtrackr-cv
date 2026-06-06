@@ -1990,6 +1990,8 @@ _NON_SKILL_EXACT: set[str] = {
     "undergraduate nursing education",  # education status, not a skill
     "work under supervision of registered nurse",  # work arrangement descriptor
     "driver licensing requirements",  # credential requirement descriptor
+    "evidence-based nursing care",  # framework descriptor, not a named skill
+    "alignment with organisational core values",  # values statement, not a skill
     "ndis worker screening requirements", "working with children check requirements",
     "rn studies", "en studies",  # student enrollment status
     "allied health training", "assistant in nursing skills", "aged care worker skills",
