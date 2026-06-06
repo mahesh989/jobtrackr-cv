@@ -10,8 +10,8 @@
 ## Current production state
 
 **Branch:** `main`  
-**Latest commit:** `6f1a326`  
-**Production:** Fly.io `jobtrackr-cv-api` v223, 494 tests passing  
+**Latest commit:** `ec715c6`  
+**Production:** Fly.io `jobtrackr-cv-api` v224, 571 tests passing  
 **Uncommitted changes:** none
 
 ---
@@ -124,47 +124,48 @@ dementia care" even for home care, hospital, and NDIS roles.
 
 ## What was completed this session (2026-06-06 second session)
 
-### Cross-vertical lexicon validation — DONE, deployed v223 (`6f1a326`)
+### Cross-vertical lexicon + rerouter validation — DONE, deployed v223–v224
 
-Root cause found: `reroute_skills_by_lexicon` (enforce.py:275) keeps `None`-classified
-entries on their **source line**, not dropping them. So any noise phrase the LLM emits
-in a Skills section that isn't in `_universal_noise.json` will survive unchanged.
+**v223 (`6f1a326`) — lexicon gaps:**
+- Root cause: `reroute_skills_by_lexicon` (enforce.py:275) keeps `None`-classified
+  entries on their source line. Noise phrases not in `_universal_noise.json` survive.
+- Fixed `_universal_noise.json`: +credential (own transport, full drivers licence, drivers
+  license US, must have own car), +eligibility (australian permanent resident), +noise
+  (passion for technology/coding/cleaning/data, fast/quick learner, results-driven,
+  hardworking, strong work ethic, self-motivated, works well under pressure,
+  presentable appearance, police clearance required, ability to obtain police clearance)
+- Fixed `tech.json`: +24 domain_knowledge entries (OOP, functional programming,
+  full-stack/backend/frontend dev, test automation, unit/integration testing, version
+  control, cybersecurity, data analysis/science, business intelligence, API development,
+  cloud computing, RPA, software engineering, penetration testing, load testing)
 
-**Fixed in `_universal_noise.json`:**
-- Credential: own transport, own vehicle, full drivers licence, drivers license (US),
-  must have own car, ability to obtain police clearance, ability to pass background check
-- Eligibility: australian permanent resident
-- Noise: passion for technology/coding/cleaning/data, fast/quick learner, results-driven,
-  hardworking, strong work ethic, self-motivated, motivated individual,
-  works well under pressure, presentable appearance, police clearance required
-
-**Fixed in `tech.json` (24 new domain_knowledge entries):**
-object-oriented programming (OOP), functional programming, full-stack/backend/frontend
-development, test automation, unit testing, integration testing, version control,
-cybersecurity, data analysis, data science, business intelligence, API development,
-cloud computing, RPA, software engineering, penetration testing, linux/network
-administration, load testing.
+**v224 (`ec715c6`) — rerouter bugs:**
+- DROP BUG: domain_knowledge items had no label in tech family → silently dropped.
+  Fix: `covered_cats` guard falls back to `src_cat` when `tgt_cat` not covered.
+- DUPLICATE BUG: tech's "Technical Skills" + "Other Skills" both map to `technical` →
+  bucket rendered twice → items duplicated. Fix: `rendered_cats` dedup guard.
+- +77 regression tests (571 total): TestCrossVerticalNoiseFixes,
+  TestTechDomainKnowledgeCoverage, TestRerouteTech, TestRerouteCleaning.
 
 ---
 
 ## Primary next tasks
 
-### 1. Phase 3A real-run validation — full 35-job eval harness
+### 1. Phase 3A real-run validation — tech + cleaning UI verification
 
-Run the full eval suite against production (w8_verified writer) and check for
-regressions vs the last stable baseline.
-
-```bash
-cd /Users/mahesh/Documents/Github/jobtrackr-cv/cv-backend
-# Run eval on all 35 test jobs (requires BYOK keys)
-python3 -m pytest tests/ -q --ignore=tests/test_pdf_adaptive.py -k "eval"
-```
+Run a tech JD and a cleaning JD through the production UI and inspect the Skills section.
 
 **What to look for:**
-- ATS score regressions (tailored score should be ≥ original for all jobs)
-- Skills section: no Other Skills leakage for nursing vertical
-- Career Highlights: bridge phrases applying correctly for non-residential JDs
-- No fabricated credentials in any output
+- Tech CV: no noise phrases ("passion for technology", "fast learner") in Technical Skills
+- Tech CV: OOP, CI/CD, agile in correct bucket — NOT dropped, NOT duplicated
+- Tech CV: soft skills (teamwork, communication) on Soft Skills line, not Technical Skills
+- Cleaning CV: "passion for cleaning", "own transport" not appearing in Core Skills
+- Cleaning CV: steam cleaning / floor care on Core Skills (domain_knowledge); equipment
+  (floor scrubber, etc.) on Other Skills (technical)
+- No duplication of items across "Technical Skills" and "Other Skills" lines for tech CVs
+
+**Note:** `pytest -k "eval"` collects 0 tests — those live-run eval tests don't exist yet.
+The deterministic regression tests (571) cover the pipeline; real-run validation is manual UI.
 
 ### 3. Update MEMORY.md session summary
 
