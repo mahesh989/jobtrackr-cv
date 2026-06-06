@@ -258,7 +258,16 @@ def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
             return "technical"
         return "domain_knowledge"  # Care, Clinical, Core, Domain, etc.
 
+    # Which internal categories have at least one label line.
+    # For tech ["Technical Skills", "Soft Skills", "Other Skills"]:
+    #   covered = {"technical", "soft_skills"}  — domain_knowledge has no label.
+    # For nursing ["Care Skills", "Soft Skills", "Other Skills"]:
+    #   covered = {"domain_knowledge", "soft_skills", "technical"} — all covered.
+    covered_cats = {_label_cat(lbl) for lbl in skill_labels}
+
     # Redistribute entries: classify each, route to lexicon-correct category.
+    # INVARIANT: if the lexicon's target category has no label in this family,
+    # keep the item on its current line — never silently drop it.
     cat_buckets: dict = {"domain_knowledge": [], "soft_skills": [], "technical": []}
     seen: set = set()
 
@@ -273,11 +282,22 @@ def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
                 continue  # belt-and-suspenders: should already be stripped upstream
             c = lex_classify(item, vertical)
             tgt_cat = c.category if (c is not None and c.is_skill) else src_cat
+            # If the target category has no label line, keep item on its current line.
+            if tgt_cat not in covered_cats:
+                tgt_cat = src_cat
             cat_buckets[tgt_cat].append(item)
 
     # Rebuild lines in-place (preserve the existing label name on each line).
+    # Guard against two labels sharing the same internal category (e.g. tech's
+    # "Technical Skills" and "Other Skills" both resolve to `technical`): only the
+    # FIRST label renders the bucket; subsequent labels for the same cat render empty.
+    rendered_cats: set = set()
     for line_idx, label in zip(skill_idxs, skill_labels):
         cat = _label_cat(label)
+        if cat in rendered_cats:
+            lines[line_idx] = f"- **{label}:**"
+            continue
+        rendered_cats.add(cat)
         items = cat_buckets[cat]
         if items:
             lines[line_idx] = f"- **{label}:** " + ", ".join(items)

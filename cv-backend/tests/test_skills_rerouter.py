@@ -135,3 +135,161 @@ class TestRerouteEdgeCases:
         care_line = next(l for l in final.splitlines() if "Care Skills" in l)
         items = [x.strip() for x in care_line.split(":**")[1].split(",") if x.strip()]
         assert len(items) <= 14
+
+
+# ---------------------------------------------------------------------------
+# Tech vertical rerouter (v223, 2026-06-06)
+#
+# Tech family labels: ["Technical Skills", "Soft Skills", "Other Skills"]
+#   _label_cat("Technical Skills") → "technical"
+#   _label_cat("Soft Skills")      → "soft_skills"
+#   _label_cat("Other Skills")     → "technical"   (shared with Technical Skills!)
+#
+# Bug fixed: domain_knowledge items (agile, CI/CD) had no label line to render
+# into — they were silently dropped. Fix: fall back to src_cat when tgt_cat not
+# covered by any label. Also fixed: duplicate render when two labels share a cat.
+# ---------------------------------------------------------------------------
+
+_SKILLS_TECH_BASIC = """\
+## Skills
+
+- **Technical Skills:** Python, Docker, React
+- **Soft Skills:** Communication, Teamwork
+- **Other Skills:** agile, CI/CD
+"""
+
+_SKILLS_TECH_NOISE = """\
+## Skills
+
+- **Technical Skills:** Python, passion for technology, fast learner, Docker
+- **Soft Skills:** Communication, results-driven
+- **Other Skills:** agile
+"""
+
+_SKILLS_TECH_SOFT_ON_TECHNICAL = """\
+## Skills
+
+- **Technical Skills:** Python, Docker, teamwork
+- **Soft Skills:** Communication
+- **Other Skills:** agile
+"""
+
+
+class TestRerouteTech:
+
+    def test_domain_knowledge_items_not_dropped(self):
+        """agile and CI/CD are domain_knowledge but tech has no domain_knowledge
+        label — they must NOT be dropped (bug was: silently disappeared)."""
+        out = reroute_skills_by_lexicon(_SKILLS_TECH_BASIC, "tech")
+        all_items = []
+        for ln in out.splitlines():
+            if "Skills:" in ln and "**" in ln:
+                rest = ln.split(":**")[1].strip()
+                all_items.extend([x.strip() for x in rest.split(",") if x.strip()])
+        assert "agile" in all_items, "agile should not be dropped"
+        assert "CI/CD" in all_items or "agile" in all_items  # at least one domain item kept
+
+    def test_no_duplicate_items_when_two_labels_share_cat(self):
+        """Technical Skills and Other Skills both map to 'technical' via
+        _label_cat. Items must appear exactly once, not twice."""
+        out = reroute_skills_by_lexicon(_SKILLS_TECH_BASIC, "tech")
+        all_items = []
+        for ln in out.splitlines():
+            if "Skills:" in ln and "**" in ln:
+                rest = ln.split(":**")[1].strip()
+                all_items.extend([x.strip() for x in rest.split(",") if x.strip()])
+        lower_items = [x.lower() for x in all_items]
+        assert len(lower_items) == len(set(lower_items)), \
+            f"Duplicate items after reroute: {lower_items}"
+
+    def test_noise_phrases_dropped_from_tech(self):
+        """passion for technology, fast learner, results-driven must be dropped
+        by the is_noise check inside the rerouter."""
+        out = reroute_skills_by_lexicon(_SKILLS_TECH_NOISE, "tech")
+        for phrase in ("passion for technology", "fast learner", "results-driven"):
+            assert phrase not in out, f"{phrase!r} leaked through rerouter"
+
+    def test_soft_skill_on_technical_line_moves_to_soft(self):
+        """teamwork classified as soft_skills must move from Technical Skills
+        to Soft Skills — this category IS covered for tech."""
+        out = reroute_skills_by_lexicon(_SKILLS_TECH_SOFT_ON_TECHNICAL, "tech")
+        tech_line = next((l for l in out.splitlines() if "Technical Skills" in l), "")
+        soft_line = next((l for l in out.splitlines() if "Soft Skills" in l), "")
+        assert "teamwork" not in tech_line.lower()
+        assert "teamwork" in soft_line.lower() or "Teamwork" in soft_line
+
+    def test_known_technical_items_stay_on_technical(self):
+        """Python and Docker (technical category) must stay on Technical Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_TECH_BASIC, "tech")
+        tech_line = next((l for l in out.splitlines() if "Technical Skills" in l), "")
+        assert "Python" in tech_line
+        assert "Docker" in tech_line
+
+
+# ---------------------------------------------------------------------------
+# Cleaning vertical rerouter (v223, 2026-06-06)
+#
+# Cleaning family labels: ["Core Skills", "Soft Skills", "Other Skills"]
+#   _label_cat("Core Skills")  → "domain_knowledge"
+#   _label_cat("Soft Skills")  → "soft_skills"
+#   _label_cat("Other Skills") → "technical"
+# All three categories are covered — rerouter should work fully for cleaning.
+# ---------------------------------------------------------------------------
+
+_SKILLS_CLEANING_BASIC = """\
+## Skills
+
+- **Core Skills:** general cleaning, steam cleaning, floor care
+- **Soft Skills:** attention to detail, reliability
+- **Other Skills:** floor scrubber, Microsoft Office
+"""
+
+_SKILLS_CLEANING_NOISE = """\
+## Skills
+
+- **Core Skills:** general cleaning, passion for cleaning, own transport
+- **Soft Skills:** attention to detail, presentable appearance
+- **Other Skills:** floor scrubber
+"""
+
+_SKILLS_CLEANING_WRONG_BUCKET = """\
+## Skills
+
+- **Core Skills:** general cleaning, Microsoft Office
+- **Soft Skills:** attention to detail
+- **Other Skills:** steam cleaning, floor scrubber
+"""
+
+
+class TestRerouteCleaning:
+
+    def test_noise_dropped_from_cleaning(self):
+        """passion for cleaning and own transport are noise — rerouter must drop them."""
+        out = reroute_skills_by_lexicon(_SKILLS_CLEANING_NOISE, "cleaning")
+        for phrase in ("passion for cleaning", "own transport", "presentable appearance"):
+            assert phrase not in out, f"{phrase!r} leaked through cleaning rerouter"
+
+    def test_domain_knowledge_stays_on_core_skills(self):
+        """steam cleaning and floor care (domain_knowledge) must stay on Core Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_CLEANING_BASIC, "cleaning")
+        core_line = next((l for l in out.splitlines() if "Core Skills" in l), "")
+        assert "steam cleaning" in core_line.lower() or "Steam Cleaning" in core_line
+        assert "floor care" in core_line.lower() or "Floor Care" in core_line
+
+    def test_technical_item_moves_from_core_to_other(self):
+        """Microsoft Office is technical — if LLM puts it on Core Skills,
+        rerouter must move it to Other Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_CLEANING_WRONG_BUCKET, "cleaning")
+        core_line = next((l for l in out.splitlines() if "Core Skills" in l), "")
+        other_line = next((l for l in out.splitlines() if "Other Skills" in l), "")
+        assert "Microsoft Office" not in core_line
+        assert "Microsoft Office" in other_line
+
+    def test_steam_cleaning_moves_from_other_to_core(self):
+        """steam cleaning is domain_knowledge — if LLM puts it on Other Skills,
+        rerouter must move it to Core Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_CLEANING_WRONG_BUCKET, "cleaning")
+        core_line = next((l for l in out.splitlines() if "Core Skills" in l), "")
+        other_line = next((l for l in out.splitlines() if "Other Skills" in l), "")
+        assert "steam cleaning" in core_line.lower() or "Steam Cleaning" in core_line
+        assert "steam cleaning" not in other_line.lower()

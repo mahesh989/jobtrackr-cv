@@ -528,3 +528,129 @@ class TestFixDRegressions:
         c = classify(phrase, "nursing")
         assert c is not None and c.is_noise
         assert c.noise_type == "eligibility"
+
+
+# ---------------------------------------------------------------------------
+# Cross-vertical noise fixes (v223, 2026-06-06)
+# Passion phrases, filler attitudes, credential variants that were missing
+# from _universal_noise.json and would survive reroute_skills_by_lexicon
+# unchanged (because None → stay on src line).
+# ---------------------------------------------------------------------------
+
+
+class TestCrossVerticalNoiseFixes:
+
+    @pytest.mark.parametrize("phrase", [
+        "passion for technology",
+        "passion for tech",
+        "passion for coding",
+        "passion for software development",
+        "passion for data",
+        "passion for innovation",
+        "passion for cleaning",
+    ])
+    def test_passion_phrases_are_noise(self, phrase):
+        c = classify(phrase, "tech")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+    @pytest.mark.parametrize("phrase", [
+        "fast learner",
+        "quick learner",
+        "eager to learn",
+        "love of learning",
+    ])
+    def test_learner_filler_is_noise(self, phrase):
+        for v in ("tech", "cleaning"):
+            c = classify(phrase, v)  # type: ignore[arg-type]
+            assert c is not None and c.is_noise, f"{phrase!r} should be noise for {v}"
+
+    @pytest.mark.parametrize("phrase", [
+        "results-driven",
+        "results driven",
+        "hardworking",
+        "hard working",
+        "strong work ethic",
+        "self-motivated",
+        "self motivated",
+        "motivated individual",
+        "works well under pressure",
+        "presentable appearance",
+    ])
+    def test_filler_attitude_phrases_are_noise(self, phrase):
+        c = classify(phrase, "tech")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+    @pytest.mark.parametrize("phrase,noise_type", [
+        ("own transport", "credential"),
+        ("own vehicle", "credential"),
+        ("full drivers licence", "credential"),
+        ("drivers license", "credential"),  # US spelling
+        ("must have own car", "credential"),
+        ("australian permanent resident", "eligibility"),
+        ("police clearance required", "noise"),
+        ("ability to obtain police clearance", "noise"),
+        ("ability to pass background check", "noise"),
+    ])
+    def test_new_credential_eligibility_noise_entries(self, phrase, noise_type):
+        c = classify(phrase, "cleaning")
+        assert c is not None and c.is_noise, f"{phrase!r} should be noise"
+        assert c.noise_type == noise_type, f"{phrase!r}: expected {noise_type}, got {c.noise_type}"
+
+
+# ---------------------------------------------------------------------------
+# Tech domain_knowledge coverage (v223, 2026-06-06)
+# High-frequency tech CV phrases that returned None and would stay on
+# their current Skills line without rerouting.
+# ---------------------------------------------------------------------------
+
+
+class TestTechDomainKnowledgeCoverage:
+
+    @pytest.mark.parametrize("phrase,canonical", [
+        ("object-oriented programming", "object-oriented programming"),
+        ("oop", "object-oriented programming"),
+        ("functional programming", "functional programming"),
+        ("full stack development", "full-stack development"),
+        ("fullstack", "full-stack development"),
+        ("full-stack", "full-stack development"),
+        ("backend development", "backend development"),
+        ("back-end development", "backend development"),
+        ("frontend development", "frontend development"),
+        ("front-end development", "frontend development"),
+        ("test automation", "test automation"),
+        ("automated testing", "test automation"),
+        ("unit testing", "unit testing"),
+        ("unit tests", "unit testing"),
+        ("integration testing", "integration testing"),
+        ("api testing", "integration testing"),
+        ("version control", "version control"),
+        ("source control", "version control"),
+        ("cybersecurity", "cybersecurity"),
+        ("cyber security", "cybersecurity"),
+        ("information security", "cybersecurity"),
+        ("data analysis", "data analysis"),
+        ("data analytics", "data analysis"),
+        ("data science", "data science"),
+        ("business intelligence", "business intelligence"),
+        ("bi", "business intelligence"),
+        ("api development", "API development"),
+        ("api integration", "API development"),
+        ("cloud computing", "cloud computing"),
+        ("cloud platforms", "cloud computing"),
+        ("rpa", "robotic process automation"),
+        ("robotic process automation", "robotic process automation"),
+        ("process automation", "robotic process automation"),
+        ("software engineering", "software engineering"),
+        ("software development", "software engineering"),
+        ("penetration testing", "penetration testing"),
+        ("ethical hacking", "penetration testing"),
+        ("pen testing", "penetration testing"),
+    ])
+    def test_tech_domain_knowledge_resolves(self, phrase, canonical):
+        c = classify(phrase, "tech")
+        assert c is not None, f"{phrase!r} returned None — should resolve in tech lexicon"
+        assert c.is_skill
+        assert c.canonical == canonical, f"{phrase!r}: expected {canonical!r}, got {c.canonical!r}"
+        assert c.category == "domain_knowledge"
