@@ -1985,6 +1985,9 @@ _NON_SKILL_EXACT: set[str] = {
     "community services sector",
     # Bare profession name / over-generic descriptors — not skills.
     "nursing", "nursing care", "nursing studies", "clinical care",
+    "nursing practice",  # profession name, not a discrete skill
+    "clinical placement experience",  # student status, not a skill
+    "undergraduate nursing education",  # education status, not a skill
     # JD-sourced setting/sector phrase variants not yet covered above.
     "aged care support",
     # Non-skill: describes basic equipment access, not a competency.

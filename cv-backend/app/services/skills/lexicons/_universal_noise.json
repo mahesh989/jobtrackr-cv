@@ -58,6 +58,9 @@
     "reliable vehicle",
     "medication competency",
     "medication administration competency",
+    "covid-19 vaccination compliance",
+    "annual flu vaccination compliance",
+    "annual influenza vaccination compliance",
     "covid vaccination",
     "covid-19 vaccination",
     "covid-19 immunisation",
@@ -164,6 +167,11 @@
     "cert iv in community services",
 
     "ndis worker screening clearance",
+    "ndis workers check",
+    "ndis worker check",
+
+    "pre-employment medical clearance",
+    "pass pre-employment medical",
 
     "cpr certification",
     "cpr certify",
@@ -225,6 +233,9 @@
     "full working rights in australia",
     "no work restrictions",
     "unrestricted work rights",
+    "valid working rights in australia",
+    "unrestricted australian work rights",
+    "unrestricted work rights in australia",
     "does not require sponsorship",
     "no sponsorship required",
     "no visa sponsorship",
@@ -591,6 +602,72 @@
     "high quality care",
     "striving for excellence in care",
 
-    "local area familiarity"
+    "local area familiarity",
+
+    "nursing practice",
+    "nursing student with aged care placement",
+    "nursing student with aged care placement experience",
+    "registered nursing student status",
+    "enrolled nursing student status",
+    "registered nursing student status with required study completed",
+    "enrolled nursing student status with foundational diploma units and 80 hours clinical placement",
+
+    "clinical placement experience",
+    "undergraduate nursing education",
+    "nursing education",
+
+    "in-home aged care support",
+    "home and aged care support",
+
+    "worker health and safety compliance",
+    "worker health and safety",
+    "work health and safety",
+    "work health and safety act",
+
+    "quality improvement",
+    "quality improvement initiatives",
+    "continuous quality improvement",
+    "scope of practice compliance",
+    "scope of practice adherence",
+
+    "acute healthcare environment",
+    "acute hospital setting",
+    "acute ward environment",
+    "hospital policies and procedures",
+    "hospital policy compliance",
+    "healthcare policies and procedures",
+
+    "public health sector policies for category a positions",
+    "public sector policies",
+    "category a position requirements",
+
+    "ndis worker requirements",
+    "ndis compliance requirements",
+    "police clearance requirements",
+    "police check requirements",
+
+    "organisational policy and procedure compliance",
+    "organisational policy compliance",
+    "compliance with organisational policy",
+    "compliance with vaccination and screening requirements",
+    "compliance with healthcare vaccination and screening policies",
+    "compliance with screening protocols",
+
+    "experience as a carer",
+    "experience as a support worker",
+    "experience working with elderly people",
+    "experience with older adults",
+
+    "working within local service areas",
+    "local area knowledge",
+    "familiarity with local area",
+    "vehicle ownership with comprehensive insurance",
+
+    "supporting older people",
+    "supporting older adults",
+    "supporting the elderly",
+    "supporting elderly people",
+    "working with seniors",
+    "working with the elderly"
   ]
 }

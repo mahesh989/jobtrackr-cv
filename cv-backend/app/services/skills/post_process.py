@@ -57,6 +57,8 @@ _QUAL_PATTERN = re.compile(
 _STUDENT_NOISE = frozenset({
     "rn student", "en student",
     "nursing student clinical skills",
+    "nursing student with aged care placement",
+    "nursing student with aged care placement experience",
     "overseas nursing qualification",
     "overseas qualified nurse",
     "overseas nursing registration",
@@ -66,7 +68,9 @@ _STUDENT_NOISE = frozenset({
     "allied health student background",
     "nursing assistance in residential aged care",
     "fundamental clinical nursing skills",
+    "fundamental clinical skills",
     "health service assistance",
+    "basic clinical nursing skills",
 })
 
 
