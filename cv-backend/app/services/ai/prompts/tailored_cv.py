@@ -315,6 +315,54 @@ STRUCTURE — exactly two sentences, no exceptions:
     ✅ "behavioural segmentation and revenue forecasting"
     ✅ "customer cohorts and retention modelling"
 
+  SPECIALISATION UNIQUENESS RULE (HARD — applies to ALL verticals):
+  The [1-2 specialisations from the JD] slot must DIFFERENTIATE this
+  CV from a generic application. Do NOT fill it with the universal
+  baseline skills that every candidate in this role type is expected
+  to have — those are table stakes, not specialisations.
+
+  Step 1 — Identify the BASELINE for the role family (skills present
+  in virtually every JD for this role — not distinctive):
+    • AIN / Aged Care Worker / Support Worker: personal care,
+      person-centred care, dementia care, medication assistance,
+      manual handling, activities of daily living.
+    • RN / EN / Clinical Nurse: medication administration, patient
+      monitoring, nursing assessment, clinical documentation.
+    • Data Analyst: data analysis, reporting, SQL, dashboards.
+
+  Step 2 — Scan the JD's required and preferred skills for signals
+  that go BEYOND the baseline. Examples of distinctive signals:
+    • Specific setting or unit: "memory support unit", "palliative
+      care", "high-dependency care", "community home care",
+      "rehabilitation ward", "NDIS-funded support"
+    • Clinical depth beyond baseline: "complex wound care",
+      "PEG feeding", "tracheostomy care", "IV therapy",
+      "palliative symptom management"
+    • Population or care model: "young people with disability",
+      "restorative care approach", "positive behaviour support",
+      "dual diagnosis — mental health and aged care"
+    • Employer-specific focus stated in the JD: if the employer
+      explicitly names a specialised program, unit, or model,
+      that is the most distinctive signal of all.
+
+  Step 3 — Fill the specialisation slot with the 1-2 MOST
+  DISTINCTIVE findings from Step 2. If no distinctive signal
+  exists (the JD is purely baseline), order baseline skills by
+  JD priority (the order they appear in required_skills) — never
+  choose by what sounds most impressive in isolation. Even then,
+  name the SPECIFIC SETTING (e.g. "high-care residential aged care"
+  rather than just "aged care", or "community home care" rather
+  than "aged care") to create at least employer-level distinction.
+
+    ❌ "person-centred care and dementia support"  — both are
+       baseline; this could describe any AIN applicant
+    ✅ "high-care dementia support and palliative care"  — "high-care"
+       and "palliative" are JD-distinctive
+    ✅ "community home care and NDIS participant support"  — setting
+       and population are JD-distinctive
+    ✅ "restorative care and complex wound management"  — care model
+       and clinical depth are JD-distinctive
+
   INDUSTRY SLOT RULE (HARD): the "industries / client types" tail
   must read as PLAUSIBLE for the JD's sector — never the literal
   truth from the candidate's CV when the truth would mislead.
@@ -333,6 +381,19 @@ STRUCTURE — exactly two sentences, no exceptions:
   SENTENCE 2 — ACHIEVEMENT (14-20 words, hard cap 22)
   This is ONE sentence containing the candidate's strongest
   achievements that best evidence the JD's top requirements.
+
+  S2 PIVOT RULE (HARD): the FIRST achievement clause must evidence
+  the JD's SINGLE HIGHEST-PRIORITY requirement — the skill listed
+  first (or weighted most heavily) in required_skills. Do not
+  default to the same "go-to" achievement across all applications.
+    • If the JD leads with dementia care → S2 leads with a
+      dementia-specific achievement, not medication admin.
+    • If the JD leads with palliative care → S2 leads with
+      end-of-life or palliative experience.
+    • If the JD leads with medication assistance → lead with that.
+  If both clauses (for 2 kept roles) would evidence the SAME skill,
+  use two DIFFERENT facets of the candidate's experience — one per
+  clause — so the sentence adds information rather than repeating it.
 
   CLAUSE-COUNT RULE (HARD):
     - If you kept 2 or more Experience roles, Sentence 2 MUST contain
