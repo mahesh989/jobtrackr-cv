@@ -4041,9 +4041,12 @@ def _strip_canned_summary_phrase(md: str) -> str:
 # Patterns that match common ways the model writes the residential setting
 # phrase in Career Highlights S1.
 _S1_RESIDENTIAL_RE = re.compile(
+    # Standard word order: "experience in/across (multiple) residential aged care (settings)"
     r"(?:experience (?:in|across)(?: multiple)? )"
     r"(?:residential aged care|aged care)(?: and (?:dementia|community) care)?"
-    r"(?: (?:settings?|facilities?|environments?|contexts?|backgrounds?))?",
+    r"(?: (?:settings?|facilities?|environments?|contexts?|backgrounds?))?"
+    # Reversed word order: "aged care experience in residential settings"
+    r"|(?:aged care experience (?:in|across)(?: \w+)? (?:residential )?(?:settings?|facilities?|environments?))",
     re.IGNORECASE,
 )
 
