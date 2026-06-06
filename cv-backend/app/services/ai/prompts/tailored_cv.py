@@ -316,52 +316,51 @@ STRUCTURE — exactly two sentences, no exceptions:
     ✅ "customer cohorts and retention modelling"
 
   SPECIALISATION UNIQUENESS RULE (HARD — applies to ALL verticals):
-  The [1-2 specialisations from the JD] slot must DIFFERENTIATE this
-  CV from a generic application. Do NOT fill it with the universal
-  baseline skills that every candidate in this role type is expected
-  to have — those are table stakes, not specialisations.
+  The [1-2 specialisations from the JD] slot must feel like it was
+  written FOR THIS JD specifically — not copied from a generic role
+  description. The goal: a recruiter should read S1 and immediately
+  think "this candidate has spoken directly to what we asked for."
 
-  Step 1 — Identify the BASELINE for the role family (skills present
-  in virtually every JD for this role — not distinctive):
-    • AIN / Aged Care Worker / Support Worker: personal care,
-      person-centred care, dementia care, medication assistance,
-      manual handling, activities of daily living.
-    • RN / EN / Clinical Nurse: medication administration, patient
-      monitoring, nursing assessment, clinical documentation.
-    • Data Analyst: data analysis, reporting, SQL, dashboards.
+  PRIMARY SOURCE — jd_analysis.summary and jd_analysis.responsibilities:
+  These fields contain what the employer actually wrote about the
+  role. Mine them FIRST, before looking at skill lists. Extract:
+    • The specific setting or unit ("memory care wing", "community
+      home care", "high-dependency ward", "secure dementia unit")
+    • The primary client population ("frail elderly", "NDIS
+      participants", "post-surgical patients", "young adults with
+      disability")
+    • The care complexity or model ("high-care needs", "restorative
+      care approach", "palliative support", "positive behaviour
+      support", "complex wound management")
+    • The primary duty framing ("supporting residents with X",
+      "delivering Y under RN supervision", "assisting with Z")
 
-  Step 2 — Scan the JD's required and preferred skills for signals
-  that go BEYOND the baseline. Examples of distinctive signals:
-    • Specific setting or unit: "memory support unit", "palliative
-      care", "high-dependency care", "community home care",
-      "rehabilitation ward", "NDIS-funded support"
-    • Clinical depth beyond baseline: "complex wound care",
-      "PEG feeding", "tracheostomy care", "IV therapy",
-      "palliative symptom management"
-    • Population or care model: "young people with disability",
-      "restorative care approach", "positive behaviour support",
-      "dual diagnosis — mental health and aged care"
-    • Employer-specific focus stated in the JD: if the employer
-      explicitly names a specialised program, unit, or model,
-      that is the most distinctive signal of all.
+  SECONDARY SOURCE — required_skills beyond the role baseline:
+  Only fall back to skill lists when summary/responsibilities give
+  no distinctive signal. Then look for skills that go beyond the
+  universal baseline for this role type:
+    • AIN baseline (NOT distinctive): personal care, person-centred
+      care, dementia care, medication assistance, manual handling.
+    • RN/EN baseline: medication admin, patient monitoring, nursing
+      assessment, clinical documentation.
+    • Data Analyst baseline: data analysis, reporting, SQL, dashboards.
 
-  Step 3 — Fill the specialisation slot with the 1-2 MOST
-  DISTINCTIVE findings from Step 2. If no distinctive signal
-  exists (the JD is purely baseline), order baseline skills by
-  JD priority (the order they appear in required_skills) — never
-  choose by what sounds most impressive in isolation. Even then,
-  name the SPECIFIC SETTING (e.g. "high-care residential aged care"
-  rather than just "aged care", or "community home care" rather
-  than "aged care") to create at least employer-level distinction.
+  VERIFICATION STEP — CV-grounded honesty gate:
+  For each element extracted from jd_analysis.summary /
+  responsibilities, check: does the candidate's CV support this?
+    • If YES → use it in S1.
+    • If NO (the candidate has no evidence for it) → drop it and
+      pick the next most distinctive element the CV does support.
+  Never include a JD-specific term the CV cannot back up.
 
-    ❌ "person-centred care and dementia support"  — both are
-       baseline; this could describe any AIN applicant
-    ✅ "high-care dementia support and palliative care"  — "high-care"
-       and "palliative" are JD-distinctive
-    ✅ "community home care and NDIS participant support"  — setting
-       and population are JD-distinctive
-    ✅ "restorative care and complex wound management"  — care model
-       and clinical depth are JD-distinctive
+    ❌ "person-centred care and dementia support"  — baseline;
+       identical for every AIN applicant
+    ✅ "high-care dementia support in a memory care setting"  —
+       drawn from JD summary/responsibilities, CV-verified
+    ✅ "community home care and NDIS participant support"  —
+       setting + population from JD, CV-verified
+    ✅ "restorative care and complex wound management"  —
+       care model + clinical depth, CV-verified
 
   INDUSTRY SLOT RULE (HARD): the "industries / client types" tail
   must read as PLAUSIBLE for the JD's sector — never the literal
@@ -382,18 +381,34 @@ STRUCTURE — exactly two sentences, no exceptions:
   This is ONE sentence containing the candidate's strongest
   achievements that best evidence the JD's top requirements.
 
-  S2 PIVOT RULE (HARD): the FIRST achievement clause must evidence
-  the JD's SINGLE HIGHEST-PRIORITY requirement — the skill listed
-  first (or weighted most heavily) in required_skills. Do not
-  default to the same "go-to" achievement across all applications.
-    • If the JD leads with dementia care → S2 leads with a
-      dementia-specific achievement, not medication admin.
-    • If the JD leads with palliative care → S2 leads with
-      end-of-life or palliative experience.
-    • If the JD leads with medication assistance → lead with that.
-  If both clauses (for 2 kept roles) would evidence the SAME skill,
-  use two DIFFERENT facets of the candidate's experience — one per
-  clause — so the sentence adds information rather than repeating it.
+  S2 PIVOT RULE (HARD): S2 must be a DIRECT RESPONSE to what this
+  employer cares about most. Read jd_analysis.responsibilities[0]
+  (the first and highest-priority responsibility). The first S2
+  clause must evidence the candidate doing EXACTLY THAT THING —
+  grounded in their CV, at a named employer.
+
+  Pipeline:
+    1. Read responsibilities[0] from jd_analysis.
+    2. Identify the specific duty or care context it describes.
+    3. Find the STRONGEST matching evidence in the candidate's CV
+       (a specific task, care situation, or named deliverable).
+    4. Write the clause around that evidence, anchored to the
+       employer where it happened. Verify it appears in the CV.
+    5. For the second clause (2+ roles), repeat for responsibilities[1]
+       or the next most important responsibility — picking a
+       DIFFERENT facet so the two clauses add distinct information.
+
+  Do NOT default to the candidate's most impressive-sounding
+  general achievement. The goal is that S2 reads as a direct
+  answer to "can you do what we need?" — not "here's my best line."
+
+    ❌ "Delivered safe electronic medication administration and
+       daily living support at [Org1] and [Org2]"  — same fact
+       repeated twice, not anchored to this JD's top priority
+    ✅ "Supported high-care dementia residents with complex
+       behavioural needs at [Org1]; maintained accurate medication
+       records and care notes at [Org2]"  — two different facets,
+       each responding to a specific JD responsibility
 
   CLAUSE-COUNT RULE (HARD):
     - If you kept 2 or more Experience roles, Sentence 2 MUST contain
