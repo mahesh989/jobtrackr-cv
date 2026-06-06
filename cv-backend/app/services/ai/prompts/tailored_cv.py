@@ -362,6 +362,75 @@ STRUCTURE — exactly two sentences, no exceptions:
     ✅ "restorative care and complex wound management"  —
        care model + clinical depth, CV-verified
 
+  SETTING ADAPTATION RULE (HARD — zero tolerance for wrong setting):
+  The "experience in [setting]" phrase in S1 reflects where the
+  candidate's skills will be APPLIED — not just where they worked.
+  If the JD's target setting differs from the CV's setting, use a
+  BRIDGE or TRANSITION phrase. Never write "residential aged care
+  settings" when the JD is about something else.
+
+  Step 1 — Identify the JD's TARGET SETTING from responsibilities[0]
+  and jd_analysis.summary:
+    • HOME / COMMUNITY CARE: "in their homes", "domestic assistance",
+      "cleaning / laundry / meal preparation", "transport to
+      appointments", "community" → target = in-home / community
+    • HOSPITAL / ACUTE: "ward", "multidisciplinary team", "patients"
+      (not residents), "clinical care under supervision", "scope of
+      practice and legislation" → target = hospital / acute
+    • NDIS / DISABILITY SUPPORT: "NDIS participant", "disability
+      support", "high intensity support", "non-verbal participant"
+      → target = NDIS / disability
+    • RESIDENTIAL AGED CARE: "residents", "aged care community",
+      "care home", "nursing home" → target = residential aged care
+
+  Step 2 — Compare JD target setting to candidate's CV setting:
+    • If they MATCH → state directly:
+        "experience in residential aged care settings"
+    • If they DIFFER → write a BRIDGE phrase:
+        CV = residential, JD = home/community care:
+          "aged care and in-home support experience" OR
+          "residential aged care background, delivering care in
+          community and home settings"
+        CV = residential, JD = hospital/acute:
+          "aged care and acute care settings" OR
+          "residential aged care, transitioning to hospital-based care"
+        CV = residential, JD = NDIS/disability:
+          "aged care and disability support contexts" OR
+          "applying aged care skills to NDIS-funded support"
+
+  NEVER say "residential aged care settings" when:
+    • responsibilities[0] mentions clients in their homes
+    • responsibilities[0] mentions domestic assistance or transport
+    • the job title contains "home care", "community care",
+      "disability support", or "NDIS"
+    • jd_analysis.summary describes a hospital ward or acute setting
+
+  ROLE-TYPE AWARENESS RULE (HARD):
+  If the JD describes a fundamentally different ROLE TYPE from the
+  candidate's primary experience, the specialisations must reflect
+  the JD's role — even if the candidate's CV does not have that
+  exact experience. The CV still provides the evidence (honesty gate
+  still applies), but the framing must match what the employer needs.
+
+  Role-type signals to watch for:
+    • ACTIVITIES / LIFESTYLE COORDINATOR: "plan activities program",
+      "organise group activities", "lifestyle", "recreation",
+      "engagement", "wellbeing programs"
+      → specialisations must include something like "resident
+      activities programming and lifestyle support", "recreational
+      activities and wellbeing engagement", NOT personal care or
+      medication. S2 must evidence activity coordination or engagement
+      work, not medication administration.
+    • NIGHT DUTY: "night shift", "night duty", "overnight" prominently
+      in title or responsibilities
+      → S1 should reference night-shift or overnight care context.
+    • COMPLEX / HIGH-INTENSITY DISABILITY: "complex support needs",
+      "high intensity", "non-verbal", "behaviour support plan"
+      → specialisations must reference complex support, not just
+      "dementia care" or generic aged care.
+    • CASUAL / AGENCY / FLOAT POOL: may require adaptability framing
+      → "across multiple care settings" rather than fixed-site.
+
   INDUSTRY SLOT RULE (HARD): the "industries / client types" tail
   must read as PLAUSIBLE for the JD's sector — never the literal
   truth from the candidate's CV when the truth would mislead.
@@ -390,13 +459,15 @@ STRUCTURE — exactly two sentences, no exceptions:
   Pipeline:
     1. Read responsibilities[0] from jd_analysis.
     2. Identify the specific duty or care context it describes.
-    3. Find the STRONGEST matching evidence in the candidate's CV
-       (a specific task, care situation, or named deliverable).
-    4. Write the clause around that evidence, anchored to the
+    3. For EACH kept employer, score which responsibility they best
+       evidence. The employer with the strongest match to
+       responsibilities[0] writes the FIRST clause — regardless of
+       CV chronological order.
+    4. Write each clause around that evidence, anchored to the
        employer where it happened. Verify it appears in the CV.
-    5. For the second clause (2+ roles), repeat for responsibilities[1]
-       or the next most important responsibility — picking a
-       DIFFERENT facet so the two clauses add distinct information.
+    5. For the second clause (2+ roles), use the second kept employer
+       and evidence responsibilities[1] or a different facet — so the
+       two clauses add distinct information rather than repeating.
 
   Do NOT default to the candidate's most impressive-sounding
   general achievement. The goal is that S2 reads as a direct
