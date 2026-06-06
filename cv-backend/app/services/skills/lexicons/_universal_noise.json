@@ -51,12 +51,21 @@
     "nsw c class motor vehicle licence",
     "nsw c class motor vehicle license",
     "open driver licence",
+    "driver's license",
+    "current australian driver's license",
+    "current australian drivers license",
+    "valid australian open driver licence",
+    "valid australian open driver license",
     "own car",
     "own a car",
     "access to a car",
     "access to a vehicle",
+    "access to reliable car",
     "reliable transport",
     "reliable vehicle",
+    "comprehensive car insurance",
+    "ownership of a reliable comprehensively insured vehicle",
+    "assistant in nursing certificate iii acute care or equivalent student nurse status",
     "medication competency",
     "medication administration competency",
     "covid-19 vaccination compliance",
@@ -287,7 +296,8 @@
     "australian citizenship eligibility",
     "national police check or ndis workers check requirements",
     "national police check and ndis worker check",
-    "australian aged care employment compliance"
+    "australian aged care employment compliance",
+    "eligibility to work in australia"
   ],
 
   "noise": [
@@ -749,6 +759,18 @@
     "ability to work in a surgical ward environment",
     "ability to work closely with family members",
     "ability to drive a minibus",
-    "reliable vehicle with minimum third party vehicle insurance"
+    "reliable vehicle with minimum third party vehicle insurance",
+    "ability to use laptop or tablet",
+    "ability to promote independence and choice",
+    "availability for day shifts 8am-4pm monday tuesday and friday",
+    "willingness to travel between clients within local area",
+    "professional experience in aged care",
+    "professional experience in disability support",
+    "personal experience in aged care",
+    "personal experience in disability support",
+    "driving and transport of clients",
+    "health and safety guidelines",
+    "knowledge of queensland public health system",
+    "awareness of inclusion and diversity principles in public sector"
   ]
 }
