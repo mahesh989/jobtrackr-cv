@@ -74,6 +74,81 @@ tailored to THIS JD — never generic. It is exactly TWO SENTENCES of
 prose — no bullet points, no skills line, no sub-clauses after
 semicolons within Part 1. Total word count: 35-50 words HARD LIMIT.
 
+MANDATORY PRE-CHECK — run this BEFORE writing a single word:
+
+Step A — Classify the JD setting from responsibilities[0] and job_title:
+
+  HOME / COMMUNITY CARE — if responsibilities[0] contains ANY of:
+    "in their homes", "in the home", "domestic assistance", "cleaning",
+    "laundry", "meal preparation", "transport to appointments",
+    "shopping", "community", "retirement living residents in their homes"
+
+  HOSPITAL / ACUTE — if responsibilities[0] or job_title contains:
+    "ward", "surgical", "theatre", "CSSD", "instrument", "patients"
+    (where patients clearly means hospital patients, not aged care
+    residents), "multidisciplinary team", "scope of practice and
+    state legislation", "acute", "medical department"
+
+  NDIS / DISABILITY — if responsibilities[0] or job_title contains:
+    "NDIS", "participant", "disability support", "acquired brain
+    injury", "high intensity support", "non-verbal"
+
+  SPECIALIST ROLE — if job_title contains:
+    "lifestyle coordinator", "leisure", "activities coordinator",
+    "theatre technician", "CSSD", "instrument technician"
+
+  RESIDENTIAL AGED CARE — everything else (residents, aged care
+    facility, care community, nursing home).
+
+Step B — Apply the setting rule based on classification:
+
+  If HOME / COMMUNITY CARE:
+    → S1 MUST use a bridge phrase. Forbidden: "residential aged care
+      settings" as the setting. Use instead:
+      "residential aged care background, transitioning to in-home
+      [care / support / community care]" OR
+      "aged care and in-home support experience"
+    → S2 must evidence personal care, daily living, or domestic-
+      adjacent work from CV — NOT medication administration.
+
+  If HOSPITAL / ACUTE:
+    → S1: "residential aged care and acute care settings" OR
+      "aged care experience, transitioning into hospital-based care"
+    → S2: evidence working within scope of practice, under RN
+      direction, in a clinical team environment — things the CV shows.
+
+  If NDIS / DISABILITY:
+    → S1: "aged care and disability support settings" OR
+      "applying aged care skills to NDIS-funded support"
+    → S2: evidence personal care, behavioural support, or complex
+      personal care from CV. Do not lead with medication.
+
+  If SPECIALIST ROLE (Lifestyle Coordinator):
+    → S1 specialisations MUST be activities, engagement, wellbeing,
+      lifestyle programming — NOT personal care or medication.
+    → S2 must evidence resident engagement, activities support, or
+      supporting recreational involvement from CV. If the CV shows
+      any involvement in activities or engagement, use that.
+      If none, use the closest transferable skill (e.g. "person-
+      centred care that supported resident wellbeing and engagement").
+
+  If HOSPITAL / THEATRE / CSSD (instruments, sterile stock):
+    → This is a clinical support role. S1 should frame the candidate
+      as bringing clinical awareness and healthcare exposure rather
+      than care skills. S2 should draw on the closest transferable
+      experience (e.g. working within clinical protocols, attention
+      to documentation/accuracy).
+
+  If RESIDENTIAL AGED CARE:
+    → Proceed normally. "residential aged care settings" is permitted.
+
+Step C — BANNED PHRASE CHECK:
+  Do NOT use the phrase "Currently delivering care at [X] using
+  BESTMed and MedMobile" in Career Highlights. This is a canned
+  employer sentence that is not tailored to any JD. If the JD
+  requires evidence of current employment, write a specific
+  achievement at that employer instead.
+
 CRITICAL — TAILORED-CV-ONLY SOURCING RULE (HARD)
 Every claim in Career Highlights must be supported by content that ALSO
 appears later in THIS tailored CV. Treat Career Highlights as a TRAILER
