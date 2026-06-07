@@ -47,6 +47,43 @@ from app.services.pipeline.steps.tailored_structural_validation import (
 logger = logging.getLogger(__name__)
 
 
+class _CancelledByUser(Exception):
+    """Raised when the user clicked Stop on the analysis run page.
+
+    The web action marks analysis_runs.status='failed' with error='Cancelled
+    by user'. We poll this row before each AI-heavy step and raise this
+    exception to short-circuit the pipeline. The outer except handler is a
+    no-op because the row is already in its terminal state.
+    """
+
+
+async def _check_cancelled(run_id) -> None:
+    """Raise _CancelledByUser if the run row was marked failed by the user.
+
+    Called before each expensive step. Cheap (single indexed read) — adds
+    well under 50 ms but saves the cost of an entire downstream AI call.
+    """
+    def _do() -> dict:
+        resp = (
+            get_supabase()
+            .table("analysis_runs")
+            .select("status, error_message")
+            .eq("id", str(run_id))
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0] if rows else {}
+
+    try:
+        row = await asyncio.to_thread(_do)
+    except Exception:  # noqa: BLE001 — DB blip shouldn't kill a paying user's run
+        return
+    if row.get("status") == "failed" and (row.get("error_message") or "").lower().startswith("cancelled"):
+        logger.info("run %s — stop requested by user; aborting pipeline", run_id)
+        raise _CancelledByUser()
+
+
 async def _load_cached_results(run_id) -> dict:
     """Fetch the already-saved early-step outputs for a resume.
 
@@ -222,6 +259,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # Decides which missed JD keywords can be legitimately surfaced in the
         # tailored CV vs which are honest gaps. The tailored-CV writer below
         # only injects entries this step approves.
+        await _check_cancelled(run_id)
         await mark_step(run_id, step_status, "keyword_feasibility", "running")
         feasibility = await run_keyword_feasibility(
             ai_client, payload.cv_text, jd_analysis, matching, input_recs,
@@ -253,6 +291,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # info onto the H1's contact line — name, phone, email, profile links,
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
+        await _check_cancelled(run_id)
         await mark_step(run_id, step_status, "tailored_cv", "running")
         if use_w8:
             # Validated beta writer (role-family composition + deterministic
@@ -418,6 +457,11 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             except Exception as exc:  # noqa: BLE001 — best effort
                 logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
 
+    except _CancelledByUser:
+        # User clicked Stop on the analysis run page; the row was already
+        # marked failed with "Cancelled by user" by the web action. Don't
+        # overwrite that with mark_run_failed — just log and exit cleanly.
+        logger.info("run %s: pipeline stopped by user", run_id)
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)
     except Exception as exc:

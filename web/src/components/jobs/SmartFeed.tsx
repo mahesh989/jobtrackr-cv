@@ -378,32 +378,16 @@ export function SmartFeed({
 
   return (
     <div className="space-y-5">
-      {/* Toolbar row + "Select" button in same flex row */}
-      <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
-          <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} thresholds={thresholds} />
-        </div>
-        {/* iOS/Google-style Select toggle — only when there are jobs.
-            In select mode this becomes "Cancel" to exit cleanly. */}
-        {jobs.length > 0 && (
-          selectMode ? (
-            <button
-              onClick={exitSelectMode}
-              className="shrink-0 gh-btn text-[12px] px-3 py-1.5 font-medium mt-0.5"
-            >
-              Cancel
-            </button>
-          ) : (
-            <button
-              onClick={enterSelectMode}
-              className="shrink-0 gh-btn text-[12px] px-3 py-1.5 font-medium mt-0.5"
-              title="Select jobs to analyse in bulk"
-            >
-              Select
-            </button>
-          )
-        )}
-      </div>
+      {/* Select toggle lives inside SmartToolbar (left of Distance row) so it
+          sits in the toolbar's content area, not floating as a sibling. */}
+      <SmartToolbar
+        counts={counts}
+        atsCounts={atsCounts}
+        homeAddress={homeAddress}
+        thresholds={thresholds}
+        selectMode={selectMode}
+        onToggleSelectMode={jobs.length > 0 ? (selectMode ? exitSelectMode : enterSelectMode) : undefined}
+      />
 
       {jobs.length === 0 ? (
         <EmptyState />
