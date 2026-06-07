@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Zap, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
+import { cancelAnalysisRun }    from "@/lib/actions";
 import { JdAnalysisCard }       from "@/components/cv/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/components/cv/CvJdMatchingCard";
 import { AtsScoreCard }         from "@/components/cv/AtsScoreCard";
@@ -298,6 +299,8 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
   }, [runId]);
 
   const isTerminal = run.status === "completed" || run.status === "failed";
+  const isActive   = run.status === "pending"   || run.status === "running";
+  const [cancelPending, startCancel] = useTransition();
 
   // Early-stop signal: the orchestrator marks the four downstream steps
   // 'skipped' (not 'pending'/'failed') only when the initial-ATS gate fails
@@ -328,6 +331,25 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
             }`}>
               {run.status}
             </span>
+            {/* Stop — only while the run is active (pending/running). Marks
+                the run failed so cv-backend stops at its next checkpoint and
+                this page updates instantly via Realtime. Tokens for already-
+                completed steps are spent; this prevents remaining steps
+                (tailoring, cover-letter) from firing. */}
+            {isActive && (
+              <button
+                onClick={() => startCancel(async () => { await cancelAnalysisRun(runId); })}
+                disabled={cancelPending}
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+                title="Stop this analysis — prevents remaining AI steps from running"
+              >
+                {cancelPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <StopCircle className="w-3.5 h-3.5" />
+                }
+                Stop
+              </button>
+            )}
             {/* Re-analyse — only once the current run is terminal so we never
                 spawn a second pipeline over a live one. Reuses AnalyzeJobButton,
                 which marks this run stale, creates a fresh run, and navigates

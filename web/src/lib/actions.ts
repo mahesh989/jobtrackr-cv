@@ -287,6 +287,36 @@ export async function toggleProfileActive(profileId: string, newActive: boolean)
   revalidatePath("/dashboard");
 }
 
+/**
+ * Cancel a running analysis_run (individual job tailoring pipeline).
+ * Marks the run as failed so cv-backend's orchestrator stops at its next
+ * checkpoint and the Realtime subscription on the analysis page updates
+ * instantly. Tokens for already-completed steps are already spent; this
+ * stops any remaining steps (e.g. tailoring + cover-letter generation).
+ */
+export async function cancelAnalysisRun(runId: string) {
+  const { supabase, user } = await authedClient();
+  // Verify ownership via analysis_runs directly.
+  const { data: existing } = await supabase
+    .from("analysis_runs")
+    .select("id, status")
+    .eq("id", runId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!existing) return;
+  if (existing.status !== "pending" && existing.status !== "running") return;
+
+  const admin = createAdminClient();
+  await admin
+    .from("analysis_runs")
+    .update({
+      status:        "failed",
+      error_message: "Cancelled by user",
+      completed_at:  new Date().toISOString(),
+    })
+    .eq("id", runId);
+}
+
 export async function cancelRun(runId: string, profileId: string) {
   const { supabase, user } = await authedClient();
   const { data: profile } = await supabase.from("search_profiles").select("id").eq("id", profileId).eq("user_id", user.id).single();

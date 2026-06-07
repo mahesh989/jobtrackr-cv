@@ -208,14 +208,18 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 // ── component ───────────────────────────────────────────────────────────
 
-// ── bulk-select ─────────────────────────────────────────────────────────
-// Inline per-card selection (mirrors the Applications pool tab). Selection
-// state lives in SmartFeed and is shared with each CardShell via context so
-// the card can render its checkbox + toggle. A sticky bar appears with a live
-// count when ≥1 job is selected; "Analyse" fans out to the existing analyze
-// route with override=all (bypasses the initial gate + thin-JD precheck), 3
-// at a time. No backend change.
+// ── bulk-select (iOS/Google style) ───────────────────────────────────────
+// Checkboxes are HIDDEN by default and only appear when the user explicitly
+// enters "select mode" via a "Select" button (toolbar row). This matches the
+// iOS Photos / Gmail multi-select pattern: cards are clean while browsing,
+// and the user opts in to selection when they want to act on a set.
+//
+// Flow: "Select" → checkboxes appear on all cards → tap cards to tick them →
+// sticky bar shows count + "Analyse N" → confirm → "Cancel" exits mode at any
+// point. Analyse fans out to the existing analyze route with override=all
+// (bypasses initial gate + thin-JD precheck), 3 at a time.
 interface JobSelectionCtx {
+  selectMode: boolean;
   isSelected: (id: string) => boolean;
   toggle:     (id: string) => void;
 }
@@ -248,10 +252,12 @@ export function SmartFeed({
 }) {
   const router = useRouter();
 
-  // ── selection state ──────────────────────────────────────────────────────
+  // ── selection state (iOS/Google style) ──────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmAnalyse, setConfirmAnalyse] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const cancelledRef = useRef(false);
 
   const toggle = useCallback((id: string) => {
     setConfirmAnalyse(false);
@@ -264,23 +270,33 @@ export function SmartFeed({
   }, []);
 
   const selectionValue = useMemo<JobSelectionCtx>(
-    () => ({ isSelected: (id) => selected.has(id), toggle }),
-    [selected, toggle],
+    () => ({ selectMode, isSelected: (id) => selected.has(id), toggle }),
+    [selectMode, selected, toggle],
   );
 
-  function clearSelection() {
+  function enterSelectMode() {
+    setSelectMode(true);
     setSelected(new Set());
     setConfirmAnalyse(false);
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+    setConfirmAnalyse(false);
+    cancelledRef.current = true;
+    setProgress(null);
   }
 
   async function runBulkAnalyse() {
     const ids = Array.from(selected);
     if (ids.length === 0 || progress) return;
+    cancelledRef.current = false;
     setProgress({ done: 0, total: ids.length });
     let idx = 0;
     let done = 0;
     const worker = async () => {
-      while (idx < ids.length) {
+      while (idx < ids.length && !cancelledRef.current) {
         const id = ids[idx++];
         try {
           // override=all → bypass the initial gate + thin-JD precheck so every
@@ -293,15 +309,20 @@ export function SmartFeed({
         } catch {
           /* best-effort — keep going */
         }
-        done++;
-        setProgress({ done, total: ids.length });
+        if (!cancelledRef.current) {
+          done++;
+          setProgress({ done, total: ids.length });
+        }
       }
     };
     await Promise.all(Array.from({ length: 3 }, worker));
-    setProgress(null);
-    setConfirmAnalyse(false);
-    setSelected(new Set());
-    router.refresh();
+    if (!cancelledRef.current) {
+      setProgress(null);
+      setConfirmAnalyse(false);
+      setSelectMode(false);
+      setSelected(new Set());
+      router.refresh();
+    }
   }
 
   // Ref map per job id so the distance ribbon can scroll to a card.
@@ -326,8 +347,32 @@ export function SmartFeed({
 
   return (
     <div className="space-y-5">
-      {/* Unified filter + sort toolbar — replaces PipelineFunnel + SmartFilterBar */}
-      <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} thresholds={thresholds} />
+      {/* Toolbar row + "Select" button in same flex row */}
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} thresholds={thresholds} />
+        </div>
+        {/* iOS/Google-style Select toggle — only when there are jobs.
+            In select mode this becomes "Cancel" to exit cleanly. */}
+        {jobs.length > 0 && (
+          selectMode ? (
+            <button
+              onClick={exitSelectMode}
+              className="shrink-0 gh-btn text-[12px] px-3 py-1.5 font-medium mt-0.5"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={enterSelectMode}
+              className="shrink-0 gh-btn text-[12px] px-3 py-1.5 font-medium mt-0.5"
+              title="Select jobs to analyse in bulk"
+            >
+              Select
+            </button>
+          )
+        )}
+      </div>
 
       {jobs.length === 0 ? (
         <EmptyState />
@@ -344,18 +389,31 @@ export function SmartFeed({
         </JobSelectionContext.Provider>
       )}
 
-      {/* Sticky bulk-action bar — appears when ≥1 job is selected. */}
-      {selected.size > 0 && (
+      {/* Sticky bulk-action bar — appears once in select mode.
+          Shows count, Analyse, Stop (during run), and Cancel to exit. */}
+      {selectMode && (
         <div className="sticky bottom-4 z-30 mx-auto max-w-2xl rounded-lg border border-[var(--border)] bg-surface shadow-lg px-4 py-2.5 flex items-center gap-3 flex-wrap">
           <span className="text-[13px] font-semibold text-text">
-            {selected.size} selected
+            {selected.size > 0 ? `${selected.size} selected` : "Tap jobs to select"}
           </span>
           <div className="flex items-center gap-2 ml-auto flex-wrap">
             {progress ? (
-              <span className="inline-flex items-center gap-1.5 text-[12px] text-text-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Analysing {progress.done}/{progress.total}…
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-text-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Analysing {progress.done}/{progress.total}…
+                </span>
+                {/* Stop mid-run — prevents remaining queued requests from firing.
+                    Already-sent requests on the server will still complete. */}
+                <button
+                  onClick={exitSelectMode}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors"
+                  title="Stop queuing new analyses — already-sent requests will still complete"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Stop
+                </button>
+              </>
             ) : confirmAnalyse ? (
               <>
                 <span className="text-[12px] text-text-2">
@@ -377,20 +435,21 @@ export function SmartFeed({
               </>
             ) : (
               <>
+                {selected.size > 0 && (
+                  <button
+                    onClick={() => setConfirmAnalyse(true)}
+                    className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
+                    title="Analyse selected jobs — bypasses the initial gate"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Analyse {selected.size}
+                  </button>
+                )}
                 <button
-                  onClick={() => setConfirmAnalyse(true)}
-                  className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
-                  title="Analyse selected jobs — bypasses the initial gate"
+                  onClick={exitSelectMode}
+                  className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Analyse {selected.size}
-                </button>
-                <button
-                  onClick={clearSelection}
-                  className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
-                  aria-label="Clear selection"
-                >
-                  <X className="w-3.5 h-3.5" />
+                  Cancel
                 </button>
               </>
             )}
@@ -747,7 +806,7 @@ function CardShell({
   const [pending, setPending] = useState(false);
 
   const selection  = useJobSelection();
-  const selectable = selection !== null;
+  const selectable = selection?.selectMode ?? false;  // checkboxes only in select mode
   const checked    = selection?.isSelected(job.id) ?? false;
 
   async function onApply() {
