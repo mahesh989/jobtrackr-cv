@@ -10,8 +10,8 @@
 ## Current production state
 
 **Branch:** `main`  
-**Latest commit:** `ec715c6`  
-**Production:** Fly.io `jobtrackr-cv-api` v224, 571 tests passing  
+**Latest commit:** `50cf99b`  
+**Production:** Fly.io `jobtrackr-cv-api` v230, 619 tests passing  
 **Uncommitted changes:** none
 
 ---
@@ -24,7 +24,7 @@ Always follow this order:
 # 1. Run tests BEFORE committing — must pass
 cd /Users/mahesh/Documents/Github/jobtrackr-cv/cv-backend
 python3 -m pytest tests/ -q --ignore=tests/test_pdf_adaptive.py
-# Must show: 494 passed (or more), 0 failed
+# Must show: 587 passed (or more), 0 failed
 
 # 2. Commit (from repo root)
 cd /Users/mahesh/Documents/Github/jobtrackr-cv
@@ -50,148 +50,108 @@ git push origin main
 
 ---
 
-## What was completed this session
+## What was completed (v223–v227)
 
-### Lexicon fixes (committed e30403f, deployed v212)
-- `_NON_SKILL_EXACT` in writers.py: added "workplace health and safety in healthcare",
-  "health and safety guidelines", "transport to appointments"
-- `nursing.json`: added `"patient-centred care models"` → person-centred care,
-  `"kindness"` → empathy
-- `_universal_noise.json`: 20 new credential/eligibility/noise entries
-
-### Sprint L — credential matching (pre-existing, already shipped)
-- `_promote_profile_credentials()` in `cv_jd_matching.py` already implemented and tested
-- 8 tests in `tests/test_sprint_l_credential_matching.py` — all pass
-- `contact_details` already passed from orchestrator at line 166
-- **Nothing to do here — fully shipped**
-
-### Career Highlights quality (commits b06d21b → 02b267e, deployed v213–v222)
-
-The problem: all tailored CV Career Highlights summaries were ~80–93% token-identical
-regardless of JD type, all saying "residential aged care settings, medication assistance,
-dementia care" even for home care, hospital, and NDIS roles.
-
-**What was added to `tailored_cv.py` prompt:**
-- SPECIALISATION UNIQUENESS RULE — forces S1 specialisations to come from
-  `jd_analysis.summary` and `responsibilities`, not generic skill lists
-- S2 PIVOT RULE — S2 must respond to `responsibilities[0]`, not default to same achievement
-- SETTING ADAPTATION RULE + ROLE-TYPE AWARENESS RULE — bridge phrases and
-  role-specific specialisation rules
-- KEYWORD SUBSTITUTION RULE — transferable skills substitution + hard bans on
-  fabricated metrics/credentials/patient counts
-- MANDATORY PRE-CHECK — setting classification before writing (partially effective;
-  model still defaulted to CV setting)
-
-**What was added to `writers.py` (the deterministic layer — actually worked):**
-- `_classify_jd_setting(jd_text, jd_analysis)` — Python keyword classifier returning
-  one of: home_community, hospital_acute, ndis_disability, lifestyle_coordinator,
-  theatre_cssd, residential
-- `_build_jd_setting_block(setting)` — hard-constraint block prepended to user message
-- `_strip_canned_summary_phrase(md)` — global regex strips "Currently delivering care
-  at X using BESTMed and MedMobile" from Career Highlights
-- `_S1_RESIDENTIAL_RE` + `_apply_setting_bridge(md, setting)` — deterministic S1
-  setting replacement after verify_claims runs
-- HOME before NDIS in classifier precedence
-- Residual "in residential settings" cleanup after bridge replacement
-
-**Confirmed working in production (v222):**
-- Anglicare (home care): S1 = "residential aged care, delivering care in home and
-  community settings" ✓
-- NDIS (Sanctuary): S1 = "aged care and disability support settings" ✓
-- Hospital (Nepean): S1 = "residential aged care and acute clinical settings" ✓
-- Canned phrase gone from all summaries ✓
-- Similarity scores: 39–61% (down from 66–93%)
-
-**Known remaining limitations (acceptable, leave as-is):**
-- Lifestyle Coordinator (Kyogle NSW Health): still says "residential aged care settings,
-  providing daily living assistance" — candidate has NO activities coordination experience
-  in CV, so "daily living and wellbeing" is the honest closest transferable skill.
-  39% similarity, below warning threshold. Not worth fabricating activities experience.
-- Australian Unity (domestic assistance): no bridge phrase (model wrote "aged care
-  experience delivering..." — non-standard word order regex can't catch). Content is
-  reasonable, no "residential settings" claim. 61% similarity borderline but acceptable.
-
-**Beta page: `/dashboard/beta/summary-audit`**
-- Fetches all recent tailored CVs, extracts Career Highlights
-- Classifies each JD setting in TypeScript (mirrors Python classifier)
-- Default view: "Problematic" — shows only non-residential JDs
-- Badges: Home/Community (blue), Hospital (purple), NDIS (orange), Lifestyle (green),
-  Theatre (red)
-- "Re-analyse problematic" button targets only the non-residential jobs
-- "Copy (paste to Claude)" exports formatted report
-
----
-
-## What was completed this session (2026-06-06 second session)
-
-### Cross-vertical lexicon + rerouter validation — DONE, deployed v223–v224
+### Cross-vertical lexicon + rerouter — DONE, deployed v223–v227
 
 **v223 (`6f1a326`) — lexicon gaps:**
-- Root cause: `reroute_skills_by_lexicon` (enforce.py:275) keeps `None`-classified
-  entries on their source line. Noise phrases not in `_universal_noise.json` survive.
-- Fixed `_universal_noise.json`: +credential (own transport, full drivers licence, drivers
-  license US, must have own car), +eligibility (australian permanent resident), +noise
-  (passion for technology/coding/cleaning/data, fast/quick learner, results-driven,
-  hardworking, strong work ethic, self-motivated, works well under pressure,
-  presentable appearance, police clearance required, ability to obtain police clearance)
-- Fixed `tech.json`: +24 domain_knowledge entries (OOP, functional programming,
-  full-stack/backend/frontend dev, test automation, unit/integration testing, version
-  control, cybersecurity, data analysis/science, business intelligence, API development,
-  cloud computing, RPA, software engineering, penetration testing, load testing)
+- `_universal_noise.json`: +credential (own transport, full drivers licence, must have own car), +eligibility (australian permanent resident), +noise (passion for technology/coding/cleaning/data, fast/quick learner, results-driven, hardworking, strong work ethic, self-motivated, works well under pressure, presentable appearance, police clearance required, ability to obtain police clearance)
+- `tech.json`: +24 domain_knowledge entries (OOP, functional programming, full-stack/backend/frontend dev, test automation, unit/integration testing, version control, cybersecurity, data analysis/science, business intelligence, API development, cloud computing, RPA, software engineering, penetration testing, load testing)
 
 **v224 (`ec715c6`) — rerouter bugs:**
-- DROP BUG: domain_knowledge items had no label in tech family → silently dropped.
-  Fix: `covered_cats` guard falls back to `src_cat` when `tgt_cat` not covered.
-- DUPLICATE BUG: tech's "Technical Skills" + "Other Skills" both map to `technical` →
-  bucket rendered twice → items duplicated. Fix: `rendered_cats` dedup guard.
-- +77 regression tests (571 total): TestCrossVerticalNoiseFixes,
-  TestTechDomainKnowledgeCoverage, TestRerouteTech, TestRerouteCleaning.
+- DROP BUG fixed: `covered_cats` guard falls back to `src_cat` when `tgt_cat` not covered (domain_knowledge items no longer silently dropped for tech).
+- DUPLICATE BUG fixed: `rendered_cats` set prevents bucket being rendered twice when two labels share same `_label_cat` result.
+- +77 regression tests (571 total).
+
+**v225 (`cb45404`) — NDIS false positive + canonical synonym dedup:**
+- `_classify_jd_setting` regex strips NDIS credential phrases before keyword check — "NDIS Workers Check" in a residential JD no longer triggers NDIS bridge.
+- `seen_canonicals` set in `reroute_skills_by_lexicon` — first item claiming a lexicon canonical wins; later synonyms dropped ("Mobility Assistance" + "Mobility Support" → only one kept).
+- New test file `tests/test_jd_setting_classifier.py` (10 tests covering Bolton Clarke regression + NDIS real cases + other settings).
+
+**v226 (`84d2b78`) — work-rights eligibility noise:**
+- Added 5 work-rights-compliance variants to `_universal_noise.json` eligibility section: "australian work rights compliance", "australian work rights and compliance", "work rights compliance", "work rights requirements", "right to work requirements".
+
+**v227 (`c57ab89`) — police-check compound phrases + safe-mobility nursing variant:**
+- Added 6 compound police-check/NDIS-check phrases to `_universal_noise.json` credential section.
+- Added 5 safe-mobility variants to `mobility support` canonical in `nursing.json`: "safe mobility and transfers", "safe resident mobility and transfers", "safe mobility and transfer assistance", "resident mobility and transfers", "self-care needs and mobility".
+
+### Anglicare real-run fixes — DONE, deployed v228–v230
+
+**v228 (`ffec789`) — role-category label filter + targeted bullet rewrites:**
+- `_ROLE_CATEGORY_LABELS` frozenset in `enforce.py` (aged care, home care, community
+  care, disability support, independent living support, domestic assistance + variants).
+  These are job-type/sector descriptors — filtered from the Skills section in BOTH
+  `reroute_skills_by_lexicon` (enforce.py) and `_approved_skill_entries` (writers.py).
+  They belong in narrative (bullets/summary), never Skills. Note: 'elderly care' →
+  canonical 'aged care' → now excluded too.
+- `_targeted_bullet_rewrites` async pass in writers.py: for inject_as_extension
+  keywords the composition LLM missed, runs focused per-bullet LLM calls. Wired into
+  `_writer_w8_verified` after `enforce_summary_concreteness`.
+
+**v229 (`20d2ca3`) — collision-proof targeted bullet rewrites:**
+- BUG: two keywords with identical evidence resolved to the SAME bullet; concurrent
+  rewrite calls clobbered each other → neither landed (Anglicare: only 2 of 4 extensions
+  applied). FIX: group missed keywords by target bullet → ONE LLM call per bullet
+  incorporating ALL its keywords. Broadened bullet detection to ("- ", "* ", "• ").
+  Verify each keyword actually landed; keep rewrite only if ≥1 landed, else preserve
+  original. Verbose logging of missed set + per-bullet outcome.
+
+**v230 (`50cf99b`) — work-rights labels + gate GitHub/Website to tech CVs:**
+- `build_credentials_line` (contact_line.py): "Citizen"→"Citizenship", "PR"→"PR",
+  "Visa with work rights"+hours→"Work Rights (Full Time/Part Time)", visa w/o hours→
+  bare "Work Rights" (no more "Work Rights (Visa with work rights)").
+- `stamp_contact_line`/`_build_contact_parts`: new optional `role_family_id` param.
+  GitHub/Portfolio/Website now show ONLY for `_DEV_LINK_FAMILIES = {tech, master}`;
+  suppressed for nursing/manual/cleaning/general. LinkedIn always shows. Threaded
+  `role_family.id` into the two w8 production call sites (writers.py 4197, 4714).
+  Default None = show all (backward compat for eval/legacy paths).
+
+**Known limitation flagged (not yet actioned):**
+- Skills line is honest but NOT JD-relevance-ordered. Off-axis residential skills
+  (infection control, manual handling) surface on home-care JDs that don't ask for
+  them, earning 0 ATS while occupying slots. A JD-relevance ordering pass on the
+  Care Skills line is the proposed fix — deferred (it's a ranking design choice with
+  an honesty/breadth trade-off, not a bug).
+- Honesty watch: "supporting retirement living residents" — candidate works in
+  residential aged care / nursing homes, not retirement living. Feasibility gate
+  approved it as inject_as_extension; v229 will now inject it into a bullet. If it
+  reads as an overclaim, tune the feasibility honesty gate (separate concern).
 
 ---
 
-## Primary next tasks
+## Primary next task
 
-### 1. Phase 3A real-run validation — tech + cleaning UI verification
+### Phase 3A real-run validation — tech + cleaning UI verification (STILL PENDING)
 
-Run a tech JD and a cleaning JD through the production UI and inspect the Skills section.
+Run a **tech JD** and a **cleaning JD** through the production web dashboard and inspect the Skills section output.
 
-**What to look for:**
-- Tech CV: no noise phrases ("passion for technology", "fast learner") in Technical Skills
-- Tech CV: OOP, CI/CD, agile in correct bucket — NOT dropped, NOT duplicated
-- Tech CV: soft skills (teamwork, communication) on Soft Skills line, not Technical Skills
-- Cleaning CV: "passion for cleaning", "own transport" not appearing in Core Skills
-- Cleaning CV: steam cleaning / floor care on Core Skills (domain_knowledge); equipment
-  (floor scrubber, etc.) on Other Skills (technical)
-- No duplication of items across "Technical Skills" and "Other Skills" lines for tech CVs
+**What to look for in Tech CV:**
+- No noise phrases ("passion for technology", "fast learner") in Technical Skills
+- OOP, CI/CD, agile: NOT dropped, NOT duplicated — they should appear exactly once
+- Soft skills (teamwork, communication) on Soft Skills line, not Technical Skills
+- No items duplicated across "Technical Skills" and "Other Skills" lines
+
+**What to look for in Cleaning CV:**
+- "passion for cleaning", "own transport", "presentable appearance" not in Core Skills
+- Steam cleaning / floor care on Core Skills (domain_knowledge)
+- Equipment (floor scrubber, polisher) on Other Skills (technical)
+- No items appearing on multiple lines
 
 **Note:** `pytest -k "eval"` collects 0 tests — those live-run eval tests don't exist yet.
-The deterministic regression tests (571) cover the pipeline; real-run validation is manual UI.
-
-### 3. Update MEMORY.md session summary
-
-After completing 1 or 2 above, update the session highlights in
-`/Users/mahesh/.claude/projects/-Users-mahesh-Documents-Github-cv-new/memory/MEMORY.md`
+The deterministic regression tests (587) cover the pipeline; real-run validation is manual UI only.
 
 ---
 
 ## Architecture invariants (never break these)
 
-1. **Lexicon wins over deny-list**: if phrase is in lexicon as domain_knowledge,
-   remove it from `_NON_SKILL_EXACT`
-2. **`reroute_skills_by_lexicon`** must be wired into all 3 writer paths
-   (w8_integrated + both post-verify blocks)
-3. **`_inject_approved_skills` ordering**: `enforce_skills_section` FIRST →
-   inject AFTER → no enforce after inject
-4. **`run_tailored_cv_w8_verified`** must pass `vertical` derived from
-   `jd_analysis["role_family"]` — never `vertical=None`
-5. **494 tests must pass** before every commit (`--ignore=tests/test_pdf_adaptive.py`)
-6. **Career Highlights deterministic passes run order** (in `_writer_w8_verified`):
-   verify_claims → many deterministic passes → `_strip_canned_summary_phrase` →
-   `_apply_setting_bridge` → `enforce_summary_concreteness` → final skills passes
-   **Never reorder these — each depends on the previous being complete**
-7. **`_classify_jd_setting` precedence**: Theatre → Lifestyle → HOME → NDIS →
-   Hospital → Residential. HOME before NDIS is intentional — home-care JDs
-   incidentally mention 'disability' as client type.
+1. **Lexicon wins over deny-list**: if phrase is in lexicon as domain_knowledge, remove it from `_NON_SKILL_EXACT`
+2. **`reroute_skills_by_lexicon`** must be wired into all 3 writer paths (w8_integrated + both post-verify blocks)
+3. **`_inject_approved_skills` ordering**: `enforce_skills_section` FIRST → inject AFTER → no enforce after inject
+4. **`run_tailored_cv_w8_verified`** must pass `vertical` derived from `jd_analysis["role_family"]` — never `vertical=None`
+5. **619 tests must pass** before every commit (`--ignore=tests/test_pdf_adaptive.py`)
+6. **Career Highlights deterministic passes run order** (in `_writer_w8_verified`): verify_claims → many deterministic passes → `_strip_canned_summary_phrase` → `_apply_setting_bridge` → `enforce_summary_concreteness` → final skills passes. **Never reorder these — each depends on the previous being complete**
+7. **`_classify_jd_setting` precedence**: Theatre → Lifestyle → HOME → NDIS → Hospital → Residential. HOME before NDIS is intentional — home-care JDs incidentally mention 'disability' as client type. NDIS credential phrases are stripped before the keyword check (regex in writers.py).
+8. **`seen_canonicals` dedup in rerouter**: first item claiming a lexicon canonical wins. Raw-text dedup (`seen` set) still runs first to handle exact duplicates before lexicon lookup.
 
 ---
 
@@ -200,10 +160,13 @@ After completing 1 or 2 above, update the session highlights in
 | File | Purpose |
 |------|---------|
 | `cv-backend/app/services/eval/writers.py` | W8 writer, all deterministic gates, JD setting classifier + bridge |
+| `cv-backend/app/services/eval/enforce.py` | `reroute_skills_by_lexicon`, `enforce_skills_section` |
 | `cv-backend/app/services/ai/prompts/tailored_cv.py` | TAILORED_CV_SYSTEM prompt + Career Highlights rules |
 | `cv-backend/app/services/ai/prompts/variants/composition.py` | COMPOSITION_USER_TEMPLATE (W8 user prompt) |
 | `cv-backend/app/services/skills/lexicons/nursing.json` | Nursing skill canonicals + variants |
+| `cv-backend/app/services/skills/lexicons/tech.json` | Tech skill canonicals + variants (24 domain_knowledge entries added v223) |
 | `cv-backend/app/services/skills/lexicons/_universal_noise.json` | Cross-vertical noise/credential/eligibility |
 | `cv-backend/app/services/pipeline/steps/cv_jd_matching.py` | CV-JD matcher + credential promotion (Sprint L) |
+| `cv-backend/tests/test_jd_setting_classifier.py` | JD setting classifier regressions (Bolton Clarke + NDIS real cases) |
 | `web/src/app/(dashboard)/dashboard/beta/summary-audit/` | Career Highlights audit beta page |
 | `web/src/app/(dashboard)/dashboard/beta/skills-audit/` | Skills Other-Skills audit beta page |
