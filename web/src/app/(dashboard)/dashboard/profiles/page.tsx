@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/components/profiles/ProfilesTable";
 import { BackButton } from "@/components/dashboard/BackButton";
+import { AddJobButton } from "@/components/jobs/AddJobButton";
 import { Inbox } from "lucide-react";
 
 export default async function ProfilesListPage() {
@@ -21,7 +22,7 @@ export default async function ProfilesListPage() {
 
   const { data: profileRows } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, location, schedule_cron")
+    .select("id, name, is_active, is_manual, keywords, location, schedule_cron")
     .order("created_at", { ascending: false });
 
   const profiles = (profileRows ?? []) as ProfileRow[];
@@ -85,12 +86,15 @@ export default async function ProfilesListPage() {
               {profiles.length} search{profiles.length !== 1 ? "es" : ""} · {activeCount} auto-scheduled
             </p>
           </div>
-          <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-            New search
-          </Link>
+          <div className="flex items-center gap-2">
+            <AddJobButton variant="primary" />
+            <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              New search
+            </Link>
+          </div>
         </div>
       </div>
 

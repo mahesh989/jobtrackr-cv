@@ -98,6 +98,101 @@ function extractSourceFields(formData: FormData) {
   };
 }
 
+// ── manual / saved-jobs profile ──────────────────────────────────────────────
+
+/**
+ * Get the user's "Saved Jobs" profile, creating it if it doesn't exist yet.
+ * is_manual=true means the worker never fetches for it. One per user.
+ */
+export async function getOrCreateManualProfile(): Promise<string> {
+  const { supabase, user } = await authedClient();
+
+  // Check for existing manual profile first
+  const { data: existing } = await supabase
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("is_manual", true)
+    .maybeSingle();
+
+  if (existing) return existing.id;
+
+  // Create it — is_active=false + no schedule_cron = inherently excluded from
+  // the worker scheduler even without the is_manual check.
+  const { data: created, error } = await supabase
+    .from("search_profiles")
+    .insert({
+      user_id:          user.id,
+      name:             "Saved Jobs",
+      keywords:         [],
+      location:         "",
+      is_active:        false,
+      is_manual:        true,
+      schedule_cron:    "",
+      target_verticals: ["general", "tech", "healthcare"],
+      visa_filter_mode: "probability_sort",
+      working_rights:   "any",
+    })
+    .select("id")
+    .single();
+
+  if (error || !created) throw new Error(error?.message ?? "Failed to create Saved Jobs profile");
+  revalidatePath("/dashboard/profiles");
+  return created.id;
+}
+
+/**
+ * Add a manually-found job to the user's Saved Jobs profile.
+ * Deduplicates by source_url (case-insensitive) — paste the same URL twice
+ * and you get the existing job back.
+ */
+export async function addManualJob(input: {
+  title:        string;
+  company:      string | null;
+  location:     string | null;
+  description:  string;      // the full JD text the user pasted / scraped
+  source_url:   string | null;
+}): Promise<{ jobId: string; alreadyExisted: boolean }> {
+  const { supabase, user } = await authedClient();
+
+  const profileId = await getOrCreateManualProfile();
+
+  // Dedupe by URL when we have one
+  if (input.source_url) {
+    const { data: dupe } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("profile_id", profileId)
+      .ilike("url", input.source_url.trim())
+      .maybeSingle();
+    if (dupe) return { jobId: dupe.id, alreadyExisted: true };
+  }
+
+  const jdLen = input.description?.trim().length ?? 0;
+
+  const { data: job, error } = await supabase
+    .from("jobs")
+    .insert({
+      profile_id:    profileId,
+      url:           input.source_url ?? "",
+      title:         input.title.trim(),
+      company:       input.company?.trim() ?? null,
+      location:      input.location?.trim() ?? null,
+      description:   input.description.trim(),
+      // Classify JD quality at insert time — same thresholds as the worker.
+      jd_quality:    jdLen >= 1400 ? "rich" : jdLen >= 200 ? "thin" : "unknown",
+      source:        "manual",
+      source_tier:   4,
+    })
+    .select("id")
+    .single();
+
+  if (error || !job) throw new Error(error?.message ?? "Failed to add job");
+  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath("/dashboard/profiles");
+  return { jobId: job.id, alreadyExisted: false };
+}
+
 // ── profile actions ───────────────────────────────────────────────────────────
 
 export async function createProfile(formData: FormData) {

@@ -34,6 +34,7 @@ import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
 import { JobBoard } from "@/components/jobs/JobBoard";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
 import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
+import { AddJobButton } from "@/components/jobs/AddJobButton";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -551,6 +552,7 @@ export default async function DashboardPage({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <AddJobButton />
             <JobBoardSettingsPanel />
             <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">

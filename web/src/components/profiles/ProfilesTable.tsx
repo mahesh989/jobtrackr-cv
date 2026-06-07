@@ -10,14 +10,17 @@
  */
 
 import Link from "next/link";
+import { Bookmark } from "lucide-react";
 import { RunNowButton }       from "@/components/RunNowButton";
 import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { CopyProfileButton }   from "@/components/CopyProfileButton";
+import { AddJobButton }        from "@/components/jobs/AddJobButton";
 
 export interface ProfileRow {
   id:             string;
   name:           string;
   is_active:      boolean;
+  is_manual?:     boolean;
   keywords:       string[];
   location:       string;
   schedule_cron:  string;
@@ -103,12 +106,13 @@ export function ProfilesTable({
               <div className="min-w-0">
                 <Link
                   href={`/dashboard/profiles/${p.id}/jobs`}
-                  className="text-[13px] font-semibold text-text hover:text-[var(--brand)] truncate block transition-colors"
+                  className="text-[13px] font-semibold text-text hover:text-[var(--brand)] truncate flex items-center gap-1.5 transition-colors"
                 >
+                  {p.is_manual && <Bookmark className="w-3.5 h-3.5 shrink-0 text-amber-500" />}
                   {p.name}
                 </Link>
-                <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
-                  {p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
+                <span className={`text-[11px] ${p.is_manual ? "text-amber-600" : p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
+                  {p.is_manual ? "🔖 Saved Jobs" : p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
                 </span>
               </div>
             </div>
@@ -164,15 +168,30 @@ export function ProfilesTable({
             </div>
 
             <div className="col-span-2 flex items-center justify-end gap-1.5">
-              <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
-              <Link
-                href={`/dashboard/profiles/${p.id}/jobs`}
-                className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
-              >
-                {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
-              </Link>
-              <CopyProfileButton profileId={p.id} compact />
-              <DeleteProfileButton profileId={p.id} profileName={p.name} compact />
+              {p.is_manual ? (
+                /* Saved Jobs profile — no Run/Copy/Delete. Just Add + view. */
+                <>
+                  <AddJobButton variant="primary" />
+                  <Link
+                    href={`/dashboard/profiles/${p.id}/jobs`}
+                    className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
+                  >
+                    {total > 0 ? `${total} jobs →` : "View →"}
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
+                  <Link
+                    href={`/dashboard/profiles/${p.id}/jobs`}
+                    className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
+                  >
+                    {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
+                  </Link>
+                  <CopyProfileButton profileId={p.id} compact />
+                  <DeleteProfileButton profileId={p.id} profileName={p.name} compact />
+                </>
+              )}
             </div>
           </div>
         );

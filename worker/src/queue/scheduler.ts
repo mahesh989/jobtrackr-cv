@@ -41,7 +41,8 @@ export async function syncSchedules(): Promise<void> {
 
   const { data: profiles, error } = await db
     .from("search_profiles")
-    .select("id, schedule_cron, is_active");
+    .select("id, schedule_cron, is_active, is_manual")
+    .eq("is_manual", false);  // Saved Jobs profiles must never be auto-fetched
 
   if (error) {
     console.error("[scheduler] failed to load profiles:", error.message);
