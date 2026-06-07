@@ -719,9 +719,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 13 — auto-analyze ${savedIds.length} jobs (automation_enabled=true)`);
       try {
         const result = await autoAnalyzeBatch(savedIds, {
-          user_id: profile.user_id,
-          // Gate thresholds are global (60/70 since migration 041) —
-          // enforced by cv-backend defaults, not passed per-profile.
+          user_id:          profile.user_id,
+          // Per-vertical ATS cutoffs (healthcare/nursing = 55/65). Resolved
+          // inside triggerAutoAnalyze and passed in the analyze payload.
+          target_verticals: profile.target_verticals,
         });
         console.log(`[pipeline] stage 13 — triggered ${result.triggered}, skipped ${result.skipped}`);
       } catch (err) {

@@ -22,6 +22,7 @@ import { decryptApiKey }             from "@/lib/integrations/crypto";
 import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
+import { resolveThresholds } from "@/lib/atsThresholds";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -100,17 +101,21 @@ export async function POST(
     );
   }
 
-  // Ownership: job → profile → user. Per-profile gate thresholds were
-  // removed in migration 041 — the rule is now globally 60/70 enforced
-  // by cv-backend defaults + lib/atsThresholds.
+  // Ownership: job → profile → user. We also read target_verticals to resolve
+  // per-vertical ATS cutoffs (healthcare/nursing = 55/65, everything else
+  // 60/70). The orchestrator already accepts min_initial_ats/min_final_ats —
+  // we only pass different VALUES here; no pipeline change.
   const { data: profile } = await admin
     .from("search_profiles")
-    .select("user_id")
+    .select("user_id, target_verticals")
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
+  const thresholds = resolveThresholds(
+    (profile as { target_verticals?: string[] | null }).target_verticals,
+  );
 
   // ── 1b. User must have an active CV ──────────────────────────────────────
   const { data: cv } = await admin
@@ -317,8 +322,10 @@ export async function POST(
       ai_api_key:     aiApiKey,
       ai_model:       aiModel,
       contact_details: contactForBackend,
-      // Gate thresholds are global 60/70 since migration 041 — defined by
-      // cv-backend's AnalyzeRequest defaults. We omit them here on purpose.
+      // Per-vertical ATS cutoffs: healthcare/nursing = 55/65, else global 60/70.
+      // The orchestrator already honours these payload params — no pipeline change.
+      min_initial_ats: thresholds.initial,
+      min_final_ats:   thresholds.final,
       // Phase C-3 — override forces tailoring even if initial gate fails.
       skip_initial_gate: override === "initial_gate" || override === "all",
     });

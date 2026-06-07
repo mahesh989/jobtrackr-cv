@@ -33,8 +33,23 @@ const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich
 
 interface ProfileThresholds {
   user_id: string;
-  // min_initial_ats / min_final_ats removed in migration 041 — global now,
-  // enforced by cv-backend AnalyzeRequest defaults (60 / 70).
+  // Per-vertical ATS cutoffs: healthcare/nursing profiles get 55/65, everything
+  // else the global 60/70. Mirrors web/src/lib/atsThresholds.ts (worker is a
+  // separate package, so the small resolver is duplicated, not imported).
+  target_verticals?: string[] | null;
+}
+
+const GLOBAL_THRESHOLDS = { initial: 60, final: 70 };
+const VERTICAL_THRESHOLDS: Record<string, { initial: number; final: number }> = {
+  healthcare: { initial: 55, final: 65 },
+};
+
+function resolveThresholds(verticals?: string[] | null): { initial: number; final: number } {
+  for (const v of verticals ?? []) {
+    const hit = VERTICAL_THRESHOLDS[v];
+    if (hit) return hit;
+  }
+  return GLOBAL_THRESHOLDS;
 }
 
 /**
@@ -45,6 +60,8 @@ export async function triggerAutoAnalyze(
   jobId:   string,
   profile: ProfileThresholds,
 ): Promise<string | null> {
+  const th = resolveThresholds(profile.target_verticals);
+
   // ── 1. Fetch the job + check JD quality ─────────────────────────────────
   const { data: job, error: jobErr } = await db
     .from("jobs")
@@ -190,8 +207,10 @@ export async function triggerAutoAnalyze(
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
       contact_details:   null,
-      // Gate thresholds are globally fixed at 60 / 70 since migration 041
-      // — cv-backend AnalyzeRequest defaults match. Omit here on purpose.
+      // Per-vertical ATS cutoffs: healthcare/nursing = 55/65, else 60/70.
+      // cv-backend already honours these payload params — no pipeline change.
+      min_initial_ats:   th.initial,
+      min_final_ats:     th.final,
       skip_initial_gate: false,
       automation:        true,
     });

@@ -16,7 +16,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
+import { resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
 import { RunNowButton } from "@/components/RunNowButton";
@@ -71,11 +71,15 @@ export default async function JobsPage({
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, schedule_cron, home_address")
+    .select("id, name, is_active, keywords, schedule_cron, home_address, target_verticals")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
 
-  const th = { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
+  // Per-vertical cutoffs (healthcare/nursing = 55/65). Drives live re-bucketing
+  // so the ATS tabs/counts match the gate the analysis actually used.
+  const th = resolveThresholds(
+    (profile as { target_verticals?: string[] | null }).target_verticals,
+  );
 
   const { data: activeRun } = await supabase
     .from("run_logs")
