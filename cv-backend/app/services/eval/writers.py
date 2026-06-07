@@ -4194,7 +4194,7 @@ async def _writer_w8_integrated(
     # not "**Other Skills:**". Without this, wound care / continence care injected
     # here would wrongly appear on the Other Skills line.
     md = _inject_missing_skills(md, up["feasibility"], family_label_map=build_family_label_map(role_family))
-    md = stamp_contact_line(md, contact_details)
+    md = stamp_contact_line(md, contact_details, role_family.id)
     # 3. Proven W3 deterministic gates (suppression / degree relevance /
     #    ungrounded-strip) + skills hygiene — all expect canonical names.
     md = apply_w3_gates(
@@ -4711,7 +4711,7 @@ async def _writer_w8_critique(
         # injector and the authoritative contact line, in case the critique
         # dropped an injected keyword or touched the contact/H1 lines.
         md = _inject_missing_skills(md, result.feasibility, family_label_map=build_family_label_map(role_family))
-        md = stamp_contact_line(md, contact_details)
+        md = stamp_contact_line(md, contact_details, role_family.id)
         md = apply_w3_gates(
             md,
             jd_text=jd_text,

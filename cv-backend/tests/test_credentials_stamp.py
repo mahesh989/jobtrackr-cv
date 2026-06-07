@@ -50,7 +50,7 @@ def test_only_truthy_credentials_surface():
         "Medication Competency · "
         "Driver Licence (Open) · "
         "Own a car · "
-        "Work Rights (Citizen) · "
+        "Citizenship · "
         "Influenza Vaccination · "
         "COVID-19 Vaccination"
     )
@@ -166,7 +166,7 @@ def test_manual_family_renders_trade_certs_and_drops_clinical():
         "Working with Children Check (NSW) · "
         "Driver Licence (Open) · "
         "Own a car · "
-        "Work Rights (PR)"
+        "PR"
     )
 
 
@@ -211,34 +211,47 @@ def test_drivers_licence_yes_no():
     assert line_no == ""
 
 
-def test_work_rights_hours():
-    # Visa with work rights + hours -> "Working Right (Full Time)"
+def test_work_rights_visa_with_hours():
+    # Visa with work rights + hours -> "Work Rights (Full Time)"
     cd = {
         "credentials": {
             "work_rights": "Visa with work rights",
             "work_rights_hours": "Full Time",
         }
     }
-    line = build_credentials_line(cd)
-    assert line == "Working Right (Full Time)"
+    assert build_credentials_line(cd) == "Work Rights (Full Time)"
 
-    # Visa with work rights but no hours -> fallback to "Work Rights (Visa with work rights)"
+    cd_pt = {
+        "credentials": {
+            "work_rights": "Visa with work rights",
+            "work_rights_hours": "Part Time",
+        }
+    }
+    assert build_credentials_line(cd_pt) == "Work Rights (Part Time)"
+
+
+def test_work_rights_visa_without_hours():
+    # Visa with work rights but no hours -> bare "Work Rights"
+    # (never the self-referential "Work Rights (Visa with work rights)")
     cd_no_hours = {
         "credentials": {
             "work_rights": "Visa with work rights",
             "work_rights_hours": "",
         }
     }
-    line_no_hours = build_credentials_line(cd_no_hours)
-    assert line_no_hours == "Work Rights (Visa with work rights)"
+    line = build_credentials_line(cd_no_hours)
+    assert line == "Work Rights"
+    assert "Visa with work rights" not in line
 
-    # Citizen + hours -> hours ignored -> "Work Rights (Citizen)"
-    cd_citizen = {
-        "credentials": {
-            "work_rights": "Citizen",
-            "work_rights_hours": "Part Time",
-        }
-    }
-    line_citizen = build_credentials_line(cd_citizen)
-    assert line_citizen == "Work Rights (Citizen)"
+
+def test_work_rights_citizen_renders_citizenship():
+    # Citizen -> "Citizenship" (hours ignored)
+    cd = {"credentials": {"work_rights": "Citizen", "work_rights_hours": "Part Time"}}
+    assert build_credentials_line(cd) == "Citizenship"
+
+
+def test_work_rights_pr_renders_pr():
+    # PR -> "PR" (hours ignored)
+    cd = {"credentials": {"work_rights": "PR", "work_rights_hours": "Full Time"}}
+    assert build_credentials_line(cd) == "PR"
 

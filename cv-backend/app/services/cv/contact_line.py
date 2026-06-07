@@ -22,13 +22,26 @@ import re
 from typing import Any, Dict, List, Optional
 
 
-def stamp_contact_line(markdown: str, contact_details: Optional[Dict[str, Any]]) -> str:
+# Role families for which developer / portfolio links (GitHub, Portfolio,
+# Website) are appropriate on the contact line. For everyone else — nursing,
+# manual, cleaning, general — these read as tech-CV artifacts and are
+# suppressed (LinkedIn, the universal professional link, always stays).
+# role_family_id=None means "caller didn't specify" → show everything
+# (backward-compatible default for the eval/legacy paths).
+_DEV_LINK_FAMILIES = frozenset({"tech", "master"})
+
+
+def stamp_contact_line(
+    markdown: str,
+    contact_details: Optional[Dict[str, Any]],
+    role_family_id: Optional[str] = None,
+) -> str:
     if not markdown:
         return markdown
     if not contact_details:
         return markdown
 
-    parts = _build_contact_parts(contact_details)
+    parts = _build_contact_parts(contact_details, role_family_id)
     if not parts:
         return markdown
     new_contact_line = " | ".join(parts)
@@ -68,10 +81,20 @@ def stamp_contact_line(markdown: str, contact_details: Optional[Dict[str, Any]])
 # ---------------------------------------------------------------------------
 
 
-def _build_contact_parts(cd: Dict[str, Any]) -> List[str]:
+def _build_contact_parts(
+    cd: Dict[str, Any],
+    role_family_id: Optional[str] = None,
+) -> List[str]:
     """Return ordered list of contact-line segments. Each segment is plain
-    text or a markdown link `[Label](url)`."""
+    text or a markdown link `[Label](url)`.
+
+    GitHub / Portfolio / Website are developer-and-creative artifacts: they
+    are shown only for tech-style families (or when role_family_id is None —
+    the unspecified default). LinkedIn always shows; it's universal.
+    """
     parts: List[str] = []
+
+    show_dev_links = role_family_id is None or role_family_id in _DEV_LINK_FAMILIES
 
     address = _clean(cd.get("address"))
     phone = _clean(cd.get("phone"))
@@ -92,13 +115,14 @@ def _build_contact_parts(cd: Dict[str, Any]) -> List[str]:
         parts.append(f"[{email}](mailto:{email})")
     if linkedin:
         parts.append(f"[LinkedIn]({linkedin})")
-    if github:
-        parts.append(f"[GitHub]({github})")
-    # Show Portfolio if present, otherwise fall back to Website (avoid both)
-    if portfolio:
-        parts.append(f"[Portfolio]({portfolio})")
-    elif website:
-        parts.append(f"[Website]({website})")
+    if show_dev_links:
+        if github:
+            parts.append(f"[GitHub]({github})")
+        # Show Portfolio if present, otherwise fall back to Website (avoid both)
+        if portfolio:
+            parts.append(f"[Portfolio]({portfolio})")
+        elif website:
+            parts.append(f"[Website]({website})")
     if other_label and other_url:
         parts.append(f"[{other_label}]({other_url})")
 
@@ -209,12 +233,23 @@ def build_credentials_line(
     if creds.get("own_car"):
         parts.append("Own a car")
 
-    # 5. Status — shared
+    # 5. Status — shared. Maps the profile's work_rights enum
+    # ("" | "Citizen" | "PR" | "Visa with work rights") to a clean label:
+    #   Citizen → "Citizenship"
+    #   PR      → "PR"
+    #   Visa    → "Work Rights (Full Time/Part Time)" when hours are known,
+    #             else a bare "Work Rights" (never the ugly self-referential
+    #             "Work Rights (Visa with work rights)").
     rights = _clean(creds.get("work_rights"))
     hours = _clean(creds.get("work_rights_hours"))
     if rights:
-        if rights == "Visa with work rights" and hours:
-            parts.append(f"Working Right ({hours})")
+        rl = rights.lower()
+        if "citizen" in rl:
+            parts.append("Citizenship")
+        elif rl == "pr" or "permanent resident" in rl:
+            parts.append("PR")
+        elif "visa" in rl or "work right" in rl:
+            parts.append(f"Work Rights ({hours})" if hours else "Work Rights")
         else:
             parts.append(f"Work Rights ({rights})")
     if family == "nursing":
