@@ -27,13 +27,13 @@
  * The per-profile board still uses JobTable — this component is dashboard-only.
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BarChart3, FileText, Mail, CheckCircle2, MoreHorizontal, Sparkles, MapPin,
-  Clock, AlertTriangle, Inbox, FileWarning, FileQuestion,
+  Clock, AlertTriangle, Inbox, FileWarning, FileQuestion, Loader2, X,
 } from "lucide-react";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
@@ -208,6 +208,19 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 // ── component ───────────────────────────────────────────────────────────
 
+// ── bulk-select ─────────────────────────────────────────────────────────
+// Inline per-card selection (mirrors the Applications pool tab). Selection
+// state lives in SmartFeed and is shared with each CardShell via context so
+// the card can render its checkbox + toggle. A sticky bar appears with a live
+// count when ≥1 job is selected; "Analyse" fans out to the existing analyze
+// route with override=all (bypasses the initial gate + thin-JD precheck), 3
+// at a time. No backend change.
+interface JobSelectionCtx {
+  isSelected: (id: string) => boolean;
+  toggle:     (id: string) => void;
+}
+const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
+
 export function SmartFeed({
   jobs,
   hasActiveFilter,
@@ -233,6 +246,64 @@ export function SmartFeed({
   homeAddress?:    string | null;
   thresholds?:     AtsThresholds;
 }) {
+  const router = useRouter();
+
+  // ── selection state ──────────────────────────────────────────────────────
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmAnalyse, setConfirmAnalyse] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const toggle = useCallback((id: string) => {
+    setConfirmAnalyse(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectionValue = useMemo<JobSelectionCtx>(
+    () => ({ isSelected: (id) => selected.has(id), toggle }),
+    [selected, toggle],
+  );
+
+  function clearSelection() {
+    setSelected(new Set());
+    setConfirmAnalyse(false);
+  }
+
+  async function runBulkAnalyse() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || progress) return;
+    setProgress({ done: 0, total: ids.length });
+    let idx = 0;
+    let done = 0;
+    const worker = async () => {
+      while (idx < ids.length) {
+        const id = ids[idx++];
+        try {
+          // override=all → bypass the initial gate + thin-JD precheck so every
+          // selected job is fully analysed regardless of cutoffs.
+          await fetch(`/api/jobs/${id}/analyze?override=all`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    "{}",
+          });
+        } catch {
+          /* best-effort — keep going */
+        }
+        done++;
+        setProgress({ done, total: ids.length });
+      }
+    };
+    await Promise.all(Array.from({ length: 3 }, worker));
+    setProgress(null);
+    setConfirmAnalyse(false);
+    setSelected(new Set());
+    router.refresh();
+  }
+
   // Ref map per job id so the distance ribbon can scroll to a card.
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -261,17 +332,78 @@ export function SmartFeed({
       {jobs.length === 0 ? (
         <EmptyState />
       ) : (
-        <SmartFeedBody
-          jobs={jobs}
-          hasActiveFilter={hasActiveFilter}
-          currentTab={currentTab}
-          distanceMax={distanceMax}
-          cardRefs={cardRefs}
-          scrollToJob={scrollToJob}
-        />
+        <JobSelectionContext.Provider value={selectionValue}>
+          <SmartFeedBody
+            jobs={jobs}
+            hasActiveFilter={hasActiveFilter}
+            currentTab={currentTab}
+            distanceMax={distanceMax}
+            cardRefs={cardRefs}
+            scrollToJob={scrollToJob}
+          />
+        </JobSelectionContext.Provider>
+      )}
+
+      {/* Sticky bulk-action bar — appears when ≥1 job is selected. */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-30 mx-auto max-w-2xl rounded-lg border border-[var(--border)] bg-surface shadow-lg px-4 py-2.5 flex items-center gap-3 flex-wrap">
+          <span className="text-[13px] font-semibold text-text">
+            {selected.size} selected
+          </span>
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            {progress ? (
+              <span className="inline-flex items-center gap-1.5 text-[12px] text-text-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Analysing {progress.done}/{progress.total}…
+              </span>
+            ) : confirmAnalyse ? (
+              <>
+                <span className="text-[12px] text-text-2">
+                  Uses {selected.size} credit{selected.size !== 1 ? "s" : ""}
+                </span>
+                <button
+                  onClick={runBulkAnalyse}
+                  className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Confirm — analyse {selected.size}
+                </button>
+                <button
+                  onClick={() => setConfirmAnalyse(false)}
+                  className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
+                >
+                  Back
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setConfirmAnalyse(true)}
+                  className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
+                  title="Analyse selected jobs — bypasses the initial gate"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Analyse {selected.size}
+                </button>
+                <button
+                  onClick={clearSelection}
+                  className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
+                  aria-label="Clear selection"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+/** Hook for cards to reach the selection context (null when not inside a feed). */
+function useJobSelection(): JobSelectionCtx | null {
+  return useContext(JobSelectionContext);
 }
 
 function SmartFeedBody({
@@ -614,6 +746,10 @@ function CardShell({
   const [companyAddress, setCompanyAddress] = useState<string | null>(job.company_address ?? null);
   const [pending, setPending] = useState(false);
 
+  const selection  = useJobSelection();
+  const selectable = selection !== null;
+  const checked    = selection?.isSelected(job.id) ?? false;
+
   async function onApply() {
     if (localApplied || exit !== "idle" || pending) return;
     setPending(true);
@@ -653,11 +789,29 @@ function CardShell({
         pointerEvents: exit !== "idle" ? "none" : undefined,
       }}
     >
-      <div style={{ overflow: "hidden" }}>
+      <div style={{ overflow: "hidden" }} className="relative">
+        {/* Selection checkbox overlay — top-left, mirrors the Applications pool.
+            Always reserves space (pl-10 below) so the title doesn't shift. */}
+        {selectable && (
+          <button
+            type="button"
+            onClick={() => selection!.toggle(job.id)}
+            className={`absolute top-3 left-2.5 z-10 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+              checked
+                ? "bg-[var(--brand)] border-[var(--brand)]"
+                : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--brand)]"
+            }`}
+            aria-label={checked ? "Deselect job" : "Select job"}
+          >
+            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+          </button>
+        )}
         <div
           ref={refSetter}
           className={`rounded-md border transition-all ${
             hero ? "border-2 border-[var(--brand)]/30 bg-surface p-4 hover:shadow-md" : "border-border bg-surface px-4 py-3.5 hover:bg-[var(--surface-2)]/60"
+          } ${selectable ? "pl-10" : ""} ${
+            checked ? "ring-2 ring-[var(--brand)] border-[var(--brand)]" : ""
           } ${isFlash ? "bg-green-light border-green-500" : ""} ${savedFlicker ? "jd-saved-flicker" : ""} ${
             localApplied ? "border-l-2 border-l-green-500" : ""
           }`}

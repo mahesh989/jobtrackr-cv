@@ -9,7 +9,6 @@ import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
-import { BulkAnalyzeButton, type AnalyzableJob } from "./BulkAnalyzeButton";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
@@ -134,21 +133,6 @@ export function ProfileJobBoard({
   const sortLabel = sortCol === "posted_at" ? null : (SORT_LABEL_FOR_COL[sortCol] ?? sortCol);
   const StageIcon = STAGE_ICON[stage];
 
-  // Jobs in the CURRENT view that can be bulk-analysed: skip thin-JD (those
-  // need a JD pasted first — use "Fix thin JDs"), applied, and dismissed.
-  const analyzable: AnalyzableJob[] = useMemo(
-    () =>
-      filtered
-        .filter((j) => j.pipelineState !== "needs_jd" && !j.applied_at && !j.dismissed_at)
-        .map((j) => ({
-          id:            j.id,
-          title:         j.title,
-          company:       j.company,
-          pipelineState: j.pipelineState ?? null,
-        })),
-    [filtered],
-  );
-
   return (
     <>
       {/* Headline row — same big-title treatment as the dashboard */}
@@ -198,15 +182,6 @@ export function ProfileJobBoard({
               <span className="text-[11px] text-text-3">· sorted by {sortLabel}</span>
             )}
           </>
-        )}
-
-        {/* Bulk analyse the current view — shown only when a tab/filter is
-            active (reviewing a specific bucket), so we never offer to analyse
-            the entire unfiltered board by accident. */}
-        {hasActiveFilter && analyzable.length > 0 && (
-          <div className="ml-auto self-center">
-            <BulkAnalyzeButton jobs={analyzable} label={`Analyse all ${analyzable.length}`} />
-          </div>
         )}
       </div>
 

@@ -8,7 +8,6 @@ import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { BulkThinJdButton, type ThinJdJob } from "./BulkThinJdButton";
-import { BulkAnalyzeButton, type AnalyzableJob } from "./BulkAnalyzeButton";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 
@@ -138,21 +137,6 @@ export function JobBoard({
   // Stage icon (only when filtering by a stage)
   const StageIcon = STAGE_ICON[stage];
 
-  // Jobs in the CURRENT view that can be bulk-analysed: skip thin-JD (those
-  // need a JD pasted first — use "Fix thin JDs"), applied, and dismissed.
-  const analyzable: AnalyzableJob[] = useMemo(
-    () =>
-      filtered
-        .filter((j) => j.pipelineState !== "needs_jd" && !j.applied_at && !j.dismissed_at)
-        .map((j) => ({
-          id:            j.id,
-          title:         j.title,
-          company:       j.company,
-          pipelineState: j.pipelineState ?? null,
-        })),
-    [filtered],
-  );
-
   return (
     <>
       {/* ── Headline row ─────────────────────────────────────────────────
@@ -217,11 +201,6 @@ export function JobBoard({
               <span className="capitalize">Source: {sourceParam}</span>
               <span aria-hidden>✕</span>
             </Link>
-          )}
-          {hasActiveFilter && analyzable.length > 0 && (
-            <div className="ml-2 self-center">
-              <BulkAnalyzeButton jobs={analyzable} label={`Analyse all ${analyzable.length}`} />
-            </div>
           )}
         </div>
         <BulkThinJdButton jobs={thinJdJobs} />
