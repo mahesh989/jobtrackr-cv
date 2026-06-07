@@ -24,6 +24,7 @@ import { X } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
+import { type AtsThresholds } from "@/lib/atsThresholds";
 
 // Sort options — mirror the legacy SmartFilterBar so URLs stay compatible.
 // `match` is new (a beta carry-over) and falls back to posted_at server-side
@@ -71,13 +72,7 @@ const STAGE_CHIPS: StageChip[] = [
   { id: "dismissed",   label: "Archived",     kind: "stage",  value: "dismissed",   countKey: "dismissed"   },
 ];
 
-// ATS bands — uses lib/atsThresholds globals at 60 / 70.
-const ATS_BANDS: { id: AtsBand; label: string; tip: string; dot: string; chipBg: string; chipText: string }[] = [
-  { id: "above_final",   label: "ATS ≥ 70",     tip: "Above the final gate (70) — auto cover letter eligible", dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800" },
-  { id: "below_final",   label: "ATS 60–69",    tip: "Between gates — tailored CV, no auto cover letter",      dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800" },
-  { id: "below_initial", label: "ATS < 60",     tip: "Below the initial gate (60) — pipeline stopped",         dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800"   },
-  { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",           dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
-];
+// View-filter URL keys → committed via the History API for instant feedback.
 
 // View-filter URL keys → committed via the History API for instant feedback.
 // Dataset narrowers (location / posted_within / source) hit the real router.
@@ -87,12 +82,14 @@ export function SmartToolbar({
   counts,
   atsCounts,
   homeAddress = null,
+  thresholds = { initial: 60, final: 70 },
 }: {
   counts:       FunnelCounts;
   atsCounts:    Record<AtsBand, number>;
   /** When set (per-profile board with home_address), the "Within X km"
    *  distance select renders. */
   homeAddress?: string | null;
+  thresholds?:  AtsThresholds;
 }) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -178,6 +175,13 @@ export function SmartToolbar({
       ? currentStage === chip.value
       : currentTriage === chip.value;
   }
+
+  const atsBands: { id: AtsBand; label: string; tip: string; dot: string; chipBg: string; chipText: string }[] = [
+    { id: "above_final",   label: `ATS ≥ ${thresholds.final}`,     tip: `Above the final gate (${thresholds.final}) — auto cover letter eligible`, dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800" },
+    { id: "below_final",   label: `ATS ${thresholds.initial}–${thresholds.final - 1}`,    tip: `Between gates — tailored CV, no auto cover letter`,      dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800" },
+    { id: "below_initial", label: `ATS < ${thresholds.initial}`,     tip: `Below the initial gate (${thresholds.initial}) — pipeline stopped`,         dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800"   },
+    { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",           dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
+  ];
 
   return (
     <div className="rounded-md border border-border bg-surface p-3 space-y-3">
@@ -296,11 +300,11 @@ export function SmartToolbar({
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0"
-          title="Global ATS gates: initial 60 (must pass to tailor), final 70 (auto cover letter)"
+          title={`ATS gates: initial ${thresholds.initial} (must pass to tailor), final ${thresholds.final} (auto cover letter)`}
         >
           ATS
         </span>
-        {ATS_BANDS.map((b) => {
+        {atsBands.map((b) => {
           const active = currentAts === b.id;
           const count  = atsCounts[b.id] ?? 0;
           return (

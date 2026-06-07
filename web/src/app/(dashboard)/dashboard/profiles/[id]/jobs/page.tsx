@@ -181,10 +181,11 @@ export default async function JobsPage({
       liveRun?.passed_final_gate   ?? null,
     );
     return {
-      ...(j as unknown as Job),
+      ...(j as unknown as BoardJob),
       progress,
       pipelineState,
       atsBand,
+      atsThresholds:        th,
       initial_ats_score:    run?.initial_ats_score    ?? null,
       tailored_match_score: run?.tailored_match_score ?? null,
     };
@@ -356,6 +357,7 @@ export default async function JobsPage({
             counts={funnelCounts}
             railJobs={railJobs}
             homeAddress={p.home_address}
+            thresholds={th}
           />
         </Suspense>
 

@@ -41,6 +41,7 @@ import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { shallowSetParams } from "./shallowNav";
+import { type AtsThresholds } from "@/lib/atsThresholds";
 
 // ── scoring ─────────────────────────────────────────────────────────────
 
@@ -106,6 +107,35 @@ const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg: strin
   below_initial: { label: "< 60",  dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800",   barColor: "bg-red-500",   tip: "Below initial gate — pipeline stopped" },
   no_ats:        { label: "—",     dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
 };
+
+export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
+  const band = job.atsBand;
+  const th = job.atsThresholds ?? { initial: 60, final: 70 };
+  const staticMeta = ATS_BAND_META[band];
+
+  if (band === "above_final") {
+    return {
+      ...staticMeta,
+      label: `≥ ${th.final}`,
+      tip: `Passed final gate (${th.final}) — auto cover letter eligible`,
+    };
+  }
+  if (band === "below_final") {
+    return {
+      ...staticMeta,
+      label: `${th.initial}–${th.final - 1}`,
+      tip: `Tailored CV — between gates (${th.initial}–${th.final - 1})`,
+    };
+  }
+  if (band === "below_initial") {
+    return {
+      ...staticMeta,
+      label: `< ${th.initial}`,
+      tip: `Below initial gate (${th.initial}) — pipeline stopped`,
+    };
+  }
+  return staticMeta;
+}
 
 const VISA_COLOR = { yes: "#22c55e", no: "#ef4444", pr_only: "#f59e0b", unknown: "#94a3b8" };
 const VISA_LABEL = { yes: "Sponsored", no: "No sponsor", pr_only: "PR or citizens only", unknown: "Visa not mentioned" };
@@ -185,6 +215,7 @@ export function SmartFeed({
   counts,
   atsCounts,
   homeAddress = null,
+  thresholds,
 }: {
   /** Pre-filtered + pre-sorted by the parent board. */
   jobs:            BoardJob[];
@@ -200,6 +231,7 @@ export function SmartFeed({
   atsCounts:       Record<AtsBand, number>;
   /** When set, the toolbar renders the "Within X km" distance select. */
   homeAddress?:    string | null;
+  thresholds?:     AtsThresholds;
 }) {
   // Ref map per job id so the distance ribbon can scroll to a card.
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -224,7 +256,7 @@ export function SmartFeed({
   return (
     <div className="space-y-5">
       {/* Unified filter + sort toolbar — replaces PipelineFunnel + SmartFilterBar */}
-      <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} />
+      <SmartToolbar counts={counts} atsCounts={atsCounts} homeAddress={homeAddress} thresholds={thresholds} />
 
       {jobs.length === 0 ? (
         <EmptyState />
@@ -539,8 +571,8 @@ function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: st
     <CardShell job={job} currentTab={currentTab} refSetter={refSetter}>
       <div className="flex items-center gap-3.5 min-w-0">
         <span
-          className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${ATS_BAND_META[job.atsBand].dot}`}
-          title={`ATS ${ATS_BAND_META[job.atsBand].label} — ${ATS_BAND_META[job.atsBand].tip}`}
+          className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${getAtsMeta(job).dot}`}
+          title={`ATS ${getAtsMeta(job).label} — ${getAtsMeta(job).tip}`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
@@ -679,12 +711,12 @@ function CardChips({ job }: { job: BoardJob }) {
   return (
     <div className="flex items-center gap-2 mb-2 flex-wrap">
       <span
-        className={`inline-block w-2.5 h-2.5 rounded-full ${ATS_BAND_META[job.atsBand].dot}`}
-        title={`ATS ${ATS_BAND_META[job.atsBand].label} — ${ATS_BAND_META[job.atsBand].tip}`}
+        className={`inline-block w-2.5 h-2.5 rounded-full ${getAtsMeta(job).dot}`}
+        title={`ATS ${getAtsMeta(job).label} — ${getAtsMeta(job).tip}`}
       />
       <SourcePill source={job.source} />
       {job.profile_name && <ProfileChip name={job.profile_name} />}
-      {job.atsBand !== "no_ats" && <AtsChip band={job.atsBand} />}
+      {job.atsBand !== "no_ats" && <AtsChip job={job} />}
       <span
         className="inline-block w-2 h-2 rounded-full ml-auto"
         style={{ background: VISA_COLOR[visaKey(job)] }}
@@ -868,11 +900,11 @@ function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const label        = atsScore != null ? "ATS" : "Match";
 
   const cls = hasAnalysis
-    ? ATS_BAND_META[job.atsBand].barColor
+    ? getAtsMeta(job).barColor
     : (displayScore >= 70 ? "bg-green-500" : displayScore >= 50 ? "bg-amber-500" : "bg-red-500");
 
   const tip = atsScore != null
-    ? `ATS score ${displayScore}/100 — ${ATS_BAND_META[job.atsBand].tip}`
+    ? `ATS score ${displayScore}/100 — ${getAtsMeta(job).tip}`
     : `Match score ${displayScore}/100 — combines distance, ATS band, JD quality, freshness, visa hints`;
 
   return (
@@ -935,8 +967,8 @@ function SourcePill({ source }: { source: string }) {
   );
 }
 
-function AtsChip({ band }: { band: AtsBand }) {
-  const meta = ATS_BAND_META[band];
+function AtsChip({ job }: { job: BoardJob }) {
+  const meta = getAtsMeta(job);
   return (
     <span
       title={meta.tip}

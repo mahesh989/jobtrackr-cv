@@ -19,7 +19,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SetupCards } from "@/components/onboarding/SetupCards";
@@ -86,23 +86,22 @@ export default async function DashboardPage({
 
   const { data: profileRows } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, keywords, location, schedule_cron")
+    .select("id, name, is_active, keywords, location, schedule_cron, target_verticals")
     .order("created_at", { ascending: false });
 
   const profiles = (profileRows ?? []) as Array<{
     id: string; name: string; is_active: boolean;
     keywords: string[]; location: string; schedule_cron: string;
+    target_verticals?: string[] | null;
   }>;
   const ids = profiles.map((p) => p.id);
 
-  // ATS thresholds are global (migration 041). Same value for every profile.
-  // The threshold map remains in shape so downstream code that looked up
-  // per-profile values keeps working without restructuring; values are
-  // identical for every entry.
+  // ATS thresholds are resolved per-vertical (e.g. 55/65 for healthcare/nursing).
+  // The threshold map maps each profile ID to its specific thresholds.
   const DEFAULT_MIN_INITIAL = MIN_INITIAL_ATS;
   const DEFAULT_MIN_FINAL   = MIN_FINAL_ATS;
   const threshByProfile = new Map<string, { initial: number; final: number }>(
-    profiles.map((p) => [p.id, { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS }]),
+    profiles.map((p) => [p.id, resolveThresholds(p.target_verticals)]),
   );
 
   // ── First-run gate ────────────────────────────────────────────────────────
@@ -254,6 +253,7 @@ export default async function DashboardPage({
       progress,
       pipelineState,
       atsBand,
+      atsThresholds:        th,
       initial_ats_score:    run?.initial_ats_score    ?? null,
       tailored_match_score: run?.tailored_match_score ?? null,
     };

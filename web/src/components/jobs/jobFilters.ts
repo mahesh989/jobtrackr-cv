@@ -15,9 +15,10 @@ import type { Job } from "./JobTable";
 
 export type AtsBand = "above_final" | "below_final" | "below_initial" | "no_ats";
 
-/** A board job carries its precomputed ATS band so the client can filter
- *  by it without re-deriving gates. */
-export type BoardJob = Job & { atsBand: AtsBand };
+export type BoardJob = Job & {
+  atsBand: AtsBand;
+  atsThresholds?: { initial: number; final: number };
+};
 
 export interface ViewFilters {
   stage:       string;   // analysed | cvReady | letterReady | thinJd | applied | all | dismissed

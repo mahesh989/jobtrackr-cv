@@ -10,6 +10,7 @@ import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 import { BulkAnalyzeButton, type AnalyzableJob } from "./BulkAnalyzeButton";
+import { type AtsThresholds } from "@/lib/atsThresholds";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
 function resolveStage(sp: URLSearchParams): string {
@@ -65,6 +66,7 @@ export function ProfileJobBoard({
   counts,
   railJobs,
   homeAddress = null,
+  thresholds,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
@@ -72,6 +74,7 @@ export function ProfileJobBoard({
   /** Profile's home_address (Migration 048). When set, the toolbar shows the
    *  "Within X km" distance filter and the distance ribbon renders. */
   homeAddress?: string | null;
+  thresholds?:  AtsThresholds;
 }) {
   const sp = useSearchParams();
   const pathname = usePathname();
@@ -220,6 +223,7 @@ export function ProfileJobBoard({
         counts={counts}
         atsCounts={atsCounts}
         homeAddress={homeAddress}
+        thresholds={thresholds}
       />
     </>
   );
