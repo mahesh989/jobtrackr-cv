@@ -32,9 +32,10 @@ import { createPortal } from "react-dom";
 import {
   BarChart3, FileText, Mail, CheckCircle2, MoreHorizontal, Sparkles, MapPin,
   Clock, AlertTriangle, Inbox, FileWarning, FileQuestion, Loader2, X,
+  Archive, Star,
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
 import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
@@ -288,6 +289,36 @@ export function SmartFeed({
     setProgress(null);
   }
 
+  const [bulkPending, setBulkPending] = useState<"archive" | "star" | null>(null);
+
+  async function runBulkArchive() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || bulkPending) return;
+    setBulkPending("archive");
+    try {
+      await bulkArchiveJobs(ids);
+      setSelectMode(false);
+      setSelected(new Set());
+      router.refresh();
+    } finally {
+      setBulkPending(null);
+    }
+  }
+
+  async function runBulkStar() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || bulkPending) return;
+    setBulkPending("star");
+    try {
+      await bulkStarJobs(ids);
+      setSelectMode(false);
+      setSelected(new Set());
+      router.refresh();
+    } finally {
+      setBulkPending(null);
+    }
+  }
+
   async function runBulkAnalyse() {
     const ids = Array.from(selected);
     if (ids.length === 0 || progress) return;
@@ -436,14 +467,39 @@ export function SmartFeed({
             ) : (
               <>
                 {selected.size > 0 && (
-                  <button
-                    onClick={() => setConfirmAnalyse(true)}
-                    className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
-                    title="Analyse selected jobs — bypasses the initial gate"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Analyse {selected.size}
-                  </button>
+                  <>
+                    <button
+                      onClick={runBulkStar}
+                      disabled={bulkPending !== null}
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+                      title="Star selected jobs — adds to your favourites"
+                    >
+                      {bulkPending === "star"
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Star className="w-3.5 h-3.5" />}
+                      Star
+                    </button>
+                    <button
+                      onClick={runBulkArchive}
+                      disabled={bulkPending !== null}
+                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-2 hover:text-text border border-[var(--border)] hover:border-text-3 bg-[var(--surface-2)] hover:bg-[var(--surface)] rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+                      title="Archive selected jobs — hides from the main view"
+                    >
+                      {bulkPending === "archive"
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Archive className="w-3.5 h-3.5" />}
+                      Archive
+                    </button>
+                    <button
+                      onClick={() => setConfirmAnalyse(true)}
+                      disabled={bulkPending !== null}
+                      className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5 disabled:opacity-50"
+                      title="Analyse selected jobs — bypasses the initial gate"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Analyse {selected.size}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={exitSelectMode}

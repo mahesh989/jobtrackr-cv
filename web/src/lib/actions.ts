@@ -427,6 +427,42 @@ export async function bulkMarkPoolNoEmail(jobIds: string[]) {
   return { updated: data?.length ?? 0 };
 }
 
+/**
+ * Toggle "starred" on a batch of jobs. Star is a personal-shortlist marker
+ * (see migration 053). Stars unstarred rows; ignores already-starred ones.
+ * Use bulkUnstarJobs() to clear.
+ */
+export async function bulkStarJobs(jobIds: string[]) {
+  if (jobIds.length === 0) return { updated: 0 };
+  const { supabase } = await authedClient();
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ starred_at: new Date().toISOString() })
+    .in("id", jobIds)
+    .is("starred_at", null)   // don't re-stamp already-starred
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  return { updated: data?.length ?? 0 };
+}
+
+/** Clear starred_at on a batch of jobs. */
+export async function bulkUnstarJobs(jobIds: string[]) {
+  if (jobIds.length === 0) return { updated: 0 };
+  const { supabase } = await authedClient();
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ starred_at: null })
+    .in("id", jobIds)
+    .not("starred_at", "is", null)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  return { updated: data?.length ?? 0 };
+}
+
 export async function bulkArchiveJobs(jobIds: string[]) {
   if (jobIds.length === 0) return { updated: 0 };
   const { supabase } = await authedClient();
