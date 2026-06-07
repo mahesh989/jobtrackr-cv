@@ -825,6 +825,7 @@ function CardShell({
       {showEdit && (
         <JobEditModal
           jobId={job.id}
+          jobUrl={job.url}
           originalJd={job.description ?? ""}
           initialManual={manualJd}
           initialEmail={contactEmail}

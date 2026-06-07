@@ -465,6 +465,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
       {showEdit && (
         <JobEditModal
           jobId={job.id}
+          jobUrl={job.url}
           originalJd={job.description ?? ""}
           initialManual={manualJd}
           initialEmail={contactEmail}

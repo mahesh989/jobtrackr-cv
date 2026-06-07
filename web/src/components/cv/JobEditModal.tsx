@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 interface Props {
   jobId:              string;
+  jobUrl?:            string | null;             // jobs.url — link to the live posting
   originalJd:         string;                    // jobs.description (raw scrape)
   initialManual:      string | null;             // jobs.manual_jd_text
   initialEmail:       string | null;             // jobs.contact_email
@@ -23,7 +24,7 @@ interface Props {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function JobEditModal({
-  jobId, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, onClose, onSaved,
+  jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, onClose, onSaved,
 }: Props) {
   // The textarea starts with whatever the user previously set, falling back
   // to the raw scraped description so they can edit-in-place.
@@ -128,6 +129,20 @@ export function JobEditModal({
             AI focuses on responsibilities and skills. The original scrape is
             preserved either way.
           </p>
+          {jobUrl && (
+            <a
+              href={jobUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-medium text-[var(--brand)] hover:underline"
+              title="Open the live job posting in a new tab to copy the full description"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Open original job posting
+            </a>
+          )}
         </div>
 
         <div className="px-5 py-4 overflow-y-auto space-y-5 flex-1">
