@@ -91,11 +91,16 @@ export function JobEditModal({
         hiring_manager:  json.hiring_manager ?? null,
         company_address: json.company_address ?? null,
       });
+      onClose();
       // Re-fetch server data so the board reflects the DB trigger's recomputed
       // jd_quality (a full paste ≥1400 chars flips thin → rich), clearing the
-      // stale "thin JD" badge without a manual page reload.
-      router.refresh();
-      onClose();
+      // stale "thin JD" badge. DELAYED ~1.9s: router.refresh() remounts the
+      // cards, which would reset the just-triggered save-flicker animation
+      // (onSaved sets it on the card) before it can play. Letting the flicker
+      // finish first is the whole point — the user needs to SEE which card
+      // changed. The optimistic onSaved() already updated the visible fields,
+      // so the brief delay before the server sync is imperceptible.
+      setTimeout(() => router.refresh(), 1900);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
       setBusy(false);

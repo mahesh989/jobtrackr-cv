@@ -684,7 +684,8 @@ function CardShell({
             const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= 200;
             if (wasThin && nowFilled) {
               setSavedFlicker(true);
-              setTimeout(() => setSavedFlicker(false), 1400);
+              // Keep the class on for the full 1.8s keyframe (globals.css).
+              setTimeout(() => setSavedFlicker(false), 1900);
             }
             setManualJd(patch.manual_jd_text);
             setContactEmail(patch.contact_email);
