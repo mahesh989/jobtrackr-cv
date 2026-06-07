@@ -123,8 +123,9 @@ class TestTargetedBulletRewritesMiss:
         assert "home care" in result.lower()
 
     def test_rewritten_bullet_replaces_original(self):
-        """The original bullet text is replaced by the LLM's rewrite."""
-        rewrite = "Manage medication administration using BESTMed on handheld/smart devices."
+        """The original bullet text is replaced by the LLM's rewrite (keyword landed)."""
+        rewrite = ("Manage medication administration using BESTMed, demonstrating "
+                   "basic smartphone knowledge on handheld devices.")
         client = _make_client(rewrite)
         feasibility = _feasibility([
             {
@@ -138,6 +139,46 @@ class TestTargetedBulletRewritesMiss:
         assert rewrite in result
         # Original bullet should be gone
         assert "Manage medication administration using BESTMed system." not in result
+
+    def test_rewrite_dropped_when_keyword_does_not_land(self):
+        """If the LLM paraphrases WITHOUT the keyword, the rewrite is dropped and
+        the original bullet is preserved (no fidelity loss for zero benefit)."""
+        # Rewrite does NOT contain "basic smartphone knowledge"
+        client = _make_client("Manage medication administration using BESTMed accurately.")
+        feasibility = _feasibility([
+            {
+                "keyword": "basic smartphone knowledge",
+                "evidence": "Manage medication administration using BESTMed system",
+            }
+        ])
+        result = asyncio.get_event_loop().run_until_complete(
+            _targeted_bullet_rewrites(client, _BASE_MD, feasibility)
+        )
+        client.complete.assert_called_once()  # call WAS made
+        # but original preserved because keyword never landed
+        assert "Manage medication administration using BESTMed system." in result
+        assert "Manage medication administration using BESTMed accurately." not in result
+
+    def test_two_keywords_same_evidence_single_call_no_collision(self):
+        """Two keywords with identical evidence target the SAME bullet → exactly
+        ONE LLM call incorporating both (the v228 collision bug). Both land."""
+        rewrite = ("Provide person-centred home care support for older people, "
+                   "supporting retirement living residents with daily living "
+                   "activities such as bathing, dressing, and meal assistance.")
+        client = _make_client(rewrite)
+        shared_evidence = "Provide personal care to residents bathing dressing meal assistance"
+        feasibility = _feasibility([
+            {"keyword": "home care support for older people", "evidence": shared_evidence},
+            {"keyword": "supporting retirement living residents", "evidence": shared_evidence},
+        ])
+        result = asyncio.get_event_loop().run_until_complete(
+            _targeted_bullet_rewrites(client, _BASE_MD, feasibility)
+        )
+        # CRITICAL: one call, not two — no collision
+        client.complete.assert_called_once()
+        # Both keywords present in the final markdown
+        assert "home care support for older people" in result.lower()
+        assert "supporting retirement living residents" in result.lower()
 
     def test_two_missed_keywords_two_calls(self):
         """Two missed keywords → two concurrent LLM calls."""
