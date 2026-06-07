@@ -64,10 +64,12 @@ class TestRerouteNursing:
         assert "Patient Care" in care_line
         assert "Patient Care" not in other_line
 
-    def test_elderly_care_moves_to_care_skills(self):
+    def test_elderly_care_excluded_from_skills(self):
+        """'Elderly Care' → canonical 'aged care' → role-category label.
+        Must be dropped from all Skills lines — not moved to Care Skills."""
         out = reroute_skills_by_lexicon(_SKILLS_ELDERLY_CARE, "nursing")
-        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
-        assert "Elderly Care" in care_line
+        assert "elderly care" not in out.lower(), \
+            "'Elderly Care' should be excluded (role-category label), not moved to Care Skills"
 
     def test_bestmed_stays_on_other_skills(self):
         out = reroute_skills_by_lexicon(_SKILLS_HARDI, "nursing")
@@ -338,3 +340,97 @@ class TestCanonicalSynonymDedup:
         care_line = next(l for l in out.splitlines() if "Care Skills" in l)
         items = [x.strip() for x in care_line.split(":**")[1].split(",") if x.strip()]
         assert len(items) == 3, f"Expected 3 deduplicated items, got {len(items)}: {items}"
+
+
+# ---------------------------------------------------------------------------
+# Role-category label filter (Anglicare regression, 2026-06-07)
+#
+# Terms like "home care", "aged care", "disability support", "independent
+# living support" are job-type / sector descriptors — they belong in narrative
+# text (bullets, summary), NOT in the Skills section. The rerouter must
+# silently drop them even when the LLM places them on a Skills line.
+#
+# Real care skills ("dementia care", "mobility support") must still pass.
+# ---------------------------------------------------------------------------
+
+_SKILLS_WITH_ROLE_LABELS = """\
+## Skills
+
+- **Care Skills:** Personal Care, Home Care, Aged Care, Dementia Care, Disability Support
+- **Soft Skills:** Teamwork, Communication
+- **Other Skills:** BESTMed
+"""
+
+_SKILLS_WITH_INDEPENDENT_LIVING = """\
+## Skills
+
+- **Care Skills:** Personal Care, Independent Living Support, Mobility Support
+- **Soft Skills:** Empathy
+- **Other Skills:** BESTMed
+"""
+
+_SKILLS_WITH_COMMUNITY_CARE = """\
+## Skills
+
+- **Care Skills:** Personal Care, Community Care, Wound Care
+- **Soft Skills:** Teamwork
+- **Other Skills:** BESTMed
+"""
+
+
+class TestRoleCategoryLabelFilter:
+
+    def test_home_care_excluded_from_care_skills(self):
+        """'Home Care' is a job-type label — must not appear in Care Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_ROLE_LABELS, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "home care" not in care_line.lower(), \
+            "'Home Care' leaked into Care Skills — it is a role-category label"
+
+    def test_aged_care_excluded_from_care_skills(self):
+        """'Aged Care' is a sector descriptor — must not appear in Care Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_ROLE_LABELS, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "aged care" not in care_line.lower(), \
+            "'Aged Care' leaked into Care Skills — it is a sector label"
+
+    def test_disability_support_excluded_from_care_skills(self):
+        """'Disability Support' is a job-type label — must not appear in Care Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_ROLE_LABELS, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "disability support" not in care_line.lower(), \
+            "'Disability Support' leaked into Care Skills — it is a role-category label"
+
+    def test_independent_living_support_excluded(self):
+        """'Independent Living Support' is a service-type descriptor — excluded from Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_INDEPENDENT_LIVING, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "independent living support" not in care_line.lower(), \
+            "'Independent Living Support' leaked into Care Skills"
+
+    def test_community_care_excluded(self):
+        """'Community Care' is a setting descriptor — excluded from Skills."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_COMMUNITY_CARE, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "community care" not in care_line.lower(), \
+            "'Community Care' leaked into Care Skills"
+
+    def test_real_care_skills_still_pass(self):
+        """'Dementia Care', 'Mobility Support', 'Wound Care' are real skills — must survive."""
+        out1 = reroute_skills_by_lexicon(_SKILLS_WITH_ROLE_LABELS, "nursing")
+        care_line1 = next(l for l in out1.splitlines() if "Care Skills" in l)
+        assert "Dementia Care" in care_line1, "'Dementia Care' was incorrectly filtered"
+
+        out2 = reroute_skills_by_lexicon(_SKILLS_WITH_INDEPENDENT_LIVING, "nursing")
+        care_line2 = next(l for l in out2.splitlines() if "Care Skills" in l)
+        assert "Mobility Support" in care_line2, "'Mobility Support' was incorrectly filtered"
+
+        out3 = reroute_skills_by_lexicon(_SKILLS_WITH_COMMUNITY_CARE, "nursing")
+        care_line3 = next(l for l in out3.splitlines() if "Care Skills" in l)
+        assert "Wound Care" in care_line3, "'Wound Care' was incorrectly filtered"
+
+    def test_personal_care_still_passes(self):
+        """'Personal Care' is a specific activity — must survive the label filter."""
+        out = reroute_skills_by_lexicon(_SKILLS_WITH_ROLE_LABELS, "nursing")
+        care_line = next(l for l in out.splitlines() if "Care Skills" in l)
+        assert "Personal Care" in care_line, "'Personal Care' was incorrectly filtered"

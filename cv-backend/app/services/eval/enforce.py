@@ -29,6 +29,29 @@ from typing import List, Optional, Tuple
 # with no tools/credentials worth surfacing won't get a dangling label.
 DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (14, 6, 6)
 
+# Role-category labels — sector/setting/job-type descriptors that should NOT
+# appear in the Skills section even when lexicon-classified as domain_knowledge.
+# They belong in narrative context only (experience bullets, summary).
+# Checked by canonical; common variants are included so string checks in the
+# injection layer also catch them without a full classify() call.
+_ROLE_CATEGORY_LABELS: frozenset = frozenset({
+    # Nursing / care — job type and setting descriptors
+    "aged care",
+    "home care",
+    "community care",
+    "disability support",
+    "independent living support",
+    "domestic assistance",
+    "residential care",
+    "residential aged care",       # variant of aged care
+    "in-home care",                # variant of home care
+    "in home care",                # variant of home care
+    "home and community care",     # variant of community care
+    "community aged care",         # variant of community care
+    "disability care",             # variant of disability support
+    "independent living assistance",  # variant of independent living support
+})
+
 _SKILLS_HEADING_RE = re.compile(r"^##\s+skills\s*$", re.IGNORECASE)
 # Matches both bullet-prefixed and bare bold-label lines:
 #   "- **Care Skills:** items"  OR  "**Care Skills:** items"
@@ -284,6 +307,8 @@ def reroute_skills_by_lexicon(markdown: str, vertical: Optional[str]) -> str:
             c = lex_classify(item, vertical)
             if c is not None and c.is_skill:
                 canon_key = c.canonical.lower()
+                if canon_key in _ROLE_CATEGORY_LABELS:
+                    continue  # Role-category label: belongs in narrative, not Skills section
                 if canon_key in seen_canonicals:
                     continue  # Same canonical as a prior item — drop the synonym
                 seen_canonicals.add(canon_key)

@@ -52,7 +52,7 @@ from app.services.ai.prompts.variants.composition import (
     build_surfacing_system,
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
-from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS, reroute_skills_by_lexicon
+from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS, reroute_skills_by_lexicon, _ROLE_CATEGORY_LABELS
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
@@ -726,6 +726,8 @@ def _approved_skill_entries(feasibility: Optional[Dict[str, Any]]) -> list[tuple
             key = kw.lower()
             if key in seen:
                 continue
+            if key in _ROLE_CATEGORY_LABELS:
+                continue  # Role-category label: inject into bullets/summary only, never Skills
             seen.add(key)
             out.append((kw, cat))
     return out
@@ -4354,6 +4356,137 @@ async def _writer_w8_integrated(
 
 
 # ---------------------------------------------------------------------------
+# Targeted bullet rewrite pass.
+#
+# After composition + verify_claims + all deterministic passes, some
+# inject_as_extension keywords from the feasibility plan may still be absent
+# from the generated CV — the composition LLM paraphrased instead of applying
+# the approved rewrite. This pass detects missed items and runs one small,
+# focused LLM call per bullet to incorporate the keyword.
+#
+# Only fires for inject_as_extension (not inject_directly — those are Skills
+# section items already handled by _inject_approved_skills; not
+# inject_with_inference — inference is too speculative for auto-rewrite).
+#
+# Role-category labels (home care, aged care, disability support …) reach this
+# function and are correctly injected into bullets/summary — they are NOT
+# filtered here. The Skills-section filter (_ROLE_CATEGORY_LABELS) runs
+# separately in _approved_skill_entries and reroute_skills_by_lexicon.
+# ---------------------------------------------------------------------------
+
+async def _targeted_bullet_rewrites(
+    client: "AIClient",
+    markdown: str,
+    feasibility: Optional[Dict[str, Any]],
+) -> str:
+    """Inject missed inject_as_extension keywords into experience bullets.
+
+    For each approved extension keyword absent from the generated CV, finds the
+    most relevant experience bullet and runs a focused single-bullet LLM call
+    to incorporate the phrase naturally. All calls run concurrently.
+
+    Returns the markdown unchanged when there are no missed items (zero latency
+    cost on a clean run).
+    """
+    import asyncio
+
+    plan = (feasibility or {}).get("feasibility_plan") or {}
+    extensions = plan.get("inject_as_extension") or []
+    if not extensions:
+        return markdown
+
+    def _kw_present(kw: str) -> bool:
+        norm = re.sub(r"[^a-z0-9 ]+", " ", kw.lower()).strip()
+        md_norm = re.sub(r"[^a-z0-9 ]+", " ", markdown.lower())
+        return norm in md_norm
+
+    missed = [
+        e for e in extensions
+        if isinstance(e, dict) and not _kw_present(str(e.get("keyword") or ""))
+    ]
+    if not missed:
+        return markdown
+
+    logger.info("targeted_bullet_rewrites: %d missed inject_as_extension item(s)", len(missed))
+
+    lines = markdown.split("\n")
+
+    # Locate ## Skills section so we don't accidentally rewrite Skills lines.
+    skills_start = next(
+        (i for i, ln in enumerate(lines) if ln.strip().lower() == "## skills"), None
+    )
+    skills_end = len(lines)
+    if skills_start is not None:
+        for i in range(skills_start + 1, len(lines)):
+            if lines[i].startswith("## "):
+                skills_end = i
+                break
+
+    def _find_best_bullet(evidence: str) -> Optional[int]:
+        """Return index of the experience bullet that best matches `evidence`."""
+        ev_words = set(re.sub(r"[^a-z0-9 ]+", " ", evidence.lower()).split())
+        best_idx, best_score = None, 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped.startswith("- "):
+                continue
+            # Exclude Skills section label lines (e.g. "- **Care Skills:** ...")
+            if ":**" in stripped:
+                continue
+            # Exclude anything inside ## Skills
+            if skills_start is not None and skills_start < i < skills_end:
+                continue
+            lw = set(re.sub(r"[^a-z0-9 ]+", " ", line.lower()).split())
+            score = len(ev_words & lw)
+            if score > best_score:
+                best_score, best_idx = score, i
+        return best_idx if best_score >= 3 else None
+
+    async def _rewrite_one(entry: Dict[str, Any]) -> Optional[tuple]:
+        kw = str(entry.get("keyword") or "").strip()
+        evidence = str(entry.get("evidence") or "").strip()
+        if not kw or not evidence:
+            return None
+        idx = _find_best_bullet(evidence)
+        if idx is None:
+            logger.info("targeted_bullet_rewrites: no matching bullet for %r (evidence too sparse)", kw)
+            return None
+        original = lines[idx].strip().lstrip("-").strip()
+        try:
+            rewritten = await client.complete(
+                system=(
+                    "You are a CV bullet editor. Your only task: rewrite the provided bullet "
+                    "to incorporate the keyword phrase naturally. "
+                    "Rules: preserve all existing facts verbatim; do not add new claims or "
+                    "invent metrics; the keyword must appear in the rewrite. "
+                    "Return only the rewritten bullet text — no dash prefix, no explanation."
+                ),
+                user=(
+                    f"Keyword to incorporate: {kw}\n\n"
+                    f"Bullet to rewrite:\n{original}\n\n"
+                    f"Honest evidence (already vetted by feasibility plan):\n{evidence}"
+                ),
+                max_tokens=200,
+                temperature=0.2,
+            )
+            if rewritten and len(rewritten.strip()) > 20:
+                return (idx, "- " + rewritten.strip())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("targeted_bullet_rewrites: LLM call failed for %r: %s", kw, exc)
+        return None
+
+    rewrites = await asyncio.gather(*[_rewrite_one(e) for e in missed])
+
+    for item in rewrites:
+        if item:
+            idx, new_line = item
+            lines[idx] = new_line
+            logger.info("targeted_bullet_rewrites: rewrote line %d for keyword in bullet", idx)
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # W8-verified — W8 + Stage-6 per-claim entailment verification (W8.1).
 # Identical to w8_integrated, then runs one focused entailment pass that repairs
 # or drops any tailored bullet not entailed by the source CV. Shipped as a
@@ -4441,6 +4574,12 @@ async def _writer_w8_verified(
     logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
     verified_md = _apply_setting_bridge(verified_md, _setting_for_bridge)
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    # Targeted bullet rewrites — for inject_as_extension keywords the composition
+    # LLM missed, run one small focused call per bullet concurrently. Zero cost
+    # when the LLM applied all rewrites correctly (no missed items → no calls).
+    # Runs AFTER all deterministic passes so rewrites are applied to the final
+    # experience text, not an intermediate state.
+    verified_md = await _targeted_bullet_rewrites(client, verified_md, result.feasibility)
     # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
     # injection. Then cap-aware inject: approved keywords get priority over
     # writer-only tail items; writer-only items displaced when at cap.
