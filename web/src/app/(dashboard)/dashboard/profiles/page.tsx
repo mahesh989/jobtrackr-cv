@@ -78,18 +78,18 @@ export default async function ProfilesListPage() {
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <span className="text-text-2">My profiles</span>
+              <span className="text-text-2">Job Searches</span>
             </div>
-            <h1 className="text-[16px] font-semibold text-text">My profiles</h1>
+            <h1 className="text-[16px] font-semibold text-text">Job Searches</h1>
             <p className="text-[12px] text-text-2 mt-0.5">
-              {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · {activeCount} auto-scheduled
+              {profiles.length} search{profiles.length !== 1 ? "es" : ""} · {activeCount} auto-scheduled
             </p>
           </div>
           <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
-            New profile
+            New search
           </Link>
         </div>
       </div>
@@ -111,7 +111,7 @@ function EmptyState() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">My profiles</h1>
+        <h1 className="text-[16px] font-semibold text-text">Job Searches</h1>
       </div>
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="text-center max-w-md anim-in">

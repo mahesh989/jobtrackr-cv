@@ -211,6 +211,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   const [exitPhase, setExitPhase]   = useState<ExitPhase>("idle");
   const [showEdit, setShowEdit]     = useState(false);
   const [manualJd, setManualJd]     = useState<string | null>(job.manual_jd_text ?? null);
+  const [savedFlicker, setSavedFlicker] = useState(false);
   const [contactEmail, setContactEmail] = useState<string | null>(job.contact_email ?? null);
   const [hiringMgr, setHiringMgr]   = useState<string | null>(job.hiring_manager ?? null);
   const [companyAddress, setCompanyAddress] = useState<string | null>(job.company_address ?? null);
@@ -270,7 +271,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
         <div
           className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
             isFlash ? "bg-green-light" : "hover:bg-[var(--surface-2)]/60"
-          } ${
+          } ${savedFlicker ? "jd-saved-flicker" : ""} ${
             localApplied ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""
           }`}
           onClick={() => setExpanded(!expanded)}
@@ -471,6 +472,15 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
           initialCompanyAddress={companyAddress}
           onClose={() => setShowEdit(false)}
           onSaved={(patch) => {
+            // If a thin JD just gained a substantive manual JD, flicker the row
+            // so the user can see WHICH job they just fixed (they often lose
+            // their place after pasting). Only fires on the thin→filled flip.
+            const wasThin = job.jd_quality === "thin" || job.jd_quality === "unknown";
+            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= 200;
+            if (wasThin && nowFilled) {
+              setSavedFlicker(true);
+              setTimeout(() => setSavedFlicker(false), 1400);
+            }
             setManualJd(patch.manual_jd_text);
             setContactEmail(patch.contact_email);
             setHiringMgr(patch.hiring_manager);

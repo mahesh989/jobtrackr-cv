@@ -576,6 +576,7 @@ function CardShell({
   const [localApplied, setLocalApplied] = useState(!!job.applied_at);
   const [showEdit, setShowEdit] = useState(false);
   const [manualJd, setManualJd] = useState<string | null>(job.manual_jd_text ?? null);
+  const [savedFlicker, setSavedFlicker] = useState(false);
   const [contactEmail, setContactEmail] = useState<string | null>(job.contact_email ?? null);
   const [hiringMgr, setHiringMgr] = useState<string | null>(job.hiring_manager ?? null);
   const [companyAddress, setCompanyAddress] = useState<string | null>(job.company_address ?? null);
@@ -625,7 +626,7 @@ function CardShell({
           ref={refSetter}
           className={`rounded-md border transition-all ${
             hero ? "border-2 border-[var(--brand)]/30 bg-surface p-4 hover:shadow-md" : "border-border bg-surface px-4 py-3.5 hover:bg-[var(--surface-2)]/60"
-          } ${isFlash ? "bg-green-light border-green-500" : ""} ${
+          } ${isFlash ? "bg-green-light border-green-500" : ""} ${savedFlicker ? "jd-saved-flicker" : ""} ${
             localApplied ? "border-l-2 border-l-green-500" : ""
           }`}
         >
@@ -645,6 +646,14 @@ function CardShell({
           initialCompanyAddress={companyAddress}
           onClose={() => setShowEdit(false)}
           onSaved={(patch) => {
+            // Flicker the card on the thin→filled JD flip so the user can see
+            // which job they just fixed (they often lose their place).
+            const wasThin = job.jd_quality === "thin" || job.jd_quality === "unknown";
+            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= 200;
+            if (wasThin && nowFilled) {
+              setSavedFlicker(true);
+              setTimeout(() => setSavedFlicker(false), 1400);
+            }
             setManualJd(patch.manual_jd_text);
             setContactEmail(patch.contact_email);
             setHiringMgr(patch.hiring_manager);

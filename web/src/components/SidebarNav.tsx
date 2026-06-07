@@ -121,7 +121,7 @@ export function SidebarNav({ email, poolCount = 0 }: Props) {
             counts are surfaced on the profile cards themselves, so we don't
             need a (potentially stale) aggregate badge in the sidebar. */}
         <NavItem href="/dashboard/profiles" icon={Briefcase}>
-          My profiles
+          Job Searches
         </NavItem>
 
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
@@ -134,7 +134,7 @@ export function SidebarNav({ email, poolCount = 0 }: Props) {
             Tools
           </p>
         </div>
-        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>Profile</NavItem>
+        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>My Details</NavItem>
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
         <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
