@@ -18,7 +18,6 @@ import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
 import type { JobProgress } from "./progressFlags";
 import { nextAction } from "./progressFlags";
-import { useJobBoardSettings } from "./JobBoardSettings";
 
 export interface RailJob {
   id:                string;
@@ -53,7 +52,6 @@ function ProgressDots({ p }: { p: JobProgress }) {
 }
 
 export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab: string }) {
-  const settings = useJobBoardSettings();
   const [dismissed, setDismissed]   = useState<boolean | null>(null); // null = SSR/loading
 
   useEffect(() => {
@@ -63,9 +61,8 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
   if (dismissed === null) return null;     // avoid SSR flash
   if (dismissed)          return null;
   if (jobs.length === 0)  return null;
-  if (settings.hideRail)  return null;
   const isActiveTab = currentTab === "all" || !currentTab;
-  if (!isActiveTab && !settings.showRailOnAllTabs) return null;
+  if (!isActiveTab)       return null;
 
   function dismiss() {
     try { window.localStorage.setItem(DISMISS_KEY, "1"); } catch { /* quota */ }

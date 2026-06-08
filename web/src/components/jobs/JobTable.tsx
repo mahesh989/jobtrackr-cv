@@ -27,7 +27,6 @@ import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { JobProgress } from "./progressFlags";
-import { useJobBoardSettings } from "./JobBoardSettings";
 import { PIPELINE_STATE_META, TONE_CLASSES, type PipelineState } from "./pipelineState";
 
 export interface Job {
@@ -155,8 +154,6 @@ export function JobTable({ jobs, showVisa, currentTab }: {
   showVisa:   boolean;
   currentTab: string;
 }) {
-  const settings = useJobBoardSettings();
-
   if (jobs.length === 0) {
     return (
       <div className="bg-surface border border-border rounded-md">
@@ -181,7 +178,7 @@ export function JobTable({ jobs, showVisa, currentTab }: {
         <div className="col-span-1 text-center">Source</div>
         <div className="col-span-1 text-center">Posted</div>
         <div className="col-span-1 text-center">Added</div>
-        <div className="col-span-1 text-center">{settings.showProgressColumnLabel ? "Progress" : ""}</div>
+        <div className="col-span-1 text-center">Progress</div>
         {showVisa && <div className="col-span-1 text-center">Visa</div>}
         <div className={`${showVisa ? "col-span-2" : "col-span-3"} text-right`}>Actions</div>
       </div>
@@ -205,7 +202,6 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   animDelay:  number;
   currentTab: string;
 }) {
-  const settings = useJobBoardSettings();
   const [expanded, setExpanded]     = useState(false);
   const [isPending, setIsPending]   = useState(false);
   const [localApplied, setLocalApplied] = useState(!!job.applied_at);
@@ -223,7 +219,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
   const isFlash   = exitPhase === "flash";
   const isFading  = exitPhase === "fading";
   const isDismissed = !!job.dismissed_at;
-  const hideProgress = isDismissed && settings.hideProgressOnDismissed;
+  const hideProgress = false;
 
   async function handleApply(e: React.MouseEvent) {
     e.stopPropagation();

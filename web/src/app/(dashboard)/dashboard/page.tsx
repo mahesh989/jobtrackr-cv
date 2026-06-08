@@ -33,8 +33,6 @@ import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
 import { JobBoard } from "@/components/jobs/JobBoard";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
-import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
-import { AddJobButton } from "@/components/jobs/AddJobButton";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -552,16 +550,6 @@ export default async function DashboardPage({
               {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · {activeCount} auto-scheduled
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <AddJobButton />
-            <JobBoardSettingsPanel />
-            <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-              </svg>
-              New profile
-            </Link>
-          </div>
         </div>
       </div>
 
@@ -593,8 +581,6 @@ export default async function DashboardPage({
 
         {/* Quick links */}
         <div className="flex items-center gap-3 text-[12px] text-text-3 anim-in anim-delay-3">
-          <Link href="/dashboard/profiles/new" className="hover:text-text transition-colors">+ New profile</Link>
-          <span>·</span>
           <a href="/api/user/export" className="hover:text-text transition-colors">Export all data</a>
           <span>·</span>
           <Link href="/privacy" className="hover:text-text transition-colors">Privacy policy</Link>

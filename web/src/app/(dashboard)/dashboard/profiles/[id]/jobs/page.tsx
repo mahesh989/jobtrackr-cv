@@ -27,7 +27,6 @@ import { LiveLogConsole } from "@/components/LiveLogConsole";
 import { type Job } from "@/components/jobs/JobTable";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { type RailJob } from "@/components/jobs/ContinueRail";
-import { JobBoardSettingsPanel } from "@/components/jobs/JobBoardSettings";
 import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
 import {
@@ -341,7 +340,6 @@ export default async function JobsPage({
             <Link href={`/dashboard/profiles/${id}/edit`} className="gh-btn text-[12px] px-2.5 py-1">
               Edit
             </Link>
-            <JobBoardSettingsPanel />
             <RunNowButton profileId={id} initialIsRunning={isRunning} />
             <DeleteProfileButton profileId={id} profileName={p.name} compact />
           </div>
