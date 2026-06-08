@@ -250,7 +250,7 @@ export function SmartFeed({
   const router = useRouter();
 
   // ── selection state (iOS/Google style) ──────────────────────────────────
-  const [selectMode, setSelectMode] = useState(false);
+  const [activeSelectModes, setActiveSelectModes] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmAnalyse, setConfirmAnalyse] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -267,23 +267,40 @@ export function SmartFeed({
   }, []);
 
   const selectionValue = useMemo<JobSelectionCtx>(
-    () => ({ selectMode, isSelected: (id) => selected.has(id), toggle }),
-    [selectMode, selected, toggle],
+    () => ({ selectMode: false, isSelected: (id) => selected.has(id), toggle }),
+    [selected, toggle],
   );
 
-  function enterSelectMode() {
-    setSelectMode(true);
-    setSelected(new Set());
+  const toggleSelectMode = useCallback((sectionId: string, sectionJobs?: BoardJob[]) => {
+    setActiveSelectModes((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+        // Clear selected jobs specifically from this section when cancelling its select mode
+        if (sectionJobs) {
+          setSelected((selPrev) => {
+            const selNext = new Set(selPrev);
+            sectionJobs.forEach(j => selNext.delete(j.id));
+            return selNext;
+          });
+        }
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
     setConfirmAnalyse(false);
-  }
+  }, []);
 
-  function exitSelectMode() {
-    setSelectMode(false);
+  function exitAllSelectModes() {
+    setActiveSelectModes(new Set());
     setSelected(new Set());
     setConfirmAnalyse(false);
     cancelledRef.current = true;
     setProgress(null);
   }
+
+  const isAnySelectMode = activeSelectModes.size > 0;
 
   const [bulkPending, setBulkPending] = useState<"archive" | "star" | null>(null);
 
@@ -293,8 +310,7 @@ export function SmartFeed({
     setBulkPending("archive");
     try {
       await bulkArchiveJobs(ids);
-      setSelectMode(false);
-      setSelected(new Set());
+      exitAllSelectModes();
       router.refresh();
     } finally {
       setBulkPending(null);
@@ -307,8 +323,7 @@ export function SmartFeed({
     setBulkPending("star");
     try {
       await bulkStarJobs(ids);
-      setSelectMode(false);
-      setSelected(new Set());
+      exitAllSelectModes();
       router.refresh();
     } finally {
       setBulkPending(null);
@@ -345,9 +360,7 @@ export function SmartFeed({
     await Promise.all(Array.from({ length: 3 }, worker));
     if (!cancelledRef.current) {
       setProgress(null);
-      setConfirmAnalyse(false);
-      setSelectMode(false);
-      setSelected(new Set());
+      exitAllSelectModes();
       router.refresh();
     }
   }
@@ -372,9 +385,8 @@ export function SmartFeed({
     return max;
   }, [jobs]);
 
-  const toggleSelectMode = jobs.length > 0
-    ? (selectMode ? exitSelectMode : enterSelectMode)
-    : undefined;
+  // When no jobs, hide bulk actions toolbar and select options
+  const hasJobs = jobs.length > 0;
 
   return (
     <div className="space-y-5">
@@ -396,15 +408,15 @@ export function SmartFeed({
             distanceMax={distanceMax}
             cardRefs={cardRefs}
             scrollToJob={scrollToJob}
-            selectMode={selectMode}
-            onToggleSelectMode={toggleSelectMode}
+            activeSelectModes={activeSelectModes}
+            onToggleSelectMode={hasJobs ? toggleSelectMode : undefined}
           />
         </JobSelectionContext.Provider>
       )}
 
       {/* Sticky bulk-action bar — appears once in select mode.
           Shows count, Analyse, Stop (during run), and Cancel to exit. */}
-      {selectMode && (
+      {isAnySelectMode && (
         <div className="sticky bottom-4 z-30 mx-auto max-w-2xl rounded-lg border border-[var(--border)] bg-surface shadow-lg px-4 py-2.5 flex items-center gap-3 flex-wrap">
           <span className="text-[13px] font-semibold text-text">
             {selected.size > 0 ? `${selected.size} selected` : "Tap jobs to select"}
@@ -419,7 +431,7 @@ export function SmartFeed({
                 {/* Stop mid-run — prevents remaining queued requests from firing.
                     Already-sent requests on the server will still complete. */}
                 <button
-                  onClick={exitSelectMode}
+                  onClick={exitAllSelectModes}
                   className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors"
                   title="Stop queuing new analyses — already-sent requests will still complete"
                 >
@@ -484,7 +496,7 @@ export function SmartFeed({
                   </>
                 )}
                 <button
-                  onClick={exitSelectMode}
+                  onClick={exitAllSelectModes}
                   className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
                 >
                   Cancel
@@ -513,8 +525,8 @@ function SmartFeedBody({
   distanceMax: number;
   cardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
   scrollToJob: (id: string) => void;
-  selectMode: boolean;
-  onToggleSelectMode?: () => void;
+  activeSelectModes: Set<string>;
+  onToggleSelectMode?: (sectionId: string, sectionJobs?: BoardJob[]) => void;
 }) {
   const sp       = useSearchParams();
   const pathname = usePathname();
@@ -562,8 +574,8 @@ function SmartFeedBody({
               section={sec}
               currentTab={currentTab}
               refSetter={(id) => (el: HTMLDivElement | null) => { cardRefs.current[id] = el; }}
-              selectMode={selectMode}
-              onToggleSelectMode={onToggleSelectMode}
+              selectMode={activeSelectModes.has(sec.id)}
+              onToggleSelectMode={onToggleSelectMode ? () => onToggleSelectMode(sec.id, sec.jobs) : undefined}
             />
           ))}
         </div>
@@ -571,19 +583,21 @@ function SmartFeedBody({
         <div className="space-y-2.5">
           {onToggleSelectMode && (
             <div className="flex justify-end">
-              <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
+              <SelectModeButton selectMode={activeSelectModes.has("flat")} onToggle={() => onToggleSelectMode("flat", jobs)} />
             </div>
           )}
-          <div className="grid gap-2.5">
-            {jobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                currentTab={currentTab}
-                refSetter={(el) => { cardRefs.current[job.id] = el; }}
-              />
-            ))}
-          </div>
+          <JobSelectionContext.Provider value={{ ...useJobSelection()!, selectMode: activeSelectModes.has("flat") }}>
+            <div className="grid gap-2.5">
+              {jobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  currentTab={currentTab}
+                  refSetter={(el) => { cardRefs.current[job.id] = el; }}
+                />
+              ))}
+            </div>
+          </JobSelectionContext.Provider>
         </div>
       )}
     </>
@@ -601,6 +615,11 @@ function FeedSectionView({
   selectMode: boolean;
   onToggleSelectMode?: () => void;
 }) {
+  const parentCtx = useJobSelection();
+  const selectionValue = useMemo(() => ({
+    ...parentCtx!,
+    selectMode
+  }), [parentCtx, selectMode]);
   const toneClass: Record<FeedSection["tone"], string> = {
     brand: "text-[var(--brand)]",
     green: "text-green-600",
@@ -609,7 +628,8 @@ function FeedSectionView({
   };
   const Icon = section.Icon;
   return (
-    <section>
+    <JobSelectionContext.Provider value={selectionValue}>
+      <section>
       <div className="flex items-baseline justify-between gap-3 mb-2.5">
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
@@ -635,7 +655,8 @@ function FeedSectionView({
           ))}
         </div>
       )}
-    </section>
+      </section>
+    </JobSelectionContext.Provider>
   );
 }
 
