@@ -18,9 +18,32 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
+import asyncio as _asyncio_mod
+
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Transient connection errors worth retrying (HTTP/2 resets, TCP drops).
+_TRANSIENT_PATTERNS = (
+    "connectionterminated",
+    "connectionreset",
+    "connection reset",
+    "remotedisconnected",
+    "remote end closed connection",
+    "server disconnected",
+    "broken pipe",
+    "incomplete chunked read",
+    "connection closed",
+)
+
+_MAX_RETRIES = 2
+_RETRY_BASE_DELAY = 1.5  # seconds; doubles each attempt
+
+
+def _is_transient(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(p in msg for p in _TRANSIENT_PATTERNS)
 
 
 class AIClientError(Exception):
@@ -130,36 +153,48 @@ class AIClient:
                 kwargs["temperature"] = temperature
             return await client.messages.create(**kwargs)
 
-        try:
+        last_exc: Optional[Exception] = None
+        for attempt in range(_MAX_RETRIES + 1):
             try:
-                response = await _call(max_tokens)
-            except Exception as exc:
-                msg = str(exc)
-                temp_deprecated = (
-                    "temperature" in msg.lower()
-                    and ("deprecated" in msg.lower()
-                         or "not supported" in msg.lower()
-                         or "unsupported" in msg.lower())
-                )
-                if temp_deprecated:
-                    logger.info(
-                        "Anthropic model %s rejected temperature; retrying without it.",
-                        self.model,
+                try:
+                    response = await _call(max_tokens)
+                except Exception as exc:
+                    msg = str(exc)
+                    temp_deprecated = (
+                        "temperature" in msg.lower()
+                        and ("deprecated" in msg.lower()
+                             or "not supported" in msg.lower()
+                             or "unsupported" in msg.lower())
                     )
-                    response = await _call(max_tokens, include_temperature=False)
-                else:
-                    raise
-            # Auto-retry once on max_tokens truncation — keeps cv-magic's
-            # per-step max_tokens unchanged in the steps directory, just
-            # adds resilience when a verbose JD overflows the cap.
-            if getattr(response, "stop_reason", None) == "max_tokens":
-                logger.info(
-                    "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
-                    max_tokens, self.model,
-                )
-                response = await _call(max_tokens * 2)
-        except Exception as exc:
-            raise AIClientError(f"Anthropic API error: {exc}") from exc
+                    if temp_deprecated:
+                        logger.info(
+                            "Anthropic model %s rejected temperature; retrying without it.",
+                            self.model,
+                        )
+                        response = await _call(max_tokens, include_temperature=False)
+                    else:
+                        raise
+                # Auto-retry once on max_tokens truncation
+                if getattr(response, "stop_reason", None) == "max_tokens":
+                    logger.info(
+                        "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
+                        max_tokens, self.model,
+                    )
+                    response = await _call(max_tokens * 2)
+                break  # success
+            except Exception as exc:
+                if _is_transient(exc) and attempt < _MAX_RETRIES:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "Anthropic transient error (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1, _MAX_RETRIES + 1, exc, delay,
+                    )
+                    last_exc = exc
+                    await _asyncio_mod.sleep(delay)
+                    continue
+                raise AIClientError(f"Anthropic API error: {exc}") from exc
+        else:
+            raise AIClientError(f"Anthropic API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
 
         # response.content is a list of content blocks; we want the text from the first text block
         for block in response.content:
@@ -252,47 +287,51 @@ class AIClient:
                     return await client.chat.completions.create(**retry)
                 raise
 
-        try:
-            response = await _do_call(request_kwargs)
-            # Always log the finish_reason so truncation issues are easy to
-            # diagnose in production. OpenAI exposes 'stop' | 'length' |
-            # 'content_filter' | 'tool_calls' | 'function_call' for chat
-            # completions. Some gpt-5 sub-versions have been observed
-            # returning 'length' on overflow; others may use different codes.
-            finish_reason = (
-                response.choices[0].finish_reason if response.choices else None
-            )
-            logger.info(
-                "OpenAI response for %s: finish_reason=%s, length=%d chars",
-                self.model, finish_reason,
-                len(response.choices[0].message.content or "") if response.choices else 0,
-            )
-            # Auto-retry once when the model clearly ran out of output budget.
-            # Also catch the gpt-5 'incomplete' code (some sub-versions use it
-            # instead of 'length') and any non-'stop' code with suspiciously
-            # truncated output (last 20 chars don't end with } or ] or "), as
-            # a belt-and-suspenders catch for new finish_reason variants.
-            content = response.choices[0].message.content if response.choices else ""
-            looks_truncated = (
-                content and not content.rstrip().endswith(("}", "]", "\"", ".", "`"))
-            )
-            should_retry = (
-                finish_reason in ("length", "incomplete")
-                or (finish_reason != "stop" and looks_truncated)
-            )
-            if should_retry:
-                logger.info(
-                    "Retrying for model %s (finish_reason=%s, looks_truncated=%s) "
-                    "with doubled max_completion_tokens.",
-                    self.model, finish_reason, looks_truncated,
+        last_exc: Optional[Exception] = None
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                response = await _do_call(request_kwargs)
+                finish_reason = (
+                    response.choices[0].finish_reason if response.choices else None
                 )
-                bumped = {
-                    **request_kwargs,
-                    "max_completion_tokens": request_kwargs["max_completion_tokens"] * 2,
-                }
-                response = await _do_call(bumped)
-        except Exception as exc:
-            raise AIClientError(f"OpenAI API error: {exc}") from exc
+                logger.info(
+                    "OpenAI response for %s: finish_reason=%s, length=%d chars",
+                    self.model, finish_reason,
+                    len(response.choices[0].message.content or "") if response.choices else 0,
+                )
+                content = response.choices[0].message.content if response.choices else ""
+                looks_truncated = (
+                    content and not content.rstrip().endswith(("}", "]", "\"", ".", "`"))
+                )
+                should_retry = (
+                    finish_reason in ("length", "incomplete")
+                    or (finish_reason != "stop" and looks_truncated)
+                )
+                if should_retry:
+                    logger.info(
+                        "Retrying for model %s (finish_reason=%s, looks_truncated=%s) "
+                        "with doubled max_completion_tokens.",
+                        self.model, finish_reason, looks_truncated,
+                    )
+                    bumped = {
+                        **request_kwargs,
+                        "max_completion_tokens": request_kwargs["max_completion_tokens"] * 2,
+                    }
+                    response = await _do_call(bumped)
+                break  # success
+            except Exception as exc:
+                if _is_transient(exc) and attempt < _MAX_RETRIES:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "OpenAI transient error (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1, _MAX_RETRIES + 1, exc, delay,
+                    )
+                    last_exc = exc
+                    await _asyncio_mod.sleep(delay)
+                    continue
+                raise AIClientError(f"OpenAI API error: {exc}") from exc
+        else:
+            raise AIClientError(f"OpenAI API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
 
         text = response.choices[0].message.content
         if not text:
