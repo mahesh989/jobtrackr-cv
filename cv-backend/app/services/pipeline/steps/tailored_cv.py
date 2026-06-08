@@ -73,7 +73,8 @@ async def run_tailored_cv(
 
     # Stamp the user's saved contact details onto the contact line so the
     # output is consistent regardless of what the AI emitted.
-    final_md = stamp_contact_line(enforced_md, contact_details)
+    role_family_id = jd_analysis.get("role_family")
+    final_md = stamp_contact_line(enforced_md, contact_details, role_family_id=role_family_id)
 
     storage_path = _upload_to_storage(user_id, run_id, final_md)
     return final_md, storage_path

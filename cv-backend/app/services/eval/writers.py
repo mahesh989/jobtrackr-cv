@@ -157,11 +157,12 @@ def _postprocess(
     markdown: str,
     feasibility: Dict[str, Any],
     contact_details: Optional[Dict[str, Any]],
+    role_family_id: Optional[str] = None,
 ) -> str:
     """Apply the production deterministic post-processors. Same for every variant."""
     enforced = _enforce_structure(markdown.strip())
     with_skills = _inject_missing_skills(enforced, feasibility)
-    return stamp_contact_line(with_skills, contact_details)
+    return stamp_contact_line(with_skills, contact_details, role_family_id=role_family_id)
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +236,8 @@ async def _writer_w2_general(
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W2 tailored CV: response too short")
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    role_family_id = up["jd_analysis"].get("role_family")
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family_id)
     return WriterResult(
         tailored_md=final_md,
         jd_analysis=up["jd_analysis"],
@@ -275,7 +277,8 @@ async def _writer_w4_chat(
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W4 tailored CV: response too short")
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    role_family_id = up["jd_analysis"].get("role_family")
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family_id)
     return WriterResult(
         tailored_md=final_md,
         jd_analysis=up["jd_analysis"],
@@ -330,7 +333,7 @@ async def _writer_w3_composition(
 
     # Production post-processors, then deterministic W3 gates (the rules that
     # kept failing as prompt prose), then skills hygiene.
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family.id)
     final_md = apply_w3_gates(
         final_md,
         jd_text=jd_text,
@@ -3726,7 +3729,7 @@ async def _writer_w5_surfacing(
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W5 tailored CV: response too short")
 
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family.id)
     final_md = apply_w3_gates(
         final_md,
         jd_text=jd_text,
@@ -3790,7 +3793,8 @@ async def _writer_w6_general(
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W6 tailored CV: response too short")
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    role_family_id = up["jd_analysis"].get("role_family")
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family_id)
     return WriterResult(
         tailored_md=final_md,
         jd_analysis=up["jd_analysis"],
@@ -3841,7 +3845,7 @@ async def _writer_w7_converged(
     role_family = resolve_role_family(vertical, up["jd_analysis"])
 
     # Production post-processors → W3 deterministic gates → skills hygiene.
-    final_md = _postprocess(raw, up["feasibility"], contact_details)
+    final_md = _postprocess(raw, up["feasibility"], contact_details, role_family_id=role_family.id)
     final_md = apply_w3_gates(
         final_md,
         jd_text=jd_text,
