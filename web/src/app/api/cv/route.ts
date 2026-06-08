@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { cv_id?: string; label?: string; storage_path?: string };
+  let body: { cv_id?: string; label?: string; storage_path?: string; provider?: string };
   try {
     body = await req.json();
   } catch {
@@ -151,7 +151,14 @@ export async function POST(req: NextRequest) {
   type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
   const keyByProvider = new Map<Provider, KeyRow>();
   for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
+  const preferredProvider = (body.provider && PROVIDER_PRIORITY.includes(body.provider as Provider))
+    ? (body.provider as Provider)
+    : null;
+
+  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
+    ? preferredProvider
+    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
 
   if (chosen) {
     const k = keyByProvider.get(chosen)!;

@@ -57,7 +57,13 @@ export async function POST(
   type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
   const keyByProvider = new Map<Provider, KeyRow>();
   for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
+  const { searchParams } = new URL(_req.url);
+  const preferredProvider = searchParams.get("provider") as Provider | null;
+
+  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
+    ? preferredProvider
+    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
 
   if (!chosen) {
     return NextResponse.json(
