@@ -155,6 +155,15 @@ export function SmartToolbar({
       next.delete(chip.kind);
     } else {
       next.set(chip.kind, chip.value);
+      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
+      if (chip.value === "analysed" || chip.value === "cvReady" || chip.value === "letterReady" || chip.value === "applied") {
+        if (next.get("ats") === "no_ats") {
+          next.delete("ats");
+        }
+        if (chip.value === "analysed" && next.get("sort") === "last_analysed") {
+          next.delete("sort");
+        }
+      }
     }
     commit(next, chip.kind);
   }
@@ -176,6 +185,16 @@ export function SmartToolbar({
       next.delete("ats");
     } else {
       next.set("ats", band);
+      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
+      if (band === "no_ats") {
+        const st = next.get("stage");
+        if (st === "analysed" || st === "cvReady" || st === "letterReady" || st === "applied") {
+          next.delete("stage");
+        }
+        if (next.get("sort") === "last_analysed") {
+          next.delete("sort");
+        }
+      }
     }
     commit(next, "ats");
   }
@@ -187,6 +206,13 @@ export function SmartToolbar({
       next.delete("sort");
     } else {
       next.set("sort", "last_analysed");
+      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
+      if (next.get("ats") === "no_ats") {
+        next.delete("ats");
+      }
+      if (next.get("stage") === "analysed") {
+        next.delete("stage");
+      }
     }
     commit(next, "sort");
   }
@@ -204,7 +230,7 @@ export function SmartToolbar({
     { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",           dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
   ];
   const JDS_CHIPS: StageChip[] = [
-    { id: "thinJd",      label: "Thin JD",      kind: "stage",  value: "thinJd",      countKey: "thinJd"      },
+    { id: "thinJd",      label: "Thin JD",      kind: "triage",  value: "thinJd",      countKey: "thinJd"      },
     { id: "richJd",      label: "Full JD",      kind: "triage", value: "richJd",      countKey: "richJd"      },
   ];
 
