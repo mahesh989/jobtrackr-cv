@@ -37,6 +37,7 @@ const SORT_OPTIONS = [
   { value: "recently_progressed", label: "Recently progressed" },
   { value: "most_progressed",     label: "Most progressed" },
   { value: "distance",            label: "Distance (nearest)" },
+  { value: "ats_score",           label: "ATS score (lowest first)" },
 ] as const;
 
 // "over50" is a sentinel — it filters to jobs *farther* than 50 km by setting
@@ -108,8 +109,14 @@ export function SmartToolbar({
     !currentMaxDistance && Number(currentMinDistance) >= 50 ? "over50" : currentMaxDistance;
 
   function commit(params: URLSearchParams, key: string) {
+    // Any transition that either enters or leaves the Archive (dismissed)
+    // view must refetch the dataset — Archive uses a different server query
+    // (dismissed_at IS NOT NULL). Without this, clicking Full JD while in
+    // Archive would shallow-nav and silently keep the archived dataset
+    // filtered to rich JDs.
+    const nextStage = params.get("stage");
     const isDismissedTransition =
-      (key === "stage" && (params.get("stage") === "dismissed" || currentStage === "dismissed"));
+      currentStage === "dismissed" || nextStage === "dismissed";
 
     if (SHALLOW_KEYS.has(key) && !isDismissedTransition) {
       shallowSetParams(pathname, params);
@@ -150,11 +157,21 @@ export function SmartToolbar({
     next.delete("stage");
     next.delete("triage");
     next.delete("ats");
-    if (next.get("sort") === "last_analysed") {
+    // Drop chip-driven sorts so a fresh chip selection picks the right one.
+    // (Manual sorts from the dropdown survive unless the chip below overrides.)
+    const chipSorts = new Set(["last_analysed", "ats_score", "distance"]);
+    if (chipSorts.has(next.get("sort") || "")) {
       next.delete("sort");
+      next.delete("dir");
     }
     return next;
   }
+
+  /** Stage chips that should default to distance-grouped + ascending sort
+   *  when activated (the distance grouping is decided by pickGroupMode; the
+   *  sort key just keeps "Distance (nearest)" visible in the dropdown so
+   *  the dropdown and the rendered groups agree). */
+  const _DISTANCE_GROUPED_STAGES = new Set(["cvReady", "letterReady", "applied"]);
 
   function selectStageChip(chip: StageChip) {
     const next = getCleanParams();
@@ -162,9 +179,19 @@ export function SmartToolbar({
       ? currentStage === chip.value
       : currentTriage === chip.value;
     if (isActive) {
-      // Toggle off — getCleanParams already cleared it
+      // Toggle off — getCleanParams already cleared it; reset the sort too
+      // so the dropdown returns to "Date posted" when no chip is on.
+      next.delete("sort");
+      next.delete("dir");
     } else {
       next.set(chip.kind, chip.value);
+      // Default sort for the distance-grouped stages: closest first inside
+      // each band. Industry-grade default — the structural grouping decides
+      // the bands, the sort decides the ordering inside each band.
+      if (chip.kind === "stage" && _DISTANCE_GROUPED_STAGES.has(chip.value)) {
+        next.set("sort", "distance");
+        next.delete("dir"); // distance is always ascending in sortJobs
+      }
     }
     commit(next, chip.kind);
   }
@@ -181,9 +208,18 @@ export function SmartToolbar({
   function selectAtsChip(band: AtsBand) {
     const next = getCleanParams();
     if (currentAts === band) {
-      // Toggle off — getCleanParams already cleared it
+      // Toggle off — getCleanParams already cleared it; reset the sort too.
+      next.delete("sort");
+      next.delete("dir");
     } else {
       next.set("ats", band);
+      // ATS chips default to ATS-score ascending — the "find borderline ones
+      // first" use case. The user can still override via the Sort dropdown.
+      // no_ats has no scores to sort, so keep the default for that band.
+      if (band !== "no_ats") {
+        next.set("sort", "ats_score");
+        next.set("dir",  "asc");
+      }
     }
     commit(next, "ats");
   }

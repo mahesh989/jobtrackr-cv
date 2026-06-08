@@ -8,7 +8,7 @@ import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { type ThinJdJob } from "./BulkThinJdButton";
-import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
@@ -54,6 +54,8 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
   recently_progressed: "Recently progressed",
   most_progressed:     "Most progressed",
   distance:            "Distance (nearest)",
+  ats_score:           "ATS score (lowest first)",
+  last_analysed:       "Recently analysed",
 };
 
 /**
@@ -97,6 +99,14 @@ export function JobBoard({
     // (min/max km) still applies meaningfully across the global feed.
     () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
+  );
+
+  // Group mode is decided from the URL state — Analysed/Not-analysed → time
+  // buckets, CV/Letter/Applied + sort=distance → distance buckets. Once a
+  // grouping is active, jobs inside each bucket honour the current sort.
+  const groups = useMemo(
+    () => buildGroups(filtered, pickGroupMode({ stage, ats, sortCol })),
+    [filtered, stage, ats, sortCol],
   );
 
   // ATS-band counts derived from the *unfiltered* loaded set — used by the
@@ -219,6 +229,7 @@ export function JobBoard({
           is the whole point. */}
       <SmartFeed
         jobs={filtered}
+        groups={groups ?? undefined}
         hasActiveFilter={hasActiveFilter || sortCol !== "posted_at"}
         currentTab={stage}
         counts={counts}

@@ -38,7 +38,7 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
-import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
+import { jobNeedsJd, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton } from "./SelectModeButton";
@@ -169,7 +169,9 @@ function pickScore(j: BoardJob): number {
 }
 
 interface FeedSection {
-  id: "picks" | "closest" | "fresh" | "attention" | "rest";
+  /** Built-in smart-section ids OR a custom string for grouped views
+   *  (time/distance buckets surfaced by JobBoard). */
+  id: string;
   label: string;
   caption: string;
   tone: "brand" | "green" | "amber" | "muted";
@@ -178,26 +180,49 @@ interface FeedSection {
   hero?: boolean; // render top picks with the elevated hero card
 }
 
+/** Ascending-distance comparator. Null distances sink to the bottom so an
+ *  unresolved location can't claim a top slot inside any section. */
+function byDistanceAsc(a: BoardJob, b: BoardJob): number {
+  const aNull = a.distance_km == null;
+  const bNull = b.distance_km == null;
+  if (aNull && bNull) return 0;
+  if (aNull) return 1;
+  if (bNull) return -1;
+  return (a.distance_km as number) - (b.distance_km as number);
+}
+
 function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   if (jobs.length === 0) return [];
   const active = jobs.filter((j) => !j.applied_at && !j.dismissed_at);
   const placed = new Set<string>();
 
-  const picks = [...active].sort((a, b) => pickScore(b) - pickScore(a)).slice(0, 3);
+  // Picks: rank by pickScore (today's best), then break ties by distance.
+  const picks = [...active]
+    .sort((a, b) => {
+      const d = pickScore(b) - pickScore(a);
+      return d !== 0 ? d : byDistanceAsc(a, b);
+    })
+    .slice(0, 3);
   picks.forEach((j) => placed.add(j.id));
 
   const closest = active
     .filter((j) => !placed.has(j.id) && j.distance_km != null && j.distance_km <= 15)
-    .sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0));
+    .sort(byDistanceAsc);
   closest.forEach((j) => placed.add(j.id));
 
-  const fresh = active.filter((j) => !placed.has(j.id) && isPostedToday(j));
+  // Every other section also sorts by distance ascending so the dashboard
+  // reads consistently top-to-bottom — closest first, unknown distance last.
+  const fresh = active
+    .filter((j) => !placed.has(j.id) && isPostedToday(j))
+    .sort(byDistanceAsc);
   fresh.forEach((j) => placed.add(j.id));
 
-  const attention = active.filter((j) => !placed.has(j.id) && jobNeedsJd(j));
+  const attention = active
+    .filter((j) => !placed.has(j.id) && jobNeedsJd(j))
+    .sort(byDistanceAsc);
   attention.forEach((j) => placed.add(j.id));
 
-  const rest = jobs.filter((j) => !placed.has(j.id));
+  const rest = jobs.filter((j) => !placed.has(j.id)).sort(byDistanceAsc);
 
   const out: FeedSection[] = [];
   if (picks.length     > 0) out.push({ id: "picks",     label: "Today's picks",   caption: "Best matches across distance, ATS band, and freshness", tone: "brand", Icon: Sparkles,      jobs: picks, hero: true });
@@ -224,6 +249,7 @@ const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
 
 export function SmartFeed({
   jobs,
+  groups,
   hasActiveFilter,
   currentTab,
   counts,
@@ -233,6 +259,10 @@ export function SmartFeed({
 }: {
   /** Pre-filtered + pre-sorted by the parent board. */
   jobs:            BoardJob[];
+  /** When provided, render the flat list as labelled groups (time / distance
+   *  buckets) instead of a single sorted list. Total job count across groups
+   *  should match `jobs`; the same id should not appear twice. */
+  groups?:         JobGroup[];
   /** True when stage/triage/ATS view filters are active. Switches the feed
    *  from smart-section mode to flat-list mode. */
   hasActiveFilter: boolean;
@@ -403,6 +433,7 @@ export function SmartFeed({
         <JobSelectionContext.Provider value={selectionValue}>
           <SmartFeedBody
             jobs={jobs}
+            groups={groups}
             hasActiveFilter={hasActiveFilter}
             currentTab={currentTab}
             distanceMax={distanceMax}
@@ -516,10 +547,11 @@ function useJobSelection(): JobSelectionCtx | null {
 }
 
 function SmartFeedBody({
-  jobs, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
+  jobs, groups, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
   activeSelectModes, onToggleSelectMode,
 }: {
   jobs: BoardJob[];
+  groups?: JobGroup[];
   hasActiveFilter: boolean;
   currentTab: string;
   distanceMax: number;
@@ -531,9 +563,25 @@ function SmartFeedBody({
   const sp       = useSearchParams();
   const pathname = usePathname();
 
+  // Three rendering modes, in priority order:
+  //   1. groups   → explicit time/distance bucketing (the parent decided)
+  //   2. !filter  → smart sections (Today's picks · Closest · …)
+  //   3. otherwise→ flat sorted list (the parent already sorted it)
+  const groupSections: FeedSection[] | null = useMemo(() => {
+    if (!groups || groups.length === 0) return null;
+    return groups.map((g) => ({
+      id:     g.id as FeedSection["id"],
+      label:  g.label,
+      caption: g.caption ?? "",
+      tone:   "muted",
+      Icon:   Inbox,
+      jobs:   g.jobs,
+    }));
+  }, [groups]);
+
   const sections = useMemo(
-    () => (hasActiveFilter ? null : bucketJobs(jobs)),
-    [hasActiveFilter, jobs],
+    () => groupSections ?? (hasActiveFilter ? null : bucketJobs(jobs)),
+    [groupSections, hasActiveFilter, jobs],
   );
 
   // Distance-range URL state for the ribbon's draggable handles. min_distance

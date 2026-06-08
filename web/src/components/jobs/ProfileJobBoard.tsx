@@ -7,7 +7,7 @@ import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive
 import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
-import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
@@ -50,6 +50,8 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
   recently_progressed: "Recently progressed",
   most_progressed:     "Most progressed",
   distance:            "Distance (nearest)",
+  ats_score:           "ATS score (lowest first)",
+  last_analysed:       "Recently analysed",
 };
 
 /**
@@ -93,6 +95,14 @@ export function ProfileJobBoard({
   const filtered = useMemo(
     () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
+  );
+
+  // Group mode mirrors JobBoard — Analysed/Not-analysed → time buckets;
+  // CV/Letter/Applied + sort=distance → distance buckets. Saved-Jobs profile
+  // (isManual) skips grouping entirely so the manual list stays flat.
+  const groups = useMemo(
+    () => (isManual ? null : buildGroups(filtered, pickGroupMode({ stage, ats, sortCol }))),
+    [filtered, stage, ats, sortCol, isManual],
   );
 
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {
@@ -196,6 +206,7 @@ export function ProfileJobBoard({
           is the whole point. */}
       <SmartFeed
         jobs={filtered}
+        groups={groups ?? undefined}
         hasActiveFilter={isManual || hasActiveFilter || sortCol !== "posted_at"}
         currentTab={stage}
         counts={counts}
