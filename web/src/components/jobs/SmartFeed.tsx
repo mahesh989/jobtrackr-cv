@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
-import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
+import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
@@ -1090,7 +1090,14 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
       {!compact && <ProgressDots progress={job.progress} />}
       <div className="flex items-center gap-1.5">
         {compact && <ProgressDots progress={job.progress} />}
-        <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
+        {job.progress.has_analysis && job.progress.latest_run_id ? (
+          <FullAnalysisButton
+            jobId={job.id}
+            analysisHref={`/dashboard/jobs/${job.id}/analyze/${job.progress.latest_run_id}`}
+          />
+        ) : (
+          <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
+        )}
         <CardMenu
           onApply={onApply}
           onDismiss={onDismiss}

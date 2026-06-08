@@ -24,7 +24,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { BarChart3, FileText, Mail, CheckCircle2, FileWarning, FileQuestion } from "lucide-react";
 import { markJobApplied, markJobDismissed } from "@/lib/actions";
-import { AnalyzeJobButton } from "@/components/cv/AnalyzeJobButton";
+import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { JobProgress } from "./progressFlags";
 import { useJobBoardSettings } from "./JobBoardSettings";
@@ -432,7 +432,14 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
-            <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
+            {job.progress.has_analysis && job.progress.latest_run_id ? (
+              <FullAnalysisButton
+                jobId={job.id}
+                analysisHref={`/dashboard/jobs/${job.id}/analyze/${job.progress.latest_run_id}`}
+              />
+            ) : (
+              <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
+            )}
             <RowMenu
               job={job}
               pending={isPending}
