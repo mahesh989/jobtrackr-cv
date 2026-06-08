@@ -428,11 +428,19 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             className={`${showVisa ? "col-span-2" : "col-span-3"} relative flex items-center justify-end gap-1.5`}
             onClick={(e) => e.stopPropagation()}
           >
-            {job.progress.has_analysis && job.progress.latest_run_id ? (
+            {job.progress.latest_run_id ? (
               <FullAnalysisButton
                 jobId={job.id}
                 analysisHref={`/dashboard/jobs/${job.id}/analyze/${job.progress.latest_run_id}`}
               />
+            ) : job.applied_at ? (
+              <button
+                disabled
+                className="flex items-center gap-1.5 rounded-md bg-[var(--surface-2)] border border-border px-2.5 py-1 text-xs font-medium text-text-3 cursor-not-allowed"
+                title="This job was manually marked as applied and has no analysis run."
+              >
+                No Analysis
+              </button>
             ) : (
               <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
             )}

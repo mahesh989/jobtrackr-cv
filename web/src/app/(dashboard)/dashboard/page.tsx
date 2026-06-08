@@ -201,7 +201,6 @@ export default async function DashboardPage({
         .from("analysis_runs")
         .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
         .in("job_id", jobIds)
-        .eq("is_stale", false)
         .order("created_at", { ascending: false })
     : { data: [] as AnalysisRunRef[] };
 
@@ -210,7 +209,6 @@ export default async function DashboardPage({
         .from("cover_letters")
         .select("id, job_id, status, completed_at, created_at")
         .in("job_id", jobIds)
-        .eq("is_stale", false)
         .order("created_at", { ascending: false })
     : { data: [] as CoverLetterRef[] };
 
@@ -314,13 +312,11 @@ export default async function DashboardPage({
         supabase
           .from("analysis_runs")
           .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("is_stale", false)
           .eq("status", "completed")
           .in("job_id", jobIdsForCounts),
         supabase
           .from("cover_letters")
           .select("job_id")
-          .eq("is_stale", false)
           .eq("status", "completed")
           .in("job_id", jobIdsForCounts)
       ])
