@@ -71,14 +71,6 @@ const ANALYSIS_CHIPS: StageChip[] = [
   { id: "analysed",  label: "Analysed",  kind: "stage", value: "analysed", countKey: "analysed" as keyof FunnelCounts },
 ];
 
-const STAGE_CHIPS_NEW: StageChip[] = [
-  { id: "thinJd",      label: "Thin JD",      kind: "stage",  value: "thinJd",      countKey: "thinJd"      },
-  { id: "richJd",      label: "Full JD",      kind: "triage", value: "richJd",      countKey: "richJd"      },
-  { id: "cvReady",     label: "CV ready",     kind: "stage",  value: "cvReady",     countKey: "cvReady"     },
-  { id: "letterReady", label: "Letter ready", kind: "stage",  value: "letterReady", countKey: "letterReady" },
-  { id: "applied",     label: "Applied",      kind: "stage",  value: "applied",     countKey: "applied"     },
-];
-
 // View-filter URL keys → committed via the History API for instant feedback.
 
 // View-filter URL keys → committed via the History API for instant feedback.
@@ -189,12 +181,22 @@ export function SmartToolbar({
     { id: "below_initial", label: `ATS < ${thresholds.initial}`,     tip: `Below the initial gate (${thresholds.initial}) — pipeline stopped`,         dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800"   },
     { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",           dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
   ];
+  const JDS_CHIPS: StageChip[] = [
+    { id: "thinJd",      label: "Thin JD",      kind: "stage",  value: "thinJd",      countKey: "thinJd"      },
+    { id: "richJd",      label: "Full JD",      kind: "triage", value: "richJd",      countKey: "richJd"      },
+  ];
+
+  const STAGES_CHIPS: StageChip[] = [
+    { id: "cvReady",     label: "CV ready",     kind: "stage",  value: "cvReady",     countKey: "cvReady"     },
+    { id: "letterReady", label: "Letter ready", kind: "stage",  value: "letterReady", countKey: "letterReady" },
+    { id: "applied",     label: "Applied",      kind: "stage",  value: "applied",     countKey: "applied"     },
+  ];
 
   return (
-    <div className="rounded-md border border-border bg-surface p-3 space-y-3">
-      {/* Row 1 — location search, sort, optional distance */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
+    <div className="rounded-md border border-border bg-surface p-3 space-y-4">
+      {/* Row 1 — location search, sort, distance */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-[400px]">
           <input
             type="text"
             defaultValue={currentLocation}
@@ -206,7 +208,7 @@ export function SmartToolbar({
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
             placeholder="Filter by location or company…"
-            className="field pl-3 pr-8 text-[12px]"
+            className="field pl-3 pr-8 text-[12px] w-full"
           />
           {currentLocation && (
             <button
@@ -232,10 +234,7 @@ export function SmartToolbar({
             ))}
           </select>
         </label>
-      </div>
 
-      {/* Distance row — right-aligned to line up with Sort above it. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
         <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
           Distance
           <select
@@ -251,173 +250,209 @@ export function SmartToolbar({
         </label>
       </div>
 
-      {/* Row 2 — Jobs: All jobs, Favourite, Archive */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Jobs</span>
-
-        <button
-          type="button"
-          onClick={clearStageAndTriage}
-          title="Clear stage filter — show everything"
-          className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-            allJobsActive
-              ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
-              : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-          }`}
-        >
-          All jobs
-          <span className={`tabular-nums ${allJobsActive ? "text-white/80" : "text-text-3"}`}>
-            {counts.discovered}
-          </span>
-        </button>
-
-        {JOBS_CHIPS.map((chip) => {
-          const active = isStageActive(chip);
-          const count  = counts[chip.countKey] ?? 0;
-          return (
+      <div className="space-y-3">
+        {/* Inline 1: Jobs, Analysis, ATS */}
+        <div className="flex flex-wrap items-center gap-y-2 gap-x-6">
+          {/* Jobs Group */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Jobs</span>
             <button
-              key={chip.id}
               type="button"
-              onClick={() => selectStageChip(chip)}
-              disabled={count === 0 && !active}
+              onClick={clearStageAndTriage}
+              title="Clear stage filter — show everything"
               className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                active
+                allJobsActive
                   ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
-                  : count === 0
-                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
-                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
               }`}
             >
-              {chip.label}
-              {count > 0 && (
-                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
-              )}
+              All jobs
+              <span className={`tabular-nums ${allJobsActive ? "text-white/80" : "text-text-3"}`}>
+                {counts.discovered}
+              </span>
             </button>
-          );
-        })}
-      </div>
 
-      {/* Row 3 — Analysis: Analysed, Not analysed */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Analysis</span>
-        {ANALYSIS_CHIPS.map((chip) => {
-          const active = isStageActive(chip);
-          const count  = counts[chip.countKey] ?? 0;
-          return (
-            <button
-              key={chip.id}
-              type="button"
-              onClick={() => selectStageChip(chip)}
-              disabled={count === 0 && !active}
-              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                active
-                  ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
-                  : count === 0
-                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
-                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              {chip.label}
-              {count > 0 && (
-                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
-        {/* Render "Not analysed" from atsBands here instead of ATS row */}
-        {(() => {
-          const notAnalysedBand = atsBands.find(b => b.id === "no_ats");
-          if (!notAnalysedBand) return null;
-          const active = currentAts === "no_ats";
-          const count  = atsCounts["no_ats"] ?? 0;
-          return (
-            <button
-              key="not_analysed"
-              type="button"
-              onClick={() => selectAtsChip("no_ats")}
-              title={notAnalysedBand.tip}
-              disabled={count === 0 && !active}
-              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                active
-                  ? `${notAnalysedBand.chipBg} ${notAnalysedBand.chipText} border-current font-medium`
-                  : count === 0
-                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
-                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${notAnalysedBand.dot}`} />
-              {notAnalysedBand.label}
-              {count > 0 && (
-                <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
-              )}
-            </button>
-          );
-        })()}
-      </div>
+            {JOBS_CHIPS.map((chip) => {
+              const active = isStageActive(chip);
+              const count  = counts[chip.countKey] ?? 0;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => selectStageChip(chip)}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {chip.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Row 4 — Stage: Thin JD, Full JD, CV ready, Letter ready, Applied */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Stage</span>
-        {STAGE_CHIPS_NEW.map((chip) => {
-          const active = isStageActive(chip);
-          const count  = counts[chip.countKey] ?? 0;
-          return (
-            <button
-              key={chip.id}
-              type="button"
-              onClick={() => selectStageChip(chip)}
-              disabled={count === 0 && !active}
-              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                active
-                  ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
-                  : count === 0
-                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
-                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              {chip.label}
-              {count > 0 && (
-                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+          {/* Analysis Group */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0">Analysis</span>
+            {ANALYSIS_CHIPS.map((chip) => {
+              const active = isStageActive(chip);
+              const count  = counts[chip.countKey] ?? 0;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => selectStageChip(chip)}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {chip.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+            {/* Render "Not analysed" from atsBands here instead of ATS row */}
+            {(() => {
+              const notAnalysedBand = atsBands.find(b => b.id === "no_ats");
+              if (!notAnalysedBand) return null;
+              const active = currentAts === "no_ats";
+              const count  = atsCounts["no_ats"] ?? 0;
+              return (
+                <button
+                  key="not_analysed"
+                  type="button"
+                  onClick={() => selectAtsChip("no_ats")}
+                  title={notAnalysedBand.tip}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? `${notAnalysedBand.chipBg} ${notAnalysedBand.chipText} border-current font-medium`
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${notAnalysedBand.dot}`} />
+                  {notAnalysedBand.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })()}
+          </div>
 
-      {/* Row 5 — ATS: ATS >= 70, ATS 60-69, ATS < 60 */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span
-          className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0"
-          title={`ATS gates: initial ${thresholds.initial} (must pass to tailor), final ${thresholds.final} (auto cover letter)`}
-        >
-          ATS
-        </span>
-        {atsBands.filter(b => b.id !== "no_ats").map((b) => {
-          const active = currentAts === b.id;
-          const count  = atsCounts[b.id] ?? 0;
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => selectAtsChip(b.id)}
-              title={b.tip}
-              disabled={count === 0 && !active}
-              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-                active
-                  ? `${b.chipBg} ${b.chipText} border-current font-medium`
-                  : count === 0
-                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
-                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-              }`}
+          {/* ATS Group */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0"
+              title={`ATS gates: initial ${thresholds.initial} (must pass to tailor), final ${thresholds.final} (auto cover letter)`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
-              {b.label}
-              {count > 0 && (
-                <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
+              ATS
+            </span>
+            {atsBands.filter(b => b.id !== "no_ats").map((b) => {
+              const active = currentAts === b.id;
+              const count  = atsCounts[b.id] ?? 0;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => selectAtsChip(b.id)}
+                  title={b.tip}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? `${b.chipBg} ${b.chipText} border-current font-medium`
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
+                  {b.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Inline 2: Stages, JDs */}
+        <div className="flex flex-wrap items-center gap-y-2 gap-x-6">
+          {/* Stages Group */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Stages</span>
+            {STAGES_CHIPS.map((chip) => {
+              const active = isStageActive(chip);
+              const count  = counts[chip.countKey] ?? 0;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => selectStageChip(chip)}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {chip.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* JDs Group */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0">JDs</span>
+            {JDS_CHIPS.map((chip) => {
+              const active = isStageActive(chip);
+              const count  = counts[chip.countKey] ?? 0;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => selectStageChip(chip)}
+                  disabled={count === 0 && !active}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                      : count === 0
+                        ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                        : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {chip.label}
+                  {count > 0 && (
+                    <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
