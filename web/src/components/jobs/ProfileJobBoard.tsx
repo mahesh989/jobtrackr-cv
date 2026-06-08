@@ -66,6 +66,7 @@ export function ProfileJobBoard({
   railJobs,
   homeAddress = null,
   thresholds,
+  isManual = false,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
@@ -74,6 +75,8 @@ export function ProfileJobBoard({
    *  "Within X km" distance filter and the distance ribbon renders. */
   homeAddress?: string | null;
   thresholds?:  AtsThresholds;
+  /** When true (Saved Jobs profile), always renders flat list — no smart sections. */
+  isManual?:    boolean;
 }) {
   const sp = useSearchParams();
   const pathname = usePathname();
@@ -193,7 +196,7 @@ export function ProfileJobBoard({
           is the whole point. */}
       <SmartFeed
         jobs={filtered}
-        hasActiveFilter={hasActiveFilter || sortCol !== "posted_at"}
+        hasActiveFilter={isManual || hasActiveFilter || sortCol !== "posted_at"}
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
