@@ -7,7 +7,7 @@ import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive
 import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
-import { BulkThinJdButton, type ThinJdJob } from "./BulkThinJdButton";
+import { type ThinJdJob } from "./BulkThinJdButton";
 import { filterJobs, sortJobs, FILTER_LABELS, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 
@@ -203,7 +203,6 @@ export function JobBoard({
             </Link>
           )}
         </div>
-        <BulkThinJdButton jobs={thinJdJobs} />
       </div>
 
       <ContinueRail jobs={railJobs} currentTab={stage} />

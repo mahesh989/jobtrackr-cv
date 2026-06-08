@@ -26,6 +26,7 @@ export interface FunnelCounts {
   letterReady: number;
   applied: number;
   dismissed: number;
+  favourite: number;
   newCount: number;
   needsJd: number;      // kept for compat
   roleMismatch: number;

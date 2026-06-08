@@ -62,14 +62,21 @@ interface StageChip {
   countKey: keyof FunnelCounts;
 }
 
-const STAGE_CHIPS: StageChip[] = [
+const JOBS_CHIPS: StageChip[] = [
+  { id: "favourite", label: "Favourite", kind: "stage", value: "favourite", countKey: "favourite" as keyof FunnelCounts },
+  { id: "dismissed", label: "Archive",   kind: "stage", value: "dismissed", countKey: "dismissed" as keyof FunnelCounts },
+];
+
+const ANALYSIS_CHIPS: StageChip[] = [
+  { id: "analysed",  label: "Analysed",  kind: "stage", value: "analysed", countKey: "analysed" as keyof FunnelCounts },
+];
+
+const STAGE_CHIPS_NEW: StageChip[] = [
   { id: "thinJd",      label: "Thin JD",      kind: "stage",  value: "thinJd",      countKey: "thinJd"      },
   { id: "richJd",      label: "Full JD",      kind: "triage", value: "richJd",      countKey: "richJd"      },
-  { id: "analysed",    label: "Analysed",     kind: "stage",  value: "analysed",    countKey: "analysed"    },
   { id: "cvReady",     label: "CV ready",     kind: "stage",  value: "cvReady",     countKey: "cvReady"     },
   { id: "letterReady", label: "Letter ready", kind: "stage",  value: "letterReady", countKey: "letterReady" },
   { id: "applied",     label: "Applied",      kind: "stage",  value: "applied",     countKey: "applied"     },
-  { id: "dismissed",   label: "Archived",     kind: "stage",  value: "dismissed",   countKey: "dismissed"   },
 ];
 
 // View-filter URL keys → committed via the History API for instant feedback.
@@ -276,10 +283,9 @@ export function SmartToolbar({
         </label>
       </div>
 
-      {/* Row 2 — "All jobs" reset chip + stage chips with live counts.
-          Zero counts render without the badge to keep chips clean. */}
+      {/* Row 2 — Jobs: All jobs, Favourite, Archive */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Stage</span>
+        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Jobs</span>
 
         <button
           type="button"
@@ -297,7 +303,7 @@ export function SmartToolbar({
           </span>
         </button>
 
-        {STAGE_CHIPS.map((chip) => {
+        {JOBS_CHIPS.map((chip) => {
           const active = isStageActive(chip);
           const count  = counts[chip.countKey] ?? 0;
           return (
@@ -323,8 +329,94 @@ export function SmartToolbar({
         })}
       </div>
 
-      {/* Row 3 — ATS band chips with counts, colour-coded per band.
-          Same rule: hide the count when zero. */}
+      {/* Row 3 — Analysis: Analysed, Not analysed */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Analysis</span>
+        {ANALYSIS_CHIPS.map((chip) => {
+          const active = isStageActive(chip);
+          const count  = counts[chip.countKey] ?? 0;
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => selectStageChip(chip)}
+              disabled={count === 0 && !active}
+              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                active
+                  ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                  : count === 0
+                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              {chip.label}
+              {count > 0 && (
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+        {/* Render "Not analysed" from atsBands here instead of ATS row */}
+        {(() => {
+          const notAnalysedBand = atsBands.find(b => b.id === "no_ats");
+          if (!notAnalysedBand) return null;
+          const active = currentAts === "no_ats";
+          const count  = atsCounts["no_ats"] ?? 0;
+          return (
+            <button
+              key="not_analysed"
+              type="button"
+              onClick={() => selectAtsChip("no_ats")}
+              title={notAnalysedBand.tip}
+              disabled={count === 0 && !active}
+              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                active
+                  ? `${notAnalysedBand.chipBg} ${notAnalysedBand.chipText} border-current font-medium`
+                  : count === 0
+                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${notAnalysedBand.dot}`} />
+              {notAnalysedBand.label}
+              {count > 0 && (
+                <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
+              )}
+            </button>
+          );
+        })()}
+      </div>
+
+      {/* Row 4 — Stage: Thin JD, Full JD, CV ready, Letter ready, Applied */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0">Stage</span>
+        {STAGE_CHIPS_NEW.map((chip) => {
+          const active = isStageActive(chip);
+          const count  = counts[chip.countKey] ?? 0;
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => selectStageChip(chip)}
+              disabled={count === 0 && !active}
+              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                active
+                  ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                  : count === 0
+                    ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                    : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              {chip.label}
+              {count > 0 && (
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Row 5 — ATS: ATS >= 70, ATS 60-69, ATS < 60 */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className="text-[10px] uppercase font-semibold text-text-3 tracking-wider mr-1 w-12 shrink-0"
@@ -332,7 +424,7 @@ export function SmartToolbar({
         >
           ATS
         </span>
-        {atsBands.map((b) => {
+        {atsBands.filter(b => b.id !== "no_ats").map((b) => {
           const active = currentAts === b.id;
           const count  = atsCounts[b.id] ?? 0;
           return (

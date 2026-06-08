@@ -51,6 +51,7 @@ export interface Job {
   keywords_matched:    string[];
   applied_at:          string | null;
   dismissed_at:        string | null;
+  starred_at?:         string | null;
   is_dead_link:        boolean;
   seen_at:             string | null;
   dedup_status?:       string | null;

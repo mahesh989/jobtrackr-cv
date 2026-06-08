@@ -104,7 +104,7 @@ export default async function JobsPage({
   // ── Build job query ──────────────────────────────────────────────────────
   let query = supabase
     .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
+    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -209,7 +209,7 @@ export default async function JobsPage({
   // ── Global counts for funnel ─────────────────────────────────────────────
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+    .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -217,6 +217,7 @@ export default async function JobsPage({
   interface AllCountRow {
     id: string; seen_at: string | null; applied_at: string | null;
     dismissed_at: string | null; profile_id: string;
+    starred_at: string | null;
     jd_quality: string | null; manual_jd_text: string | null;
     role_match: string | null; has_email: boolean | null;
   }
@@ -266,6 +267,7 @@ export default async function JobsPage({
     letterReady:    allRows.filter((j) => !j.dismissed_at && letterReadySet.has(j.id)).length,
     applied:        tabAppliedCount,
     dismissed:      tabDismissedCount,
+    favourite:      allRows.filter((j) => j.starred_at && !j.dismissed_at).length,
     newCount,
     needsJd:        allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
     roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,

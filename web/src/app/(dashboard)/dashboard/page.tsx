@@ -165,7 +165,7 @@ export default async function DashboardPage({
   // ── Unified jobs board: data fetch ───────────────────────────────────────
   let q = supabase
     .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
+    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -272,9 +272,8 @@ export default async function DashboardPage({
       manual_jd_text: (x as { manual_jd_text?: string | null }).manual_jd_text ?? null,
     }));
 
-  // Declare funnelCounts as a mutable variable, populated below using the global countRows query
   let funnelCounts: FunnelCounts = {
-    discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, newCount: 0,
+    discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, favourite: 0, newCount: 0,
     needsJd: 0, roleMismatch: 0, belowThreshold: 0, hasEmail: 0, thinJd: 0, richJd: 0
   };
 
@@ -286,7 +285,7 @@ export default async function DashboardPage({
   // Status-tab counts — aggregated across profiles
   const { data: countRows } = await supabase
     .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+    .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
@@ -296,6 +295,7 @@ export default async function DashboardPage({
     seen_at: string | null;
     applied_at: string | null;
     dismissed_at: string | null;
+    starred_at: string | null;
     profile_id: string;
     jd_quality: string | null;
     manual_jd_text: string | null;
@@ -353,6 +353,7 @@ export default async function DashboardPage({
     letterReady:    allRows.filter((j) => !j.dismissed_at && letterReadySet.has(j.id)).length,
     applied:        tabAppliedCount,
     dismissed:      tabDismissedCount,
+    favourite:      allRows.filter((j) => j.starred_at && !j.dismissed_at).length,
     newCount:       totalNew,
     needsJd:        allRows.filter((j) => !j.dismissed_at && jobNeedsJd(j)).length,
     roleMismatch:   allRows.filter((j) => !j.dismissed_at && j.role_match === "mismatch").length,

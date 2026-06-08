@@ -21,15 +21,11 @@ export type BoardJob = Job & {
 };
 
 export interface ViewFilters {
-  stage:       string;   // analysed | cvReady | letterReady | thinJd | applied | all | dismissed
+  stage:       string;   // analysed | cvReady | letterReady | thinJd | applied | all | dismissed | favourite
   triage:      string;   // needsJd | thinJd | richJd | roleMismatch | belowThreshold | hasEmail | notTailored
   ats:         string;   // above_final | below_final | below_initial | no_ats
   minKeywords: string;   // numeric string
-  /** "Within X km" — numeric string. Jobs with null distance_km are kept
-   *  (we don't punish unresolved jobs by hiding them). Empty = no filter. */
   maxDistance: string;
-  /** Lower bound for distance, used by the DistanceRibbon's range slider.
-   *  Jobs with null distance_km are kept. Empty = no lower bound. */
   minDistance?: string;
 }
 
@@ -79,6 +75,7 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   else if (f.stage === "letterReady")out = out.filter((x) => x.progress.has_cover_letter);
   else if (f.stage === "thinJd")     out = out.filter(jobNeedsJd);
   else if (f.stage === "applied")    out = out.filter((x) => x.applied_at != null);
+  else if (f.stage === "favourite")  out = out.filter((x) => x.starred_at != null);
 
   // Triage sub-filter
   if (f.triage === "needsJd" || f.triage === "thinJd") out = out.filter(jobNeedsJd);
