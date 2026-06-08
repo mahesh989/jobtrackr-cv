@@ -145,25 +145,26 @@ export function SmartToolbar({
     commit(next, "max_distance");
   }
 
-  function selectStageChip(chip: StageChip) {
+  function getCleanParams(): URLSearchParams {
     const next = new URLSearchParams(Array.from(sp.entries()));
+    next.delete("stage");
+    next.delete("triage");
+    next.delete("ats");
+    if (next.get("sort") === "last_analysed") {
+      next.delete("sort");
+    }
+    return next;
+  }
+
+  function selectStageChip(chip: StageChip) {
+    const next = getCleanParams();
     const isActive = chip.kind === "stage"
       ? currentStage === chip.value
       : currentTriage === chip.value;
     if (isActive) {
-      // toggle off
-      next.delete(chip.kind);
+      // Toggle off — getCleanParams already cleared it
     } else {
       next.set(chip.kind, chip.value);
-      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
-      if (chip.value === "analysed" || chip.value === "cvReady" || chip.value === "letterReady" || chip.value === "applied") {
-        if (next.get("ats") === "no_ats") {
-          next.delete("ats");
-        }
-        if (chip.value === "analysed" && next.get("sort") === "last_analysed") {
-          next.delete("sort");
-        }
-      }
     }
     commit(next, chip.kind);
   }
@@ -171,48 +172,29 @@ export function SmartToolbar({
   /** "All jobs" reset — clears both stage and triage so the feed falls back
    *  to the smart-section default view. */
   function clearStageAndTriage() {
-    const next = new URLSearchParams(Array.from(sp.entries()));
-    next.delete("stage");
-    next.delete("triage");
+    const next = getCleanParams();
     commit(next, "stage");
   }
 
   const allJobsActive = !currentStage && !currentTriage;
 
   function selectAtsChip(band: AtsBand) {
-    const next = new URLSearchParams(Array.from(sp.entries()));
+    const next = getCleanParams();
     if (currentAts === band) {
-      next.delete("ats");
+      // Toggle off — getCleanParams already cleared it
     } else {
       next.set("ats", band);
-      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
-      if (band === "no_ats") {
-        const st = next.get("stage");
-        if (st === "analysed" || st === "cvReady" || st === "letterReady" || st === "applied") {
-          next.delete("stage");
-        }
-        if (next.get("sort") === "last_analysed") {
-          next.delete("sort");
-        }
-      }
     }
     commit(next, "ats");
   }
 
   function toggleLastAnalysed() {
-    const next = new URLSearchParams(Array.from(sp.entries()));
+    const next = getCleanParams();
     const isLastAnalysedSort = currentSort === "last_analysed";
     if (isLastAnalysedSort) {
-      next.delete("sort");
+      // Toggle off — getCleanParams already cleared it
     } else {
       next.set("sort", "last_analysed");
-      // Mutual exclusion for Analysis group (Analysed vs Not analysed vs Last analysed)
-      if (next.get("ats") === "no_ats") {
-        next.delete("ats");
-      }
-      if (next.get("stage") === "analysed") {
-        next.delete("stage");
-      }
     }
     commit(next, "sort");
   }
