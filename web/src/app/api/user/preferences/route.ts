@@ -32,6 +32,7 @@ interface ProfileCredentials {
   ahpra_number?:         string;
   drivers_licence?:      string;
   work_rights?:          string;
+  work_rights_hours?:    string;
   wwcc_state?:           string;
   forklift_licence?:     string;
   wwcc?:                 boolean;
@@ -114,7 +115,7 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   if (i.credentials && typeof i.credentials === "object") {
     const c = i.credentials as Record<string, unknown>;
     const creds: ProfileCredentials = {};
-    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "wwcc_state", "forklift_licence"] as const;
+    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "work_rights_hours", "wwcc_state", "forklift_licence"] as const;
     for (const k of credStr) {
       if (typeof c[k] === "string") {
         const v = (c[k] as string).trim();
