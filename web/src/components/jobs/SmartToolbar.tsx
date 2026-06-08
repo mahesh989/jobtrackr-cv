@@ -147,6 +147,8 @@ export function SmartToolbar({
       next.set(chip.kind, chip.value);
       // mutually exclusive — clear the other side
       next.delete(chip.kind === "stage" ? "triage" : "stage");
+      // Selecting stage=analysed is mutually exclusive with ats=no_ats.
+      if (chip.value === "analysed" && next.get("ats") === "no_ats") next.delete("ats");
     }
     commit(next, chip.kind);
   }
@@ -164,8 +166,13 @@ export function SmartToolbar({
 
   function selectAtsChip(band: AtsBand) {
     const next = new URLSearchParams(Array.from(sp.entries()));
-    if (currentAts === band) next.delete("ats");
-    else next.set("ats", band);
+    if (currentAts === band) {
+      next.delete("ats");
+    } else {
+      next.set("ats", band);
+      // Selecting "Not analysed" is mutually exclusive with stage=analysed.
+      if (band === "no_ats" && next.get("stage") === "analysed") next.delete("stage");
+    }
     commit(next, "ats");
   }
 
@@ -355,6 +362,25 @@ export function SmartToolbar({
                   {count > 0 && (
                     <span className={`tabular-nums ${active ? "" : "text-text-3"}`}>{count}</span>
                   )}
+                </button>
+              );
+            })()}
+            {/* Last analysed chip — sorts by most recently analysed, descending */}
+            {(() => {
+              const isLastAnalysedSort = currentSort === "last_analysed";
+              return (
+                <button
+                  key="last_analysed"
+                  type="button"
+                  onClick={() => setOne("sort", isLastAnalysedSort ? "posted_at" : "last_analysed")}
+                  title="Sort by most recently analysed — newest analysis first"
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    isLastAnalysedSort
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
+                      : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  Last analysed
                 </button>
               );
             })()}

@@ -199,119 +199,41 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
 }
 
 /**
- * When analysis exists, shows a "Full Analysis" link (navigates to the result)
- * plus a "Re-analyze" option via a small dropdown.
+ * When analysis exists, shows a plain "Full Analysis" link that navigates
+ * to the full analysis results page. Re-analyze is in the card's ⋯ menu.
  */
 export function FullAnalysisButton({
-  jobId,
   analysisHref,
 }: {
   jobId: string;
   analysisHref: string;
 }) {
-  const [open, setOpen]            = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [err, setErr]              = useState<string | null>(null);
-  const router                     = useRouter();
-  const menuRef                    = useRef<HTMLDivElement>(null);
-  const btnRef                     = useRef<HTMLButtonElement>(null);
-  const [menuPos, setMenuPos]      = useState<{ top: number; right: number } | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node) &&
-          btnRef.current  && !btnRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onOutside);
-    document.addEventListener("keydown",   onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onOutside);
-      document.removeEventListener("keydown",   onEsc);
-    };
-  }, [open]);
-
-  function toggleMenu(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    }
-    setOpen((v) => !v);
-  }
-
-  async function handleReanalyze(e: React.MouseEvent) {
-    e.stopPropagation();
-    setOpen(false);
-    setErr(null);
-    let preferredProvider: string | null = null;
-    try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
-    startTransition(async () => {
-      const res  = await fetch(`/api/jobs/${jobId}/analyze`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setErr((json.error as string) ?? "Failed"); return; }
-      router.push(`/dashboard/jobs/${jobId}/analyze/${json.run_id}`);
-    });
-  }
-
   return (
-    <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
-      {/* Full Analysis link */}
-      <a
-        href={analysisHref}
-        className="flex items-center gap-1.5 rounded-l-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
-        title="View the full tailored CV analysis"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-        <span>Full Analysis</span>
-      </a>
-      {/* Dropdown chevron */}
-      <button
-        ref={btnRef}
-        onClick={toggleMenu}
-        disabled={pending}
-        className="flex items-center justify-center rounded-r-md bg-[var(--brand)] border-l border-[var(--brand-fg)]/20 px-1.5 py-1 text-[var(--brand-fg)] hover:opacity-90 disabled:opacity-40 transition-opacity"
-        title="More options"
-        aria-label="More analysis options"
-      >
-        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
-      </button>
-
-      {/* Dropdown menu */}
-      {open && menuPos && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="min-w-[140px] rounded-md border border-border bg-surface shadow-lg py-1 text-[12px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={handleReanalyze}
-            disabled={pending}
-            className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-surface-2 text-text transition-colors disabled:opacity-40"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-text-2" />
-            Re-analyze
-          </button>
-        </div>,
-        document.body,
-      )}
-
-      {err && (
-        <span className="absolute top-full right-0 mt-1 text-[10px] text-red-600 whitespace-nowrap bg-white border border-red-200 rounded px-2 py-0.5 shadow z-50">
-          {err}
-        </span>
-      )}
-    </div>
+    <a
+      href={analysisHref}
+      className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+      title="View the full tailored CV analysis"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Sparkles className="h-3.5 w-3.5" />
+      <span>Full Analysis</span>
+    </a>
   );
+}
+
+/**
+ * Trigger a re-analysis for a job (used by CardMenu's Re-analyze item).
+ * Returns the new run_id on success, throws on failure.
+ */
+export async function triggerReanalyze(jobId: string): Promise<string> {
+  let preferredProvider: string | null = null;
+  try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
+  const res  = await fetch(`/api/jobs/${jobId}/analyze`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((json.error as string) ?? `Failed (${res.status})`);
+  return json.run_id as string;
 }

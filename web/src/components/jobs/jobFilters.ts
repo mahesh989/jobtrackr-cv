@@ -128,6 +128,17 @@ export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): Board
       return (b.posted_at ?? "").localeCompare(a.posted_at ?? "");
     });
   }
+  if (sortCol === "last_analysed") {
+    // Most recently analysed first. Jobs with no analysis float to the bottom.
+    return arr.sort((a, b) => {
+      const aT = a.progress.last_progress_at ?? "";
+      const bT = b.progress.last_progress_at ?? "";
+      // has_analysis check — unanalysed jobs always go below analysed ones.
+      if (a.progress.has_analysis && !b.progress.has_analysis) return -1;
+      if (!a.progress.has_analysis && b.progress.has_analysis) return 1;
+      return asc ? aT.localeCompare(bT) : bT.localeCompare(aT);
+    });
+  }
   if (sortCol === "recently_progressed") {
     return arr.sort((a, b) => {
       const aT = a.progress.last_progress_at ?? "";

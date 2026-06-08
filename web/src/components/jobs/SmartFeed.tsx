@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
-import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
+import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
@@ -1099,6 +1099,7 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
           <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
         )}
         <CardMenu
+          job={job}
           onApply={onApply}
           onDismiss={onDismiss}
           onEdit={onEdit}
@@ -1113,16 +1114,19 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
 // ── overflow menu ───────────────────────────────────────────────────────
 
 function CardMenu({
-  onApply, onDismiss, onEdit, applied, pending,
+  job, onApply, onDismiss, onEdit, applied, pending,
 }: {
+  job:       BoardJob;
   onApply:   () => void;
   onDismiss: () => void;
   onEdit:    () => void;
   applied:   boolean;
   pending:   boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [reanalysePending, setReanalysePending] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -1164,6 +1168,22 @@ function CardMenu({
           className="z-50 min-w-[160px] rounded-md border border-border bg-surface shadow-lg py-1 text-[12px]"
         >
           <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Edit JD…</MenuItem>
+          {job.progress.has_analysis && job.progress.latest_run_id && (
+            <MenuItem
+              onClick={async () => {
+                setOpen(false);
+                if (reanalysePending) return;
+                setReanalysePending(true);
+                try {
+                  const run_id = await triggerReanalyze(job.id);
+                  router.push(`/dashboard/jobs/${job.id}/analyze/${run_id}`);
+                } catch { /* ignore */ } finally { setReanalysePending(false); }
+              }}
+              disabled={reanalysePending}
+            >
+              {reanalysePending ? "Starting…" : "Re-analyze"}
+            </MenuItem>
+          )}
           <MenuItem onClick={() => { setOpen(false); onApply(); }} disabled={applied}>
             {applied ? "Already applied" : "Mark as applied"}
           </MenuItem>
