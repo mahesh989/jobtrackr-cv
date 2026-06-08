@@ -247,8 +247,15 @@ export function StoriesClient({ initialStories }: Props) {
     setExtracting(true);
     setExtractErr(null);
 
+    let provider: string | null = null;
+    try { provider = localStorage.getItem("jobtrackr-preferred-provider"); } catch { /* SSR */ }
+
     try {
-      const res  = await fetch("/api/user/stories/extract", { method: "POST" });
+      const res  = await fetch("/api/user/stories/extract", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ provider: provider ?? undefined }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setExtractErr((data as { error?: string }).error ?? "Extraction failed. Please try again.");

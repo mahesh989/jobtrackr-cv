@@ -20,7 +20,7 @@
  * error messages, status codes, and story counts.
  */
 
-import { NextResponse }                                  from "next/server";
+import { NextRequest, NextResponse }                     from "next/server";
 import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { decryptApiKey }                                 from "@/lib/integrations/crypto";
@@ -32,11 +32,20 @@ export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   // ── 1. Verify session ────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let preferredProvider: Provider | null = null;
+  try {
+    const body = await req.json();
+    const raw = (body as { provider?: string }).provider ?? null;
+    if (raw && PROVIDER_PRIORITY.includes(raw as Provider)) {
+      preferredProvider = raw as Provider;
+    }
+  } catch {}
 
   const admin = createAdminClient();
 
@@ -84,7 +93,9 @@ export async function POST() {
     });
   }
 
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
+    ? preferredProvider
+    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
   if (!chosen) {
     return NextResponse.json(
       { error: "No AI key configured. Add one in Settings → Integrations." },
@@ -171,10 +182,27 @@ export async function POST() {
     );
   }
 
-  // ── 7. Return ────────────────────────────────────────────────────────────────
+  // ── 7. Fetch the saved stories from the DB to get their generated IDs ────────
+  const { data: savedStories, error: fetchErr } = await admin
+    .from("stories")
+    .select("id, title, domain, year, one_line, detailed, numbers, tags, extraction_timestamp")
+    .eq("user_id", user.id)
+    .eq("extraction_timestamp", result.stories[0].extraction_timestamp)
+    .order("created_at", { ascending: true });
+
+  if (fetchErr) {
+    console.error("[/api/user/stories/extract] fetch saved stories failed:", fetchErr.message);
+    // Fallback to returning raw stories if fetching fails (better than crashing)
+    return NextResponse.json({
+      stories:    result.stories,
+      count:      result.stories.length,
+      diagnostic: null,
+    });
+  }
+
   return NextResponse.json({
-    stories:    result.stories,
-    count:      result.stories.length,
+    stories:    savedStories ?? [],
+    count:      (savedStories ?? []).length,
     diagnostic: null,
   });
 }
