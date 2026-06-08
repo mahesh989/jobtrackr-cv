@@ -20,7 +20,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { X, CheckSquare } from "lucide-react";
+import { X } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
@@ -90,8 +90,6 @@ export function SmartToolbar({
   atsCounts,
   homeAddress = null,
   thresholds = { initial: 60, final: 70 },
-  selectMode = false,
-  onToggleSelectMode,
 }: {
   counts:       FunnelCounts;
   atsCounts:    Record<AtsBand, number>;
@@ -99,9 +97,6 @@ export function SmartToolbar({
    *  distance select renders. */
   homeAddress?: string | null;
   thresholds?:  AtsThresholds;
-  /** Bulk-select mode toggle wired in from the parent (SmartFeed). */
-  selectMode?:        boolean;
-  onToggleSelectMode?: () => void;
 }) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -239,35 +234,8 @@ export function SmartToolbar({
         </label>
       </div>
 
-      {/* Distance row — Select button (left) + Distance dropdown (right).
-          Select uses the brand fill so it's distinctly visible. Distance is
-          right-aligned to line up with Sort above it. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* Select toggle — left. Brand-filled when idle (calls attention to
-            the bulk-select entry point), neutral outline when in select mode
-            (it becomes "Cancel"). */}
-        {onToggleSelectMode ? (
-          selectMode ? (
-            <button
-              type="button"
-              onClick={onToggleSelectMode}
-              className="inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] text-text transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-              Cancel select
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onToggleSelectMode}
-              className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-md bg-[var(--brand)] text-white border border-[var(--brand)] hover:opacity-90 shadow-sm transition-all"
-              title="Select multiple jobs for bulk actions"
-            >
-              <CheckSquare className="w-3.5 h-3.5" />
-              Select
-            </button>
-          )
-        ) : <span />}
+      {/* Distance row — right-aligned to line up with Sort above it. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
           Distance
           <select

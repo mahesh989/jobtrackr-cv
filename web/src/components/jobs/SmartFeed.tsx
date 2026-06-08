@@ -41,6 +41,7 @@ import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, type BoardJob, type AtsBand } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
+import { SelectModeButton } from "./SelectModeButton";
 import { shallowSetParams } from "./shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
@@ -211,14 +212,9 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 // ── bulk-select (iOS/Google style) ───────────────────────────────────────
 // Checkboxes are HIDDEN by default and only appear when the user explicitly
-// enters "select mode" via a "Select" button (toolbar row). This matches the
-// iOS Photos / Gmail multi-select pattern: cards are clean while browsing,
-// and the user opts in to selection when they want to act on a set.
-//
-// Flow: "Select" → checkboxes appear on all cards → tap cards to tick them →
-// sticky bar shows count + "Analyse N" → confirm → "Cancel" exits mode at any
-// point. Analyse fans out to the existing analyze route with override=all
-// (bypasses initial gate + thin-JD precheck), 3 at a time.
+// enters "select mode" via contextual "Select" buttons — one per smart-section
+// heading (Today's picks, Closest to you, …) and one above the first card when
+// a sort/stage/ATS filter flattens the feed. Toolbar no longer hosts Select.
 interface JobSelectionCtx {
   selectMode: boolean;
   isSelected: (id: string) => boolean;
@@ -376,17 +372,17 @@ export function SmartFeed({
     return max;
   }, [jobs]);
 
+  const toggleSelectMode = jobs.length > 0
+    ? (selectMode ? exitSelectMode : enterSelectMode)
+    : undefined;
+
   return (
     <div className="space-y-5">
-      {/* Select toggle lives inside SmartToolbar (left of Distance row) so it
-          sits in the toolbar's content area, not floating as a sibling. */}
       <SmartToolbar
         counts={counts}
         atsCounts={atsCounts}
         homeAddress={homeAddress}
         thresholds={thresholds}
-        selectMode={selectMode}
-        onToggleSelectMode={jobs.length > 0 ? (selectMode ? exitSelectMode : enterSelectMode) : undefined}
       />
 
       {jobs.length === 0 ? (
@@ -400,6 +396,8 @@ export function SmartFeed({
             distanceMax={distanceMax}
             cardRefs={cardRefs}
             scrollToJob={scrollToJob}
+            selectMode={selectMode}
+            onToggleSelectMode={toggleSelectMode}
           />
         </JobSelectionContext.Provider>
       )}
@@ -507,6 +505,7 @@ function useJobSelection(): JobSelectionCtx | null {
 
 function SmartFeedBody({
   jobs, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
+  selectMode, onToggleSelectMode,
 }: {
   jobs: BoardJob[];
   hasActiveFilter: boolean;
@@ -514,6 +513,8 @@ function SmartFeedBody({
   distanceMax: number;
   cardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
   scrollToJob: (id: string) => void;
+  selectMode: boolean;
+  onToggleSelectMode?: () => void;
 }) {
   const sp       = useSearchParams();
   const pathname = usePathname();
@@ -561,19 +562,28 @@ function SmartFeedBody({
               section={sec}
               currentTab={currentTab}
               refSetter={(id) => (el: HTMLDivElement | null) => { cardRefs.current[id] = el; }}
+              selectMode={selectMode}
+              onToggleSelectMode={onToggleSelectMode}
             />
           ))}
         </div>
       ) : (
-        <div className="grid gap-2.5">
-          {jobs.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              currentTab={currentTab}
-              refSetter={(el) => { cardRefs.current[job.id] = el; }}
-            />
-          ))}
+        <div className="space-y-2.5">
+          {onToggleSelectMode && !selectMode && (
+            <div className="flex justify-end">
+              <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
+            </div>
+          )}
+          <div className="grid gap-2.5">
+            {jobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                currentTab={currentTab}
+                refSetter={(el) => { cardRefs.current[job.id] = el; }}
+              />
+            ))}
+          </div>
         </div>
       )}
     </>
@@ -583,11 +593,13 @@ function SmartFeedBody({
 // ── section ─────────────────────────────────────────────────────────────
 
 function FeedSectionView({
-  section, currentTab, refSetter,
+  section, currentTab, refSetter, selectMode, onToggleSelectMode,
 }: {
   section: FeedSection;
   currentTab: string;
   refSetter: (id: string) => (el: HTMLDivElement | null) => void;
+  selectMode: boolean;
+  onToggleSelectMode?: () => void;
 }) {
   const toneClass: Record<FeedSection["tone"], string> = {
     brand: "text-[var(--brand)]",
@@ -598,11 +610,16 @@ function FeedSectionView({
   const Icon = section.Icon;
   return (
     <section>
-      <div className="flex items-baseline gap-2 mb-2.5">
-        <Icon className={`w-4 h-4 self-center ${toneClass[section.tone]}`} strokeWidth={2.5} />
-        <h3 className="text-[15px] font-semibold text-text">{section.label}</h3>
-        <span className="text-[12px] font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
-        <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+      <div className="flex items-baseline justify-between gap-3 mb-2.5">
+        <div className="flex items-baseline gap-2 min-w-0 flex-1">
+          <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
+          <h3 className="text-[15px] font-semibold text-text">{section.label}</h3>
+          <span className="text-[12px] font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
+          <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+        </div>
+        {onToggleSelectMode && !selectMode && (
+          <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
+        )}
       </div>
 
       {section.hero ? (
