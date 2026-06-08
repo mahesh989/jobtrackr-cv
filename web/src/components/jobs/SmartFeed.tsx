@@ -517,7 +517,7 @@ function useJobSelection(): JobSelectionCtx | null {
 
 function SmartFeedBody({
   jobs, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
-  selectMode, onToggleSelectMode,
+  activeSelectModes, onToggleSelectMode,
 }: {
   jobs: BoardJob[];
   hasActiveFilter: boolean;
