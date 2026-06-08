@@ -1212,11 +1212,12 @@ function MenuItem({ children, onClick, disabled }: { children: React.ReactNode; 
 
 function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const hasAnalysis = job.atsBand !== "no_ats";
+  if (!hasAnalysis) return null;
 
   // For analysed jobs show the REAL ATS score (tailored if available, else
-  // initial). For unanalysed jobs fall back to the composite ranking signal.
-  const atsScore    = hasAnalysis ? (job.tailored_match_score ?? job.initial_ats_score ?? null) : null;
-  const displayScore = atsScore ?? matchScore(job);
+  // initial).
+  const atsScore    = job.tailored_match_score ?? job.initial_ats_score ?? null;
+  const displayScore = atsScore ?? 0;
   const label        = atsScore != null ? "ATS" : "Match";
 
   const cls = hasAnalysis

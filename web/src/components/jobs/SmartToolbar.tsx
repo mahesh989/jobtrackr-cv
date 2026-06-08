@@ -147,8 +147,13 @@ export function SmartToolbar({
       next.set(chip.kind, chip.value);
       // mutually exclusive — clear the other side
       next.delete(chip.kind === "stage" ? "triage" : "stage");
-      // Selecting stage=analysed is mutually exclusive with ats=no_ats.
-      if (chip.value === "analysed" && next.get("ats") === "no_ats") next.delete("ats");
+      // Selecting Analysed or any stage that requires analysis is mutually exclusive with ats=no_ats (Not analysed).
+      if (
+        (chip.value === "analysed" || chip.value === "cvReady" || chip.value === "letterReady" || chip.value === "applied") &&
+        next.get("ats") === "no_ats"
+      ) {
+        next.delete("ats");
+      }
     }
     commit(next, chip.kind);
   }
@@ -170,10 +175,33 @@ export function SmartToolbar({
       next.delete("ats");
     } else {
       next.set("ats", band);
-      // Selecting "Not analysed" is mutually exclusive with stage=analysed.
-      if (band === "no_ats" && next.get("stage") === "analysed") next.delete("stage");
+      // Selecting "Not analysed" is mutually exclusive with Analysed and all stages requiring analysis.
+      if (band === "no_ats") {
+        const st = next.get("stage");
+        if (st === "analysed" || st === "cvReady" || st === "letterReady" || st === "applied") {
+          next.delete("stage");
+        }
+        if (next.get("sort") === "last_analysed") {
+          next.delete("sort");
+        }
+      }
     }
     commit(next, "ats");
+  }
+
+  function toggleLastAnalysed() {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    const isLastAnalysedSort = currentSort === "last_analysed";
+    if (isLastAnalysedSort) {
+      next.delete("sort");
+    } else {
+      next.set("sort", "last_analysed");
+      // Selecting "Last analysed" is mutually exclusive with "Not analysed".
+      if (next.get("ats") === "no_ats") {
+        next.delete("ats");
+      }
+    }
+    commit(next, "sort");
   }
 
   function isStageActive(chip: StageChip): boolean {
@@ -372,7 +400,7 @@ export function SmartToolbar({
                 <button
                   key="last_analysed"
                   type="button"
-                  onClick={() => setOne("sort", isLastAnalysedSort ? "posted_at" : "last_analysed")}
+                  onClick={toggleLastAnalysed}
                   title="Sort by most recently analysed — newest analysis first"
                   className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${
                     isLastAnalysedSort
