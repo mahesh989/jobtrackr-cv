@@ -31,6 +31,10 @@ async function authedClient() {
   return { supabase, user };
 }
 
+function sha256(input: string): string {
+  return createHash("sha256").update(input).digest("hex");
+}
+
 /**
  * Pipeline-automation fields (Phase A schema). Defaults match the
  * Migration 031 column defaults so first-time creation and a no-op
@@ -171,14 +175,20 @@ export async function addManualJob(input: {
 
   const jdLen = input.description?.trim().length ?? 0;
 
+  // jobs.url_hash is NOT NULL + unique per (profile_id, url_hash). Worker uses
+  // sha256(url); paste-only entries get a synthetic manual:// UUID so each
+  // save is distinct without a real posting URL.
+  const url = input.source_url?.trim() || `manual://${randomUUID()}`;
+
   const { data: job, error } = await supabase
     .from("jobs")
     .insert({
       profile_id:    profileId,
-      url:           input.source_url ?? "",
+      url,
+      url_hash:      sha256(url),
       title:         input.title.trim(),
-      company:       input.company?.trim() ?? null,
-      location:      input.location?.trim() ?? null,
+      company:       input.company?.trim() ?? "",
+      location:      input.location?.trim() ?? "",
       description:   input.description.trim(),
       // Classify JD quality at insert time — same thresholds as the worker.
       jd_quality:    jdLen >= 1400 ? "rich" : jdLen >= 200 ? "thin" : "unknown",
@@ -189,6 +199,7 @@ export async function addManualJob(input: {
     .single();
 
   if (error || !job) throw new Error(error?.message ?? "Failed to add job");
+  revalidatePath("/dashboard");
   revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard/profiles");
   return { jobId: job.id, alreadyExisted: false };
