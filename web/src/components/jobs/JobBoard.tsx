@@ -95,7 +95,7 @@ export function JobBoard({
     // Dashboard spans multiple profiles but each job carries its own
     // distance_km from its profile's home_address, so the range filter
     // (min/max km) still applies meaningfully across the global feed.
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance }), sortCol, asc),
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 

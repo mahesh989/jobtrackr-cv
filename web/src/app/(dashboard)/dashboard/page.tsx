@@ -245,7 +245,13 @@ export default async function DashboardPage({
     });
     // Precompute the ATS band so the client can filter by it without re-deriving
     // gates (mirrors the donut's ATS lens buckets exactly).
-    const atsBand = atsBandFor(!!run, g?.passedInitial ?? null, g?.passedFinal ?? null);
+    const atsBand = atsBandFor(
+      !!run,
+      run?.initial_ats_score ?? null,
+      run?.tailored_match_score ?? null,
+      th.initial,
+      th.final
+    );
     return {
       ...(j as unknown as BoardJob),
       profile_name:         profileNameById.get(j.profile_id) ?? null,

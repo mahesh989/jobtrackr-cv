@@ -91,7 +91,7 @@ export function ProfileJobBoard({
   const asc         = sp.get("dir") === "asc";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance }), sortCol, asc),
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
     [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 

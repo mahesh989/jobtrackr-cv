@@ -176,8 +176,10 @@ export default async function JobsPage({
     });
     const atsBand = atsBandFor(
       !!run,
-      liveRun?.passed_initial_gate ?? null,
-      liveRun?.passed_final_gate   ?? null,
+      run?.initial_ats_score ?? null,
+      run?.tailored_match_score ?? null,
+      th.initial,
+      th.final
     );
     return {
       ...(j as unknown as BoardJob),

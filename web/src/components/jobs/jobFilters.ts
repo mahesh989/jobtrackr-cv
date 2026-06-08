@@ -27,6 +27,7 @@ export interface ViewFilters {
   minKeywords: string;   // numeric string
   maxDistance: string;
   minDistance?: string;
+  sort?:        string;
 }
 
 /** Minimum manual-JD length (chars) that counts as "the user supplied a usable
@@ -55,18 +56,27 @@ export function jobNeedsJd(job: { jd_quality?: string | null; manual_jd_text?: s
  */
 export function atsBandFor(
   hasRun: boolean,
-  passedInitial: boolean | null,
-  passedFinal: boolean | null,
+  initialScore: number | null | undefined,
+  tailoredScore: number | null | undefined,
+  minInitial: number,
+  minFinal: number,
 ): AtsBand {
   if (!hasRun) return "no_ats";
-  if (passedFinal === true) return "above_final";
-  if (passedInitial) return "below_final";
+  const score = tailoredScore ?? initialScore ?? null;
+  if (score === null) return "no_ats";
+  if (score >= minFinal) return "above_final";
+  if (score >= minInitial) return "below_final";
   return "below_initial";
 }
 
 /** Apply the view filters (stage / triage / ATS band / min-keywords) in-memory. */
 export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   let out = jobs;
+
+  // If sorting by last analysed, restrict to analysed jobs only
+  if (f.sort === "last_analysed") {
+    out = out.filter((x) => x.progress.has_analysis);
+  }
 
   // Stage (dismissed + all are no-ops here — dismissed is fetched server-side,
   // all means no narrowing).

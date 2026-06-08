@@ -108,8 +108,18 @@ export function SmartToolbar({
     !currentMaxDistance && Number(currentMinDistance) >= 50 ? "over50" : currentMaxDistance;
 
   function commit(params: URLSearchParams, key: string) {
-    if (SHALLOW_KEYS.has(key)) shallowSetParams(pathname, params);
-    else startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    const isDismissedTransition =
+      (key === "stage" && (params.get("stage") === "dismissed" || currentStage === "dismissed"));
+
+    if (SHALLOW_KEYS.has(key) && !isDismissedTransition) {
+      shallowSetParams(pathname, params);
+    } else if (isDismissedTransition) {
+      if (typeof window !== "undefined") {
+        window.location.href = `${pathname}?${params}`;
+      }
+    } else {
+      startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
+    }
   }
 
   function setOne(key: string, value: string) {
@@ -145,15 +155,6 @@ export function SmartToolbar({
       next.delete(chip.kind);
     } else {
       next.set(chip.kind, chip.value);
-      // mutually exclusive — clear the other side
-      next.delete(chip.kind === "stage" ? "triage" : "stage");
-      // Selecting Analysed or any stage that requires analysis is mutually exclusive with ats=no_ats (Not analysed).
-      if (
-        (chip.value === "analysed" || chip.value === "cvReady" || chip.value === "letterReady" || chip.value === "applied") &&
-        next.get("ats") === "no_ats"
-      ) {
-        next.delete("ats");
-      }
     }
     commit(next, chip.kind);
   }
@@ -175,16 +176,6 @@ export function SmartToolbar({
       next.delete("ats");
     } else {
       next.set("ats", band);
-      // Selecting "Not analysed" is mutually exclusive with Analysed and all stages requiring analysis.
-      if (band === "no_ats") {
-        const st = next.get("stage");
-        if (st === "analysed" || st === "cvReady" || st === "letterReady" || st === "applied") {
-          next.delete("stage");
-        }
-        if (next.get("sort") === "last_analysed") {
-          next.delete("sort");
-        }
-      }
     }
     commit(next, "ats");
   }
@@ -196,10 +187,6 @@ export function SmartToolbar({
       next.delete("sort");
     } else {
       next.set("sort", "last_analysed");
-      // Selecting "Last analysed" is mutually exclusive with "Not analysed".
-      if (next.get("ats") === "no_ats") {
-        next.delete("ats");
-      }
     }
     commit(next, "sort");
   }
