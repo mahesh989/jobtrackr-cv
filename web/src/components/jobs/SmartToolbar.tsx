@@ -194,48 +194,9 @@ export function SmartToolbar({
 
   return (
     <div className="rounded-md border border-border bg-surface p-3 space-y-4">
-      {/* Row 1 — location search, sort, distance */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-[400px]">
-          <input
-            type="text"
-            defaultValue={currentLocation}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v !== currentLocation) setOne("location", v);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
-            placeholder="Filter by location or company…"
-            className="field pl-3 pr-8 text-[12px] w-full"
-          />
-          {currentLocation && (
-            <button
-              onClick={() => setOne("location", "")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text"
-              aria-label="Clear location filter"
-              disabled={pending}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
-          Sort
-          <select
-            value={currentSort}
-            onChange={(e) => setOne("sort", e.target.value)}
-            className="field text-[12px] py-1 pr-7"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
+      {/* Row 1 — distance, sort, location search */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0 flex-1 justify-start">
           Distance
           <select
             value={distanceValue}
@@ -248,6 +209,49 @@ export function SmartToolbar({
             ))}
           </select>
         </label>
+
+        <div className="flex-1 flex justify-center">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
+            Sort
+            <select
+              value={currentSort}
+              onChange={(e) => setOne("sort", e.target.value)}
+              className="field text-[12px] py-1 pr-7"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex-1 flex justify-end">
+          <div className="relative w-full max-w-[300px]">
+            <input
+              type="text"
+              defaultValue={currentLocation}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== currentLocation) setOne("location", v);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+              placeholder="Filter by location or company…"
+              className="field pl-3 pr-8 text-[12px] w-full"
+            />
+            {currentLocation && (
+              <button
+                onClick={() => setOne("location", "")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text"
+                aria-label="Clear location filter"
+                disabled={pending}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -426,7 +430,7 @@ export function SmartToolbar({
 
           {/* JDs Group */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0">JDs</span>
+            <span className="text-[10px] font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
             {JDS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;

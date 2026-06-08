@@ -569,7 +569,7 @@ function SmartFeedBody({
         </div>
       ) : (
         <div className="space-y-2.5">
-          {onToggleSelectMode && !selectMode && (
+          {onToggleSelectMode && (
             <div className="flex justify-end">
               <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
             </div>
@@ -617,7 +617,7 @@ function FeedSectionView({
           <span className="text-[12px] font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
           <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
         </div>
-        {onToggleSelectMode && !selectMode && (
+        {onToggleSelectMode && (
           <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
         )}
       </div>

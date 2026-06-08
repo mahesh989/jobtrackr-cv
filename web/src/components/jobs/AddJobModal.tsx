@@ -109,9 +109,6 @@ export function AddJobModal({ onClose }: { onClose: () => void }) {
 
       onClose();
       if (analyseNow) {
-        router.push(`/api/jobs/${result.jobId}/analyze`);
-        // Navigate to the analysis page by triggering the analyze endpoint then
-        // redirecting to the run. Simpler: just post to the analyze endpoint.
         await fetch(`/api/jobs/${result.jobId}/analyze`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },

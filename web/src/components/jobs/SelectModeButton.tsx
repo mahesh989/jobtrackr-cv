@@ -15,7 +15,7 @@ export function SelectModeButton({
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] text-text transition-colors shrink-0"
+        className="inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1 rounded-md border border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)] hover:bg-[var(--brand)]/20 transition-colors shrink-0"
       >
         <X className="w-3.5 h-3.5" />
         Cancel select
@@ -27,7 +27,7 @@ export function SelectModeButton({
     <button
       type="button"
       onClick={onToggle}
-      className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-md bg-[var(--brand)] text-white border border-[var(--brand)] hover:opacity-90 shadow-sm transition-all shrink-0"
+      className="inline-flex items-center gap-1.5 text-[12px] font-medium px-3 py-1 rounded-md bg-surface text-text-2 border border-border hover:bg-[var(--surface-2)] hover:text-text shadow-sm transition-all shrink-0"
       title="Select multiple jobs for bulk actions"
     >
       <CheckSquare className="w-3.5 h-3.5" />
