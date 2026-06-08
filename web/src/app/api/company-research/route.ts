@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
-  let body: { company_name?: string; company_domain?: string; jd_location?: string };
+  let body: { company_name?: string; company_domain?: string; jd_location?: string; provider?: string };
   try {
     body = await req.json();
   } catch {
@@ -117,7 +117,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+  const preferredProvider = (body.provider && PROVIDER_PRIORITY.includes(body.provider as Provider))
+    ? (body.provider as Provider)
+    : null;
+
+  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
+    ? preferredProvider
+    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+
   if (!chosen) {
     return NextResponse.json(
       { error: "No AI key configured. Add one in Settings → Integrations." },

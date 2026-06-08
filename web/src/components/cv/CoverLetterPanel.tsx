@@ -251,10 +251,15 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           const companyName = data.company_name ?? "this company";
           setResearching(companyName);
           try {
+            let preferred: string | null = null;
+            try {
+              preferred = localStorage.getItem("jobtrackr-preferred-provider");
+            } catch {}
+
             const r = await fetch("/api/company-research", {
               method:  "POST",
               headers: { "Content-Type": "application/json" },
-              body:    JSON.stringify({ company_name: companyName }),
+              body:    JSON.stringify({ company_name: companyName, provider: preferred }),
             });
             const d = await r.json();
             if (!r.ok) {
