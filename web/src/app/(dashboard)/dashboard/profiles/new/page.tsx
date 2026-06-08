@@ -11,6 +11,10 @@ export default function NewProfilePage() {
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
+          <Link href="/dashboard/profiles" className="hover:text-text transition-colors">Job Searches</Link>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
           <span className="text-text-2">New profile</span>
         </div>
         <h1 className="text-[16px] font-semibold text-text">New search profile</h1>

@@ -53,6 +53,10 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
+              <Link href="/dashboard/profiles" className="hover:text-text transition-colors">Job Searches</Link>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
               <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[180px]">
                 {profile.name}
               </Link>

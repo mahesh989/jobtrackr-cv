@@ -254,11 +254,11 @@ export function SmartToolbar({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Inline 1: Jobs, Analysis, ATS */}
-        <div className="flex flex-wrap items-center gap-y-2 gap-x-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Jobs Group */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 justify-start">
             <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Jobs</span>
             <button
               type="button"
@@ -303,7 +303,7 @@ export function SmartToolbar({
           </div>
 
           {/* Analysis Group */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 justify-center">
             <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0">Analysis</span>
             {ANALYSIS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
@@ -361,7 +361,7 @@ export function SmartToolbar({
           </div>
 
           {/* ATS Group */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 justify-end">
             <span
               className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0"
               title={`ATS gates: initial ${thresholds.initial} (must pass to tailor), final ${thresholds.final} (auto cover letter)`}
@@ -398,9 +398,9 @@ export function SmartToolbar({
         </div>
 
         {/* Inline 2: Stages, JDs */}
-        <div className="flex flex-wrap items-center gap-y-2 gap-x-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Stages Group */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 justify-start">
             <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Stages</span>
             {STAGES_CHIPS.map((chip) => {
               const active = isStageActive(chip);
@@ -429,7 +429,7 @@ export function SmartToolbar({
           </div>
 
           {/* JDs Group */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 justify-end">
             <span className="text-[10px] font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
             {JDS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
