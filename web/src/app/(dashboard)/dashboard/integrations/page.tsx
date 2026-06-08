@@ -134,10 +134,10 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
         {/* OAuth result banner ── shown for one page-load after callback */}
         {connected && (
           <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
-            <p className="text-[13px] font-medium text-emerald-800 dark:text-emerald-300">
+            <p className="text-[13px] font-medium text-black dark:text-white">
               ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
             </p>
-            <p className="text-[12px] text-emerald-700 dark:text-emerald-400 mt-0.5">
+            <p className="text-[12px] text-black dark:text-white mt-0.5">
               You can now send application emails from the Applications page.
             </p>
           </div>

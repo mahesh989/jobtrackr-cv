@@ -45,10 +45,10 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
             <div className="flex items-center gap-2 min-w-0">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-emerald-800 dark:text-emerald-300">
+                <p className="text-[12px] font-medium text-black dark:text-white">
                   {connected.provider === "google" ? "Gmail" : "Outlook"} connected
                 </p>
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 truncate">
+                <p className="text-[11px] text-black dark:text-white truncate">
                   {connected.from_address}
                 </p>
               </div>
