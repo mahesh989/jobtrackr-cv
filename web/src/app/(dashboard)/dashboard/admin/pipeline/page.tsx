@@ -8,7 +8,9 @@
  *   - How often do AI transient errors fire and how effective is the retry?
  *   - What's the ATS uplift distribution across all runs?
  */
-import { requireAdmin, timeAgo, formatLatency } from "@/lib/admin/guard";
+import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+import { AdminRangeFilter } from "@/components/admin/AdminRangeFilter";
+import { adminForceCancelRun } from "@/lib/admin/actions";
 import Link from "next/link";
 
 export const metadata = { title: "Pipeline Health — Admin — JobTrackr" };
@@ -26,23 +28,37 @@ function PctBar({ pct, color = "blue" }: { pct: number; color?: "green"|"red"|"a
   );
 }
 
-export default async function AdminPipelinePage() {
+interface PageProps {
+  searchParams: Promise<{ range?: string }>;
+}
+
+export default async function AdminPipelinePage({ searchParams }: PageProps) {
+  const sp    = await searchParams;
+  const range = resolveRange(sp.range);
   const { admin } = await requireAdmin();
 
   const now    = new Date();
-  const d7ago  = new Date(now.getTime() - 7 * 86400_000);
-  const d30ago = new Date(now.getTime() - 30 * 86400_000);
+  const cutoff = rangeStart(range);
+  const d7ago  = new Date(now.getTime() - 7  * 86400_000);
+  const stuckCutoff = new Date(now.getTime() - 20 * 60_000); // 20 min ago
 
   // Core queries — always exist
   const [
     { data: recentRuns },
     { data: allUsers },
+    { data: stuckRuns },
   ] = await Promise.all([
     admin.from("analysis_runs")
       .select("id, user_id, status, error_message, created_at, match_score, tailored_match_score, ats_lift, step_status")
-      .gte("created_at", d30ago.toISOString())
+      .gte("created_at", cutoff.toISOString())
       .order("created_at", { ascending: false }),
     admin.from("users").select("id, email"),
+    // Stuck runs: status='running' and started over 20 min ago
+    admin.from("analysis_runs")
+      .select("id, user_id, status, created_at, started_at, step_status")
+      .eq("status", "running")
+      .lt("created_at", stuckCutoff.toISOString())
+      .order("created_at", { ascending: true }),
   ]);
 
   // Optional observability tables — only exist after migration 055.
@@ -51,20 +67,22 @@ export default async function AdminPipelinePage() {
   const [recentTimings, aiErrors] = await Promise.all([
     safeQuery(admin.from("pipeline_timings")
       .select("run_id, step, duration_ms, status, created_at")
-      .gte("created_at", d30ago.toISOString())),
+      .gte("created_at", cutoff.toISOString())),
     safeQuery(admin.from("ai_calls")
       .select("operation, provider, model, retry_count, status, error_type, latency_ms, created_at")
-      .gte("created_at", d30ago.toISOString())),
+      .gte("created_at", cutoff.toISOString())),
   ]);
 
   type RunRow     = { id: string; user_id: string; status: string; error_message: string | null; created_at: string; match_score: number | null; tailored_match_score: number | null; ats_lift: number | null; step_status: Record<string, string> | null };
+  type StuckRow   = { id: string; user_id: string; status: string; created_at: string; started_at: string | null; step_status: Record<string, string> | null };
   type TimingRow  = { run_id: string; step: string; duration_ms: number | null; status: string; created_at: string };
   type AiCallRow  = { operation: string; provider: string; model: string; retry_count: number; status: string; error_type: string | null; latency_ms: number; created_at: string };
 
-  const runs    = (recentRuns ?? []) as RunRow[];
-  const timings = recentTimings as TimingRow[];
-  const aiCalls = aiErrors      as AiCallRow[];
-  const users   = (allUsers   ?? []) as { id: string; email: string }[];
+  const runs      = (recentRuns ?? []) as RunRow[];
+  const stuck     = (stuckRuns  ?? []) as StuckRow[];
+  const timings   = recentTimings as TimingRow[];
+  const aiCalls   = aiErrors      as AiCallRow[];
+  const users     = (allUsers   ?? []) as { id: string; email: string }[];
   const emailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
 
   // ── Run status breakdown ─────────────────────────────────────────────────
@@ -150,10 +168,72 @@ export default async function AdminPipelinePage() {
           <Link href="/dashboard/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Pipeline health</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Pipeline health <span className="text-[13px] font-normal text-text-3 ml-1">(30d)</span></h1>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-[16px] font-semibold text-text">Pipeline health</h1>
+            {stuck.length > 0 && (
+              <span className="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-semibold animate-pulse">
+                {stuck.length} STUCK
+              </span>
+            )}
+          </div>
+          <AdminRangeFilter current={range} path="/dashboard/admin/pipeline" />
+        </div>
       </div>
 
       <div className="px-6 py-5 space-y-6 max-w-5xl">
+
+        {/* Stuck runs — shown prominently when present */}
+        {stuck.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-[12px] font-semibold text-red-700">Stuck runs</h2>
+              <span className="text-[11px] text-red-600">status=running for &gt;20 min — likely hung</span>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-md overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Run ID</th>
+                    <th>User</th>
+                    <th>Last step</th>
+                    <th>Stuck for</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stuck.map((r) => {
+                    const stuckMins = Math.floor((now.getTime() - new Date(r.created_at).getTime()) / 60_000);
+                    const lastStep  = r.step_status
+                      ? Object.entries(r.step_status).filter(([, v]) => v === "running").map(([k]) => k)[0]
+                        ?? Object.entries(r.step_status).filter(([, v]) => v === "completed").map(([k]) => k).pop()
+                      : null;
+                    return (
+                      <tr key={r.id}>
+                        <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
+                        <td className="text-[12px] text-text-2">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
+                        <td className="text-[12px] text-text-3">{lastStep?.replace(/_/g, " ") ?? "—"}</td>
+                        <td className={`tabular-nums font-semibold text-[12px] ${stuckMins > 60 ? "text-red-700" : "text-amber-700"}`}>
+                          {stuckMins}m
+                        </td>
+                        <td>
+                          <form action={adminForceCancelRun.bind(null, r.id)}>
+                            <button
+                              type="submit"
+                              className="text-[11px] text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
+                            >
+                              Force cancel
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* Run status KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -217,7 +297,7 @@ export default async function AdminPipelinePage() {
 
         {/* AI reliability */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">AI call reliability (30d)</h2>
+          <h2 className="text-[12px] font-semibold text-text mb-3">AI call reliability ({RANGE_LABELS[range]})</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
               { label: "Total AI calls",  value: String(totalCalls) },

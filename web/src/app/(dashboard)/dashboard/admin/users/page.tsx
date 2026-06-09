@@ -144,7 +144,7 @@ export default async function AdminUsersPage() {
                 return (
                   <tr key={u.id} className="group">
                     <td className="font-medium text-text">
-                      <Link href={`/dashboard/admin/activity?user=${u.id}`} className="hover:underline">
+                      <Link href={`/dashboard/admin/users/${u.id}`} className="hover:underline">
                         {u.email}
                       </Link>
                       {latestRunLog && (

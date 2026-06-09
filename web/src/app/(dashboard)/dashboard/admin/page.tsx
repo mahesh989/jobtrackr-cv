@@ -63,6 +63,7 @@ export default async function AdminOverviewPage() {
     { data: profileRows },
     { data: subsRaw },
     { data: plansRaw },
+    { data: firstCompletedRuns },
   ] = await Promise.all([
     admin.from("users").select("id, email, role, created_at").order("created_at", { ascending: false }),
     admin.from("search_profiles").select("user_id").eq("is_active", true),
@@ -82,6 +83,12 @@ export default async function AdminOverviewPage() {
     admin.from("search_profiles").select("id, user_id, name, is_active"),
     admin.from("subscriptions").select("user_id, plan_id, status"),
     admin.from("plans").select("id, price_cents, billing_interval"),
+    // For TTV: earliest completed run per user (completed_at asc)
+    admin.from("analysis_runs")
+      .select("user_id, completed_at")
+      .eq("status", "completed")
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: true }),
   ]);
 
   // Optional observability tables — only exist after migration 055 is applied.
@@ -97,11 +104,12 @@ export default async function AdminOverviewPage() {
       .limit(20)),
   ]);
 
-  type UserRow   = { id: string; email: string; role: string; created_at: string };
-  type RunRow    = { id: string; status: string; user_id: string; error_message: string | null; created_at: string };
-  type EventRow  = { user_id: string; event_type: string; metadata: Record<string, unknown>; created_at: string };
-  type InviteRow = { code: string; created_by: string | null; used_by: string | null; used_at: string | null; is_active: boolean; created_at: string };
-  type CostRow   = { cost_millicents: number; latency_ms: number; status: string };
+  type UserRow      = { id: string; email: string; role: string; created_at: string };
+  type RunRow       = { id: string; status: string; user_id: string; error_message: string | null; created_at: string };
+  type EventRow     = { user_id: string; event_type: string; metadata: Record<string, unknown>; created_at: string };
+  type InviteRow    = { code: string; created_by: string | null; used_by: string | null; used_at: string | null; is_active: boolean; created_at: string };
+  type CostRow      = { cost_millicents: number; latency_ms: number; status: string };
+  type FirstRunRow  = { user_id: string; completed_at: string };
 
   const users    = (allUsers       ?? []) as UserRow[];
   const runs24h  = (last24hRuns    ?? []) as RunRow[];
@@ -137,6 +145,28 @@ export default async function AdminOverviewPage() {
   const latencies     = costRows.filter((r) => r.latency_ms > 0).map((r) => r.latency_ms).sort((a, b) => a - b);
   const p95Latency    = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.95)] : null;
   const profilesByUser = profiles.reduce<Record<string, typeof profiles>>((a, p) => { (a[p.user_id] ??= []).push(p); return a; }, {});
+
+  // Time-to-first-value: median hours from signup → first completed analysis
+  const firstRuns = (firstCompletedRuns ?? []) as FirstRunRow[];
+  const firstRunByUser = firstRuns.reduce<Record<string, string>>((a, r) => {
+    if (!a[r.user_id]) a[r.user_id] = r.completed_at;
+    return a;
+  }, {});
+  const userById = users.reduce<Record<string, UserRow>>((a, u) => { a[u.id] = u; return a; }, {});
+  const ttvHours = Object.entries(firstRunByUser)
+    .map(([uid, completedAt]) => {
+      const u = userById[uid];
+      if (!u) return null;
+      const h = (new Date(completedAt).getTime() - new Date(u.created_at).getTime()) / 3_600_000;
+      return h >= 0 && h < 30 * 24 ? h : null;
+    })
+    .filter((h): h is number => h !== null);
+  const medianTTV = ttvHours.length > 0
+    ? [...ttvHours].sort((a, b) => a - b)[Math.floor(ttvHours.length / 2)]
+    : null;
+  const ttvLabel = medianTTV === null ? "—"
+    : medianTTV < 1 ? `${Math.round(medianTTV * 60)}m`
+    : `${medianTTV.toFixed(1)}h`;
 
   return (
     <div className="min-h-full">
@@ -192,9 +222,10 @@ export default async function AdminOverviewPage() {
               value={String(subs.filter((s) => s.status === "past_due").length)}
               sub="payment failing" href="/dashboard/admin/revenue"
               color={subs.some((s) => s.status === "past_due") ? "red" : "slate"} />
-            <StatCard label="Retention" href="/dashboard/admin/retention"
-              value={`${users.filter((u) => new Date(u.created_at) >= d7ago).length}`}
-              sub="new signups this week" color="slate" />
+            <StatCard label="Time to first value" href="/dashboard/admin/retention"
+              value={ttvLabel}
+              sub={ttvHours.length > 0 ? `median across ${ttvHours.length} users` : "no completed analyses yet"}
+              color={medianTTV !== null && medianTTV < 2 ? "green" : medianTTV !== null && medianTTV > 24 ? "amber" : "slate"} />
           </div>
         </section>
 
@@ -219,7 +250,7 @@ export default async function AdminOverviewPage() {
                 {users.slice(0, 6).map((u) => (
                   <tr key={u.id}>
                     <td className="font-medium text-text">
-                      <Link href={`/dashboard/admin/users?user=${u.id}`} className="hover:underline">{u.email}</Link>
+                      <Link href={`/dashboard/admin/users/${u.id}`} className="hover:underline">{u.email}</Link>
                     </td>
                     <td>
                       <span className={`badge text-[10px] ${u.role === "founder" ? "badge-amber" : u.role === "admin" ? "badge-purple" : "badge-gray"}`}>

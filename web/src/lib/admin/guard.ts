@@ -79,3 +79,28 @@ export function timeAgo(iso: string): string {
   if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
   return fmtDate(iso);
 }
+
+// ── Time-range helpers (used by admin pages with ?range= param) ──────────────
+
+export type RangeKey = "7d" | "30d" | "90d" | "all";
+
+export function resolveRange(raw: string | undefined): RangeKey {
+  if (raw === "7d" || raw === "90d" || raw === "all") return raw;
+  return "30d";
+}
+
+/** Returns the earliest Date for the given range (Date(0) = "all time"). */
+export function rangeStart(range: RangeKey): Date {
+  const now = new Date();
+  if (range === "7d")  return new Date(now.getTime() - 7  * 86400_000);
+  if (range === "30d") return new Date(now.getTime() - 30 * 86400_000);
+  if (range === "90d") return new Date(now.getTime() - 90 * 86400_000);
+  return new Date(0);
+}
+
+export const RANGE_LABELS: Record<RangeKey, string> = {
+  "7d":  "7 days",
+  "30d": "30 days",
+  "90d": "90 days",
+  "all": "All time",
+};

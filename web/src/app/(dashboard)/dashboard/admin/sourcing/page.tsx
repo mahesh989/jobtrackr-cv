@@ -14,7 +14,8 @@
  *             max(started_at) per source query from run_logs.
  *             See lib/admin/dummyData.ts for removal instructions.
  */
-import { requireAdmin, timeAgo } from "@/lib/admin/guard";
+import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+import { AdminRangeFilter } from "@/components/admin/AdminRangeFilter";
 import Link from "next/link";
 import { DUMMY_SOURCE_STATUS } from "@/lib/admin/dummyData";
 
@@ -44,24 +45,35 @@ function PctBar({ pct, color = "bg-blue-500" }: { pct: number; color?: string })
   );
 }
 
-export default async function AdminSourcingPage() {
+interface PageProps {
+  searchParams: Promise<{ range?: string }>;
+}
+
+export default async function AdminSourcingPage({ searchParams }: PageProps) {
+  const sp    = await searchParams;
+  const range = resolveRange(sp.range);
   const { admin } = await requireAdmin();
 
   const now    = new Date();
+  const cutoff = rangeStart(range);
   const d7ago  = new Date(now.getTime() - 7  * 86400_000);
-  const d30ago = new Date(now.getTime() - 30 * 86400_000);
 
   const [
     { data: runLogsRaw },
     { data: jobsRaw },
+    { data: appliedJobsRaw },
   ] = await Promise.all([
     admin.from("run_logs")
       .select("id, profile_id, status, started_at, jobs_fetched, jobs_saved, jobs_deduped, sources_run, sources_saved")
-      .gte("started_at", d30ago.toISOString())
+      .gte("started_at", cutoff.toISOString())
       .order("started_at", { ascending: false }),
     admin.from("jobs")
-      .select("id, jd_quality, dedup_status, source, created_at")
-      .gte("created_at", d30ago.toISOString()),
+      .select("id, jd_quality, dedup_status, source, location, created_at")
+      .gte("created_at", cutoff.toISOString()),
+    admin.from("jobs")
+      .select("source, applied_at")
+      .gte("created_at", cutoff.toISOString())
+      .not("applied_at", "is", null),
   ]);
 
   type RunLog = {
@@ -70,10 +82,12 @@ export default async function AdminSourcingPage() {
     sources_run: string[] | null;
     sources_saved: Record<string, number> | null;
   };
-  type JobRow = { id: string; jd_quality: string | null; dedup_status: string | null; source: string | null; created_at: string };
+  type JobRow     = { id: string; jd_quality: string | null; dedup_status: string | null; source: string | null; location: string | null; created_at: string };
+  type AppliedRow = { source: string | null; applied_at: string | null };
 
-  const runLogs = (runLogsRaw ?? []) as RunLog[];
-  const jobs    = (jobsRaw    ?? []) as JobRow[];
+  const runLogs    = (runLogsRaw    ?? []) as RunLog[];
+  const jobs       = (jobsRaw       ?? []) as JobRow[];
+  const appliedJobs = (appliedJobsRaw ?? []) as AppliedRow[];
 
   const completedRuns = runLogs.filter((r) => r.status === "completed");
   const recentRuns7d  = runLogs.filter((r) => new Date(r.started_at) >= d7ago);
@@ -140,6 +154,37 @@ export default async function AdminSourcingPage() {
   });
   const maxDaySaved = Math.max(...Object.values(dayBuckets).map((d) => d.saved), 1);
 
+  // ── Applied jobs by source ───────────────────────────────────────────────
+  const appliedBySource: Record<string, number> = {};
+  appliedJobs.forEach((j) => {
+    const src = j.source ?? "unknown";
+    appliedBySource[src] = (appliedBySource[src] ?? 0) + 1;
+  });
+  const appliedTotal = appliedJobs.length;
+
+  // Source-to-applied funnel: saved → applied (via jobs table)
+  const savedBySource = Object.fromEntries(
+    Object.entries(jobsBySource).map(([src, d]) => [src, d.total])
+  );
+  const allSources = [...new Set([
+    ...Object.keys(savedBySource),
+    ...Object.keys(appliedBySource),
+  ])].sort();
+
+  // ── Top job locations ────────────────────────────────────────────────────
+  const locationCount: Record<string, number> = {};
+  jobs.forEach((j) => {
+    const loc = (j.location ?? "").trim();
+    if (!loc || loc.length < 2) return;
+    // Normalize: take first comma-delimited segment if long
+    const key = loc.includes(",") ? loc.split(",").map((s) => s.trim()).slice(-2).join(", ") : loc;
+    locationCount[key] = (locationCount[key] ?? 0) + 1;
+  });
+  const topLocations = Object.entries(locationCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  const maxLocationCount = topLocations[0]?.[1] ?? 1;
+
   // ── Recent run log ───────────────────────────────────────────────────────
   const recentRunsLog = runLogs.slice(0, 15);
 
@@ -150,10 +195,13 @@ export default async function AdminSourcingPage() {
           <Link href="/dashboard/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Sourcing health</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">
-          Job sourcing health <span className="text-[13px] font-normal text-text-3 ml-1">(30d)</span>
-        </h1>
-        <p className="text-[12px] text-text-3 mt-0.5">Worker pipeline — fetching, dedup, JD quality. Source availability badges use placeholder data.</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-[16px] font-semibold text-text">Job sourcing health</h1>
+            <p className="text-[12px] text-text-3 mt-0.5">Worker pipeline — fetching, dedup, JD quality, locations. Source availability badges use placeholder data.</p>
+          </div>
+          <AdminRangeFilter current={range} path="/dashboard/admin/sourcing" />
+        </div>
       </div>
 
       {/* DUMMY_DATA banner */}
@@ -276,6 +324,81 @@ export default async function AdminSourcingPage() {
             )}
           </div>
         </section>
+
+        {/* Source-to-applied funnel */}
+        {allSources.length > 0 && (
+          <section>
+            <h2 className="text-[12px] font-semibold text-text mb-3">Source → applied funnel ({RANGE_LABELS[range]})</h2>
+            <div className="bg-surface border border-border rounded-md overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Jobs saved</th>
+                    <th>Applied</th>
+                    <th>Apply rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allSources.map((src) => {
+                    const saved   = savedBySource[src]   ?? 0;
+                    const applied = appliedBySource[src] ?? 0;
+                    const rate    = saved > 0 ? (applied / saved) * 100 : 0;
+                    return (
+                      <tr key={src}>
+                        <td className="font-medium capitalize text-text">{src}</td>
+                        <td className="tabular-nums">{saved.toLocaleString()}</td>
+                        <td className={`tabular-nums font-semibold ${applied > 0 ? "text-emerald-700" : "text-text-3"}`}>{applied}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[60px]">
+                              <div
+                                className={`h-1.5 rounded-full ${rate >= 5 ? "bg-emerald-500" : rate >= 1 ? "bg-blue-400" : "bg-slate-300"}`}
+                                style={{ width: `${Math.min(100, rate * 10)}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-text-3 w-12 text-right tabular-nums">{rate.toFixed(1)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {appliedTotal > 0 && (
+                    <tr className="border-t-2 border-border font-semibold">
+                      <td className="text-text">Total</td>
+                      <td className="tabular-nums">{totalSaved.toLocaleString()}</td>
+                      <td className="tabular-nums text-emerald-700">{appliedTotal}</td>
+                      <td className="tabular-nums text-[12px] text-text-3">
+                        {totalSaved > 0 ? ((appliedTotal / totalSaved) * 100).toFixed(1) : 0}%
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* Top job locations */}
+        {topLocations.length > 0 && (
+          <section>
+            <h2 className="text-[12px] font-semibold text-text mb-3">Top job locations ({RANGE_LABELS[range]})</h2>
+            <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
+              {topLocations.map(([loc, count]) => (
+                <div key={loc} className="flex items-center gap-3">
+                  <span className="text-[12px] text-text-2 w-52 truncate">{loc}</span>
+                  <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
+                    <div
+                      className="bg-blue-500 h-1.5 rounded-full"
+                      style={{ width: `${Math.max(2, (count / maxLocationCount) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-mono text-text-2 w-14 text-right tabular-nums">{count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Recent run log */}
         <section>
