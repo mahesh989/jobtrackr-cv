@@ -11,23 +11,39 @@ const WATCH = [
 ] as const;
 
 /**
- * Smoothly scrolls the job board into view whenever a filter/sort param
- * changes — so clicking a donut "View X jobs" CTA, a funnel stage, or any
- * filter control lands the user on the (titled) results table instead of
- * leaving them staring at the chart wondering if anything happened.
+ * Scrolls the job board into view when a filter/sort param changes AND the
+ * board is currently off-screen (below the fold).  Clicking a donut CTA or
+ * a filter chip from the top of the page still pulls the user down to the
+ * results — but once they're already browsing the list, chip changes filter
+ * in-place without yanking the viewport back up.
  *
- * Skips the very first render so a normal page load (or a deep link that
- * already carries filter params) doesn't yank the viewport unexpectedly.
+ * Skips the very first render so a normal page load (or a deep link with
+ * filter params) doesn't auto-scroll on arrival.
  */
 export function ScrollToJobsOnFilter({ targetId = "jobs-board" }: { targetId?: string }) {
   const sp = useSearchParams();
   const key = WATCH.map((k) => sp.get(k) ?? "").join("|");
-  const first = useRef(true);
+  const prevKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
+    // First mount: record the key and skip (don't scroll on initial page load).
+    if (prevKey.current === null) {
+      prevKey.current = key;
+      return;
+    }
+    if (prevKey.current === key) return;
+    prevKey.current = key;
+
     const el = document.getElementById(targetId);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!el) return;
+
+    // Only scroll if the board header is currently BELOW the visible viewport
+    // (i.e. user hasn't scrolled there yet).  rect.top > 0 means the top edge
+    // is still below the viewport top; add a small buffer for sticky headers.
+    const rect = el.getBoundingClientRect();
+    if (rect.top > 80) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, [key, targetId]);
 
   return null;
