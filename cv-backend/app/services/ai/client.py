@@ -25,25 +25,79 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # Transient connection errors worth retrying (HTTP/2 resets, TCP drops).
+# Matched against BOTH str(exc).lower() and the exception class name so the
+# retry catches the error regardless of how the SDK formats the exception
+# string. Anthropic's SDK wraps the h2 ConnectionTerminated inside a generic
+# APIConnectionError whose repr starts with "<ConnectionTerminated …" — we
+# match both the message form and the class-name form for belt-and-braces.
 _TRANSIENT_PATTERNS = (
     "connectionterminated",
     "connectionreset",
     "connection reset",
     "remotedisconnected",
+    "remote disconnected",
     "remote end closed connection",
     "server disconnected",
     "broken pipe",
     "incomplete chunked read",
+    "incomplete read",
     "connection closed",
+    "connection aborted",
+    "stream reset",
+    "streamreset",
+    "remoteprotocolerror",
+    "remote protocol",
+    "read timed out",
+    "read timeout",
+    "operation timed out",
+    "timed out",
+    "503 service",         # upstream brief unavailable
+    "502 bad gateway",
+    "504 gateway timeout",
+    "529 overloaded",      # Anthropic's overload signal
+    "overloaded_error",
+    "apiconnectionerror",
+    "apitimeouterror",
 )
+
+# Class names whose presence anywhere in the exception chain indicates a
+# transient network-level failure (independent of the message). We walk
+# __cause__ / __context__ to catch wrapped exceptions.
+_TRANSIENT_TYPE_NAMES = frozenset({
+    "ConnectionTerminated",
+    "ConnectionReset",
+    "ConnectionResetError",
+    "ConnectionClosed",
+    "ConnectionAbortedError",
+    "RemoteDisconnected",
+    "RemoteProtocolError",
+    "StreamReset",
+    "ReadTimeout",
+    "ReadTimeoutError",
+    "WriteTimeout",
+    "PoolTimeout",
+    "APIConnectionError",
+    "APITimeoutError",
+    "InternalServerError",
+})
 
 _MAX_RETRIES = 2
 _RETRY_BASE_DELAY = 1.5  # seconds; doubles each attempt
 
 
-def _is_transient(exc: Exception) -> bool:
+def _is_transient(exc: BaseException) -> bool:
     msg = str(exc).lower()
-    return any(p in msg for p in _TRANSIENT_PATTERNS)
+    if any(p in msg for p in _TRANSIENT_PATTERNS):
+        return True
+    # Walk the exception chain — wrapped causes count too.
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if type(cur).__name__ in _TRANSIENT_TYPE_NAMES:
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
 
 
 class AIClientError(Exception):
