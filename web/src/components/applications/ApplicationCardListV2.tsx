@@ -17,7 +17,9 @@ export function ApplicationCardListV2({
   empty: React.ReactNode;
 }) {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
-  const visible = rows.filter((r) => !hiddenIds.has(r.letter_id));
+  // Track hidden rows by job_id, not letter_id — letter_id is null for jobs
+  // applied outside the cover-letter flow, and job_id is always unique per row.
+  const visible = rows.filter((r) => !hiddenIds.has(r.job_id));
 
   if (visible.length === 0) return <>{empty}</>;
 
@@ -25,13 +27,13 @@ export function ApplicationCardListV2({
     <div className="space-y-3">
       {visible.map((row) => (
         <ApplicationCardV2
-          key={row.letter_id}
+          key={row.job_id}
           row={row}
           tab={tab}
           onActioned={() => {
             setHiddenIds((prev) => {
               const next = new Set(prev);
-              next.add(row.letter_id);
+              next.add(row.job_id);
               return next;
             });
           }}

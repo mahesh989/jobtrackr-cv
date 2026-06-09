@@ -360,6 +360,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     setZipping(true);
     try {
       if (!row.tailored_cv_storage_path) throw new Error("Tailored CV is not available");
+      if (!row.letter_id) throw new Error("Cover letter is not available");
       await downloadApplicationBundle({
         jobId: row.job_id,
         letterId: row.letter_id,
