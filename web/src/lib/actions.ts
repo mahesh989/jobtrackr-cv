@@ -465,6 +465,27 @@ export async function markJobApplied(jobId: string, profileId: string) {
   revalidatePath("/dashboard/applications"); // outbox bucket may change
 }
 
+/**
+ * Undo an accidental "applied" mark. Clears applied_at so the job returns to
+ * the Application pool tab. Safe to call if the user accidentally clicked
+ * "Apply now" without actually applying on the job site.
+ */
+export async function markJobUnapplied(jobId: string, profileId: string) {
+  const { supabase } = await authedClient();
+  const { error, data } = await supabase
+    .from("jobs")
+    .update({ applied_at: null })
+    .eq("id", jobId)
+    .select();
+
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
+
+  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/applications");
+}
+
 export async function markJobDismissed(jobId: string, profileId: string) {
   const { supabase } = await authedClient();
   const { error, data } = await supabase

@@ -30,7 +30,7 @@ import {
   Copy, Check, CheckCircle2, Archive, Loader2, Send, Save, Download,
   Sparkles, MoreHorizontal, AlertCircle,
 } from "lucide-react";
-import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { markJobApplied, markJobDismissed, markJobUnapplied, markPoolDecision } from "@/lib/actions";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
 import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
@@ -253,11 +253,16 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     const trimmed = value.trim() || null;
     setContactEmail(trimmed);
     setEditingEmail(false);
-    // Note: we DON'T persist the contact email here. The user can still send
-    // (Send email uses the latest value in memory). On send, the backend uses
-    // the cover_letter's recorded recipient. For full persistence we'd POST a
-    // patch to jobs — left as a follow-up since it requires a new endpoint or
-    // re-using markPoolDecision.
+    // Persist to jobs.contact_email in the DB so the send-email endpoint can
+    // read it. markPoolDecision also stamps pool_decision_at but that column
+    // is not used for tab-filtering in the new 2-tab design, so it's harmless.
+    startTransition(async () => {
+      try {
+        await markPoolDecision(row.job_id, row.profile_id, trimmed ?? undefined);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Failed to save email address");
+      }
+    });
   }
 
   // ── Send (email channel) ───────────────────────────────────────────────────
@@ -773,10 +778,11 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () => void }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [showEmail, setShowEmail] = useState(false);
-  const [hidden,    setHidden]    = useState(false);
-  const [zipping,   setZipping]   = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [showEmail,    setShowEmail]    = useState(false);
+  const [hidden,       setHidden]       = useState(false);
+  const [zipping,      setZipping]      = useState(false);
+  const [movingBack,   setMovingBack]   = useState(false);
+  const [actionError,  setActionError]  = useState<string | null>(null);
   const [cvPreviewing, setCvPreviewing] = useState(false);
 
   const isApplied  = !!row.job_applied_at;
@@ -839,6 +845,21 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       try { await markJobDismissed(row.job_id, row.profile_id); }
       catch (e) { console.error(e); setActionError("Failed to archive"); return; }
       setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 400);
+    });
+  }
+
+  function handleMoveBackToPool() {
+    if (movingBack) return;
+    setMovingBack(true);
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await markJobUnapplied(row.job_id, row.profile_id);
+        setTimeout(() => { onActioned?.(); setHidden(true); router.refresh(); }, 400);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Failed to move back to pool");
+        setMovingBack(false);
+      }
     });
   }
 
@@ -923,14 +944,27 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             Download ZIP
           </button>
         )}
-        {isApplied && (
-          <button
-            onClick={handleArchive}
-            className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors ml-auto"
-          >
-            <Archive className="w-3 h-3" /> Archive
-          </button>
-        )}
+        <div className="flex items-center gap-2 ml-auto">
+          {isApplied && (
+            <button
+              onClick={handleMoveBackToPool}
+              disabled={movingBack}
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40"
+              title="Didn't actually apply? Move it back to the pool"
+            >
+              {movingBack ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 rotate-180" />}
+              Move back to pool
+            </button>
+          )}
+          {isApplied && (
+            <button
+              onClick={handleArchive}
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors"
+            >
+              <Archive className="w-3 h-3" /> Archive
+            </button>
+          )}
+        </div>
       </div>
 
       {showEmail && (

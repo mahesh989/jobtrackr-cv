@@ -205,7 +205,7 @@ export default async function ApplicationsPage({
         </div>
       </div>
 
-      <div className="px-6 py-5 space-y-4 max-w-4xl">
+      <div className="px-6 py-5 space-y-4 max-w-5xl mx-auto w-full">
         <div className="anim-in">
           <Suspense>
             <ApplicationStatusTabs counts={counts} />
