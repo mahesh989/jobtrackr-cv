@@ -318,14 +318,32 @@ export function groupByTime(
     else buckets.set(b.key, { label: b.label, jobs: [j] });
   }
 
+  // Inside each time bucket, sort by distance ascending (closest first). This
+  // is independent of the parent's incoming sort — the time bucket is the
+  // structural axis, distance is the within-bucket order. Stable as time
+  // passes because the comparator only reads j.distance_km (immutable for the
+  // jobs in a bucket) — re-bucketing as a job ages doesn't reorder the others.
+  const byDistAsc = (a: BoardJob, b: BoardJob): number => {
+    const aNull = a.distance_km == null;
+    const bNull = b.distance_km == null;
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;
+    if (bNull) return -1;
+    return (a.distance_km as number) - (b.distance_km as number);
+  };
+
   const out: JobGroup[] = [];
-  // Sort by the numeric key ascending — smaller key = more recent.
+  // Sort buckets newest-first (smaller key = more recent).
   const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
   for (const k of keys) {
     const slot = buckets.get(k)!;
+    slot.jobs.sort(byDistAsc);
     out.push({ id: `t${k}`, label: slot.label, jobs: slot.jobs });
   }
-  if (unknown.length) out.push({ id: "tUnknown", label: "Unknown time", jobs: unknown });
+  if (unknown.length) {
+    unknown.sort(byDistAsc);
+    out.push({ id: "tUnknown", label: "Unknown time", jobs: unknown });
+  }
   return out;
 }
 

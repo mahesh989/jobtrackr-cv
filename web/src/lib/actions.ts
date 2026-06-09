@@ -579,9 +579,24 @@ export async function bulkArchiveJobs(jobIds: string[]) {
     .in("id", jobIds)
     .is("dismissed_at", null)       // don't re-stamp already-dismissed
     .is("applied_at", null)         // don't archive jobs already applied
-    .select("id");
+    .select("id, profile_id");
 
   if (error) throw new Error(error.message);
+
+  // Bust the cache for every per-profile board the archived jobs belong to
+  // — without this, ProfileJobBoard would still serve cached rows including
+  // the just-archived items (router.refresh on the client revalidates the
+  // current route only, and the action ran on the server). Falling back to
+  // a full /dashboard/profiles revalidation covers the dashboard sidebar
+  // counts and the profile list view.
+  const profileIds = Array.from(new Set(
+    ((data ?? []) as Array<{ id: string; profile_id: string }>).map((r) => r.profile_id),
+  ));
+  for (const pid of profileIds) {
+    revalidatePath(`/dashboard/profiles/${pid}/jobs`);
+    revalidatePath(`/dashboard/profiles/${pid}/runs`);
+  }
+  revalidatePath("/dashboard/profiles");
   revalidatePath("/dashboard/applications");
   revalidatePath("/dashboard");
   return { updated: data?.length ?? 0 };

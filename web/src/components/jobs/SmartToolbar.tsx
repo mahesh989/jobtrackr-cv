@@ -37,7 +37,7 @@ const SORT_OPTIONS = [
   { value: "recently_progressed", label: "Recently progressed" },
   { value: "most_progressed",     label: "Most progressed" },
   { value: "distance",            label: "Distance (nearest)" },
-  { value: "ats_score",           label: "ATS score (lowest first)" },
+  { value: "ats_score",           label: "ATS score" },
 ] as const;
 
 // "over50" is a sentinel — it filters to jobs *farther* than 50 km by setting
@@ -213,26 +213,15 @@ export function SmartToolbar({
       next.delete("dir");
     } else {
       next.set("ats", band);
-      // ATS chips default to ATS-score ascending — the "find borderline ones
-      // first" use case. The user can still override via the Sort dropdown.
-      // no_ats has no scores to sort, so keep the default for that band.
+      // ATS chips default to ATS-score descending — highest-score-first within
+      // the band, so the strongest candidates surface immediately. User can
+      // still flip direction via the Sort dropdown. no_ats has no scores.
       if (band !== "no_ats") {
         next.set("sort", "ats_score");
-        next.set("dir",  "asc");
+        next.set("dir",  "desc");
       }
     }
     commit(next, "ats");
-  }
-
-  function toggleLastAnalysed() {
-    const next = getCleanParams();
-    const isLastAnalysedSort = currentSort === "last_analysed";
-    if (isLastAnalysedSort) {
-      // Toggle off — getCleanParams already cleared it
-    } else {
-      next.set("sort", "last_analysed");
-    }
-    commit(next, "sort");
   }
 
   function isStageActive(chip: StageChip): boolean {
@@ -424,25 +413,9 @@ export function SmartToolbar({
                 </button>
               );
             })()}
-            {/* Last analysed chip — sorts by most recently analysed, descending */}
-            {(() => {
-              const isLastAnalysedSort = currentSort === "last_analysed";
-              return (
-                <button
-                  key="last_analysed"
-                  type="button"
-                  onClick={toggleLastAnalysed}
-                  title="Sort by most recently analysed — newest analysis first"
-                  className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${
-                    isLastAnalysedSort
-                      ? "bg-[var(--brand)] text-white border-[var(--brand)] font-medium"
-                      : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  Last analysed
-                </button>
-              );
-            })()}
+            {/* "Last analysed" chip was removed — the Analysed stage chip
+                already buckets jobs by time-since-analysis adaptively, so
+                an explicit "Recently analysed" sort is redundant. */}
           </div>
 
           {/* ATS Group */}

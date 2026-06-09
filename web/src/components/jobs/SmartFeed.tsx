@@ -229,7 +229,7 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   if (closest.length   > 0) out.push({ id: "closest",   label: "Closest to you",  caption: "Within 15 km of a profile's home address",               tone: "green", Icon: MapPin,        jobs: closest });
   if (fresh.length     > 0) out.push({ id: "fresh",     label: "Fresh today",     caption: "Posted in the last 24 hours",                            tone: "brand", Icon: Clock,         jobs: fresh });
   if (attention.length > 0) out.push({ id: "attention", label: "Needs attention", caption: "Thin JDs — open and paste the full description",         tone: "amber", Icon: AlertTriangle, jobs: attention });
-  if (rest.length      > 0) out.push({ id: "rest",      label: "Everything else", caption: "Older, further away, applied, or dismissed",             tone: "muted", Icon: Inbox,         jobs: rest });
+  if (rest.length      > 0) out.push({ id: "rest",      label: "Everything else", caption: "",                                                       tone: "muted", Icon: Inbox,         jobs: rest });
   return out;
 }
 
@@ -334,14 +334,40 @@ export function SmartFeed({
 
   const [bulkPending, setBulkPending] = useState<"archive" | "star" | null>(null);
 
+  // Optimistically-hidden job ids — keeps the just-archived rows out of the
+  // rendered feed instantly, without waiting for router.refresh to bring back
+  // a server-side payload that excludes them. Cleared on the next mount /
+  // when `jobs` actually changes (i.e. the server roundtrip arrives).
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  // Reset hiddenIds when the upstream `jobs` array reference changes (server
+  // refresh completed). Without this, a job re-archived later would still
+  // appear briefly while the optimistic hide from a previous run lingers.
+  const lastJobsRef = useRef(jobs);
+  if (lastJobsRef.current !== jobs) {
+    lastJobsRef.current = jobs;
+    if (hiddenIds.size > 0) setHiddenIds(new Set());
+  }
+
   async function runBulkArchive() {
     const ids = Array.from(selected);
     if (ids.length === 0 || bulkPending) return;
     setBulkPending("archive");
+    // Hide first, ask questions later — gives instant feedback. If the action
+    // fails we restore the hidden rows below.
+    const idsSet = new Set(ids);
+    setHiddenIds((prev) => new Set([...prev, ...ids]));
     try {
       await bulkArchiveJobs(ids);
       exitAllSelectModes();
       router.refresh();
+    } catch (e) {
+      // Reveal again on failure so the user can retry / sees the row.
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        idsSet.forEach((id) => next.delete(id));
+        return next;
+      });
+      throw e;
     } finally {
       setBulkPending(null);
     }
@@ -406,17 +432,32 @@ export function SmartFeed({
     setTimeout(() => el.classList.remove("ring-2", "ring-[var(--brand)]"), 1500);
   }
 
+  // Apply the optimistic-hide filter before computing anything downstream.
+  // hiddenIds only contains ids the user just bulk-archived; once router
+  // .refresh delivers a `jobs` prop that already excludes them, the set is
+  // cleared (see the lastJobsRef compare above) and this becomes a no-op.
+  const visibleJobs = useMemo(
+    () => (hiddenIds.size === 0 ? jobs : jobs.filter((j) => !hiddenIds.has(j.id))),
+    [jobs, hiddenIds],
+  );
+  const visibleGroups = useMemo(() => {
+    if (!groups || hiddenIds.size === 0) return groups;
+    return groups
+      .map((g) => ({ ...g, jobs: g.jobs.filter((j) => !hiddenIds.has(j.id)) }))
+      .filter((g) => g.jobs.length > 0);
+  }, [groups, hiddenIds]);
+
   // Distance ribbon — only render when at least one job has a resolved
   // distance. The bucketing is profile-agnostic, but the chart still helps
   // spot clusters.
   const distanceMax = useMemo(() => {
     let max = 0;
-    for (const j of jobs) if (j.distance_km != null && j.distance_km > max) max = j.distance_km;
+    for (const j of visibleJobs) if (j.distance_km != null && j.distance_km > max) max = j.distance_km;
     return max;
-  }, [jobs]);
+  }, [visibleJobs]);
 
   // When no jobs, hide bulk actions toolbar and select options
-  const hasJobs = jobs.length > 0;
+  const hasJobs = visibleJobs.length > 0;
 
   return (
     <div className="space-y-5">
@@ -427,13 +468,13 @@ export function SmartFeed({
         thresholds={thresholds}
       />
 
-      {jobs.length === 0 ? (
+      {visibleJobs.length === 0 ? (
         <EmptyState />
       ) : (
         <JobSelectionContext.Provider value={selectionValue}>
           <SmartFeedBody
-            jobs={jobs}
-            groups={groups}
+            jobs={visibleJobs}
+            groups={visibleGroups}
             hasActiveFilter={hasActiveFilter}
             currentTab={currentTab}
             distanceMax={distanceMax}
@@ -683,7 +724,9 @@ function FeedSectionView({
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
           <h3 className="text-[15px] font-semibold text-text">{section.label}</h3>
           <span className="text-[12px] font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
-          <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+          {section.caption ? (
+            <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+          ) : null}
         </div>
         {onToggleSelectMode && (
           <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />

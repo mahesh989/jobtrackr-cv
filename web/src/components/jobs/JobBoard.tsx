@@ -54,7 +54,7 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
   recently_progressed: "Recently progressed",
   most_progressed:     "Most progressed",
   distance:            "Distance (nearest)",
-  ats_score:           "ATS score (lowest first)",
+  ats_score:           "ATS score",
   last_analysed:       "Recently analysed",
 };
 
