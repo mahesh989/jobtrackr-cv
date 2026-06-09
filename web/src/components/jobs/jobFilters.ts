@@ -100,6 +100,15 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   else if (f.triage === "belowThreshold")out = out.filter((x) => x.pipelineState === "below_initial" || x.pipelineState === "below_final");
   else if (f.triage === "hasEmail")      out = out.filter((x) => x.has_email === true);
   else if (f.triage === "notTailored")   out = out.filter((x) => !x.progress.has_tailored_cv);
+  else if (f.triage === "passedNoLetter")
+    // Drives the dashboard "→ N passed ATS, no letter yet" callout. atsBand
+    // is computed from the same per-profile thresholds as the count's
+    // recomputeGates(), so count and filter cannot disagree.
+    out = out.filter((x) =>
+      x.atsBand === "above_final"
+      && !x.progress.has_cover_letter
+      && x.applied_at == null,
+    );
 
   // ATS band
   if (f.ats) out = out.filter((x) => x.atsBand === f.ats);
@@ -398,6 +407,7 @@ export function buildGroups(jobs: BoardJob[], mode: GroupMode | null): JobGroup[
 export const FILTER_LABELS: Record<string, string> = {
   analysed: "Analysed", recentlyAnalysed: "Recently analysed",
   cvReady: "CV ready", letterReady: "Letter ready",
+  passedNoLetter: "Passed ATS, no letter yet",
   thinJd: "Thin JD", applied: "Applied", dismissed: "Archived",
   richJd: "Full JD", roleMismatch: "Role mismatch", belowThreshold: "Below threshold",
   hasEmail: "Has email", notTailored: "Not tailored", needsJd: "Thin JD",

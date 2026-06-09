@@ -570,7 +570,12 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
             </FilterAnchor>
           )}
           {data.callouts.passedButNoLetter > 0 && (
-            <FilterAnchor href="/dashboard?stage=cvReady" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+            // Routes to the dedicated triage filter that mirrors the count
+            // exactly (atsBand=above_final AND no cover letter AND not
+            // applied). Previously linked to stage=cvReady, which also
+            // surfaced 60–69 ATS jobs and jobs that already had a letter,
+            // so the count and the destination disagreed.
+            <FilterAnchor href="/dashboard?triage=passedNoLetter" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
               → {data.callouts.passedButNoLetter} passed ATS, no letter yet
             </FilterAnchor>
           )}
