@@ -19,8 +19,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
 import asyncio as _asyncio_mod
+import time as _time
 
 from app.config import get_settings
+from app.services.ai import usage_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,12 @@ class AIClient:
     provider: Provider
     model: str
     api_key: str
+    # Attribution context — set once per pipeline run so every call
+    # emitted to ai_calls carries user_id/run_id without threading them
+    # through every prompt call site.
+    user_id:   Optional[str] = None
+    run_id:    Optional[str] = None
+    operation: str = "unknown"  # overridden per call via complete(operation=…)
 
     # ----------------------------------------------------------------------
     # Public methods
@@ -128,18 +136,24 @@ class AIClient:
         max_tokens: int = 4096,
         temperature: float = 0.3,
         no_training: bool = False,
+        operation: Optional[str] = None,
     ) -> str:
-        """Return a plain-text completion."""
+        """Return a plain-text completion.
+
+        operation — override the operation label for this specific call
+        (e.g. "jd_analysis", "tailored_cv"). Falls back to self.operation.
+        """
+        op = operation or self.operation
         if self.provider == "anthropic":
             return await self._anthropic_complete(
                 system=system, user=user, max_tokens=max_tokens,
-                temperature=temperature, no_training=no_training,
+                temperature=temperature, no_training=no_training, operation=op,
             )
         # DeepSeek shares OpenAI's wire format; only the base URL differs.
         base_url = DEEPSEEK_BASE_URL if self.provider == "deepseek" else None
         return await self._openai_complete(
             system=system, user=user, max_tokens=max_tokens, temperature=temperature,
-            base_url=base_url, no_training=no_training,
+            base_url=base_url, no_training=no_training, operation=op,
         )
 
     async def complete_json(
@@ -174,7 +188,7 @@ class AIClient:
 
     async def _anthropic_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
-        no_training: bool = False,
+        no_training: bool = False, operation: str = "unknown",
     ) -> str:
         try:
             from anthropic import AsyncAnthropic
@@ -208,8 +222,10 @@ class AIClient:
             return await client.messages.create(**kwargs)
 
         last_exc: Optional[Exception] = None
+        _t0 = _time.monotonic()
         for attempt in range(_MAX_RETRIES + 1):
             try:
+                _t0 = _time.monotonic()
                 try:
                     response = await _call(max_tokens)
                 except Exception as exc:
@@ -244,11 +260,35 @@ class AIClient:
                         attempt + 1, _MAX_RETRIES + 1, exc, delay,
                     )
                     last_exc = exc
+                    # Track the transient error before sleeping
+                    usage_tracker.track(
+                        operation=operation, provider="anthropic", model=self.model,
+                        input_tokens=0, output_tokens=0,
+                        latency_ms=int((_time.monotonic() - _t0) * 1000),
+                        retry_count=attempt, status="error",
+                        error_type="transient",
+                        user_id=self.user_id, run_id=self.run_id,
+                    )
                     await _asyncio_mod.sleep(delay)
                     continue
                 raise AIClientError(f"Anthropic API error: {exc}") from exc
         else:
             raise AIClientError(f"Anthropic API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+
+        # Emit usage record — fire-and-forget, never delays the caller.
+        _latency_ms = int((_time.monotonic() - _t0) * 1000)
+        _usage = getattr(response, "usage", None)
+        if _usage is not None:
+            usage_tracker.track(
+                operation=operation, provider="anthropic", model=self.model,
+                input_tokens=getattr(_usage, "input_tokens", 0),
+                output_tokens=getattr(_usage, "output_tokens", 0),
+                cached_tokens=getattr(_usage, "cache_read_input_tokens", 0),
+                latency_ms=_latency_ms,
+                retry_count=attempt,
+                status="ok",
+                user_id=self.user_id, run_id=self.run_id,
+            )
 
         # response.content is a list of content blocks; we want the text from the first text block
         for block in response.content:
@@ -259,7 +299,7 @@ class AIClient:
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
-        base_url: Optional[str] = None, no_training: bool = False,
+        base_url: Optional[str] = None, no_training: bool = False, operation: str = "unknown",
     ) -> str:
         try:
             from openai import AsyncOpenAI
@@ -342,8 +382,10 @@ class AIClient:
                 raise
 
         last_exc: Optional[Exception] = None
+        _oai_t0 = _time.monotonic()
         for attempt in range(_MAX_RETRIES + 1):
             try:
+                _oai_t0 = _time.monotonic()
                 response = await _do_call(request_kwargs)
                 finish_reason = (
                     response.choices[0].finish_reason if response.choices else None
@@ -381,11 +423,32 @@ class AIClient:
                         attempt + 1, _MAX_RETRIES + 1, exc, delay,
                     )
                     last_exc = exc
+                    usage_tracker.track(
+                        operation=operation, provider=self.provider, model=self.model,
+                        input_tokens=0, output_tokens=0,
+                        latency_ms=int((_time.monotonic() - _oai_t0) * 1000),
+                        retry_count=attempt, status="error", error_type="transient",
+                        user_id=self.user_id, run_id=self.run_id,
+                    )
                     await _asyncio_mod.sleep(delay)
                     continue
                 raise AIClientError(f"OpenAI API error: {exc}") from exc
         else:
             raise AIClientError(f"OpenAI API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+
+        # Emit usage record — fire-and-forget.
+        _oai_latency = int((_time.monotonic() - _oai_t0) * 1000)
+        _oai_usage = getattr(response, "usage", None)
+        if _oai_usage is not None:
+            usage_tracker.track(
+                operation=operation, provider=self.provider, model=self.model,
+                input_tokens=getattr(_oai_usage, "prompt_tokens", 0),
+                output_tokens=getattr(_oai_usage, "completion_tokens", 0),
+                latency_ms=_oai_latency,
+                retry_count=attempt,
+                status="ok",
+                user_id=self.user_id, run_id=self.run_id,
+            )
 
         text = response.choices[0].message.content
         if not text:

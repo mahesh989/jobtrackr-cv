@@ -18,6 +18,12 @@ import {
   Send,
   BookOpen,
   CreditCard,
+  ShieldCheck,
+  Users,
+  Cpu,
+  Activity,
+  TrendingUp,
+  FlaskConical,
 } from "lucide-react";
 
 interface Profile {
@@ -159,6 +165,24 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
         <NavItem href="/dashboard/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
+
+        {/* Admin section — founder/admin only ────────────────────────── */}
+        {isAdmin && (
+          <>
+            <div className="px-1 pt-4 pb-1">
+              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+                Admin
+              </p>
+            </div>
+            <NavItem href="/dashboard/admin" icon={ShieldCheck} exact>Overview</NavItem>
+            <NavItem href="/dashboard/admin/users" icon={Users}>Users</NavItem>
+            <NavItem href="/dashboard/admin/ai-costs" icon={Cpu}>AI costs</NavItem>
+            <NavItem href="/dashboard/admin/activity" icon={Activity}>Activity</NavItem>
+            <NavItem href="/dashboard/admin/pipeline" icon={TrendingUp}>Pipeline health</NavItem>
+            <NavItem href="/dashboard/admin/quality" icon={FlaskConical}>Quality</NavItem>
+            <NavItem href="/dashboard/admin/metrics" icon={BarChart3}>Beta metrics</NavItem>
+          </>
+        )}
       </nav>
 
       {/* User footer */}
