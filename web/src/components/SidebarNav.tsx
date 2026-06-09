@@ -24,6 +24,10 @@ import {
   Activity,
   TrendingUp,
   FlaskConical,
+  DollarSign,
+  UserCheck,
+  Database,
+  ScrollText,
 } from "lucide-react";
 
 interface Profile {
@@ -181,6 +185,15 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
             <NavItem href="/dashboard/admin/pipeline" icon={TrendingUp}>Pipeline health</NavItem>
             <NavItem href="/dashboard/admin/quality" icon={FlaskConical}>Quality</NavItem>
             <NavItem href="/dashboard/admin/metrics" icon={BarChart3}>Beta metrics</NavItem>
+            <div className="px-1 pt-3 pb-1">
+              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+                Business
+              </p>
+            </div>
+            <NavItem href="/dashboard/admin/revenue"   icon={DollarSign}>Revenue</NavItem>
+            <NavItem href="/dashboard/admin/retention" icon={UserCheck}>Retention</NavItem>
+            <NavItem href="/dashboard/admin/sourcing"  icon={Database}>Sourcing health</NavItem>
+            <NavItem href="/dashboard/admin/audit"     icon={ScrollText}>Audit log</NavItem>
           </>
         )}
       </nav>

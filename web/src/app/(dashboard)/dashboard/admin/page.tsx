@@ -61,6 +61,8 @@ export default async function AdminOverviewPage() {
     { data: recentFailures },
     { data: inviteRows },
     { data: profileRows },
+    { data: subsRaw },
+    { data: plansRaw },
   ] = await Promise.all([
     admin.from("users").select("id, email, role, created_at").order("created_at", { ascending: false }),
     admin.from("search_profiles").select("user_id").eq("is_active", true),
@@ -78,6 +80,8 @@ export default async function AdminOverviewPage() {
       .select("code, created_by, used_by, used_at, is_active, created_at")
       .order("created_at", { ascending: false }),
     admin.from("search_profiles").select("id, user_id, name, is_active"),
+    admin.from("subscriptions").select("user_id, plan_id, status"),
+    admin.from("plans").select("id, price_cents, billing_interval"),
   ]);
 
   // Optional observability tables — only exist after migration 055 is applied.
@@ -106,6 +110,19 @@ export default async function AdminOverviewPage() {
   const invites  = (inviteRows   ?? []) as InviteRow[];
   const profiles = (profileRows  ?? []) as { id: string; user_id: string; name: string; is_active: boolean }[];
   const costRows = todayCostRows as CostRow[];
+
+  type SubRow  = { user_id: string; plan_id: string; status: string };
+  type PlanRow = { id: string; price_cents: number; billing_interval: string | null };
+  const subs  = (subsRaw  ?? []) as SubRow[];
+  const plans = (plansRaw ?? []) as PlanRow[];
+  const planById = plans.reduce<Record<string, PlanRow>>((a, p) => { a[p.id] = p; return a; }, {});
+  const activeSubs = subs.filter((s) => s.status === "active");
+  const mrrCents = activeSubs.reduce((sum, s) => {
+    const p = planById[s.plan_id];
+    if (!p || !p.price_cents) return sum;
+    const monthly = p.billing_interval === "week" ? Math.round(p.price_cents * 4.33) : p.price_cents;
+    return sum + monthly;
+  }, 0);
 
   const userEmailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
   const activeUserIds = new Set((activeProfiles ?? []).map((r: { user_id: string }) => r.user_id));
@@ -157,6 +174,27 @@ export default async function AdminOverviewPage() {
               sub={`${completedRuns}✓  ${failedRuns}✗  of ${runs24h.length}`}
               href="/dashboard/admin/pipeline"
               color={failedRuns > 2 ? "red" : successRate !== null && successRate >= 95 ? "green" : "amber"} />
+          </div>
+        </section>
+
+        {/* Business signals */}
+        <section>
+          <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">Business signals</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="MRR" href="/dashboard/admin/revenue"
+              value={mrrCents > 0 ? `$${(mrrCents / 100).toFixed(0)}` : "$0"}
+              sub={`${activeSubs.length} active subscribers`}
+              color={mrrCents > 0 ? "green" : "slate"} />
+            <StatCard label="Trialing"
+              value={String(subs.filter((s) => s.status === "trialing").length)}
+              sub="on free trial" href="/dashboard/admin/revenue" color="amber" />
+            <StatCard label="Past due"
+              value={String(subs.filter((s) => s.status === "past_due").length)}
+              sub="payment failing" href="/dashboard/admin/revenue"
+              color={subs.some((s) => s.status === "past_due") ? "red" : "slate"} />
+            <StatCard label="Retention" href="/dashboard/admin/retention"
+              value={`${users.filter((u) => new Date(u.created_at) >= d7ago).length}`}
+              sub="new signups this week" color="slate" />
           </div>
         </section>
 
