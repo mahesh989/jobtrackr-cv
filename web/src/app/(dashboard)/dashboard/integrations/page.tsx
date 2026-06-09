@@ -39,6 +39,14 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // Founder/admin only — bring-your-own-key (AI providers) + Apify quota
+  // are operator concerns. Paying users get hosted AI and don't manage
+  // Apify. The user-facing email-account connect has moved to My Details
+  // → Email account, so users still have a place to connect Gmail/Outlook.
+  const { data: me } = await supabase
+    .from("users").select("role").eq("id", user.id).single();
+  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard/settings/profile");
+
   const admin = createAdminClient();
 
   // ── Apify integration ─────────────────────────────────────────────────────

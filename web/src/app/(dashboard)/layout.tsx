@@ -106,6 +106,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           email={user.email!}
           profiles={sidebarProfiles}
           poolCount={poolCount ?? 0}
+          role={ent.role}
         />
       </div>
 

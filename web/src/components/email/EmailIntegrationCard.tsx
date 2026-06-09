@@ -56,7 +56,7 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
             <button
               onClick={handleDisconnect}
               disabled={disconnecting}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
+              className="inline-flex items-center gap-1 text-[11px] text-black dark:text-white hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
             >
               {disconnecting
                 ? <Loader2 className="w-3 h-3 animate-spin" />

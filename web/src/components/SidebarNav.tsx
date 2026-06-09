@@ -32,7 +32,15 @@ interface Props {
   profiles: Profile[];
   /** Count of completed-letter jobs awaiting the To-review pool decision. */
   poolCount?: number;
+  /** users.role — drives which nav items are visible. founder/admin see the
+   *  full nav (Analytics, Integrations); paid users see the product-only
+   *  subset. Mirrors the role gate used by getEntitlement(). */
+  role?: string;
 }
+
+// Founder/admin-only items live behind this check. Mirrors ADMIN_ROLES in
+// lib/billing/entitlements.ts — keep these two in sync.
+const ADMIN_ROLES = new Set(["founder", "admin"]);
 
 /**
  * Sidebar nav. Visual structure adapted from cv-magic:
@@ -88,7 +96,8 @@ function NavItem({
   );
 }
 
-export function SidebarNav({ email, poolCount = 0 }: Props) {
+export function SidebarNav({ email, poolCount = 0, role }: Props) {
+  const isAdmin = ADMIN_ROLES.has(role ?? "");
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
 
@@ -125,7 +134,11 @@ export function SidebarNav({ email, poolCount = 0 }: Props) {
         </NavItem>
 
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
-        <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>
+        {/* Analytics is an operator/founder lens (pipeline funnels across
+            sources and profiles) — paying users don't need it; they see
+            their own dashboard funnel callouts instead. Hidden + the route
+            redirects non-admins server-side. */}
+        {isAdmin && <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>}
         <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
 
         {/* Tools */}
@@ -137,7 +150,12 @@ export function SidebarNav({ email, poolCount = 0 }: Props) {
         <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>My Details</NavItem>
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
-        <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>
+        {/* Integrations bundles bring-your-own-key (AI providers) and Apify
+            quota — both founder-only concerns. Paying users get hosted AI
+            and don't manage Apify, so the page is hidden. The email-account
+            connect that DID live here has moved to My Details → Email
+            account so users can still set up Gmail/Outlook to send. */}
+        {isAdmin && <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>}
         <NavItem href="/dashboard/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>

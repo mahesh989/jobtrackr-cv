@@ -66,6 +66,13 @@ export default async function AnalyticsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // Founder/admin lens only — pipeline funnels across sources and profiles
+  // are an operator concern, not a paying-customer concern. Paying users
+  // would land here only by URL-hopping; bounce them to their dashboard.
+  const { data: me } = await supabase
+    .from("users").select("role").eq("id", user.id).single();
+  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard");
+
   const { data: profileRows } = await supabase
     .from("search_profiles")
     .select("id, name")
