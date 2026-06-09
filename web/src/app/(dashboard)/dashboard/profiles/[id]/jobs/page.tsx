@@ -80,38 +80,30 @@ export default async function JobsPage({
     (profile as { target_verticals?: string[] | null }).target_verticals,
   );
 
-  const { data: activeRun } = await supabase
-    .from("run_logs")
-    .select("id")
-    .eq("profile_id", id)
-    .eq("status", "running")
-    .maybeSingle();
-  const isRunning = !!activeRun;
-
   const p = profile as {
     id: string; name: string; is_active: boolean; is_manual: boolean;
     keywords: string[]; schedule_cron: string;
     home_address: string | null;
   };
 
-  // ── Determine whether we're showing dismissed jobs ───────────────────────
-  // Dismissed is the only dataset filter for stage — it changes which rows
-  // are fetched so it stays server-side. Everything else (analysed, cvReady,
-  // letterReady, thinJd) is a view filter applied client-side.
+  interface AllCountRow {
+    id: string; seen_at: string | null; applied_at: string | null;
+    dismissed_at: string | null; profile_id: string; starred_at: string | null;
+    jd_quality: string | null; manual_jd_text: string | null;
+    role_match: string | null; has_email: boolean | null;
+  }
+
   const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
 
-  // ── Build job query ──────────────────────────────────────────────────────
   let query = supabase
     .from("jobs")
     .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
     .eq("profile_id", id)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
-
   if (isDismissedView) query = query.not("dismissed_at", "is", null);
   else                 query = query.is("dismissed_at", null);
-
-  if (sp.location)      query = query.ilike("location", `%${sp.location}%`);
+  if (sp.location) query = query.ilike("location", `%${sp.location}%`);
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
     if (!isNaN(days)) {
@@ -120,32 +112,62 @@ export default async function JobsPage({
       query = query.gte("posted_at", d.toISOString());
     }
   }
-
-  // Default server sort so the initial paint is in a sensible order.
-  // Client-side re-sorts happen instantly after hydration.
   query = query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
 
-  const { data: jobs } = await query;
-  const jobList = (jobs ?? []) as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  // ── BATCH 1 — three parallel queries (all need only profile `id`) ─────────
+  const [
+    { data: jobs },
+    { data: countRows },
+    { data: activeRunData },
+  ] = await Promise.all([
+    query,
+    supabase
+      .from("jobs")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+      .eq("profile_id", id)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false),
+    supabase.from("run_logs").select("id").eq("profile_id", id).eq("status", "running").maybeSingle(),
+  ]);
 
-  const jobIds = jobList.map((j) => j.id);
+  const isRunning     = !!activeRunData;
+  const jobList       = (jobs ?? []) as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  const jobIds        = jobList.map((j) => j.id);
+  const allRows       = (countRows ?? []) as AllCountRow[];
+  const jobIdsForCounts = allRows.map((r) => r.id);
 
-  // ── Latest non-stale analysis_runs + cover_letters ───────────────────────
-  const { data: recentRuns } = jobIds.length > 0
-    ? await supabase
-        .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
-        .in("job_id", jobIds)
-        .order("created_at", { ascending: false })
-    : { data: [] as AnalysisRunRef[] };
-
-  const { data: recentLetters } = jobIds.length > 0
-    ? await supabase
-        .from("cover_letters")
-        .select("id, job_id, status, completed_at, created_at")
-        .in("job_id", jobIds)
-        .order("created_at", { ascending: false })
-    : { data: [] as CoverLetterRef[] };
+  // ── BATCH 2 — four parallel queries (need job IDs from BATCH 1) ───────────
+  const [
+    { data: recentRuns },
+    { data: recentLetters },
+    runsRes,
+    lettersRes,
+  ] = await Promise.all([
+    jobIds.length > 0
+      ? supabase.from("analysis_runs")
+          .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
+          .in("job_id", jobIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as AnalysisRunRef[] }),
+    jobIds.length > 0
+      ? supabase.from("cover_letters")
+          .select("id, job_id, status, completed_at, created_at")
+          .in("job_id", jobIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as CoverLetterRef[] }),
+    jobIdsForCounts.length > 0
+      ? supabase.from("analysis_runs")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      : Promise.resolve({ data: [] }),
+    jobIdsForCounts.length > 0
+      ? supabase.from("cover_letters")
+          .select("job_id")
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
@@ -205,38 +227,7 @@ export default async function JobsPage({
       progress:   j.progress,
     }));
 
-  // ── Global counts for funnel ─────────────────────────────────────────────
-  const { data: countRows } = await supabase
-    .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
-    .eq("profile_id", id)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false);
-
-  interface AllCountRow {
-    id: string; seen_at: string | null; applied_at: string | null;
-    dismissed_at: string | null; profile_id: string;
-    starred_at: string | null;
-    jd_quality: string | null; manual_jd_text: string | null;
-    role_match: string | null; has_email: boolean | null;
-  }
-  const allRows = (countRows ?? []) as AllCountRow[];
-  const jobIdsForCounts = allRows.map((r) => r.id);
-
-  const [runsRes, lettersRes] = jobIdsForCounts.length > 0
-    ? await Promise.all([
-        supabase
-          .from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts),
-        supabase
-          .from("cover_letters")
-          .select("job_id")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts),
-      ])
-    : [{ data: [] }, { data: [] }];
+  // (allRows, runsRes, lettersRes fetched in BATCH 1 and BATCH 2 above)
 
   const analysedSet    = new Set((runsRes.data ?? []).map((r) => r.job_id));
   const cvReadySet     = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));

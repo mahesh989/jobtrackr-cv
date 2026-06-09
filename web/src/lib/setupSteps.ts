@@ -8,7 +8,7 @@
  */
 
 import {
-  UserCircle2, FileText, PenLine, Plug, Mail, Cloud, Briefcase,
+  UserCircle2, FileText, PenLine, Mail, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 import type { SetupStatus, SetupStepKey } from "./setupStatus";
@@ -41,19 +41,9 @@ export const SETUP_STEPS: SetupStep[] = [
     href: "/dashboard/voice",
   },
   {
-    key: "aiKey", icon: Plug, title: "Add an AI key (BYOK)", tag: "required",
-    blurb: "Analysis, tailoring and cover letters run on your own Anthropic, OpenAI or DeepSeek key — your key, your data. Paste it under AI providers and it validates automatically.",
-    href: "/dashboard/integrations",
-  },
-  {
     key: "email", icon: Mail, title: "Connect your email", tag: "optional",
-    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook.",
-    href: "/dashboard/integrations",
-  },
-  {
-    key: "apify", icon: Cloud, title: "Add your Apify account", tag: "recommended",
-    blurb: "A backup scraper for SEEK if the free path is ever blocked. Paste your Apify token; a monthly budget cap applies.",
-    href: "/dashboard/integrations",
+    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under My Details → Email account.",
+    href: "/dashboard/settings/profile",
   },
   {
     key: "searchProfile", icon: Briefcase, title: "Create a search profile & run it", tag: "required",
@@ -65,7 +55,7 @@ export const SETUP_STEPS: SetupStep[] = [
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** Steps that gate "setup complete" — the recommended/optional ones don't. */
-export const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["profile", "cv", "aiKey", "searchProfile"];
+export const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["profile", "cv", "searchProfile"];
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",

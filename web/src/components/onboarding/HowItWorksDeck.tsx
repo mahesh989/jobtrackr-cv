@@ -7,7 +7,6 @@
  * empty dashboard teaches the pipeline instead of sitting blank.
  */
 
-import Link from "next/link";
 import { SwipeDeck } from "./SwipeDeck";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 
@@ -22,7 +21,6 @@ const TERMS: Array<{ term: string; def: string }> = [
   { term: "Below initial / Below final", def: "Scored under the initial / final gate threshold." },
   { term: "ATS lift", def: "Points gained from your original CV to the tailored CV." },
   { term: "Tailored CV", def: "Your CV rewritten by the AI for one specific job (markdown + PDF)." },
-  { term: "BYOK", def: "Bring Your Own Key — you supply your own AI provider API key." },
   { term: "Saved / Duplicates / Filtered out", def: "Sourcing outcomes: Saved = new jobs added; Duplicates = already in your feed (by URL or near-identical text); Filtered out = dropped by keyword/smart-filter rules." },
   { term: "Has email", def: "A hiring contact email was found for the job — enables Send email." },
 ];
@@ -125,19 +123,20 @@ export function HowItWorksDeck() {
       body: (
         <>
           <p className="text-[12px] text-text-2 mb-2">
-            When a cover letter is ready, the job enters your <span className="font-medium text-text">Applications</span> outbox:
+            When a cover letter is ready, the job appears in your <span className="font-medium text-text">Applications</span> pool:
           </p>
           <ul className="space-y-1.5 text-[12px] text-text-2 list-disc pl-5">
-            <li><span className="font-medium text-text">Pool</span> → queue it for review.</li>
-            <li><span className="font-medium text-text">Review</span> → preview and edit the letter (and email subject/body), then approve.</li>
             <li>
-              <span className="font-medium text-text">Ready to apply:</span>
+              <span className="font-medium text-text">Application pool</span> — all jobs waiting for you to act. Expand any card to preview and edit the tailored CV, cover letter, and email message inline.
+            </li>
+            <li>
+              <span className="font-medium text-text">Ready to send:</span>
               <ul className="mt-1 space-y-1 list-[circle] pl-5">
                 <li><span className="font-medium text-text">Email jobs</span> (contact found) → <span className="font-medium text-text">Send email</span> dispatches via your connected Gmail/Outlook.</li>
                 <li><span className="font-medium text-text">No-email jobs</span> → <span className="font-medium text-text">Copy email</span> (paste into your own client) + <span className="font-medium text-text">Apply now</span> (opens the job link).</li>
               </ul>
             </li>
-            <li><span className="font-medium text-text">Mark applied</span> → moves to <span className="font-medium text-text">Sent</span>.</li>
+            <li><span className="font-medium text-text">Mark applied</span> → moves to the <span className="font-medium text-text">Sent</span> tab. You can move it back to the pool if needed.</li>
           </ul>
           <p className="text-[12px] text-text-3 mt-2">Nothing leaves your account until you press Send or Apply.</p>
         </>
@@ -160,8 +159,7 @@ export function HowItWorksDeck() {
             ))}
           </div>
           <p className="text-[12px] text-text-2 mt-3">
-            You can <span className="font-medium text-text">Mark applied</span> or <span className="font-medium text-text">Dismiss</span> a job at any time. The dashboard funnel and{" "}
-            <Link href="/dashboard/analytics" className="text-[var(--brand)] hover:underline">Analytics</Link> roll these states up.
+            You can <span className="font-medium text-text">Mark applied</span> or <span className="font-medium text-text">Dismiss</span> a job at any time. The dashboard funnel rolls these states up so you always see where your pipeline stands.
           </p>
         </>
       ),
