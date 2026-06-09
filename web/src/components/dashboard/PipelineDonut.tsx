@@ -560,21 +560,22 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
         </div>
       </div>
 
-      {/* Callout strip */}
+      {/* Callout strip — single horizontal line, scrolls on narrow screens
+          rather than wrapping (keeps the three counters visually grouped). */}
       {(data.callouts.thinJdCount > 0 || data.callouts.passedButNoLetter > 0 || data.callouts.readyToApply > 0) && (
-        <div className="flex flex-wrap gap-2 px-5 pb-4 pt-1 border-t border-border">
+        <div className="flex flex-nowrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border overflow-x-auto whitespace-nowrap">
           {data.callouts.thinJdCount > 0 && (
-            <FilterAnchor href="/dashboard?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+            <FilterAnchor href="/dashboard?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
               ⚠ {data.callouts.thinJdCount} thin JD{data.callouts.thinJdCount > 1 ? "s" : ""} need attention
             </FilterAnchor>
           )}
           {data.callouts.passedButNoLetter > 0 && (
-            <FilterAnchor href="/dashboard?stage=cvReady" shallow={shallow} apply={applyFilter} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+            <FilterAnchor href="/dashboard?stage=cvReady" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
               → {data.callouts.passedButNoLetter} passed ATS, no letter yet
             </FilterAnchor>
           )}
           {data.callouts.readyToApply > 0 && (
-            <Link href="/dashboard/applications" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
+            <Link href="/dashboard/applications" className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
               ✓ {data.callouts.readyToApply} ready to apply
             </Link>
           )}

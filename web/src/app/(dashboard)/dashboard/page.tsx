@@ -394,12 +394,19 @@ export default async function DashboardPage({
         .order("created_at", { ascending: false })
     : { data: [] as DonutRunRow[] };
 
+  // Match /dashboard/applications exactly — only fully-generated, non-stale
+  // letters count toward the "Letter ready" lens and "ready to apply" callout.
+  // Without status='completed', in-flight/pending letters inflated the donut
+  // and the callout disagreed with the Applications page (34 vs 33).
+  // job_id filter on allActiveJobIds already excludes dismissed jobs, so
+  // archived items can never appear in any callout count.
   const { data: donutLetterData } = allActiveJobIds.length > 0
     ? await supabase
         .from("cover_letters")
         .select("job_id")
         .in("job_id", allActiveJobIds)
         .eq("is_stale", false)
+        .eq("status", "completed")
     : { data: [] as DonutLetterRow[] };
 
   // ── Lens data computation ─────────────────────────────────────────────────────
