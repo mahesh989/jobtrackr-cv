@@ -41,7 +41,9 @@ interface MockApp {
   coverLetterSaved: string; // tracks "saved" state for dirty detection
   cvMarkdown: string;
   emailSubject: string;
+  emailSubjectSaved: string;
   emailBody: string;
+  emailBodySaved: string;
   voiceRewritten: boolean;
 }
 
@@ -118,7 +120,9 @@ const APPS: MockApp[] = [
     score: 81, stage: "pool", contactEmail: null, letterAgo: "today",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Personal Care Assistant — Penrith Home Care",
+    emailSubjectSaved: "Application for Personal Care Assistant — Penrith Home Care",
     emailBody: "Dear Hiring Manager,\n\nPlease find attached my CV and cover letter for the Personal Care Assistant role in Penrith. I have 4+ years in aged and home care and would love to discuss how I can support your clients.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Manager,\n\nPlease find attached my CV and cover letter for the Personal Care Assistant role in Penrith. I have 4+ years in aged and home care and would love to discuss how I can support your clients.\n\nKind regards,\nMaria Santos",
     voiceRewritten: true,
   },
   {
@@ -128,7 +132,9 @@ const APPS: MockApp[] = [
     score: 88, stage: "pool", contactEmail: null, letterAgo: "today",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Aged Care Worker — Chatswood",
+    emailSubjectSaved: "Application for Aged Care Worker — Chatswood",
     emailBody: "Dear Hiring Manager,\n\nI'm applying for the Aged Care Worker role at Bolton Clarke. My CV and cover letter are attached.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Manager,\n\nI'm applying for the Aged Care Worker role at Bolton Clarke. My CV and cover letter are attached.\n\nKind regards,\nMaria Santos",
     voiceRewritten: false,
   },
   {
@@ -138,7 +144,9 @@ const APPS: MockApp[] = [
     score: 74, stage: "pool", contactEmail: "careers@anglicare.org.au", letterAgo: "1d ago",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Disability Support Worker — Parramatta",
+    emailSubjectSaved: "Application for Disability Support Worker — Parramatta",
     emailBody: "Dear Hiring Team,\n\nI'd like to apply for the Disability Support Worker position. Please find my tailored CV and cover letter attached. I bring NDIS experience and a current Worker Screening Check.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Team,\n\nI'd like to apply for the Disability Support Worker position. Please find my tailored CV and cover letter attached. I bring NDIS experience and a current Worker Screening Check.\n\nKind regards,\nMaria Santos",
     voiceRewritten: true,
   },
   {
@@ -148,7 +156,9 @@ const APPS: MockApp[] = [
     score: 79, stage: "pool", contactEmail: null, letterAgo: "2d ago",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Home Care Assistant — Hurstville",
+    emailSubjectSaved: "Application for Home Care Assistant — Hurstville",
     emailBody: "Dear Hiring Manager,\n\nI'm writing to apply for the Home Care Assistant role in Hurstville. My CV and cover letter are attached for your review.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Manager,\n\nI'm writing to apply for the Home Care Assistant role in Hurstville. My CV and cover letter are attached for your review.\n\nKind regards,\nMaria Santos",
     voiceRewritten: false,
   },
   {
@@ -158,7 +168,10 @@ const APPS: MockApp[] = [
     score: 83, stage: "sent", contactEmail: "recruit@opal.com.au", letterAgo: "3d ago",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Personal Care Worker — Night Shift",
-    emailBody: "...", voiceRewritten: true,
+    emailSubjectSaved: "Application for Personal Care Worker — Night Shift",
+    emailBody: "Dear Hiring Manager,\n\nI'm writing to express my interest in the Personal Care Worker (night shift) role at Opal HealthCare in Killara. With 4+ years of aged care experience and current First Aid + NDIS Worker Screening Check, I would welcome the opportunity to support your residents overnight.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Manager,\n\nI'm writing to express my interest in the Personal Care Worker (night shift) role at Opal HealthCare in Killara. With 4+ years of aged care experience and current First Aid + NDIS Worker Screening Check, I would welcome the opportunity to support your residents overnight.\n\nKind regards,\nMaria Santos",
+    voiceRewritten: true,
   },
   {
     id: "a6",
@@ -167,7 +180,10 @@ const APPS: MockApp[] = [
     score: 84, stage: "sent", contactEmail: null, letterAgo: "4d ago",
     coverLetter: SAMPLE_COVER, coverLetterSaved: SAMPLE_COVER, cvMarkdown: SAMPLE_CV_MD,
     emailSubject: "Application for Enrolled Nurse — Orthopaedics",
-    emailBody: "...", voiceRewritten: false,
+    emailSubjectSaved: "Application for Enrolled Nurse — Orthopaedics",
+    emailBody: "Dear Hiring Team,\n\nI'm applying for the Enrolled Nurse role in Orthopaedics & ENT. Please find my tailored CV and cover letter attached. I'm a recent EN graduate looking to bring fresh clinical training to your team.\n\nKind regards,\nMaria Santos",
+    emailBodySaved: "Dear Hiring Team,\n\nI'm applying for the Enrolled Nurse role in Orthopaedics & ENT. Please find my tailored CV and cover letter attached. I'm a recent EN graduate looking to bring fresh clinical training to your team.\n\nKind regards,\nMaria Santos",
+    voiceRewritten: false,
   },
 ];
 
@@ -301,11 +317,14 @@ function PoolCard({ app, onMove, onRemove, onSetEmail, onPatch }: {
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailDraft, setEmailDraft]     = useState(app.contactEmail ?? "");
 
+  const [savingEmail, setSavingEmail] = useState(false);
   const hasEmail = !!app.contactEmail;
   const coverDirty = app.coverLetter !== app.coverLetterSaved;
+  const emailDirty = app.emailSubject !== app.emailSubjectSaved || app.emailBody !== app.emailBodySaved;
 
   function copyMessage() {
-    const payload = `Subject: ${app.emailSubject}\n\n${app.emailBody}`;
+    // Always copy the SAVED version — that's what the user committed to.
+    const payload = `Subject: ${app.emailSubjectSaved}\n\n${app.emailBodySaved}`;
     navigator.clipboard?.writeText(payload).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -317,6 +336,18 @@ function PoolCard({ app, onMove, onRemove, onSetEmail, onPatch }: {
     setTimeout(() => {
       onPatch(app.id, { coverLetterSaved: app.coverLetter });
       setSaving(false);
+    }, 600);
+  }
+
+  function saveEmail() {
+    setSavingEmail(true);
+    // Simulate save — in real version this hits POST /api/applications/[letterId]/review
+    setTimeout(() => {
+      onPatch(app.id, {
+        emailSubjectSaved: app.emailSubject,
+        emailBodySaved: app.emailBody,
+      });
+      setSavingEmail(false);
     }, 600);
   }
 
@@ -417,6 +448,9 @@ function PoolCard({ app, onMove, onRemove, onSetEmail, onPatch }: {
                   {k === "cover" && coverDirty && (
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />
                   )}
+                  {k === "email" && emailDirty && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />
+                  )}
                 </button>
               ))}
             </div>
@@ -478,8 +512,25 @@ function PoolCard({ app, onMove, onRemove, onSetEmail, onPatch }: {
                     className="w-full text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                     spellCheck
                   />
-                  <p className="text-[10px] text-text-3 mt-1">Tailored CV + cover letter are attached as PDFs — keep this short.</p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-text-3">
+                    {emailDirty ? "Unsaved changes" : "Saved"}
+                  </span>
+                  {emailDirty && (
+                    <button
+                      onClick={saveEmail}
+                      disabled={savingEmail}
+                      className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[11px] px-2.5 py-1 ml-auto disabled:opacity-40"
+                    >
+                      {savingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                      {savingEmail ? "Saving…" : "Save changes"}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-text-3">
+                  Save your edits before sending. Tailored CV + cover letter are attached as PDFs — keep this body short.
+                </p>
               </div>
             )}
           </div>
@@ -672,9 +723,10 @@ function CvPreview({ markdown }: { markdown: string }) {
   );
 }
 
-// ── Sent / Applied card — minimal ──────────────────────────────────────────
+// ── Sent / Applied card — minimal, with email message popup ─────────────────
 
 function SentCard({ app, onRemove }: { app: MockApp; onRemove: (id: string) => void }) {
+  const [showEmail, setShowEmail] = useState(false);
   return (
     <div className="bg-surface border border-border rounded-md p-4 anim-in">
       <div className="flex items-start justify-between gap-3">
@@ -695,9 +747,13 @@ function SentCard({ app, onRemove }: { app: MockApp; onRemove: (id: string) => v
           </p>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2">
-        <button className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1">
-          <Download className="w-3 h-3" /> Download ZIP
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setShowEmail(true)}
+          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+          title="View the email message you sent"
+        >
+          <Mail className="w-3 h-3" /> Email message
         </button>
         <button className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1">
           <FileType className="w-3 h-3" /> Cover letter
@@ -705,12 +761,109 @@ function SentCard({ app, onRemove }: { app: MockApp; onRemove: (id: string) => v
         <button className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1">
           <FileText className="w-3 h-3" /> Tailored CV
         </button>
+        <button className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1">
+          <Download className="w-3 h-3" /> Download ZIP
+        </button>
         <button
           onClick={() => onRemove(app.id)}
           className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors ml-auto"
         >
           <Archive className="w-3 h-3" /> Archive
         </button>
+      </div>
+      {showEmail && (
+        <SentEmailModal
+          subject={app.emailSubjectSaved}
+          body={app.emailBodySaved}
+          toEmail={app.contactEmail}
+          jobLabel={`${app.title}${app.company ? ` @ ${app.company}` : ""}`}
+          onClose={() => setShowEmail(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Sent email modal — read-only viewer with Copy button ────────────────────
+
+function SentEmailModal({
+  subject, body, toEmail, jobLabel, onClose,
+}: {
+  subject: string;
+  body: string;
+  toEmail: string | null;
+  jobLabel: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    const payload = `Subject: ${subject}\n\n${body}`;
+    navigator.clipboard?.writeText(payload).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="px-5 py-3 border-b border-border flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[14px] font-semibold text-text">Email message</h2>
+            <p className="text-[11px] text-text-3 mt-0.5 truncate">{jobLabel}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Copied" : "Copy email"}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-text-3 hover:text-text px-1"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+          {toEmail && (
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">To</label>
+              <div className="text-[12px] font-mono px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
+                {toEmail}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">Subject</label>
+            <div className="text-[13px] px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
+              {subject}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">Message</label>
+            <pre className="text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text whitespace-pre-wrap font-sans">
+              {body}
+            </pre>
+          </div>
+          {!toEmail && (
+            <p className="text-[11px] text-text-3">
+              No contact email was on file — this was the message you copied and sent manually.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

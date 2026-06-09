@@ -1,13 +1,14 @@
 /**
- * /dashboard/applications — the outbox.
+ * /dashboard/applications — the outbox (V2 redesign).
  *
- * Bucket lifecycle:
- *   Pool (Application pool) — cover letter ready, user hasn't queued for review yet
- *                      (pool_decision_at IS NULL)
- *   Ready to email   — pool_decision_at set + contact_email IS NOT NULL
- *   Ready to apply   — pool_decision_at set + contact_email IS NULL (apply manually)
- *   Sent / Applied   — job.applied_at IS NOT NULL
- *   Archived         — job.dismissed_at IS NOT NULL
+ * 2 tabs:
+ *   pool — every job with a completed cover letter that hasn't been applied
+ *          or dismissed yet. Filter: !applied_at && !dismissed_at.
+ *          (Combines the old pool/email/apply tabs into one.)
+ *   sent — applied_at IS NOT NULL.
+ *
+ * Archive removes a card from this screen entirely. Archived jobs live in
+ * the dashboard / per-profile archive view.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -15,22 +16,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Inbox } from "lucide-react";
-import { ApplicationStatusTabs, type ApplicationStatusCounts, type ApplicationStatusKey } from "@/components/applications/ApplicationStatusTabs";
-import { type ApplicationRow } from "@/components/applications/ApplicationCard";
-import { ApplicationCardList } from "@/components/applications/ApplicationCardList";
+import {
+  ApplicationStatusTabs,
+  type ApplicationStatusCounts,
+  type ApplicationStatusKey,
+} from "@/components/applications/ApplicationStatusTabs";
+import { type ApplicationRowV2 } from "@/components/applications/ApplicationCardV2";
+import { ApplicationCardListV2 } from "@/components/applications/ApplicationCardListV2";
 import { BackButton } from "@/components/dashboard/BackButton";
-import { PoolBulkBar } from "@/components/applications/PoolBulkBar";
-import { EmailBulkBar } from "@/components/applications/EmailBulkBar";
 import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
-
-const LETTER_PREVIEW_CHARS = 180;
-
-function letterPreview(s: string | null | undefined): string {
-  if (!s) return "";
-  const flat = s.replace(/\s+/g, " ").trim();
-  if (flat.length <= LETTER_PREVIEW_CHARS) return flat;
-  return flat.slice(0, LETTER_PREVIEW_CHARS).trimEnd() + "…";
-}
 
 export default async function ApplicationsPage({
   searchParams,
@@ -39,10 +33,7 @@ export default async function ApplicationsPage({
 }) {
   const sp = await searchParams;
   const rawTab = sp.status as ApplicationStatusKey | undefined;
-  const validTab: ApplicationStatusKey =
-    rawTab === "email" || rawTab === "apply" || rawTab === "sent" || rawTab === "archived"
-      ? rawTab
-      : "pool";
+  const validTab: ApplicationStatusKey = rawTab === "sent" ? "sent" : "pool";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -51,7 +42,7 @@ export default async function ApplicationsPage({
   // ── 1. Cover letters ──────────────────────────────────────────────────────
   const { data: letters } = await supabase
     .from("cover_letters")
-    .select("id, job_id, pass_3_final, completed_at, created_at, reviewed_at")
+    .select("id, job_id, completed_at, created_at")
     .eq("user_id", user.id)
     .eq("status", "completed")
     .eq("is_stale", false)
@@ -60,10 +51,8 @@ export default async function ApplicationsPage({
   const letterRows = (letters ?? []) as Array<{
     id:            string;
     job_id:        string;
-    pass_3_final:  string | null;
     completed_at:  string | null;
     created_at:    string;
-    reviewed_at:   string | null;
   }>;
 
   if (letterRows.length === 0) {
@@ -75,7 +64,7 @@ export default async function ApplicationsPage({
   // ── 2. Jobs ───────────────────────────────────────────────────────────────
   const { data: jobs } = await supabase
     .from("jobs")
-    .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, has_email, contact_email, hiring_manager, pool_decision_at")
+    .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
     .in("id", jobIds);
 
   const jobById = new Map(
@@ -88,10 +77,8 @@ export default async function ApplicationsPage({
       url:               string;
       applied_at:        string | null;
       dismissed_at:      string | null;
-      has_email:         boolean | null;
       contact_email:     string | null;
       hiring_manager:    string | null;
-      pool_decision_at:  string | null;
     }>).map((j) => [j.id, j]),
   );
 
@@ -135,7 +122,7 @@ export default async function ApplicationsPage({
   );
 
   // ── 5. Build rows ─────────────────────────────────────────────────────────
-  const allRows: ApplicationRow[] = [];
+  const allRows: ApplicationRowV2[] = [];
   for (const l of letterRows) {
     const j = jobById.get(l.job_id);
     if (!j) continue;
@@ -143,8 +130,6 @@ export default async function ApplicationsPage({
     allRows.push({
       letter_id:                 l.id,
       letter_completed_at:       l.completed_at,
-      letter_preview:            letterPreview(l.pass_3_final),
-      letter_reviewed_at:        l.reviewed_at,
       job_id:                    j.id,
       job_title:                 j.title ?? "(untitled)",
       job_company:               j.company ?? "",
@@ -153,8 +138,6 @@ export default async function ApplicationsPage({
       job_applied_at:            j.applied_at,
       job_dismissed_at:          j.dismissed_at,
       job_contact_email:         j.contact_email,
-      job_has_email:             !!j.has_email,
-      job_pool_decision_at:      j.pool_decision_at,
       job_hiring_manager:        j.hiring_manager,
       profile_id:                j.profile_id,
       profile_name:              profileNameById.get(j.profile_id) ?? "",
@@ -165,70 +148,41 @@ export default async function ApplicationsPage({
     });
   }
 
-  // ── 6. Bucket counts ──────────────────────────────────────────────────────
-  // Lifecycle (post-039 + unified review):
-  //   pool    — user hasn't queued the card for review yet ("Application pool" tab).
-  //             pool_decision_at IS NULL.
-  //   email   — REVIEW STAGE ("Ready to review" tab). Every queued card —
-  //             email or no-email — is reviewed here. Filter: pool_decision_at
-  //             SET and reviewed_at NULL.
-  //   apply   — ACTION STAGE ("Ready to apply" tab). Email-channel cards show
-  //             Send email; no-email cards show Copy email + Apply now.
-  //             Filter: pool_decision_at SET and reviewed_at SET.
-  //   sent    — applied_at SET.
-  //   archived— dismissed_at SET.
-  const isPool     = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at === null;
-  const isEmail    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !r.letter_reviewed_at;
-  const isApply    = (r: ApplicationRow) => !r.job_applied_at && !r.job_dismissed_at && r.job_pool_decision_at !== null && !!r.letter_reviewed_at;
-  const isSent     = (r: ApplicationRow) => !!r.job_applied_at;
-  const isArchived = (r: ApplicationRow) => !!r.job_dismissed_at && !r.job_applied_at;
+  // ── 6. Bucket filtering (2-tab) ───────────────────────────────────────────
+  //   pool: everything not applied AND not dismissed
+  //   sent: applied_at IS NOT NULL
+  // Dismissed (archived) jobs are NOT shown on this screen at all — they
+  // appear in the dashboard / per-profile archive view.
+  const isPool = (r: ApplicationRowV2) => !r.job_applied_at && !r.job_dismissed_at;
+  const isSent = (r: ApplicationRowV2) => !!r.job_applied_at;
 
   const counts: ApplicationStatusCounts = {
-    pool:     allRows.filter(isPool).length,
-    email:    allRows.filter(isEmail).length,
-    apply:    allRows.filter(isApply).length,
-    sent:     allRows.filter(isSent).length,
-    archived: allRows.filter(isArchived).length,
+    pool: allRows.filter(isPool).length,
+    sent: allRows.filter(isSent).length,
   };
 
-  // ── 7. Filter to current tab ──────────────────────────────────────────────
-  const visible = allRows.filter((r) => {
-    if (validTab === "pool")     return isPool(r);
-    if (validTab === "email")    return isEmail(r);
-    if (validTab === "apply")    return isApply(r);
-    if (validTab === "sent")     return isSent(r);
-    if (validTab === "archived") return isArchived(r);
-    return false;
-  });
+  const visible = allRows.filter((r) =>
+    validTab === "pool" ? isPool(r) : isSent(r)
+  );
 
-  // Shared empty-state node. Passed into the client list wrappers so they can
-  // render it the instant the last card actions out (without a server refresh),
-  // and also used directly for the initial server-rendered empty case.
+  const TAB_HELP: Record<ApplicationStatusKey, string> = {
+    pool: "Review your tailored CV, cover letter, and email message for each job. Edit anything, save your changes, then send or apply. Cards with a contact email send in one click; cards without one let you copy the message and apply via the job link.",
+    sent: "Jobs you've applied to. Tap Email message to see (and copy) what you sent.",
+  };
+
   const tabEmpty = (
     <div className="bg-surface border border-border rounded-md py-12 text-center anim-in anim-delay-2">
       <p className="text-[13px] font-medium text-text mb-1">Nothing here yet</p>
       <p className="text-[12px] text-text-2">
-        {validTab === "pool"     && "Cover letters waiting to be queued for review will appear here."}
-        {validTab === "email"    && "Cards queued for review will appear here. Generate a cover letter on a job to start."}
-        {validTab === "apply"    && "Reviewed cards ready to be sent or applied to will appear here."}
-        {validTab === "sent"     && "Jobs you mark as applied will appear here."}
-        {validTab === "archived" && "Archived applications will appear here."}
+        {validTab === "pool"
+          ? "Cover letters waiting to be reviewed and sent will appear here."
+          : "Jobs you mark as applied will appear here."}
       </p>
     </div>
   );
 
-  const TAB_HELP: Record<ApplicationStatusKey, string> = {
-    pool:     "Cover letter is ready. Queue it for review (and optionally add a contact email), or archive it. The same review flow applies whether you have a contact email or not.",
-    email:    "Review stage. Click Review on a card to preview and edit the email (subject + body), then Approve. Approved cards move to Ready to apply. Nothing leaves your account from this tab.",
-    apply:    "Send / Apply stage. Cards with a contact email show Send email (dispatches via Gmail/Outlook). No-email cards show Copy email (paste into your own client) and Apply now (opens the job link). Mark applied when you're done.",
-    sent:     "Jobs you've applied to. Track outcomes here.",
-    archived: "Jobs you've dismissed after generating a letter.",
-  };
-
   return (
     <div className="min-h-full">
-      {/* Clears the sidebar Applications badge on view (persists via
-          users.applications_seen_at). */}
       <MarkApplicationsSeenOnLoad />
       <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
@@ -262,25 +216,9 @@ export default async function ApplicationsPage({
           {TAB_HELP[validTab]}
         </p>
 
-        {visible.length === 0 ? (
-          tabEmpty
-        ) : validTab === "pool" ? (
-          /* Pool tab uses the pool-bulk wrapper. */
-          <div className="anim-in anim-delay-2">
-            <PoolBulkBar rows={visible} empty={tabEmpty} />
-          </div>
-        ) : validTab === "email" ? (
-          /* Ready-to-email uses the send-bulk wrapper (still allows per-card Send). */
-          <div className="anim-in anim-delay-2">
-            <EmailBulkBar rows={visible} empty={tabEmpty} />
-          </div>
-        ) : (
-          /* Apply / Sent / Archived render plain. The card needs the current
-             tab so it can pick the right primary action (Send email vs Apply now). */
-          <div className="anim-in anim-delay-2">
-            <ApplicationCardList rows={visible} tab={validTab} empty={tabEmpty} />
-          </div>
-        )}
+        <div className="anim-in anim-delay-2">
+          <ApplicationCardListV2 rows={visible} tab={validTab} empty={tabEmpty} />
+        </div>
       </div>
     </div>
   );

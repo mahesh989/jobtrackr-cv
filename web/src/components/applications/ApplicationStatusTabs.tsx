@@ -3,30 +3,26 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 
-export type ApplicationStatusKey = "pool" | "email" | "apply" | "sent" | "archived";
+/**
+ * 2-tab Applications flow:
+ *   pool — every job with a completed cover letter that hasn't been applied
+ *          or dismissed yet. Triage + review + send happens here on the same
+ *          card. Filter: !applied_at && !dismissed_at.
+ *   sent — applied_at IS NOT NULL.
+ *
+ * Archive: removes the card from this screen entirely. Archived jobs live in
+ * the dashboard / per-profile archive view, NOT here.
+ */
+export type ApplicationStatusKey = "pool" | "sent";
 
 export interface ApplicationStatusCounts {
-  pool:     number;
-  email:    number;
-  apply:    number;
-  sent:     number;
-  archived: number;
+  pool: number;
+  sent: number;
 }
 
-// Tab semantics (post-039 + Review->Send unification):
-//   pool     — cover letter just generated; user accepts ("Queue for review")
-//              or archives. Contact email is optional here.
-//   email    — Review stage. Every queued card is reviewed here regardless of
-//              whether a contact email is on file. The tab label is "Ready to
-//              review" — kept "email" as the URL/key for backward compat.
-//   apply    — Action stage. Reviewed cards land here. Email-channel cards
-//              show Send email; no-email cards show Copy email + Apply now.
 const TABS: Array<{ value: ApplicationStatusKey; label: string }> = [
-  { value: "pool",     label: "Application pool" },
-  { value: "email",    label: "Ready to review"  },
-  { value: "apply",    label: "Ready to apply"   },
-  { value: "sent",     label: "Sent / Applied"   },
-  { value: "archived", label: "Archived"         },
+  { value: "pool", label: "Application pool" },
+  { value: "sent", label: "Sent / Applied"   },
 ];
 
 export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCounts }) {
