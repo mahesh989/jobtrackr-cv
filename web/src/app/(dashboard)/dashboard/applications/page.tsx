@@ -55,67 +55,59 @@ export default async function ApplicationsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // ── 0. User's profiles (fetched once, used throughout) ───────────────────
-  const { data: allProfiles } = await supabase
-    .from("search_profiles")
-    .select("id, name")
-    .eq("user_id", user.id);
+  // ── BATCH 1 — profiles + cover letters in parallel (both need user.id) ───
+  const [
+    { data: allProfiles },
+    { data: letters },
+  ] = await Promise.all([
+    supabase.from("search_profiles").select("id, name").eq("user_id", user.id),
+    supabase.from("cover_letters")
+      .select("id, job_id, completed_at, created_at")
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .eq("is_stale", false)
+      .order("completed_at", { ascending: false }),
+  ]);
+
   const allProfileIds = ((allProfiles ?? []) as Array<{ id: string }>).map((p) => p.id);
   const profileNameById = new Map(
     ((allProfiles ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]),
   );
-
-  // ── 1. Cover letters ──────────────────────────────────────────────────────
-  const { data: letters } = await supabase
-    .from("cover_letters")
-    .select("id, job_id, completed_at, created_at")
-    .eq("user_id", user.id)
-    .eq("status", "completed")
-    .eq("is_stale", false)
-    .order("completed_at", { ascending: false });
-
   const letterRows = (letters ?? []) as Array<{
-    id:           string;
-    job_id:       string;
-    completed_at: string | null;
-    created_at:   string;
+    id: string; job_id: string; completed_at: string | null; created_at: string;
   }>;
-
   const letterJobIds = Array.from(new Set(letterRows.map((l) => l.job_id)));
 
-  // ── 2. Jobs for cover letters ─────────────────────────────────────────────
-  const { data: letterJobsData } = letterJobIds.length > 0
-    ? await supabase
-        .from("jobs")
+  // ── BATCH 2 — letter jobs + applied-only jobs in parallel ────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let appliedOnlyQuery: any = allProfileIds.length > 0
+    ? supabase.from("jobs")
         .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
-        .in("id", letterJobIds)
-    : { data: [] as JobRow[] };
+        .in("profile_id", allProfileIds)
+        .not("applied_at", "is", null)
+        .is("dismissed_at", null)
+    : null;
+  if (appliedOnlyQuery && letterJobIds.length > 0) {
+    appliedOnlyQuery = appliedOnlyQuery.not("id", "in", `(${letterJobIds.join(",")})`);
+  }
 
-  const letterJobById = new Map(
-    ((letterJobsData ?? []) as JobRow[]).map((j) => [j.id, j]),
-  );
-
-  // ── 3. Applied-only jobs (no cover letter) — for Sent tab ─────────────────
-  // Catches jobs the user applied to outside the Applications flow (e.g. via
-  // "Apply now" on the job listing directly). Sent tab is the single source of
-  // truth for ALL applied jobs, not just those with cover letters.
-  const { data: appliedOnlyData } = allProfileIds.length > 0
-    ? await (async () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let q: any = supabase
-          .from("jobs")
+  const [
+    { data: letterJobsData },
+    { data: appliedOnlyData },
+  ] = await Promise.all([
+    letterJobIds.length > 0
+      ? supabase.from("jobs")
           .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
-          .in("profile_id", allProfileIds)
-          .not("applied_at", "is", null)
-          .is("dismissed_at", null);
-        if (letterJobIds.length > 0) {
-          q = q.not("id", "in", `(${letterJobIds.join(",")})`);
-        }
-        return q;
-      })()
-    : { data: [] as JobRow[] };
+          .in("id", letterJobIds)
+      : Promise.resolve({ data: [] as JobRow[] }),
+    appliedOnlyQuery
+      ? appliedOnlyQuery
+      : Promise.resolve({ data: [] as JobRow[] }),
+  ]);
 
-  // ── 4. Analysis runs (for all jobs) ──────────────────────────────────────
+  const letterJobById = new Map(((letterJobsData ?? []) as JobRow[]).map((j) => [j.id, j]));
+
+  // ── BATCH 3 — analysis runs (needs job IDs from both BATCH 2 results) ────
   const appliedOnlyIds = ((appliedOnlyData ?? []) as JobRow[]).map((j) => j.id);
   const allJobIds = [...letterJobIds, ...appliedOnlyIds];
 

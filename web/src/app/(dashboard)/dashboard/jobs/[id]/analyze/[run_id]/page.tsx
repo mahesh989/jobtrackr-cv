@@ -19,28 +19,30 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   const admin = createAdminClient();
 
-  const { data: job } = await admin
-    .from("jobs")
-    .select("title, company, location, url, manual_jd_text, description, hiring_manager, profile_id")
-    .eq("id", jobId)
-    .maybeSingle();
+  // ── BATCH 1 — job + run in parallel ──────────────────────────────────────
+  const [
+    { data: job },
+    { data: run },
+  ] = await Promise.all([
+    admin.from("jobs")
+      .select("title, company, location, url, manual_jd_text, description, hiring_manager, profile_id")
+      .eq("id", jobId)
+      .maybeSingle(),
+    admin.from("analysis_runs")
+      .select(
+        "id, job_id, status, step_status, cover_letter_status, " +
+        "jd_analysis_result, cv_jd_matching_result, ats_scoring_result, " +
+        "input_recommendations, keyword_feasibility, ai_recommendations, " +
+        "tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, " +
+        "match_score, tailored_match_score, ats_lift, " +
+        "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at, user_id",
+      )
+      .eq("id", runId)
+      .eq("job_id", jobId)
+      .maybeSingle(),
+  ]);
 
   if (!job) notFound();
-
-  const { data: run } = await admin
-    .from("analysis_runs")
-    .select(
-      "id, job_id, status, step_status, cover_letter_status, " +
-      "jd_analysis_result, cv_jd_matching_result, ats_scoring_result, " +
-      "input_recommendations, keyword_feasibility, ai_recommendations, " +
-      "tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, " +
-      "match_score, tailored_match_score, ats_lift, " +
-      "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at, user_id",
-    )
-    .eq("id", runId)
-    .eq("job_id", jobId)
-    .maybeSingle();
-
   if (!run) notFound();
 
   // Ownership — allow if the user owns ANY artifact tied to this job: its
@@ -70,40 +72,38 @@ export default async function AnalyzeRunPage({ params }: Props) {
     (ownedLetters ?? 0) > 0;
   if (!ownsJob) notFound();
 
-  // Look up the CV label that was used so the diagnostic shows
-  // "Master CV 2026" rather than a UUID.
   const cvVersionId = (run as unknown as { cv_version_id: string }).cv_version_id;
-  const { data: cv } = await admin
-    .from("cv_versions")
-    .select("label, cv_text, categorised_skills")
-    .eq("id", cvVersionId)
-    .maybeSingle();
-  const cvLabel     = cv?.label ?? null;
-  const cvCharLen   = (cv?.cv_text ?? "").length;
-  const cvSkills    = (cv?.categorised_skills as { technical?: string[]; soft_skills?: string[]; domain_knowledge?: string[] } | null) ?? null;
+  const currentJd   = (job?.manual_jd_text ?? job?.description ?? "").trim();
+  const ranJd       = ((run as unknown as { jd_text: string }).jd_text ?? "").trim();
+  const jdChanged   = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
 
-  // Soft-stale check: compare the JD text snapshot the run used against the
-  // job's current JD source (manual override if present, else description).
-  // If they differ, the user has edited the input — surface a banner.
-  const currentJd = (job?.manual_jd_text ?? job?.description ?? "").trim();
-  const ranJd     = ((run as unknown as { jd_text: string }).jd_text ?? "").trim();
-  const jdChanged = currentJd.length > 0 && ranJd.length > 0 && currentJd !== ranJd;
+  // ── BATCH 2 — cv version + existing letter in parallel ───────────────────
+  const [
+    { data: cv },
+    { data: existingLetter },
+  ] = await Promise.all([
+    admin.from("cv_versions")
+      .select("label, cv_text, categorised_skills")
+      .eq("id", cvVersionId)
+      .maybeSingle(),
+    admin.from("cover_letters")
+      .select(
+        "id, status, generation_status, pass_3_final, burstiness_score, " +
+        "naturalness_score, coherence_score, specificity_ok, honesty_ok, " +
+        "quality_flags, company_hook_text, tone_target, error_message, " +
+        "pass_1_model, pass_2_model, pass_3_model",
+      )
+      .eq("user_id", user.id)
+      .eq("job_id", jobId)
+      .eq("is_stale", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  // Pre-fetch most recent non-stale cover letter for this job (if any)
-  const { data: existingLetter } = await admin
-    .from("cover_letters")
-    .select(
-      "id, status, generation_status, pass_3_final, burstiness_score, " +
-      "naturalness_score, coherence_score, specificity_ok, honesty_ok, " +
-      "quality_flags, company_hook_text, tone_target, error_message, " +
-      "pass_1_model, pass_2_model, pass_3_model",
-    )
-    .eq("user_id", user.id)
-    .eq("job_id", jobId)
-    .eq("is_stale", false)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const cvLabel  = cv?.label ?? null;
+  const cvCharLen = (cv?.cv_text ?? "").length;
+  const cvSkills  = (cv?.categorised_skills as { technical?: string[]; soft_skills?: string[]; domain_knowledge?: string[] } | null) ?? null;
 
   const runStatus    = (run as unknown as { status: string }).status;
   const completedAt  = (run as unknown as { completed_at: string | null }).completed_at;

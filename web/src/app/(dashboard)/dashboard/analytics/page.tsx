@@ -83,18 +83,19 @@ export default async function AnalyticsPage() {
 
   if (ids.length === 0) return <EmptyState />;
 
-  // ── 1. Scraped — run_logs (sources_saved per source, jobs_saved per profile)
-  const { data: runLogData } = await supabase
-    .from("run_logs")
-    .select("profile_id, jobs_saved, sources_saved")
-    .in("profile_id", ids);
+  // ── BATCH 1 — run_logs + jobs in parallel (both need only `ids`) ─────────
+  const [
+    { data: runLogData },
+    { data: jobRows },
+  ] = await Promise.all([
+    supabase.from("run_logs").select("profile_id, jobs_saved, sources_saved").in("profile_id", ids),
+    supabase.from("jobs").select("id, profile_id, source, applied_at").in("profile_id", ids),
+  ]);
 
   const scrapedBySource: Record<string, number> = {};
   const scrapedByProfile: Record<string, number> = {};
   for (const r of (runLogData ?? []) as Array<{
-    profile_id: string;
-    jobs_saved: number | null;
-    sources_saved: Record<string, number> | null;
+    profile_id: string; jobs_saved: number | null; sources_saved: Record<string, number> | null;
   }>) {
     scrapedByProfile[r.profile_id] = (scrapedByProfile[r.profile_id] ?? 0) + (r.jobs_saved ?? 0);
     if (r.sources_saved) {
@@ -104,42 +105,35 @@ export default async function AnalyticsPage() {
     }
   }
 
-  // ── 2. Jobs ─────────────────────────────────────────────────────────────────
-  const { data: jobRows } = await supabase
-    .from("jobs")
-    .select("id, profile_id, source, applied_at")
-    .in("profile_id", ids);
-
-  const jobs = (jobRows ?? []) as Array<{
-    id: string; profile_id: string; source: string; applied_at: string | null;
-  }>;
+  const jobs   = (jobRows ?? []) as Array<{ id: string; profile_id: string; source: string; applied_at: string | null }>;
   const jobIds = jobs.map((j) => j.id);
 
-  // ── 3. Latest completed run per job (analysed + tailored artifact) ──────────
-  const { data: runData } = jobIds.length > 0
-    ? await supabase
-        .from("analysis_runs")
-        .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, created_at")
-        .in("job_id", jobIds)
-        .eq("status", "completed")
-        .eq("is_stale", false)
-        .order("created_at", { ascending: false })
-    : { data: [] as Array<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }> };
+  // ── BATCH 2 — analysis runs + cover letters in parallel (need `jobIds`) ──
+  const [
+    { data: runData },
+    { data: letterRows },
+  ] = await Promise.all([
+    jobIds.length > 0
+      ? supabase.from("analysis_runs")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, created_at")
+          .in("job_id", jobIds)
+          .eq("status", "completed")
+          .eq("is_stale", false)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as Array<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }> }),
+    jobIds.length > 0
+      ? supabase.from("cover_letters")
+          .select("job_id")
+          .in("job_id", jobIds)
+          .eq("status", "completed")
+          .eq("is_stale", false)
+      : Promise.resolve({ data: [] as Array<{ job_id: string }> }),
+  ]);
 
   const latestRunByJob = new Map<string, { tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>();
   for (const r of (runData ?? []) as Array<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>) {
     if (!latestRunByJob.has(r.job_id)) latestRunByJob.set(r.job_id, r);
   }
-
-  // ── 4. Jobs with a completed cover letter ──────────────────────────────────
-  const { data: letterRows } = jobIds.length > 0
-    ? await supabase
-        .from("cover_letters")
-        .select("job_id")
-        .in("job_id", jobIds)
-        .eq("status", "completed")
-        .eq("is_stale", false)
-    : { data: [] as Array<{ job_id: string }> };
   const letterSet = new Set(((letterRows ?? []) as Array<{ job_id: string }>).map((l) => l.job_id));
 
   // ── Aggregate per job into source + profile buckets ─────────────────────────
