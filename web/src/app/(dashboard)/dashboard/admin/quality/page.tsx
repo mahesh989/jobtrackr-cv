@@ -44,7 +44,7 @@ export default async function AdminQualityPage() {
       .gte("created_at", d30ago.toISOString())
       .order("created_at", { ascending: false }),
     admin.from("cover_letters")
-      .select("status, created_at, cover_letter_status")
+      .select("status, created_at")
       .gte("created_at", d30ago.toISOString()),
   ]);
 
@@ -55,7 +55,7 @@ export default async function AdminQualityPage() {
     tailored_ats_scoring_result: Record<string, unknown> | null;
     created_at: string;
   };
-  type LetterRow = { status: string; created_at: string; cover_letter_status?: string };
+  type LetterRow = { status: string; created_at: string };
 
   const runs    = (runsRaw    ?? []) as RunRow[];
   const letters = (lettersRaw ?? []) as LetterRow[];

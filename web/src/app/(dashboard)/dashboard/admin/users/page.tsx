@@ -25,6 +25,7 @@ export default async function AdminUsersPage() {
   const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
   const d30ago     = new Date(now.getTime() - 30 * 86400_000);
 
+  // Core queries — always exist
   const [
     { data: allUsers },
     { data: allProfiles },
@@ -32,8 +33,6 @@ export default async function AdminUsersPage() {
     { data: allAnalysisRuns },
     { data: allLetters },
     { data: allSubs },
-    { data: allAiCosts },
-    { data: recentEvents },
   ] = await Promise.all([
     admin.from("users").select("id, email, role, created_at").order("created_at", { ascending: false }),
     admin.from("search_profiles").select("id, user_id, name, is_active, schedule_cron"),
@@ -46,11 +45,18 @@ export default async function AdminUsersPage() {
     admin.from("cover_letters").select("user_id, status, created_at")
       .gte("created_at", d30ago.toISOString()),
     admin.from("subscriptions").select("user_id, plan_id, status, current_period_end, trial_end"),
-    admin.from("ai_calls").select("user_id, cost_millicents, created_at")
-      .gte("created_at", monthStart.toISOString()),
-    admin.from("user_events").select("user_id, event_type, metadata, created_at")
+  ]);
+
+  // Optional observability tables — only exist after migration 055 is applied.
+  // Gracefully fall back to empty arrays so the page renders even before the migration.
+  const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
+    Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
+  const [allAiCosts, recentEvents] = await Promise.all([
+    safeQuery(admin.from("ai_calls").select("user_id, cost_millicents, created_at")
+      .gte("created_at", monthStart.toISOString())),
+    safeQuery(admin.from("user_events").select("user_id, event_type, metadata, created_at")
       .order("created_at", { ascending: false })
-      .limit(200),
+      .limit(200)),
   ]);
 
   type UserRow     = { id: string; email: string; role: string; created_at: string };
@@ -68,8 +74,8 @@ export default async function AdminUsersPage() {
   const aRuns    = (allAnalysisRuns ?? []) as ARunRow[];
   const letters  = (allLetters     ?? []) as LetterRow[];
   const subs     = (allSubs        ?? []) as SubRow[];
-  const aiCosts  = (allAiCosts     ?? []) as AiCostRow[];
-  const events   = (recentEvents   ?? []) as EventRow[];
+  const aiCosts  = allAiCosts  as AiCostRow[];
+  const events   = recentEvents as EventRow[];
 
   // Index everything by user_id or profile_id
   const profilesByUser = profiles.reduce<Record<string, ProfileRow[]>>((a, p) => { (a[p.user_id] ??= []).push(p); return a; }, {});

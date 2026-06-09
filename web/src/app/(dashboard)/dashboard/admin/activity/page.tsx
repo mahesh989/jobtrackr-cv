@@ -27,16 +27,12 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   const now    = new Date();
   const d30ago = new Date(now.getTime() - 30 * 86400_000);
 
+  // Core queries — always exist
   const [
-    { data: rawEvents },
     { data: allUsers },
     { data: recentRuns },
     { data: recentLetters },
   ] = await Promise.all([
-    (filterUser
-      ? admin.from("user_events").select("*").eq("user_id", filterUser)
-      : admin.from("user_events").select("*")
-    ).order("created_at", { ascending: false }).limit(200),
     admin.from("users").select("id, email, role, created_at"),
     admin.from("analysis_runs").select("user_id, status, created_at")
       .gte("created_at", d30ago.toISOString()),
@@ -47,7 +43,18 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   type EventRow  = { id?: string; user_id: string; event_type: string; metadata: Record<string, unknown>; ip?: string; country?: string; city?: string; device?: string; created_at: string };
   type UserRow   = { id: string; email: string; role: string; created_at: string };
 
-  const events  = (rawEvents    ?? []) as EventRow[];
+  // Optional observability table — only exists after migration 055.
+  const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
+    Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
+
+  const eventsQuery = filterUser
+    ? admin.from("user_events").select("*").eq("user_id", filterUser)
+    : admin.from("user_events").select("*");
+  const rawEvents = await safeQuery(
+    eventsQuery.order("created_at", { ascending: false }).limit(200)
+  );
+
+  const events  = rawEvents as EventRow[];
   const users   = (allUsers     ?? []) as UserRow[];
   const runs    = (recentRuns   ?? []) as { user_id: string; status: string; created_at: string }[];
   const letters = (recentLetters ?? []) as { user_id: string; status: string; created_at: string }[];
@@ -59,9 +66,9 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   const lettersByUser = letters.filter((l) => l.status === "completed")
     .reduce<Record<string, number>>((a, l) => { a[l.user_id] = (a[l.user_id] ?? 0) + 1; return a; }, {});
 
-  // Available event types for filter chips
-  const allEvents = await admin.from("user_events").select("event_type");
-  const eventTypes = [...new Set(((allEvents.data ?? []) as { event_type: string }[]).map((e) => e.event_type))].sort();
+  // Available event types for filter chips (empty until migration 055 applied)
+  const allEventsResult = await safeQuery(admin.from("user_events").select("event_type"));
+  const eventTypes = [...new Set((allEventsResult as { event_type: string }[]).map((e) => e.event_type))].sort();
 
   // Filtered events
   const filtered = events.filter((e) => {

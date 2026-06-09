@@ -33,33 +33,38 @@ export default async function AdminPipelinePage() {
   const d7ago  = new Date(now.getTime() - 7 * 86400_000);
   const d30ago = new Date(now.getTime() - 30 * 86400_000);
 
+  // Core queries — always exist
   const [
     { data: recentRuns },
-    { data: recentTimings },
-    { data: aiErrors },
     { data: allUsers },
   ] = await Promise.all([
     admin.from("analysis_runs")
       .select("id, user_id, status, error_message, created_at, match_score, tailored_match_score, ats_lift, step_status")
       .gte("created_at", d30ago.toISOString())
       .order("created_at", { ascending: false }),
-    admin.from("pipeline_timings")
-      .select("run_id, step, duration_ms, status, created_at")
-      .gte("created_at", d30ago.toISOString()),
-    admin.from("ai_calls")
-      .select("operation, provider, model, retry_count, status, error_type, latency_ms, created_at")
-      .gte("created_at", d30ago.toISOString()),
     admin.from("users").select("id, email"),
+  ]);
+
+  // Optional observability tables — only exist after migration 055.
+  const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
+    Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
+  const [recentTimings, aiErrors] = await Promise.all([
+    safeQuery(admin.from("pipeline_timings")
+      .select("run_id, step, duration_ms, status, created_at")
+      .gte("created_at", d30ago.toISOString())),
+    safeQuery(admin.from("ai_calls")
+      .select("operation, provider, model, retry_count, status, error_type, latency_ms, created_at")
+      .gte("created_at", d30ago.toISOString())),
   ]);
 
   type RunRow     = { id: string; user_id: string; status: string; error_message: string | null; created_at: string; match_score: number | null; tailored_match_score: number | null; ats_lift: number | null; step_status: Record<string, string> | null };
   type TimingRow  = { run_id: string; step: string; duration_ms: number | null; status: string; created_at: string };
   type AiCallRow  = { operation: string; provider: string; model: string; retry_count: number; status: string; error_type: string | null; latency_ms: number; created_at: string };
 
-  const runs    = (recentRuns    ?? []) as RunRow[];
-  const timings = (recentTimings ?? []) as TimingRow[];
-  const aiCalls = (aiErrors      ?? []) as AiCallRow[];
-  const users   = (allUsers      ?? []) as { id: string; email: string }[];
+  const runs    = (recentRuns ?? []) as RunRow[];
+  const timings = recentTimings as TimingRow[];
+  const aiCalls = aiErrors      as AiCallRow[];
+  const users   = (allUsers   ?? []) as { id: string; email: string }[];
   const emailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
 
   // ── Run status breakdown ─────────────────────────────────────────────────

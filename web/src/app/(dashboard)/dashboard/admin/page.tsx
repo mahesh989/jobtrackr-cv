@@ -53,13 +53,12 @@ export default async function AdminOverviewPage() {
   const d30ago     = new Date(now.getTime() - 30 * 86400_000);
   const h24ago     = new Date(now.getTime() - 86400_000);
 
+  // Core queries — always exist
   const [
     { data: allUsers },
     { data: activeProfiles },
     { data: last24hRuns },
     { data: recentFailures },
-    { data: todayCostRows },
-    { data: recentEvents },
     { data: inviteRows },
     { data: profileRows },
   ] = await Promise.all([
@@ -75,17 +74,23 @@ export default async function AdminOverviewPage() {
       .gte("created_at", d7ago.toISOString())
       .order("created_at", { ascending: false })
       .limit(8),
-    admin.from("ai_calls")
-      .select("cost_millicents, latency_ms, status")
-      .gte("created_at", todayStart.toISOString()),
-    admin.from("user_events")
-      .select("user_id, event_type, metadata, created_at")
-      .order("created_at", { ascending: false })
-      .limit(20),
     admin.from("invite_codes")
       .select("code, created_by, used_by, used_at, is_active, created_at")
       .order("created_at", { ascending: false }),
     admin.from("search_profiles").select("id, user_id, name, is_active"),
+  ]);
+
+  // Optional observability tables — only exist after migration 055 is applied.
+  const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
+    Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
+  const [todayCostRows, recentEvents] = await Promise.all([
+    safeQuery(admin.from("ai_calls")
+      .select("cost_millicents, latency_ms, status")
+      .gte("created_at", todayStart.toISOString())),
+    safeQuery(admin.from("user_events")
+      .select("user_id, event_type, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20)),
   ]);
 
   type UserRow   = { id: string; email: string; role: string; created_at: string };
@@ -97,10 +102,10 @@ export default async function AdminOverviewPage() {
   const users    = (allUsers       ?? []) as UserRow[];
   const runs24h  = (last24hRuns    ?? []) as RunRow[];
   const failures = (recentFailures ?? []) as RunRow[];
-  const events   = (recentEvents   ?? []) as EventRow[];
-  const invites  = (inviteRows     ?? []) as InviteRow[];
-  const profiles = (profileRows    ?? []) as { id: string; user_id: string; name: string; is_active: boolean }[];
-  const costRows = (todayCostRows  ?? []) as CostRow[];
+  const events   = recentEvents  as EventRow[];
+  const invites  = (inviteRows   ?? []) as InviteRow[];
+  const profiles = (profileRows  ?? []) as { id: string; user_id: string; name: string; is_active: boolean }[];
+  const costRows = todayCostRows as CostRow[];
 
   const userEmailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
   const activeUserIds = new Set((activeProfiles ?? []).map((r: { user_id: string }) => r.user_id));

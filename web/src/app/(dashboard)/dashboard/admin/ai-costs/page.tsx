@@ -36,19 +36,19 @@ export default async function AdminAiCostsPage() {
   const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
   const d7ago      = new Date(now.getTime() - 7 * 86400_000);
 
-  const [
-    { data: monthCalls },
-    { data: todayCalls },
-    { data: allUsers },
-  ] = await Promise.all([
-    admin.from("ai_calls")
+  const { data: allUsers } = await admin.from("users").select("id, email");
+
+  // ai_calls only exists after migration 055 is applied — gracefully fall back to empty arrays.
+  const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
+    Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
+  const [monthCalls, todayCalls] = await Promise.all([
+    safeQuery(admin.from("ai_calls")
       .select("user_id, operation, provider, model, input_tokens, output_tokens, cached_tokens, cost_millicents, latency_ms, retry_count, status, created_at")
       .gte("created_at", monthStart.toISOString())
-      .order("created_at", { ascending: false }),
-    admin.from("ai_calls")
+      .order("created_at", { ascending: false })),
+    safeQuery(admin.from("ai_calls")
       .select("user_id, operation, cost_millicents, latency_ms, status")
-      .gte("created_at", todayStart.toISOString()),
-    admin.from("users").select("id, email"),
+      .gte("created_at", todayStart.toISOString())),
   ]);
 
   type CallRow = {
@@ -58,9 +58,9 @@ export default async function AdminAiCostsPage() {
     status: string; created_at: string;
   };
 
-  const calls     = (monthCalls ?? []) as CallRow[];
-  const todayRows = (todayCalls ?? []) as { user_id: string | null; operation: string; cost_millicents: number; latency_ms: number; status: string }[];
-  const users     = (allUsers   ?? []) as { id: string; email: string }[];
+  const calls     = monthCalls as CallRow[];
+  const todayRows = todayCalls as { user_id: string | null; operation: string; cost_millicents: number; latency_ms: number; status: string }[];
+  const users     = (allUsers  ?? []) as { id: string; email: string }[];
   const emailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
 
   const noData = calls.length === 0;
