@@ -39,7 +39,8 @@ import { CvInlinePreview } from "./CvInlinePreview";
 import { SentEmailModal } from "./SentEmailModal";
 
 export interface ApplicationRowV2 {
-  letter_id:                 string;
+  /** null for jobs applied outside the Applications flow (no cover letter). */
+  letter_id:                 string | null;
   letter_completed_at:       string | null;
   job_id:                    string;
   job_title:                 string;
@@ -826,6 +827,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     setZipping(true);
     try {
       if (!row.tailored_cv_storage_path) throw new Error("Tailored CV is not available");
+      if (!row.letter_id) throw new Error("No cover letter for this job");
       await downloadApplicationBundle({
         jobId: row.job_id,
         letterId: row.letter_id,
@@ -909,21 +911,25 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       )}
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setShowEmail(true)}
-          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-          title="View the email message"
-        >
-          <Mail className="w-3 h-3" /> Email message
-        </button>
-        <a
-          href={`/api/applications/${row.letter_id}/cover-letter-pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-        >
-          <FileType className="w-3 h-3" /> Cover letter
-        </a>
+        {row.letter_id && (
+          <button
+            onClick={() => setShowEmail(true)}
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+            title="View the email message"
+          >
+            <Mail className="w-3 h-3" /> Email message
+          </button>
+        )}
+        {row.letter_id && (
+          <a
+            href={`/api/applications/${row.letter_id}/cover-letter-pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+          >
+            <FileType className="w-3 h-3" /> Cover letter
+          </a>
+        )}
         {row.tailored_cv_storage_path && (
           <button
             onClick={previewTailoredCv}
@@ -934,7 +940,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             Tailored CV
           </button>
         )}
-        {row.tailored_cv_storage_path && (
+        {row.tailored_cv_storage_path && row.letter_id && (
           <button
             onClick={handleDownloadZip}
             disabled={zipping}
@@ -967,7 +973,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         </div>
       </div>
 
-      {showEmail && (
+      {showEmail && row.letter_id && (
         <SentEmailModal
           letterId={row.letter_id}
           jobLabel={`${row.job_title}${row.job_company ? ` @ ${row.job_company}` : ""}`}

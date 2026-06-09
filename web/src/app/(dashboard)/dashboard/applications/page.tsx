@@ -5,7 +5,10 @@
  *   pool — every job with a completed cover letter that hasn't been applied
  *          or dismissed yet. Filter: !applied_at && !dismissed_at.
  *          (Combines the old pool/email/apply tabs into one.)
- *   sent — applied_at IS NOT NULL.
+ *   sent — applied_at IS NOT NULL AND NOT dismissed_at.
+ *          Includes jobs applied via the Applications flow (with a cover letter)
+ *          AND jobs applied via "Apply now" outside the flow (no letter).
+ *          This is the single source of truth for all applied jobs.
  *
  * Archive removes a card from this screen entirely. Archived jobs live in
  * the dashboard / per-profile archive view.
@@ -26,6 +29,19 @@ import { ApplicationCardListV2 } from "@/components/applications/ApplicationCard
 import { BackButton } from "@/components/dashboard/BackButton";
 import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
 
+type JobRow = {
+  id:              string;
+  profile_id:      string;
+  title:           string | null;
+  company:         string | null;
+  location:        string | null;
+  url:             string;
+  applied_at:      string | null;
+  dismissed_at:    string | null;
+  contact_email:   string | null;
+  hiring_manager:  string | null;
+};
+
 export default async function ApplicationsPage({
   searchParams,
 }: {
@@ -39,6 +55,16 @@ export default async function ApplicationsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // ── 0. User's profiles (fetched once, used throughout) ───────────────────
+  const { data: allProfiles } = await supabase
+    .from("search_profiles")
+    .select("id, name")
+    .eq("user_id", user.id);
+  const allProfileIds = ((allProfiles ?? []) as Array<{ id: string }>).map((p) => p.id);
+  const profileNameById = new Map(
+    ((allProfiles ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]),
+  );
+
   // ── 1. Cover letters ──────────────────────────────────────────────────────
   const { data: letters } = await supabase
     .from("cover_letters")
@@ -49,82 +75,85 @@ export default async function ApplicationsPage({
     .order("completed_at", { ascending: false });
 
   const letterRows = (letters ?? []) as Array<{
-    id:            string;
-    job_id:        string;
-    completed_at:  string | null;
-    created_at:    string;
+    id:           string;
+    job_id:       string;
+    completed_at: string | null;
+    created_at:   string;
   }>;
 
-  if (letterRows.length === 0) {
-    return <EmptyState />;
-  }
+  const letterJobIds = Array.from(new Set(letterRows.map((l) => l.job_id)));
 
-  const jobIds = Array.from(new Set(letterRows.map((l) => l.job_id)));
+  // ── 2. Jobs for cover letters ─────────────────────────────────────────────
+  const { data: letterJobsData } = letterJobIds.length > 0
+    ? await supabase
+        .from("jobs")
+        .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
+        .in("id", letterJobIds)
+    : { data: [] as JobRow[] };
 
-  // ── 2. Jobs ───────────────────────────────────────────────────────────────
-  const { data: jobs } = await supabase
-    .from("jobs")
-    .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
-    .in("id", jobIds);
-
-  const jobById = new Map(
-    ((jobs ?? []) as Array<{
-      id:                string;
-      profile_id:        string;
-      title:             string | null;
-      company:           string | null;
-      location:          string | null;
-      url:               string;
-      applied_at:        string | null;
-      dismissed_at:      string | null;
-      contact_email:     string | null;
-      hiring_manager:    string | null;
-    }>).map((j) => [j.id, j]),
+  const letterJobById = new Map(
+    ((letterJobsData ?? []) as JobRow[]).map((j) => [j.id, j]),
   );
 
-  // ── 3. Latest non-stale analysis_runs per job ─────────────────────────────
-  const { data: runs } = await supabase
-    .from("analysis_runs")
-    .select("id, job_id, tailored_match_score, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
-    .in("job_id", jobIds)
-    .eq("is_stale", false)
-    .order("created_at", { ascending: false });
+  // ── 3. Applied-only jobs (no cover letter) — for Sent tab ─────────────────
+  // Catches jobs the user applied to outside the Applications flow (e.g. via
+  // "Apply now" on the job listing directly). Sent tab is the single source of
+  // truth for ALL applied jobs, not just those with cover letters.
+  const { data: appliedOnlyData } = allProfileIds.length > 0
+    ? await (async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let q: any = supabase
+          .from("jobs")
+          .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
+          .in("profile_id", allProfileIds)
+          .not("applied_at", "is", null)
+          .is("dismissed_at", null);
+        if (letterJobIds.length > 0) {
+          q = q.not("id", "in", `(${letterJobIds.join(",")})`);
+        }
+        return q;
+      })()
+    : { data: [] as JobRow[] };
+
+  // ── 4. Analysis runs (for all jobs) ──────────────────────────────────────
+  const appliedOnlyIds = ((appliedOnlyData ?? []) as JobRow[]).map((j) => j.id);
+  const allJobIds = [...letterJobIds, ...appliedOnlyIds];
+
+  const { data: runs } = allJobIds.length > 0
+    ? await supabase
+        .from("analysis_runs")
+        .select("id, job_id, tailored_match_score, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+        .in("job_id", allJobIds)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   const runByJob = new Map<string, {
     id: string;
-    tailored_match_score: number | null;
+    tailored_match_score:      number | null;
     tailored_pdf_storage_path: string | null;
-    tailored_cv_storage_path: string | null;
+    tailored_cv_storage_path:  string | null;
   }>();
   for (const r of (runs ?? []) as Array<{
     id: string; job_id: string;
-    tailored_match_score: number | null;
+    tailored_match_score:      number | null;
     tailored_pdf_storage_path: string | null;
-    tailored_cv_storage_path: string | null;
+    tailored_cv_storage_path:  string | null;
   }>) {
     if (!runByJob.has(r.job_id)) runByJob.set(r.job_id, {
       id: r.id,
-      tailored_match_score: r.tailored_match_score,
+      tailored_match_score:      r.tailored_match_score,
       tailored_pdf_storage_path: r.tailored_pdf_storage_path,
-      tailored_cv_storage_path: r.tailored_cv_storage_path,
+      tailored_cv_storage_path:  r.tailored_cv_storage_path,
     });
   }
 
-  // ── 4. Profile names ──────────────────────────────────────────────────────
-  const profileIds = Array.from(new Set(
-    Array.from(jobById.values()).map((j) => j.profile_id),
-  ));
-  const { data: profiles } = profileIds.length > 0
-    ? await supabase.from("search_profiles").select("id, name").in("id", profileIds)
-    : { data: [] as Array<{ id: string; name: string }> };
-  const profileNameById = new Map(
-    ((profiles ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]),
-  );
-
   // ── 5. Build rows ─────────────────────────────────────────────────────────
   const allRows: ApplicationRowV2[] = [];
+
+  // 5a. Cover-letter jobs (both pool and sent)
   for (const l of letterRows) {
-    const j = jobById.get(l.job_id);
+    const j = letterJobById.get(l.job_id);
     if (!j) continue;
     const run = runByJob.get(l.job_id);
     allRows.push({
@@ -148,15 +177,39 @@ export default async function ApplicationsPage({
     });
   }
 
+  // 5b. Applied-only jobs (no letter — Sent tab only)
+  for (const j of (appliedOnlyData ?? []) as JobRow[]) {
+    const run = runByJob.get(j.id);
+    allRows.push({
+      letter_id:                 null,
+      letter_completed_at:       null,
+      job_id:                    j.id,
+      job_title:                 j.title ?? "(untitled)",
+      job_company:               j.company ?? "",
+      job_location:              j.location ?? "",
+      job_url:                   j.url,
+      job_applied_at:            j.applied_at,
+      job_dismissed_at:          j.dismissed_at,
+      job_contact_email:         j.contact_email,
+      job_hiring_manager:        j.hiring_manager,
+      profile_id:                j.profile_id,
+      profile_name:              profileNameById.get(j.profile_id) ?? "",
+      latest_run_id:             run?.id ?? null,
+      tailored_match_score:      run?.tailored_match_score ?? null,
+      tailored_pdf_storage_path: run?.tailored_pdf_storage_path ?? null,
+      tailored_cv_storage_path:  run?.tailored_cv_storage_path ?? null,
+    });
+  }
+
+  if (allRows.length === 0) return <EmptyState />;
+
   // ── 6. Bucket filtering (2-tab) ───────────────────────────────────────────
-  //   pool: everything not applied AND not dismissed
-  //   sent: applied_at IS NOT NULL
-  // Dismissed (archived) jobs are NOT shown on this screen at all — they
-  // appear in the dashboard / per-profile archive view.
-  const isPool = (r: ApplicationRowV2) => !r.job_applied_at && !r.job_dismissed_at;
-  // Exclude dismissed jobs from the Sent tab — if user archives a job they
-  // already applied to, it should leave this screen (lives in the archive view).
+  //   pool: cover-letter jobs not yet applied/dismissed (letter_id IS NOT NULL guaranteed)
+  //   sent: applied_at IS NOT NULL AND NOT dismissed — includes applied-only rows
+  const isPool = (r: ApplicationRowV2) => !!r.letter_id && !r.job_applied_at && !r.job_dismissed_at;
   const isSent = (r: ApplicationRowV2) => !!r.job_applied_at && !r.job_dismissed_at;
+
+  const letterCount = allRows.filter((r) => !!r.letter_id).length;
 
   const counts: ApplicationStatusCounts = {
     pool: allRows.filter(isPool).length,
@@ -169,7 +222,7 @@ export default async function ApplicationsPage({
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool: "Review your tailored CV, cover letter, and email message for each job. Edit anything, save your changes, then send or apply. Cards with a contact email send in one click; cards without one let you copy the message and apply via the job link.",
-    sent: "Jobs you've applied to. Tap Email message to see (and copy) what you sent.",
+    sent: "All jobs you've applied to. Tap Email message to see (and copy) what you sent, or move a job back to the pool if you applied by accident.",
   };
 
   const tabEmpty = (
@@ -178,7 +231,7 @@ export default async function ApplicationsPage({
       <p className="text-[12px] text-text-2">
         {validTab === "pool"
           ? "Cover letters waiting to be reviewed and sent will appear here."
-          : "Jobs you mark as applied will appear here."}
+          : "Jobs you apply to will appear here."}
       </p>
     </div>
   );
@@ -201,7 +254,10 @@ export default async function ApplicationsPage({
             </div>
             <h1 className="text-[16px] font-semibold text-text">Applications</h1>
             <p className="text-[12px] text-text-2 mt-0.5">
-              {allRows.length} job{allRows.length !== 1 ? "s" : ""} with a completed cover letter
+              {letterCount} job{letterCount !== 1 ? "s" : ""} with a cover letter
+              {counts.sent > letterCount
+                ? ` · ${counts.sent - letterCount} applied without a letter`
+                : ""}
             </p>
           </div>
         </div>
