@@ -125,59 +125,34 @@ export default async function DashboardPage({
 
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
 
-  // ── Summary queries for the KPI strip ────────────────────────────────────
-  // The per-profile latest-run breakdown lives on /dashboard/profiles now —
-  // this page only needs the aggregate counts feeding the four KPIs.
-  const [
-    { data: jobRows },
-    { data: unseenRows },
-    { data: appliedRows },
-  ] = await Promise.all([
-    supabase.from("jobs").select("profile_id").in("profile_id", ids)
-      .eq("is_expired", false).eq("is_dead_link", false).is("dismissed_at", null),
-    supabase.from("jobs").select("profile_id").in("profile_id", ids)
-      .eq("is_expired", false).eq("is_dead_link", false).is("seen_at", null).is("dismissed_at", null),
-    supabase.from("jobs").select("profile_id").in("profile_id", ids).not("applied_at", "is", null),
-  ]);
-
-  function countBy(rows: { profile_id: string }[] | null) {
-    return ((rows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
-      (acc, r) => { acc[r.profile_id] = (acc[r.profile_id] ?? 0) + 1; return acc; }, {}
-    );
-  }
-
-  const totalCounts   = countBy(jobRows);
-  const unseenCounts  = countBy(unseenRows);
-  const appliedCounts = countBy(appliedRows);
-
-  const totalJobs    = Object.values(totalCounts).reduce((a, b) => a + b, 0);
-  const totalNew     = Object.values(unseenCounts).reduce((a, b) => a + b, 0);
-  const totalApplied = Object.values(appliedCounts).reduce((a, b) => a + b, 0);
-  const activeCount  = profiles.filter((p) => p.is_active).length;
-
-  // ── Resolve stage from URL params ─────────────────────────────────────────
-  // Only the dismissed/non-dismissed split is server-relevant now; the rest of
-  // the view filters are applied client-side in <JobBoard>.
+  // ── Resolve stage + build board query (sync) ─────────────────────────────
   const currentStage = resolveStage(sp);
 
-  // ── Unified jobs board: data fetch ───────────────────────────────────────
+  // Type declarations shared across both fetch batches
+  interface AllCountRow {
+    id: string; seen_at: string | null; applied_at: string | null;
+    dismissed_at: string | null; starred_at: string | null; profile_id: string;
+    jd_quality: string | null; manual_jd_text: string | null;
+    role_match: string | null; has_email: boolean | null;
+  }
+  interface DonutRunRow {
+    job_id: string; initial_ats_score: number | null; tailored_match_score: number | null;
+    passed_initial_gate: boolean | null; passed_final_gate: boolean | null;
+    ats_lift: number | null; tailored_pdf_storage_path: string | null;
+    tailored_cv_storage_path: string | null; created_at: string | null;
+  }
+  interface DonutLetterRow { job_id: string }
+
   let q = supabase
     .from("jobs")
     .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
     .in("profile_id", ids)
     .eq("is_expired", false)
     .eq("is_dead_link", false);
-
-  // Stage-based server-side filtering. Only the dismissed/non-dismissed split
-  // changes WHICH jobs are fetched; "applied" and every other stage/triage/ATS
-  // filter is now applied instantly client-side in <JobBoard>.
   if (currentStage === "dismissed") q = q.not("dismissed_at", "is", null);
   else                              q = q.is("dismissed_at", null);
-
-  // Dataset-narrowing filters stay server-side (they decide the capped set).
   if (sp.location) q = q.ilike("location", `%${sp.location}%`);
   if (sp.source)   q = q.eq("source", sp.source);
-
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
     if (!isNaN(days)) {
@@ -186,31 +161,95 @@ export default async function DashboardPage({
       q = q.gte("posted_at", d.toISOString());
     }
   }
-
-  // Stable cap ordering — the client sorts the loaded set per the user's choice.
   q = q.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
-  const { data: jobs } = await q;
+
+  // ── BATCH 1 — three parallel queries (all only need `ids`) ────────────────
+  // Previously: 6 sequential round-trips. Now: 1 parallel batch.
+  // The 3 legacy KPI queries (jobRows/unseenRows/appliedRows) are eliminated —
+  // totalJobs / totalNew / totalApplied are derived from countRows below.
+  const [
+    { data: jobs },
+    { data: countRows },
+    { data: runLogData },
+  ] = await Promise.all([
+    q,
+    supabase
+      .from("jobs")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+      .in("profile_id", ids)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false),
+    supabase
+      .from("run_logs")
+      .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
+      .in("profile_id", ids),
+  ]);
+
+  // ── Derive secondary IDs (sync) ───────────────────────────────────────────
   const jobList = (jobs ?? []) as Array<{
     id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
   }>;
+  const jobIds          = jobList.map((j) => j.id);
+  const allRows         = (countRows ?? []) as AllCountRow[];
+  const jobIdsForCounts = allRows.map((r) => r.id);
+  const activeJobRows   = allRows.filter((j) => !j.dismissed_at);
+  const allActiveJobIds = activeJobRows.map((j) => j.id);
 
-  const jobIds = jobList.map((j) => j.id);
+  // KPI totals — derived from allRows, no extra queries needed.
+  const activeCount  = profiles.filter((p) => p.is_active).length;
+  const totalJobs    = activeJobRows.length;
+  const totalNew     = activeJobRows.filter((j) => !j.seen_at).length;
+  const totalApplied = allRows.filter((j) => j.applied_at && !j.dismissed_at).length;
 
-  const { data: recentRuns } = jobIds.length > 0
-    ? await supabase
-        .from("analysis_runs")
-        .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
-        .in("job_id", jobIds)
-        .order("created_at", { ascending: false })
-    : { data: [] as AnalysisRunRef[] };
-
-  const { data: recentLetters } = jobIds.length > 0
-    ? await supabase
-        .from("cover_letters")
-        .select("id, job_id, status, completed_at, created_at")
-        .in("job_id", jobIds)
-        .order("created_at", { ascending: false })
-    : { data: [] as CoverLetterRef[] };
+  // ── BATCH 2 — six parallel queries (need IDs from BATCH 1) ───────────────
+  // Previously: 5 sequential round-trips. Now: 1 parallel batch.
+  const [
+    { data: recentRuns },
+    { data: recentLetters },
+    runsRes,
+    lettersRes,
+    { data: donutRunData },
+    { data: donutLetterData },
+  ] = await Promise.all([
+    jobIds.length > 0
+      ? supabase.from("analysis_runs")
+          .select("id, job_id, status, tailored_pdf_storage_path, tailored_cv_storage_path, completed_at, created_at, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, automation")
+          .in("job_id", jobIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as AnalysisRunRef[] }),
+    jobIds.length > 0
+      ? supabase.from("cover_letters")
+          .select("id, job_id, status, completed_at, created_at")
+          .in("job_id", jobIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as CoverLetterRef[] }),
+    jobIdsForCounts.length > 0
+      ? supabase.from("analysis_runs")
+          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      : Promise.resolve({ data: [] }),
+    jobIdsForCounts.length > 0
+      ? supabase.from("cover_letters")
+          .select("job_id")
+          .eq("status", "completed")
+          .in("job_id", jobIdsForCounts)
+      : Promise.resolve({ data: [] }),
+    allActiveJobIds.length > 0
+      ? supabase.from("analysis_runs")
+          .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+          .in("job_id", allActiveJobIds)
+          .eq("is_stale", false)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as DonutRunRow[] }),
+    allActiveJobIds.length > 0
+      ? supabase.from("cover_letters")
+          .select("job_id")
+          .in("job_id", allActiveJobIds)
+          .eq("is_stale", false)
+          .eq("status", "completed")
+      : Promise.resolve({ data: [] as DonutLetterRow[] }),
+  ]);
 
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
@@ -284,44 +323,6 @@ export default async function DashboardPage({
   // server round-trip per filter change. The counts below are global (not
   // filter-dependent), so they stay correct without recomputation.
 
-  // Status-tab counts — aggregated across profiles
-  const { data: countRows } = await supabase
-    .from("jobs")
-    .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
-    .in("profile_id", ids)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false);
-
-  interface AllCountRow {
-    id: string;
-    seen_at: string | null;
-    applied_at: string | null;
-    dismissed_at: string | null;
-    starred_at: string | null;
-    profile_id: string;
-    jd_quality: string | null;
-    manual_jd_text: string | null;
-    role_match: string | null;
-    has_email: boolean | null;
-  }
-  const allRows = (countRows ?? []) as AllCountRow[];
-  const jobIdsForCounts = allRows.map((r) => r.id);
-
-  const [runsRes, lettersRes] = jobIdsForCounts.length > 0
-    ? await Promise.all([
-        supabase
-          .from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts),
-        supabase
-          .from("cover_letters")
-          .select("job_id")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      ])
-    : [{ data: [] }, { data: [] }];
-
   const analysedSet = new Set((runsRes.data ?? []).map((r) => r.job_id));
   const cvReadySet = new Set((runsRes.data ?? []).filter((r) => r.tailored_cv_storage_path || r.tailored_pdf_storage_path).map((r) => r.job_id));
   const letterReadySet = new Set((lettersRes.data ?? []).map((l) => l.job_id));
@@ -366,51 +367,8 @@ export default async function DashboardPage({
     richJd:         allRows.filter((j) => !j.dismissed_at && (j.jd_quality === "rich" || (j.jd_quality === "thin" && !jobNeedsJd(j)))).length,
   };
 
-  // ── Pipeline donut: additional queries ───────────────────────────────────────
-  interface DonutRunRow {
-    job_id: string;
-    initial_ats_score: number | null;
-    tailored_match_score: number | null;
-    passed_initial_gate: boolean | null;
-    passed_final_gate: boolean | null;
-    ats_lift: number | null;
-    tailored_pdf_storage_path: string | null;
-    tailored_cv_storage_path: string | null;
-    created_at: string | null;
-  }
-  interface DonutLetterRow { job_id: string }
-
-  const activeJobRows   = allRows.filter((j) => !j.dismissed_at);
-  const allActiveJobIds = activeJobRows.map((j) => j.id);
-
-  const { data: runLogData } = await supabase
-    .from("run_logs")
-    .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
-    .in("profile_id", ids);
-
-  const { data: donutRunData } = allActiveJobIds.length > 0
-    ? await supabase
-        .from("analysis_runs")
-        .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
-        .in("job_id", allActiveJobIds)
-        .eq("is_stale", false)
-        .order("created_at", { ascending: false })
-    : { data: [] as DonutRunRow[] };
-
-  // Match /dashboard/applications exactly — only fully-generated, non-stale
-  // letters count toward the "Letter ready" lens and "ready to apply" callout.
-  // Without status='completed', in-flight/pending letters inflated the donut
-  // and the callout disagreed with the Applications page (34 vs 33).
-  // job_id filter on allActiveJobIds already excludes dismissed jobs, so
-  // archived items can never appear in any callout count.
-  const { data: donutLetterData } = allActiveJobIds.length > 0
-    ? await supabase
-        .from("cover_letters")
-        .select("job_id")
-        .in("job_id", allActiveJobIds)
-        .eq("is_stale", false)
-        .eq("status", "completed")
-    : { data: [] as DonutLetterRow[] };
+  // ── Pipeline donut: lens computation ────────────────────────────────────────
+  // (runLogData, donutRunData, donutLetterData fetched in BATCH 2 above)
 
   // ── Lens data computation ─────────────────────────────────────────────────────
 
