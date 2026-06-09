@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { emitEvent, parseDevice } from "@/lib/admin/events";
 
 // Supabase redirects here after the user clicks the magic link.
 // Exchanges the code for a session, then marks the invite code used.
@@ -64,6 +65,23 @@ export async function GET(request: NextRequest) {
         .update({ invite_code_used: inviteCode })
         .eq("id", user.id);
     }
+  }
+
+  // Emit login event for admin activity tracking (fire-and-forget).
+  const { data: { user: sessionUser } } = await supabase.auth.getUser();
+  if (sessionUser) {
+    const reqHeaders = await headers();
+    const ip     = reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined;
+    const ua     = reqHeaders.get("user-agent") ?? null;
+    const device = parseDevice(ua) ?? undefined;
+    // Country/city could be added via ip-api.com lookup here in a future phase
+    void emitEvent({
+      userId:    sessionUser.id,
+      eventType: "login",
+      metadata:  { type: otpType ?? "magiclink" },
+      ip,
+      device,
+    });
   }
 
   return NextResponse.redirect(`${origin}/dashboard`);

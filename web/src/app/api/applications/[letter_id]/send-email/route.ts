@@ -18,6 +18,7 @@ import { sendViaGmail }               from "@/lib/email/gmail";
 import { sendViaOutlook }             from "@/lib/email/outlook";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
+import { emitEvent }                 from "@/lib/admin/events";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 const MAX_SUBJECT_LEN = 300;
@@ -282,6 +283,12 @@ export async function POST(
       .update({ applied_at: now })
       .eq("id", letter.job_id),
   ]);
+
+  void emitEvent({
+    userId:    user.id,
+    eventType: "email_sent",
+    metadata:  { letter_id, job_id: letter.job_id, to: job.contact_email },
+  });
 
   return NextResponse.json({ sent: true, to: job.contact_email });
 }

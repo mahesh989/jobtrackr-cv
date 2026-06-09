@@ -134,7 +134,12 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             return
 
         # Construct the BYOK AI client. Raises AIClientError on invalid input.
+        # Attach user_id + run_id so every complete() call is attributed in
+        # the ai_calls observability table without threading context through
+        # every prompt call site.
         ai_client = make_ai_client(payload.ai_provider, payload.ai_api_key, payload.ai_model)
+        ai_client.user_id   = str(payload.user_id)
+        ai_client.run_id    = str(run_id)
         logger.info(
             "run %s: starting pipeline (provider=%s model=%s jd_len=%d cv_len=%d)",
             run_id, payload.ai_provider, ai_client.model,

@@ -24,6 +24,7 @@ import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { resolveThresholds } from "@/lib/atsThresholds";
 import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
+import { emitEvent } from "@/lib/admin/events";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -347,6 +348,13 @@ export async function POST(
       { status: 502 },
     );
   }
+
+  // Emit activity event (fire-and-forget — never blocks the response).
+  void emitEvent({
+    userId: user.id,
+    eventType: "analysis_started",
+    metadata: { run_id: newRun.id, job_id: jobId, provider: chosen, model: aiModel ?? undefined },
+  });
 
   return NextResponse.json({ run_id: newRun.id, provider: chosen });
 }
