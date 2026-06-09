@@ -21,6 +21,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/getUser";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
@@ -63,7 +64,7 @@ function sumStage(rows: Funnel[], key: StageKey): number {
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
   // Founder/admin lens only — pipeline funnels across sources and profiles

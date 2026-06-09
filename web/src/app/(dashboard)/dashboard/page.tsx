@@ -18,6 +18,8 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/getUser";
+import { getCachedProfiles } from "@/lib/queryCache";
 import { redirect } from "next/navigation";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
@@ -80,15 +82,16 @@ export default async function DashboardPage({
 }) {
   const sp = await searchParams;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // getAuthUser is React.cache() — free if layout already called it this render.
+  const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profileRows } = await supabase
-    .from("search_profiles")
-    .select("id, name, is_active, keywords, location, schedule_cron, target_verticals")
-    .order("created_at", { ascending: false });
+  // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
+  // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)
+  // on createProfile / updateProfile / deleteProfile.
+  const profileRows = await getCachedProfiles(user.id);
 
-  const profiles = (profileRows ?? []) as Array<{
+  const profiles = profileRows as Array<{
     id: string; name: string; is_active: boolean;
     keywords: string[]; location: string; schedule_cron: string;
     target_verticals?: string[] | null;

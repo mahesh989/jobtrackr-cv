@@ -1,6 +1,7 @@
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/getUser";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
@@ -8,9 +9,10 @@ import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // getAuthUser is React.cache() — deduplicated with the page's own getUser call.
+  const user = await getAuthUser();
   if (!user) redirect("/auth/login");
+  const supabase = await createClient();
 
   // These three only depend on the authenticated user.id, not on each other,
   // so run them concurrently instead of as a 3-deep waterfall:

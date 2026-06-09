@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { assertCanCreateProfile } from "@/lib/billing/entitlements";
@@ -252,6 +252,7 @@ export async function createProfile(formData: FormData) {
 
   if (error) throw new Error(error.message);
   triggerScheduleSync();
+  revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }
@@ -307,6 +308,7 @@ export async function updateProfile(profileId: string, formData: FormData) {
 
   if (error) throw new Error(error.message);
   triggerScheduleSync();
+  revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }
@@ -363,6 +365,7 @@ export async function copyProfile(profileId: string) {
     .single();
 
   if (error) throw new Error(error.message);
+  revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
   redirect(`/dashboard/profiles/${newProfile.id}/edit`);
 }
@@ -375,10 +378,9 @@ export async function deleteProfile(profileId: string) {
     .eq("id", profileId)
     .eq("user_id", user.id);
   triggerScheduleSync();
+  revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/profiles");
-  // Land back on the profiles list (where the delete was initiated), not the
-  // dashboard — the user was managing profiles, so keep them in that context.
   redirect("/dashboard/profiles");
 }
 
@@ -497,9 +499,12 @@ export async function markJobDismissed(jobId: string, profileId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new Error(`Failed to dismiss job ${jobId} — RLS or ID mismatch`);
 
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/applications");
+  // No revalidatePath — the client already handles the optimistic removal
+  // (card fades out via exitPhase animation in JobTable). Triggering a server
+  // re-render here would show the loading skeleton despite the card being
+  // gone from the UI, creating a jarring flash. Funnel counts update on the
+  // next full navigation to the board (acceptable trade-off for instant feel).
+  void profileId; // suppress unused-var lint
 }
 
 /**

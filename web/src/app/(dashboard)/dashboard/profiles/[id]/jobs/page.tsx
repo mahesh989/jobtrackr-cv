@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/getUser";
 import { redirect } from "next/navigation";
 import { resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
@@ -65,7 +66,7 @@ export default async function JobsPage({
   const sp     = await searchParams;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
   const { data: profile } = await supabase

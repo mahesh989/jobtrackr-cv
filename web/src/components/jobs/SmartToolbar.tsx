@@ -119,21 +119,17 @@ export function SmartToolbar({
     !currentMaxDistance && Number(currentMinDistance) >= 50 ? "over50" : currentMaxDistance;
 
   function commit(params: URLSearchParams, key: string) {
-    // Any transition that either enters or leaves the Archive (dismissed)
-    // view must refetch the dataset — Archive uses a different server query
-    // (dismissed_at IS NOT NULL). Without this, clicking Full JD while in
-    // Archive would shallow-nav and silently keep the archived dataset
-    // filtered to rich JDs.
+    // Entering or leaving the Archive (dismissed) view must refetch the
+    // dataset — the server query flips between dismissed_at IS NOT NULL
+    // and IS NULL. We use router.replace (soft navigation) rather than
+    // window.location.href so the React tree stays mounted and loading.tsx
+    // shows a smooth skeleton instead of a full page unload/reload.
     const nextStage = params.get("stage");
     const isDismissedTransition =
       currentStage === "dismissed" || nextStage === "dismissed";
 
     if (SHALLOW_KEYS.has(key) && !isDismissedTransition) {
       shallowSetParams(pathname, params);
-    } else if (isDismissedTransition) {
-      if (typeof window !== "undefined") {
-        window.location.href = `${pathname}?${params}`;
-      }
     } else {
       startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));
     }

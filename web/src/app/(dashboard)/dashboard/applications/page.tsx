@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/getUser";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -52,7 +53,7 @@ export default async function ApplicationsPage({
   const validTab: ApplicationStatusKey = rawTab === "sent" ? "sent" : "pool";
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
   // ── BATCH 1 — profiles + cover letters in parallel (both need user.id) ───
