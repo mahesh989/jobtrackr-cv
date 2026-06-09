@@ -38,7 +38,7 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
-import { jobNeedsJd, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
+import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton } from "./SelectModeButton";
@@ -1064,7 +1064,7 @@ function CardShell({
             // Flicker the card on the thin→filled JD flip so the user can see
             // which job they just fixed (they often lose their place).
             const wasThin = job.jd_quality === "thin" || job.jd_quality === "unknown";
-            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= 200;
+            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= MANUAL_JD_MIN_CHARS;
             if (wasThin && nowFilled) {
               setSavedFlicker(true);
               // Keep the class on for the full 1.8s keyframe (globals.css).

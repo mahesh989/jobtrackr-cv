@@ -32,8 +32,11 @@ export interface ViewFilters {
 
 /** Minimum manual-JD length (chars) that counts as "the user supplied a usable
  *  JD". Mirrors the analyze route's hasManualJd bar so the UI, counts, and the
- *  server analyze gate all agree on when a paste unblocks a thin job. */
-export const MANUAL_JD_MIN_CHARS = 200;
+ *  server analyze gate all agree on when a paste unblocks a thin job. The
+ *  1000-char floor reflects what a real job description looks like — anything
+ *  shorter is almost certainly a paste of the role title + a sentence or two
+ *  rather than a usable JD for the tailoring pipeline. */
+export const MANUAL_JD_MIN_CHARS = 1000;
 
 /**
  * Whether a job still needs a JD pasted: it's classified 'thin' AND the user
@@ -79,8 +82,11 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   }
 
   // Stage (dismissed + all are no-ops here — dismissed is fetched server-side,
-  // all means no narrowing).
-  if (f.stage === "analysed")        out = out.filter((x) => x.progress.has_analysis);
+  // all means no narrowing). Analysed and Recently-analysed share the same
+  // membership test (has_analysis) — they differ only in how the SmartFeed
+  // groups + sorts them downstream (flat distance vs. adaptive time bucket).
+  if (f.stage === "analysed" || f.stage === "recentlyAnalysed")
+                                     out = out.filter((x) => x.progress.has_analysis);
   else if (f.stage === "cvReady")    out = out.filter((x) => x.progress.has_tailored_cv);
   else if (f.stage === "letterReady")out = out.filter((x) => x.progress.has_cover_letter);
   else if (f.stage === "thinJd")     out = out.filter(jobNeedsJd);
@@ -369,7 +375,10 @@ export function pickGroupMode(args: {
   sortCol: string;
 }): GroupMode | null {
   const { stage, ats, sortCol } = args;
-  if (stage === "analysed") return { kind: "time", field: "last_progress_at" };
+  // "Recently analysed" → time buckets keyed on last_progress_at (the
+  // "when did this last move" lens). "Analysed" (stage=analysed) is the
+  // flat distance-sorted view — no grouping at all.
+  if (stage === "recentlyAnalysed") return { kind: "time", field: "last_progress_at" };
   if (ats === "no_ats")     return { kind: "time", field: "posted_at" };
   if (stage === "cvReady" || stage === "letterReady" || stage === "applied")
     return { kind: "distance" };
@@ -387,7 +396,8 @@ export function buildGroups(jobs: BoardJob[], mode: GroupMode | null): JobGroup[
 
 /** Human labels for the active view filter (used by the board heading). */
 export const FILTER_LABELS: Record<string, string> = {
-  analysed: "Analysed", cvReady: "CV ready", letterReady: "Letter ready",
+  analysed: "Analysed", recentlyAnalysed: "Recently analysed",
+  cvReady: "CV ready", letterReady: "Letter ready",
   thinJd: "Thin JD", applied: "Applied", dismissed: "Archived",
   richJd: "Full JD", roleMismatch: "Role mismatch", belowThreshold: "Below threshold",
   hasEmail: "Has email", notTailored: "Not tailored", needsJd: "Thin JD",

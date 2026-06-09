@@ -27,6 +27,7 @@ import { markJobApplied, markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { JobProgress } from "./progressFlags";
+import { MANUAL_JD_MIN_CHARS } from "./jobFilters";
 import { PIPELINE_STATE_META, TONE_CLASSES, type PipelineState } from "./pipelineState";
 
 export interface Job {
@@ -489,7 +490,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
             // so the user can see WHICH job they just fixed (they often lose
             // their place after pasting). Only fires on the thin→filled flip.
             const wasThin = job.jd_quality === "thin" || job.jd_quality === "unknown";
-            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= 200;
+            const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= MANUAL_JD_MIN_CHARS;
             if (wasThin && nowFilled) {
               setSavedFlicker(true);
               setTimeout(() => setSavedFlicker(false), 1400);

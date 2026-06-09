@@ -11,6 +11,7 @@ import Link                  from "next/link";
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SummaryAuditClient    from "./SummaryAuditClient";
+import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
 
 export const dynamic    = "force-dynamic";
 export const maxDuration = 120;
@@ -89,7 +90,7 @@ export default async function SummaryAuditPage() {
       .limit(500);
 
     for (const j of allJobs ?? []) {
-      const hasManual = !!(j.manual_jd_text && (j.manual_jd_text as string).trim().length >= 200);
+      const hasManual = !!(j.manual_jd_text && (j.manual_jd_text as string).trim().length >= MANUAL_JD_MIN_CHARS);
       if (hasManual || (j.jd_quality && j.jd_quality !== "thin")) {
         fullJdJobs.push({
           job_id:    j.id as string,

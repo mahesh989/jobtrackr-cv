@@ -35,12 +35,13 @@ const SUGGESTED_SORT: Record<string, { col: string; label: string } | undefined>
 };
 
 const STAGE_ICON: Record<string, typeof BarChart3> = {
-  analysed:    BarChart3,
-  cvReady:     FileText,
-  letterReady: Mail,
-  applied:     CheckCircle2,
-  thinJd:      FileWarning,
-  dismissed:   Archive,
+  analysed:         BarChart3,
+  recentlyAnalysed: BarChart3,
+  cvReady:          FileText,
+  letterReady:      Mail,
+  applied:          CheckCircle2,
+  thinJd:           FileWarning,
+  dismissed:        Archive,
 };
 
 const SORT_LABEL_FOR_COL: Record<string, string> = {

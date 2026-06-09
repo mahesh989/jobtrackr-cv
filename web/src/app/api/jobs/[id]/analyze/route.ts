@@ -23,6 +23,7 @@ import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { resolveThresholds } from "@/lib/atsThresholds";
+import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -89,7 +90,7 @@ export async function POST(
   // hasn't manually pasted one. Saves the full 4-5-call pipeline on stub
   // listings. Override via ?override=thin_jd or ?override=all when the
   // user wants to attempt analysis anyway.
-  const hasManualJd = !!(job.manual_jd_text && (job.manual_jd_text as string).trim().length >= 200);
+  const hasManualJd = !!(job.manual_jd_text && (job.manual_jd_text as string).trim().length >= MANUAL_JD_MIN_CHARS);
   if (job.jd_quality === "thin" && !hasManualJd && override !== "thin_jd" && override !== "all") {
     return NextResponse.json(
       {

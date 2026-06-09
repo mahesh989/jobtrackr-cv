@@ -542,7 +542,12 @@ export default async function DashboardPage({
     ats:      { totals: atsTotals, byProfile: mkProfiles(atsMap), thresholds: atsThresholds },
     applied:  { totals: appliedTotals, byProfile: mkProfiles(appliedMap) },
     callouts: {
-      thinJdCount:        jdTotals[1],
+      // Use the SAME bar as the Thin JD chip + the /dashboard?triage=thinJd
+      // filter the callout links to (jobNeedsJd: thin AND no usable manual
+      // JD ≥ MANUAL_JD_MIN_CHARS). jdTotals[1] counts every job classified
+      // 'thin' by the analyser, even when the user has already pasted a
+      // usable JD, so the callout disagreed with the filter destination.
+      thinJdCount:        funnelCounts.thinJd,
       passedButNoLetter:  passedButNoLetterCount,
       readyToApply:       appliedTotals[1],
     },

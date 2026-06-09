@@ -68,8 +68,18 @@ const JOBS_CHIPS: StageChip[] = [
   { id: "dismissed", label: "Archive",   kind: "stage", value: "dismissed", countKey: "dismissed" as keyof FunnelCounts },
 ];
 
+// Two complementary analysed views:
+//   • "Analysed"          → flat, distance-ascending — useful across many
+//                           profiles / many runs when you want every analysed
+//                           job ranked by proximity in a single pane.
+//   • "Recently analysed" → adaptive time buckets (5-min / 1-hour / daily),
+//                           distance-ascending inside each bucket — the
+//                           "what just moved" lens.
+// Both chips share the same membership (has_analysis) and therefore the same
+// count; they differ only in the presentation downstream.
 const ANALYSIS_CHIPS: StageChip[] = [
-  { id: "analysed",  label: "Analysed",  kind: "stage", value: "analysed", countKey: "analysed" as keyof FunnelCounts },
+  { id: "analysed",          label: "Analysed",          kind: "stage", value: "analysed",          countKey: "analysed" as keyof FunnelCounts },
+  { id: "recentlyAnalysed",  label: "Recently analysed", kind: "stage", value: "recentlyAnalysed",  countKey: "analysed" as keyof FunnelCounts },
 ];
 
 // View-filter URL keys → committed via the History API for instant feedback.
@@ -167,11 +177,11 @@ export function SmartToolbar({
     return next;
   }
 
-  /** Stage chips that should default to distance-grouped + ascending sort
-   *  when activated (the distance grouping is decided by pickGroupMode; the
-   *  sort key just keeps "Distance (nearest)" visible in the dropdown so
-   *  the dropdown and the rendered groups agree). */
-  const _DISTANCE_GROUPED_STAGES = new Set(["cvReady", "letterReady", "applied"]);
+  /** Stage chips that should default to ascending-distance sort when
+   *  activated. CV/Letter/Applied also render banded distance groups via
+   *  pickGroupMode; "Analysed" is intentionally flat (no groups) — same
+   *  sort, no banding — so a busy multi-profile user sees one ranked list. */
+  const _DISTANCE_GROUPED_STAGES = new Set(["analysed", "cvReady", "letterReady", "applied"]);
 
   function selectStageChip(chip: StageChip) {
     const next = getCleanParams();

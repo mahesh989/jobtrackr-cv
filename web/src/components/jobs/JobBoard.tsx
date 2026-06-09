@@ -38,12 +38,13 @@ const SUGGESTED_SORT: Record<string, { col: string; label: string } | undefined>
 
 // Stage icon for the big-title heading.
 const STAGE_ICON: Record<string, typeof BarChart3> = {
-  analysed:    BarChart3,
-  cvReady:     FileText,
-  letterReady: Mail,
-  applied:     CheckCircle2,
-  thinJd:      FileWarning,
-  dismissed:   Archive,
+  analysed:         BarChart3,
+  recentlyAnalysed: BarChart3,
+  cvReady:          FileText,
+  letterReady:      Mail,
+  applied:          CheckCircle2,
+  thinJd:           FileWarning,
+  dismissed:        Archive,
 };
 
 // Human label for the current sort column — mirrors SmartFilterBar's options.
