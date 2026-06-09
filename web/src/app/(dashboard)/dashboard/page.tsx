@@ -343,7 +343,10 @@ export default async function DashboardPage({
   );
 
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
-  const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
+  // Exclude dismissed jobs from the applied count — dismissed+applied jobs are
+  // not shown in the Applied stage view (server-side filters dismissed_at IS NULL)
+  // so the chip count must match what's actually visible.
+  const tabAppliedCount = allRows.filter((j) => j.applied_at && !j.dismissed_at).length;
   const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
 
   funnelCounts = {

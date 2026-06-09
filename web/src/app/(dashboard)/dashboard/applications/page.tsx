@@ -154,7 +154,9 @@ export default async function ApplicationsPage({
   // Dismissed (archived) jobs are NOT shown on this screen at all — they
   // appear in the dashboard / per-profile archive view.
   const isPool = (r: ApplicationRowV2) => !r.job_applied_at && !r.job_dismissed_at;
-  const isSent = (r: ApplicationRowV2) => !!r.job_applied_at;
+  // Exclude dismissed jobs from the Sent tab — if user archives a job they
+  // already applied to, it should leave this screen (lives in the archive view).
+  const isSent = (r: ApplicationRowV2) => !!r.job_applied_at && !r.job_dismissed_at;
 
   const counts: ApplicationStatusCounts = {
     pool: allRows.filter(isPool).length,

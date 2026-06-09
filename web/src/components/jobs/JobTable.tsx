@@ -23,7 +23,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { BarChart3, FileText, Mail, CheckCircle2, FileWarning, FileQuestion } from "lucide-react";
-import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { markJobDismissed } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import type { JobProgress } from "./progressFlags";
@@ -205,7 +205,6 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 }) {
   const [expanded, setExpanded]     = useState(false);
   const [isPending, setIsPending]   = useState(false);
-  const [localApplied, setLocalApplied] = useState(!!job.applied_at);
   const [exitPhase, setExitPhase]   = useState<ExitPhase>("idle");
   const [showEdit, setShowEdit]     = useState(false);
   const [manualJd, setManualJd]     = useState<string | null>(job.manual_jd_text ?? null);
@@ -216,28 +215,11 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
 
   const salary    = formatSalary(job.salary_min, job.salary_max);
   const postedAgo = relativeDate(job.posted_at || job.created_at);
-  const isNew     = !job.seen_at && !localApplied && exitPhase === "idle";
+  const isNew     = !job.seen_at && !job.applied_at && exitPhase === "idle";
   const isFlash   = exitPhase === "flash";
   const isFading  = exitPhase === "fading";
   const isDismissed = !!job.dismissed_at;
   const hideProgress = false;
-
-  async function handleApply(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (localApplied || exitPhase !== "idle" || isPending) return;
-    setLocalApplied(true);
-    setIsPending(true);
-    if (currentTab !== "applied") {
-      setExitPhase("flash");
-      setTimeout(() => setExitPhase("fading"), 700);
-      setTimeout(() => setExitPhase("gone"), 1150);
-    }
-    try { await markJobApplied(job.id, job.profile_id); }
-    catch (err) {
-      console.error("[JobRow] markJobApplied failed:", err);
-      setLocalApplied(false); setExitPhase("idle");
-    } finally { setIsPending(false); }
-  }
 
   async function handleDismiss(e: React.MouseEvent) {
     e.stopPropagation();
@@ -270,7 +252,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
           className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
             isFlash ? "bg-green-light" : "hover:bg-[var(--surface-2)]/60"
           } ${savedFlicker ? "jd-saved-flicker" : ""} ${
-            localApplied ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""
+            !!job.applied_at ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""
           }`}
           onClick={() => setExpanded(!expanded)}
         >

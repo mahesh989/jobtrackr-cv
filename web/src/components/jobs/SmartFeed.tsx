@@ -35,7 +35,7 @@ import {
   Archive, Star,
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { markJobApplied, markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
+import { markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
@@ -965,7 +965,6 @@ function CardShell({
   children: React.ReactNode;
 }) {
   const [exit, setExit] = useState<ExitPhase>("idle");
-  const [localApplied, setLocalApplied] = useState(!!job.applied_at);
   const [showEdit, setShowEdit] = useState(false);
   const [manualJd, setManualJd] = useState<string | null>(job.manual_jd_text ?? null);
   const [savedFlicker, setSavedFlicker] = useState(false);
@@ -978,19 +977,6 @@ function CardShell({
   const selectable = selection?.selectMode ?? false;  // checkboxes only in select mode
   const checked    = selection?.isSelected(job.id) ?? false;
 
-  async function onApply() {
-    if (localApplied || exit !== "idle" || pending) return;
-    setPending(true);
-    setLocalApplied(true);
-    if (currentTab !== "applied") {
-      setExit("flash");
-      setTimeout(() => setExit("fading"), 700);
-      setTimeout(() => setExit("gone"),   1150);
-    }
-    try { await markJobApplied(job.id, job.profile_id); }
-    catch { setLocalApplied(false); setExit("idle"); }
-    finally { setPending(false); }
-  }
   async function onDismiss() {
     if (exit !== "idle" || pending) return;
     setPending(true);
@@ -1041,10 +1027,10 @@ function CardShell({
           } ${selectable ? "pl-10" : ""} ${
             checked ? "ring-2 ring-[var(--brand)] border-[var(--brand)]" : ""
           } ${isFlash ? "bg-green-light border-green-500" : ""} ${savedFlicker ? "jd-saved-flicker" : ""} ${
-            localApplied ? "border-l-2 border-l-green-500" : ""
+            !!job.applied_at ? "border-l-2 border-l-green-500" : ""
           }`}
         >
-          <CardActionsContext.Provider value={{ onApply, onDismiss, onEdit: () => setShowEdit(true), pending }}>
+          <CardActionsContext.Provider value={{ onDismiss, onEdit: () => setShowEdit(true), pending }}>
             {children}
           </CardActionsContext.Provider>
         </div>
@@ -1083,11 +1069,10 @@ function CardShell({
 
 // Context so HeroCard/JobCard children can reach the shell's handlers.
 const CardActionsContext = createContext<{
-  onApply:   () => Promise<void>;
   onDismiss: () => Promise<void>;
   onEdit:    () => void;
   pending:   boolean;
-}>({ onApply: async () => {}, onDismiss: async () => {}, onEdit: () => {}, pending: false });
+}>({ onDismiss: async () => {}, onEdit: () => {}, pending: false });
 
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
@@ -1172,7 +1157,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
 }
 
 function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  const { onApply, onDismiss, onEdit, pending } = useContext(CardActionsContext);
+  const { onDismiss, onEdit, pending } = useContext(CardActionsContext);
   return (
     <div
       className={`flex items-center gap-2 shrink-0 ${compact ? "" : "mt-2 justify-between"}`}
@@ -1199,10 +1184,8 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
         )}
         <CardMenu
           job={job}
-          onApply={onApply}
           onDismiss={onDismiss}
           onEdit={onEdit}
-          applied={!!job.applied_at}
           pending={pending}
         />
       </div>
@@ -1213,13 +1196,11 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
 // ── overflow menu ───────────────────────────────────────────────────────
 
 function CardMenu({
-  job, onApply, onDismiss, onEdit, applied, pending,
+  job, onDismiss, onEdit, pending,
 }: {
   job:       BoardJob;
-  onApply:   () => void;
   onDismiss: () => void;
   onEdit:    () => void;
-  applied:   boolean;
   pending:   boolean;
 }) {
   const router = useRouter();
@@ -1283,9 +1264,6 @@ function CardMenu({
               {reanalysePending ? "Starting…" : "Re-analyze"}
             </MenuItem>
           )}
-          <MenuItem onClick={() => { setOpen(false); onApply(); }} disabled={applied}>
-            {applied ? "Already applied" : "Mark as applied"}
-          </MenuItem>
           <MenuItem onClick={() => { setOpen(false); onDismiss(); }}>Dismiss</MenuItem>
         </div>,
         document.body,
