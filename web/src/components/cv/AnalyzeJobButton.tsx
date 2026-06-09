@@ -46,6 +46,29 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
   const [toastPos, setToastPos]    = useState<{ top: number; right: number } | null>(null);
   const btnRef                     = useRef<HTMLButtonElement>(null);
 
+  // External pending state — set when a sibling component (typically the
+  // JobEditModal's "Save + auto-analyse" flow) starts an analysis for this
+  // job. Clears itself when the parent re-renders with hasAnalysis=true
+  // (the button is replaced by FullAnalysisButton at that point) or when
+  // a matching "failed" event fires.
+  const [externalPending, setExternalPending] = useState(false);
+  useEffect(() => {
+    function onStart(e: Event) {
+      const ev = e as CustomEvent<{ jobId: string }>;
+      if (ev.detail?.jobId === jobId) setExternalPending(true);
+    }
+    function onFail(e: Event) {
+      const ev = e as CustomEvent<{ jobId: string }>;
+      if (ev.detail?.jobId === jobId) setExternalPending(false);
+    }
+    window.addEventListener("jobtrackr:analysis-started", onStart);
+    window.addEventListener("jobtrackr:analysis-failed",  onFail);
+    return () => {
+      window.removeEventListener("jobtrackr:analysis-started", onStart);
+      window.removeEventListener("jobtrackr:analysis-failed",  onFail);
+    };
+  }, [jobId]);
+
   // Close the toast on outside click + Escape.
   useEffect(() => {
     if (!err) return;
@@ -181,16 +204,32 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
           Full Analysis
         </a>
       ) : (
-        /* Primary Analyze / Re-analyze button — brand-filled with Sparkles. */
+        /* Primary Analyze / Re-analyze button — brand-filled with Sparkles.
+           Spins when an analysis is in-flight (either started locally or
+           triggered by the JobEditModal's auto-analyse on save). */
         <button
           ref={btnRef}
-          disabled={pending}
+          disabled={pending || externalPending}
           onClick={handleClick}
-          className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
-          title={hasAnalysis ? "Run a fresh analysis to update the tailored CV and scores" : "Run a CV-tailoring analysis against this job"}
+          className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 transition-opacity"
+          title={
+            externalPending
+              ? "Analysis running — this button will become \"Full Analysis\" when it finishes"
+              : hasAnalysis
+              ? "Run a fresh analysis to update the tailored CV and scores"
+              : "Run a CV-tailoring analysis against this job"
+          }
         >
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          <span>{pending ? "…" : hasAnalysis ? "Re-analyze" : "Analyze"}</span>
+          {(pending || externalPending)
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Sparkles className="h-3.5 w-3.5" />}
+          <span>
+            {externalPending
+              ? "Analysing…"
+              : pending
+              ? "…"
+              : hasAnalysis ? "Re-analyze" : "Analyze"}
+          </span>
         </button>
       )}
       {typeof document !== "undefined" && toast && createPortal(toast, document.body)}

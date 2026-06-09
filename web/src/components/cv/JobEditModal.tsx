@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
+import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
 
 interface Props {
   jobId:              string;
@@ -93,15 +95,37 @@ export function JobEditModal({
         company_address: json.company_address ?? null,
       });
       onClose();
-      // Re-fetch server data so the board reflects the DB trigger's recomputed
-      // jd_quality (a full paste ≥1400 chars flips thin → rich), clearing the
-      // stale "thin JD" badge. DELAYED ~1.9s: router.refresh() remounts the
-      // cards, which would reset the just-triggered save-flicker animation
-      // (onSaved sets it on the card) before it can play. Letting the flicker
-      // finish first is the whole point — the user needs to SEE which card
-      // changed. The optimistic onSaved() already updated the visible fields,
-      // so the brief delay before the server sync is imperceptible.
-      setTimeout(() => router.refresh(), 1900);
+
+      // Auto-analyse when the freshly-pasted JD has cleared the manual-JD
+      // floor — this is what makes a thin-JD job actionable. Skipping this
+      // for sub-floor pastes (still effectively thin) preserves the
+      // existing UX where the user explicitly clicks Analyze after curating.
+      const hasUsableJd =
+        manualForApi !== null && manualForApi.length >= MANUAL_JD_MIN_CHARS;
+
+      if (hasUsableJd) {
+        // Fire the per-card spinner immediately — listening AnalyzeJobButton
+        // for this jobId will switch to "Analysing…" without waiting for the
+        // fetch to land. Failure dispatches a "failed" event that clears it.
+        window.dispatchEvent(new CustomEvent("jobtrackr:analysis-started", { detail: { jobId } }));
+        triggerReanalyze(jobId)
+          .then(() => {
+            // Once the run row is created, refresh the board so the card
+            // picks up has_analysis = true on completion. The board is
+            // wired to Realtime postgres_changes on analysis_runs, so the
+            // refresh just primes the initial server payload; subsequent
+            // step transitions land via Realtime.
+            router.refresh();
+          })
+          .catch((err) => {
+            console.error("[JobEditModal] auto-analyse failed:", err);
+            window.dispatchEvent(new CustomEvent("jobtrackr:analysis-failed", { detail: { jobId } }));
+          });
+      } else {
+        // No auto-analyse — keep the legacy delayed refresh so the jd_quality
+        // recompute (DB trigger) clears the stale "thin JD" badge.
+        setTimeout(() => router.refresh(), 1900);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
       setBusy(false);
