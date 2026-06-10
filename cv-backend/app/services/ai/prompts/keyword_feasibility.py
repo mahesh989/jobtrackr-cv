@@ -26,20 +26,72 @@ Four feasibility buckets, ordered from safest to most aggressive:
    another concrete capability strongly IMPLIES familiarity with it.
    The candidate can DEFEND the claim in interview from the inference
    chain alone. Use this ONLY when the implication is technically
-   unavoidable, not aspirational. Examples:
-     - JD wants "Docker"; CV mentions deploying to Kubernetes — you
-       cannot run a Kubernetes pod without containerising → defensible.
-     - JD wants "Linux"; CV mentions Bash scripting on production
+   unavoidable, not aspirational. Examples across verticals:
+     • tech: JD wants "Docker"; CV mentions deploying to Kubernetes —
+       you cannot run a Kubernetes pod without containerising → defensible.
+     • tech: JD wants "Linux"; CV mentions Bash scripting on production
        servers → defensible.
-     - JD wants "REST APIs"; CV mentions integrating Stripe / Twilio /
-       any HTTP-based third-party service → defensible.
-   COUNTER-EXAMPLES (do NOT use this bucket for these):
-     - JD wants "Kubernetes"; CV only mentions Docker → Docker does
-       not imply Kubernetes (one-way relationship). → cannot_inject.
-     - JD wants "TensorFlow"; CV mentions "machine learning" generically
-       → too vague. → cannot_inject.
-     - JD wants 5 years of X; CV shows 1 year → inference of seniority
-       is fabrication. → cannot_inject.
+     • tech: JD wants "REST APIs"; CV mentions integrating Stripe /
+       Twilio / any HTTP-based third-party service → defensible.
+     • nursing / care: JD wants "individual support"; CV mentions
+       "personal care for residents" — individual support IS the formal
+       term for personal-care work in the disability/aged-care sector →
+       defensible.
+     • nursing / care: JD wants "activities of daily living (ADLs)"; CV
+       mentions "showering, dressing, toileting and feeding residents"
+       — ADLs IS the formal term for exactly that work → defensible.
+     • manual: JD wants "WHS compliance"; CV mentions following site
+       safety procedures and incident reporting → WHS is the regulatory
+       label for that activity in AU → defensible.
+
+   COUNTER-EXAMPLES (do NOT use this bucket for these — classify as
+   cannot_inject):
+     • tech: JD wants "Kubernetes"; CV only mentions Docker → Docker does
+       not imply Kubernetes (one-way relationship).
+     • tech: JD wants "TensorFlow"; CV mentions "machine learning"
+       generically → too vague.
+     • Any vertical: JD wants 5 years of X; CV shows 1 year → inference
+       of seniority is fabrication.
+
+   NURSING / CARE — CRITICAL one-way relationships (these look
+   adjacent but are NOT defensible inferences):
+     • JD wants "acute care" or "hospital setting"; CV only shows
+       residential aged care or home care → SETTINGS ARE DIFFERENT.
+       Aged-care / community work does not imply acute clinical work.
+       → cannot_inject.
+     • JD wants "ICU" / "emergency department" / "surgical ward" /
+       "theatre"; CV shows general nursing or aged care → specialised
+       acute settings require named experience. → cannot_inject.
+     • JD wants "home care" / "community care"; CV only shows
+       residential / facility work → going into clients' homes is a
+       distinct skill set (lone working, travel, family liaison).
+       → cannot_inject.
+     • JD wants "disability support" or "NDIS"; CV only shows aged care
+       → overlapping skills but distinct regulatory frameworks and
+       client populations. → cannot_inject.
+     • JD wants "palliative care" / "dementia care" / "mental health";
+       CV shows general aged care without these named specialisms →
+       specialised competencies require named exposure. → cannot_inject.
+     • JD wants a NAMED clinical product the CV doesn't mention
+       (e.g. "Epic", "Cerner", "Leecare", "BESTMed") → never infer a
+       specific named system from a generic "electronic records"
+       mention. → cannot_inject.
+
+   MANUAL / TRADES / CLEANING — CRITICAL one-way relationships:
+     • JD wants "forklift"; CV mentions warehouse work without forklift
+       → forklift requires a licence; warehouse work does not imply it.
+       → cannot_inject.
+     • JD wants "EWP" / "scissor lift" / "boom lift"; CV shows general
+       construction → high-risk plant requires a ticket. → cannot_inject.
+     • JD wants "commercial cleaning"; CV only shows domestic / household
+       cleaning → different chemicals, equipment, compliance.
+       → cannot_inject.
+
+   GENERAL RULE: when a JD names a SETTING, a NAMED PRODUCT, a LICENCE-
+   GATED ACTIVITY, or a FORMAL SPECIALISATION the CV does not literally
+   evidence, default to cannot_inject. Inference is for vocabulary
+   relabels of work the candidate actually did — never for places they
+   have not worked or qualifications they do not hold.
 
 4. "cannot_inject" — No CV evidence (literal or inferred) supports the
    keyword. Adding it would be fabrication. Surface this as an honest
