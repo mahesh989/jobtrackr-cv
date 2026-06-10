@@ -129,8 +129,6 @@ export default async function DashboardPage({
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
 
   // ── Resolve stage + build board query (sync) ─────────────────────────────
-  const currentStage = resolveStage(sp);
-
   // Type declarations shared across both fetch batches
   interface AllCountRow {
     id: string; seen_at: string | null; applied_at: string | null;
@@ -146,36 +144,45 @@ export default async function DashboardPage({
   }
   interface DonutLetterRow { job_id: string }
 
-  let q = supabase
-    .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method")
-    .in("profile_id", ids)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false);
-  if (currentStage === "dismissed") q = q.not("dismissed_at", "is", null);
-  else                              q = q.is("dismissed_at", null);
+  const JOB_SELECT = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method";
+
+  // Active jobs (non-dismissed). location/source/posted_within narrow the dataset.
+  let q = supabase.from("jobs").select(JOB_SELECT)
+    .in("profile_id", ids).eq("is_expired", false).eq("is_dead_link", false)
+    .is("dismissed_at", null);
   if (sp.location) q = q.ilike("location", `%${sp.location}%`);
   if (sp.source)   q = q.eq("source", sp.source);
   if (sp.posted_within && sp.posted_within !== "any") {
     const days = parseInt(sp.posted_within, 10);
     if (!isNaN(days)) {
-      const d = new Date();
-      d.setDate(d.getDate() - days);
+      const d = new Date(); d.setDate(d.getDate() - days);
       q = q.gte("posted_at", d.toISOString());
     }
   }
   q = q.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
 
-  // ── BATCH 1 — three parallel queries (all only need `ids`) ────────────────
+  // Dismissed jobs — fetched in parallel so the Archive chip is instant
+  // (client-side filter, no server round-trip on click). Same location/source
+  // filters for consistency; posted_within skipped (archived jobs are often old).
+  let dq = supabase.from("jobs").select(JOB_SELECT)
+    .in("profile_id", ids).eq("is_expired", false).eq("is_dead_link", false)
+    .not("dismissed_at", "is", null);
+  if (sp.location) dq = dq.ilike("location", `%${sp.location}%`);
+  if (sp.source)   dq = dq.eq("source", sp.source);
+  dq = dq.order("dismissed_at", { ascending: false, nullsFirst: false }).limit(100);
+
+  // ── BATCH 1 — four parallel queries (all only need `ids`) ─────────────────
   // Previously: 6 sequential round-trips. Now: 1 parallel batch.
   // The 3 legacy KPI queries (jobRows/unseenRows/appliedRows) are eliminated —
   // totalJobs / totalNew / totalApplied are derived from countRows below.
   const [
     { data: jobs },
+    { data: dismissedJobs },
     { data: countRows },
     { data: runLogData },
   ] = await Promise.all([
     q,
+    dq,
     supabase
       .from("jobs")
       .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
@@ -189,7 +196,8 @@ export default async function DashboardPage({
   ]);
 
   // ── Derive secondary IDs (sync) ───────────────────────────────────────────
-  const jobList = (jobs ?? []) as Array<{
+  // Merge active + dismissed into one list so JobBoard can filter client-side.
+  const jobList = [...(jobs ?? []), ...(dismissedJobs ?? [])] as Array<{
     id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
   }>;
   const jobIds          = jobList.map((j) => j.id);
@@ -307,7 +315,7 @@ export default async function DashboardPage({
   // Thin-JD jobs in the loaded board — fed to the bulk "Fix thin JDs" modal.
   // Captured before the stage/triage filters below mutate typedJobs.
   const thinJdJobs: ThinJdJob[] = typedJobs
-    .filter(jobNeedsJd)
+    .filter((x) => !x.dismissed_at && jobNeedsJd(x))
     .map((x) => ({
       id:             x.id,
       title:          x.title ?? null,

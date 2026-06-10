@@ -119,16 +119,11 @@ export function SmartToolbar({
     !currentMaxDistance && Number(currentMinDistance) >= 50 ? "over50" : currentMaxDistance;
 
   function commit(params: URLSearchParams, key: string) {
-    // Entering or leaving the Archive (dismissed) view must refetch the
-    // dataset — the server query flips between dismissed_at IS NOT NULL
-    // and IS NULL. We use router.replace (soft navigation) rather than
-    // window.location.href so the React tree stays mounted and loading.tsx
-    // shows a smooth skeleton instead of a full page unload/reload.
-    const nextStage = params.get("stage");
-    const isDismissedTransition =
-      currentStage === "dismissed" || nextStage === "dismissed";
-
-    if (SHALLOW_KEYS.has(key) && !isDismissedTransition) {
+    // View filters (stage, triage, ats, sort, etc.) are resolved client-side —
+    // dismissed jobs are pre-loaded alongside active ones so the Archive chip
+    // is instant. Dataset-narrowing params (location, posted_within, source)
+    // still need a server round-trip (they change which jobs are fetched).
+    if (SHALLOW_KEYS.has(key)) {
       shallowSetParams(pathname, params);
     } else {
       startTransition(() => router.replace(`${pathname}?${params}`, { scroll: false }));

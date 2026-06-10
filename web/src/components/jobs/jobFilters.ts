@@ -76,13 +76,21 @@ export function atsBandFor(
 export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   let out = jobs;
 
+  // Dismissed/active split — dismissed jobs are pre-loaded alongside active
+  // ones so that the Archive chip is instant (no server round-trip). Filter
+  // them here so they're invisible outside the archive view.
+  if (f.stage === "dismissed") {
+    out = out.filter((x) => x.dismissed_at != null);
+  } else {
+    out = out.filter((x) => x.dismissed_at == null);
+  }
+
   // If sorting by last analysed, restrict to analysed jobs only
   if (f.sort === "last_analysed") {
     out = out.filter((x) => x.progress.has_analysis);
   }
 
-  // Stage (dismissed + all are no-ops here — dismissed is fetched server-side,
-  // all means no narrowing). Analysed and Recently-analysed share the same
+  // Stage (all = no narrowing). Analysed and Recently-analysed share the same
   // membership test (has_analysis) — they differ only in how the SmartFeed
   // groups + sorts them downstream (flat distance vs. adaptive time bucket).
   if (f.stage === "analysed" || f.stage === "recentlyAnalysed")
