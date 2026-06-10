@@ -49,15 +49,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const profileIds = profiles.map((p) => p.id);
     const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
 
+    // Pool = cover letters that are completed + not stale, whose job hasn't been
+    // applied or dismissed yet. pool_decision_at is no longer a gate — the new
+    // Applications design uses applied_at + dismissed_at as the sole signals.
     let poolQuery = supabase.from("cover_letters")
-      .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
+      .select("id, jobs!inner(applied_at, dismissed_at)", {
         count: "exact",
         head:  true,
       })
       .eq("user_id", user.id)
       .eq("status", "completed")
       .eq("is_stale", false)
-      .is("jobs.pool_decision_at", null)
       .is("jobs.applied_at", null)
       .is("jobs.dismissed_at", null);
     if (applicationsSeenAt) poolQuery = poolQuery.gt("completed_at", applicationsSeenAt);

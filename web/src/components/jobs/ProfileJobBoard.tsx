@@ -106,11 +106,17 @@ export function ProfileJobBoard({
     [filtered, stage, ats, sortCol, isManual],
   );
 
+  // Same fix as JobBoard: compute from the stage/triage/distance-filtered set
+  // (ATS excluded) so badge counts match what clicking the chip will actually show.
+  const atsCountBase = useMemo(
+    () => filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance, minDistance, sort: sortCol }),
+    [jobs, stage, triage, minKeywords, maxDistance, minDistance, sortCol],
+  );
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {
     const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
-    for (const j of jobs) out[j.atsBand]++;
+    for (const j of atsCountBase) out[j.atsBand]++;
     return out;
-  }, [jobs]);
+  }, [atsCountBase]);
 
   // Scroll to the feed whenever the stage changes (carries over from the
   // pre-redesign behaviour where clicking a funnel stage scrolled to the

@@ -110,13 +110,20 @@ export function JobBoard({
     [filtered, stage, ats, sortCol],
   );
 
-  // ATS-band counts derived from the *unfiltered* loaded set — used by the
-  // toolbar's chip badges so users see what they can filter to.
+  // ATS-band counts derived from the stage/triage/distance-filtered set —
+  // identical params to `filtered` but with ats:"" so the chip badge shows how
+  // many jobs in the *current view* match each band. Clicking a chip will show
+  // exactly that count (no "5 shown / 0 results" surprise from archived jobs or
+  // a conflicting stage filter).
+  const atsCountBase = useMemo(
+    () => filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance, minDistance, sort: sortCol }),
+    [jobs, stage, triage, minKeywords, maxDistance, minDistance, sortCol],
+  );
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {
     const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
-    for (const j of jobs) out[j.atsBand]++;
+    for (const j of atsCountBase) out[j.atsBand]++;
     return out;
-  }, [jobs]);
+  }, [atsCountBase]);
 
   // Active view-filter labels for the heading (dismissed = a server tab, not a
   // view filter, so it isn't shown as a removable chip here).
