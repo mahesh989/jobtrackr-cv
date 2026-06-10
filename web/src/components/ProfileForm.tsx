@@ -282,12 +282,12 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
           {/* Exclude — description */}
           <div>
             <label className="block text-[12px] font-semibold text-text mb-1.5">
-              Description must NOT contain <span className="font-normal text-text-2">(space or comma separated)</span>
+              Description must NOT contain <span className="font-normal text-text-2">(comma-separated)</span>
             </label>
             <input
               name="adzuna_exclude_keywords"
               defaultValue={defaults?.adzuna_exclude_keywords}
-              placeholder="unpaid volunteer internship"
+              placeholder="unpaid, volunteer, internship"
               className="field"
             />
           </div>

@@ -92,7 +92,7 @@ export function excludeByDescription(
   }
   const words = profile.adzuna_exclude_keywords
     .trim()
-    .split(/[\s,]+/)
+    .split(/,/)
     .map((w) => w.trim())
     .filter(Boolean)
     .map(buildMatcher);
