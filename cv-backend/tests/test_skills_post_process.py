@@ -9,6 +9,10 @@ from __future__ import annotations
 import pytest
 
 from app.services.skills.post_process import (
+    _demote_conditional_required_to_preferred,
+    _is_au_unit_code,
+    _looks_like_language,
+    _split_conditional_phrase,
     enrich_required_skills_from_jd_body,
     post_process_cv_skills,
     post_process_jd_analysis,
@@ -521,3 +525,196 @@ class TestJdBodyLexiconScan:
         # 'breastfeeding' due to \b regex anchor.
         dk_lower = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
         assert "feeding assistance" not in dk_lower
+
+
+# ---------------------------------------------------------------------------
+# Pattern-based recognisers: conditional clauses, languages, VET unit codes.
+# All three surfaced from a single Australian Unity AIN JD that produced
+# "current ndiswc or willingness to apply" as REQUIRED, "cantonese language"
+# under Care Skills, and "hlthps007 unit" as a skill.
+# ---------------------------------------------------------------------------
+
+
+class TestConditionalClauseDetection:
+    def test_trailing_or_willingness_to_apply(self):
+        stripped, was = _split_conditional_phrase(
+            "current ndiswc or willingness to apply"
+        )
+        assert was is True
+        assert stripped == "current ndiswc"
+
+    def test_trailing_or_willing_to_obtain(self):
+        stripped, was = _split_conditional_phrase(
+            "first aid certificate or willing to obtain"
+        )
+        assert was is True
+        assert "first aid certificate" in stripped
+
+    def test_trailing_eligibility_to_apply(self):
+        stripped, was = _split_conditional_phrase(
+            "police check eligibility to apply"
+        )
+        assert was is True
+        assert stripped == "police check"
+
+    def test_plain_skill_unchanged(self):
+        stripped, was = _split_conditional_phrase("teamwork")
+        assert was is False
+        assert stripped == "teamwork"
+
+    def test_does_not_strip_if_nothing_left(self):
+        """Safety guard: a phrase that is ENTIRELY a conditional clause has
+        no extractable skill, so we leave it alone rather than emit a blank."""
+        stripped, was = _split_conditional_phrase("willing to apply")
+        # The strip would leave nothing → don't claim it was conditional.
+        assert was is False
+
+
+class TestConditionalDemoter:
+    def test_demotes_to_preferred_with_stripped_text(self):
+        jd = {
+            "required_skills": {
+                "technical": ["current ndiswc or willingness to apply"],
+                "soft_skills": ["teamwork", "empathy"],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = _demote_conditional_required_to_preferred(jd)
+        assert "current ndiswc" in out["preferred_skills"]["technical"]
+        # Conditional REMOVED from required; the unrelated soft skills stay.
+        assert out["required_skills"]["technical"] == []
+        assert out["required_skills"]["soft_skills"] == ["teamwork", "empathy"]
+
+    def test_noop_when_no_conditional_entries(self):
+        jd = {
+            "required_skills": {
+                "technical": ["python"],
+                "soft_skills": ["teamwork"],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = _demote_conditional_required_to_preferred(jd)
+        # Same object returned when nothing changed (idempotency contract).
+        assert out is jd or out["required_skills"] == jd["required_skills"]
+
+
+class TestLanguageDetection:
+    def test_x_language_pattern(self):
+        for lang in ("cantonese language", "greek language", "arabic language",
+                     "mandarin language"):
+            assert _looks_like_language(lang), f"missed: {lang}"
+
+    def test_speaking_pattern(self):
+        assert _looks_like_language("spanish-speaking")
+        assert _looks_like_language("italian speaker")
+        assert _looks_like_language("fluent in mandarin")
+
+    def test_sign_language_is_not_a_language_skill(self):
+        """Sign language is a clinical communication competency, not a
+        spoken/written language entry — keep as a normal skill."""
+        assert not _looks_like_language("sign language")
+
+    def test_body_language_is_not_a_language_skill(self):
+        assert not _looks_like_language("body language")
+
+    def test_plain_skills_are_not_languages(self):
+        for s in ("teamwork", "communication", "personal care", "wound care"):
+            assert not _looks_like_language(s)
+
+    def test_languages_route_to_technical_in_nursing(self):
+        """Issue from user: 'cantonese language' was under Care Skills.
+        After fix, languages must land in `technical` (Other Skills)."""
+        skills = {
+            "technical": [],
+            "soft_skills": [],
+            "domain_knowledge": ["cantonese language", "greek language",
+                                 "arabic language"],
+        }
+        clean, side = post_process_skills(skills, role_family_id="nursing")
+        assert "cantonese language" in clean["technical"]
+        assert "greek language" in clean["technical"]
+        assert "arabic language" in clean["technical"]
+        assert clean["domain_knowledge"] == []
+        # Each was MOVED from domain_knowledge → technical.
+        assert len(side["moved"]) == 3
+        assert all(m["from"] == "domain_knowledge" and m["to"] == "technical"
+                   for m in side["moved"])
+
+
+class TestAuUnitCodeDetection:
+    def test_common_vet_codes(self):
+        for code in ("HLTHPS007", "HLTAID011", "CHCCCS015", "BSBWHS311",
+                     "SITXFSA001", "CPPGNA3001"):
+            assert _is_au_unit_code(code), f"missed: {code}"
+
+    def test_code_with_unit_suffix(self):
+        assert _is_au_unit_code("hlthps007 unit")
+        assert _is_au_unit_code("CHCCCS015 unit")
+
+    def test_random_alphanumeric_does_not_match(self):
+        for s in ("ABC123", "XYZ999", "random text"):
+            assert not _is_au_unit_code(s)
+
+    def test_plain_skills_do_not_match(self):
+        for s in ("first aid", "teamwork", "wound care", "BESTMed"):
+            assert not _is_au_unit_code(s)
+
+    def test_unit_code_routes_to_credential(self):
+        """'hlthps007 unit' as a JD skill is a qualification component, not
+        a competency — must end up in sidecar.credential."""
+        skills = {
+            "technical": ["hlthps007 unit"],
+            "soft_skills": [], "domain_knowledge": [],
+        }
+        clean, side = post_process_skills(skills, role_family_id="nursing")
+        assert "hlthps007 unit" not in clean["technical"]
+        assert "hlthps007 unit" in side["credential"]
+
+
+class TestAustralianUnityEndToEnd:
+    """End-to-end on the exact JD shape the user reported. All three
+    pattern fixes must apply together via post_process_jd_analysis."""
+
+    _JD = {
+        "job_title": "assistant in nursing",
+        "required_skills": {
+            "technical": ["current ndiswc or willingness to apply"],
+            "soft_skills": ["relationship building", "teamwork", "reliability",
+                            "empathy"],
+            "domain_knowledge": [],
+        },
+        "preferred_skills": {
+            "technical": ["hlthps007 unit"],
+            "soft_skills": [],
+            "domain_knowledge": ["cantonese language", "greek language",
+                                 "arabic language"],
+        },
+    }
+
+    def test_all_three_fixes_apply_together(self):
+        out = post_process_jd_analysis(self._JD, role_family_id="nursing")
+
+        # 1. Conditional demoter: ndiswc moves from required → preferred,
+        #    stripped of "or willingness to apply". Then the credential
+        #    filter strips "current ndiswc" → sidecar.credential.
+        assert out["required_skills"]["technical"] == []
+        pref_creds = out["lexicon_meta"]["preferred"]["credential"]
+        assert any("ndiswc" in c.lower() for c in pref_creds)
+
+        # 2. Unit code: hlthps007 unit → sidecar.credential, NOT a skill.
+        assert "hlthps007 unit" not in out["preferred_skills"]["technical"]
+        assert any("hlthps007" in c.lower() for c in pref_creds)
+
+        # 3. Languages: moved from domain_knowledge (Care Skills) to
+        #    technical (Other Skills).
+        pref_tech = [s.lower() for s in out["preferred_skills"]["technical"]]
+        assert "cantonese language" in pref_tech
+        assert "greek language" in pref_tech
+        assert "arabic language" in pref_tech
+        assert out["preferred_skills"]["domain_knowledge"] == []

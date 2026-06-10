@@ -108,7 +108,190 @@ def _is_qualification_phrase(phrase: str) -> bool:
         return True
     return lowered in _STUDENT_NOISE
 
+
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Three pattern-based recognisers covering issues that recur across JDs:
+#
+#   1. Conditional REQUIRED skills like "current ndiswc OR willingness to
+#      apply" — the JD itself says the requirement is soft, so the entry
+#      belongs in PREFERRED, not REQUIRED. Without demotion the matching
+#      denominator treats it as a hard miss and tanks the score.
+#
+#   2. Languages mis-bucketed as care/clinical skills ("cantonese language"
+#      under domain_knowledge). Languages are NOT care competencies. Route
+#      to `technical` so they render under Other Skills, not Care Skills.
+#
+#   3. Australian VET unit codes ("HLTHPS007", "HLTAID011", "CHCCCS015")
+#      embedded in a skill list. These are CERT-UNIT identifiers, not
+#      skills — they belong with credentials. Route to sidecar["credential"].
+# ---------------------------------------------------------------------------
+
+# Conditional / soft-requirement phrasing — when a "required" item contains
+# one of these clauses, the JD is signalling "or you can apply / obtain it
+# after". That's the textbook definition of a PREFERRED skill.
+_CONDITIONAL_CLAUSE_RE = re.compile(
+    r"\s*(?:"
+    r"\bor\s+(?:willing(?:ness)?|able|prepared|happy|eligible|eligibility)"
+    r"\s+(?:to\s+)?(?:apply|obtain|complete|undergo|undertake|acquire|gain)"
+    r"|\bwilling(?:ness)?\s+to\s+(?:apply|obtain|complete|undergo|undertake|acquire)"
+    r"|\beligibility\s+to\s+(?:apply|obtain)"
+    r"|\bopen\s+to\s+(?:obtaining|applying)"
+    r"|\bability\s+to\s+obtain"
+    r"|\b(?:can|could)\s+be\s+(?:obtained|acquired)"
+    r")\b.*$",
+    re.IGNORECASE,
+)
+
+
+def _split_conditional_phrase(phrase: str) -> Tuple[str, bool]:
+    """Return (stripped_phrase, was_conditional).
+
+    Strips a trailing conditional clause and reports whether one was found.
+    The caller demotes phrases with `was_conditional=True` to preferred.
+    """
+    if not phrase:
+        return phrase, False
+    m = _CONDITIONAL_CLAUSE_RE.search(phrase)
+    if not m:
+        return phrase, False
+    stripped = phrase[: m.start()].rstrip(" ,;-")
+    # If the entire phrase IS the conditional clause (no core skill left),
+    # don't demote a placeholder — just return the original.
+    if not stripped:
+        return phrase, False
+    return stripped, True
+
+
+# Language detector — matches "X language" / "X-speaking" / "speaks X" /
+# "X speaker" / "bilingual (X)" / "fluent in X". Word-boundary anchored so
+# it doesn't false-fire on "sign language" inside a clinical phrase.
+_LANGUAGE_PATTERN_RE = re.compile(
+    r"(?:"
+    r"\b[a-z]+\s+language\b"
+    r"|\b[a-z]+[- ]speaking\b"
+    r"|\bspeaks?\s+[a-z]+\b"
+    r"|\b[a-z]+\s+speaker\b"
+    r"|\bfluent\s+in\s+[a-z]+\b"
+    r"|\bbilingual\s+(?:\(.+\)|in\s+[a-z]+)\b"
+    r"|\bmultilingual\b"
+    r")",
+    re.IGNORECASE,
+)
+# Phrases that look like languages BUT are clinical idioms — keep as skills.
+_LANGUAGE_FALSE_POSITIVES = frozenset({
+    "sign language",      # legitimate clinical communication skill
+    "auslan",
+    "auslan language",
+    "body language",      # soft skill
+    "patient language",
+    "plain language",
+})
+
+
+def _looks_like_language(phrase: str) -> bool:
+    """True when phrase is a (spoken/written) language skill that should
+    NOT be bucketed as a clinical/care competency."""
+    if not phrase:
+        return False
+    lowered = phrase.strip().lower()
+    if lowered in _LANGUAGE_FALSE_POSITIVES:
+        return False
+    if "sign language" in lowered:
+        return False
+    return bool(_LANGUAGE_PATTERN_RE.search(lowered))
+
+
+# Australian VET / nationally-recognised unit codes — 3 to 7 alpha prefix
+# (HLT, HLTHPS, CHC, BSB, FSK, SIT, CPP, AHC, ...) followed by 3-4 digits.
+# Conservative: requires the all-caps shape OR explicit "unit" suffix.
+_AU_UNIT_CODE_RE = re.compile(
+    r"^(?:"
+    r"[a-z]{3,7}\d{3,5}[a-z]?"
+    r")(?:\s+unit)?$",
+    re.IGNORECASE,
+)
+# Common cert prefixes — used as a SECOND check to keep false positives down.
+# Without this guard the broad regex above would also strip arbitrary tokens
+# like "ABC123" that aren't qualification codes.
+_AU_UNIT_PREFIXES = frozenset({
+    "hlt", "hlthps", "hltaid", "hltinf", "hltwhs", "hltaap", "hltent",
+    "chc", "chcccs", "chcage", "chcdis", "chcdiv", "chccom", "chcmhs",
+    "bsb", "bsbwhs", "bsbcmm", "bsbops",
+    "fsk", "fskdig", "fsknum", "fskoc", "fskrdg", "fskwtg",
+    "sit", "sithccc", "sitxcom", "sitxfsa", "sitxhrm",
+    "cpp", "cppgna", "cppclo",
+    "ahc", "ahcwhs", "ahclpw",
+})
+
+
+def _is_au_unit_code(phrase: str) -> bool:
+    """True when phrase is an Australian VET unit code (HLTHPS007, HLTAID011,
+    CHCCCS015 …). Used to route the entry to the credential sidecar — these
+    are qualification components, never skills."""
+    if not phrase:
+        return False
+    lowered = phrase.strip().lower()
+    if not _AU_UNIT_CODE_RE.match(lowered):
+        return False
+    # Extract the alpha prefix and confirm it's a known VET training-package
+    # prefix. Keeps random "ABC123" out.
+    m = re.match(r"^([a-z]+)", lowered)
+    if not m:
+        return False
+    alpha = m.group(1)
+    # Accept any prefix that STARTS with a known VET package code.
+    return any(alpha.startswith(p) for p in _AU_UNIT_PREFIXES)
+
+
+def _demote_conditional_required_to_preferred(
+    jd_analysis: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Move any required_skills entry with a 'or willing to obtain'-style
+    clause to preferred_skills, with the conditional clause stripped from
+    the keyword text.
+
+    Mutates a shallow copy. Same category preserved (technical → technical,
+    soft → soft, domain → domain). Idempotent on already-cleaned input.
+    """
+    req = (jd_analysis.get("required_skills") or {})
+    pref = (jd_analysis.get("preferred_skills") or {})
+    if not req:
+        return jd_analysis
+
+    new_req: Dict[str, List[str]] = {c: [] for c in _CATEGORIES}
+    new_pref: Dict[str, List[str]] = {c: list(pref.get(c) or []) for c in _CATEGORIES}
+    demoted_count = 0
+
+    for cat in _CATEGORIES:
+        for kw in (req.get(cat) or []):
+            if not isinstance(kw, str):
+                continue
+            stripped, was_cond = _split_conditional_phrase(kw)
+            if was_cond:
+                # Demote to preferred (same category), with the conditional
+                # clause stripped. Dedup against existing preferred entries.
+                if stripped.lower() not in {p.lower() for p in new_pref[cat]}:
+                    new_pref[cat].append(stripped)
+                demoted_count += 1
+            else:
+                new_req[cat].append(kw)
+
+    if demoted_count == 0:
+        return jd_analysis
+
+    out = dict(jd_analysis)
+    out["required_skills"] = new_req
+    out["preferred_skills"] = new_pref
+    logger.info(
+        "JD conditional demoter: moved %d required entries to preferred "
+        "(conditional 'or willing to apply'-style clause detected)",
+        demoted_count,
+    )
+    return out
+
 
 # Order matters here — the JD/CV pipeline emits skill dicts with these keys.
 _CATEGORIES: Tuple[str, ...] = ("technical", "soft_skills", "domain_knowledge")
@@ -183,11 +366,40 @@ def post_process_skills(
                 sidecar["credential"].append(phrase)
                 continue
 
+            # 1a'. Australian VET unit codes (HLTHPS007, HLTAID011, CHCCCS015)
+            #     — qualification components, route to credentials. Caught
+            #     here before noise lookup because they're not in the static
+            #     noise lexicon (there are hundreds; pattern is cleaner).
+            if _is_au_unit_code(phrase):
+                sidecar["credential"].append(phrase)
+                continue
+
             # 1b. Universal noise — runs for ALL families. A phrase here
             #    is never a skill regardless of vertical.
             nt = is_noise(phrase)
             if nt is not None:
                 sidecar[nt].append(phrase)
+                continue
+
+            # 1c. Language entries ("Cantonese language", "Greek-speaking")
+            #     must NOT land in the clinical/care domain_knowledge bucket.
+            #     Force them to `technical` (renders as Other Skills in
+            #     nursing) regardless of where the LLM put them. Recorded in
+            #     `moved` when category actually changed.
+            if _looks_like_language(phrase):
+                if cat != "technical":
+                    sidecar["moved"].append({
+                        "phrase": phrase,
+                        "from": cat,
+                        "to": "technical",
+                        "canonical": phrase,
+                        "match_kind": "language-pattern",
+                    })
+                key = (phrase.lower(), "technical")
+                if key in seen:
+                    continue
+                seen.add(key)
+                cleaned["technical"].append(phrase)
                 continue
 
             # 2. Vertical lexicon (when applicable).
@@ -384,7 +596,16 @@ def post_process_jd_analysis(
     are replaced with the lexicon-cleaned versions, and a new
     ``lexicon_meta`` field is attached containing the per-bucket
     sidecar (for downstream routing and diagnostics).
+
+    Runs the conditional-clause demoter FIRST so any "X or willingness to
+    apply" required entries are moved to preferred BEFORE per-bucket
+    classification / dedup runs.
     """
+    # Demote conditional REQUIRED entries to PREFERRED — must run before
+    # post_process_skills() because the demoter moves entries BETWEEN buckets
+    # (required ↔ preferred), which the per-bucket cleaner can't do.
+    jd_analysis = _demote_conditional_required_to_preferred(jd_analysis)
+
     out = dict(jd_analysis)  # shallow copy — JSON-roundtrippable anyway
 
     req_clean, req_side = post_process_skills(
