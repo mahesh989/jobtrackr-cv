@@ -52,6 +52,18 @@ interface ProfileCredentials {
 type RoleFamily = "tech" | "nursing" | "manual" | "general";
 const ROLE_FAMILY_VALUES: readonly RoleFamily[] = ["tech", "nursing", "manual", "general"] as const;
 
+interface Referee {
+  name?:      string;
+  job_title?: string;
+  company?:   string;
+  email?:     string;
+}
+
+interface References {
+  available_on_request?: boolean;
+  referees?:             Referee[];
+}
+
 interface ContactDetails {
   name?:          string;
   phone?:         string;
@@ -68,6 +80,7 @@ interface ContactDetails {
   projects?:      Project[];
   role_families?: RoleFamily[];
   credentials?:   ProfileCredentials;
+  references?:    References;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,6 +160,34 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     // Persist the array even when empty — empty signals "no selection yet"
     // (UI shows all add-on cards), distinct from undefined.
     out.role_families = families;
+  }
+  if (i.references && typeof i.references === "object") {
+    const ref = i.references as Record<string, unknown>;
+    const parsed: References = {};
+    if (typeof ref.available_on_request === "boolean") {
+      parsed.available_on_request = ref.available_on_request;
+    }
+    if (Array.isArray(ref.referees)) {
+      const referees: Referee[] = [];
+      for (const raw of ref.referees) {
+        if (!raw || typeof raw !== "object") continue;
+        const r = raw as Record<string, unknown>;
+        const referee: Referee = {};
+        if (typeof r.name      === "string") referee.name      = r.name.trim()      || undefined;
+        if (typeof r.job_title === "string") referee.job_title = r.job_title.trim() || undefined;
+        if (typeof r.company   === "string") referee.company   = r.company.trim()   || undefined;
+        if (typeof r.email     === "string") {
+          const v = r.email.trim();
+          if (v && !EMAIL_RE.test(v)) return { ok: false, error: `Invalid referee email: ${v}` };
+          referee.email = v || undefined;
+        }
+        if (referee.name || referee.job_title || referee.company || referee.email) {
+          referees.push(referee);
+        }
+      }
+      parsed.referees = referees.slice(0, 3); // hard cap at 3
+    }
+    out.references = parsed;
   }
   return { ok: true, value: out };
 }
