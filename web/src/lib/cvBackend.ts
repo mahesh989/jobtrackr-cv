@@ -153,6 +153,34 @@ export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCv
   );
 }
 
+export interface ExtractCvReferencesPayload {
+  cv_text:     string;
+  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_api_key:  string;
+  ai_model?:   string | null;
+}
+
+export interface ExtractedReferee {
+  name:      string;
+  job_title: string;
+  company:   string;
+  email:     string;
+}
+
+export interface ExtractCvReferencesResponse {
+  referees: ExtractedReferee[];
+}
+
+export function extractCvReferences(
+  payload: ExtractCvReferencesPayload,
+): Promise<ExtractCvReferencesResponse> {
+  return callCvBackend<ExtractCvReferencesResponse>(
+    "/internal/extract-cv-references",
+    payload,
+    { timeoutMs: 45_000 },
+  );
+}
+
 export interface AnalyzePayload {
   run_id:        string;
   user_id:       string;

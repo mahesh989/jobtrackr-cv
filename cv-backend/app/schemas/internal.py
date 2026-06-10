@@ -199,6 +199,27 @@ class CategoriseCvResponse(BaseModel):
     domain_knowledge: list[str]
 
 
+# ── /internal/extract-cv-references ──────────────────────────────────────────
+
+class ExtractCvReferencesRequest(BaseModel):
+    """Extract referee details from a CV (BYOK)."""
+    cv_text:     str = Field(min_length=1)
+    ai_provider: Literal["anthropic", "openai", "deepseek"]
+    ai_api_key:  str = Field(min_length=1)
+    ai_model:    Optional[str] = None
+
+
+class CvReferee(BaseModel):
+    name:      str = ""
+    job_title: str = ""
+    company:   str = ""
+    email:     str = ""
+
+
+class ExtractCvReferencesResponse(BaseModel):
+    referees: list[CvReferee]
+
+
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────
 
 class ExtractVoiceFingerprintRequest(BaseModel):

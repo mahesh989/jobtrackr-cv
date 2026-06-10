@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Save, UserCheck } from "lucide-react";
+import { Plus, Trash2, Save, UserCheck, Sparkles } from "lucide-react";
 
 export interface Referee {
   name:      string;
@@ -55,17 +55,28 @@ const MODES: { value: ReferencesMode; label: string; description: string }[] = [
 export function ReferencesSection({
   initial,
   contactDetails,
+  activeCvId,
+  extractedReferences,
 }: {
-  initial:        ReferencesData | null;
-  contactDetails: Record<string, unknown>;
+  initial:             ReferencesData | null;
+  contactDetails:      Record<string, unknown>;
+  /** ID of the user's active (or most recent) CV — null if none uploaded yet. */
+  activeCvId:          string | null;
+  /** Cached AI-extracted referees from a prior run; null if never extracted. */
+  extractedReferences: Referee[] | null;
 }) {
   const [mode, setMode]         = useState<ReferencesMode>(resolveInitialMode(initial));
   const [referees, setReferees] = useState<Referee[]>(
     initial?.referees?.length ? initial.referees : [],
   );
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [extracting, setExtracting]   = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  /** Latest extracted list — starts from the server-cached value but can be
+   *  refreshed by the extract button. */
+  const [extracted, setExtracted] = useState<Referee[] | null>(extractedReferences);
 
   function updateReferee(idx: number, field: keyof Referee, value: string) {
     setReferees((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
@@ -80,6 +91,45 @@ export function ReferencesSection({
 
   function removeReferee(idx: number) {
     setReferees((prev) => prev.filter((_, i) => i !== idx));
+    setSaved(false);
+  }
+
+  /** Call the AI extractor on the active CV. Result is cached on the server
+   *  and also held in local state for "Use these" copying. */
+  async function handleExtract() {
+    if (!activeCvId) return;
+    setExtractError(null);
+    setExtracting(true);
+
+    let preferred: string | null = null;
+    try { preferred = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
+
+    const url = preferred
+      ? `/api/cv/${activeCvId}/extract-references?provider=${encodeURIComponent(preferred)}`
+      : `/api/cv/${activeCvId}/extract-references`;
+
+    try {
+      const res = await fetch(url, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        setExtractError(j.error ?? `Extraction failed (HTTP ${res.status})`);
+        return;
+      }
+      const j = await res.json() as { referees: Referee[] };
+      setExtracted(j.referees ?? []);
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "Network error — try again.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  /** Copy the extracted referees into the editable form. User still has to
+   *  hit "Save references" to commit them to user_preferences. */
+  function useExtracted() {
+    if (!extracted?.length) return;
+    setReferees(extracted.slice(0, MAX_REFEREES));
+    setMode("details");
     setSaved(false);
   }
 
@@ -155,6 +205,68 @@ export function ReferencesSection({
           </label>
         ))}
       </div>
+
+      {/* Extract from CV — only in "details" mode, only when a CV exists */}
+      {mode === "details" && activeCvId && (
+        <div className="rounded-lg border border-[var(--brand)]/20 bg-[var(--brand)]/5 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Sparkles className="h-3.5 w-3.5 text-[var(--brand)]" />
+                <span className="text-[12px] font-semibold text-text">Pre-fill from your CV</span>
+              </div>
+              <p className="text-[11px] text-text-3 leading-relaxed">
+                Use AI to extract referees already listed in your active CV.
+                Nothing is saved until you click "Save references" below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExtract}
+              disabled={extracting}
+              className="shrink-0 text-[12px] font-medium text-[var(--brand)] border border-[var(--brand)]/30 hover:bg-[var(--brand)]/10 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+            >
+              {extracting ? "Extracting…" : extracted ? "Re-extract" : "Extract from CV"}
+            </button>
+          </div>
+
+          {extractError && (
+            <p className="text-[11px] text-red">{extractError}</p>
+          )}
+
+          {/* Show what we found */}
+          {extracted !== null && !extracting && (
+            extracted.length === 0 ? (
+              <p className="text-[11px] text-text-3 italic">
+                No referees found in your CV. You can add them manually below.
+              </p>
+            ) : (
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] text-text-3">
+                  Found {extracted.length} {extracted.length === 1 ? "referee" : "referees"}:
+                </p>
+                <ul className="space-y-1.5">
+                  {extracted.map((r, i) => (
+                    <li key={i} className="text-[11px] text-text-2 bg-surface rounded px-2 py-1.5 border border-border">
+                      <span className="font-medium text-text">{r.name || "(unnamed)"}</span>
+                      {r.job_title && <span> · {r.job_title}</span>}
+                      {r.company && <span> · {r.company}</span>}
+                      {r.email && <span className="text-text-3"> · {r.email}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={useExtracted}
+                  className="text-[12px] font-medium text-[var(--brand)] hover:underline"
+                >
+                  Use these →
+                </button>
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Referee forms — only visible in "details" mode */}
       {mode === "details" && (

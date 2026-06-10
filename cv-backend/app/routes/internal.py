@@ -40,6 +40,9 @@ from app.schemas.internal import (
     ClassifySkillsResponse,
     EvalRunResponse,
     CategoriseCvResponse,
+    CvReferee,
+    ExtractCvReferencesRequest,
+    ExtractCvReferencesResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
     ExtractStoriesRequest,
@@ -57,6 +60,7 @@ from app.schemas.stories import (
 from app.security.hmac import verify_hmac
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
+from app.services.cv.references_extractor import extract_cv_references
 from app.services.stories.story_extractor import extract_stories
 from app.services.stories.story_matcher import score_stories
 from app.services.voice.voice_fingerprint import extract_voice_fingerprint
@@ -362,6 +366,37 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
         technical=        result.get("technical", []),
         soft_skills=      result.get("soft_skills", []),
         domain_knowledge= result.get("domain_knowledge", []),
+    )
+
+
+# ── /internal/extract-cv-references ──────────────────────────────────────────
+
+@router.post("/extract-cv-references", response_model=ExtractCvReferencesResponse)
+async def extract_cv_references_route(
+    body: ExtractCvReferencesRequest,
+) -> ExtractCvReferencesResponse:
+    """
+    BYOK referee extraction from CV text. Returns up to 3 referees with
+    {name, job_title, company, email}. Called on-demand from the web UI
+    when a user clicks "Extract from active CV" in the References section.
+    """
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        referees = await extract_cv_references(ai_client, body.cv_text)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI extraction failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    return ExtractCvReferencesResponse(
+        referees=[CvReferee(**r) for r in referees],
     )
 
 
