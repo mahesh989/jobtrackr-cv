@@ -10,9 +10,13 @@ export interface Referee {
   email:     string;
 }
 
+export type ReferencesMode = "details" | "on_request" | "none";
+
 export interface ReferencesData {
-  available_on_request: boolean;
-  referees:             Referee[];
+  mode?:                 ReferencesMode;
+  /** Legacy field — mapped to mode on load */
+  available_on_request?: boolean;
+  referees?:             Referee[];
 }
 
 const MAX_REFEREES = 3;
@@ -23,23 +27,45 @@ function isBlank(r: Referee) {
   return !r.name.trim() && !r.job_title.trim() && !r.company.trim() && !r.email.trim();
 }
 
+function resolveInitialMode(data: ReferencesData | null): ReferencesMode {
+  if (!data) return "none";
+  if (data.mode) return data.mode;
+  // backwards-compat: map old boolean field
+  return data.available_on_request ? "on_request" : "details";
+}
+
+const MODES: { value: ReferencesMode; label: string; description: string }[] = [
+  {
+    value:       "details",
+    label:       "Include referee details",
+    description: "Referee names, titles, and emails are printed on your CV.",
+  },
+  {
+    value:       "on_request",
+    label:       "Available on request",
+    description: 'Your CV will show "References available on request."',
+  },
+  {
+    value:       "none",
+    label:       "Don\'t include in CV",
+    description: "References section is omitted from your CV entirely.",
+  },
+];
+
 export function ReferencesSection({
   initial,
   contactDetails,
 }: {
   initial:        ReferencesData | null;
-  /** Full contact_details blob — merged with updated references on save so other fields are preserved. */
   contactDetails: Record<string, unknown>;
 }) {
-  const [availableOnRequest, setAvailableOnRequest] = useState(
-    initial?.available_on_request ?? false,
-  );
+  const [mode, setMode]         = useState<ReferencesMode>(resolveInitialMode(initial));
   const [referees, setReferees] = useState<Referee[]>(
     initial?.referees?.length ? initial.referees : [],
   );
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState<string | null>(null);
 
   function updateReferee(idx: number, field: keyof Referee, value: string) {
     setReferees((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
@@ -62,21 +88,18 @@ export function ReferencesSection({
     setSaving(true);
     setSaved(false);
 
-    // Strip completely blank referee rows before saving
     const cleaned = referees.filter((r) => !isBlank(r));
 
     try {
       const res = await fetch("/api/user/preferences", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        // Merge references into the existing contact_details so other fields
-        // (name, email, credentials, etc.) are not wiped.
         body: JSON.stringify({
           contact_details: {
             ...contactDetails,
             references: {
-              available_on_request: availableOnRequest,
-              referees:             cleaned,
+              mode,
+              referees: cleaned,
             },
           },
         }),
@@ -86,7 +109,6 @@ export function ReferencesSection({
         setError(j.error ?? `Save failed (HTTP ${res.status})`);
         return;
       }
-      // Sync state to cleaned version
       setReferees(cleaned);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -105,29 +127,38 @@ export function ReferencesSection({
         <h2 className="text-[14px] font-semibold text-text">References</h2>
       </div>
 
-      {/* Available on request toggle */}
-      <label className="flex items-start gap-3 cursor-pointer group">
-        <div className="mt-0.5">
-          <input
-            type="checkbox"
-            checked={availableOnRequest}
-            onChange={(e) => { setAvailableOnRequest(e.target.checked); setSaved(false); }}
-            className="h-4 w-4 rounded border-border accent-[var(--brand)] cursor-pointer"
-          />
-        </div>
-        <div>
-          <span className="text-[13px] font-medium text-text group-hover:text-[var(--brand)] transition-colors">
-            Available on request
-          </span>
-          <p className="text-[11px] text-text-3 mt-0.5">
-            Your CV will show "References available on request" instead of referee details.
-          </p>
-        </div>
-      </label>
+      {/* 3-option radio group */}
+      <div className="space-y-2">
+        {MODES.map((opt) => (
+          <label
+            key={opt.value}
+            className={`flex items-start gap-3 cursor-pointer rounded-lg border px-4 py-3 transition-colors ${
+              mode === opt.value
+                ? "border-[var(--brand)]/50 bg-[var(--brand)]/5"
+                : "border-border hover:bg-surface-2/60"
+            }`}
+          >
+            <input
+              type="radio"
+              name="references-mode"
+              value={opt.value}
+              checked={mode === opt.value}
+              onChange={() => { setMode(opt.value); setSaved(false); }}
+              className="mt-0.5 h-4 w-4 accent-[var(--brand)] cursor-pointer shrink-0"
+            />
+            <div>
+              <span className={`text-[13px] font-medium ${mode === opt.value ? "text-[var(--brand)]" : "text-text"}`}>
+                {opt.label}
+              </span>
+              <p className="text-[11px] text-text-3 mt-0.5">{opt.description}</p>
+            </div>
+          </label>
+        ))}
+      </div>
 
-      {/* Referee forms — hidden when "available on request" is checked */}
-      {!availableOnRequest && (
-        <div className="space-y-3">
+      {/* Referee forms — only visible in "details" mode */}
+      {mode === "details" && (
+        <div className="space-y-3 pl-1">
           {referees.length === 0 && (
             <p className="text-[12px] text-text-3 italic">
               No referees added yet. Click "Add referee" to get started.
@@ -151,7 +182,7 @@ export function ReferencesSection({
               className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--brand)] hover:underline"
             >
               <Plus className="h-3.5 w-3.5" />
-              Add referee {referees.length > 0 && `(${referees.length}/${MAX_REFEREES})`}
+              Add referee{referees.length > 0 ? ` (${referees.length}/${MAX_REFEREES})` : ""}
             </button>
           )}
 
@@ -172,12 +203,8 @@ export function ReferencesSection({
           <Save className="h-3.5 w-3.5" />
           {saving ? "Saving…" : "Save references"}
         </button>
-        {saved && (
-          <span className="text-[12px] text-green-600 font-medium">Saved</span>
-        )}
-        {error && (
-          <span className="text-[12px] text-red">{error}</span>
-        )}
+        {saved  && <span className="text-[12px] text-green-600 font-medium">Saved</span>}
+        {error  && <span className="text-[12px] text-red">{error}</span>}
       </div>
     </div>
   );
@@ -186,10 +213,7 @@ export function ReferencesSection({
 // ── Single referee card ────────────────────────────────────────────────────
 
 function RefereeCard({
-  index,
-  referee,
-  onChange,
-  onRemove,
+  index, referee, onChange, onRemove,
 }: {
   index:    number;
   referee:  Referee;
@@ -198,7 +222,6 @@ function RefereeCard({
 }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
-      {/* Card header */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-text-3">
           Referee {index + 1}
@@ -213,33 +236,11 @@ function RefereeCard({
         </button>
       </div>
 
-      {/* Fields — 2-column grid on md+ */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field
-          label="Full name"
-          value={referee.name}
-          placeholder="e.g. Sarah Chen"
-          onChange={(v) => onChange("name", v)}
-        />
-        <Field
-          label="Job title"
-          value={referee.job_title}
-          placeholder="e.g. Head of Nursing"
-          onChange={(v) => onChange("job_title", v)}
-        />
-        <Field
-          label="Company / Organisation"
-          value={referee.company}
-          placeholder="e.g. Anglicare"
-          onChange={(v) => onChange("company", v)}
-        />
-        <Field
-          label="Email"
-          value={referee.email}
-          placeholder="e.g. sarah@anglicare.org.au"
-          type="email"
-          onChange={(v) => onChange("email", v)}
-        />
+        <Field label="Full name"             value={referee.name}      placeholder="e.g. Sarah Chen"            onChange={(v) => onChange("name", v)} />
+        <Field label="Job title"             value={referee.job_title} placeholder="e.g. Head of Nursing"       onChange={(v) => onChange("job_title", v)} />
+        <Field label="Company / Organisation" value={referee.company}   placeholder="e.g. Anglicare"             onChange={(v) => onChange("company", v)} />
+        <Field label="Email"                 value={referee.email}     placeholder="e.g. sarah@anglicare.org.au" type="email" onChange={(v) => onChange("email", v)} />
       </div>
     </div>
   );
@@ -248,11 +249,8 @@ function RefereeCard({
 function Field({
   label, value, placeholder, type = "text", onChange,
 }: {
-  label:       string;
-  value:       string;
-  placeholder: string;
-  type?:       string;
-  onChange:    (v: string) => void;
+  label: string; value: string; placeholder: string; type?: string;
+  onChange: (v: string) => void;
 }) {
   return (
     <label className="flex flex-col gap-1">

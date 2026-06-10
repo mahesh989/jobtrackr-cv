@@ -60,7 +60,8 @@ interface Referee {
 }
 
 interface References {
-  available_on_request?: boolean;
+  mode?:                 "details" | "on_request" | "none";
+  available_on_request?: boolean; // legacy
   referees?:             Referee[];
 }
 
@@ -164,6 +165,11 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   if (i.references && typeof i.references === "object") {
     const ref = i.references as Record<string, unknown>;
     const parsed: References = {};
+    const VALID_MODES = new Set(["details", "on_request", "none"]);
+    if (typeof ref.mode === "string" && VALID_MODES.has(ref.mode)) {
+      parsed.mode = ref.mode as References["mode"];
+    }
+    // legacy boolean field
     if (typeof ref.available_on_request === "boolean") {
       parsed.available_on_request = ref.available_on_request;
     }
