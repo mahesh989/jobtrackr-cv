@@ -47,6 +47,26 @@ _QUAL_PATTERN = re.compile(
     r"master\s+of\b|"
     r"enrolled\s+in\b|"
     r"completion\s+of\b|"
+    # "completed first year of nursing", "completed bachelor of", "completed
+    # certificate IV", "completed diploma of nursing" — qualification progress.
+    r"completed\s+(?:"
+        r"(?:first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b|"
+        r"year\s+(?:one|two|three|four|1|2|3|4)\b|"
+        r"certificate\b|cert\.?\s+(?:i{1,4}|iv|[1-4]|in\b)|"
+        r"diploma\b|advanced\s+diploma\b|"
+        r"bachelor\b|master\b|graduate\b|"
+        r"nursing\s+course\b|nursing\s+degree\b|nursing\s+studies\b"
+    r")|"
+    # Bare "first year of nursing course" / "third year medical student" / etc.
+    # — anchored at start. Only matches when followed by a clear qualification
+    # context word ("nursing/medical/midwifery/medicine/pharmacy/allied
+    # health"), so "first year of employment" stays a skill phrase (it isn't).
+    r"(?:first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\s+"
+    r"(?:of\s+)?"
+    r"(?:nursing|medical|midwifery|medicine|pharmacy|allied\s+health)\b|"
+    r"year\s+(?:one|two|three|four|1|2|3|4)\s+of\s+"
+    r"(?:nursing|medical|midwifery|medicine|pharmacy|allied\s+health|"
+    r"the\s+(?:nursing|medical|midwifery)\s+(?:course|degree|program))\b|"
     r"hltaid\d"                                            # HLTAID011 etc.
     r")",
     re.IGNORECASE,

@@ -217,6 +217,64 @@ class TestStructural:
 
 
 # ---------------------------------------------------------------------------
+# Qualification / nursing-course-progress filter
+# ---------------------------------------------------------------------------
+
+
+class TestNursingCourseProgressIsCredential:
+    """Regression for the Australian Unity AIN run (2026-06-10): the JD asked
+    for 'completed first year of nursing course' and it landed in Other Skills
+    instead of being filtered as a credential.
+
+    Nursing-course progression is a QUALIFICATION descriptor, not a skill —
+    same category as 'Bachelor of Nursing' or 'Certificate IV in Ageing Support'.
+    Must route to sidecar['credential']."""
+
+    from app.services.skills.post_process import _is_qualification_phrase
+
+    @pytest.mark.parametrize("phrase", [
+        "completed first year of nursing course",
+        "Completed First Year of Nursing Course",
+        "completed first year of nursing",
+        "completed second year of nursing studies",
+        "completed third year of midwifery",
+        "completed first year of medicine",
+        "first year of nursing course",
+        "First Year of Nursing",
+        "third year medical student",
+        "year 2 of nursing course",
+        "year one of nursing studies",
+        "completed bachelor of nursing",
+        "completed diploma of nursing",
+        "completed certificate III in aged care",
+        "completed nursing degree",
+    ])
+    def test_qualification_progress_phrases_caught(self, phrase):
+        from app.services.skills.post_process import _is_qualification_phrase
+        assert _is_qualification_phrase(phrase), f"{phrase!r} should be filtered as a qualification"
+
+    @pytest.mark.parametrize("phrase", [
+        # These read superficially like qualifications but aren't — the regex
+        # must NOT route them to credentials (they'd disappear from Skills).
+        "first year of employment",
+        "first year experience",
+        "first year graduate program",   # ambiguous; conservatively keep as skill
+        "year 2 of employment",
+        "year of experience in nursing",
+        # Real skills — non-negotiable
+        "person-centred care",
+        "medication administration",
+        "aged care",
+        "dementia care",
+        "communication",
+        "teamwork",
+    ])
+    def test_real_skills_not_falsely_filtered(self, phrase):
+        from app.services.skills.post_process import _is_qualification_phrase
+        assert not _is_qualification_phrase(phrase), f"{phrase!r} must NOT be filtered (it's a real skill / not a qual)"
+
+
+# ---------------------------------------------------------------------------
 # CV-side noise filter
 # ---------------------------------------------------------------------------
 
