@@ -72,7 +72,7 @@ from app.services.eval.role_families import (
     apply_equivalences,
     category_labels,
 )
-from app.services.cv.contact_line import stamp_contact_line, stamp_credentials
+from app.services.cv.contact_line import stamp_contact_line, stamp_credentials, stamp_references
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
 from app.services.pipeline.steps.ats_scoring import run_ats_scoring
@@ -4282,6 +4282,10 @@ async def _writer_w8_integrated(
     #     is authoritative for what they actually hold. Run BEFORE the
     #     awards-split pass so it can dedupe against Registration content.
     final_md = stamp_credentials(final_md, contact_details, role_family.id)
+    # 4c-tris. Stamp the user-saved References block (role-family agnostic).
+    #          mode=details renders a 2-col table; mode=on_request renders
+    #          a single line; mode=none omits the section entirely.
+    final_md = stamp_references(final_md, contact_details)
     # 4c-bis. Sprint A — split MIXED Certifications sections into clean Awards
     #     + Certifications, dropping cert entries already duplicated in
     #     Registration & Licences. Fixes the Anglicare run where "First Aid

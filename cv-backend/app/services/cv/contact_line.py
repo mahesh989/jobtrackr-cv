@@ -307,3 +307,124 @@ def stamp_credentials(
 
     # Section absent — append at end of the markdown document
     return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n{line}\n"
+
+
+# ---------------------------------------------------------------------------
+# References — render the user-saved references block on the tailored CV.
+# ---------------------------------------------------------------------------
+
+_REFERENCES_HEADING = "## References"
+
+
+def _build_referee_row(ref: Dict[str, Any]) -> Optional[str]:
+    """Return a single markdown table row for one referee, or None if blank.
+
+    Format (left col = name+title+company, right col = email — right-aligned):
+        | **Name**, Job title, Company | email@example.com |
+    """
+    name      = _clean(ref.get("name"))
+    job_title = _clean(ref.get("job_title"))
+    company   = _clean(ref.get("company"))
+    email     = _clean(ref.get("email"))
+    if not (name or job_title or company or email):
+        return None
+
+    left_parts: List[str] = []
+    if name:      left_parts.append(f"**{name}**")
+    if job_title: left_parts.append(job_title)
+    if company:   left_parts.append(company)
+    left = ", ".join(left_parts) if left_parts else "—"
+    right = email or ""
+    return f"| {left} | {right} |"
+
+
+def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Compose the full ``## References`` markdown block based on the user's
+    saved mode and referee list. Returns None when nothing should be rendered
+    (mode = 'none', or details mode with no usable referees).
+
+    Modes:
+      details    — two-column table (name+title+company | email-right) per referee
+      on_request — single line "Available on request."
+      none       — None (caller omits the whole section)
+    """
+    if not contact_details:
+        return None
+    refs = contact_details.get("references")
+    if not isinstance(refs, dict):
+        return None
+
+    # Resolve mode (back-compat: legacy boolean → on_request when true, else details)
+    mode = refs.get("mode")
+    if mode not in ("details", "on_request", "none"):
+        if refs.get("available_on_request") is True:
+            mode = "on_request"
+        elif refs.get("available_on_request") is False or refs.get("referees"):
+            mode = "details"
+        else:
+            return None
+
+    if mode == "none":
+        return None
+    if mode == "on_request":
+        return f"{_REFERENCES_HEADING}\n\nAvailable on request.\n"
+
+    # mode == "details"
+    referees = refs.get("referees") or []
+    if not isinstance(referees, list):
+        return None
+    rows: List[str] = []
+    for ref in referees[:3]:
+        if not isinstance(ref, dict):
+            continue
+        row = _build_referee_row(ref)
+        if row:
+            rows.append(row)
+    if not rows:
+        return None
+
+    # Two-column markdown table — left-align the description, right-align email.
+    # The right-aligned ":---:"-style spec keeps emails flush to the right edge
+    # under both ReportLab and Pandoc-style PDF renderers.
+    table = [
+        "| Referee | Email |",
+        "|:--------|------:|",
+        *rows,
+    ]
+    return f"{_REFERENCES_HEADING}\n\n" + "\n".join(table) + "\n"
+
+
+def stamp_references(
+    markdown: str,
+    contact_details: Optional[Dict[str, Any]],
+) -> str:
+    """Insert/replace the ``## References`` section based on the user's saved
+    references. No-op when the user picked mode='none' or has no referees.
+
+    Replaces any existing References section (the user's saved preference is
+    authoritative — never compound with AI output). Appends at end when the
+    section is absent. Role-family agnostic: references apply across all CV
+    types (tech, nursing, etc.).
+    """
+    if not markdown:
+        return markdown
+    block = build_references_block(contact_details)
+    if block is None:
+        return markdown
+
+    lines = markdown.split("\n")
+    start_idx = next(
+        (i for i, l in enumerate(lines)
+         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") == "references"),
+        -1,
+    )
+    if start_idx >= 0:
+        end_idx = next(
+            (j for j in range(start_idx + 1, len(lines)) if lines[j].startswith("## ")),
+            len(lines),
+        )
+        # block already starts with "## References" and ends with a newline
+        return "\n".join(lines[:start_idx]) + "\n" + block + ("\n".join(lines[end_idx:]) if end_idx < len(lines) else "")
+
+    # Section absent — append at end of the markdown document
+    return markdown.rstrip("\n") + "\n\n" + block
