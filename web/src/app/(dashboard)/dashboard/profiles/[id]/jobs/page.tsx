@@ -247,7 +247,7 @@ export default async function JobsPage({
   );
 
   const tabTotalCount   = allRows.filter((j) => !j.dismissed_at).length;
-  const tabAppliedCount = allRows.filter((j) => j.applied_at).length;
+  const tabAppliedCount = allRows.filter((j) => j.applied_at && !j.dismissed_at).length;
   const tabDismissedCount = allRows.filter((j) => j.dismissed_at).length;
   const newCount        = allRows.filter((j) => !j.seen_at && !j.dismissed_at).length;
 
