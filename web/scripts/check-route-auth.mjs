@@ -7,11 +7,19 @@
  * That works today (audited 2026-06-11), but it relies on each new route
  * remembering to check auth. One forgotten check is a data leak.
  *
- * This script codifies that audit: it fails if any route.ts under
- * src/app/api/** contains no recognised authorisation signal, unless the route
- * is on the explicit PUBLIC allowlist below (with a reason).
+ * This script codifies that audit. For each route.ts under src/app/api/** it
+ * requires BOTH:
+ *   (1) an auth-acquisition signal (e.g. getAuthUser / verify_hmac), AND
+ *   (2) an enforcement signal (a denial path: 401/403/Unauthorized, a signature
+ *       verify that throws, or an HMAC dependency).
+ * Requiring (2) as well as (1) is what stops the weak failure mode of a route
+ * that imports getAuthUser but never acts on the result.
  *
- * Run: `npm run check:auth` (wire into CI before deploy).
+ * Heuristic, not a proof: it greps source, it does not do dataflow analysis.
+ * The durable guarantee is the withAuth()/HMAC wrapper pattern; this guard is
+ * the cheap backstop that runs in CI on every route, today.
+ *
+ * Run: `npm run check:auth` (wired into CI: .github/workflows/ci.yml).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -27,7 +35,7 @@ const PUBLIC_ALLOWLIST = {
   "billing/webhook/route.ts": "Stripe webhook — authenticated by Stripe signature, not user session",
 };
 
-// Any one of these tokens in a route file counts as 'guards itself'.
+// (1) The route obtains a caller identity / verifies a signed sender.
 const AUTH_SIGNALS = [
   "getAuthUser",
   "auth.getUser",
@@ -37,6 +45,20 @@ const AUTH_SIGNALS = [
   "x-signature",
   "constructEvent", // Stripe signature verification
   "requireUser",
+];
+
+// (2) The route actually DENIES when that identity is missing/invalid. A route
+// with (1) but not (2) acquired a user and ignored it — the exact false-green
+// the original substring check would have passed.
+const ENFORCEMENT_SIGNALS = [
+  "401",
+  "403",
+  "Unauthorized",
+  "Forbidden",
+  "/auth/login", // browser flows (e.g. OAuth callbacks) deny by redirect to login
+  "constructEvent", // throws on bad signature → enforcement is intrinsic
+  "verifyHmac",
+  "verify_hmac",
 ];
 
 function walk(dir) {
@@ -52,14 +74,16 @@ function walk(dir) {
 const offenders = [];
 for (const file of walk(API_DIR)) {
   const rel = relative(API_DIR, file).split("\\").join("/");
+  if (Object.prototype.hasOwnProperty.call(PUBLIC_ALLOWLIST, rel)) continue;
   const src = readFileSync(file, "utf8");
-  const hasSignal = AUTH_SIGNALS.some((s) => src.includes(s));
-  const isAllowed = Object.prototype.hasOwnProperty.call(PUBLIC_ALLOWLIST, rel);
-  if (!hasSignal && !isAllowed) offenders.push(rel);
+  const hasAuth = AUTH_SIGNALS.some((s) => src.includes(s));
+  const hasEnforcement = ENFORCEMENT_SIGNALS.some((s) => src.includes(s));
+  if (!hasAuth) offenders.push(`${rel} — no auth-acquisition signal`);
+  else if (!hasEnforcement) offenders.push(`${rel} — acquires a user but no denial path (401/403)`);
 }
 
 if (offenders.length) {
-  console.error("\n✗ API routes with no auth signal and not on the public allowlist:\n");
+  console.error("\n✗ API routes that don't provably guard themselves:\n");
   for (const o of offenders) console.error("   • " + o);
   console.error(
     "\nEither add an auth check (getAuthUser / verifyHmac / signature verify),\n" +
