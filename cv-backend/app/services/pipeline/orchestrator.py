@@ -208,6 +208,22 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 jd_analysis,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
+
+            # Best-effort: record any unknown phrases (lexicon gaps) to the
+            # rolling JSONL log so weekly reviews can promote high-frequency
+            # phrases into the lexicon. Pipeline never blocks on tracking.
+            try:
+                from datetime import datetime
+                from app.services.skills.unknown_tracker import record_unknown_phrases
+                record_unknown_phrases(
+                    role_family_id=str(jd_analysis.get("role_family") or "master"),
+                    job_title=str(jd_analysis.get("job_title") or "") or None,
+                    lexicon_meta=jd_analysis.get("lexicon_meta"),
+                    timestamp=datetime.utcnow().isoformat(),
+                )
+            except Exception:  # noqa: BLE001 — observability must never block
+                logger.debug("unknown_tracker: failed to record", exc_info=True)
+
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────

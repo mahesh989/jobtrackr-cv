@@ -58,9 +58,32 @@ requirements in the RESPONSIBILITIES section as prose ("provide personal
 care and emotional support to residents", "operate a forklift to move
 pallets"), without a tidy bullet list. Mine the prose: surface the
 underlying skill ("personal care", "emotional support", "forklift
-operation") into the right bucket, even if it isn't in a "Skills"
-list. The opposite trap is also real: do not invent a skill that is
-only implied by the company name or industry boilerplate.
+operation") into the right bucket, even if it isn't in a "Skills" list.
+
+WHERE TO EXTRACT FROM — ONLY these sections describe the ROLE's
+requirements:
+  • Requirements / Must Have / Essential
+  • Preferred / Nice to Have / Desirable
+  • Responsibilities / Key Duties / What You'll Do / About the Role
+  • Skills / Qualifications / Experience
+
+DO NOT EXTRACT FROM these sections — they describe the COMPANY, not the
+role. Skills mentioned only here are NOT requirements:
+  • About Us / Who We Are / Our Story / About <Company> / Our Mission
+  • Why Work With Us / Benefits / Culture / What We Offer
+  • Marketing taglines, brand statements, "we support X across Y" prose
+
+Example of the trap: a residential aged-care AIN role at a provider whose
+"About Us" says "we support people across aged care, disability and
+mental health services." → "disability" and "mental health" describe
+the provider's portfolio, NOT this role. Do NOT include them as required
+or preferred skills unless they ALSO appear in the role-specific
+sections above. When the role description names a single setting
+(e.g. "residential aged care setting"), only extract skills consistent
+with THAT setting — ignore the provider's other service lines.
+
+The opposite trap is also real: do not invent a skill that is only
+implied by the company name or industry boilerplate.
 
 OUTPUT JSON SCHEMA — return EXACTLY this structure:
 

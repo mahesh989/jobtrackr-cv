@@ -154,25 +154,41 @@ class TestS2ConcreteEvidence:
 
 
 class TestComposeConcreteS2:
-    def test_two_employers_two_tools(self):
+    """Post-canned-shape-removal: S2 anchors on EMPLOYER only — never on tools.
+    Naming BESTMed/MedMobile in S2 produced a near-identical sentence across
+    every nursing CV and contradicted the prompt's NO TOOL NAMES rule."""
+
+    def test_two_employers_no_tools(self):
+        s = _compose_concrete_s2(["Org A", "Org B"], [])
+        assert s == "Recent experience at Org A and Org B."
+
+    def test_one_employer_no_tools(self):
+        s = _compose_concrete_s2(["Org A"], [])
+        assert s == "Recent experience at Org A."
+
+    def test_tools_are_ignored_in_output(self):
+        """Tools passed in must NOT appear in the output — the prompt forbids
+        naming tools in S2; the rebuilder used to violate this with
+        'Currently delivering care at X using BESTMed and MedMobile'."""
+        s = _compose_concrete_s2(["Org A"], ["BESTMed", "MedMobile"])
+        assert "BESTMed" not in s
+        assert "MedMobile" not in s
+        assert "using" not in s.lower()
+        assert s == "Recent experience at Org A."
+
+    def test_two_employers_tools_ignored(self):
         s = _compose_concrete_s2(
             ["Jesmond Miranda Nursing Home", "Uniting – The Marion"],
             ["BESTMed", "MedMobile"],
         )
         assert "Jesmond Miranda Nursing Home" in s
         assert "Uniting – The Marion" in s
-        assert "BESTMed" in s and "MedMobile" in s
-
-    def test_one_employer_one_tool(self):
-        s = _compose_concrete_s2(["Org A"], ["BESTMed"])
-        assert s == "Currently delivering care at Org A using BESTMed."
-
-    def test_two_employers_no_tools(self):
-        s = _compose_concrete_s2(["Org A", "Org B"], [])
-        assert s == "Recent experience at Org A and Org B."
+        assert "BESTMed" not in s
+        assert "MedMobile" not in s
 
     def test_zero_employers_returns_empty(self):
         assert _compose_concrete_s2([], ["BESTMed"]) == ""
+        assert _compose_concrete_s2([], []) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +229,8 @@ Care worker with experience across residential aged care settings, specialising 
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
         # The generic S2 should be gone.
         assert "Provides safe support" not in out
-        # A concrete S2 with employer + tool naming should appear.
+        # A concrete S2 anchored on an employer should appear (tool names are
+        # intentionally excluded per the prompt's NO TOOL NAMES IN S2 rule).
         assert "Jesmond Miranda Nursing Home" in out or "Uniting" in out
         # S1 preserved unchanged.
         assert "Care worker with experience across residential aged care" in out
