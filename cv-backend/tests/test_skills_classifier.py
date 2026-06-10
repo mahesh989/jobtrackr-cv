@@ -386,6 +386,51 @@ class TestAuFluffNoise:
         assert c.noise_type == "noise"
 
 
+class TestWeekdayAvailabilityNoise:
+    """Regression: 'availability for weekday shifts' and friends were leaking
+    into Soft Skills on AIN/aged-care JDs. Every other shift-availability
+    phrasing was in the noise list; weekday variants were missed."""
+
+    @pytest.mark.parametrize("kw", [
+        "availability for weekday shifts",
+        "availability for weekday afternoon and night shifts",
+        "availability for multiple weekday shifts",
+        "weekday shifts",
+        "weekday availability",
+        "afternoon and night shifts",
+    ])
+    def test_weekday_availability_is_noise(self, kw):
+        c = classify(kw, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == "noise"
+
+
+class TestYearPrefixedCredentials:
+    """Regression: AI sometimes emits a year prefix on vaccination/cert
+    phrases (e.g. '2016 influenza vaccination'). The leading 4-digit year
+    is now stripped by normalise() so the existing credential-noise entries
+    catch these."""
+
+    @pytest.mark.parametrize("kw,expected_noise_type", [
+        ("2016 influenza vaccination", "credential"),
+        ("2018 cpr certificate",       "credential"),
+        ("2024 first aid",             "credential"),
+        ("2020 police check",          "credential"),
+    ])
+    def test_year_prefixed_credential_is_noise(self, kw, expected_noise_type):
+        c = classify(kw, "nursing")
+        assert c is not None and c.is_noise
+        assert c.noise_type == expected_noise_type
+
+    def test_year_inside_phrase_is_preserved(self):
+        # ISO 27001 / section 8 / similar — internal numerics MUST survive
+        from app.services.skills.classifier import normalise
+        assert normalise("iso 27001") == "iso 27001"
+        assert normalise("section 8 compliance") == "section 8 compliance"
+        # Edge: bare year shouldn't be stripped if there's nothing after it
+        assert normalise("2016") == "2016"
+
+
 class TestNursingClinicalExpansion:
 
     @pytest.mark.parametrize("phrase,canonical", [

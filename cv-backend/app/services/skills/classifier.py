@@ -107,6 +107,9 @@ _PUNCT_RE = re.compile(r"[^\w\s\-+#./]")
 _WS_RE = re.compile(r"\s+")
 
 
+_LEADING_YEAR_RE = re.compile(r"^(?:19|20)\d{2}\s+")
+
+
 def normalise(phrase: str) -> str:
     """Canonicalise a phrase to its lookup key.
 
@@ -117,6 +120,11 @@ def normalise(phrase: str) -> str:
     Also normalises Unicode dash-like characters (non-breaking hyphen U+2011,
     figure dash U+2012, en-dash U+2013) to a standard ASCII hyphen so JD text
     that uses smart punctuation matches the plain-ASCII noise/lexicon entries.
+
+    Also strips a leading 4-digit year (1900-2099) so AI hallucinations like
+    "2016 influenza vaccination" normalise to "influenza vaccination" and hit
+    the existing credential-noise entry. Years anchored elsewhere (e.g. "ISO
+    27001", "section 2024") are NOT stripped — only the LEADING prefix.
     """
     if not phrase:
         return ""
@@ -126,6 +134,9 @@ def normalise(phrase: str) -> str:
     # U+2013 en dash, U+2014 em dash, U+2212 minus sign.
     for ch in "‐‑‒–—−":
         s = s.replace(ch, "-")
+    # Strip leading year prefix (e.g. "2016 influenza vaccination" → "influenza
+    # vaccination"). Safe — no real skill name starts with a 4-digit year.
+    s = _LEADING_YEAR_RE.sub("", s)
     # iterate: strip ALL leading qualifier prefixes (some may compose)
     changed = True
     while changed:
