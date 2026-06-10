@@ -86,6 +86,13 @@ export default async function DashboardPage({
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
+  // Admins/founders have no use for the user-facing job board dashboard.
+  // Send them straight to the admin overview instead.
+  const { data: userRoleRow } = await supabase
+    .from("users").select("role").eq("id", user.id).single();
+  const userRole = (userRoleRow as { role?: string } | null)?.role ?? "";
+  if (userRole === "founder" || userRole === "admin") redirect("/dashboard/admin");
+
   // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
   // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)
   // on createProfile / updateProfile / deleteProfile.

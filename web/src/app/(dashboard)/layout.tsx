@@ -14,30 +14,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect("/auth/login");
   const supabase = await createClient();
 
-  // These three only depend on the authenticated user.id, not on each other,
-  // so run them concurrently instead of as a 3-deep waterfall:
-  //   - entitlement (subscription gate)
-  //   - search_profiles (sidebar badges)
-  //   - users.applications_seen_at (applications badge baseline)
-  // For a brand-new no-subscription user this does the profiles/userRow reads
-  // before the plan-gate redirect — negligible wasted work on that rare path,
-  // in exchange for removing two sequential round-trips on every normal load.
-  const [ent, { data: profileRows }, { data: userRow }] = await Promise.all([
-    getEntitlement(user.id),
-    // Fetch profiles with new-job counts for sidebar badges
-    supabase
-      .from("search_profiles")
-      .select("id, name")
-      .order("created_at", { ascending: true }),
-    // When did the user last open the Applications outbox? The badge only
-    // counts pool items that completed after this, so once they view the page
-    // the badge clears and stays cleared until a new cover letter lands.
-    supabase
-      .from("users")
-      .select("applications_seen_at")
-      .eq("id", user.id)
-      .single(),
-  ]);
+  // Entitlement first — determines whether this is an admin or a regular user,
+  // which controls which queries we run and what the sidebar renders.
+  const ent = await getEntitlement(user.id);
 
   // Subscription gate: a brand-new user with NO subscription row must pick a
   // plan to start their trial before they can use the dashboard. Canceled /
@@ -45,54 +24,73 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // points), and grandfathered beta / founder / admin resolve to "full".
   if (ent.status === "none") redirect("/onboarding/plan");
 
-  const profiles = (profileRows ?? []) as { id: string; name: string }[];
-  const profileIds = profiles.map((p) => p.id);
-  const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
+  const isAdmin = ent.role === "founder" || ent.role === "admin";
 
-  // Applications pool count: completed non-stale cover letters whose job is
-  // still awaiting the email/no-email decision. RLS scopes to user_id. We only
-  // count those that completed *after* the user last viewed the outbox.
-  let poolQuery = supabase.from("cover_letters")
-    .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
-      count: "exact",
-      head:  true,
-    })
-    .eq("user_id", user.id)
-    .eq("status", "completed")
-    .eq("is_stale", false)
-    .is("jobs.pool_decision_at", null)
-    .is("jobs.applied_at", null)
-    .is("jobs.dismissed_at", null);
-  if (applicationsSeenAt) poolQuery = poolQuery.gt("completed_at", applicationsSeenAt);
+  // Admin users don't need profile badges, unseen counts, or pool counts —
+  // they never interact with the user-facing job board from the admin nav.
+  // Skip those queries entirely to keep layout load fast for admin pages.
+  let sidebarProfiles: { id: string; name: string; newCount: number; isRunning: boolean }[] = [];
+  let poolCount = 0;
 
-  const [{ data: unseenRows }, { data: runRows }, { count: poolCount }] = await Promise.all([
-    supabase.from("jobs")
-      .select("profile_id")
-      .in("profile_id", profileIds)
-      .eq("is_expired", false)
-      .eq("is_dead_link", false)
-      .is("seen_at", null)
-      .is("dismissed_at", null),
-    supabase.from("run_logs")
-      .select("profile_id, status")
-      .in("profile_id", profileIds)
-      .eq("status", "running"),
-    poolQuery,
-  ]);
+  if (!isAdmin) {
+    const [{ data: profileRows }, { data: userRow }] = await Promise.all([
+      supabase
+        .from("search_profiles")
+        .select("id, name")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("users")
+        .select("applications_seen_at")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
-  const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
-    (acc, r) => { acc[r.profile_id] = (acc[r.profile_id] ?? 0) + 1; return acc; }, {}
-  );
-  const runningSet = new Set(
-    ((runRows ?? []) as { profile_id: string }[]).map((r) => r.profile_id)
-  );
+    const profiles = (profileRows ?? []) as { id: string; name: string }[];
+    const profileIds = profiles.map((p) => p.id);
+    const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
 
-  const sidebarProfiles = profiles.map((p) => ({
-    id: p.id,
-    name: p.name,
-    newCount: unseenCounts[p.id] ?? 0,
-    isRunning: runningSet.has(p.id),
-  }));
+    let poolQuery = supabase.from("cover_letters")
+      .select("id, jobs!inner(pool_decision_at, applied_at, dismissed_at)", {
+        count: "exact",
+        head:  true,
+      })
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .eq("is_stale", false)
+      .is("jobs.pool_decision_at", null)
+      .is("jobs.applied_at", null)
+      .is("jobs.dismissed_at", null);
+    if (applicationsSeenAt) poolQuery = poolQuery.gt("completed_at", applicationsSeenAt);
+
+    const [{ data: unseenRows }, { data: runRows }, { count: pc }] = await Promise.all([
+      supabase.from("jobs")
+        .select("profile_id")
+        .in("profile_id", profileIds)
+        .eq("is_expired", false)
+        .eq("is_dead_link", false)
+        .is("seen_at", null)
+        .is("dismissed_at", null),
+      supabase.from("run_logs")
+        .select("profile_id, status")
+        .in("profile_id", profileIds)
+        .eq("status", "running"),
+      poolQuery,
+    ]);
+
+    poolCount = pc ?? 0;
+    const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
+      (acc, r) => { acc[r.profile_id] = (acc[r.profile_id] ?? 0) + 1; return acc; }, {}
+    );
+    const runningSet = new Set(
+      ((runRows ?? []) as { profile_id: string }[]).map((r) => r.profile_id)
+    );
+    sidebarProfiles = profiles.map((p) => ({
+      id: p.id,
+      name: p.name,
+      newCount: unseenCounts[p.id] ?? 0,
+      isRunning: runningSet.has(p.id),
+    }));
+  }
 
   return (
     <ThemeProvider>

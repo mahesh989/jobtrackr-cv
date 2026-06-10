@@ -106,119 +106,121 @@ function NavItem({
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-1 pt-4 pb-1">
+      <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function UserFooter({ email }: { email: string }) {
+  return (
+    <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
+      <div className="flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
+          <span className="text-[11px] font-bold text-[var(--sidebar-text)]">
+            {email[0]?.toUpperCase()}
+          </span>
+        </div>
+        <span className="text-[12px] text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
+        <form action="/auth/signout" method="post">
+          <button
+            className="flex items-center gap-1 text-[11px] font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign out</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Logo() {
+  return (
+    <div className="sidebar-logo flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+      <Sparkles className="h-5 w-5 text-[var(--brand)] shrink-0" />
+      <span
+        className="sidebar-logo-text font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
+        style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}
+      >
+        JobTrackr
+      </span>
+    </div>
+  );
+}
+
 export function SidebarNav({ email, poolCount = 0, role }: Props) {
   const isAdmin = ADMIN_ROLES.has(role ?? "");
+
+  // ── Admin nav ─────────────────────────────────────────────────────────────
+  // Founders/admins only see operational and business pages — no user-product
+  // features (job board, applications, CV library, billing, etc.).
+  if (isAdmin) {
+    return (
+      <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
+        <Logo />
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+
+          <SectionLabel>Operations</SectionLabel>
+          <NavItem href="/dashboard/admin"          icon={ShieldCheck} exact>Overview</NavItem>
+          <NavItem href="/dashboard/admin/users"    icon={Users}>Users</NavItem>
+          <NavItem href="/dashboard/admin/ai-costs" icon={Cpu}>AI costs</NavItem>
+          <NavItem href="/dashboard/admin/pipeline" icon={TrendingUp}>Pipeline health</NavItem>
+          <NavItem href="/dashboard/admin/activity" icon={Activity}>Activity</NavItem>
+          <NavItem href="/dashboard/admin/quality"  icon={FlaskConical}>Quality</NavItem>
+          <NavItem href="/dashboard/admin/metrics"  icon={BarChart3}>Beta metrics</NavItem>
+          <NavItem href="/dashboard/analytics"      icon={BarChart3}>Analytics</NavItem>
+
+          <SectionLabel>Business</SectionLabel>
+          <NavItem href="/dashboard/admin/revenue"   icon={DollarSign}>Revenue</NavItem>
+          <NavItem href="/dashboard/admin/retention" icon={UserCheck}>Retention</NavItem>
+          <NavItem href="/dashboard/admin/sourcing"  icon={Database}>Sourcing health</NavItem>
+          <NavItem href="/dashboard/admin/audit"     icon={ScrollText}>Audit log</NavItem>
+
+          <SectionLabel>System</SectionLabel>
+          <NavItem href="/dashboard/integrations"      icon={Plug}>Integrations</NavItem>
+          <NavItem href="/dashboard/settings/profile"  icon={UserCircle2}>My details</NavItem>
+          <NavItem href="/dashboard/settings/theme"    icon={Palette}>Theme</NavItem>
+          <NavItem href="/privacy"                     icon={Lock}>Privacy policy</NavItem>
+
+        </nav>
+        <UserFooter email={email} />
+      </aside>
+    );
+  }
+
+  // ── Regular user nav ──────────────────────────────────────────────────────
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
-
-      {/* Logo — width / padding / font size adapts per theme via CSS */}
-      <div className="sidebar-logo flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
-        <Sparkles className="h-5 w-5 text-[var(--brand)] shrink-0" />
-        <span
-          className="sidebar-logo-text font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
-          style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}
-        >
-          JobTrackr
-        </span>
-      </div>
+      <Logo />
 
       {/* Nav body */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
-        {/* Overview */}
-        <div className="px-1 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-            Overview
-          </p>
-        </div>
+        <SectionLabel>Overview</SectionLabel>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
         <NavItem href="/dashboard/instructions" icon={BookOpen}>Instructions</NavItem>
-
-        {/* My profiles — single nav entry (NOT a per-profile list anymore).
-            The full table with each profile's stats / Run / Jobs / Copy /
-            Delete lives on the /dashboard/profiles page. Per-profile "new"
-            counts are surfaced on the profile cards themselves, so we don't
-            need a (potentially stale) aggregate badge in the sidebar. */}
-        <NavItem href="/dashboard/profiles" icon={Briefcase}>
-          Job Searches
-        </NavItem>
-
+        <NavItem href="/dashboard/profiles" icon={Briefcase}>Job Searches</NavItem>
         <NavItem href="/dashboard/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
-        {/* Analytics is an operator/founder lens (pipeline funnels across
-            sources and profiles) — paying users don't need it; they see
-            their own dashboard funnel callouts instead. Hidden + the route
-            redirects non-admins server-side. */}
-        {isAdmin && <NavItem href="/dashboard/analytics" icon={BarChart3}>Analytics</NavItem>}
         <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
 
-        {/* Tools */}
-        <div className="px-1 pt-4 pb-1">
-          <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-            Tools
-          </p>
-        </div>
+        <SectionLabel>Tools</SectionLabel>
         <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>My Details</NavItem>
         <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
-        {/* Integrations bundles bring-your-own-key (AI providers) and Apify
-            quota — both founder-only concerns. Paying users get hosted AI
-            and don't manage Apify, so the page is hidden. The email-account
-            connect that DID live here has moved to My Details → Email
-            account so users can still set up Gmail/Outlook to send. */}
-        {isAdmin && <NavItem href="/dashboard/integrations" icon={Plug}>Integrations</NavItem>}
         <NavItem href="/dashboard/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
 
-        {/* Admin section — founder/admin only ────────────────────────── */}
-        {isAdmin && (
-          <>
-            <div className="px-1 pt-4 pb-1">
-              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-                Admin
-              </p>
-            </div>
-            <NavItem href="/dashboard/admin" icon={ShieldCheck} exact>Overview</NavItem>
-            <NavItem href="/dashboard/admin/users" icon={Users}>Users</NavItem>
-            <NavItem href="/dashboard/admin/ai-costs" icon={Cpu}>AI costs</NavItem>
-            <NavItem href="/dashboard/admin/activity" icon={Activity}>Activity</NavItem>
-            <NavItem href="/dashboard/admin/pipeline" icon={TrendingUp}>Pipeline health</NavItem>
-            <NavItem href="/dashboard/admin/quality" icon={FlaskConical}>Quality</NavItem>
-            <NavItem href="/dashboard/admin/metrics" icon={BarChart3}>Beta metrics</NavItem>
-            <div className="px-1 pt-3 pb-1">
-              <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
-                Business
-              </p>
-            </div>
-            <NavItem href="/dashboard/admin/revenue"   icon={DollarSign}>Revenue</NavItem>
-            <NavItem href="/dashboard/admin/retention" icon={UserCheck}>Retention</NavItem>
-            <NavItem href="/dashboard/admin/sourcing"  icon={Database}>Sourcing health</NavItem>
-            <NavItem href="/dashboard/admin/audit"     icon={ScrollText}>Audit log</NavItem>
-          </>
-        )}
       </nav>
 
-      {/* User footer */}
-      <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
-            <span className="text-[11px] font-bold text-[var(--sidebar-text)]">
-              {email[0]?.toUpperCase()}
-            </span>
-          </div>
-          <span className="text-[12px] text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
-          <form action="/auth/signout" method="post">
-            <button
-              className="flex items-center gap-1 text-[11px] font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign out</span>
-            </button>
-          </form>
-        </div>
-      </div>
+      <UserFooter email={email} />
     </aside>
   );
 }
