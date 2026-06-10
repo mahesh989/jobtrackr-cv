@@ -1735,6 +1735,76 @@ def _extract_cv_named_tools_for_summary(cv_text: str) -> list[str]:
     return out
 
 
+def _employer_block_text(cv_text: str, employer: str) -> str:
+    """Extract the block of CV text scoped to one employer's Experience entry,
+    i.e. from the H3 line naming the employer down to the next H3 or H2.
+
+    Returns "" when the employer's section can't be located. Used to verify
+    that a CV-named tool was ACTUALLY used at a specific employer before the
+    S2 composer attributes it to them ("Currently delivering care at X using Y"
+    is a FABRICATION when Y was used at a previous employer, not at X).
+    """
+    if not cv_text or not employer:
+        return ""
+    lines = cv_text.split("\n")
+    # Distinctive employer tokens — match on the proper-noun parts only, so
+    # the lookup survives the writer's heading rendering variations.
+    emp_tokens = _distinctive_employer_tokens(employer)
+    if not emp_tokens:
+        # Fall back to whole-name substring if there's no distinctive token
+        # (e.g. an org name made entirely of generic words). Conservative.
+        emp_lower = employer.lower()
+        for i, ln in enumerate(lines):
+            if ln.strip().startswith("### ") and emp_lower in ln.lower():
+                return _block_until_next_section(lines, i)
+        return ""
+    for i, ln in enumerate(lines):
+        if not ln.strip().startswith("### "):
+            continue
+        head_lower = ln.lower()
+        # H3 must contain at least one distinctive token of the employer.
+        if any(re.search(r"\b" + re.escape(tok) + r"\b", head_lower)
+               for tok in emp_tokens):
+            return _block_until_next_section(lines, i)
+    return ""
+
+
+def _block_until_next_section(lines: list[str], start_idx: int) -> str:
+    """Slice from `start_idx` until the next `###` or `##` heading."""
+    out: list[str] = [lines[start_idx]]
+    for ln in lines[start_idx + 1:]:
+        s = ln.strip()
+        if s.startswith("### ") or s.startswith("## "):
+            break
+        out.append(ln)
+    return "\n".join(out)
+
+
+def _tools_attributable_to_employer(
+    cv_text: str, tailored_md: str, employer: str, all_tools: list[str],
+) -> list[str]:
+    """Return the subset of `all_tools` that appear inside `employer`'s block
+    in either the original CV or the tailored markdown.
+
+    Honest attribution: only name "X using TOOL" when the CV evidences that
+    TOOL was used at X. If neither source has the tool in the employer's
+    block, it stays OUT of the "using" clause (the tool may still be named
+    elsewhere — Skills section, separate sentence — by other passes).
+    """
+    if not all_tools:
+        return []
+    md_block = _employer_block_text(tailored_md, employer)
+    cv_block = _employer_block_text(cv_text, employer)
+    if not md_block and not cv_block:
+        return []
+    blob = (md_block + "\n" + cv_block).lower()
+    kept: list[str] = []
+    for tool in all_tools:
+        if re.search(r"\b" + re.escape(tool.lower()) + r"\b", blob):
+            kept.append(tool)
+    return kept
+
+
 _EMPLOYER_GENERIC_TOKENS = {
     # Tokens that appear in many org names and therefore are NOT distinctive
     # enough on their own to mean "this employer is named". A standalone
@@ -1878,7 +1948,30 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
     if _s2_has_concrete_evidence(s2, employers, tools):
         return markdown  # already concrete
 
-    new_s2 = _compose_concrete_s2(employers, tools)
+    # Honest tool attribution — only attribute tools to an employer when the
+    # CV actually evidences that connection. Without this guard, a candidate
+    # whose tools were used at PreviousEmployer gets the fabricated S2
+    # "Currently delivering care at CurrentEmployer using TOOL1 and TOOL2"
+    # because the composer blindly conflates "most recent employer" with
+    # "all CV tools". The reporting candidate (and recruiters who check)
+    # will notice this immediately.
+    attributable_tools: list[str] = []
+    if employers and tools:
+        attributable_tools = _tools_attributable_to_employer(
+            original_cv_text, markdown, employers[0], tools,
+        )
+        # When there are 2 employers in the clause, include tools attributable
+        # to EITHER (the AND clause covers both — keeps the OR semantically
+        # correct).
+        if len(employers) > 1:
+            also = _tools_attributable_to_employer(
+                original_cv_text, markdown, employers[1], tools,
+            )
+            for t in also:
+                if t not in attributable_tools:
+                    attributable_tools.append(t)
+
+    new_s2 = _compose_concrete_s2(employers, attributable_tools)
     if not new_s2:
         return markdown  # no employers to name → leave S2 as is
 
@@ -3989,11 +4082,28 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
         return _SETTING_NDIS
 
     # 5. Hospital / acute
-    if any(kw in full_text for kw in [
-        "surgical ward", "orthopaedic", "acute care",
-        "medical department", "hospital setting", "hospital staff",
-        "hospital settings", "acute clinical",
-    ]):
+    # Two signal tiers:
+    #   STRONG = role-specific markers that mean "this IS a hospital role"
+    #            (a ward type, a hospital staff phrasing). Single hit anywhere
+    #            in full_text is enough.
+    #   WEAK   = generic phrases ("acute care", "hospital setting") that
+    #            appear in many residential aged-care JDs' corporate
+    #            boilerplate (Australian Unity et al. operate both aged care
+    #            AND acute services; their JD intros mention both). Require
+    #            the WEAK signal in PRIMARY (resp0 + job_title) so an
+    #            incidental boilerplate mention can't promote a residential
+    #            AIN JD to HOSPITAL.
+    _hospital_strong = [
+        "surgical ward", "orthopaedic", "medical department",
+        "hospital staff", "hospital ward",
+    ]
+    _hospital_weak = [
+        "acute care", "hospital setting", "hospital settings",
+        "acute clinical",
+    ]
+    if any(kw in full_text for kw in _hospital_strong):
+        return _SETTING_HOSPITAL
+    if any(kw in primary for kw in _hospital_weak):
         return _SETTING_HOSPITAL
 
     return _SETTING_RESIDENTIAL
@@ -4103,17 +4213,78 @@ _SETTING_BRIDGES = {
 }
 
 
-def _apply_setting_bridge(md: str, setting: str) -> str:
+# CV-side markers that evidence acute / hospital / clinical-ward experience.
+# Used to GATE the HOSPITAL bridge — without this, a candidate whose entire
+# CV is residential aged care gets a fabricated "experience across residential
+# aged care AND acute clinical settings" summary, which is dishonest.
+_CV_HOSPITAL_MARKERS_RE = re.compile(
+    r"\b(?:"
+    r"hospital(?:s|\s+(?:setting|ward|department|environment))?"
+    r"|acute(?:\s+(?:care|clinical|hospital|ward|setting))"
+    r"|surgical\s+ward|medical\s+ward|orthopaedic\s+ward"
+    r"|emergency\s+department|ed\s+nurse|icu|coronary\s+care"
+    r"|registered\s+nurse(?:\s+\(?rn\)?)?(?!.*aged\s+care)"
+    r"|rn\b|en\b"
+    r"|clinical\s+placement|hospital\s+placement"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _cv_has_hospital_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when the candidate's CV evidences hospital / acute / clinical-ward
+    experience. False for a pure aged-care / home-care / disability CV.
+
+    Conservative: requires a hospital/acute MARKER in the Experience or
+    Education section. Markers in the Summary alone don't count (the writer
+    could be paraphrasing the JD)."""
+    sources = [cv_text or "", tailored_md or ""]
+    for src in sources:
+        # Strip the Summary so a paraphrased JD setting can't false-trigger.
+        # Cheap approach: only consider text from '## Experience' onwards.
+        lower = src.lower()
+        # Find the earliest experience-like heading
+        idx = -1
+        for h in ("## experience", "## work experience",
+                  "## professional experience", "## clinical experience"):
+            i = lower.find(h)
+            if i != -1 and (idx == -1 or i < idx):
+                idx = i
+        scan = src[idx:] if idx != -1 else src
+        if _CV_HOSPITAL_MARKERS_RE.search(scan):
+            return True
+    return False
+
+
+def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
     """Deterministically replace the residential setting phrase in S1 of Career
     Highlights with a bridge phrase that acknowledges the CV background while
     orienting toward the JD's actual setting.
 
     Only touches S1 (the first prose line) of the Career Highlights section.
     No-op for residential JDs or lifestyle coordinator (setting is correct).
+
+    HONESTY GATE: the HOSPITAL bridge text claims experience across BOTH
+    residential aged care AND acute clinical settings. When the CV has zero
+    hospital/acute evidence, applying it is a fabrication. In that case we
+    skip the replacement and let S1 stay residential — the score will reflect
+    the actual mismatch but the CV is truthful.
     """
     bridge = _SETTING_BRIDGES.get(setting)
     if not bridge:
         return md  # residential or lifestyle — no replacement needed
+
+    # Honest-attribution gate for HOSPITAL: only bridge if CV evidences
+    # hospital/acute work. Otherwise the bridge would assert experience the
+    # candidate doesn't have.
+    if setting == _SETTING_HOSPITAL and not _cv_has_hospital_experience(
+        cv_text, md
+    ):
+        logger.info(
+            "_apply_setting_bridge: SKIPPED HOSPITAL bridge — CV has no "
+            "acute/clinical experience markers; would have fabricated."
+        )
+        return md
 
     lines = md.split("\n")
     in_section = False
@@ -4664,7 +4835,9 @@ async def _writer_w8_verified(
     # No-op for residential JDs.
     _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
     logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
-    verified_md = _apply_setting_bridge(verified_md, _setting_for_bridge)
+    verified_md = _apply_setting_bridge(
+        verified_md, _setting_for_bridge, cv_text=cv_text,
+    )
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
     # Targeted bullet rewrites — for inject_as_extension keywords the composition
     # LLM missed, run one small focused call per bullet concurrently. Zero cost
