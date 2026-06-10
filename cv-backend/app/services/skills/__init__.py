@@ -19,6 +19,7 @@ from app.services.skills.classifier import (
     normalise,
 )
 from app.services.skills.post_process import (
+    enrich_required_skills_from_jd_body,
     post_process_cv_skills,
     post_process_jd_analysis,
     post_process_skills,
@@ -28,6 +29,7 @@ __all__ = [
     "Classification",
     "classify",
     "classify_many",
+    "enrich_required_skills_from_jd_body",
     "is_noise",
     "lexicon_stats",
     "normalise",

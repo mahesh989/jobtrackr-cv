@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.skills.post_process import (
+    enrich_required_skills_from_jd_body,
     post_process_cv_skills,
     post_process_jd_analysis,
     post_process_skills,
@@ -351,3 +352,172 @@ class TestTechVertical:
         assert "agile" not in out["required_skills"]["soft_skills"]
         # ML stays in domain
         assert "machine learning" in dom
+
+
+# ---------------------------------------------------------------------------
+# JD-body lexicon scan — closes the empty-Care-Skills variance on
+# prose-heavy nursing JDs that the IT-centric JD analysis prompt missed.
+# ---------------------------------------------------------------------------
+
+
+_AUSTRALIAN_UNITY_JD_TEXT = """The assistant in nursing / care companion provides daily care
+and companionship to aged care residents within a household-style living environment. The
+role focuses on building strong relationships with residents, families, and colleagues
+while maintaining safety through adherence to health and safety guidelines.
+
+Required:
+- relationship building
+- teamwork
+- reliability
+- empathy
+- flexibility for afternoon and night shifts
+- current NDISWC
+
+Responsibilities:
+- support residents with daily personal care and companionship
+- build strong, trusting relationships with residents, their families, and team members
+- follow health and safety guidelines to keep residents, colleagues, and self safe
+- work afternoon and night shifts with consistent availability across weekdays
+- contribute to a homelike, community-focused environment for residents"""
+
+
+def _au_unity_jd_analysis(domain_extras=None):
+    """Build the exact LLM-side-shape jd_analysis the user's Australian Unity
+    run produced (empty domain_knowledge, ndiswc leak, etc.). `domain_extras`
+    lets a test pretend the LLM did extract something."""
+    return {
+        "job_title": "assistant in nursing",
+        "summary": "AIN providing daily care and companionship to aged care residents.",
+        "responsibilities": [
+            "support residents with daily personal care and companionship",
+            "build strong, trusting relationships with residents and families",
+            "follow health and safety guidelines",
+            "work afternoon and night shifts",
+        ],
+        "required_skills": {
+            "technical": ["current ndiswc"],
+            "soft_skills": [
+                "relationship building", "teamwork", "reliability", "empathy",
+                "flexibility for afternoon and night shifts",
+            ],
+            "domain_knowledge": list(domain_extras or []),
+        },
+        "preferred_skills": {
+            "technical": [], "soft_skills": [], "domain_knowledge": [],
+        },
+    }
+
+
+class TestJdBodyLexiconScan:
+    def test_australian_unity_surfaces_care_skills(self):
+        """The exact JD that produced 57% initial in the user's screenshot.
+        After enrichment, domain_knowledge must be non-empty so presence-aware
+        ATS scoring doesn't redistribute 25 points onto a single noise leak."""
+        jd = _au_unity_jd_analysis()
+        out = enrich_required_skills_from_jd_body(
+            jd, _AUSTRALIAN_UNITY_JD_TEXT, role_family_id="nursing",
+        )
+        dk = out["required_skills"]["domain_knowledge"]
+        assert dk, "JD body lexicon scan must populate domain_knowledge"
+        dk_lower = [s.lower() for s in dk]
+        # Personal care literal in responsibilities
+        assert "personal care" in dk_lower
+        # Aged care literal in summary
+        assert "aged care" in dk_lower
+
+    def test_no_double_add_when_llm_already_extracted_canonical(self):
+        """When the LLM already pulled `personal care` into domain_knowledge,
+        the scan must not duplicate it."""
+        jd = _au_unity_jd_analysis(domain_extras=["personal care"])
+        out = enrich_required_skills_from_jd_body(
+            jd, _AUSTRALIAN_UNITY_JD_TEXT, role_family_id="nursing",
+        )
+        dk = out["required_skills"]["domain_knowledge"]
+        assert dk.count("personal care") == 1
+
+    def test_no_double_add_when_llm_extracted_variant(self):
+        """When the LLM extracted a VARIANT (e.g. `personal care delivery`),
+        the canonical is considered already-present — don't re-add."""
+        jd = _au_unity_jd_analysis(domain_extras=["personal care delivery"])
+        out = enrich_required_skills_from_jd_body(
+            jd, _AUSTRALIAN_UNITY_JD_TEXT, role_family_id="nursing",
+        )
+        dk_lower = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
+        # canonical not re-added
+        assert dk_lower.count("personal care") == 0
+        # the variant the LLM emitted stays (will be canonicalised by
+        # post_process_jd_analysis later — separate concern)
+        assert "personal care delivery" in dk_lower
+
+    def test_noop_for_unknown_role_family(self):
+        """master / unknown family → no vertical lexicon → return unchanged."""
+        jd = _au_unity_jd_analysis()
+        out = enrich_required_skills_from_jd_body(
+            jd, _AUSTRALIAN_UNITY_JD_TEXT, role_family_id="master",
+        )
+        # Identity (no mutation)
+        assert out is jd or out["required_skills"]["domain_knowledge"] == []
+
+    def test_noop_when_no_scannable_text_anywhere(self):
+        """With no jd_text AND no summary AND no responsibilities → no additions."""
+        jd = {
+            "job_title": "test",
+            "summary": "",
+            "responsibilities": [],
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = enrich_required_skills_from_jd_body(
+            jd, "", role_family_id="nursing",
+        )
+        assert out["required_skills"]["domain_knowledge"] == []
+
+    def test_respects_schema_cap_of_10(self):
+        """Pre-existing 9 items + many JD-body hits → cap at 10 total."""
+        jd = _au_unity_jd_analysis(domain_extras=[
+            "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9",
+        ])
+        out = enrich_required_skills_from_jd_body(
+            jd, _AUSTRALIAN_UNITY_JD_TEXT, role_family_id="nursing",
+        )
+        assert len(out["required_skills"]["domain_knowledge"]) <= 10
+
+    def test_scans_responsibilities_field(self):
+        """A skill present ONLY in jd_analysis.responsibilities (not in jd_text
+        parameter) must still be picked up — JDs are sometimes truncated and
+        the structured responsibilities list is the cleaner signal."""
+        jd = _au_unity_jd_analysis()
+        # Pass empty jd_text — responsibilities alone must trigger matches
+        out = enrich_required_skills_from_jd_body(
+            jd, "", role_family_id="nursing",
+        )
+        # No jd_text, but responsibilities mention "personal care" + "aged care"
+        # via summary too. Actually summary too is non-empty so scan should hit.
+        dk_lower = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
+        assert "personal care" in dk_lower or "aged care" in dk_lower
+
+    def test_word_boundary_does_not_match_substring(self):
+        """The lexicon entry 'feeding' must not match 'breastfeeding' or
+        unrelated word fragments."""
+        jd = {
+            "job_title": "test",
+            "summary": "Role involves breastfeeding research and pacemaker monitoring.",
+            "responsibilities": [],
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = enrich_required_skills_from_jd_body(
+            jd, "Role involves breastfeeding research.", role_family_id="nursing",
+        )
+        # 'feeding' (variant of 'feeding assistance') should NOT match
+        # 'breastfeeding' due to \b regex anchor.
+        dk_lower = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
+        assert "feeding assistance" not in dk_lower

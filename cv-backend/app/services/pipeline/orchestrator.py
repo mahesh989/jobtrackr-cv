@@ -189,7 +189,21 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # for downstream routing (credentials → Registration & Licences) and
         # diagnostics. Idempotent — keyed on the presence of `lexicon_meta`.
         if "lexicon_meta" not in jd_analysis:
-            from app.services.skills import post_process_jd_analysis
+            # JD-body lexicon scan — surface canonical domain_knowledge skills
+            # the IT-centric JD analysis prompt missed in prose-heavy
+            # responsibilities. Closes the ATS-score variance caused by an
+            # empty domain bucket triggering presence-aware redistribution.
+            # Runs BEFORE post_process_jd_analysis so injected canonicals flow
+            # through the same dedup / sidecar path as LLM-extracted ones.
+            from app.services.skills import (
+                enrich_required_skills_from_jd_body,
+                post_process_jd_analysis,
+            )
+            jd_analysis = enrich_required_skills_from_jd_body(
+                jd_analysis,
+                payload.jd_text,
+                role_family_id=str(jd_analysis.get("role_family") or "master"),
+            )
             jd_analysis = post_process_jd_analysis(
                 jd_analysis,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),

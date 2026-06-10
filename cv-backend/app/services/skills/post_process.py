@@ -23,8 +23,10 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.skills.classifier import (
+    _VERTICAL_LOOKUPS,
     classify,
     is_noise,
+    normalise,
 )
 
 # ---------------------------------------------------------------------------
@@ -216,6 +218,159 @@ def post_process_skills(
             cleaned[target_cat].append(display)
 
     return cleaned, sidecar
+
+
+# ---------------------------------------------------------------------------
+# JD-body lexicon scan — surface canonical care/domain skills the LLM missed.
+# ---------------------------------------------------------------------------
+#
+# The JD analysis prompt is IT-centric (its only `domain_knowledge` examples
+# are GDPR / data warehouse / IFRS / agile / B2B SaaS). On a prose-heavy
+# nursing JD that says "support residents with daily personal care and
+# companionship" in RESPONSIBILITIES, the LLM frequently fails to extract
+# "personal care", "companionship", "aged care" etc. into
+# required_skills.domain_knowledge.
+#
+# That empty bucket combined with the presence-aware ATS redistribution
+# (commits 1dbf4a6 + 8c87f56) makes nursing scores swing 20+ points based on
+# AI variance alone — same JD, same CV, different runs.
+#
+# This deterministic scan closes the variance by surfacing any nursing-
+# lexicon canonical that literally appears in jd_text / summary /
+# responsibilities. Canonicals already extracted under any bucket are
+# skipped. Capped to keep below the JD schema's 10-per-bucket ceiling.
+#
+# Vertical-gated — only fires for verticals with a curated lexicon (today:
+# nursing/tech/cleaning). Tech JDs rarely have this problem because the
+# prompt's examples are IT-flavoured already; the scan is safe there too
+# but mostly a no-op.
+
+# Word characters that can occur INSIDE a lexicon phrase. Used to choose
+# the boundary regex — `\b` is fine for plain words but the default behaviour
+# treats hyphens as boundaries, which is correct here (we look up the literal
+# phrase, hyphenated entries work because their internal '-' is matched
+# literally and `\b` anchors at the outer ends).
+_JD_BODY_SCAN_CAP: int = 10  # max canonicals to inject; mirrors schema limit
+_MAX_PHRASE_TOKENS: int = 6  # skip very-long lexicon phrases (rarely literal)
+
+
+def _scan_text(jd_text: str, summary: Optional[str], responsibilities: Any) -> str:
+    """Combine jd_text + structured summary + responsibilities into one
+    lowercase scannable blob. Unicode dash-likes are normalised to '-' so
+    hyphenated lexicon canonicals match smart-punctuation JDs."""
+    parts: List[str] = []
+    if jd_text:
+        parts.append(jd_text)
+    if summary:
+        parts.append(str(summary))
+    if isinstance(responsibilities, list):
+        parts.extend(str(r) for r in responsibilities if r)
+    text = " ".join(parts).lower()
+    # Normalise unicode dash variants (matches classifier.normalise)
+    for ch in "‐‑‒–—−":
+        text = text.replace(ch, "-")
+    return text
+
+
+def _already_extracted_canonicals(
+    jd_analysis: Dict[str, Any], vertical: str
+) -> set:
+    """Return the set of CANONICAL forms (lowercased) already present in any
+    of the LLM's extracted buckets, so the scan never re-adds something the
+    LLM already surfaced (in any category, required or preferred)."""
+    seen: set = set()
+    for side_key in ("required_skills", "preferred_skills"):
+        block = jd_analysis.get(side_key) or {}
+        for cat in _CATEGORIES:
+            for kw in (block.get(cat) or []):
+                if not isinstance(kw, str):
+                    continue
+                c = classify(kw, vertical)  # type: ignore[arg-type]
+                if c is not None and c.is_skill:
+                    seen.add(c.canonical.lower())
+                else:
+                    seen.add(kw.strip().lower())
+    return seen
+
+
+def enrich_required_skills_from_jd_body(
+    jd_analysis: Dict[str, Any],
+    jd_text: str,
+    *,
+    role_family_id: str,
+) -> Dict[str, Any]:
+    """Surface canonical domain_knowledge skills from the JD body text.
+
+    Mutates a shallow copy. Adds canonicals to
+    ``required_skills.domain_knowledge`` (capped at the schema's 10 limit
+    including pre-existing items). No-op when the role family has no
+    curated vertical lexicon, when there is no text to scan, or when no
+    new canonical matches.
+    """
+    vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
+    if vertical is None:
+        return jd_analysis
+
+    text = _scan_text(
+        jd_text,
+        jd_analysis.get("summary"),
+        jd_analysis.get("responsibilities"),
+    )
+    if not text.strip():
+        return jd_analysis
+
+    already = _already_extracted_canonicals(jd_analysis, vertical)
+    lookup = _VERTICAL_LOOKUPS.get(vertical) or {}  # type: ignore[arg-type]
+
+    # Group by canonical so the first-matching variant wins and we never
+    # consider the same canonical twice.
+    by_canonical: Dict[str, List[str]] = {}
+    for norm_phrase, (canonical, cat) in lookup.items():
+        if cat != "domain_knowledge":
+            continue
+        canon_lower = canonical.lower()
+        if canon_lower in already:
+            continue
+        # Skip very-long lexicon phrases — they're rarely literal in JDs and
+        # would just inflate scan cost. Canonical body skills are 1-5 tokens.
+        if len(norm_phrase.split()) > _MAX_PHRASE_TOKENS:
+            continue
+        by_canonical.setdefault(canon_lower, []).append(norm_phrase)
+
+    # Determine how many slots are still available under the schema cap.
+    req_block = jd_analysis.get("required_skills") or {}
+    existing_dk = list(req_block.get("domain_knowledge") or [])
+    slots = max(0, _JD_BODY_SCAN_CAP - len(existing_dk))
+    if slots <= 0:
+        return jd_analysis
+
+    additions: List[str] = []
+    # Preserve lookup-dict insertion order for deterministic output.
+    for canon_lower, phrases in by_canonical.items():
+        if any(
+            re.search(r"\b" + re.escape(p) + r"\b", text) for p in phrases
+        ):
+            # Pick the original-cased canonical from the first phrase's
+            # lookup entry (canonicalisation already stored in the value).
+            # `lookup[phrases[0]][0]` is the original canonical form.
+            additions.append(lookup[phrases[0]][0])
+            if len(additions) >= slots:
+                break
+
+    if not additions:
+        return jd_analysis
+
+    out = dict(jd_analysis)
+    new_req = dict(req_block)
+    new_req["domain_knowledge"] = (existing_dk + additions)[:_JD_BODY_SCAN_CAP]
+    out["required_skills"] = new_req
+
+    logger.info(
+        "JD-body lexicon scan (vertical=%s): added %d canonical(s) to "
+        "required.domain_knowledge: %s",
+        vertical, len(additions), additions,
+    )
+    return out
 
 
 def post_process_jd_analysis(
