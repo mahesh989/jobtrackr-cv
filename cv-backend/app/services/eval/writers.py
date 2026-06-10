@@ -3964,19 +3964,28 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
 
     # 4. NDIS / disability
     # Strip credential-only "ndis" mentions (e.g. "NDIS Workers Check", "NDIS
-    # worker screening") before testing — these appear in residential aged care
-    # JDs as background-check requirements and must not trigger the NDIS bridge.
+    # worker screening", and the NDISWC abbreviation) before testing — these
+    # appear in residential aged care JDs as background-check requirements
+    # and must not trigger the NDIS bridge.
     import re as _re
     _ndis_cred_re = _re.compile(
         r"ndis\s+worker[s]?\s+(?:check|screening|clearance|induction|orientation|module)"
         r"|ndis\s+(?:worker\s+)?screening\s+(?:check|clearance|requirements?)"
+        # NDISWC / NDISWCs — the abbreviation. Word-boundary anchored so we
+        # don't strip an unrelated token.
+        r"|\bndiswc[s]?\b"
     )
     full_text_ndis = _ndis_cred_re.sub("", full_text)
-    if any(kw in full_text_ndis for kw in [
-        "ndis", "disability support", "non-verbal participant",
-        "acquired brain injury", "high intensity support",
-        "disability worker",
-    ]):
+    # Word-boundary regex so 'ndis' doesn't accidentally match unrelated
+    # tokens (e.g. an unstripped 'ndiswc' or any future credential variant).
+    # The bare 'ndis' keyword still hits when it stands alone as a sector
+    # mention.
+    _ndis_kw_re = _re.compile(
+        r"\b(?:ndis|disability\s+support|non-verbal\s+participant"
+        r"|acquired\s+brain\s+injury|high\s+intensity\s+support"
+        r"|disability\s+worker)\b"
+    )
+    if _ndis_kw_re.search(full_text_ndis):
         return _SETTING_NDIS
 
     # 5. Hospital / acute

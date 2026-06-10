@@ -63,6 +63,12 @@ def test_bolton_clarke_residential_not_ndis():
     "NDIS worker screening clearance",
     "NDIS worker induction module",
     "NDIS worker orientation module",
+    # The abbreviation — was missing from the v228 strip and caused the
+    # Australian Unity AIN bridge regression (2026-06-10).
+    "NDISWC",
+    "current NDISWC",
+    "willingness to apply for NDISWC",
+    "NDISWCs",
 ])
 def test_ndis_credential_phrase_alone_does_not_trigger_ndis(cred_phrase):
     """Any JD that mentions only an NDIS credential phrase (no NDIS service
@@ -150,3 +156,36 @@ def test_residential_default():
         "responsibilities": ["provide personal care to residents in aged care home"],
     }
     assert _classify_jd_setting(jd, analysis) == "residential"
+
+
+# ---------------------------------------------------------------------------
+# Australian Unity AIN (2026-06-10) — NDISWC abbreviation regression
+# ---------------------------------------------------------------------------
+
+_AUSTRALIAN_UNITY_JD = (
+    "Assistant in Nursing / Care Companion. The assistant in nursing provides "
+    "daily care and companionship to residents in a household-style aged care "
+    "environment. The role focuses on building strong relationships with "
+    "residents, families, and colleagues while maintaining safety. Casual "
+    "afternoon and night shifts across weekdays. Must hold a current NDISWC or "
+    "have willingness to apply for NDISWC. Aged care experience preferred."
+)
+
+_AUSTRALIAN_UNITY_ANALYSIS = {
+    "job_title": "Assistant In Nursing",
+    "responsibilities": [
+        "support residents with daily personal care and companionship",
+        "build strong, trusting relationships with residents, families, and team members",
+    ],
+}
+
+
+def test_australian_unity_ain_ndiswc_does_not_trigger_ndis():
+    """Australian Unity AIN regression: the JD uses the NDISWC abbreviation
+    twice but is residential aged care. Must NOT classify as ndis_disability
+    (which would inject 'disability support settings' into the summary)."""
+    result = _classify_jd_setting(_AUSTRALIAN_UNITY_JD, _AUSTRALIAN_UNITY_ANALYSIS)
+    assert result == "residential", (
+        f"Expected 'residential' for Australian Unity AIN JD, got {result!r}. "
+        "NDISWC is the NDIS Workers Check abbreviation, not a sector indicator."
+    )
