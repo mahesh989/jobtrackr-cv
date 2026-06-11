@@ -1,5 +1,15 @@
 # writers.py decomposition — plan & protocol
 
+> **STATUS: COMPLETE (2026-06-12).** The 5,145-line monolith is now a package of
+> 8 focused topic modules + a 1,454-line orchestration core (`_impl.py` keeps
+> `WriterResult`, the W1–W8 writer variants, `_targeted_bullet_rewrites`,
+> `_log_tailoring_report`, `get_writer`, `run_tailored_cv_w8_verified`).
+> Every step was 826-test-gated and committed individually (steps 1–10).
+> Final layout: `_impl` 1454 · `awards` 654 · `awards_parsing` 569 ·
+> `injection` 594 · `skills_section` 564 · `bridges` 432 · `summary` 404 ·
+> `experience` 401 · `spelling_case` 261 · `__init__` 21 (barrel).
+> The protocol below is kept for reference — it generalises to other monoliths.
+
 Decomposing the 5,145-line `app/services/eval/writers.py` monolith into a
 package, **strictly behaviour-preserving**, one test-gated increment at a time.
 
@@ -61,6 +71,20 @@ For a cohesive group G:
   is `logger` — moved code that logs will `NameError` on it. Give each new module
   its own `logger = logging.getLogger(__name__)` (identical behaviour). The
   `experience` extraction hit exactly this; the 826 gate caught it pre-commit.
+- **Non-underscore ALL-CAPS names.** A scan keyed on `_X` patterns misses public
+  constants like `DEFAULT_SKILL_CAPS` (imported from enforce). The `injection`
+  extraction hit this; the gate caught it. Scan `\b[A-Z][A-Z_]{3,}\b` too and
+  filter comment words manually.
+- **Cluster-end detection must handle `async def`** — otherwise the scan runs
+  into the next orchestration coroutine (`_writer_w8_integrated` etc.).
+- **Indented (function-local) assignments are false positives** in the
+  module-constant scan (e.g. `_CERT_SOURCE_HEADINGS` inside
+  `split_awards_and_certifications`). Check indentation before treating a hit
+  as a module-level back-ref.
+- **Stale re-import line ranges:** after each extraction the line numbers shift
+  and earlier re-import blocks sit mid-file; a naive range scan will swallow
+  them and report their names as phantom back-refs. Re-map boundaries fresh
+  before every cut.
 - Constants can reference functions (e.g. `_BRIDGE_EVIDENCE_GATES = {…: _cv_has_*}`)
   — keep such a constant in the SAME module as the functions it references.
 - The test-suite imports ~49 internals directly; the barrel's programmatic
