@@ -60,30 +60,54 @@ pallets"), without a tidy bullet list. Mine the prose: surface the
 underlying skill ("personal care", "emotional support", "forklift
 operation") into the right bucket, even if it isn't in a "Skills" list.
 
-WHERE TO EXTRACT FROM — ONLY these sections describe the ROLE's
-requirements:
-  • Requirements / Must Have / Essential
-  • Preferred / Nice to Have / Desirable
-  • Responsibilities / Key Duties / What You'll Do / About the Role
-  • Skills / Qualifications / Experience
+DEFAULT TO EXTRACT — bias toward inclusion. A short JD is NOT an excuse for
+a short analysis. If the JD describes a recognisable role (e.g. AIN, care
+worker, support worker, forklift driver, cleaner) it carries real skill
+requirements even when the wording is brief or warm-toned. When unsure
+whether a phrase is a skill, EXTRACT IT — a downstream lexicon filter
+removes genuine non-skills, so under-extraction is the worse failure.
+MINIMUM-YIELD CHECK: for a care / nursing / trades / cleaning role whose
+JD is longer than ~800 characters, returning fewer than ~5 total skills
+across required+preferred almost always means you skipped real content —
+re-scan the role description, the candidate-traits sentence, and the
+qualifications before finalising.
 
-DO NOT EXTRACT FROM these sections — they describe the COMPANY, not the
-role. Skills mentioned only here are NOT requirements:
-  • About Us / Who We Are / Our Story / About <Company> / Our Mission
-  • Why Work With Us / Benefits / Culture / What We Offer
-  • Marketing taglines, brand statements, "we support X across Y" prose
+EXTRACT THE CANDIDATE TRAITS THE JD ASKS FOR — JDs routinely name the
+personal qualities they want in a sentence like "If you're compassionate,
+reliable, and passionate about making a difference, we'd love to hear from
+you" or "We're seeking caring and committed team members." These ARE
+soft_skills the role requires — extract every one VERBATIM:
+  • "compassionate" → "compassion"   (do NOT silently substitute "empathy";
+    if the JD says compassionate, extract "compassion"; extract "empathy"
+    only when the JD actually says empathy/empathetic)
+  • "reliable" → "reliability"
+  • "committed" / "dedicated" → "commitment" / "dedication"
+  • "passionate about [making a difference / care]" → "passion" or
+    "dedication"
+  • "caring" → "caring nature"
+  • "respectful" → "respect"; "accountable" → "accountability"
+Map the adjective to its noun form, keep the JD's own word family.
 
-Example of the trap: a residential aged-care AIN role at a provider whose
-"About Us" says "we support people across aged care, disability and
-mental health services." → "disability" and "mental health" describe
-the provider's portfolio, NOT this role. Do NOT include them as required
-or preferred skills unless they ALSO appear in the role-specific
-sections above. When the role description names a single setting
-(e.g. "residential aged care setting"), only extract skills consistent
-with THAT setting — ignore the provider's other service lines.
+PORTFOLIO SUPPRESSION (narrow — do NOT over-apply): suppress a skill ONLY
+when it appears EXCLUSIVELY as part of the COMPANY's multi-service portfolio
+or pure perks, never in the role description. The classic trap:
+  • Company prose "we support people across aged care, disability and
+    mental health services" → "disability" / "mental health" describe the
+    PROVIDER's other service lines, not THIS aged-care role → suppress them.
+  • Benefits prose "penalty rates, superannuation, paid parental leave,
+    scholarships, career pathways" → perks, never skills → suppress.
+This suppression is the ONLY content you skip. It does NOT extend to:
+  • candidate traits the JD seeks (compassionate, reliable — ALWAYS extract);
+  • the role's own setting (a "Care Community" / "residential aged care"
+    role → DO extract "residential aged care");
+  • qualifications the JD lists for the candidate ("Certificate in
+    Disability", "Cert III in Individual Support" → DO extract the
+    underlying skill, e.g. "disability support" as PREFERRED).
+When a single mention is ambiguous between portfolio and role, DEFAULT TO
+EXTRACT — the only thing you reliably suppress is a cross-service sector
+list that clearly belongs to the company, not the job.
 
-The opposite trap is also real: do not invent a skill that is only
-implied by the company name or industry boilerplate.
+Do not, however, invent a skill that has NO textual basis anywhere in the JD.
 
 OUTPUT JSON SCHEMA — return EXACTLY this structure:
 

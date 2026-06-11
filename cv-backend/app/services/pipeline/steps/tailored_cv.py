@@ -66,14 +66,24 @@ async def run_tailored_cv(
 
     enforced_md = _enforce_structure(markdown.strip())
 
+    role_family_id = jd_analysis.get("role_family")
+    family_label_map = None
+    if role_family_id:
+        try:
+            from app.services.eval.role_families import resolve_role_family
+            rf = resolve_role_family(role_family_id, jd_analysis)
+            if rf:
+                family_label_map = build_family_label_map(rf)
+        except Exception:
+            logger.warning("Tailored CV: failed to resolve family %s for label map", role_family_id)
+
     # Deterministic safety net: ensure every approved Skills-targeted keyword
     # actually lands in the Skills section, even if the AI dropped or omitted
     # it. Avoids needing further prompt tightening for keyword recall.
-    enforced_md = _inject_missing_skills(enforced_md, feasibility)
+    enforced_md = _inject_missing_skills(enforced_md, feasibility, family_label_map=family_label_map)
 
     # Stamp the user's saved contact details onto the contact line so the
     # output is consistent regardless of what the AI emitted.
-    role_family_id = jd_analysis.get("role_family")
     final_md = stamp_contact_line(enforced_md, contact_details, role_family_id=role_family_id)
 
     storage_path = _upload_to_storage(user_id, run_id, final_md)
@@ -607,7 +617,9 @@ def _inject_missing_skills(
 ) -> str:
     """
     Append any inject_directly keyword (target=skills_section) that's missing
-    from the Skills section to the appropriate category line. AI-free.
+    from the Skills section, and any inject_as_extension / inject_with_inference
+    keyword that is completely missing from the entire CV text, to the appropriate
+    Skills category line. AI-free.
 
     ``family_label_map`` is a {category_key: "**Label:**"} dict that overrides
     the default ``_SKILLS_CATEGORY_LABEL`` for the current role family. Pass
@@ -622,26 +634,16 @@ def _inject_missing_skills(
     """
     markdown = _split_compound_skills(markdown)
     plan = (feasibility or {}).get("feasibility_plan") or {}
-    inject_directly = plan.get("inject_directly") or []
-    if not isinstance(inject_directly, list) or not inject_directly:
-        return markdown
 
-    targets: list[tuple[str, str]] = []  # (keyword, category)
-    for entry in inject_directly:
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("injection_target") != "skills_section":
-            continue
-        kw = str(entry.get("keyword") or "").strip()
-        cat = str(entry.get("category") or "").strip()
-        if kw and cat:
-            targets.append((kw, cat))
-    if not targets:
-        return markdown
+    # Collect all approved items from the three feasibility categories
+    approved_entries = []
+    for bucket in ("inject_directly", "inject_as_extension", "inject_with_inference"):
+        entries = plan.get(bucket) or []
+        if isinstance(entries, list):
+            approved_entries.extend(entries)
 
-    # Use the caller-supplied family label map when available; fall back to the
-    # universal map so existing callers that don't supply one still work.
-    effective_label_map = family_label_map if family_label_map is not None else _SKILLS_CATEGORY_LABEL
+    if not approved_entries:
+        return markdown
 
     lines = markdown.split("\n")
 
@@ -656,6 +658,39 @@ def _inject_missing_skills(
             break
     if skills_start is None:
         return markdown  # no Skills section present, nothing to do
+
+    from app.services.pipeline.steps.tailored_rescoring import _kw_present
+
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+    markdown_lower = markdown.lower()
+
+    targets: list[tuple[str, str]] = []  # (keyword, category)
+    for entry in approved_entries:
+        if not isinstance(entry, dict):
+            continue
+        kw = str(entry.get("keyword") or "").strip()
+        cat = str(entry.get("category") or "").strip()
+        target = str(entry.get("injection_target") or "").strip().lower()
+        if not kw or not cat:
+            continue
+
+        # Rule:
+        # 1. If target is specifically skills_section, check if it's in the Skills section.
+        # 2. For bullet or other targets, check if it is present anywhere in the entire CV.
+        #    If it's not present anywhere, we fallback to injecting it into the Skills section.
+        if target == "skills_section":
+            if not _kw_in_skills(kw, skills_text_lower):
+                targets.append((kw, cat))
+        else:
+            if not _kw_present(kw, markdown_lower):
+                targets.append((kw, cat))
+
+    if not targets:
+        return markdown
+
+    # Use the caller-supplied family label map when available; fall back to the
+    # universal map so existing callers that don't supply one still work.
+    effective_label_map = family_label_map if family_label_map is not None else _SKILLS_CATEGORY_LABEL
 
     # Map each category to its line index within the Skills section, using the
     # family-specific label map so nursing's "Care Skills" label is recognised.

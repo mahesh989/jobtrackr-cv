@@ -189,3 +189,84 @@ def test_australian_unity_ain_ndiswc_does_not_trigger_ndis():
         f"Expected 'residential' for Australian Unity AIN JD, got {result!r}. "
         "NDISWC is the NDIS Workers Check abbreviation, not a sector indicator."
     )
+
+
+# ---------------------------------------------------------------------------
+# OLC Care PCW (lifestyle) regression (2026-06-12) — incidental
+# "disability support" mention in a residential JD must not flip to NDIS.
+# ---------------------------------------------------------------------------
+
+
+_OLC_PCW_LIFESTYLE_JD = """\
+Personal Care Worker (lifestyle) Residential Aged Care (NSW)
+
+The role is a part-time Personal Care Worker (lifestyle) position in a
+residential aged care facility in Miranda, NSW. The worker will provide
+personal care and activity support, focusing on residents' leisure,
+lifestyle, and social and cultural needs.
+
+Required qualifications include Certificate III/IV in Individual Support,
+Aged Care, or Disability Support. Police check required.
+"""
+
+_OLC_PCW_LIFESTYLE_ANALYSIS = {
+    "job_title": "Personal Care Worker (lifestyle)",
+    "responsibilities": [
+        "provide personal care to residents in a residential aged care setting",
+        "support residents with leisure and lifestyle activities",
+    ],
+}
+
+
+def test_olc_pcw_lifestyle_residential_does_not_trigger_ndis():
+    """OLC Care PCW (lifestyle) regression: the JD body lists 'Disability
+    Support' as a qualification option, but the role is unambiguously
+    residential aged care (in title, resp0, and JD body). The classifier
+    must require a STRONG NDIS signal in PRIMARY (title or resp0), not
+    a passing 'disability support' mention in the body, before flipping
+    to NDIS. A strong residential signal in PRIMARY blocks the weak NDIS
+    fallback."""
+    result = _classify_jd_setting(_OLC_PCW_LIFESTYLE_JD, _OLC_PCW_LIFESTYLE_ANALYSIS)
+    assert result == "residential", (
+        f"Expected 'residential' for OLC PCW (lifestyle) JD, got {result!r}. "
+        "'Disability support' appearing only in the qualifications list is a "
+        "credential mention, not an NDIS setting marker."
+    )
+
+
+def test_genuine_ndis_role_still_classified_correctly():
+    """Counter-test: a real Disability Support Worker JD with NDIS in the
+    title still classifies as NDIS via the STRONG-tier check."""
+    jd = (
+        "Disability Support Worker — NDIS\n\n"
+        "Provide one-on-one disability support to NDIS participants in their "
+        "homes and community settings."
+    )
+    analysis = {
+        "job_title": "Disability Support Worker",
+        "responsibilities": [
+            "provide disability support to NDIS participants",
+        ],
+    }
+    result = _classify_jd_setting(jd, analysis)
+    assert result == "ndis_disability", (
+        f"Expected 'ndis_disability' for a Disability Support Worker role, got {result!r}."
+    )
+
+
+def test_disability_support_in_body_only_with_no_residential_anchor():
+    """When 'disability support' appears in PRIMARY (resp0/title) and there's
+    no competing residential anchor, the WEAK-tier check still fires NDIS."""
+    jd = "Support Worker\n\nDeliver disability support to clients."
+    analysis = {
+        "job_title": "Support Worker",
+        "responsibilities": [
+            "deliver disability support to clients in their homes",
+        ],
+    }
+    result = _classify_jd_setting(jd, analysis)
+    # PRIMARY has 'disability support' AND no 'residential aged care' anchor →
+    # WEAK tier triggers NDIS. This documents the intended fallback behaviour.
+    assert result in ("ndis_disability", "home_community"), (
+        f"Expected NDIS or home/community for a generic support worker JD, got {result!r}."
+    )

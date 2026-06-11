@@ -104,13 +104,14 @@ class TestS2ConcreteEvidence:
             [],
         )
 
-    def test_tool_alone_is_NOT_concrete(self):
-        """Behaviour change: the composition prompt forbids tool names in S2.
-        When the AI emits a tool-named S2 like 'Used BESTMed and MedMobile
-        daily.', we treat it as NOT concrete so enforce_summary_concreteness
-        rebuilds it as 'Recent experience at <Employer>.' — keeping S2
-        prompt-compliant."""
-        assert not _s2_has_concrete_evidence(
+    def test_tool_alone_IS_concrete(self):
+        """Reverted (Opal Healthcare regression 2026-06-12): tool presence
+        is again treated as concrete. The previous "force rebuild on tool
+        presence" behaviour gutted real AI sentences down to a 4-word stub
+        and dropped the Professional Summary below the prompt's 35-word
+        floor. Tool-naming is now enforced by the prompt's CANNED-SHAPE BAN
+        upstream, not by the deterministic rebuilder."""
+        assert _s2_has_concrete_evidence(
             "Used BESTMed daily.",
             [],
             ["BESTMed"],
@@ -276,12 +277,52 @@ Care worker with experience. Currently delivering care at Jesmond Miranda Nursin
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
         assert out == md  # no change
 
-    def test_tool_only_s2_gets_rebuilt(self):
-        """Behaviour change: a tool-named S2 with no employer is NOT preserved
-        anymore — it's rebuilt as a brief employer-anchored sentence. This
-        catches the production case where the AI emits 'using BESTMed and
-        MedMobile at aged care facilities' despite the prompt's no-tools
-        rule.  See _s2_has_concrete_evidence docstring."""
+    def test_strip_canned_phrase_preserves_full_s2_when_whole_sentence_is_canned(self):
+        """Opal Healthcare regression (2026-06-12): when the canned phrase IS
+        the entire S2, an unconditional strip leaves S2 empty and the rebuild
+        fills it with a 4-word stub ("Recent experience at Uniting."). Net
+        summary drops below the 35-word floor.
+
+        Guard: the strip is skipped when it would remove ≥80% of the Summary
+        section's prose. The canned phrase stays; the prompt's CANNED-SHAPE
+        BAN handles future generations."""
+        from app.services.eval.writers import _strip_canned_summary_phrase
+        md = """
+## Professional Summary
+
+Currently delivering care at Uniting using BESTMed and MedMobile.
+
+## Experience
+""".lstrip()
+        out = _strip_canned_summary_phrase(md)
+        # The canned phrase should NOT be stripped (whole-sentence case).
+        assert "Currently delivering" in out
+        assert "Uniting" in out
+
+    def test_strip_canned_phrase_still_strips_when_only_partial(self):
+        """Sanity: the strip still works when the canned phrase is a clause
+        among other content (the original intended case)."""
+        from app.services.eval.writers import _strip_canned_summary_phrase
+        md = """
+## Professional Summary
+
+Assistant in Nursing with three years of experience supporting elderly residents in residential aged care, specialising in dementia care and behavioural management. Currently delivering care at Uniting using BESTMed and MedMobile. Also recognised for compassion and accuracy.
+
+## Experience
+""".lstrip()
+        out = _strip_canned_summary_phrase(md)
+        # The canned phrase should be removed; the surrounding content stays.
+        assert "Currently delivering care at Uniting using BESTMed" not in out
+        assert "Assistant in Nursing with three years" in out
+        assert "compassion and accuracy" in out
+
+    def test_tool_only_s2_is_preserved(self):
+        """Reverted (Opal Healthcare regression 2026-06-12): a tool-named S2
+        is PRESERVED rather than force-rebuilt. The previous behaviour gutted
+        the Professional Summary by replacing an informative AI sentence with
+        a 4-word "Recent experience at <Emp>." stub. Tool-naming compliance
+        is now handled by the prompt's CANNED-SHAPE BAN, not by deterministic
+        S2 replacement."""
         md = """
 ## Professional Summary
 
@@ -290,12 +331,9 @@ Care worker with experience. Use BESTMed and MedMobile for electronic medication
 ## Experience
 """.lstrip()
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
-        # Original tool-named S2 must be gone.
-        assert "BESTMed" not in out
-        assert "MedMobile" not in out
-        # Rebuilt to employer-anchored "Recent experience at ..." sentence.
-        assert "Recent experience at" in out
-        assert "Jesmond Miranda Nursing Home" in out or "Uniting" in out
+        # Original informative S2 is preserved — tools no longer trigger rebuild.
+        assert "BESTMed" in out
+        assert "MedMobile" in out
 
     def test_concrete_s2_with_metric_preserved(self):
         md = """
@@ -307,6 +345,61 @@ Care worker with experience. Cared for 24 residents across 3 daily shifts.
 """.lstrip()
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
         assert out == md  # no change
+
+    def test_anti_gut_guard_single_employer(self):
+        """Opal Healthcare regression (2026-06-12): with only ONE present
+        employer and no attributable tools, _compose_concrete_s2 produces a
+        4-word stub ('Recent experience at Uniting.'). Replacing a fuller
+        generic AI S2 with that stub drops the summary below the 35-word
+        floor. The anti-gut guard keeps the AI's original S2 instead."""
+        single_emp_cv = """
+## Experience
+
+### Uniting | Leichhardt, NSW
+
+*Assistant in Nursing | Mar 2026 – Present*
+
+- Provide person-centred care.
+""".lstrip()
+        # S1 is substantial; S2 is generic but fuller than a 4-word stub.
+        md = """
+## Professional Summary
+
+Assistant in Nursing with experience across multiple residential aged care settings, providing person-centred care for elderly residents including those living with dementia. Supporting daily living activities and emotional wellbeing for older people in care.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_concreteness(md, single_emp_cv)
+        # The 4-word stub must NOT appear — the guard keeps the original.
+        assert "Recent experience at Uniting." not in out
+        # The original generic-but-fuller S2 is preserved.
+        assert "Supporting daily living activities" in out
+
+    def test_rebuild_still_fires_when_it_does_not_shorten(self):
+        """Guard is narrow: when the generic S2 is itself short, the rebuild
+        (which names an employer) is allowed even if total stays under floor —
+        it doesn't SHORTEN, so it's not gutting."""
+        single_emp_cv = """
+## Experience
+
+### Uniting | Leichhardt, NSW
+
+*Assistant in Nursing | Mar 2026 – Present*
+
+- Provide care.
+""".lstrip()
+        md = """
+## Professional Summary
+
+Care worker. Helps people.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_concreteness(md, single_emp_cv)
+        # Original S2 ("Helps people.") is 2 words; rebuild ("Recent
+        # experience at Uniting.") is 4 words — does NOT shorten, so rebuild
+        # is allowed.
+        assert "Recent experience at Uniting" in out
 
     def test_idempotent(self):
         md = """

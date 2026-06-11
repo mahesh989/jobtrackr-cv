@@ -194,3 +194,31 @@ class TestNursingFundamentalsRemovedFromJdAnalysis:
         assert "nursing fundamentals" not in domain
         assert "aged care" in domain
         assert "personal care" in domain
+
+
+# ---------------------------------------------------------------------------
+# Aged-care-specific police-check noise (OLC Care regression, 2026-06-12)
+# ---------------------------------------------------------------------------
+
+AGED_CARE_POLICE_CHECK_VARIANTS = [
+    "police check for aged care",
+    "police check for working in aged care",
+    "police check for working with vulnerable people",
+    "national police check for aged care",
+    "national police check for working in aged care",
+]
+
+
+@pytest.mark.parametrize("phrase", AGED_CARE_POLICE_CHECK_VARIANTS)
+def test_aged_care_police_check_variants_are_noise(phrase):
+    """OLC Care PCW regression: 'police check for working in aged care' was
+    being extracted as a Required Care Skill instead of routing to the
+    credential sidecar. These long-form variants are credentials that
+    match against the user's profile, not skills."""
+    result = is_noise(phrase)
+    assert result is not None, f"Expected noise classification but got None for: {phrase!r}"
+    # All these route through the 'credential' sidecar — verifies they go to
+    # the right collection downstream.
+    assert result == "credential", (
+        f"Expected 'credential' classification, got {result!r} for {phrase!r}."
+    )
