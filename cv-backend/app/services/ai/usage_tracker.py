@@ -72,8 +72,12 @@ _MODEL_PRICES: dict[str, tuple[int, int]] = {
     "deepseek/deepseek-reasoner": (   550,  2_190),
 }
 
-# Cached-read tokens are billed at ~10% of input price on Anthropic.
-_CACHE_READ_DISCOUNT = 0.1
+# Cache pricing multipliers.
+# Anthropic: reads = 10% of input; writes = 125% of input.
+# OpenAI:    cached prompt tokens = 50% of input (no write premium).
+_ANTHROPIC_CACHE_READ  = 0.10
+_ANTHROPIC_CACHE_WRITE = 1.25
+_OPENAI_CACHE_READ     = 0.50
 
 
 def compute_cost_millicents(
@@ -82,8 +86,13 @@ def compute_cost_millicents(
     input_tokens: int,
     output_tokens: int,
     cached_tokens: int = 0,
+    cache_write_tokens: int = 0,
 ) -> int:
-    """Return total cost in USD millicents for a single LLM call."""
+    """Return total cost in USD millicents for a single LLM call.
+
+    Uses float arithmetic (rounded at the end) so sub-million-token calls
+    are not silently floored to zero by integer division.
+    """
     key_prefix = f"{provider}/{model}"
     price_entry = None
     for k, v in _MODEL_PRICES.items():
@@ -92,19 +101,29 @@ def compute_cost_millicents(
             break
 
     if price_entry is None:
-        # Unknown model — log once per model, use a reasonable default.
         logger.warning("usage_tracker: unknown model %s/%s — using $3/$15 pricing", provider, model)
         price_entry = (3_000, 15_000)
 
     in_price, out_price = price_entry
-    # Normal input tokens (non-cached)
+
+    # Non-cached input tokens (input_tokens already includes cached reads).
     normal_input = max(0, input_tokens - cached_tokens)
+
+    if provider == "anthropic":
+        cache_read_rate  = in_price * _ANTHROPIC_CACHE_READ
+        cache_write_rate = in_price * _ANTHROPIC_CACHE_WRITE
+    else:
+        # OpenAI (and fallback): cached prompt tokens at 50%, no write premium.
+        cache_read_rate  = in_price * _OPENAI_CACHE_READ
+        cache_write_rate = 0.0
+
     cost = (
-        normal_input * in_price // 1_000_000
-        + cached_tokens * int(in_price * _CACHE_READ_DISCOUNT) // 1_000_000
-        + output_tokens * out_price // 1_000_000
+        normal_input       * in_price         / 1_000_000
+        + cached_tokens    * cache_read_rate  / 1_000_000
+        + cache_write_tokens * cache_write_rate / 1_000_000
+        + output_tokens    * out_price        / 1_000_000
     )
-    return cost
+    return round(cost)
 
 
 async def _emit(row: dict) -> None:
@@ -127,6 +146,7 @@ def track(
     output_tokens: int,
     latency_ms: int,
     cached_tokens: int = 0,
+    cache_write_tokens: int = 0,
     retry_count: int = 0,
     status: str = "ok",
     error_type: Optional[str] = None,
@@ -145,19 +165,21 @@ def track(
     if not _ENABLED:
         return
 
-    cost = compute_cost_millicents(provider, model, input_tokens, output_tokens, cached_tokens)
+    cost = compute_cost_millicents(
+        provider, model, input_tokens, output_tokens, cached_tokens, cache_write_tokens
+    )
 
     row: dict = {
-        "operation":       operation,
-        "provider":        provider,
-        "model":           model,
-        "input_tokens":    input_tokens,
-        "output_tokens":   output_tokens,
-        "cached_tokens":   cached_tokens,
-        "cost_millicents": cost,
-        "latency_ms":      latency_ms,
-        "retry_count":     retry_count,
-        "status":          status,
+        "operation":          operation,
+        "provider":           provider,
+        "model":              model,
+        "input_tokens":       input_tokens,
+        "output_tokens":      output_tokens,
+        "cached_tokens":      cached_tokens,
+        "cost_millicents":    cost,
+        "latency_ms":         latency_ms,
+        "retry_count":        retry_count,
+        "status":             status,
     }
     if user_id:
         row["user_id"] = str(user_id)

@@ -45,32 +45,68 @@ FEASIBILITY PLAN (authoritative for keyword surfacing)
 You are given a feasibility plan classifying JD keywords:
   - inject_directly / inject_as_extension / inject_with_inference → MANDATORY
     TARGETS. Treat every one of these as a keyword you MUST surface verbatim
-    somewhere natural (Skills, an experience bullet, or the summary). The ONLY
-    valid reason to skip an approved keyword is if it names a specific named
-    credential, licence, formal certification, or formal qualification the
-    candidate genuinely does not hold. Professional skills, soft skills,
-    work-practice phrases, domain vocabulary, and communication/operational
-    attributes (e.g. "verbal communication", "risk management", "duty of care",
-    "planning and prioritisation", "writing skills") have ZERO valid reason to
-    skip — inject them verbatim.
+    somewhere natural (Skills, an experience bullet, or the summary).
+    Professional skills, soft skills, work-practice phrases, generic domain
+    vocabulary, and communication/operational attributes (e.g. "verbal
+    communication", "risk management", "duty of care", "planning and
+    prioritisation", "writing skills") have ZERO valid reason to skip —
+    inject them verbatim.
+
+    VALID REASONS TO SKIP an approved keyword (all three apply):
+      (a) it names a specific named credential, licence, formal
+          certification, or qualification the candidate does not hold
+          (e.g. "Certificate IV in Ageing Support", "AHPRA registration",
+          "forklift licence");
+      (b) it names a specific clinical setting, ward type, or care
+          environment the candidate has NO evidenced experience in
+          (e.g. "acute care", "hospital setting", "ICU", "surgical ward",
+          "theatre", "emergency department", "palliative care unit",
+          "mental health", "home care" if CV is residential-only,
+          "disability support" / "NDIS" if CV is aged-care-only);
+      (c) it names a specific employer, named system, or formal
+          specialism the candidate has not worked with (e.g. "Epic",
+          "Cerner", "Leecare", "Manad" if CV doesn't mention them).
+    For setting / environment / specialism keywords, the test is: does
+    the CV literally evidence work in THAT setting? If not, skip — DO
+    NOT bridge or imply.
   - cannot_inject → HONEST GAPS. These MUST NOT appear in the CV.
 Honour it exactly. Never surface a cannot_inject keyword.
 
 APPROVED KEYWORD MANDATE: before emitting the CV, review the feasibility plan's
 inject_directly + inject_as_extension + inject_with_inference lists. For each
 keyword ask: "Does this exact phrase appear VERBATIM somewhere in my output?"
-If not, and it is not a specific named credential the candidate lacks, ADD it
-now to the most natural location. There is no default-to-skip — default-to-inject.
+If not, and it does not match a valid-skip reason above, ADD it now to the most
+natural location. Default-to-inject for soft / work-practice / generic-vocab
+keywords; default-to-skip for setting / specialism / named-system keywords the
+CV does not evidence.
 
-VERBATIM ≠ SYNONYM (ATS matches strings, not meanings). If the JD asks for
-"verbal communication" and your CV already has "Communication" in Skills, that
-does NOT satisfy the verbatim mandate — the ATS scorer matches the EXACT phrase.
-You MUST surface the JD's exact wording somewhere (Skills line, a bullet, or the
-summary) ALONGSIDE the existing synonym — never replace the synonym. Same for
-"written communication" vs "writing", "risk management" vs "managing risks",
-"resident charting" vs "documentation", "duty of care" vs "care". The synonym
-already on the CV is fine; the JD's exact phrase MUST appear too. The only valid
-skip is a specific named credential/licence the candidate does not hold.
+VERBATIM ≠ SYNONYM (ATS matches strings, not meanings). This rule applies to
+SOFT-SKILL and WORK-PRACTICE phrases only — the JD's exact wording must appear
+somewhere ALONGSIDE the existing synonym. Examples where the rule APPLIES:
+  • "verbal communication" alongside "Communication"
+  • "written communication" alongside "writing"
+  • "risk management" alongside "managing risks"
+  • "planning and prioritisation" alongside "planning"
+  • "duty of care" alongside generic "care"
+  • "resident charting" / "progress notes" alongside "documentation"
+
+VERBATIM DOES NOT APPLY to domain / setting / specialism phrases. If the JD asks
+for "acute care" or "hospital setting" and the CV only evidences residential
+aged care, the synonym-already-present is NOT a stand-in — you must SKIP the
+specific phrase entirely, not inject it. Examples where the rule does NOT apply
+(and the JD phrase must be skipped if CV lacks evidence):
+  • "acute care", "hospital", "surgical", "theatre", "ICU", "ED", "perioperative"
+  • "home care", "community care" (if CV is residential-only)
+  • "disability support", "NDIS", "supported independent living" (if CV is
+    aged-care-only)
+  • "palliative care", "dementia care", "mental health" as specialisms (if CV
+    shows only general aged care)
+  • Any named clinical product the CV doesn't mention
+
+Rule of thumb: if the JD phrase names a PLACE the candidate worked, a
+SPECIALISM they trained in, or a SYSTEM they used — verbatim doesn't apply
+without literal CV evidence. If it names a SKILL or BEHAVIOUR, verbatim does
+apply and inject the JD phrasing.
 
 READ THE ACTUAL JD — AND MIRROR ITS LANGUAGE
 Read the raw JD's real priorities, vocabulary, and emphasis, and tailor to
@@ -302,6 +338,20 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   medication administration" (not "BESTMed"), "automated reporting" (not
   "Power BI"). The summary describes what you DELIVERED, not what software
   you used to deliver it.
+  CANNED-SHAPE BAN (HARD): the sentence template "Currently delivering care
+  at <Employer> using <Tool> and <Tool>" is FORBIDDEN — it is the most
+  common formulaic shape across nursing summaries and reads identically
+  across candidates. Likewise FORBIDDEN: any S2 that reduces to "[verb-ing]
+  [generic care noun] [to/for] [generic patient noun]" with no employer,
+  no scope, and no quantification (e.g. "providing compassionate care to
+  vulnerable residents", "delivering quality nursing care to those in
+  need"). These sentences could appear on any CV; they sell nothing
+  specific to THIS candidate. If you're about to write one, REWRITE: name
+  the employer (per COMPANY ANCHOR rule above), or name the scope ("across
+  multiple residential aged care settings"), or name a JD-specific method
+  ("electronic medication administration", "resident charting", "behaviour
+  support planning") — at least one of {employer, scope, JD-method} MUST
+  appear. Generic care vocabulary alone is failure.
 - METRIC FALLBACK: if the kept experience supplies NO quantified result anywhere,
   do NOT invent one. Use the strongest concrete outcome the CV actually shows —
   a named system/process, a scope phrase (across multiple sites/shifts), an

@@ -208,6 +208,35 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 jd_analysis,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
+
+            # Off-setting boilerplate demotion: for a residential aged-care JD
+            # whose About-Us / brand prose leaks "disability support" or
+            # "mental health support" into required skills, move them to
+            # preferred so they don't drive the required-match score.
+            # Deterministic; conservative (only RESIDENTIAL currently).
+            try:
+                from app.services.eval.writers import _classify_jd_setting
+                from app.services.skills.post_process import demote_off_setting_keywords
+                _setting = _classify_jd_setting(payload.jd_text, jd_analysis)
+                jd_analysis = demote_off_setting_keywords(jd_analysis, _setting)
+            except Exception:  # noqa: BLE001 — never block on a heuristic
+                logger.debug("off-setting demotion: failed", exc_info=True)
+
+            # Best-effort: record any unknown phrases (lexicon gaps) to the
+            # rolling JSONL log so weekly reviews can promote high-frequency
+            # phrases into the lexicon. Pipeline never blocks on tracking.
+            try:
+                from datetime import datetime
+                from app.services.skills.unknown_tracker import record_unknown_phrases
+                record_unknown_phrases(
+                    role_family_id=str(jd_analysis.get("role_family") or "master"),
+                    job_title=str(jd_analysis.get("job_title") or "") or None,
+                    lexicon_meta=jd_analysis.get("lexicon_meta"),
+                    timestamp=datetime.utcnow().isoformat(),
+                )
+            except Exception:  # noqa: BLE001 — observability must never block
+                logger.debug("unknown_tracker: failed to record", exc_info=True)
+
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────

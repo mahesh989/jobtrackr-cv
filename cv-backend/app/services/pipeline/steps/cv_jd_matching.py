@@ -86,6 +86,36 @@ async def run_cv_jd_matching(
     # truthful even when the model loses track.
     _reconcile_with_jd(result, jd_analysis)
 
+    # Verify the AI's match_evidence: if it quoted a CV phrase that doesn't
+    # actually appear in cv_text, the match was hallucinated. Demote that
+    # keyword from matched → missed. Pure substring check, no LLM. The
+    # subsequent _promote_literal_matches step can still bring it back if
+    # the keyword itself literally appears elsewhere in the CV.
+    evidence_demoted = _verify_match_evidence(
+        result["matched"], result["missed"], result.get("match_evidence") or {}, cv_text,
+    )
+    if evidence_demoted:
+        result["evidence_demoted"] = evidence_demoted
+        logger.info(
+            "CV-JD matching: demoted %d keyword(s) — quoted evidence not in CV: %s",
+            len(evidence_demoted), evidence_demoted,
+        )
+
+    # Deterministic exact-string promotion: an AI matcher will occasionally miss
+    # a JD keyword that literally appears in the CV text (observed: JD asks for
+    # "communication", CV lists "communication" verbatim, AI returns it as
+    # missed). Word-boundary substring search in cv_text — if found, promote
+    # from missed → matched. No inference, no synonyms, no LLM call.
+    literal_promoted = _promote_literal_matches(
+        result["matched"], result["missed"], cv_text,
+    )
+    if literal_promoted:
+        result["literal_promoted"] = literal_promoted
+        logger.info(
+            "CV-JD matching: promoted %d keyword(s) via literal CV text match: %s",
+            len(literal_promoted), literal_promoted,
+        )
+
     # Promote JD keywords the CV honestly satisfies under the role family's
     # equivalence + qualification-hierarchy rules (e.g. a higher aged-care
     # certificate subsumes a lower or alternative one the JD lists) from
@@ -144,6 +174,117 @@ async def run_cv_jd_matching(
     } if isinstance(raw_ev, dict) else {}
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Evidence verification + literal-string promotion
+# ---------------------------------------------------------------------------
+
+
+import re as _re
+
+
+def _verify_match_evidence(
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
+    match_evidence: Dict[str, str],
+    cv_text: str,
+) -> List[str]:
+    """Demote AI-matched keywords whose quoted CV evidence isn't actually in the CV.
+
+    The AI matcher returns ``match_evidence: {keyword: "<quoted CV phrase>"}``.
+    Downstream steps (feasibility, scoring, writer) trust that quotation as
+    proof of capability. When the AI hallucinates the evidence — quoting a
+    phrase the CV doesn't contain — every downstream step compounds the lie.
+
+    We do a case-insensitive substring check of the quoted phrase against
+    cv_text. If the quote does NOT appear in the CV, the keyword is demoted
+    from matched → missed. ``_promote_literal_matches`` runs immediately
+    after and will re-promote any keyword whose literal string IS in the CV
+    (so we only lose hallucinated matches, not true ones).
+
+    No evidence quoted → no verification possible → no demotion (conservative).
+    Short evidence (< 4 chars) is skipped to avoid false demotions on
+    abbreviations.
+
+    Mutates matched/missed in-place. Returns the list of demoted keywords.
+    """
+    if not match_evidence or not cv_text:
+        return []
+    cv_lower = cv_text.lower()
+    # The AI may emit match_evidence with original-case keys ("Python":
+    # "..."); matched keywords are already lowercased by _normalise_match_block.
+    # Normalise the dict keys here so lookups don't silently miss.
+    ev_by_key = {
+        str(k).lower().strip(): str(v or "")
+        for k, v in match_evidence.items()
+        if str(k).strip()
+    }
+    demoted: List[str] = []
+
+    for bucket in _BUCKETS:
+        for cat in _CATEGORIES:
+            still_matched: List[str] = []
+            for kw in matched[bucket][cat]:
+                evidence = ev_by_key.get(kw, "")
+                ev = (evidence or "").strip().lower()
+                # Skip when no evidence or too short to verify reliably.
+                if not ev or len(ev) < 4:
+                    still_matched.append(kw)
+                    continue
+                if ev in cv_lower:
+                    still_matched.append(kw)
+                else:
+                    missed[bucket][cat].append(kw)
+                    demoted.append(kw)
+            matched[bucket][cat] = still_matched
+    return demoted
+
+
+def _promote_literal_matches(
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
+    cv_text: str,
+) -> List[str]:
+    """Promote missed JD keywords that literally appear in the CV text.
+
+    The AI matcher is sometimes wrong on exact-string matches (e.g. JD has
+    "communication", CV has "communication", AI marks it missed). This pass
+    is deterministic: case-insensitive word-boundary regex over cv_text.
+    Catches the trivial-equality misses without touching the AI's judgement
+    on harder cases.
+
+    Mutates matched/missed in-place. Returns the list of promoted keywords.
+    """
+    if not cv_text:
+        return []
+    promoted: List[str] = []
+
+    for bucket in _BUCKETS:
+        for cat in _CATEGORIES:
+            still_missed: List[str] = []
+            for kw in missed[bucket][cat]:
+                if _literal_match_in_text(kw, cv_text):
+                    matched[bucket][cat].append(kw)
+                    promoted.append(kw)
+                else:
+                    still_missed.append(kw)
+            missed[bucket][cat] = still_missed
+    return promoted
+
+
+def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
+    """Word-boundary case-insensitive search for keyword in cv_text.
+
+    Word boundaries prevent false positives like "ai" matching "fair".
+    Punctuation in keyword (e.g. "ci/cd", "c++") is escaped.
+    Accepts raw (mixed-case) or pre-lowered cv_text — always lowercases both.
+    """
+    kw = (keyword or "").strip().lower()
+    if not kw:
+        return False
+    pattern = r"\b" + _re.escape(kw) + r"\b"
+    return _re.search(pattern, cv_text.lower()) is not None
 
 
 # ---------------------------------------------------------------------------

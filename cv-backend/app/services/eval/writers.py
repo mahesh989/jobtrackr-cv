@@ -1840,8 +1840,16 @@ def _distinctive_employer_tokens(employer: str) -> set[str]:
 
 
 def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
-    """True if S2 contains an employer's DISTINCTIVE token, a CV-named tool,
-    or a numeric metric.
+    """True if S2 contains an employer's DISTINCTIVE token or a numeric metric.
+
+    NOTE: tool presence DOES NOT count as concrete evidence. The composition
+    prompt explicitly forbids naming tools in S2 ("NO TOOL NAMES in S2 —
+    tools live in the Skills section"). If the AI ignores that rule and
+    emits a tool-named S2 like "...using BESTMed and MedMobile...", we
+    treat it as NOT concrete so ``enforce_summary_concreteness`` rebuilds
+    it via ``_compose_concrete_s2`` into a brief employer-anchored
+    sentence. The cv_tools parameter is retained for signature stability
+    (callers still pass it) but no longer counts toward concreteness.
 
     Partial matching (distinctive tokens) catches cases where the LLM cited
     only the brand suffix — e.g. 'The Marion' (fragment of 'Uniting – The
@@ -1849,6 +1857,7 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
     Exact-string substring matching would have missed this and replaced
     valid content with a template.
     """
+    del cv_tools  # intentionally ignored; see docstring
     if not s2:
         return False
     low = s2.lower()
@@ -1861,32 +1870,34 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
         for tok in _distinctive_employer_tokens(emp):
             if re.search(r"\b" + re.escape(tok) + r"\b", low):
                 return True
-    for tool in cv_tools:
-        if tool.lower() in low:
-            return True
     if _METRIC_TOKEN_RE.search(s2):
         return True
     return False
 
 
 def _compose_concrete_s2(employer_names: list[str], cv_tools: list[str]) -> str:
-    """Build a deterministic S2 from Present-employer names + CV-named tools.
+    """Build a deterministic S2 from Present-employer names.
 
-    Templates (most preferred first):
-      • 2+ employers + 1+ tools  → "Currently delivering care at [Emp1] and [Emp2] using [tool1[ and tool2]]."
-      • 1 employer  + 1+ tools  → "Currently delivering care at [Emp1] using [tool1[ and tool2]]."
-      • 2+ employers + 0 tools  → "Recent experience at [Emp1] and [Emp2]."
-      • 1 employer  + 0 tools  → "Recent experience at [Emp1]."
-      • 0 employers             → None (caller leaves S2 untouched)
+    Per the composition prompt's "NO TOOL NAMES in S2" rule, tools are
+    deliberately NOT named here — naming BESTMed/MedMobile in S2 was the
+    source of the universally-canned "Currently delivering care at X using
+    BESTMed and MedMobile" sentence that read identical across many CVs.
+    Tools live in the Skills section; this template anchors S2 on the
+    employer only and stays brief.
+
+    Templates:
+      • 2+ employers → "Recent experience at [Emp1] and [Emp2]."
+      • 1  employer  → "Recent experience at [Emp1]."
+      • 0  employers → "" (caller leaves S2 untouched)
+
+    The cv_tools parameter is kept for signature stability (callers pass
+    attributable_tools); it is intentionally unused.
     """
+    del cv_tools  # intentionally unused; see docstring
     if not employer_names:
         return ""
     emps = employer_names[:2]
-    tools = cv_tools[:2]
     emp_clause = emps[0] if len(emps) == 1 else f"{emps[0]} and {emps[1]}"
-    if tools:
-        tool_clause = tools[0] if len(tools) == 1 else f"{tools[0]} and {tools[1]}"
-        return f"Currently delivering care at {emp_clause} using {tool_clause}."
     return f"Recent experience at {emp_clause}."
 
 
@@ -4231,19 +4242,15 @@ _CV_HOSPITAL_MARKERS_RE = re.compile(
 )
 
 
-def _cv_has_hospital_experience(cv_text: str, tailored_md: str) -> bool:
-    """True when the candidate's CV evidences hospital / acute / clinical-ward
-    experience. False for a pure aged-care / home-care / disability CV.
-
-    Conservative: requires a hospital/acute MARKER in the Experience or
-    Education section. Markers in the Summary alone don't count (the writer
-    could be paraphrasing the JD)."""
+def _scan_experience_section(
+    cv_text: str, tailored_md: str, marker_re: "re.Pattern[str]"
+) -> bool:
+    """Search marker_re inside the Experience/Education portion of cv_text or
+    tailored_md. The Summary is excluded so a JD-paraphrased setting in S1
+    cannot self-confirm the gate."""
     sources = [cv_text or "", tailored_md or ""]
     for src in sources:
-        # Strip the Summary so a paraphrased JD setting can't false-trigger.
-        # Cheap approach: only consider text from '## Experience' onwards.
         lower = src.lower()
-        # Find the earliest experience-like heading
         idx = -1
         for h in ("## experience", "## work experience",
                   "## professional experience", "## clinical experience"):
@@ -4251,9 +4258,98 @@ def _cv_has_hospital_experience(cv_text: str, tailored_md: str) -> bool:
             if i != -1 and (idx == -1 or i < idx):
                 idx = i
         scan = src[idx:] if idx != -1 else src
-        if _CV_HOSPITAL_MARKERS_RE.search(scan):
+        if marker_re.search(scan):
             return True
     return False
+
+
+def _cv_has_hospital_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when the candidate's CV evidences hospital / acute / clinical-ward
+    experience. False for a pure aged-care / home-care / disability CV.
+
+    Conservative: requires a hospital/acute MARKER in the Experience or
+    Education section. Markers in the Summary alone don't count (the writer
+    could be paraphrasing the JD)."""
+    return _scan_experience_section(cv_text, tailored_md, _CV_HOSPITAL_MARKERS_RE)
+
+
+# --- CV-side markers for the other bridges (HOME, NDIS, LIFESTYLE, THEATRE) ---
+# These mirror _CV_HOSPITAL_MARKERS_RE / _cv_has_hospital_experience and gate
+# each setting bridge the same way: if the CV has no evidence of the target
+# setting, the bridge phrase would fabricate experience, so we skip it.
+
+_CV_HOME_MARKERS_RE = re.compile(
+    r"\b(?:"
+    r"home\s+care|in[-\s]home\s+care|community\s+care"
+    r"|client(?:'s)?\s+home|in\s+the\s+home"
+    r"|domiciliary|home\s+visits?|home\s+based\s+care"
+    r"|community\s+(?:nursing|aged\s+care|support)"
+    r"|home\s+and\s+community"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_CV_NDIS_MARKERS_RE = re.compile(
+    r"\b(?:"
+    r"ndis|disability\s+support|disability\s+(?:services|care|sector)"
+    r"|supported\s+independent\s+living|sil\b"
+    r"|individual\s+support\s+plans?|participant(?:s)?\b"
+    r"|behaviour\s+support|positive\s+behaviour\s+support"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_CV_LIFESTYLE_MARKERS_RE = re.compile(
+    r"\b(?:"
+    r"lifestyle(?:\s+(?:coordinator|officer|assistant|program))?"
+    r"|recreational\s+(?:activities|therapy|program)"
+    r"|activities\s+coordinator|diversional\s+therapy"
+    r"|leisure\s+(?:program|activities)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_CV_THEATRE_MARKERS_RE = re.compile(
+    r"\b(?:"
+    r"theatre|operating\s+theatre|operating\s+room"
+    r"|perioperative|peri[-\s]?op"
+    r"|scrub\s+(?:nurse|tech)|circulating\s+nurse|anaesthet"
+    r"|cssd|central\s+sterilisation"
+    r"|surgical\s+(?:assistant|nurse)|recovery\s+(?:nurse|room|bay)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _cv_has_home_care_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when CV evidences home / community care work."""
+    return _scan_experience_section(cv_text, tailored_md, _CV_HOME_MARKERS_RE)
+
+
+def _cv_has_ndis_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when CV evidences NDIS / disability support work."""
+    return _scan_experience_section(cv_text, tailored_md, _CV_NDIS_MARKERS_RE)
+
+
+def _cv_has_lifestyle_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when CV evidences lifestyle / activities / recreation work."""
+    return _scan_experience_section(cv_text, tailored_md, _CV_LIFESTYLE_MARKERS_RE)
+
+
+def _cv_has_theatre_experience(cv_text: str, tailored_md: str) -> bool:
+    """True when CV evidences theatre / perioperative / CSSD work."""
+    return _scan_experience_section(cv_text, tailored_md, _CV_THEATRE_MARKERS_RE)
+
+
+# Maps each settable bridge to its CV-evidence gate function.
+# LIFESTYLE has no bridge phrase (S1 is already correct) so it is intentionally
+# absent — _apply_setting_bridge is a no-op for lifestyle anyway.
+_BRIDGE_EVIDENCE_GATES = {
+    _SETTING_HOSPITAL: _cv_has_hospital_experience,
+    _SETTING_HOME:     _cv_has_home_care_experience,
+    _SETTING_NDIS:     _cv_has_ndis_experience,
+    _SETTING_THEATRE:  _cv_has_theatre_experience,
+}
 
 
 def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
@@ -4264,25 +4360,26 @@ def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
     Only touches S1 (the first prose line) of the Career Highlights section.
     No-op for residential JDs or lifestyle coordinator (setting is correct).
 
-    HONESTY GATE: the HOSPITAL bridge text claims experience across BOTH
-    residential aged care AND acute clinical settings. When the CV has zero
-    hospital/acute evidence, applying it is a fabrication. In that case we
-    skip the replacement and let S1 stay residential — the score will reflect
-    the actual mismatch but the CV is truthful.
+    HONESTY GATE: every bridge phrase claims experience across BOTH residential
+    aged care AND the target setting. When the CV has no evidence of the target
+    setting, applying the bridge is a fabrication. The per-setting gates in
+    ``_BRIDGE_EVIDENCE_GATES`` (hospital, home, NDIS, theatre) skip the
+    replacement in that case and let S1 stay residential — the score will
+    reflect the actual mismatch but the CV is truthful.
     """
     bridge = _SETTING_BRIDGES.get(setting)
     if not bridge:
         return md  # residential or lifestyle — no replacement needed
 
-    # Honest-attribution gate for HOSPITAL: only bridge if CV evidences
-    # hospital/acute work. Otherwise the bridge would assert experience the
-    # candidate doesn't have.
-    if setting == _SETTING_HOSPITAL and not _cv_has_hospital_experience(
-        cv_text, md
-    ):
+    # Honest-attribution gate — every bridge claims experience in BOTH
+    # residential AND the target setting. If the CV has zero evidence of the
+    # target setting, applying the bridge fabricates experience. Skip it and
+    # let S1 stay residential. The ATS score will honestly reflect the gap.
+    gate = _BRIDGE_EVIDENCE_GATES.get(setting)
+    if gate and not gate(cv_text, md):
         logger.info(
-            "_apply_setting_bridge: SKIPPED HOSPITAL bridge — CV has no "
-            "acute/clinical experience markers; would have fabricated."
+            "_apply_setting_bridge: SKIPPED %s bridge — CV has no evidence "
+            "markers for that setting; would have fabricated.", setting,
         )
         return md
 

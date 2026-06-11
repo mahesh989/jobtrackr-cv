@@ -30,12 +30,57 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
-# Section headings we expect a well-structured CV to contain
-_EXPECTED_SECTIONS = ["experience", "education", "skills"]
-# Contact-info patterns
+# Section headings we expect a well-structured CV to contain. Match as a
+# heading word at the START of a line (optionally with a '#'/'**'/'-' prefix)
+# followed by a word boundary. The previous version required end-of-line ($)
+# which broke on PDF-extracted CVs where the heading word gets glued to the
+# next bit of content on the same line — observed in real production runs
+# (Rashmi's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
+# instead of 100%).  The old "literal word anywhere" check awarded points
+# to any sentence containing the word, which we still don't want. This
+# loosened version requires line-start anchoring but accepts trailing
+# content, which is the right balance for real-world CV layouts.
+_EXPECTED_SECTIONS = ("experience", "education", "skills")
+
+# Per-section heading patterns. Each pattern matches at line-start (optionally
+# with markdown/bold/bullet prefix) followed by a word boundary, so the
+# heading word can stand alone OR have trailing content on the same line.
+# Broadened by section to accept the real-world headings seen in production
+# CVs after Rashmi's Run 2 only scored 2 of 3 sections — likely 'Skills' was
+# named "Key Skills" / "Core Skills" / similar.
+_SECTION_PATTERNS = {
+    "experience": (
+        r"experience|work\s+experience|professional\s+experience|"
+        r"employment(?:\s+history)?|work\s+history|career\s+(?:history|summary)|"
+        r"experience\s+summary"
+    ),
+    "education": (
+        r"education|education\s+(?:summary|history|background)|"
+        r"educational\s+(?:background|qualifications|history)|"
+        r"academic\s+(?:background|qualifications|history)|qualifications"
+    ),
+    "skills": (
+        r"skills|key\s+skills|core\s+skills|technical\s+skills|"
+        r"soft\s+skills|professional\s+skills|hard\s+skills|"
+        r"care\s+skills|clinical\s+skills|skills\s+(?:summary|section|profile)|"
+        r"competencies|key\s+competencies|core\s+competencies|"
+        r"areas\s+of\s+expertise|expertise"
+    ),
+}
+_SECTION_HEADING_RES = {
+    name: re.compile(
+        r"(?im)^[\s\-\*#>]{0,6}"  # optional indent + markdown/bold/bullet prefix
+        rf"(?:{pattern})"
+        r"\b",  # word boundary — trailing content on the same line is OK
+    )
+    for name, pattern in _SECTION_PATTERNS.items()
+}
+# Contact-info patterns. Phone requires ≥10 digits total (AU is 10);
+# the old 6-digit floor was matching dates/IDs/postcodes.
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-_PHONE_RE = re.compile(r"(\+?\d[\d\s\-().]{6,}\d)")
+_PHONE_RE = re.compile(r"\+?\d[\d\s\-().]{8,}\d")
 _URL_RE = re.compile(r"https?://[^\s)]+")
+_PHONE_DIGITS_RE = re.compile(r"\d")
 
 # Per-component max points (must sum to 50 for Category 1).
 _KEYWORD_WEIGHTS = {
@@ -60,7 +105,7 @@ def run_ats_scoring(
     weights = _resolve_keyword_weights(jd_analysis)
 
     keyword_total, keyword_breakdown = _keyword_score(matching, weights)
-    experience = _experience_score(matching)
+    experience = _experience_score(matching, jd_analysis)
     formatting = _formatting_score(cv_text)
 
     overall = int(round(keyword_total + experience + formatting))
@@ -85,7 +130,7 @@ def run_ats_scoring(
             "category_2_experience": {
                 "earned": round(experience, 1),
                 "max": _EXPERIENCE_MAX,
-                "source": "matching.raw_match_score",
+                "source": "deterministic: required-match-rate + matched-responsibilities + role-family-alignment",
             },
             "category_3_formatting": {
                 "earned": round(formatting, 1),
@@ -196,14 +241,85 @@ def _keyword_score(
 # ---------------------------------------------------------------------------
 
 
-def _experience_score(matching: Dict[str, Any]) -> float:
-    """Scale the AI's 0-100 raw_match_score onto the 35-point experience axis."""
-    raw = matching.get("raw_match_score")
-    try:
-        score_0_100 = max(0, min(100, int(raw)))
-    except (TypeError, ValueError):
-        score_0_100 = 0
-    return (score_0_100 / 100.0) * _EXPERIENCE_MAX
+def _experience_score(
+    matching: Dict[str, Any], jd_analysis: Dict[str, Any] | None = None
+) -> float:
+    """Deterministic experience score (35 pts max).
+
+    The previous version scaled the AI's ``raw_match_score`` (a single integer
+    the model emits at temperature 0.1) directly. That number swings ±10-15
+    points across identical runs and was the single biggest driver of the
+    documented 86→57→69 ATS variance.
+
+    Replaced with three deterministic sub-signals — all derived from data
+    earlier pipeline steps already produced. ``raw_match_score`` is kept in
+    the matching payload for logging but no longer affects the score.
+
+    Sub-signals (35 pts total):
+
+      Required-keyword match rate (15 pts)
+        ≥ 80% → 15, 60-79% → 10, 40-59% → 6, < 40% → 0.
+
+      Matched responsibilities (12 pts)
+        Count of JD responsibilities the matcher said the CV satisfies, vs
+        the total. ≥ 75% covered → 12, ≥ 50% → 8, ≥ 25% → 4, > 0 → 2, else 0.
+
+      Role-family alignment (8 pts)
+        If the resolved role_family is one of the production families
+        (nursing / tech / manual) — i.e. the JD title was recognised — the
+        candidate's CV is being scored against the right rubric. 8 pts.
+        ``master`` (the fallback) means the family wasn't recognisable from
+        the JD title → 4 pts (still scoring, but with less confidence).
+    """
+    pts = 0.0
+
+    # 1. Required-keyword match rate (15 pts)
+    counts = matching.get("counts") or {}
+    req = counts.get("required") or {}
+    req_matched = sum((req.get(c) or {}).get("matched", 0) for c in
+                      ("technical", "soft_skills", "domain_knowledge"))
+    req_total = sum((req.get(c) or {}).get("total", 0) for c in
+                    ("technical", "soft_skills", "domain_knowledge"))
+    if req_total > 0:
+        rate = req_matched / req_total
+        if rate >= 0.80:
+            pts += 15
+        elif rate >= 0.60:
+            pts += 10
+        elif rate >= 0.40:
+            pts += 6
+    else:
+        # JD has no required keywords at all — neutral, give half.
+        pts += 7.5
+
+    # 2. Matched responsibilities (12 pts)
+    matched_resp = matching.get("matched_responsibilities") or []
+    total_resp = []
+    if jd_analysis:
+        total_resp = jd_analysis.get("responsibilities") or []
+    if total_resp:
+        cov = len(matched_resp) / len(total_resp)
+        if cov >= 0.75:
+            pts += 12
+        elif cov >= 0.50:
+            pts += 8
+        elif cov >= 0.25:
+            pts += 4
+        elif cov > 0:
+            pts += 2
+    else:
+        # No JD responsibilities listed — neutral half.
+        pts += 6
+
+    # 3. Role-family alignment (8 pts)
+    fam = (jd_analysis or {}).get("role_family")
+    if fam in ("nursing", "tech", "manual"):
+        pts += 8
+    elif fam == "master":
+        pts += 4
+    # Unknown / missing → 0.
+
+    return min(pts, _EXPERIENCE_MAX)
 
 
 # ---------------------------------------------------------------------------
@@ -212,29 +328,45 @@ def _experience_score(matching: Dict[str, Any]) -> float:
 
 
 def _formatting_score(cv_text: str) -> float:
-    """Structural checks: contact info present, expected sections present, length sane."""
+    """Structural checks: contact info present, expected sections present, length sane.
+
+    Section headings are matched as actual headings (line-start, optionally
+    '#'-prefixed), not as bare words anywhere — the old check awarded full
+    section points to any CV with the word "experience" anywhere.
+
+    Length window broadened (150-2500 full marks, 100-3000 half) because
+    nursing CVs with credential lists routinely exceed the old 1500 ceiling.
+
+    Phone match requires ≥10 digits so dates / postcodes / IDs don't count.
+    """
     if not cv_text:
         return 0.0
 
-    cv_lower = cv_text.lower()
     raw = 0  # accumulator on a 100-point internal scale, then rescaled to 15
 
     # Contact info — up to 30
     if _EMAIL_RE.search(cv_text):
         raw += 15
-    if _PHONE_RE.search(cv_text) or _URL_RE.search(cv_text):
+    phone_hit = False
+    for m in _PHONE_RE.finditer(cv_text):
+        if len(_PHONE_DIGITS_RE.findall(m.group(0))) >= 10:
+            phone_hit = True
+            break
+    if phone_hit or _URL_RE.search(cv_text):
         raw += 15
 
-    # Expected sections — up to 60 (20 each)
-    for section in _EXPECTED_SECTIONS:
-        if section in cv_lower:
+    # Expected sections — up to 60 (20 each). Must appear as a heading line,
+    # not as the literal word anywhere in the text.
+    for name, pattern in _SECTION_HEADING_RES.items():
+        if pattern.search(cv_text):
             raw += 20
 
-    # Length sanity — up to 10
+    # Length sanity — up to 10. Nursing CVs with credential lists routinely
+    # exceed the old 1500 ceiling; broaden to 150-2500 for full marks.
     word_count = len(cv_text.split())
-    if 200 <= word_count <= 1500:
+    if 150 <= word_count <= 2500:
         raw += 10
-    elif 100 <= word_count < 200 or 1500 < word_count <= 2500:
+    elif 100 <= word_count < 150 or 2500 < word_count <= 3000:
         raw += 5
 
     raw = min(raw, 100)
