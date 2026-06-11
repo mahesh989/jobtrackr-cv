@@ -346,6 +346,61 @@ Care worker with experience. Cared for 24 residents across 3 daily shifts.
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
         assert out == md  # no change
 
+    def test_anti_gut_guard_single_employer(self):
+        """Opal Healthcare regression (2026-06-12): with only ONE present
+        employer and no attributable tools, _compose_concrete_s2 produces a
+        4-word stub ('Recent experience at Uniting.'). Replacing a fuller
+        generic AI S2 with that stub drops the summary below the 35-word
+        floor. The anti-gut guard keeps the AI's original S2 instead."""
+        single_emp_cv = """
+## Experience
+
+### Uniting | Leichhardt, NSW
+
+*Assistant in Nursing | Mar 2026 – Present*
+
+- Provide person-centred care.
+""".lstrip()
+        # S1 is substantial; S2 is generic but fuller than a 4-word stub.
+        md = """
+## Professional Summary
+
+Assistant in Nursing with experience across multiple residential aged care settings, providing person-centred care for elderly residents including those living with dementia. Supporting daily living activities and emotional wellbeing for older people in care.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_concreteness(md, single_emp_cv)
+        # The 4-word stub must NOT appear — the guard keeps the original.
+        assert "Recent experience at Uniting." not in out
+        # The original generic-but-fuller S2 is preserved.
+        assert "Supporting daily living activities" in out
+
+    def test_rebuild_still_fires_when_it_does_not_shorten(self):
+        """Guard is narrow: when the generic S2 is itself short, the rebuild
+        (which names an employer) is allowed even if total stays under floor —
+        it doesn't SHORTEN, so it's not gutting."""
+        single_emp_cv = """
+## Experience
+
+### Uniting | Leichhardt, NSW
+
+*Assistant in Nursing | Mar 2026 – Present*
+
+- Provide care.
+""".lstrip()
+        md = """
+## Professional Summary
+
+Care worker. Helps people.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_concreteness(md, single_emp_cv)
+        # Original S2 ("Helps people.") is 2 words; rebuild ("Recent
+        # experience at Uniting.") is 4 words — does NOT shorten, so rebuild
+        # is allowed.
+        assert "Recent experience at Uniting" in out
+
     def test_idempotent(self):
         md = """
 ## Professional Summary

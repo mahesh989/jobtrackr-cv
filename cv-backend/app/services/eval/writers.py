@@ -1991,6 +1991,37 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
 
     # Compose new prose: S1 + new_s2 + any trailing sentences (rare).
     new_prose = " ".join([s1, new_s2] + rest).strip()
+
+    # ANTI-GUT GUARD (Opal Healthcare regression, 2026-06-12): the rebuild
+    # exists to ADD concreteness, not to shrink the summary. With only ONE
+    # present employer and no attributable tools, _compose_concrete_s2 produces
+    # a 4-word stub ("Recent experience at Uniting."). When the AI's original S2
+    # is a SUBSTANTIAL sentence, replacing it with that stub guts the summary
+    # below the prompt's 35-word floor and reads as a placeholder.
+    #
+    # Guard precisely. Skip the rebuild ONLY when ALL hold:
+    #   • single employer (the stub case — a 2-employer rebuild names both
+    #     roles and is substantive, so it's exempt: that's the intended
+    #     Sprint-E behaviour and the test_awkward_double_and_s2_replaced case);
+    #   • the AI's ORIGINAL S2 is itself a real sentence (>= 10 words) worth
+    #     keeping — a thin generic filler S2 (< 10 words) is NOT worth
+    #     protecting, so the concrete employer rebuild fires for it (that's the
+    #     honesty-fix test: 'Provides safe, respectful support for older
+    #     people.' -> 'Recent experience at Uniting.');
+    #   • the rebuild actually shortens the summary.
+    _WORD_FLOOR = 35  # noqa: F841 — documents the prompt floor this guard protects
+    s2_words = len(s2.split())
+    old_words = len(prose.split())
+    new_words = len(new_prose.split())
+    if len(employers) < 2 and s2_words >= 10 and new_words < old_words:
+        logger.info(
+            "sprint-E summary S2 enforcer: SKIPPED rebuild — single-employer "
+            "stub would gut a substantial %d-word S2 (summary %d→%d words); "
+            "keeping AI's original S2.",
+            s2_words, old_words, new_words,
+        )
+        return markdown
+
     # Emit on the first prose line; blank the others to avoid leftovers.
     for i in prose_idx:
         lines[i] = ""
@@ -2878,48 +2909,81 @@ def _strip_au_location(org: str) -> str:
 
 
 def _dedupe_award_description_sentences(desc: str) -> str:
-    """Drop near-identical sentences from an awards description.
+    """Drop near-duplicate sentences from an awards description.
 
-    Production bug (Opal Healthcare, 2026-06-12): after the nested-paren
-    parse fix landed, descriptions surfaced two near-identical sentences
-    that had been hidden by the prior malformed parse — e.g.
+    Production bug (Opal Healthcare, 2026-06-12). Two cases observed:
 
-        "Recognised for hard work, caring nature and positive attitude.
-         Recognised for hard work, caring nature, and positive attitude."
+      (a) Oxford-comma-only variants (exact after punctuation strip):
+          "Recognised for hard work, caring nature and positive attitude.
+           Recognised for hard work, caring nature, and positive attitude."
 
-    The only difference is an Oxford comma. Both come from upstream
-    (the source CV repeated it, or verify_claims appended a reworded copy).
-    This dedupe runs before rendering so the user sees one sentence.
+      (b) FUZZY near-duplicates — one sentence is a near-superset of the
+          other, differing by a few extra words:
+          "Recognised for hard work, caring nature, empathy and positive
+           attitude in resident care.
+           Recognised for hard work, caring nature, and positive attitude."
 
-    Strategy: split into sentences, normalise each (lowercase, strip
-    punctuation, collapse whitespace), keep first-seen. Order preserved.
+    Both come from upstream (the source CV repeated it, or verify_claims
+    appended a reworded copy). This dedupe runs before rendering so the
+    user sees ONE sentence — the most informative (longest) of a duplicate
+    cluster.
+
+    Strategy:
+      1. Split into sentences.
+      2. Exact-normalised dedupe (handles case (a)).
+      3. Fuzzy pass: process longest-first; drop a sentence whose content
+         tokens are ≥80% contained in an already-kept (longer) sentence
+         (handles case (b) — the shorter subset is dropped, the richer
+         superset is kept). Re-emit in original order.
     """
     if not desc or "." not in desc:
         return desc
-    # Split on sentence-end punctuation, keeping the punctuation off the
-    # tail of each sentence. Reassembled below with a period + space.
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", desc) if s.strip()]
     if len(sentences) <= 1:
         return desc
 
     def _norm(s: str) -> str:
-        # Lowercase, strip ALL punctuation (handles Oxford-comma variants),
-        # collapse whitespace. Two sentences that mean the same thing
-        # produce the same key.
         return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s.lower())).strip()
 
-    seen: set[str] = set()
-    kept: list[str] = []
+    def _tokens(s: str) -> set:
+        return set(_norm(s).split())
+
+    # Pass 1 — exact-normalised dedupe (preserves first-seen order).
+    seen_exact: set[str] = set()
+    stage1: list[str] = []
     for s in sentences:
         key = _norm(s)
-        if not key or key in seen:
+        if not key or key in seen_exact:
             continue
-        seen.add(key)
-        kept.append(s)
+        seen_exact.add(key)
+        stage1.append(s)
 
-    if len(kept) == len(sentences):
+    # Pass 2 — fuzzy subset dedupe. Process longest-first so the richest
+    # sentence in a duplicate cluster is the one retained; a shorter sentence
+    # whose tokens are ≥80% covered by a kept longer one is dropped.
+    order = {s: i for i, s in enumerate(stage1)}
+    by_len_desc = sorted(stage1, key=lambda s: len(_tokens(s)), reverse=True)
+    kept_fuzzy: list[str] = []
+    for s in by_len_desc:
+        toks = _tokens(s)
+        if not toks:
+            continue
+        is_dup = False
+        for k in kept_fuzzy:
+            ktoks = _tokens(k)
+            overlap = len(toks & ktoks) / len(toks)
+            if overlap >= 0.8:
+                is_dup = True
+                break
+        if not is_dup:
+            kept_fuzzy.append(s)
+
+    # Re-emit in original order.
+    final = sorted(kept_fuzzy, key=lambda s: order.get(s, 0))
+
+    if len(final) == len(sentences):
         return desc  # no duplicates → return original verbatim
-    return " ".join(kept)
+    return " ".join(final)
 
 
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:

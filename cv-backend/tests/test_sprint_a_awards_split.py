@@ -371,3 +371,64 @@ class TestAwardDescriptionDedupe:
         assembled = "\n".join(lines)
         # Only ONE "Recognised for" should appear in the assembled output.
         assert assembled.count("Recognised for hard work") == 1
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy near-duplicate dedupe (Opal Healthcare follow-up #2, 2026-06-12)
+# ---------------------------------------------------------------------------
+
+
+class TestAwardDescriptionFuzzyDedupe:
+    """Second Opal run surfaced a FUZZY duplicate the exact-dedupe missed:
+    one sentence is a near-superset of the other (extra 'empathy' +
+    'in resident care'). Token-overlap dedupe drops the shorter subset
+    and keeps the richer superset."""
+
+    def test_fuzzy_superset_subset_deduped(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        out = _dedupe_award_description_sentences(
+            "Recognised for hard work, caring nature, empathy and positive "
+            "attitude in resident care. "
+            "Recognised for hard work, caring nature, and positive attitude."
+        )
+        # Only ONE 'Recognised for' should remain.
+        assert out.count("Recognised for hard work") == 1
+        # The RICHER (longer) sentence is the one kept.
+        assert "empathy" in out
+        assert "in resident care" in out
+
+    def test_fuzzy_keeps_longer_regardless_of_order(self):
+        """Even when the SHORTER sentence appears first, the longer/richer
+        one is retained (longest-first processing)."""
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        out = _dedupe_award_description_sentences(
+            "Recognised for hard work, caring nature, and positive attitude. "
+            "Recognised for hard work, caring nature, empathy and positive "
+            "attitude in resident care."
+        )
+        assert out.count("Recognised for hard work") == 1
+        assert "empathy" in out
+
+    def test_genuinely_different_sentences_kept(self):
+        """Low token overlap → both kept (not false-positive deduped)."""
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        out = _dedupe_award_description_sentences(
+            "Recognised for clinical excellence and resident outcomes. "
+            "Selected from a field of fifty nominated staff members."
+        )
+        assert "clinical excellence" in out
+        assert "Selected from a field" in out
+
+    def test_opal_full_pipeline_fuzzy(self):
+        """End-to-end: parse nested-paren award + fuzzy-dedupe its description."""
+        from app.services.eval.writers import _parse_award_parts, _format_award_entry
+        content = (
+            "Staff Excellence Award (The Jesmond Group, Miranda (Aug 2025)) "
+            "Recognised for hard work, caring nature, empathy and positive "
+            "attitude in resident care. "
+            "Recognised for hard work, caring nature, and positive attitude."
+        )
+        name, org, date, desc = _parse_award_parts(content)
+        lines = _format_award_entry(name, org, date, desc)
+        assembled = "\n".join(lines)
+        assert assembled.count("Recognised for hard work") == 1
