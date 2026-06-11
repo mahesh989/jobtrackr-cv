@@ -38,4 +38,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Bundle analyzer — only active when ANALYZE=true, so normal dev/prod builds are
+// unaffected. Run `npm run analyze` to open the treemap and find bundle bloat
+// (the data-driven way to decide what's worth code-splitting).
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
+export default withBundleAnalyzer({ enabled: process.env.ANALYZE === "true" })(
+  nextConfig,
+);

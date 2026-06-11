@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:auth": "node scripts/check-route-auth.mjs"
+    "check:auth": "node scripts/check-route-auth.mjs",
+    "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -27,6 +28,7 @@
     "stripe": "^22.2.0"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.9",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.15",
     "@types/jszip": "^3.4.0",
