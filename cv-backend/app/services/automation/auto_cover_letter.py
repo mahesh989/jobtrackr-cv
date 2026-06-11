@@ -149,7 +149,7 @@ async def auto_generate_cover_letter(
             status   = r.get("status")
             created  = _parse_ts(r.get("created_at"))
             if status == "completed":
-                truly_blocking.append(r)
+                to_retire.append(r)
             elif status == "failed":
                 to_retire.append(r)
             elif status in _BLOCKING_IF_RECENT:
