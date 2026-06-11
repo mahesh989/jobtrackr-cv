@@ -4230,16 +4230,42 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
         r"|\bndiswc[s]?\b"
     )
     full_text_ndis = _ndis_cred_re.sub("", full_text)
-    # Word-boundary regex so 'ndis' doesn't accidentally match unrelated
-    # tokens (e.g. an unstripped 'ndiswc' or any future credential variant).
-    # The bare 'ndis' keyword still hits when it stands alone as a sector
-    # mention.
-    _ndis_kw_re = _re.compile(
-        r"\b(?:ndis|disability\s+support|non-verbal\s+participant"
+    primary_ndis = _ndis_cred_re.sub("", primary)
+
+    # STRONG / WEAK tiering (mirrors the hospital check below):
+    #   STRONG = role-specific NDIS markers in the title or resp0 — definitive.
+    #            Single hit in PRIMARY is enough to classify as NDIS.
+    #   WEAK   = generic "disability support" / "disability worker" mentions
+    #            anywhere in the JD body. These appear incidentally in many
+    #            residential aged-care JDs (as a 'Certificate in Disability'
+    #            qualification, an Opal-style portfolio mention, or a passing
+    #            client-population reference). Require BOTH:
+    #              (a) the WEAK signal in PRIMARY (resp0 + job_title), AND
+    #              (b) no competing STRONG residential signal in PRIMARY.
+    #            Without these, an OLC Personal Care Worker (lifestyle) role
+    #            in residential aged care gets mis-labelled NDIS because the
+    #            JD body lists 'disability support' as a Certificate option.
+    _ndis_strong = _re.compile(
+        r"\bndis\b|\bdisability\s+support\s+worker\b"
+        r"|\bsupported\s+independent\s+living\b|\bsil\b"
+        r"|\bdisability\s+services\s+(?:worker|officer)\b"
+    )
+    if _ndis_strong.search(primary_ndis):
+        return _SETTING_NDIS
+
+    _ndis_weak = _re.compile(
+        r"\b(?:disability\s+support|non-verbal\s+participant"
         r"|acquired\s+brain\s+injury|high\s+intensity\s+support"
         r"|disability\s+worker)\b"
     )
-    if _ndis_kw_re.search(full_text_ndis):
+    _residential_strong = _re.compile(
+        r"\bresidential\s+aged\s+care\b"
+        r"|\baged\s+care\s+(?:facility|home|community)\b"
+        r"|\bnursing\s+home\b"
+        r"|\bcare\s+community\b"
+    )
+    if (_ndis_weak.search(primary_ndis)
+            and not _residential_strong.search(primary_ndis)):
         return _SETTING_NDIS
 
     # 5. Hospital / acute
