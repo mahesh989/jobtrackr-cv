@@ -2707,7 +2707,7 @@ def _add_desc_sentence(desc: str, new_sent: str) -> str:
 
 
 def _parse_award_parts(content: str) -> tuple:
-    """Extract (name, org, date, description) from any observed award text.
+    r"""Extract (name, org, date, description) from any observed award text.
 
     Handles the four production shapes seen in awards bullets/h3 bodies:
       pipe form:   "Name – Org | Date – Description"
@@ -2877,6 +2877,51 @@ def _strip_au_location(org: str) -> str:
     return cleaned if cleaned else org
 
 
+def _dedupe_award_description_sentences(desc: str) -> str:
+    """Drop near-identical sentences from an awards description.
+
+    Production bug (Opal Healthcare, 2026-06-12): after the nested-paren
+    parse fix landed, descriptions surfaced two near-identical sentences
+    that had been hidden by the prior malformed parse — e.g.
+
+        "Recognised for hard work, caring nature and positive attitude.
+         Recognised for hard work, caring nature, and positive attitude."
+
+    The only difference is an Oxford comma. Both come from upstream
+    (the source CV repeated it, or verify_claims appended a reworded copy).
+    This dedupe runs before rendering so the user sees one sentence.
+
+    Strategy: split into sentences, normalise each (lowercase, strip
+    punctuation, collapse whitespace), keep first-seen. Order preserved.
+    """
+    if not desc or "." not in desc:
+        return desc
+    # Split on sentence-end punctuation, keeping the punctuation off the
+    # tail of each sentence. Reassembled below with a period + space.
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", desc) if s.strip()]
+    if len(sentences) <= 1:
+        return desc
+
+    def _norm(s: str) -> str:
+        # Lowercase, strip ALL punctuation (handles Oxford-comma variants),
+        # collapse whitespace. Two sentences that mean the same thing
+        # produce the same key.
+        return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s.lower())).strip()
+
+    seen: set[str] = set()
+    kept: list[str] = []
+    for s in sentences:
+        key = _norm(s)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        kept.append(s)
+
+    if len(kept) == len(sentences):
+        return desc  # no duplicates → return original verbatim
+    return " ".join(kept)
+
+
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
     """Produce the canonical bullet-list entry for ## Awards.
 
@@ -2945,6 +2990,12 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         # Strip any leading "Month YYYY. " or "YYYY. " that sometimes gets
         # prepended to descriptions (the date already appears on the name line).
         desc = _LEADING_DATE_RE.sub("", desc).strip()
+        # Deduplicate near-identical sentences. Observed (Opal Healthcare,
+        # 2026-06-12) after the parens-parse fix landed: descriptions sometimes
+        # contain two near-identical sentences differing only by an Oxford
+        # comma or minor wording. The duplicate was hidden before because the
+        # whole description was just ')' from a broken parse — now visible.
+        desc = _dedupe_award_description_sentences(desc)
         # Strip stray leading punctuation — e.g. ". Recognised for..." when
         # verify_claims appends description directly after a closing paren date.
         desc = desc.lstrip(".,;").strip()

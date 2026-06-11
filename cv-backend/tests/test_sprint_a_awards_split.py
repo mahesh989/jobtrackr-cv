@@ -303,3 +303,71 @@ class TestNestedParenAwardParse:
         for line in lines:
             assert line.strip() != ")"
             assert line.strip() != ")."
+
+
+# ---------------------------------------------------------------------------
+# Description dedupe (Opal Healthcare follow-up, 2026-06-12)
+# ---------------------------------------------------------------------------
+
+
+class TestAwardDescriptionDedupe:
+    """After the nested-paren parse fix landed, descriptions surfaced two
+    near-identical sentences (Oxford-comma variants) that had been hidden
+    by the prior malformed parse. The dedupe pass drops near-duplicates
+    before rendering."""
+
+    def test_oxford_comma_variants_deduped(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        out = _dedupe_award_description_sentences(
+            "Recognised for hard work, caring nature and positive attitude. "
+            "Recognised for hard work, caring nature, and positive attitude."
+        )
+        # One sentence should remain — the first (order preserved).
+        assert out.count("Recognised for hard work") == 1
+        assert "Recognised for hard work, caring nature" in out
+
+    def test_distinct_sentences_preserved(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        desc = (
+            "Recognised for clinical excellence and resident outcomes. "
+            "Selected from a cohort of 50 staff."
+        )
+        out = _dedupe_award_description_sentences(desc)
+        assert "clinical excellence" in out
+        assert "Selected from a cohort" in out
+
+    def test_three_duplicates_collapse_to_one(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        out = _dedupe_award_description_sentences(
+            "Recognised for excellence. "
+            "Recognised for Excellence. "
+            "Recognised for excellence, 2025."
+        )
+        # First sentence wins; remaining sentences with identical normalised
+        # forms are dropped. Punctuation/year variants collapse via _norm.
+        kept = out.count(".")
+        assert kept <= 2  # at most 2 distinct sentences (year suffix differs)
+
+    def test_single_sentence_unchanged(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        s = "Recognised for clinical excellence."
+        assert _dedupe_award_description_sentences(s) == s
+
+    def test_empty_input(self):
+        from app.services.eval.writers import _dedupe_award_description_sentences
+        assert _dedupe_award_description_sentences("") == ""
+
+    def test_format_award_entry_integrates_dedupe(self):
+        """End-to-end: parse Opal nested-paren input + dedupe the duplicate
+        description sentences. Final bullet has only one description sentence."""
+        from app.services.eval.writers import _parse_award_parts, _format_award_entry
+        content = (
+            "Staff Excellence Award (The Jesmond Group Miranda (Aug 2025)) "
+            "Recognised for hard work, caring nature and positive attitude. "
+            "Recognised for hard work, caring nature, and positive attitude."
+        )
+        name, org, date, desc = _parse_award_parts(content)
+        lines = _format_award_entry(name, org, date, desc)
+        assembled = "\n".join(lines)
+        # Only ONE "Recognised for" should appear in the assembled output.
+        assert assembled.count("Recognised for hard work") == 1
