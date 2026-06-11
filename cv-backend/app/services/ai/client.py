@@ -195,108 +195,107 @@ class AIClient:
         except ImportError as exc:
             raise AIClientError("anthropic package not installed") from exc
 
-        client = AsyncAnthropic(api_key=self.api_key)
+        async with AsyncAnthropic(api_key=self.api_key) as client:
+            if no_training:
+                # TODO: Anthropic SDK 0.97 has no public no-training API parameter.
+                # When Anthropic documents one, pass it here via extra_headers or a
+                # native param. Provider default data policy applies until then.
+                pass
 
-        if no_training:
-            # TODO: Anthropic SDK 0.97 has no public no-training API parameter.
-            # When Anthropic documents one, pass it here via extra_headers or a
-            # native param. Provider default data policy applies until then.
-            pass
+            # Some newer Anthropic models (Opus 4.7+, including 4.8) reject the
+            # `temperature` parameter with HTTP 400:
+            #   "`temperature` is deprecated for this model."
+            # Rather than maintain a model allow/denylist that drifts as Anthropic
+            # adds versions, mirror the OpenAI path: try with temperature, catch
+            # the specific error, retry once without. This keeps the tuned 0.1
+            # temperature for older Claude models that still accept it.
+            async def _call(tokens: int, include_temperature: bool = True):
+                kwargs: Dict[str, Any] = {
+                    "model": self.model,
+                    "max_tokens": tokens,
+                    "system": system,
+                    "messages": [{"role": "user", "content": user}],
+                }
+                if include_temperature:
+                    kwargs["temperature"] = temperature
+                return await client.messages.create(**kwargs)
 
-        # Some newer Anthropic models (Opus 4.7+, including 4.8) reject the
-        # `temperature` parameter with HTTP 400:
-        #   "`temperature` is deprecated for this model."
-        # Rather than maintain a model allow/denylist that drifts as Anthropic
-        # adds versions, mirror the OpenAI path: try with temperature, catch
-        # the specific error, retry once without. This keeps the tuned 0.1
-        # temperature for older Claude models that still accept it.
-        async def _call(tokens: int, include_temperature: bool = True):
-            kwargs: Dict[str, Any] = {
-                "model": self.model,
-                "max_tokens": tokens,
-                "system": system,
-                "messages": [{"role": "user", "content": user}],
-            }
-            if include_temperature:
-                kwargs["temperature"] = temperature
-            return await client.messages.create(**kwargs)
-
-        last_exc: Optional[Exception] = None
-        _t0 = _time.monotonic()
-        for attempt in range(_MAX_RETRIES + 1):
-            try:
-                _t0 = _time.monotonic()
+            last_exc: Optional[Exception] = None
+            _t0 = _time.monotonic()
+            for attempt in range(_MAX_RETRIES + 1):
                 try:
-                    response = await _call(max_tokens)
-                except Exception as exc:
-                    msg = str(exc)
-                    temp_deprecated = (
-                        "temperature" in msg.lower()
-                        and ("deprecated" in msg.lower()
-                             or "not supported" in msg.lower()
-                             or "unsupported" in msg.lower())
-                    )
-                    if temp_deprecated:
-                        logger.info(
-                            "Anthropic model %s rejected temperature; retrying without it.",
-                            self.model,
+                    _t0 = _time.monotonic()
+                    try:
+                        response = await _call(max_tokens)
+                    except Exception as exc:
+                        msg = str(exc)
+                        temp_deprecated = (
+                            "temperature" in msg.lower()
+                            and ("deprecated" in msg.lower()
+                                 or "not supported" in msg.lower()
+                                 or "unsupported" in msg.lower())
                         )
-                        response = await _call(max_tokens, include_temperature=False)
-                    else:
-                        raise
-                # Auto-retry once on max_tokens truncation
-                if getattr(response, "stop_reason", None) == "max_tokens":
-                    logger.info(
-                        "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
-                        max_tokens, self.model,
-                    )
-                    response = await _call(max_tokens * 2)
-                break  # success
-            except Exception as exc:
-                if _is_transient(exc) and attempt < _MAX_RETRIES:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                    logger.warning(
-                        "Anthropic transient error (attempt %d/%d): %s — retrying in %.1fs",
-                        attempt + 1, _MAX_RETRIES + 1, exc, delay,
-                    )
-                    last_exc = exc
-                    # Track the transient error before sleeping
-                    usage_tracker.track(
-                        operation=operation, provider="anthropic", model=self.model,
-                        input_tokens=0, output_tokens=0,
-                        latency_ms=int((_time.monotonic() - _t0) * 1000),
-                        retry_count=attempt, status="error",
-                        error_type="transient",
-                        user_id=self.user_id, run_id=self.run_id,
-                    )
-                    await _asyncio_mod.sleep(delay)
-                    continue
-                raise AIClientError(f"Anthropic API error: {exc}") from exc
-        else:
-            raise AIClientError(f"Anthropic API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+                        if temp_deprecated:
+                            logger.info(
+                                "Anthropic model %s rejected temperature; retrying without it.",
+                                self.model,
+                            )
+                            response = await _call(max_tokens, include_temperature=False)
+                        else:
+                            raise
+                    # Auto-retry once on max_tokens truncation
+                    if getattr(response, "stop_reason", None) == "max_tokens":
+                        logger.info(
+                            "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
+                            max_tokens, self.model,
+                        )
+                        response = await _call(max_tokens * 2)
+                    break  # success
+                except Exception as exc:
+                    if _is_transient(exc) and attempt < _MAX_RETRIES:
+                        delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                        logger.warning(
+                            "Anthropic transient error (attempt %d/%d): %s — retrying in %.1fs",
+                            attempt + 1, _MAX_RETRIES + 1, exc, delay,
+                        )
+                        last_exc = exc
+                        # Track the transient error before sleeping
+                        usage_tracker.track(
+                            operation=operation, provider="anthropic", model=self.model,
+                            input_tokens=0, output_tokens=0,
+                            latency_ms=int((_time.monotonic() - _t0) * 1000),
+                            retry_count=attempt, status="error",
+                            error_type="transient",
+                            user_id=self.user_id, run_id=self.run_id,
+                        )
+                        await _asyncio_mod.sleep(delay)
+                        continue
+                    raise AIClientError(f"Anthropic API error: {exc}") from exc
+            else:
+                raise AIClientError(f"Anthropic API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
 
-        # Emit usage record — fire-and-forget, never delays the caller.
-        _latency_ms = int((_time.monotonic() - _t0) * 1000)
-        _usage = getattr(response, "usage", None)
-        if _usage is not None:
-            usage_tracker.track(
-                operation=operation, provider="anthropic", model=self.model,
-                input_tokens=getattr(_usage, "input_tokens", 0),
-                output_tokens=getattr(_usage, "output_tokens", 0),
-                cached_tokens=getattr(_usage, "cache_read_input_tokens", 0),
-                cache_write_tokens=getattr(_usage, "cache_creation_input_tokens", 0),
-                latency_ms=_latency_ms,
-                retry_count=attempt,
-                status="ok",
-                user_id=self.user_id, run_id=self.run_id,
-            )
+            # Emit usage record — fire-and-forget, never delays the caller.
+            _latency_ms = int((_time.monotonic() - _t0) * 1000)
+            _usage = getattr(response, "usage", None)
+            if _usage is not None:
+                usage_tracker.track(
+                    operation=operation, provider="anthropic", model=self.model,
+                    input_tokens=getattr(_usage, "input_tokens", 0),
+                    output_tokens=getattr(_usage, "output_tokens", 0),
+                    cached_tokens=getattr(_usage, "cache_read_input_tokens", 0),
+                    cache_write_tokens=getattr(_usage, "cache_creation_input_tokens", 0),
+                    latency_ms=_latency_ms,
+                    retry_count=attempt,
+                    status="ok",
+                    user_id=self.user_id, run_id=self.run_id,
+                )
 
-        # response.content is a list of content blocks; we want the text from the first text block
-        for block in response.content:
-            if getattr(block, "type", None) == "text":
-                return block.text  # type: ignore[no-any-return]
+            # response.content is a list of content blocks; we want the text from the first text block
+            for block in response.content:
+                if getattr(block, "type", None) == "text":
+                    return block.text  # type: ignore[no-any-return]
 
-        raise AIClientError("Anthropic returned no text content")
+            raise AIClientError("Anthropic returned no text content")
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
@@ -310,156 +309,156 @@ class AIClient:
         kwargs: Dict[str, Any] = {"api_key": self.api_key}
         if base_url:
             kwargs["base_url"] = base_url
-        client = AsyncOpenAI(**kwargs)
 
-        # o-series reasoning models (o1, o3, o4) NEVER accept custom
-        # temperature. gpt-5.x is mixed — some sub-versions accept it
-        # (e.g. gpt-5.1, gpt-5.2 in observed runs), others reject it
-        # with HTTP 400 `unsupported_value` (e.g. gpt-5.5). Rather than
-        # blanket-strip the whole gpt-5 family (which forced cv-magic's
-        # carefully-tuned 0.1 temperature up to OpenAI's default of 1
-        # and noticeably degraded extraction quality), we now:
-        #   1. Always strip for o-series — they universally reject.
-        #   2. Send temperature for everything else, including gpt-5.x.
-        #   3. If OpenAI returns the specific temperature-unsupported
-        #      error, retry once without temperature.
-        skip_temperature = (
-            self.model.startswith("o1")
-            or self.model.startswith("o3")
-            or self.model.startswith("o4")
-        )
-
-        request_kwargs: Dict[str, Any] = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "max_completion_tokens": max_tokens,
-        }
-        if not skip_temperature:
-            request_kwargs["temperature"] = temperature
-        if no_training:
-            # Opt out of OpenAI using this completion for model training.
-            # TODO: DeepSeek is OpenAI-compatible but does not document 'store';
-            # passing it is likely a no-op — verify when DeepSeek publishes API docs.
-            request_kwargs["store"] = False
-
-        async def _do_call(kwargs: Dict[str, Any]):
-            try:
-                return await client.chat.completions.create(**kwargs)
-            except Exception as exc:
-                msg = str(exc)
-                # Heuristic match — covers both the SDK's string form and
-                # the raw {'error': {'message': '...'}} envelope.
-                temp_unsupported = (
-                    "'temperature'" in msg
-                    and ("unsupported_value" in msg.lower()
-                         or "does not support" in msg.lower())
-                )
-                if temp_unsupported and "temperature" in kwargs:
-                    # Retry without temperature — model enforces default=1.
-                    logger.info(
-                        "Model %s rejected custom temperature; retrying with default.",
-                        self.model,
-                    )
-                    retry = {k: v for k, v in kwargs.items() if k != "temperature"}
-                    return await client.chat.completions.create(**retry)
-                # Detect legacy completions-only models (e.g. gpt-3.5-turbo-instruct)
-                # that don't support the chat/completions endpoint.
-                not_chat_model = (
-                    "not a chat model" in msg.lower()
-                    or "v1/completions" in msg.lower()
-                )
-                if not_chat_model:
-                    fallback_model = "gpt-4o"
-                    logger.warning(
-                        "Model '%s' is not a chat model; falling back to '%s'. "
-                        "Update your AI key settings to use a supported model.",
-                        kwargs.get("model"), fallback_model,
-                    )
-                    retry = {**kwargs, "model": fallback_model}
-                    return await client.chat.completions.create(**retry)
-                raise
-
-        last_exc: Optional[Exception] = None
-        _oai_t0 = _time.monotonic()
-        for attempt in range(_MAX_RETRIES + 1):
-            try:
-                _oai_t0 = _time.monotonic()
-                response = await _do_call(request_kwargs)
-                finish_reason = (
-                    response.choices[0].finish_reason if response.choices else None
-                )
-                logger.info(
-                    "OpenAI response for %s: finish_reason=%s, length=%d chars",
-                    self.model, finish_reason,
-                    len(response.choices[0].message.content or "") if response.choices else 0,
-                )
-                content = response.choices[0].message.content if response.choices else ""
-                looks_truncated = (
-                    content and not content.rstrip().endswith(("}", "]", "\"", ".", "`"))
-                )
-                should_retry = (
-                    finish_reason in ("length", "incomplete")
-                    or (finish_reason != "stop" and looks_truncated)
-                )
-                if should_retry:
-                    logger.info(
-                        "Retrying for model %s (finish_reason=%s, looks_truncated=%s) "
-                        "with doubled max_completion_tokens.",
-                        self.model, finish_reason, looks_truncated,
-                    )
-                    bumped = {
-                        **request_kwargs,
-                        "max_completion_tokens": request_kwargs["max_completion_tokens"] * 2,
-                    }
-                    response = await _do_call(bumped)
-                break  # success
-            except Exception as exc:
-                if _is_transient(exc) and attempt < _MAX_RETRIES:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                    logger.warning(
-                        "OpenAI transient error (attempt %d/%d): %s — retrying in %.1fs",
-                        attempt + 1, _MAX_RETRIES + 1, exc, delay,
-                    )
-                    last_exc = exc
-                    usage_tracker.track(
-                        operation=operation, provider=self.provider, model=self.model,
-                        input_tokens=0, output_tokens=0,
-                        latency_ms=int((_time.monotonic() - _oai_t0) * 1000),
-                        retry_count=attempt, status="error", error_type="transient",
-                        user_id=self.user_id, run_id=self.run_id,
-                    )
-                    await _asyncio_mod.sleep(delay)
-                    continue
-                raise AIClientError(f"OpenAI API error: {exc}") from exc
-        else:
-            raise AIClientError(f"OpenAI API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
-
-        # Emit usage record — fire-and-forget.
-        _oai_latency = int((_time.monotonic() - _oai_t0) * 1000)
-        _oai_usage = getattr(response, "usage", None)
-        if _oai_usage is not None:
-            # prompt_tokens_details.cached_tokens — tokens served from OpenAI's
-            # prompt cache, billed at 50% of normal input price.
-            _oai_details = getattr(_oai_usage, "prompt_tokens_details", None)
-            _oai_cached  = getattr(_oai_details, "cached_tokens", 0) or 0
-            usage_tracker.track(
-                operation=operation, provider=self.provider, model=self.model,
-                input_tokens=getattr(_oai_usage, "prompt_tokens", 0),
-                output_tokens=getattr(_oai_usage, "completion_tokens", 0),
-                cached_tokens=_oai_cached,
-                latency_ms=_oai_latency,
-                retry_count=attempt,
-                status="ok",
-                user_id=self.user_id, run_id=self.run_id,
+        async with AsyncOpenAI(**kwargs) as client:
+            # o-series reasoning models (o1, o3, o4) NEVER accept custom
+            # temperature. gpt-5.x is mixed — some sub-versions accept it
+            # (e.g. gpt-5.1, gpt-5.2 in observed runs), others reject it
+            # with HTTP 400 `unsupported_value` (e.g. gpt-5.5). Rather than
+            # blanket-strip the whole gpt-5 family (which forced cv-magic's
+            # carefully-tuned 0.1 temperature up to OpenAI's default of 1
+            # and noticeably degraded extraction quality), we now:
+            #   1. Always strip for o-series — they universally reject.
+            #   2. Send temperature for everything else, including gpt-5.x.
+            #   3. If OpenAI returns the specific temperature-unsupported
+            #      error, retry once without temperature.
+            skip_temperature = (
+                self.model.startswith("o1")
+                or self.model.startswith("o3")
+                or self.model.startswith("o4")
             )
 
-        text = response.choices[0].message.content
-        if not text:
-            raise AIClientError("OpenAI returned empty content")
-        return text
+            request_kwargs: Dict[str, Any] = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "max_completion_tokens": max_tokens,
+            }
+            if not skip_temperature:
+                request_kwargs["temperature"] = temperature
+            if no_training:
+                # Opt out of OpenAI using this completion for model training.
+                # TODO: DeepSeek is OpenAI-compatible but does not document 'store';
+                # passing it is likely a no-op — verify when DeepSeek publishes API docs.
+                request_kwargs["store"] = False
+
+            async def _do_call(kwargs: Dict[str, Any]):
+                try:
+                    return await client.chat.completions.create(**kwargs)
+                except Exception as exc:
+                    msg = str(exc)
+                    # Heuristic match — covers both the SDK's string form and
+                    # the raw {'error': {'message': '...'}} envelope.
+                    temp_unsupported = (
+                        "'temperature'" in msg
+                        and ("unsupported_value" in msg.lower()
+                             or "does not support" in msg.lower())
+                    )
+                    if temp_unsupported and "temperature" in kwargs:
+                        # Retry without temperature — model enforces default=1.
+                        logger.info(
+                            "Model %s rejected custom temperature; retrying with default.",
+                            self.model,
+                        )
+                        retry = {k: v for k, v in kwargs.items() if k != "temperature"}
+                        return await client.chat.completions.create(**retry)
+                    # Detect legacy completions-only models (e.g. gpt-3.5-turbo-instruct)
+                    # that don't support the chat/completions endpoint.
+                    not_chat_model = (
+                        "not a chat model" in msg.lower()
+                        or "v1/completions" in msg.lower()
+                    )
+                    if not_chat_model:
+                        fallback_model = "gpt-4o"
+                        logger.warning(
+                            "Model '%s' is not a chat model; falling back to '%s'. "
+                            "Update your AI key settings to use a supported model.",
+                            kwargs.get("model"), fallback_model,
+                        )
+                        retry = {**kwargs, "model": fallback_model}
+                        return await client.chat.completions.create(**retry)
+                    raise
+
+            last_exc: Optional[Exception] = None
+            _oai_t0 = _time.monotonic()
+            for attempt in range(_MAX_RETRIES + 1):
+                try:
+                    _oai_t0 = _time.monotonic()
+                    response = await _do_call(request_kwargs)
+                    finish_reason = (
+                        response.choices[0].finish_reason if response.choices else None
+                    )
+                    logger.info(
+                        "OpenAI response for %s: finish_reason=%s, length=%d chars",
+                        self.model, finish_reason,
+                        len(response.choices[0].message.content or "") if response.choices else 0,
+                    )
+                    content = response.choices[0].message.content if response.choices else ""
+                    looks_truncated = (
+                        content and not content.rstrip().endswith(("}", "]", "\"", ".", "`"))
+                    )
+                    should_retry = (
+                        finish_reason in ("length", "incomplete")
+                        or (finish_reason != "stop" and looks_truncated)
+                    )
+                    if should_retry:
+                        logger.info(
+                            "Retrying for model %s (finish_reason=%s, looks_truncated=%s) "
+                            "with doubled max_completion_tokens.",
+                            self.model, finish_reason, looks_truncated,
+                        )
+                        bumped = {
+                            **request_kwargs,
+                            "max_completion_tokens": request_kwargs["max_completion_tokens"] * 2,
+                        }
+                        response = await _do_call(bumped)
+                    break  # success
+                except Exception as exc:
+                    if _is_transient(exc) and attempt < _MAX_RETRIES:
+                        delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                        logger.warning(
+                            "OpenAI transient error (attempt %d/%d): %s — retrying in %.1fs",
+                            attempt + 1, _MAX_RETRIES + 1, exc, delay,
+                        )
+                        last_exc = exc
+                        usage_tracker.track(
+                            operation=operation, provider=self.provider, model=self.model,
+                            input_tokens=0, output_tokens=0,
+                            latency_ms=int((_time.monotonic() - _oai_t0) * 1000),
+                            retry_count=attempt, status="error", error_type="transient",
+                            user_id=self.user_id, run_id=self.run_id,
+                        )
+                        await _asyncio_mod.sleep(delay)
+                        continue
+                    raise AIClientError(f"OpenAI API error: {exc}") from exc
+            else:
+                raise AIClientError(f"OpenAI API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+
+            # Emit usage record — fire-and-forget.
+            _oai_latency = int((_time.monotonic() - _oai_t0) * 1000)
+            _oai_usage = getattr(response, "usage", None)
+            if _oai_usage is not None:
+                # prompt_tokens_details.cached_tokens — tokens served from OpenAI's
+                # prompt cache, billed at 50% of normal input price.
+                _oai_details = getattr(_oai_usage, "prompt_tokens_details", None)
+                _oai_cached  = getattr(_oai_details, "cached_tokens", 0) or 0
+                usage_tracker.track(
+                    operation=operation, provider=self.provider, model=self.model,
+                    input_tokens=getattr(_oai_usage, "prompt_tokens", 0),
+                    output_tokens=getattr(_oai_usage, "completion_tokens", 0),
+                    cached_tokens=_oai_cached,
+                    latency_ms=_oai_latency,
+                    retry_count=attempt,
+                    status="ok",
+                    user_id=self.user_id, run_id=self.run_id,
+                )
+
+            text = response.choices[0].message.content
+            if not text:
+                raise AIClientError("OpenAI returned empty content")
+            return text
 
 
 # ---------------------------------------------------------------------------
