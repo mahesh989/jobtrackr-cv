@@ -68,3 +68,64 @@ def test_enforce_career_highlights_words_with_overflow():
     # In any case, it should not produce a truncated clause ending in a semicolon.
     assert not out_over.endswith(";")
     assert "Jesmond Miranda" in out_over or "Uniting" in out_over
+
+
+def test_inject_missing_skills_fallback():
+    from app.services.pipeline.steps.tailored_cv import _inject_missing_skills
+
+    markdown = (
+        "## Professional Experience\n"
+        "### Org A | Sydney\n"
+        "- Worked here.\n\n"
+        "## Skills\n"
+        "**Technical Skills:** Python\n"
+        "**Soft Skills:** Communication\n"
+        "**Other Skills:** BESTMed\n"
+    )
+
+    feasibility = {
+        "feasibility_plan": {
+            "inject_directly": [
+                {
+                    "keyword": "machine learning",
+                    "category": "technical",
+                    "injection_target": "skills_section",
+                }
+            ],
+            "inject_as_extension": [
+                {
+                    "keyword": "care planning",
+                    "category": "domain_knowledge",
+                    "injection_target": "experience_bullet",
+                },
+                {
+                    "keyword": "communication",
+                    "category": "soft_skills",
+                    "injection_target": "experience_bullet",
+                }
+            ],
+            "inject_with_inference": [
+                {
+                    "keyword": "clinical documentation",
+                    "category": "domain_knowledge",
+                    "injection_target": "experience_bullet",
+                }
+            ]
+        }
+    }
+
+    out = _inject_missing_skills(markdown, feasibility)
+
+    # 1. "machine learning" had skills_section target, should be injected to Technical Skills
+    assert "Python, Machine Learning" in out
+
+    # 2. "care planning" was NOT in the CV, should be fallback-injected into Other Skills (domain_knowledge)
+    assert "BESTMed, Care Planning" in out
+
+    # 3. "clinical documentation" was NOT in the CV, should be fallback-injected into Other Skills
+    assert "Clinical Documentation" in out
+
+    # 4. "communication" WAS already in the CV (under Soft Skills), so it should NOT be fallback-injected again
+    # (should not see "Communication, Communication")
+    assert "Communication, Communication" not in out
+
