@@ -258,11 +258,10 @@ def _experience_score(
     Sub-signals (35 pts total):
 
       Required-keyword match rate (15 pts)
-        ≥ 80% → 15, 60-79% → 10, 40-59% → 6, < 40% → 0.
+        Scored linearly: (required_matched / required_total) * 15.
 
       Matched responsibilities (12 pts)
-        Count of JD responsibilities the matcher said the CV satisfies, vs
-        the total. ≥ 75% covered → 12, ≥ 50% → 8, ≥ 25% → 4, > 0 → 2, else 0.
+        Scored linearly: (matched_responsibilities / total_responsibilities) * 12.
 
       Role-family alignment (8 pts)
         If the resolved role_family is one of the production families
@@ -282,12 +281,7 @@ def _experience_score(
                     ("technical", "soft_skills", "domain_knowledge"))
     if req_total > 0:
         rate = req_matched / req_total
-        if rate >= 0.80:
-            pts += 15
-        elif rate >= 0.60:
-            pts += 10
-        elif rate >= 0.40:
-            pts += 6
+        pts += rate * 15.0
     else:
         # JD has no required keywords at all — neutral, give half.
         pts += 7.5
@@ -299,14 +293,7 @@ def _experience_score(
         total_resp = jd_analysis.get("responsibilities") or []
     if total_resp:
         cov = len(matched_resp) / len(total_resp)
-        if cov >= 0.75:
-            pts += 12
-        elif cov >= 0.50:
-            pts += 8
-        elif cov >= 0.25:
-            pts += 4
-        elif cov > 0:
-            pts += 2
+        pts += cov * 12.0
     else:
         # No JD responsibilities listed — neutral half.
         pts += 6

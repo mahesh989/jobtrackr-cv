@@ -155,20 +155,20 @@ class TestExperienceScore:
     def test_perfect_match_full_marks(self):
         m = self._matching(8, 8, matched_resp=4, resp_total=4)
         score = _experience_score(m, self._jd(resp_total=4))
-        # 15 (≥80% match) + 12 (75%+ resp coverage) + 8 (nursing family) = 35
+        # 1.0 * 15 (match rate) + 1.0 * 12 (resp coverage) + 8 (nursing family) = 35
         assert score == 35
 
     def test_zero_match_minimal_marks(self):
         m = self._matching(0, 8, matched_resp=0, resp_total=4)
         score = _experience_score(m, self._jd(resp_total=4))
-        # 0 (req) + 0 (resp) + 8 (family aligned) = 8
+        # 0.0 * 15 (req) + 0.0 * 12 (resp) + 8 (family aligned) = 8
         assert score == 8
 
     def test_partial_match(self):
         m = self._matching(5, 8, matched_resp=2, resp_total=4)
         score = _experience_score(m, self._jd(resp_total=4))
-        # 10 (60-79%) + 8 (≥50% resp) + 8 (nursing) = 26
-        assert score == 26
+        # (5/8) * 15 (9.375) + (2/4) * 12 (6.0) + 8 (nursing) = 23.375
+        assert score == 23.375
 
     def test_master_family_half_credit_on_alignment(self):
         m = self._matching(8, 8, matched_resp=4, resp_total=4)
