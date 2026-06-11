@@ -41,6 +41,7 @@ from app.services.skills.unknown_tracker import (
     record_unknown_phrases,
     summarise_log,
 )
+from app.services.skills.post_process import demote_off_setting_keywords
 
 
 def _empty_block():
@@ -201,6 +202,46 @@ class TestExperienceScore:
 # ---------------------------------------------------------------------------
 
 
+class TestFormattingScoreRealWorldCV:
+    """Production regression (Rashmi's CV): the strict-anchor regex required
+    headings to END a line ($), but PDF-extracted layouts often glue the
+    heading word to the next bit of content on the same line. Real CVs were
+    scoring 60% on formatting because only 1 of 3 sections matched. The
+    loosened regex (line-start + word-boundary, no end-anchor) gives the
+    real heading word its 20 points while still rejecting mid-sentence
+    occurrences."""
+
+    def test_pdf_extracted_heading_glued_to_content(self):
+        cv = (
+            "Rashmi Poudel\n"
+            "NSW | 0403760681 | rashmipoudel756@gmail.com | LinkedIn\n"
+            "\n"
+            "Experience Uniting Leichhardt NSW Australia\n"
+            "Assistant in Nursing (Casual) Mar 2026 - Present\n"
+            "Provide person-centred care to residents...\n"
+            "\n"
+            "Education Heritage Skills Institute Arncliffe NSW\n"
+            "Certificate IV in Ageing Support May 2025\n"
+            "\n"
+            "Skills Care Skills: Personal Care, Dementia Care\n"
+            "More content to push the word count up to a reasonable range "
+            "for the length sub-signal. " * 10
+        )
+        score = _formatting_score(cv)
+        # 15 (email) + 15 (phone+) + 60 (all 3 sections) + 10 (length) = 100 → 15/15
+        assert score >= 13.0, f"Expected high formatting score, got {score}"
+
+    def test_plain_markdown_heading_still_matches(self):
+        cv = (
+            "Name\nemail@x.com\nphone +61 412 345 678\n\n"
+            "## Experience\nrole at company\n\n"
+            "## Education\ndegree\n\n"
+            "## Skills\nlist of skills\n"
+        )
+        score = _formatting_score(cv)
+        assert score >= 13.0
+
+
 class TestFormattingScoreTightening:
     def test_section_word_in_sentence_does_not_award_points(self):
         """The OLD bug: 'experience' in any sentence gave the section the points.
@@ -345,6 +386,87 @@ class TestEvidenceDetectors:
 # ---------------------------------------------------------------------------
 # 6A — Unknown phrase tracker
 # ---------------------------------------------------------------------------
+
+
+class TestOffSettingDemotion:
+    """Production regression (Australian Unity AIN, residential aged care):
+    'disability support' leaked from the brand prose 'we support people
+    across aged care, disability, and mental health services' into Required
+    Care Skills, blowing up the required-match rate from 100% to 66.7%.
+    The deterministic demoter moves off-setting domain keywords from
+    required → preferred when the JD's classified setting is RESIDENTIAL."""
+
+    def _jd(self, required_dk, preferred_dk=None):
+        return {
+            "job_title": "ain",
+            "role_family": "nursing",
+            "required_skills": {
+                "technical": [],
+                "soft_skills": [],
+                "domain_knowledge": list(required_dk),
+            },
+            "preferred_skills": {
+                "technical": [],
+                "soft_skills": [],
+                "domain_knowledge": list(preferred_dk or []),
+            },
+        }
+
+    def test_disability_support_demoted_on_residential(self):
+        jd = self._jd([
+            "personal care", "aged care", "disability support", "individual support",
+        ])
+        out = demote_off_setting_keywords(jd, "residential")
+        req = out["required_skills"]["domain_knowledge"]
+        pref = out["preferred_skills"]["domain_knowledge"]
+        assert "disability support" not in req
+        assert "disability support" in pref
+        # Real residential skills stay in required.
+        assert "personal care" in req
+        assert "aged care" in req
+        assert "individual support" in req
+
+    def test_mental_health_demoted_on_residential(self):
+        jd = self._jd([
+            "personal care", "mental health support",
+        ])
+        out = demote_off_setting_keywords(jd, "residential")
+        assert "mental health support" not in out["required_skills"]["domain_knowledge"]
+        assert "mental health support" in out["preferred_skills"]["domain_knowledge"]
+
+    def test_home_care_demoted_on_residential(self):
+        jd = self._jd(["home care", "personal care"])
+        out = demote_off_setting_keywords(jd, "residential")
+        assert "home care" not in out["required_skills"]["domain_knowledge"]
+        assert "home care" in out["preferred_skills"]["domain_knowledge"]
+
+    def test_no_demotion_on_home_setting(self):
+        """Home-care JD: 'disability support' / 'mental health' should stay
+        put — we only demote on RESIDENTIAL today. Conservative."""
+        jd = self._jd(["disability support", "mental health support"])
+        out = demote_off_setting_keywords(jd, "home_community")
+        assert "disability support" in out["required_skills"]["domain_knowledge"]
+        assert "mental health support" in out["required_skills"]["domain_knowledge"]
+
+    def test_no_demotion_when_setting_is_none(self):
+        jd = self._jd(["disability support", "personal care"])
+        out = demote_off_setting_keywords(jd, None)
+        assert out == jd  # untouched
+
+    def test_no_double_add_when_already_preferred(self):
+        """If disability_support is already in preferred, demoting from
+        required should NOT duplicate it."""
+        jd = self._jd(["disability support"], ["disability support"])
+        out = demote_off_setting_keywords(jd, "residential")
+        assert out["preferred_skills"]["domain_knowledge"].count("disability support") == 1
+        assert "disability support" not in out["required_skills"]["domain_knowledge"]
+
+    def test_demotion_recorded_in_lexicon_meta(self):
+        jd = self._jd(["disability support", "personal care"])
+        out = demote_off_setting_keywords(jd, "residential")
+        assert "lexicon_meta" in out
+        assert out["lexicon_meta"]["off_setting_demoted"]["setting"] == "residential"
+        assert "disability support" in out["lexicon_meta"]["off_setting_demoted"]["demoted"]
 
 
 class TestUnknownTracker:

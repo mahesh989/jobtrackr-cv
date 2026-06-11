@@ -30,18 +30,23 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
-# Section headings we expect a well-structured CV to contain. Matched as
-# heading lines (start of line, optionally prefixed by '#' markdown or
-# '**' bold), not as the bare word anywhere in the text — the old check
-# matched the literal "experience" inside any sentence and gave every CV
-# free points.
+# Section headings we expect a well-structured CV to contain. Match as a
+# heading word at the START of a line (optionally with a '#'/'**'/'-' prefix)
+# followed by a word boundary. The previous version required end-of-line ($)
+# which broke on PDF-extracted CVs where the heading word gets glued to the
+# next bit of content on the same line — observed in real production runs
+# (Rashmi's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
+# instead of 100%).  The old "literal word anywhere" check awarded points
+# to any sentence containing the word, which we still don't want. This
+# loosened version requires line-start anchoring but accepts trailing
+# content, which is the right balance for real-world CV layouts.
 _EXPECTED_SECTIONS = ("experience", "education", "skills")
 _SECTION_HEADING_RES = {
     name: re.compile(
-        r"(?im)^\s*(?:#{1,3}\s+|\*\*\s*)?"  # optional '#' or '**' prefix
+        r"(?im)^[\s\-\*#>]{0,6}"  # optional indent + markdown/bold/bullet prefix
         rf"(?:{name}|work\s+{name}|professional\s+{name}|"
         rf"{name}\s+(?:summary|history|background))"
-        r"\s*\**\s*:?\s*$",
+        r"\b",  # word boundary — trailing content on the same line is OK
     )
     for name in _EXPECTED_SECTIONS
 }

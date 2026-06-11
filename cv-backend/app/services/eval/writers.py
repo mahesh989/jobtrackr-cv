@@ -1840,8 +1840,16 @@ def _distinctive_employer_tokens(employer: str) -> set[str]:
 
 
 def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
-    """True if S2 contains an employer's DISTINCTIVE token, a CV-named tool,
-    or a numeric metric.
+    """True if S2 contains an employer's DISTINCTIVE token or a numeric metric.
+
+    NOTE: tool presence DOES NOT count as concrete evidence. The composition
+    prompt explicitly forbids naming tools in S2 ("NO TOOL NAMES in S2 —
+    tools live in the Skills section"). If the AI ignores that rule and
+    emits a tool-named S2 like "...using BESTMed and MedMobile...", we
+    treat it as NOT concrete so ``enforce_summary_concreteness`` rebuilds
+    it via ``_compose_concrete_s2`` into a brief employer-anchored
+    sentence. The cv_tools parameter is retained for signature stability
+    (callers still pass it) but no longer counts toward concreteness.
 
     Partial matching (distinctive tokens) catches cases where the LLM cited
     only the brand suffix — e.g. 'The Marion' (fragment of 'Uniting – The
@@ -1849,6 +1857,7 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
     Exact-string substring matching would have missed this and replaced
     valid content with a template.
     """
+    del cv_tools  # intentionally ignored; see docstring
     if not s2:
         return False
     low = s2.lower()
@@ -1861,9 +1870,6 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
         for tok in _distinctive_employer_tokens(emp):
             if re.search(r"\b" + re.escape(tok) + r"\b", low):
                 return True
-    for tool in cv_tools:
-        if tool.lower() in low:
-            return True
     if _METRIC_TOKEN_RE.search(s2):
         return True
     return False

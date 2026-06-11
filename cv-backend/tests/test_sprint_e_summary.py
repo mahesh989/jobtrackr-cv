@@ -104,10 +104,24 @@ class TestS2ConcreteEvidence:
             [],
         )
 
-    def test_tool_makes_concrete(self):
-        assert _s2_has_concrete_evidence(
+    def test_tool_alone_is_NOT_concrete(self):
+        """Behaviour change: the composition prompt forbids tool names in S2.
+        When the AI emits a tool-named S2 like 'Used BESTMed and MedMobile
+        daily.', we treat it as NOT concrete so enforce_summary_concreteness
+        rebuilds it as 'Recent experience at <Employer>.' — keeping S2
+        prompt-compliant."""
+        assert not _s2_has_concrete_evidence(
             "Used BESTMed daily.",
             [],
+            ["BESTMed"],
+        )
+
+    def test_tool_with_employer_IS_concrete(self):
+        """Employer naming still wins — a tool-named S2 with employer present
+        is concrete because the employer anchor is what matters."""
+        assert _s2_has_concrete_evidence(
+            "Used BESTMed at Jesmond Miranda Nursing Home.",
+            ["Jesmond Miranda Nursing Home"],
             ["BESTMed"],
         )
 
@@ -262,7 +276,12 @@ Care worker with experience. Currently delivering care at Jesmond Miranda Nursin
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
         assert out == md  # no change
 
-    def test_concrete_s2_with_tool_preserved(self):
+    def test_tool_only_s2_gets_rebuilt(self):
+        """Behaviour change: a tool-named S2 with no employer is NOT preserved
+        anymore — it's rebuilt as a brief employer-anchored sentence. This
+        catches the production case where the AI emits 'using BESTMed and
+        MedMobile at aged care facilities' despite the prompt's no-tools
+        rule.  See _s2_has_concrete_evidence docstring."""
         md = """
 ## Professional Summary
 
@@ -271,7 +290,12 @@ Care worker with experience. Use BESTMed and MedMobile for electronic medication
 ## Experience
 """.lstrip()
         out = enforce_summary_concreteness(md, _CV_FIXTURE)
-        assert out == md  # no change
+        # Original tool-named S2 must be gone.
+        assert "BESTMed" not in out
+        assert "MedMobile" not in out
+        # Rebuilt to employer-anchored "Recent experience at ..." sentence.
+        assert "Recent experience at" in out
+        assert "Jesmond Miranda Nursing Home" in out or "Uniting" in out
 
     def test_concrete_s2_with_metric_preserved(self):
         md = """

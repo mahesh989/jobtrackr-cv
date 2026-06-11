@@ -209,6 +209,19 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
 
+            # Off-setting boilerplate demotion: for a residential aged-care JD
+            # whose About-Us / brand prose leaks "disability support" or
+            # "mental health support" into required skills, move them to
+            # preferred so they don't drive the required-match score.
+            # Deterministic; conservative (only RESIDENTIAL currently).
+            try:
+                from app.services.eval.writers import _classify_jd_setting
+                from app.services.skills.post_process import demote_off_setting_keywords
+                _setting = _classify_jd_setting(payload.jd_text, jd_analysis)
+                jd_analysis = demote_off_setting_keywords(jd_analysis, _setting)
+            except Exception:  # noqa: BLE001 — never block on a heuristic
+                logger.debug("off-setting demotion: failed", exc_info=True)
+
             # Best-effort: record any unknown phrases (lexicon gaps) to the
             # rolling JSONL log so weekly reviews can promote high-frequency
             # phrases into the lexicon. Pipeline never blocks on tracking.
