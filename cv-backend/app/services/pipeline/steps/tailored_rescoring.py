@@ -137,7 +137,27 @@ def run_tailored_rescoring(
     # match (synonym mismatch CV-vs-JD wording), report it as genuinely missed
     # so the user knows the writer/verifier needs improvement. Phase 2 synonym
     # work will close that gap.
-    from app.services.eval.writers import _NON_SKILL_EXACT, _NON_SKILL_PREFIXES
+    # Mirror the writer's filter chain exactly so the "Filtered as non-skill"
+    # chip on the UI reflects what was DELIBERATELY suppressed by the writer.
+    # Previously only checked _NON_SKILL_EXACT + _NON_SKILL_PREFIXES, which
+    # missed two big classes:
+    #   • _ROLE_CATEGORY_LABELS — sector/setting descriptors that get
+    #     injected into bullets, not Skills (e.g. 'domestic assistance',
+    #     'aged care', 'community care'). The writer's _approved_skill_entries
+    #     skips these explicitly.
+    #   • _NON_SKILL_PATTERN — broad regex catching compliance, certification,
+    #     "experience in X", "supporting <audience>", environment/setting
+    #     trailers (e.g. 'health and safety compliance' matches \bcompliance\b).
+    #     The writer's _is_non_skill_phrase consults this regex.
+    # Without mirroring both, deliberately filtered items show as "Approved
+    # but missed" — telling users the writer failed when the writer correctly
+    # skipped them by design.
+    from app.services.eval.writers import (
+        _NON_SKILL_EXACT,
+        _NON_SKILL_PREFIXES,
+        _NON_SKILL_PATTERN,
+    )
+    from app.services.eval.enforce import _ROLE_CATEGORY_LABELS
 
     def _is_sector_only_phrase(kw: str) -> bool:
         t = (kw or "").strip().lower()
@@ -145,9 +165,13 @@ def run_tailored_rescoring(
             return False
         if t in _NON_SKILL_EXACT:
             return True
+        if t in _ROLE_CATEGORY_LABELS:
+            return True
         for prefix in _NON_SKILL_PREFIXES:
             if t.startswith(prefix):
                 return True
+        if _NON_SKILL_PATTERN.search(t):
+            return True
         return False
 
     injected = sorted(credited)

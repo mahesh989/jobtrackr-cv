@@ -516,6 +516,116 @@ class TestOffSettingDemotion:
         assert "disability support" in out["lexicon_meta"]["off_setting_demoted"]["demoted"]
 
 
+class TestRescorerClassification:
+    """Production regression (Marrickville Home Care Run 2): 4 keywords
+    showed as 'Approved but missed' even though 2 of them were
+    DELIBERATELY suppressed by the writer:
+      • domestic assistance  — caught by _ROLE_CATEGORY_LABELS (sector
+        descriptor; injected into bullets not Skills)
+      • health and safety compliance — caught by _NON_SKILL_PATTERN
+        via the \\bcompliance\\b alternative
+    The rescorer's _is_sector_only_phrase didn't check either, so these
+    looked like writer failures. Fixed by mirroring the full writer
+    filter chain (EXACT + ROLE_LABELS + PREFIXES + PATTERN)."""
+
+    def test_role_category_label_classified_as_filtered(self):
+        from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+        tailored = "## Skills\n- **Care Skills:** Personal Care\n"
+        plan = {"feasibility_plan": {
+            "inject_directly": [],
+            "inject_as_extension": [
+                {"keyword": "domestic assistance", "category": "domain_knowledge",
+                 "bucket": "required"},
+            ],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }}
+        jd = {"required_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": ["domestic assistance"]},
+              "preferred_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": []}}
+        matching = {"matched": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "missed": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": ["domestic assistance"]},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "counts": {}, "match_rates": {},
+                    "matched_responsibilities": [], "raw_match_score": 50}
+        ats = {"overall_score": 50, "match_rates": {}}
+
+        result = run_tailored_rescoring(tailored, jd, matching, plan, ats)
+        assert "domestic assistance" in result["filtered_as_non_skill"]
+        assert "domestic assistance" not in result["failed_to_inject"]
+
+    def test_compliance_phrase_classified_as_filtered(self):
+        from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+        tailored = "## Skills\n- **Care Skills:** Personal Care\n"
+        plan = {"feasibility_plan": {
+            "inject_directly": [
+                {"keyword": "health and safety compliance",
+                 "category": "domain_knowledge", "bucket": "required"},
+            ],
+            "inject_as_extension": [], "inject_with_inference": [],
+            "cannot_inject": [],
+        }}
+        jd = {"required_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": ["health and safety compliance"]},
+              "preferred_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": []}}
+        matching = {"matched": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "missed": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": ["health and safety compliance"]},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "counts": {}, "match_rates": {},
+                    "matched_responsibilities": [], "raw_match_score": 50}
+        ats = {"overall_score": 50, "match_rates": {}}
+
+        result = run_tailored_rescoring(tailored, jd, matching, plan, ats)
+        assert "health and safety compliance" in result["filtered_as_non_skill"]
+        assert "health and safety compliance" not in result["failed_to_inject"]
+
+    def test_genuinely_missed_still_in_failed(self):
+        """Sanity: a keyword that PASSES all writer filters but doesn't
+        literally appear in tailored md stays in 'failed' (Approved but
+        missed). Without this, the bug fix would hide real writer issues."""
+        from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
+        tailored = "## Skills\n- **Care Skills:** Personal Care\n"
+        plan = {"feasibility_plan": {
+            "inject_directly": [
+                {"keyword": "toileting assistance",
+                 "category": "domain_knowledge", "bucket": "required"},
+            ],
+            "inject_as_extension": [], "inject_with_inference": [],
+            "cannot_inject": [],
+        }}
+        jd = {"required_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": ["toileting assistance"]},
+              "preferred_skills": {"technical": [], "soft_skills": [],
+              "domain_knowledge": []}}
+        matching = {"matched": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "missed": {"required": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": ["toileting assistance"]},
+                    "preferred": {"technical": [], "soft_skills": [],
+                    "domain_knowledge": []}},
+                    "counts": {}, "match_rates": {},
+                    "matched_responsibilities": [], "raw_match_score": 50}
+        ats = {"overall_score": 50, "match_rates": {}}
+
+        result = run_tailored_rescoring(tailored, jd, matching, plan, ats)
+        assert "toileting assistance" in result["failed_to_inject"]
+        assert "toileting assistance" not in result["filtered_as_non_skill"]
+
+
 class TestUnknownTracker:
     def _tmp(self):
         fd, path = tempfile.mkstemp(suffix=".jsonl")
