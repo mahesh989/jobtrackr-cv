@@ -2714,8 +2714,40 @@ def _parse_award_parts(content: str) -> tuple:
       paren form:  "Name – Org (Date), description"
       plain form:  "Name – Org (Date)"
       bare name:   "Dean's List"
+      nested form: "Name (Org (Date))" — the AI occasionally double-wraps the
+                   org+date in nested parens. Without a dedicated handler the
+                   inner `\(([^()]+)\)` regex below matches the date paren, the
+                   outer '(' stays stuck in the name field, and the outer ')'
+                   spills into description, producing the malformed render
+                   'Name (Org (Date)' + newline + ').' (Opal Healthcare bug,
+                   2026-06-12).
     """
     name = org = date = description = ""
+
+    # Nested-paren shape — handle BEFORE the standard regex below would
+    # mis-parse the inner paren as the date. Only fires when the inner paren
+    # contains a 4-digit year or a month name so we don't accidentally
+    # collapse legitimate "Award (Company Name (LLC))" shapes.
+    nested = re.match(
+        r"^(?P<name>[^()]+?)\s*"
+        r"\(\s*(?P<org>[^()]+?)\s*"
+        r"\(\s*(?P<date>[^()]+?)\s*\)\s*\)\s*"
+        r"(?P<desc>.*)$",
+        content.strip(),
+    )
+    if nested:
+        inner = nested.group("date").strip()
+        if re.search(
+            r"\b\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
+            inner,
+            re.IGNORECASE,
+        ):
+            name = nested.group("name").strip()
+            org = nested.group("org").strip().rstrip(",").strip()
+            date = inner
+            description = nested.group("desc").strip().lstrip(",.").strip()
+            return name.strip(), org.strip(), date.strip(), description.strip()
+
     if "|" in content:
         left, right = content.rsplit("|", 1)
         right = right.strip()
