@@ -29,11 +29,10 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 from app.services.ai.client import AIClient
 from app.services.ai.prompts import (
-    TAILORED_CV_SYSTEM,
     TAILORED_CV_USER_TEMPLATE,
 )
 from app.services.ai.prompts.variants.tailored_cv_general import (
@@ -52,7 +51,7 @@ from app.services.ai.prompts.variants.composition import (
     build_surfacing_system,
     COMPOSITION_SURFACING_USER_TEMPLATE,
 )
-from app.services.eval.enforce import enforce_skills_section, DEFAULT_SKILL_CAPS, reroute_skills_by_lexicon, _ROLE_CATEGORY_LABELS
+from app.services.eval.enforce import enforce_skills_section, reroute_skills_by_lexicon
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
@@ -70,7 +69,6 @@ from app.services.eval.role_families import (
     resolve_role_family,
     resolve_seniority,
     apply_equivalences,
-    category_labels,
 )
 from app.services.cv.contact_line import stamp_contact_line, stamp_credentials, stamp_references
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
@@ -84,9 +82,6 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_structure,        # production-stable post-processor — reused for fairness
     _inject_missing_skills,    # production-stable safety net
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
-    _SKILLS_CATEGORY_LABEL,    # canonical "**Technical/Soft/Other Skills:**" labels
-    _kw_in_skills,             # word-boundary "already listed?" check
-    _format_skill_label,       # title-case while preserving acronyms
     build_family_label_map,    # convert RoleFamilyProfile → bold label map for injector
 )
 
@@ -389,7 +384,7 @@ from app.services.eval.writers.injection import (  # noqa: E402,F401
 # Experience-section processing (month/date parse, chronological sort, tense
 # normalisation) was extracted to writers.experience. Re-imported so _impl's
 # remaining code + the test-suite keep referencing these unqualified.
-from app.services.eval.writers.experience import (  # noqa: E402
+from app.services.eval.writers.experience import (  # noqa: E402, F401 — re-exported via the writers barrel
     _MONTH_TO_NUM, _PAST_TO_PRESENT_VERBS, _PRESENT_TO_PAST_VERBS, _DATE_TOKEN_RE,
     _DATE_RANGE_RE, _EXPERIENCE_HEADING_RE, _BULLET_FIRST_WORD_RE, _parse_month_year,
     _parse_role_date_range, _is_present_role, _find_experience_section,
@@ -515,7 +510,7 @@ from app.services.eval.writers.skills_section import (  # noqa: E402,F401
 # Awards/certification parsing helpers were extracted to writers.awards_parsing.
 # Re-imported here so the rest of _impl + the test-suite keep referencing them
 # unqualified (behaviour-preserving — same objects, new home).
-from app.services.eval.writers.awards_parsing import (  # noqa: E402
+from app.services.eval.writers.awards_parsing import (  # noqa: E402, F401 — re-exported via the writers barrel
     _AWARD_RE, _CERT_LIKE_RE, _AWARDS_SOURCE_HEADINGS, _DATE_TAIL_RE, _LEADING_DATE_RE,
     _AU_LOCATION_TAIL_RE, _AU_LOCATION_TAIL_NOCOMMA_RE, _DESCRIPTION_PREFIX_RE,
     _LOCATION_ANCHOR_RE, _is_valid_date, _add_desc_sentence, _parse_award_parts,
