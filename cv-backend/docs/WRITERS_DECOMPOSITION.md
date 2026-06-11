@@ -56,6 +56,11 @@ For a cohesive group G:
   the registry class) in `_impl` as the package "core" until last.
 
 ## Watch-outs
+- **Module globals beyond functions/constants.** The back-ref scan finds `_fn(`
+  calls and ALL-CAPS constants, but NOT bare lowercase module globals. The big one
+  is `logger` — moved code that logs will `NameError` on it. Give each new module
+  its own `logger = logging.getLogger(__name__)` (identical behaviour). The
+  `experience` extraction hit exactly this; the 826 gate caught it pre-commit.
 - Constants can reference functions (e.g. `_BRIDGE_EVIDENCE_GATES = {…: _cv_has_*}`)
   — keep such a constant in the SAME module as the functions it references.
 - The test-suite imports ~49 internals directly; the barrel's programmatic
