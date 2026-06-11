@@ -284,6 +284,7 @@ class AIClient:
                 input_tokens=getattr(_usage, "input_tokens", 0),
                 output_tokens=getattr(_usage, "output_tokens", 0),
                 cached_tokens=getattr(_usage, "cache_read_input_tokens", 0),
+                cache_write_tokens=getattr(_usage, "cache_creation_input_tokens", 0),
                 latency_ms=_latency_ms,
                 retry_count=attempt,
                 status="ok",
@@ -440,10 +441,15 @@ class AIClient:
         _oai_latency = int((_time.monotonic() - _oai_t0) * 1000)
         _oai_usage = getattr(response, "usage", None)
         if _oai_usage is not None:
+            # prompt_tokens_details.cached_tokens — tokens served from OpenAI's
+            # prompt cache, billed at 50% of normal input price.
+            _oai_details = getattr(_oai_usage, "prompt_tokens_details", None)
+            _oai_cached  = getattr(_oai_details, "cached_tokens", 0) or 0
             usage_tracker.track(
                 operation=operation, provider=self.provider, model=self.model,
                 input_tokens=getattr(_oai_usage, "prompt_tokens", 0),
                 output_tokens=getattr(_oai_usage, "completion_tokens", 0),
+                cached_tokens=_oai_cached,
                 latency_ms=_oai_latency,
                 retry_count=attempt,
                 status="ok",
