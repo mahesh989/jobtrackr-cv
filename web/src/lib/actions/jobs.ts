@@ -193,22 +193,6 @@ export async function bulkStarJobs(jobIds: string[]) {
   return { updated: data?.length ?? 0 };
 }
 
-/** Clear starred_at on a batch of jobs. */
-export async function bulkUnstarJobs(jobIds: string[]) {
-  if (jobIds.length === 0) return { updated: 0 };
-  const { supabase } = await authedClient();
-  const { data, error } = await supabase
-    .from("jobs")
-    .update({ starred_at: null })
-    .in("id", jobIds)
-    .not("starred_at", "is", null)
-    .select("id");
-
-  if (error) throw new Error(error.message);
-  revalidatePath("/dashboard");
-  return { updated: data?.length ?? 0 };
-}
-
 export async function bulkArchiveJobs(jobIds: string[]) {
   if (jobIds.length === 0) return { updated: 0 };
   const { supabase } = await authedClient();
@@ -239,15 +223,6 @@ export async function bulkArchiveJobs(jobIds: string[]) {
   revalidatePath("/dashboard/applications");
   revalidatePath("/dashboard");
   return { updated: data?.length ?? 0 };
-}
-
-export async function markJobSeen(jobId: string) {
-  const { supabase } = await authedClient();
-  await supabase
-    .from("jobs")
-    .update({ seen_at: new Date().toISOString() })
-    .eq("id", jobId)
-    .is("seen_at", null);
 }
 
 export async function markProfileJobsSeen(profileId: string) {

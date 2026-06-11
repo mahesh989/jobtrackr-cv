@@ -223,15 +223,3 @@ export async function deleteProfile(profileId: string) {
   redirect("/dashboard/profiles");
 }
 
-export async function toggleProfileActive(profileId: string, newActive: boolean) {
-  const { supabase, user } = await authedClient();
-  const { error } = await supabase
-    .from("search_profiles")
-    .update({ is_active: newActive })
-    .eq("id", profileId)
-    .eq("user_id", user.id);
-  if (error) throw new Error(error.message);
-  triggerScheduleSync();
-  revalidatePath("/dashboard");
-}
-

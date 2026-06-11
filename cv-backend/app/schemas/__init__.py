@@ -1,2 +1,2 @@
-# Pydantic schemas for cv-backend. analysis_run schema rewritten in commit 2c.
-from app.schemas.cv_version import CVVersionOut  # noqa: F401
+# Pydantic schemas for cv-backend. Import the specific schema module you need
+# (e.g. `from app.schemas.internal import AnalyzeRequest`).
