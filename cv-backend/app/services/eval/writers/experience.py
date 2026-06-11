@@ -368,3 +368,34 @@ def normalise_experience_tense(markdown: str) -> str:
 
     out = lines[:start + 1] + new_body + lines[end:]
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Module 6 — date format normaliser.
+#
+# Strip day-of-month from CV dates. "Sept 20, 2024" → "Sept 2024". The
+# day-of-month is non-standard for CV resume dates and looks out of place
+# next to month-only siblings.
+# ---------------------------------------------------------------------------
+
+_DATE_WITH_DAY_RE = re.compile(
+    r"\b([A-Za-z]{3,9})\s+\d{1,2}\s*,\s*(\d{4})\b"
+)
+
+
+def normalise_date_formats(markdown: str) -> str:
+    """Strip day-of-month from `Month DD, YYYY` patterns to `Month YYYY`.
+
+    Conservative — only matches month names + 1-2 digit day + comma + 4-digit
+    year. Doesn't touch single-month-name dates or month-year ranges.
+    """
+    if not markdown:
+        return markdown
+    # Replace only when the leading token is a recognised month abbreviation/name.
+    def _sub(m: "re.Match") -> str:
+        month = m.group(1)
+        year = m.group(2)
+        if month.lower() not in _MONTH_TO_NUM:
+            return m.group(0)  # not a month name → leave alone
+        return f"{month} {year}"
+    return _DATE_WITH_DAY_RE.sub(_sub, markdown)

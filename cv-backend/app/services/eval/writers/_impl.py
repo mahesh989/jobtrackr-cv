@@ -990,36 +990,11 @@ from app.services.eval.writers.experience import (  # noqa: E402
 from app.services.eval.writers.spelling_case import (  # noqa: E402,F401
     _BR_AM_BODY_SUBS, _case_preserve_replace, canonicalise_body_spelling, _apply_body_spelling_subs, _TITLE_CASE_STOPWORDS, _PRESERVE_CASE_TOKENS, _TITLE_CASE_LINE_RE, _H3_HEADING_RE, _title_case_token, _title_case_phrase, normalise_heading_title_case,
 )
-# ---------------------------------------------------------------------------
-# Module 6 — date format normaliser.
-#
-# Strip day-of-month from CV dates. "Sept 20, 2024" → "Sept 2024". The
-# day-of-month is non-standard for CV resume dates and looks out of place
-# next to month-only siblings.
-# ---------------------------------------------------------------------------
-
-_DATE_WITH_DAY_RE = re.compile(
-    r"\b([A-Za-z]{3,9})\s+\d{1,2}\s*,\s*(\d{4})\b"
+# Date-format normaliser lives with the other date logic in writers.experience
+# (it uses _MONTH_TO_NUM, defined there). Re-imported for unqualified references.
+from app.services.eval.writers.experience import (  # noqa: E402,F401
+    _DATE_WITH_DAY_RE, normalise_date_formats,
 )
-
-
-def normalise_date_formats(markdown: str) -> str:
-    """Strip day-of-month from `Month DD, YYYY` patterns to `Month YYYY`.
-
-    Conservative — only matches month names + 1-2 digit day + comma + 4-digit
-    year. Doesn't touch single-month-name dates or month-year ranges.
-    """
-    if not markdown:
-        return markdown
-    # Replace only when the leading token is a recognised month abbreviation/name.
-    def _sub(m: "re.Match") -> str:
-        month = m.group(1)
-        year = m.group(2)
-        if month.lower() not in _MONTH_TO_NUM:
-            return m.group(0)  # not a month name → leave alone
-        return f"{month} {year}"
-    return _DATE_WITH_DAY_RE.sub(_sub, markdown)
-
 
 # ---------------------------------------------------------------------------
 # Phase 2 Sprint E — Professional Summary S2 enforcer.
