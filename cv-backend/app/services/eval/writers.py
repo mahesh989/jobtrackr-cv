@@ -1840,24 +1840,24 @@ def _distinctive_employer_tokens(employer: str) -> set[str]:
 
 
 def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
-    """True if S2 contains an employer's DISTINCTIVE token or a numeric metric.
-
-    NOTE: tool presence DOES NOT count as concrete evidence. The composition
-    prompt explicitly forbids naming tools in S2 ("NO TOOL NAMES in S2 —
-    tools live in the Skills section"). If the AI ignores that rule and
-    emits a tool-named S2 like "...using BESTMed and MedMobile...", we
-    treat it as NOT concrete so ``enforce_summary_concreteness`` rebuilds
-    it via ``_compose_concrete_s2`` into a brief employer-anchored
-    sentence. The cv_tools parameter is retained for signature stability
-    (callers still pass it) but no longer counts toward concreteness.
+    """True if S2 contains an employer's DISTINCTIVE token, a CV-named tool,
+    or a numeric metric.
 
     Partial matching (distinctive tokens) catches cases where the LLM cited
     only the brand suffix — e.g. 'The Marion' (fragment of 'Uniting – The
     Marion') correctly counts as employer-named via the 'marion' token.
     Exact-string substring matching would have missed this and replaced
     valid content with a template.
+
+    Note on tools: the composition prompt forbids naming tools in S2 (NO TOOL
+    NAMES IN S2 rule), but if the AI emits a tool-named S2 we DO NOT force a
+    rebuild — the AI's sentence is informative and almost always preserves
+    the prompt's 10-22 word S2 floor, whereas the deterministic rebuild
+    produces a 4-word stub. The tool-naming rule is now enforced upstream by
+    the CANNED-SHAPE BAN prompt block; this function's only job is to detect
+    GENERIC S2 ('provides safe care to elderly residents') with no anchoring
+    signal at all.
     """
-    del cv_tools  # intentionally ignored; see docstring
     if not s2:
         return False
     low = s2.lower()
@@ -1870,6 +1870,9 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
         for tok in _distinctive_employer_tokens(emp):
             if re.search(r"\b" + re.escape(tok) + r"\b", low):
                 return True
+    for tool in cv_tools:
+        if tool.lower() in low:
+            return True
     if _METRIC_TOKEN_RE.search(s2):
         return True
     return False
@@ -4195,10 +4198,54 @@ _HIGHLIGHT_HEADINGS_SET = frozenset([
 
 def _strip_canned_summary_phrase(md: str) -> str:
     """Remove the generic 'Currently delivering care at X using BESTMed and
-    MedMobile' sentence wherever it appears. The phrase is distinctive enough
-    that a global substitution is safe — it is never generated outside Career
-    Highlights. Called before enforce_summary_concreteness so the concreteness
-    pass can replace the gap with a specific, JD-relevant achievement."""
+    MedMobile' sentence — but ONLY when removing it leaves the surrounding
+    Summary section with meaningful content.
+
+    Production regression (Opal Healthcare AIN, 2026-06-12): when the canned
+    phrase is the ENTIRE S2, an unconditional strip leaves S2 empty. The
+    downstream rebuild then fills the void with a 4-word stub ("Recent
+    experience at Uniting."). Net effect: Professional Summary becomes
+    26 words — below the prompt's hard 35-word floor — and reads as a
+    placeholder, not a summary.
+
+    Guard: skip the strip if it would remove ≥ 80% of the Summary section's
+    prose. The prompt's CANNED-SHAPE BAN (added separately) is the authoritative
+    enforcement for new generations — the strip is now a soft cleanup, not a
+    blunt instrument.
+    """
+    if not md:
+        return md
+    matches = list(_CANNED_SUMMARY_RE.finditer(md))
+    if not matches:
+        return md
+
+    # Estimate Summary section prose length so we can guard against gutting it.
+    lines = md.split("\n")
+    bounds = _find_summary_section(lines)
+    if not bounds:
+        return _CANNED_SUMMARY_RE.sub("", md)  # no Summary section bounds; fall back
+
+    start, end = bounds
+    prose, _ = _extract_summary_prose(lines, start, end)
+    prose_chars = len(prose or "")
+    if prose_chars == 0:
+        return md
+
+    # Sum of characters the strip would remove from the Summary section.
+    canned_chars = 0
+    section_text = "\n".join(lines[start:end])
+    for m in _CANNED_SUMMARY_RE.finditer(section_text):
+        canned_chars += len(m.group(0))
+
+    if canned_chars >= 0.8 * prose_chars:
+        logger.info(
+            "_strip_canned_summary_phrase: SKIPPED — stripping would remove "
+            "%d of %d Summary chars (>=80%%); rebuild would gut the summary. "
+            "Leaving canned phrase intact; prompt CANNED-SHAPE BAN handles it.",
+            canned_chars, prose_chars,
+        )
+        return md
+
     return _CANNED_SUMMARY_RE.sub("", md)
 
 
