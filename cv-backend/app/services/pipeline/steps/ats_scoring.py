@@ -41,14 +41,39 @@ logger = logging.getLogger(__name__)
 # loosened version requires line-start anchoring but accepts trailing
 # content, which is the right balance for real-world CV layouts.
 _EXPECTED_SECTIONS = ("experience", "education", "skills")
+
+# Per-section heading patterns. Each pattern matches at line-start (optionally
+# with markdown/bold/bullet prefix) followed by a word boundary, so the
+# heading word can stand alone OR have trailing content on the same line.
+# Broadened by section to accept the real-world headings seen in production
+# CVs after Rashmi's Run 2 only scored 2 of 3 sections — likely 'Skills' was
+# named "Key Skills" / "Core Skills" / similar.
+_SECTION_PATTERNS = {
+    "experience": (
+        r"experience|work\s+experience|professional\s+experience|"
+        r"employment(?:\s+history)?|work\s+history|career\s+(?:history|summary)|"
+        r"experience\s+summary"
+    ),
+    "education": (
+        r"education|education\s+(?:summary|history|background)|"
+        r"educational\s+(?:background|qualifications|history)|"
+        r"academic\s+(?:background|qualifications|history)|qualifications"
+    ),
+    "skills": (
+        r"skills|key\s+skills|core\s+skills|technical\s+skills|"
+        r"soft\s+skills|professional\s+skills|hard\s+skills|"
+        r"care\s+skills|clinical\s+skills|skills\s+(?:summary|section|profile)|"
+        r"competencies|key\s+competencies|core\s+competencies|"
+        r"areas\s+of\s+expertise|expertise"
+    ),
+}
 _SECTION_HEADING_RES = {
     name: re.compile(
         r"(?im)^[\s\-\*#>]{0,6}"  # optional indent + markdown/bold/bullet prefix
-        rf"(?:{name}|work\s+{name}|professional\s+{name}|"
-        rf"{name}\s+(?:summary|history|background))"
+        rf"(?:{pattern})"
         r"\b",  # word boundary — trailing content on the same line is OK
     )
-    for name in _EXPECTED_SECTIONS
+    for name, pattern in _SECTION_PATTERNS.items()
 }
 # Contact-info patterns. Phone requires ≥10 digits total (AU is 10);
 # the old 6-digit floor was matching dates/IDs/postcodes.

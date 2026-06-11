@@ -241,6 +241,53 @@ class TestFormattingScoreRealWorldCV:
         score = _formatting_score(cv)
         assert score >= 13.0
 
+    def test_skills_variants_recognised(self):
+        """Production regression (Rashmi Run 2): 2/3 sections matched -> 80%
+        formatting. Likely culprit was a 'Skills' variant (Key/Core/Technical)
+        that the strict regex missed."""
+        variants = [
+            "Key Skills", "Core Skills", "Technical Skills",
+            "Soft Skills", "Care Skills", "Skills Summary",
+            "Areas of Expertise", "Key Competencies",
+        ]
+        for v in variants:
+            cv = (
+                "Name\nemail@x.com\nphone +61 412 345 678\n\n"
+                "## Experience\nrole\n\n## Education\ndegree\n\n"
+                f"{v}\nlist of items here\n"
+            )
+            score = _formatting_score(cv)
+            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+
+    def test_education_variants_recognised(self):
+        variants = [
+            "Education", "Educational Background", "Academic Background",
+            "Academic Qualifications", "Qualifications",
+        ]
+        for v in variants:
+            cv = (
+                "Name\nemail@x.com\nphone +61 412 345 678\n\n"
+                "## Experience\nrole\n\n"
+                f"{v}\ndegree info\n\n"
+                "## Skills\nlist\n"
+            )
+            score = _formatting_score(cv)
+            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+
+    def test_experience_variants_recognised(self):
+        variants = [
+            "Experience", "Work Experience", "Professional Experience",
+            "Employment History", "Work History", "Career Summary",
+        ]
+        for v in variants:
+            cv = (
+                "Name\nemail@x.com\nphone +61 412 345 678\n\n"
+                f"{v}\nrole at company\n\n"
+                "## Education\ndegree\n\n## Skills\nlist\n"
+            )
+            score = _formatting_score(cv)
+            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+
 
 class TestFormattingScoreTightening:
     def test_section_word_in_sentence_does_not_award_points(self):
