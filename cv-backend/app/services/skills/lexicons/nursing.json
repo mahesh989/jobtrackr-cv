@@ -66,7 +66,9 @@
         "bathing support",
         "shower and bath assistance",
         "shower assistance",
-        "assisting with showering"
+        "assisting with showering",
+        "bathing assistance",
+        "showering assistance"
       ]
     },
     {
@@ -75,7 +77,10 @@
         "dressing",
         "grooming",
         "dressing assistance",
-        "assistance with dressing"
+        "assistance with dressing",
+        "grooming assistance",
+        "grooming support",
+        "assistance with grooming"
       ]
     },
     {
@@ -190,7 +195,15 @@
         "person-centred care approach",
         "person-centred approach",
         "holistic resident care",
-        "holistic care"
+        "holistic care",
+        "promoting patient comfort",
+        "promoting patient dignity",
+        "promoting patient independence",
+        "promoting dignity and independence",
+        "promoting independence and wellbeing",
+        "maintaining dignity and independence",
+        "patient dignity and comfort",
+        "patient dignity and independence"
       ]
     },
     {
@@ -304,7 +317,8 @@
         "obs",
         "taking observations",
         "observation skills",
-        "clinical observation skills"
+        "clinical observation skills",
+        "observational skills"
       ]
     },
     {
@@ -331,7 +345,10 @@
         "monitoring and reporting changes in condition",
         "reporting changes in resident condition",
         "monitoring changes in condition",
-        "observation and reporting of changes"
+        "observation and reporting of changes",
+        "reporting on client condition",
+        "reporting on patient condition",
+        "reporting on resident condition"
       ]
     },
     {
@@ -427,7 +444,9 @@
         "patient support",
         "basic patient care procedures",
         "patient care procedures",
-        "resident care in a healthcare or aged care setting"
+        "resident care in a healthcare or aged care setting",
+        "patient care interventions",
+        "delivery of patient care"
       ]
     },
     {
@@ -680,7 +699,10 @@
         "health care team practice",
         "healthcare team collaboration",
         "working with registered nurses",
-        "working under registered nurse direction"
+        "working under registered nurse direction",
+        "collaboration in multidisciplinary teams",
+        "multidisciplinary team collaboration",
+        "collaborative multidisciplinary practice"
       ]
     },
     {
@@ -987,7 +1009,18 @@
         "program evaluation",
         "lifestyle program coordination",
         "resident lifestyle programs",
-        "leisure activities"
+        "leisure activities",
+        "activities program coordination",
+        "program planning",
+        "program organisation",
+        "program organization",
+        "program implementation",
+        "individual activities facilitation",
+        "individual activity facilitation",
+        "group activities facilitation",
+        "activities coordination",
+        "activities and lifestyle coordination",
+        "promoting independence and wellbeing through activities"
       ]
     },
     {
@@ -1010,7 +1043,9 @@
         "previous experience in an acute healthcare area",
         "acute healthcare experience",
         "acute ward care",
-        "medical and surgical nursing wards"
+        "medical and surgical nursing wards",
+        "acute healthcare",
+        "acute health care"
       ]
     },
     {
@@ -1095,6 +1130,111 @@
         "shopping escort",
         "shopping and errands",
         "errands assistance"
+      ]
+    },
+    {
+      "canonical": "general medicine",
+      "variants": [
+        "medical nursing",
+        "general medicine ward",
+        "general medicine nursing",
+        "medical ward care",
+        "general medical care",
+        "general medical ward"
+      ]
+    },
+    {
+      "canonical": "surgical nursing",
+      "variants": [
+        "surgical ward care",
+        "surgical care",
+        "general surgical nursing",
+        "surgical ward",
+        "surgical department",
+        "surgical ward nursing"
+      ]
+    },
+    {
+      "canonical": "cardiology",
+      "variants": [
+        "cardiac nursing",
+        "cardiology nursing",
+        "cardiac care",
+        "cardiology ward"
+      ]
+    },
+    {
+      "canonical": "oncology care",
+      "variants": [
+        "cancer care",
+        "oncology nursing",
+        "cancer nursing",
+        "oncology ward"
+      ]
+    },
+    {
+      "canonical": "obstetrics",
+      "variants": [
+        "obstetric care",
+        "obstetric nursing",
+        "maternity nursing",
+        "maternity ward"
+      ]
+    },
+    {
+      "canonical": "orthopaedics",
+      "variants": [
+        "orthopaedic nursing",
+        "orthopaedic ward",
+        "orthopaedic care",
+        "orthopedic nursing",
+        "orthopedic care"
+      ]
+    },
+    {
+      "canonical": "neurosurgery",
+      "variants": [
+        "neurosurgical nursing",
+        "neurosurgical care",
+        "neuroscience nursing",
+        "neurology nursing"
+      ]
+    },
+    {
+      "canonical": "urology",
+      "variants": [
+        "urology nursing",
+        "urology ward",
+        "urological care"
+      ]
+    },
+    {
+      "canonical": "ear nose and throat",
+      "variants": [
+        "ear, nose and throat surgery",
+        "ent nursing",
+        "ent care",
+        "ent surgery",
+        "ear nose and throat surgery"
+      ]
+    },
+    {
+      "canonical": "vascular care",
+      "variants": [
+        "lung and vascular medicine",
+        "vascular nursing",
+        "respiratory and vascular care",
+        "respiratory medicine",
+        "pulmonary care"
+      ]
+    },
+    {
+      "canonical": "endocrine care",
+      "variants": [
+        "endocrine surgery",
+        "endocrinology",
+        "endocrine nursing",
+        "endocrine ward"
       ]
     },
     {
