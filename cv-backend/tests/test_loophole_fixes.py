@@ -28,7 +28,7 @@ from app.services.eval.writers import (
     _SETTING_THEATRE,
 )
 from app.services.pipeline.steps.ats_scoring import (
-    _experience_score,
+    _FORMATTING_MAX,
     _formatting_score,
     run_ats_scoring,
 )
@@ -130,71 +130,15 @@ class TestVerifyMatchEvidence:
 
 
 # ---------------------------------------------------------------------------
-# 4A — deterministic experience score
+# 4A — experience score (v1 tests removed)
 # ---------------------------------------------------------------------------
-
-
-class TestExperienceScore:
-    def _matching(self, req_match, req_total, matched_resp=0, resp_total=0):
-        per_cat = {
-            "technical":        {"matched": 0, "total": 0},
-            "soft_skills":      {"matched": 0, "total": 0},
-            "domain_knowledge": {"matched": req_match, "total": req_total},
-        }
-        return {
-            "counts": {"required": per_cat, "preferred": {}, "totals": {}},
-            "matched_responsibilities": ["x"] * matched_resp,
-        }
-
-    def _jd(self, family="nursing", resp_total=0):
-        return {
-            "role_family": family,
-            "responsibilities": ["r"] * resp_total,
-        }
-
-    def test_perfect_match_full_marks(self):
-        m = self._matching(8, 8, matched_resp=4, resp_total=4)
-        score = _experience_score(m, self._jd(resp_total=4))
-        # 1.0 * 15 (match rate) + 1.0 * 12 (resp coverage) + 8 (nursing family) = 35
-        assert score == 35
-
-    def test_zero_match_minimal_marks(self):
-        m = self._matching(0, 8, matched_resp=0, resp_total=4)
-        score = _experience_score(m, self._jd(resp_total=4))
-        # 0.0 * 15 (req) + 0.0 * 12 (resp) + 8 (family aligned) = 8
-        assert score == 8
-
-    def test_partial_match(self):
-        m = self._matching(5, 8, matched_resp=2, resp_total=4)
-        score = _experience_score(m, self._jd(resp_total=4))
-        # (5/8) * 15 (9.375) + (2/4) * 12 (6.0) + 8 (nursing) = 23.375
-        assert score == 23.375
-
-    def test_master_family_half_credit_on_alignment(self):
-        m = self._matching(8, 8, matched_resp=4, resp_total=4)
-        score = _experience_score(m, self._jd(family="master", resp_total=4))
-        # 15 + 12 + 4 = 31
-        assert score == 31
-
-    def test_no_jd_responsibilities_gives_neutral_half(self):
-        m = self._matching(8, 8, matched_resp=0, resp_total=0)
-        score = _experience_score(m, self._jd(resp_total=0))
-        # 15 + 6 (neutral half) + 8 = 29
-        assert score == 29
-
-    def test_no_jd_required_keywords_neutral_half(self):
-        m = self._matching(0, 0, matched_resp=4, resp_total=4)
-        score = _experience_score(m, self._jd(resp_total=4))
-        # 7.5 (neutral half) + 12 + 8 = 27.5
-        assert score == 27.5
-
-    def test_deterministic_across_calls(self):
-        """Same inputs → identical scores. The whole point of removing the
-        AI's raw_match_score is to eliminate this variance."""
-        m = self._matching(6, 8, matched_resp=3, resp_total=5)
-        jd = self._jd(resp_total=5)
-        scores = [_experience_score(m, jd) for _ in range(10)]
-        assert len(set(scores)) == 1
+#
+# v1's three-sub-signal 35-pt formula (and its ``(matching, jd) -> float``
+# signature) was replaced wholesale by v2. Coverage of every v2 sub-signal
+# lives in ``tests/test_ats_scoring_v2.py``: role-family freebie removed,
+# required-keyword double-count removed, tailoring invariant (Cat 2 + 3
+# unmoved by keyword injection), and each sub-signal's formula in
+# isolation. Nothing left to assert against v1 here.
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +172,9 @@ class TestFormattingScoreRealWorldCV:
             "for the length sub-signal. " * 10
         )
         score = _formatting_score(cv)
-        # 15 (email) + 15 (phone+) + 60 (all 3 sections) + 10 (length) = 100 → 15/15
-        assert score >= 13.0, f"Expected high formatting score, got {score}"
+        # Score thresholds expressed as a fraction of _FORMATTING_MAX so
+        # the assertions survive future envelope changes (v1 was 15, v2 is 10).
+        assert score >= 0.85 * _FORMATTING_MAX, f"Expected high formatting score, got {score}"
 
     def test_plain_markdown_heading_still_matches(self):
         cv = (
@@ -239,7 +184,7 @@ class TestFormattingScoreRealWorldCV:
             "## Skills\nlist of skills\n"
         )
         score = _formatting_score(cv)
-        assert score >= 13.0
+        assert score >= 0.85 * _FORMATTING_MAX
 
     def test_skills_variants_recognised(self):
         """Production regression (Rashmi Run 2): 2/3 sections matched -> 80%
@@ -257,7 +202,7 @@ class TestFormattingScoreRealWorldCV:
                 f"{v}\nlist of items here\n"
             )
             score = _formatting_score(cv)
-            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+            assert score >= 0.85 * _FORMATTING_MAX, f"variant '{v}' failed to match heading (score={score})"
 
     def test_education_variants_recognised(self):
         variants = [
@@ -272,7 +217,7 @@ class TestFormattingScoreRealWorldCV:
                 "## Skills\nlist\n"
             )
             score = _formatting_score(cv)
-            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+            assert score >= 0.85 * _FORMATTING_MAX, f"variant '{v}' failed to match heading (score={score})"
 
     def test_experience_variants_recognised(self):
         variants = [
@@ -286,7 +231,7 @@ class TestFormattingScoreRealWorldCV:
                 "## Education\ndegree\n\n## Skills\nlist\n"
             )
             score = _formatting_score(cv)
-            assert score >= 13.0, f"variant '{v}' failed to match heading (score={score})"
+            assert score >= 0.85 * _FORMATTING_MAX, f"variant '{v}' failed to match heading (score={score})"
 
 
 class TestFormattingScoreTightening:
@@ -298,8 +243,8 @@ class TestFormattingScoreTightening:
             "Email: x@y.com. Phone: +61 412 345 678."
         )
         score = _formatting_score(cv)
-        # ~30 (contact) + 0 (no real headings) + 5 (short, ~17 words) = ~35/100 → ~5.25/15
-        assert score < 8.0
+        # Contact only + no real headings + short length → well below half.
+        assert score < 0.55 * _FORMATTING_MAX
 
     def test_real_headings_award_points(self):
         cv = (
@@ -307,16 +252,15 @@ class TestFormattingScoreTightening:
             "## Experience\n- xyz\n\n## Education\n- xyz\n\n## Skills\n- xyz\n"
         )
         score = _formatting_score(cv)
-        # 30 (contact) + 60 (all three headings) + something (length) → ≥90/100 → ≥13.5/15
-        assert score >= 13.0
+        # Full contact + all three section headings → high in the envelope.
+        assert score >= 0.85 * _FORMATTING_MAX
 
     def test_short_phone_not_credited(self):
         """8-digit run (old floor) should NOT count as a phone now."""
         cv = "Email is x@y.com. Reference number 12345678."  # no real phone
         score = _formatting_score(cv)
-        # Should NOT get the phone-or-url 15 points beyond email.
-        # 15 (email only) + 0 (no headings) + 5 (short) → 20/100 → ~3/15
-        assert score < 6.0
+        # Email only — no phone, no URL, no headings, very short length.
+        assert score < 0.40 * _FORMATTING_MAX
 
     def test_nursing_length_window_broadened(self):
         """Nursing CVs with credentials lists routinely hit 1500-2500 words.
@@ -324,8 +268,8 @@ class TestFormattingScoreTightening:
         words = ["word"] * 2000
         cv = "Email: x@y.com\nPhone: +61 412 345 678\n\n## Experience\n" + " ".join(words)
         score = _formatting_score(cv)
-        # 30 + 20 + 10 = 60/100 → 9.0/15
-        assert score >= 9.0
+        # Email + phone + one section heading + full length window credit.
+        assert score >= 0.55 * _FORMATTING_MAX
 
 
 # ---------------------------------------------------------------------------
@@ -772,7 +716,9 @@ def test_run_ats_scoring_integration():
     assert "overall_score" in result
     assert 0 <= result["overall_score"] <= 100
     breakdown = result["breakdown"]
-    assert breakdown["category_2_experience"]["source"].startswith("deterministic:")
+    # v2 source: deterministic three-sub-signal experience.
+    assert "v2 deterministic" in breakdown["category_2_experience"]["source"]
+    assert "components" in breakdown["category_2_experience"]
     # Deterministic on same inputs.
     again = run_ats_scoring(cv, jd_analysis, matching)
     assert again["overall_score"] == result["overall_score"]

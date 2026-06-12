@@ -1,32 +1,63 @@
 """
-Step 3 — ATS scoring.
+Step 3 — ATS scoring (v2).
 
-Deterministic, no AI call. Reads the structured counts that the CV-JD
-matching step now produces and turns them into a transparent 100-point
-score the user can reproduce by hand.
+Deterministic, no AI call. Reads:
+  • the structured counts the CV↔JD matching step produced,
+  • the JD's structured analysis (responsibilities, experience_years_required,
+    role_family),
+  • the raw CV text,
+and turns them into a transparent 100-point score the user can reproduce by
+hand.
 
 100-point breakdown:
 
     Category 1 — Keyword Match (50 pts, derived from match_rates)
-        technical_required        25 pts   ← weighted on the required bucket only
-        soft_skills_required      10 pts
-        domain_knowledge_required  5 pts
-        preferred_overall         10 pts   ← all categories of the preferred bucket
+        Per role family (tech default vs nursing/manual flip):
+            technical_required        25 pts (5 on nursing/manual)
+            soft_skills_required      10 pts
+            domain_knowledge_required  5 pts (25 on nursing/manual)
+            preferred_overall         10 pts
+        Presence-aware: empty buckets' weight is redistributed onto populated
+        ones so a perfect match always reaches 50 regardless of JD shape.
 
-    Category 2 — Experience Signal (35 pts)
-        AI's raw_match_score scaled to 35 pts
+    Category 2 — Experience (40 pts) — v2: rewritten from scratch
+        Responsibility coverage   (20 pts) — verifiable JD-duty ↔ CV-bullet match
+        Relevant tenure           (12 pts) — CV months in the JD's vertical vs
+                                              experience_years_required
+        Vertical alignment        ( 8 pts) — % of CV experience entries whose
+                                              primary vertical equals the JD's
+        Old defects intentionally removed:
+          - Required-keyword-match rate sub-signal: was Category-1 counted
+            again. Removed; keyword coverage is scored ONCE in Cat 1.
+          - Role-family "freebie" (8 pts for JD being recognised): rewarded
+            JD-side classification, not CV↔JD fit. Replaced by CV-side
+            vertical alignment which is CV-earned.
+          - AI raw_match_score: kept on the matching payload for logs but
+            no longer reaches the scorer.
 
-    Category 3 — Formatting / Structure (15 pts)
-        contact info + expected section headings + length sanity
+    Category 3 — Formatting / Structure (10 pts)
+        contact (3) + expected section headings (6) + length sanity (1).
+        Hygiene check, not a discriminator — most real CVs score 9-10/10.
 
 The "overall_score" is the sum (0-100). Every component is exposed in the
 breakdown so the UI can show exactly where points were earned and lost.
+
+Critical invariant: tailoring (keyword injection) moves Category 1 only.
+Categories 2 and 3 read different parts of the document (experience
+narrative + formatting), neither of which the writer can fabricate from
+the feasibility plan — so predicted lift equals actual lift.
 """
 from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.services.cv.experience_parser import (
+    parse_cv_experience,
+    relevant_tenure_months,
+    vertical_alignment_ratio,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +120,23 @@ _KEYWORD_WEIGHTS = {
     "domain_knowledge_required":  5,
     "preferred_overall":         10,
 }
-_EXPERIENCE_MAX = 35
-_FORMATTING_MAX = 15
+# v2: 50 / 40 / 10
+_EXPERIENCE_MAX = 40
+_FORMATTING_MAX = 10
+
+# Category 2 sub-signal budgets (must sum to _EXPERIENCE_MAX).
+_EXP_RESPONSIBILITY_MAX = 20
+_EXP_TENURE_MAX         = 12
+_EXP_VERTICAL_MAX       =  8
+
+# Role-family → CV-side vertical (lexicon vertical used by experience_parser).
+# Mirrors ats_scoring's _ROLE_FAMILY_TO_VERTICAL on the skills side.
+_ROLE_FAMILY_TO_CV_VERTICAL: Dict[str, Optional[str]] = {
+    "tech":    "tech",
+    "nursing": "nursing",
+    "manual":  "cleaning",
+    "master":  None,
+}
 
 
 def run_ats_scoring(
@@ -105,7 +151,7 @@ def run_ats_scoring(
     weights = _resolve_keyword_weights(jd_analysis)
 
     keyword_total, keyword_breakdown = _keyword_score(matching, weights)
-    experience = _experience_score(matching, jd_analysis)
+    experience, experience_components = _experience_score(cv_text, matching, jd_analysis)
     formatting = _formatting_score(cv_text)
 
     overall = int(round(keyword_total + experience + formatting))
@@ -130,7 +176,8 @@ def run_ats_scoring(
             "category_2_experience": {
                 "earned": round(experience, 1),
                 "max": _EXPERIENCE_MAX,
-                "source": "deterministic: required-match-rate + matched-responsibilities + role-family-alignment",
+                "source": "v2 deterministic: responsibility-coverage + relevant-tenure + vertical-alignment",
+                "components": experience_components,
             },
             "category_3_formatting": {
                 "earned": round(formatting, 1),
@@ -242,71 +289,179 @@ def _keyword_score(
 
 
 def _experience_score(
-    matching: Dict[str, Any], jd_analysis: Dict[str, Any] | None = None
-) -> float:
-    """Deterministic experience score (35 pts max).
+    cv_text: str,
+    matching: Dict[str, Any],
+    jd_analysis: Optional[Dict[str, Any]] = None,
+) -> Tuple[float, Dict[str, Any]]:
+    """v2 deterministic experience score (40 pts max).
 
-    The previous version scaled the AI's ``raw_match_score`` (a single integer
-    the model emits at temperature 0.1) directly. That number swings ±10-15
-    points across identical runs and was the single biggest driver of the
-    documented 86→57→69 ATS variance.
+    Three sub-signals, each reading a different part of the CV's
+    experience section — no overlap with Category 1's keyword counts,
+    so tailoring keywords cannot move this number.
 
-    Replaced with three deterministic sub-signals — all derived from data
-    earlier pipeline steps already produced. ``raw_match_score`` is kept in
-    the matching payload for logging but no longer affects the score.
+    Returns ``(earned_points, components)`` so the breakdown can show the
+    user which sub-signal contributed what.
 
-    Sub-signals (35 pts total):
+    Sub-signals
+    ===========
 
-      Required-keyword match rate (15 pts)
-        Scored linearly: (required_matched / required_total) * 15.
+    Responsibility coverage (20 pts)
+      Fraction of the JD's ``responsibilities`` whose VERB-NOUN content
+      appears verbatim somewhere in the CV's experience bullets.
+      A linear scale: ``(covered / total) × 20``. When the JD lists no
+      responsibilities → neutral half (10 pts), matching the old
+      conservative behaviour.
 
-      Matched responsibilities (12 pts)
-        Scored linearly: (matched_responsibilities / total_responsibilities) * 12.
+    Relevant tenure (12 pts)
+      Months of CV experience whose **primary vertical** equals the JD's
+      role family (resolved via the lexicon classifier on each entry's
+      bullets — same source of truth as JD analysis). Compared against
+      ``jd_analysis.experience_years_required``:
+        - Required years missing → tenure presence-only: 12 pts if any
+          relevant tenure, else 0.
+        - Required years stated → linear up to the requirement, capped at
+          ``required_years × 12 / required_years`` = 12.
+      Master family (JD title not classifiable) → neutral half (6 pts) —
+      we cannot evaluate vertical-relative tenure when the vertical is
+      unknown.
 
-      Role-family alignment (8 pts)
-        If the resolved role_family is one of the production families
-        (nursing / tech / manual) — i.e. the JD title was recognised — the
-        candidate's CV is being scored against the right rubric. 8 pts.
-        ``master`` (the fallback) means the family wasn't recognisable from
-        the JD title → 4 pts (still scoring, but with less confidence).
+    Vertical alignment (8 pts)
+      Fraction of CV experience entries whose primary vertical equals the
+      JD's. ``(aligned / total_entries) × 8``. Replaces the old
+      role-family freebie which awarded 8 pts based on JD-title
+      classification alone. The CV must EARN this now.
     """
+    components: Dict[str, Any] = {}
     pts = 0.0
 
-    # 1. Required-keyword match rate (15 pts)
-    counts = matching.get("counts") or {}
-    req = counts.get("required") or {}
-    req_matched = sum((req.get(c) or {}).get("matched", 0) for c in
-                      ("technical", "soft_skills", "domain_knowledge"))
-    req_total = sum((req.get(c) or {}).get("total", 0) for c in
-                    ("technical", "soft_skills", "domain_knowledge"))
-    if req_total > 0:
-        rate = req_matched / req_total
-        pts += rate * 15.0
-    else:
-        # JD has no required keywords at all — neutral, give half.
-        pts += 7.5
-
-    # 2. Matched responsibilities (12 pts)
-    matched_resp = matching.get("matched_responsibilities") or []
-    total_resp = []
-    if jd_analysis:
-        total_resp = jd_analysis.get("responsibilities") or []
-    if total_resp:
-        cov = len(matched_resp) / len(total_resp)
-        pts += cov * 12.0
-    else:
-        # No JD responsibilities listed — neutral half.
-        pts += 6
-
-    # 3. Role-family alignment (8 pts)
     fam = (jd_analysis or {}).get("role_family")
-    if fam in ("nursing", "tech", "manual"):
-        pts += 8
-    elif fam == "master":
-        pts += 4
-    # Unknown / missing → 0.
+    jd_vertical = _ROLE_FAMILY_TO_CV_VERTICAL.get(fam) if fam else None
 
-    return min(pts, _EXPERIENCE_MAX)
+    # Parse CV experience once and share with both tenure + alignment sub-signals.
+    try:
+        entries = parse_cv_experience(cv_text)
+    except Exception:  # noqa: BLE001 — never block scoring on a parser hiccup
+        logger.warning("ATS v2: CV experience parser failed; treating as empty")
+        entries = []
+
+    # ── 1. Responsibility coverage (20 pts) ──
+    responsibilities: List[str] = []
+    if jd_analysis:
+        responsibilities = jd_analysis.get("responsibilities") or []
+    covered, covered_list = _count_responsibilities_covered(responsibilities, cv_text)
+    if responsibilities:
+        rate = covered / len(responsibilities)
+        resp_pts = rate * _EXP_RESPONSIBILITY_MAX
+    else:
+        resp_pts = _EXP_RESPONSIBILITY_MAX / 2.0
+    pts += resp_pts
+    components["responsibility_coverage"] = {
+        "covered": covered,
+        "total": len(responsibilities),
+        "covered_list": covered_list,
+        "max_points": _EXP_RESPONSIBILITY_MAX,
+        "earned_points": round(resp_pts, 2),
+    }
+
+    # ── 2. Relevant tenure (12 pts) ──
+    relevant_months = relevant_tenure_months(entries, jd_vertical)
+    required_years_raw = (jd_analysis or {}).get("experience_years_required")
+    required_years: Optional[float] = None
+    if isinstance(required_years_raw, (int, float)) and required_years_raw > 0:
+        required_years = float(required_years_raw)
+
+    if jd_vertical is None:
+        # Unknown JD family — can't evaluate vertical-relative tenure honestly.
+        tenure_pts = _EXP_TENURE_MAX / 2.0
+        tenure_basis = "neutral_unknown_family"
+    elif required_years is not None:
+        required_months = required_years * 12.0
+        rate = min(1.0, relevant_months / required_months) if required_months else 0.0
+        tenure_pts = rate * _EXP_TENURE_MAX
+        tenure_basis = f"vs_required_{required_years}_yrs"
+    else:
+        # JD didn't state a year requirement — presence-only check.
+        tenure_pts = float(_EXP_TENURE_MAX) if relevant_months > 0 else 0.0
+        tenure_basis = "presence_only_no_requirement"
+    pts += tenure_pts
+    components["relevant_tenure"] = {
+        "relevant_months": relevant_months,
+        "required_years": required_years,
+        "basis": tenure_basis,
+        "max_points": _EXP_TENURE_MAX,
+        "earned_points": round(tenure_pts, 2),
+    }
+
+    # ── 3. Vertical alignment (8 pts) ──
+    if jd_vertical is None:
+        alignment = 0.0
+        alignment_basis = "unknown_family"
+        align_pts = _EXP_VERTICAL_MAX / 2.0  # neutral half — same reason as tenure
+    else:
+        alignment = vertical_alignment_ratio(entries, jd_vertical)
+        alignment_basis = f"primary_vertical_eq_{jd_vertical}"
+        align_pts = alignment * _EXP_VERTICAL_MAX
+    pts += align_pts
+    components["vertical_alignment"] = {
+        "jd_vertical": jd_vertical,
+        "alignment_ratio": round(alignment, 3),
+        "n_entries": len(entries),
+        "basis": alignment_basis,
+        "max_points": _EXP_VERTICAL_MAX,
+        "earned_points": round(align_pts, 2),
+    }
+
+    earned = min(pts, float(_EXPERIENCE_MAX))
+    return earned, components
+
+
+# Light verb-noun overlap check between a JD responsibility and the CV's
+# experience bullets. We don't need a parser here — strip stopwords / short
+# tokens and require ≥2 of the responsibility's content tokens to appear
+# anywhere in cv_text (case-insensitive). Conservative — a single keyword
+# overlap isn't enough; two keeps the check from over-rewarding generic
+# bullets like "support residents".
+_RESP_STOPWORDS = frozenset({
+    "and", "or", "the", "a", "an", "to", "in", "on", "of", "for", "with",
+    "as", "by", "at", "from", "into", "via", "per", "any", "all", "ensure",
+    "ensuring", "support", "provide", "providing", "work", "working",
+    "contribute", "participate", "deliver", "delivering", "assist",
+    "assisting", "help", "helping", "carry", "carrying", "out",
+})
+
+
+def _count_responsibilities_covered(
+    responsibilities: List[str], cv_text: str,
+) -> Tuple[int, List[str]]:
+    """Return (covered_count, covered_responsibility_strings).
+
+    A responsibility is "covered" when ≥2 of its content tokens (length ≥ 4,
+    not in ``_RESP_STOPWORDS``) appear in ``cv_text``. Word-boundary
+    case-insensitive. Returns the list of covered strings for audit.
+    """
+    if not responsibilities or not cv_text:
+        return 0, []
+    cv_lower = cv_text.lower()
+    covered: List[str] = []
+    for resp in responsibilities:
+        if not isinstance(resp, str):
+            continue
+        text = resp.strip()
+        if not text:
+            continue
+        tokens = [
+            t for t in re.findall(r"[a-z][a-z\-]+", text.lower())
+            if len(t) >= 4 and t not in _RESP_STOPWORDS
+        ]
+        if not tokens:
+            continue
+        hits = sum(
+            1 for t in tokens
+            if re.search(r"\b" + re.escape(t) + r"\b", cv_lower)
+        )
+        if hits >= 2:
+            covered.append(text)
+    return len(covered), covered
 
 
 # ---------------------------------------------------------------------------
@@ -315,49 +470,49 @@ def _experience_score(
 
 
 def _formatting_score(cv_text: str) -> float:
-    """Structural checks: contact info present, expected sections present, length sane.
+    """v2 formatting score (10 pts max — hygiene check, not a discriminator).
+
+    Three sub-checks, designed so most real CVs score 9-10/10:
+      Contact (3): email + (phone OR URL)
+      Sections (6): experience / education / skills headings present
+      Length (1): word count in a sane range
+
+    Sub-totals are returned on the final 10-pt scale directly (no internal
+    100-pt rescale) for transparency. The hard ceiling is exactly 10 so the
+    tailored-side ``_floor_formatting`` rule keeps working unchanged.
 
     Section headings are matched as actual headings (line-start, optionally
-    '#'-prefixed), not as bare words anywhere — the old check awarded full
-    section points to any CV with the word "experience" anywhere.
-
-    Length window broadened (150-2500 full marks, 100-3000 half) because
-    nursing CVs with credential lists routinely exceed the old 1500 ceiling.
-
-    Phone match requires ≥10 digits so dates / postcodes / IDs don't count.
+    '#'-prefixed); phone requires ≥10 digits so dates/postcodes don't count.
     """
     if not cv_text:
         return 0.0
 
-    raw = 0  # accumulator on a 100-point internal scale, then rescaled to 15
+    pts = 0.0
 
-    # Contact info — up to 30
+    # Contact (3 pts) — email (1.5) + phone/URL (1.5)
     if _EMAIL_RE.search(cv_text):
-        raw += 15
+        pts += 1.5
     phone_hit = False
     for m in _PHONE_RE.finditer(cv_text):
         if len(_PHONE_DIGITS_RE.findall(m.group(0))) >= 10:
             phone_hit = True
             break
     if phone_hit or _URL_RE.search(cv_text):
-        raw += 15
+        pts += 1.5
 
-    # Expected sections — up to 60 (20 each). Must appear as a heading line,
-    # not as the literal word anywhere in the text.
-    for name, pattern in _SECTION_HEADING_RES.items():
+    # Sections (6 pts) — 2 each for experience / education / skills headings.
+    for _name, pattern in _SECTION_HEADING_RES.items():
         if pattern.search(cv_text):
-            raw += 20
+            pts += 2.0
 
-    # Length sanity — up to 10. Nursing CVs with credential lists routinely
-    # exceed the old 1500 ceiling; broaden to 150-2500 for full marks.
+    # Length (1 pt) — full mark in a wide window, half outside it.
     word_count = len(cv_text.split())
     if 150 <= word_count <= 2500:
-        raw += 10
+        pts += 1.0
     elif 100 <= word_count < 150 or 2500 < word_count <= 3000:
-        raw += 5
+        pts += 0.5
 
-    raw = min(raw, 100)
-    return (raw / 100.0) * _FORMATTING_MAX
+    return min(pts, float(_FORMATTING_MAX))
 
 
 # ---------------------------------------------------------------------------
