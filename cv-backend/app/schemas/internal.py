@@ -45,11 +45,25 @@ class AnalyzeRequest(BaseModel):
     contact_details: Optional[Dict[str, Any]] = None
 
     # Pipeline-automation gate thresholds. Globally fixed by migration 041
-    # (was per-profile, now uniform 60 / 70). Web and worker no longer send
-    # these in the payload — the defaults below ARE the rule. Kept as
-    # optional fields for backward compat with any caller that still sends
-    # them, but the value should always be 60 / 70.
-    min_initial_ats: float = 60
+    # (was per-profile). Web and worker no longer send these in the payload —
+    # the defaults below ARE the rule. Kept as optional fields for backward
+    # compat with any caller that still sends them.
+    #
+    # Initial-gate value lowered 60 → 50 alongside ATS scoring v2
+    # (cv-backend/docs/ATS_SCORING_V2.md): v1 awarded an 8-pt role-family
+    # "freebie" and double-counted required-keyword match-rate in Cat 2,
+    # which inflated borderline CVs into the 60s. v2 removes both, so an
+    # honest moderate-fit CV that v1 scored 62 (with 8 freebie + ~7
+    # double-count) now lands near 50. Leaving the gate at 60 would
+    # silently lock those users out with no clear reason. 50 keeps the
+    # early-stop on genuinely-weak CVs (irrelevant SWE-vs-nursing now
+    # ≤25) while letting honest moderate-fit cases through.
+    min_initial_ats: float = 50
+    # Final-gate is the trigger for auto cover-letter generation. Same v2
+    # inflation logic applies — left at 70 for now (auto cover-letter
+    # firing on FEWER, more-honest tailored CVs is arguably correct), but
+    # if real users start losing auto cover-letters that previously fired,
+    # consider 70 → 60 to match the initial-gate shift.
     min_final_ats:   float = 70
 
     # Phase C-3 — override flag. When False (default), the orchestrator

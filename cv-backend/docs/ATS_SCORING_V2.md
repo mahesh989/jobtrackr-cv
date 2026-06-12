@@ -160,6 +160,29 @@ and tailoring lifts only the keyword axis.
 - `tests/test_loophole_fixes.py` — obsolete v1 `TestExperienceScore`
   class removed; formatting tests rescaled to use `_FORMATTING_MAX`.
 
+## Initial-ATS gate retuned (60 → 50)
+
+The pipeline has an early-stop gate at `orchestrator.py:283`: if
+`overall_score < min_initial_ats`, the tailored CV step is skipped (saves
+~3 AI calls per low-match job). The default lived in
+`schemas/internal.py:52` at **60**, tuned to v1's freebie-inflated
+distribution.
+
+v2's honest scoring lands moderate-fit CVs in the high 40s / low 50s
+where v1 put them in the low 60s. Leaving the gate at 60 would silently
+lock those users out — exactly the opposite of "fix the score, don't
+change CV quality."
+
+The default was lowered to **50**. Irrelevant CVs (the SWE-vs-nursing
+case scores ≤25 in v2) are still gated out cheaply. Honest moderate-fit
+CVs pass through and get tailored.
+
+The **final-ATS gate** (`min_final_ats: 70`) triggers auto cover-letter
+generation. Same v2 inflation logic applies, but the gate was left at
+70 — auto cover-letter firing on FEWER, more-honest tailored CVs is
+arguably correct. If real users start losing auto cover-letters that
+v1 would have generated, drop it to 60 to match the initial-gate shift.
+
 ## When the design should be revisited
 
 - **CV vertical ambiguity.** If real-world tech CVs containing nursing
