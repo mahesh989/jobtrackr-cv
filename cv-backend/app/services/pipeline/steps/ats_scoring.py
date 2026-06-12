@@ -369,6 +369,15 @@ def _experience_score(
     required_years: Optional[float] = None
     if isinstance(required_years_raw, (int, float)) and required_years_raw > 0:
         required_years = float(required_years_raw)
+        # Cap unreasonably high extracted values. Multi-level JDs (AIN + RN + Midwife)
+        # cause the LLM to extract the senior-role requirement (10–15 yrs) as the
+        # single value, which collapses the tenure score for entry-level candidates.
+        # Care/cleaning roles realistically require ≤5 years at the entry level;
+        # anything higher almost certainly came from a senior sub-section and should
+        # fall back to presence-only rather than punishing entry-level applicants.
+        _MAX_CARE_YEARS: float = 5.0
+        if jd_vertical in ("nursing", "cleaning") and required_years > _MAX_CARE_YEARS:
+            required_years = None  # presence-only fallback
 
     if jd_vertical is None:
         # Unknown JD family — can't evaluate vertical-relative tenure honestly.
