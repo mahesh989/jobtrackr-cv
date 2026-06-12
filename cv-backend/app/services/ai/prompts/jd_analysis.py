@@ -109,6 +109,18 @@ list that clearly belongs to the company, not the job.
 
 Do not, however, invent a skill that has NO textual basis anywhere in the JD.
 
+EVIDENCE-GROUNDING — MANDATORY for every extracted skill. Each skill MUST
+be returned as an OBJECT carrying a verbatim quote from the JD that supports
+it. The "evidence" must be COPIED EXACTLY from the JD text — same characters,
+same casing, same punctuation. No paraphrasing, no summarising, no inventing.
+
+  • The shortest substring of the JD that, on its own, justifies the skill.
+    Typically 4–25 words from a single sentence in the JD.
+  • If you cannot find a verbatim quote that supports the skill — DO NOT
+    EXTRACT IT. A skill without a real JD quote is a hallucination.
+  • "Position title" alone is not evidence for skills inside it. E.g. "AIN"
+    in the title does not by itself ground "person-centred care".
+
 OUTPUT JSON SCHEMA — return EXACTLY this structure:
 
 {
@@ -118,20 +130,32 @@ OUTPUT JSON SCHEMA — return EXACTLY this structure:
   "responsibilities": ["concise responsibility statement", ...]   // max 10
   "experience_years_required": <integer or null>,
   "required_skills": {
-    "technical":        ["..."],   // max 15
-    "soft_skills":      ["..."],   // max 10
-    "domain_knowledge": ["..."]    // max 10
+    "technical":        [{"skill": "...", "evidence": "..."}, ...],   // max 15
+    "soft_skills":      [{"skill": "...", "evidence": "..."}, ...],   // max 10
+    "domain_knowledge": [{"skill": "...", "evidence": "..."}, ...]    // max 10
   },
   "preferred_skills": {
-    "technical":        ["..."],   // max 10
-    "soft_skills":      ["..."],   // max 6
-    "domain_knowledge": ["..."]    // max 6
+    "technical":        [{"skill": "...", "evidence": "..."}, ...],   // max 10
+    "soft_skills":      [{"skill": "...", "evidence": "..."}, ...],   // max 6
+    "domain_knowledge": [{"skill": "...", "evidence": "..."}, ...]    // max 6
   }
 }
 
+EXAMPLE (illustrative — not the JD you are analysing):
+  JD says: "Excellent communication skills, both verbal and written."
+  Correct extraction:
+    {"skill": "verbal communication",
+     "evidence": "Excellent communication skills, both verbal and written"}
+    {"skill": "written communication",
+     "evidence": "Excellent communication skills, both verbal and written"}
+  Wrong extraction:
+    {"skill": "person-centred care", "evidence": "AIN"}    // title is not evidence
+    {"skill": "stakeholder management", "evidence": ""}    // empty quote
+    {"skill": "agile", "evidence": "Agile delivery teams"} // JD never said this
+
 RULES:
-- Lowercase all skill / keyword strings.
-- A keyword appears in EXACTLY ONE bucket — never duplicated across
+- Lowercase all "skill" strings. Keep "evidence" as-it-appears in the JD.
+- A skill appears in EXACTLY ONE bucket — never duplicated across
   required/preferred or across categories.
 - If a category has no items, return an empty list, not null.
 - Skip generic filler (years of experience numbers go in

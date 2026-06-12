@@ -466,6 +466,201 @@ _JD_BODY_SCAN_CAP: int = 10  # max canonicals to inject; mirrors schema limit
 _MAX_PHRASE_TOKENS: int = 6  # skip very-long lexicon phrases (rarely literal)
 
 
+# ---------------------------------------------------------------------------
+# Groundedness gate — verify each LLM-extracted skill against JD evidence
+# ---------------------------------------------------------------------------
+#
+# The JD-analysis prompt asks the LLM to return each skill alongside a
+# verbatim JD quote that supports it. The runner stores those quotes in
+# ``jd_analysis["skill_evidence"]``: lowercased skill → evidence string.
+#
+# This gate enforces two contracts:
+#
+#   1. The evidence MUST appear (literally, after normalisation) in the JD
+#      body. If not, the LLM fabricated the quote — almost always means it
+#      also fabricated the skill ("person-centred care" cited as evidence
+#      "AIN" is the classic shape).
+#
+#   2. The skill MUST be derivable from the evidence. Either by direct
+#      token overlap ("verbal communication" ← "verbal and written
+#      communication") OR by a known lexicon synonym mapping
+#      ("compassion" ← "compassionate", looked up in the vertical lexicon).
+#
+# Dropped skills are recorded under ``lexicon_meta.ungrounded`` for audit
+# rather than silently discarded — so a real recall regression is
+# diagnosable from one log line.
+
+_GROUND_FUZZY_TOKEN_HEAD: int = 5
+"""When evidence is not a verbatim substring, accept if its first N tokens
+appear as a substring — tolerates trivial whitespace/punctuation drift."""
+
+
+def _normalise_for_match(text: str) -> str:
+    """Lowercase, collapse whitespace, normalise unicode dashes + quotes."""
+    if not text:
+        return ""
+    t = text.lower()
+    for ch in "‐‑‒–—−":
+        t = t.replace(ch, "-")
+    for ch in "‘’":
+        t = t.replace(ch, "'")
+    for ch in "“”":
+        t = t.replace(ch, '"')
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _evidence_in_jd(evidence_norm: str, jd_norm: str) -> bool:
+    """True if ``evidence_norm`` is (a) a substring of jd_norm, or (b) its
+    first ``_GROUND_FUZZY_TOKEN_HEAD`` tokens appear in jd_norm. The fuzzy
+    fallback tolerates trailing punctuation drift without letting the LLM
+    smuggle in invented suffixes."""
+    if not evidence_norm or not jd_norm:
+        return False
+    if evidence_norm in jd_norm:
+        return True
+    tokens = evidence_norm.split()
+    if len(tokens) < 3:
+        return False
+    head = " ".join(tokens[:_GROUND_FUZZY_TOKEN_HEAD])
+    return head in jd_norm
+
+
+def _skill_derivable_from_evidence(
+    skill: str, evidence_norm: str, vertical: Optional[str],
+) -> bool:
+    """True if the skill is supported by the evidence.
+
+    Two acceptance paths:
+      a) direct token overlap — any content token of the skill (>3 chars)
+         appears in evidence_norm. Catches "verbal communication" ←
+         "verbal and written communication".
+      b) lexicon synonym mapping — when ``vertical`` is set, the evidence
+         text contains a phrase that the per-vertical classifier maps to
+         the same canonical as the skill. Catches "empathy" ← evidence
+         containing "compassionate" (lexicon synonym).
+    """
+    skill_norm = skill.strip().lower()
+    if not skill_norm:
+        return False
+
+    # (a) direct token overlap, OR 4-char prefix match for compound tokens.
+    # The prefix path catches single-word compounds where the JD uses one
+    # half: "teamwork" ← evidence "works well as part of a team"
+    # ("team" is a 4-char prefix of "teamwork" with a word boundary in
+    # evidence). Width-4 is a deliberate floor: anything shorter (e.g. 3-char
+    # prefix "tea") would over-accept.
+    skill_tokens = [t for t in re.findall(r"[a-z][a-z\-]*", skill_norm) if len(t) > 3]
+    if not skill_tokens:
+        # very short skill (e.g. "sql") — fall back to ANY token
+        skill_tokens = re.findall(r"[a-z][a-z\-]*", skill_norm)
+    for tok in skill_tokens:
+        if not tok:
+            continue
+        if tok in evidence_norm:
+            return True
+        if len(tok) > 4 and re.search(r"\b" + re.escape(tok[:4]), evidence_norm):
+            return True
+
+    # (b) lexicon synonym mapping (vertical-aware)
+    if vertical:
+        try:
+            skill_class = classify(skill_norm, vertical)
+        except Exception:  # noqa: BLE001 — classifier failure must not abort
+            skill_class = None
+        skill_canonical = (
+            skill_class.canonical.lower() if (skill_class and skill_class.is_skill)
+            else skill_norm
+        )
+        # Walk unigrams and bigrams of evidence; try to classify each.
+        ev_tokens = re.findall(r"[a-z][a-z\-]+", evidence_norm)
+        candidates: List[str] = list(ev_tokens)
+        candidates.extend(
+            f"{a} {b}" for a, b in zip(ev_tokens, ev_tokens[1:])
+        )
+        for phrase in candidates:
+            try:
+                c = classify(phrase, vertical)
+            except Exception:  # noqa: BLE001
+                continue
+            if c and c.is_skill and c.canonical.lower() == skill_canonical:
+                return True
+
+    return False
+
+
+def verify_skill_evidence(
+    jd_analysis: Dict[str, Any],
+    jd_text: str,
+    *,
+    role_family_id: str,
+) -> Dict[str, Any]:
+    """Drop skills whose evidence quote is not in the JD body or whose
+    skill cannot be derived from the quote.
+
+    No-op when ``jd_analysis["skill_evidence"]`` is missing or empty
+    (back-compat with older AI runs that didn't emit evidence).
+
+    Mutates a shallow copy. Drops are recorded under
+    ``lexicon_meta.ungrounded`` as a list of
+    ``{"skill", "bucket", "evidence", "reason"}`` dicts.
+    """
+    evidence_map = jd_analysis.get("skill_evidence") or {}
+    if not isinstance(evidence_map, dict) or not evidence_map:
+        return jd_analysis
+
+    jd_norm = _normalise_for_match(jd_text)
+    if not jd_norm:
+        return jd_analysis
+
+    vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
+    out = dict(jd_analysis)
+    ungrounded: List[Dict[str, str]] = []
+
+    for block_key in ("required_skills", "preferred_skills"):
+        block = dict(out.get(block_key) or {})
+        for cat in _CATEGORIES:
+            kept: List[str] = []
+            for skill in (block.get(cat) or []):
+                if not isinstance(skill, str):
+                    continue
+                evidence = evidence_map.get(skill.strip().lower(), "")
+                evidence_norm = _normalise_for_match(evidence)
+
+                if not evidence_norm:
+                    ungrounded.append({
+                        "skill": skill, "bucket": f"{block_key}.{cat}",
+                        "evidence": evidence, "reason": "no_evidence",
+                    })
+                    continue
+                if not _evidence_in_jd(evidence_norm, jd_norm):
+                    ungrounded.append({
+                        "skill": skill, "bucket": f"{block_key}.{cat}",
+                        "evidence": evidence, "reason": "evidence_not_in_jd",
+                    })
+                    continue
+                if not _skill_derivable_from_evidence(skill, evidence_norm, vertical):
+                    ungrounded.append({
+                        "skill": skill, "bucket": f"{block_key}.{cat}",
+                        "evidence": evidence, "reason": "skill_not_derivable",
+                    })
+                    continue
+                kept.append(skill)
+            block[cat] = kept
+        out[block_key] = block
+
+    if ungrounded:
+        logger.info(
+            "groundedness gate (family=%s): dropped %d ungrounded skill(s) — %s",
+            role_family_id, len(ungrounded),
+            [(u["skill"], u["reason"]) for u in ungrounded],
+        )
+        meta = dict(out.get("lexicon_meta") or {})
+        meta["ungrounded"] = ungrounded
+        out["lexicon_meta"] = meta
+
+    return out
+
+
 def _scan_text(jd_text: str, summary: Optional[str], responsibilities: Any) -> str:
     """Combine jd_text + structured summary + responsibilities into one
     lowercase scannable blob. Unicode dash-likes are normalised to '-' so

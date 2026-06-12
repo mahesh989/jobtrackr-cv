@@ -52,13 +52,21 @@ async def run_jd_analysis(client: AIClient, jd_text: str) -> Dict[str, Any]:
             f"JD analysis response missing required keys: {sorted(missing)}"
         )
 
-    # Normalise required / preferred to the canonical nested shape.
+    # Normalise required / preferred to the canonical nested shape. The
+    # evidence-grounding prompt asks the LLM for [{"skill","evidence"}, ...].
+    # We flatten skills back to plain string lists (downstream contract is
+    # unchanged) and emit a parallel `skill_evidence` dict — lowercased skill
+    # → verbatim JD quote — used by the groundedness gate in post_process.
+    evidence: Dict[str, str] = {}
     result["required_skills"] = _normalise_skill_block(
-        result.get("required_skills"), block_name="required_skills"
+        result.get("required_skills"), block_name="required_skills",
+        evidence_out=evidence,
     )
     result["preferred_skills"] = _normalise_skill_block(
-        result.get("preferred_skills"), block_name="preferred_skills"
+        result.get("preferred_skills"), block_name="preferred_skills",
+        evidence_out=evidence,
     )
+    result["skill_evidence"] = evidence
 
     # responsibilities → list of trimmed strings
     result["responsibilities"] = [
@@ -84,7 +92,9 @@ async def run_jd_analysis(client: AIClient, jd_text: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _normalise_skill_block(value: Any, *, block_name: str) -> Dict[str, List[str]]:
+def _normalise_skill_block(
+    value: Any, *, block_name: str, evidence_out: Optional[Dict[str, str]] = None,
+) -> Dict[str, List[str]]:
     """
     Coerce a required_skills / preferred_skills block to:
         {"technical": [...], "soft_skills": [...], "domain_knowledge": [...]}
@@ -92,6 +102,11 @@ def _normalise_skill_block(value: Any, *, block_name: str) -> Dict[str, List[str
     Tolerates the legacy flat-list shape by funnelling unknown items into
     "technical", but logs a warning so we can spot models that ignored
     the schema.
+
+    Each item may be either a bare string (legacy) or an object
+    ``{"skill": str, "evidence": str}`` (current schema). When the object
+    form is present, the evidence quote is recorded in ``evidence_out``
+    keyed by the lowercased skill string.
     """
     if isinstance(value, list):
         logger.warning(
@@ -99,7 +114,7 @@ def _normalise_skill_block(value: Any, *, block_name: str) -> Dict[str, List[str
             block_name,
         )
         return {
-            "technical": _normalise_keyword_list(value),
+            "technical": _normalise_keyword_list(value, evidence_out=evidence_out),
             "soft_skills": [],
             "domain_knowledge": [],
         }
@@ -111,12 +126,21 @@ def _normalise_skill_block(value: Any, *, block_name: str) -> Dict[str, List[str
 
     out: Dict[str, List[str]] = {}
     for cat in _CATEGORY_KEYS:
-        out[cat] = _normalise_keyword_list(value.get(cat))
+        out[cat] = _normalise_keyword_list(value.get(cat), evidence_out=evidence_out)
     return out
 
 
-def _normalise_keyword_list(items: Any) -> List[str]:
-    """Lowercase, strip, and de-duplicate a list of keyword strings."""
+def _normalise_keyword_list(
+    items: Any, *, evidence_out: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """Lowercase, strip, and de-duplicate a list of skill items.
+
+    Items may be either bare strings (legacy) or
+    ``{"skill": str, "evidence": str}`` objects (current schema). When an
+    item is an object and ``evidence_out`` is provided, the evidence quote
+    is recorded keyed by the lowercased skill string. The first non-empty
+    evidence for a given skill wins (later duplicates are ignored).
+    """
     if not items:
         return []
     if not isinstance(items, list):
@@ -124,10 +148,19 @@ def _normalise_keyword_list(items: Any) -> List[str]:
     seen: set[str] = set()
     out: List[str] = []
     for raw in items:
-        s = str(raw).lower().strip()
+        skill_str: str
+        evidence_str: str = ""
+        if isinstance(raw, dict):
+            skill_str = str(raw.get("skill") or "").strip()
+            evidence_str = str(raw.get("evidence") or "").strip()
+        else:
+            skill_str = str(raw).strip()
+        s = skill_str.lower()
         if s and s not in seen:
             seen.add(s)
             out.append(s)
+            if evidence_out is not None and evidence_str and s not in evidence_out:
+                evidence_out[s] = evidence_str
     return out
 
 

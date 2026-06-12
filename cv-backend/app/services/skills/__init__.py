@@ -23,6 +23,7 @@ from app.services.skills.post_process import (
     post_process_cv_skills,
     post_process_jd_analysis,
     post_process_skills,
+    verify_skill_evidence,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "post_process_cv_skills",
     "post_process_jd_analysis",
     "post_process_skills",
+    "verify_skill_evidence",
 ]

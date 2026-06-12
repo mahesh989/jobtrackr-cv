@@ -198,6 +198,17 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             from app.services.skills import (
                 enrich_required_skills_from_jd_body,
                 post_process_jd_analysis,
+                verify_skill_evidence,
+            )
+            # Phase-1 groundedness gate — drop LLM-extracted skills whose
+            # evidence quote isn't in the JD (hallucinations) BEFORE the
+            # deterministic floor below adds any lexicon-verified extras.
+            # Gate only sees the LLM's output; the floor is trusted by
+            # construction (it's a curated regex against the JD body).
+            jd_analysis = verify_skill_evidence(
+                jd_analysis,
+                payload.jd_text,
+                role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
             jd_analysis = enrich_required_skills_from_jd_body(
                 jd_analysis,
