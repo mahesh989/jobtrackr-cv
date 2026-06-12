@@ -528,6 +528,122 @@ class TestJdBodyLexiconScan:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 — multi-bucket recall floor
+# ---------------------------------------------------------------------------
+# The recall floor scans the JD body against the per-vertical lexicon for
+# ALL THREE buckets (technical / soft_skills / domain_knowledge), not just
+# domain_knowledge. Closes paraphrase misses ("commitment to allocated
+# shifts" → reliability) and per-run variance on the soft_skills side.
+
+
+def _empty_jd_analysis(jd_text: str, *, summary: str = "", responsibilities=None):
+    """Build a jd_analysis with all buckets empty — the harshest test of
+    the recall floor (every match must come from the JD body scan)."""
+    return {
+        "job_title": "assistant in nursing",
+        "summary": summary,
+        "responsibilities": list(responsibilities or []),
+        "required_skills": {
+            "technical": [], "soft_skills": [], "domain_knowledge": [],
+        },
+        "preferred_skills": {
+            "technical": [], "soft_skills": [], "domain_knowledge": [],
+        },
+        "_jd_text": jd_text,
+    }
+
+
+class TestRecallFloorAllBuckets:
+    def test_reliability_injected_from_commitment_to_allocated_shifts(self):
+        """JD body says 'commitment to allocated shifts' (lexicon variant of
+        `reliability`) but the LLM missed it. The multi-bucket recall floor
+        must inject `reliability` into soft_skills."""
+        jd_text = (
+            "We are seeking an AIN who can show commitment to allocated "
+            "shifts across weekdays and weekends."
+        )
+        jd = _empty_jd_analysis(jd_text)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        assert "reliability" in soft, (
+            "recall floor must surface `reliability` from the lexicon variant "
+            "`commitment to allocated shifts` present in the JD body"
+        )
+
+    def test_teamwork_injected_from_works_well_as_part_of_a_team(self):
+        """`works well as part of a team` is a lexicon variant of `teamwork`.
+        Empty soft_skills + this phrase in JD body → teamwork injected."""
+        jd_text = (
+            "The successful candidate works well as part of a team and "
+            "supports colleagues across shifts."
+        )
+        jd = _empty_jd_analysis(jd_text)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        assert "teamwork" in soft
+
+    def test_per_bucket_cap_respected_when_full(self):
+        """If soft_skills already has 10 items (the schema cap), the recall
+        floor must NOT push past the cap — no injection."""
+        jd_text = (
+            "Commitment to allocated shifts and works well as part of a "
+            "team are both required."
+        )
+        ten_existing = [f"soft_{i}" for i in range(10)]
+        jd = _empty_jd_analysis(jd_text)
+        jd["required_skills"]["soft_skills"] = list(ten_existing)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        # Cap honoured — list length never exceeds 10
+        assert len(out["required_skills"]["soft_skills"]) == 10
+        # And we didn't displace any of the existing items
+        for kw in ten_existing:
+            assert kw in out["required_skills"]["soft_skills"]
+
+    def test_recall_floor_fills_partial_bucket_up_to_cap(self):
+        """soft_skills with 9 items + 2 lexicon hits in body → cap at 10,
+        only one of the two new canonicals lands."""
+        jd_text = (
+            "Commitment to allocated shifts and works well as part of a "
+            "team are both required."
+        )
+        nine_existing = [f"soft_{i}" for i in range(9)]
+        jd = _empty_jd_analysis(jd_text)
+        jd["required_skills"]["soft_skills"] = list(nine_existing)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        soft = out["required_skills"]["soft_skills"]
+        assert len(soft) == 10
+        added = [s for s in soft if s not in nine_existing]
+        assert len(added) == 1, f"expected exactly one addition, got {added}"
+        assert added[0].lower() in {"reliability", "teamwork"}
+
+    def test_multi_bucket_injection_in_one_call(self):
+        """A single JD with one hit per bucket should populate all three
+        buckets simultaneously — proves the scan iterates all categories."""
+        jd_text = (
+            "We need someone with personal care experience, commitment to "
+            "allocated shifts, and basic computer skills."
+        )
+        jd = _empty_jd_analysis(jd_text)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        dom = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
+        # soft_skills hit (reliability variant)
+        assert "reliability" in soft
+        # domain_knowledge hit (personal care literal)
+        assert "personal care" in dom
+
+
+# ---------------------------------------------------------------------------
 # Pattern-based recognisers: conditional clauses, languages, VET unit codes.
 # All three surfaced from a single Australian Unity AIN JD that produced
 # "current ndiswc or willingness to apply" as REQUIRED, "cantonese language"

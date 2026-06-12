@@ -1,6 +1,6 @@
 # JD-extraction quality programme — status & next-session handoff
 
-> **Last updated:** 2026-06-12 (end of session — context running low).
+> **Last updated:** 2026-06-12 (Phase 2 complete).
 > **Branch:** `refactor/architecture-review`. NOT merged to `main`.
 
 ## Branch state
@@ -11,10 +11,11 @@ main ──── (production)
   └── refactor/architecture-review  ←── you are here (Vercel preview)
         │
         ├── 599de98 Phase 1 — evidence-grounded extraction
-        └── 2e39806 Phase 2 partial — multi-bucket recall floor + nursing variants
+        ├── 2e39806 Phase 2 partial — multi-bucket recall floor + nursing variants
+        └── (HEAD)  Phase 2 complete — tests, tech+cleaning paraphrases, audit script
 ```
 
-- Tests: **864 passed** at HEAD (`2e39806`).
+- Tests: **869 passed** at HEAD.
 - The refactor branch is what's deployed to the Vercel **preview URL**.
 - Production prod URL still runs `main` — these quality fixes are NOT live yet.
 - Other simultaneous session: was experimenting with `ats_scoring.py` weights
@@ -74,50 +75,59 @@ after JD analysis and BEFORE the recall floor. For every LLM-extracted skill:
 
 ---
 
-## ⏳ Phase 2 — Deterministic recall floor (PARTIAL, committed `2e39806`)
+## ✅ Phase 2 — Deterministic recall floor (DONE)
 
-### What's DONE
-`enrich_required_skills_from_jd_body` now scans the JD body against the
+### What it does
+`enrich_required_skills_from_jd_body` scans the JD body against the
 per-vertical lexicon for **all three buckets**, not just `domain_knowledge`.
 Per-bucket caps mirror the prompt schema (`_BUCKET_CAPS` in
 `post_process.py`).
 
-Nursing lexicon expanded with high-leverage paraphrase variants:
-- **reliability**: `commitment to allocated shifts`, `commitment to
-  scheduled shifts`, `shift commitment`, `committed to shifts`, etc.
-- **teamwork**: `works well as part of a team`, `as part of a team`, etc.
-- **relationship building**: `partnership with residents and family`,
-  `working in partnership with residents`, etc.
+Lexicons expanded with high-leverage paraphrase variants:
+- **nursing** — `reliability`: `commitment to allocated shifts`,
+  `commitment to scheduled shifts`, `shift commitment`, `committed to
+  shifts`. `teamwork`: `works well as part of a team`, `as part of a
+  team`. `relationship building`: `partnership with residents and
+  family`, etc.
+- **tech** — `communication` / `problem solving` / `attention to detail`
+  / `prioritisation` / `self-directed` / `teamwork` / `adaptability` /
+  `curiosity` got common JD idioms: `strong X skills`,
+  `ability to work independently`, `thrives in a fast-paced
+  environment`, `eager to learn`, etc. Domain: `agile environment`,
+  `ci/cd pipelines`, `experience with cloud platforms`,
+  `microservices architecture`.
+- **cleaning** — `reliability` (incl. `commitment to scheduled shifts`),
+  `working autonomously`, `teamwork`, `following instructions`,
+  `adaptability` variants. Domain: `cleaning duties`, chemical-handling
+  paraphrases.
 
-### What's NOT DONE — pick this up next session
+### Tests added (commit HEAD)
+`TestRecallFloorAllBuckets` in `tests/test_skills_post_process.py` —
+5 cases covering reliability injection, teamwork injection, per-bucket
+cap respected at 10, partial-fill behaviour, and multi-bucket fan-out
+in a single call. Full suite: **869 passed** (up from 864).
 
-1. **Unit tests for the multi-bucket recall floor.** Add a test class
-   `TestRecallFloorAllBuckets` to `tests/test_skills_post_process.py`:
-   - Given a JD body containing "commitment to allocated shifts" and an
-     LLM result with empty `soft_skills`, the floor injects `reliability`.
-   - Given a JD body containing "works well as part of a team" and LLM
-     missed `teamwork`, the floor injects `teamwork`.
-   - Per-bucket cap respected: if `soft_skills` already has 10 items,
-     no more are injected.
+### Lexicon-gap audit script (commit HEAD)
+`scripts/audit_lexicon_gaps.py` reads:
+- `unknown_phrases.jsonl` (path overridable via `UNKNOWN_PHRASES_LOG`)
+- A production log file (`--logs`) — extracts `lexicon_meta.ungrounded`
+  drops from the groundedness-gate log line.
 
-2. **Paraphrase audit for `tech.json`.** Common JD phrasings the
-   tech lexicon doesn't currently cover:
-   - "must have strong [X] skills" patterns
-   - "experience with [X] platforms" idioms
-   - Run a few real tech JDs through the pipeline, look at the
-     `lexicon_meta.ungrounded` log line + the unknown_tracker JSONL
-     (`unknown_phrases.jsonl`), promote the high-frequency phrases.
+Emits JSON with: top-N unknown phrases grouped by vertical+bucket,
+top-N overall unknown phrases, top-N ungrounded drops keyed by
+`(vertical, skill, reason)`. Run from `cv-backend/`:
 
-3. **Paraphrase audit for `cleaning.json`.** Same approach. The Phase 3B
-   lexicon foundation work earlier this month built the base; this is
-   pure variant-expansion.
+```bash
+python scripts/audit_lexicon_gaps.py \
+    --unknown /tmp/jobtrackr_unknown_phrases.jsonl \
+    --logs /tmp/app.log \
+    --top 30 \
+    --out /tmp/lexicon_gaps.json
+```
 
-4. **Lexicon scaffolding.** Consider adding a small Python script
-   `scripts/audit_lexicon_gaps.py` that:
-   - Reads the last N analysis runs from `lexicon_meta.ungrounded` logs
-   - Groups dropped skills by `reason` and `evidence` text
-   - Emits a CSV/JSON for human triage → lexicon promotion
-   - This is the on-going feed that keeps recall improving.
+This is the on-going feed that keeps recall improving — re-run weekly,
+promote high-frequency phrases into the relevant lexicon as new
+variants.
 
 ---
 
@@ -256,9 +266,9 @@ extracted that isn't in the gold set is a hallucination) and **recall**
 ```bash
 cd /Users/mahesh/Documents/Github/jobtrackr-cv
 git branch --show-current     # should be: refactor/architecture-review
-git log --oneline -3          # should show 2e39806, 599de98, 47ee039
+git log --oneline -3          # should show Phase-2-complete, 2e39806, 599de98
 cd cv-backend
-./.venv/bin/pytest -q         # should report: 864 passed
+./.venv/bin/pytest -q         # should report: 869 passed
 ```
 
 If the branch is `main` again (other session may have switched), run
@@ -266,7 +276,8 @@ If the branch is `main` again (other session may have switched), run
 
 ## When to merge refactor → main
 
-NOT yet. Merge candidates (in order):
+NOT yet. Phase 1 + Phase 2 are now both complete on this branch.
+Remaining gates (in order):
 1. After Phase 3 — once subsumption dedup is in and tests are green
 2. After Phase 4 — once the golden harness shows precision ≥95% across
    the corpus
