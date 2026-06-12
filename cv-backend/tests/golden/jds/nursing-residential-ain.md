@@ -6,7 +6,7 @@ subtype: aged-care
 expected:
   required:
     domain_knowledge: [aged care, clinical documentation, dressing and grooming, individual support, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
-    soft_skills: [empathy, reliability, teamwork, verbal communication, written communication]
+    soft_skills: [empathy, relationship building, reliability, teamwork, verbal communication, written communication]
     technical: []
 ---
 Assistant in Nursing — Residential Aged Care
