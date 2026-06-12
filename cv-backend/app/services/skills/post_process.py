@@ -700,19 +700,33 @@ def _already_extracted_canonicals(
     return seen
 
 
+# Per-bucket caps for the recall floor. Mirror the prompt schema's caps so
+# we never push past what downstream consumers expect.
+_BUCKET_CAPS: Dict[str, int] = {
+    "technical":        15,
+    "soft_skills":      10,
+    "domain_knowledge": 10,
+}
+
+
 def enrich_required_skills_from_jd_body(
     jd_analysis: Dict[str, Any],
     jd_text: str,
     *,
     role_family_id: str,
 ) -> Dict[str, Any]:
-    """Surface canonical domain_knowledge skills from the JD body text.
+    """Deterministic recall floor — surface canonical skills the LLM missed
+    by scanning the JD body against the per-vertical lexicon.
 
-    Mutates a shallow copy. Adds canonicals to
-    ``required_skills.domain_knowledge`` (capped at the schema's 10 limit
-    including pre-existing items). No-op when the role family has no
-    curated vertical lexicon, when there is no text to scan, or when no
-    new canonical matches.
+    Scans ALL THREE buckets (technical / soft_skills / domain_knowledge),
+    not just domain_knowledge. This is the safety net behind the JD-analysis
+    LLM call: it stops the per-run variance ("got 7 skills this run, 2 next
+    run") and stops paraphrase misses ("commitment to allocated shifts" →
+    `reliability` is in the lexicon as a variant, so it always lands).
+
+    Per-bucket cap matches the prompt schema (`_BUCKET_CAPS`). No-op when
+    the role family has no curated vertical lexicon, when there is no text
+    to scan, or when no new canonical matches.
     """
     vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
     if vertical is None:
@@ -729,53 +743,52 @@ def enrich_required_skills_from_jd_body(
     already = _already_extracted_canonicals(jd_analysis, vertical)
     lookup = _VERTICAL_LOOKUPS.get(vertical) or {}  # type: ignore[arg-type]
 
-    # Group by canonical so the first-matching variant wins and we never
-    # consider the same canonical twice.
-    by_canonical: Dict[str, List[str]] = {}
+    # Group by (bucket, canonical) so the first-matching variant wins and
+    # we never consider the same canonical twice per bucket.
+    by_bucket_canonical: Dict[str, Dict[str, List[str]]] = {
+        cat: {} for cat in _CATEGORIES
+    }
     for norm_phrase, (canonical, cat) in lookup.items():
-        if cat != "domain_knowledge":
+        if cat not in _CATEGORIES:
             continue
         canon_lower = canonical.lower()
         if canon_lower in already:
             continue
-        # Skip very-long lexicon phrases — they're rarely literal in JDs and
-        # would just inflate scan cost. Canonical body skills are 1-5 tokens.
         if len(norm_phrase.split()) > _MAX_PHRASE_TOKENS:
             continue
-        by_canonical.setdefault(canon_lower, []).append(norm_phrase)
+        by_bucket_canonical[cat].setdefault(canon_lower, []).append(norm_phrase)
 
-    # Determine how many slots are still available under the schema cap.
     req_block = jd_analysis.get("required_skills") or {}
-    existing_dk = list(req_block.get("domain_knowledge") or [])
-    slots = max(0, _JD_BODY_SCAN_CAP - len(existing_dk))
-    if slots <= 0:
-        return jd_analysis
+    new_req = dict(req_block)
+    all_additions: Dict[str, List[str]] = {}
 
-    additions: List[str] = []
-    # Preserve lookup-dict insertion order for deterministic output.
-    for canon_lower, phrases in by_canonical.items():
-        if any(
-            re.search(r"\b" + re.escape(p) + r"\b", text) for p in phrases
-        ):
-            # Pick the original-cased canonical from the first phrase's
-            # lookup entry (canonicalisation already stored in the value).
-            # `lookup[phrases[0]][0]` is the original canonical form.
-            additions.append(lookup[phrases[0]][0])
-            if len(additions) >= slots:
-                break
+    for cat in _CATEGORIES:
+        existing = list(req_block.get(cat) or [])
+        slots = max(0, _BUCKET_CAPS[cat] - len(existing))
+        if slots <= 0:
+            continue
+        additions: List[str] = []
+        for canon_lower, phrases in by_bucket_canonical[cat].items():
+            if any(
+                re.search(r"\b" + re.escape(p) + r"\b", text) for p in phrases
+            ):
+                additions.append(lookup[phrases[0]][0])
+                if len(additions) >= slots:
+                    break
+        if additions:
+            new_req[cat] = (existing + additions)[: _BUCKET_CAPS[cat]]
+            all_additions[cat] = additions
 
-    if not additions:
+    if not all_additions:
         return jd_analysis
 
     out = dict(jd_analysis)
-    new_req = dict(req_block)
-    new_req["domain_knowledge"] = (existing_dk + additions)[:_JD_BODY_SCAN_CAP]
     out["required_skills"] = new_req
 
     logger.info(
-        "JD-body lexicon scan (vertical=%s): added %d canonical(s) to "
-        "required.domain_knowledge: %s",
-        vertical, len(additions), additions,
+        "JD-body lexicon scan (vertical=%s, recall-floor): added %s",
+        vertical,
+        {cat: adds for cat, adds in all_additions.items() if adds},
     )
     return out
 
