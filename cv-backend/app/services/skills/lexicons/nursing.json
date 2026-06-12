@@ -374,7 +374,12 @@
         "healthcare documentation",
         "documentation of care",
         "electronic patient record keeping",
-        "documentation skills"
+        "documentation skills",
+        "report writing",
+        "report writing skills",
+        "progress note documentation",
+        "progress note writing",
+        "clinical report writing"
       ]
     },
     {
@@ -612,7 +617,11 @@
         "emotional and social support",
         "providing emotional support",
         "social support",
-        "companionship"
+        "companionship",
+        "companionship for residents",
+        "companionship support",
+        "providing companionship",
+        "social companionship"
       ]
     },
     {
@@ -1241,6 +1250,19 @@
         "endocrinology",
         "endocrine nursing",
         "endocrine ward"
+      ]
+    },
+    {
+      "canonical": "trauma-informed care",
+      "variants": [
+        "trauma informed care",
+        "trauma-informed practice",
+        "trauma informed practice",
+        "trauma-transformative care",
+        "trauma-responsive care",
+        "trauma-sensitive care",
+        "working with trauma-affected individuals",
+        "working with people affected by trauma"
       ]
     },
     {
