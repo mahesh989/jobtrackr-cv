@@ -203,7 +203,10 @@
         "promoting independence and wellbeing",
         "maintaining dignity and independence",
         "patient dignity and comfort",
-        "patient dignity and independence"
+        "patient dignity and independence",
+        "promoting independence and choice",
+        "promoting choice and independence",
+        "supporting independence and choice"
       ]
     },
     {
@@ -933,7 +936,10 @@
         "supporting older people in the community",
         "independent living assistance",
         "retirement living and independence support",
-        "supporting older people to live independently"
+        "supporting older people to live independently",
+        "retirement living support",
+        "retirement living assistance",
+        "retirement village support"
       ]
     },
     {
@@ -1455,7 +1461,10 @@
         "inclusiveness",
         "inclusive practice",
         "support for inclusion and diversity",
-        "valuing diversity and inclusion"
+        "valuing diversity and inclusion",
+        "supporting diversity and inclusion",
+        "diversity and inclusion support",
+        "promoting diversity and inclusion"
       ]
     },
     {
@@ -1463,7 +1472,10 @@
       "variants": [
         "positive",
         "enthusiasm",
-        "enthusiastic"
+        "enthusiastic",
+        "positivity",
+        "positive outlook",
+        "positive approach"
       ]
     },
     {
@@ -1475,7 +1487,12 @@
         "client advocacy",
         "advocacy for patients and residents",
         "advocacy for patients",
-        "resident and patient advocacy"
+        "resident and patient advocacy",
+        "care advocacy for residents and patients",
+        "care advocacy",
+        "advocacy for residents and patients",
+        "advocacy for residents",
+        "advocacy for clients and patients"
       ]
     },
     {
