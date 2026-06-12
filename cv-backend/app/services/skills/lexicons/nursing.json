@@ -1,175 +1,1738 @@
 {
   "_meta": {
     "vertical": "nursing / health (AIN, PCW, aged care, home care, disability support, clinical care)",
-    "purpose": "Canonical skill taxonomy for the nursing/health vertical. A phrase that resolves here gets its `category` from THIS table — the LLM never decides the category. The same table classifies BOTH the CV and the JD, so a skill is bucketed identically on both sides.",
+    "purpose": "Canonical skill taxonomy for the nursing/health vertical. A phrase that resolves here gets its `category` from THIS table \u2014 the LLM never decides the category. The same table classifies BOTH the CV and the JD, so a skill is bucketed identically on both sides.",
     "category_keys": {
-      "domain_knowledge": "Clinical / care competencies — the WHAT-FIELD. Renders as the headline 'Care Skills' / 'Clinical Skills' line for nursing.",
+      "domain_knowledge": "Clinical / care competencies \u2014 the WHAT-FIELD. Renders as the headline 'Care Skills' / 'Clinical Skills' line for nursing.",
       "soft_skills": "Interpersonal / behavioural. Renders as 'Soft Skills'.",
-      "technical": "Named care SOFTWARE / SYSTEMS and generic computing — the named PRODUCT, never the clinical activity. Renders as the secondary 'Other Skills' line for nursing."
+      "technical": "Named care SOFTWARE / SYSTEMS and generic computing \u2014 the named PRODUCT, never the clinical activity. Renders as the secondary 'Other Skills' line for nursing."
     },
     "rules": {
       "activity_vs_product": "A clinical ACTIVITY (e.g. 'electronic medication administration') is domain_knowledge. The SOFTWARE that performs it ('BESTMed', 'MedMobile') is technical.",
       "variants": "Each entry's `variants` are alternate surface forms that all resolve to `canonical`. This list IS the synonym map used by deterministic CV-JD matching.",
-      "credentials_excluded": "Licences / checks / vaccinations are NOT here — they live in _universal_noise.json (type=credential) and route to Registration & Licences."
+      "credentials_excluded": "Licences / checks / vaccinations are NOT here \u2014 they live in _universal_noise.json (type=credential) and route to Registration & Licences."
     },
-    "review_status": "DRAFT — Phase 0 seed (~ correct order of magnitude). Add the long tail as real runs surface misses (safe-drop + log). Seeded from the CV categoriser vocabulary + the Hardi/Nepean/Rashmi runs."
+    "review_status": "DRAFT \u2014 Phase 0 seed (~ correct order of magnitude). Add the long tail as real runs surface misses (safe-drop + log). Seeded from the CV categoriser vocabulary + the Hardi/Nepean/Rashmi runs."
   },
-
   "domain_knowledge": [
-    { "canonical": "personal care", "variants": ["personal care delivery", "personal hygiene care", "personal care services", "personal care for elderly residents", "assistance with personal care", "personal care assistance", "provision of personal care", "patient personal care", "patient personal care needs", "personal care for patients"], "subsumes": ["showering and bathing", "dressing and grooming", "toileting assistance", "feeding assistance", "continence care"] },
-    { "canonical": "activities of daily living", "variants": ["adls", "adl support", "daily living activities", "functions of daily living", "activities of daily living support", "daily living assistance", "daily living support", "assistance with daily living", "assisting with daily living activities", "support with daily living", "daily living care", "assistance with activities of daily living", "resident daily living support"] },
-    { "canonical": "showering and bathing", "variants": ["showering", "bathing", "bathing and showering", "assistance with showering"] },
-    { "canonical": "dressing and grooming", "variants": ["dressing", "grooming", "dressing assistance", "assistance with dressing"] },
-    { "canonical": "toileting assistance", "variants": ["toileting", "assistance with toileting"] },
-    { "canonical": "feeding assistance", "variants": ["feeding", "meal assistance", "assistance with feeding", "mealtime assistance", "mealtime and feeding support", "resident feeding assistance", "meal preparation and feeding", "assisting with meals", "mealtime and nutritional support", "nutritional support and feeding assistance", "mealtime support", "resident feeding", "emotional care"] },
-    { "canonical": "medication administration", "variants": ["medication assistance", "administering medication", "medication support", "assisting with medication", "medication prompting"] },
-    { "canonical": "electronic medication administration", "variants": ["electronic medication management", "ements", "electronic medication administration record"] },
-    { "canonical": "medication management", "variants": ["managing medications", "medication oversight"] },
-    { "canonical": "dementia care", "variants": ["dementia support", "caring for residents with dementia", "supporting residents with dementia", "experience working with clients with dementia"] },
-    { "canonical": "behaviour management", "variants": ["behavioural management", "behaviour management techniques", "behavioural management techniques", "behaviours of concern", "managing challenging behaviours", "responsive behaviours"] },
-    { "canonical": "palliative care", "variants": ["end of life care", "end-of-life care", "palliative support"] },
-    { "canonical": "person-centred care", "variants": ["person centred care", "person-centered care", "person centered care", "individualised care", "individualized care", "person-centred support", "person centred support", "person-centered support", "resident-centred care", "resident centred care", "resident centered care", "client-centred care", "client centred care", "consumer focused care", "consumer-focused care", "consumer centred care", "patient-centred care", "patient centered care", "patient-centred care models", "person-centred care approach", "person-centred approach", "holistic resident care", "holistic care"] },
-    { "canonical": "wound care", "variants": ["wound management", "wound dressing", "wound dressings", "basic wound care", "simple wound care"] },
-    { "canonical": "pressure injury care", "variants": ["pressure area care", "pressure injury prevention", "pressure ulcer care", "skin integrity"] },
-    { "canonical": "continence care", "variants": ["continence management", "continence support", "continence assistance"] },
-    { "canonical": "infection control", "variants": ["infection prevention and control", "infection prevention", "infection control practices", "infection prevention and control requirements", "infection control procedures", "infection control protocols", "infection control and ppe use", "infection control and ppe", "infection control and personal protective equipment", "ppe use", "standard precautions"] },
-    { "canonical": "manual handling", "variants": ["safe manual handling", "manual handling techniques", "no lift", "safe handling", "safe patient handling", "safe patient handling and mobility assistance", "safe patient handling and mobility", "patient handling"] },
-    { "canonical": "mobility support", "variants": ["mobility assistance", "assisting with mobility", "mobility and transfers", "transfers", "patient transfers", "hoist transfers", "use of hoists", "hoisting", "patient mobility", "resident mobility", "client mobility", "mobility and repositioning", "mobility and transfer assistance", "patient mobility assistance", "transfer and mobility assistance", "mobility and transfer support", "safe mobility and transfers", "safe resident mobility and transfers", "safe mobility and transfer assistance", "resident mobility and transfers", "self-care needs and mobility"] },
-    { "canonical": "clinical observations", "variants": ["observations", "health observations", "monitoring observations", "oxygen level monitoring", "client observation", "patient observation", "monitoring patients", "basic clinical care under supervision", "basic clinical care support", "basic clinical care", "clinical monitoring support"] },
-    { "canonical": "vital signs", "variants": ["vital signs monitoring", "recording vital signs", "obs", "taking observations"] },
-    { "canonical": "clinical assessments", "variants": ["clinical assessment", "health assessments", "resident assessments", "nursing assessments"] },
-    { "canonical": "health monitoring", "variants": ["monitoring residents", "monitoring health", "monitoring and reporting", "observation and reporting", "observation and reporting of condition changes", "monitoring and reporting of changes", "client monitoring and reporting"] },
-    { "canonical": "clinical documentation", "variants": ["documentation", "resident charting", "charting", "progress notes", "care notes", "resident charting and documentation", "record keeping", "nursing documentation", "care documentation", "electronic documentation", "digital documentation", "resident care documentation", "care records", "client documentation", "healthcare documentation", "documentation of care", "electronic patient record keeping", "documentation skills"] },
-    { "canonical": "care planning", "variants": ["care plans", "individualised care plans", "care plan implementation", "implementing care plans", "developing care plans", "resident care planning", "care plan development", "person-centred care planning", "care plan reviews", "nursing care plans", "care planning support", "care planning documentation", "care plan participation", "participating in care planning", "care plan management", "nursing care planning"], "subsumes": ["individual planning process"] },
-    { "canonical": "clinical handover", "variants": ["handover", "shift handover", "end of shift handover", "handover reports"] },
-    { "canonical": "aged care", "variants": ["residential aged care", "residential care", "aged care services", "elderly care", "elder care", "aged care support", "aged care experience", "in-home aged care support", "home and aged care support", "care of elderly residents", "supporting older people in the community", "caring for elderly people", "supporting elderly clients", "care for older people"], "subsumes": ["home care", "community care", "dementia care", "palliative care"] },
-    { "canonical": "patient care", "variants": ["patient care assistance", "direct patient care", "patient support", "basic patient care procedures", "patient care procedures", "resident care in a healthcare or aged care setting"] },
-    { "canonical": "home care", "variants": ["in-home care", "in home care", "home care packages", "domiciliary care", "home care support work", "home care support", "home and community care", "home care worker"] },
-    { "canonical": "domestic assistance", "variants": ["domestic support", "household assistance", "domestic duties", "domestic tasks", "domestic cleaning", "home duties", "household tasks", "laundry and household tasks", "domestic assistance in home care", "domestic assistance and home care", "domestic support services", "laundry assistance", "laundry and cleaning", "cleaning and laundry"] },
-    { "canonical": "community care", "variants": ["community aged care", "community support", "community health care", "primary and community health care", "community services", "community services practice", "community health"] },
-    { "canonical": "disability support", "variants": ["disability care", "supporting people with disabilities", "disability support work", "working with people with disability", "working with people with disabilities", "supporting people with disability", "disability services", "ndis participant support", "ndis environment", "working in ndis", "ndis support context", "experience working with people with disabilities", "experience working with clients with a disability"] },
-    { "canonical": "individual support", "variants": ["individualised support"] },
-    { "canonical": "individual planning process", "variants": ["individual support plan", "individual plan", "care planning process", "support planning", "goal setting with clients", "individual care planning", "individual support plan development", "individualised support planning"] },
-    { "canonical": "catheter care", "variants": ["catheter management", "urinary catheter care"] },
-    { "canonical": "stoma care", "variants": ["stoma management", "ostomy care"] },
-    { "canonical": "peg feeding", "variants": ["peg feed", "enteral feeding", "tube feeding", "enteral feeding management", "enteral feeding support", "enteral nutrition management"] },
-    { "canonical": "diabetes management", "variants": ["blood glucose monitoring", "bgl monitoring", "diabetic care"] },
-    { "canonical": "falls prevention", "variants": ["falls management", "fall prevention", "reducing falls"] },
-    { "canonical": "nutrition and hydration support", "variants": ["nutrition support", "hydration support", "monitoring nutrition and hydration"] },
-    { "canonical": "restorative care", "variants": ["reablement", "restorative support", "wellness and reablement", "supporting exercise routines", "therapeutic exercise programs", "exercise support", "restorative programs", "wellness programs"] },
-    { "canonical": "emotional support", "variants": ["emotional and social support", "providing emotional support", "social support", "companionship"] },
-    { "canonical": "recreational activities support", "variants": ["recreational activities", "meaningful recreational activities", "recreational engagement", "meaningful engagement in recreational activities", "recreation support", "leisure activities", "lifestyle activities", "social and recreational activities", "supporting recreational activities", "supporting meaningful recreational activities", "support residents with meaningful recreational activities", "participation in recreational activities", "lifestyle and recreation"] },
-    { "canonical": "emergency response", "variants": ["responding to emergencies", "emergency care", "first response"] },
-    { "canonical": "risk management", "variants": ["clinical risk management", "risk management in care", "resident safety and risk management", "personal safety and risk management", "safety and risk management", "risk assessment"] },
-    { "canonical": "acute care", "variants": ["acute care nursing", "acute hospital care", "acute inpatient care", "acute ward", "acute care setting"] },
-    { "canonical": "high support needs care", "variants": ["high support needs", "high care needs", "complex care needs", "complex support needs", "complex needs care", "high level care", "high dependency care"] },
-    { "canonical": "multidisciplinary team care", "variants": ["multidisciplinary team", "mdt", "multidisciplinary care", "interdisciplinary care", "multidisciplinary team work", "working in a multidisciplinary team", "collaborative care team", "multidisciplinary healthcare team", "multidisciplinary healthcare environment", "interdisciplinary team", "teamwork with multidisciplinary healthcare team", "teamwork with multidisciplinary teams"] },
-    { "canonical": "primary care", "variants": ["primary health care", "primary care nursing", "primary healthcare"] },
-    { "canonical": "specimen collection", "variants": ["collecting specimens", "urine specimen collection"] },
-
-    { "canonical": "tracheostomy care", "variants": ["trachy care", "tracheostomy suctioning", "trache management", "trachy management"] },
-    { "canonical": "bowel care", "variants": ["bowel management", "digital removal of faeces", "manual evacuation", "enema administration", "suppository administration"] },
-    { "canonical": "seizure management", "variants": ["epilepsy management", "seizure care", "post-seizure care", "midazolam administration", "seizure response"] },
-    { "canonical": "oxygen therapy", "variants": ["oxygen administration", "o2 therapy", "oxygen saturation monitoring", "spo2 monitoring", "nasal prongs", "oxygen mask"] },
-    { "canonical": "pain management", "variants": ["pain assessment", "analgesia administration", "pain scoring", "pain relief", "analgesia"] },
-    { "canonical": "respiratory support", "variants": ["cpap", "bipap", "non-invasive ventilation", "niv", "suctioning", "oropharyngeal suction"] },
-    { "canonical": "dysphagia management", "variants": ["swallowing difficulties", "texture-modified food", "thickened fluids", "speech pathology recommendations", "modified diet"] },
-    { "canonical": "palliative symptom management", "variants": ["terminal care", "end-of-life symptom control", "pain and symptom management", "breakthrough pain", "anticipatory medications"] },
-    { "canonical": "subcutaneous medication", "variants": ["subcut injection", "subcut fluids", "subcutaneous fluids", "clexane administration", "insulin injection", "subcutaneous injection"] },
-    { "canonical": "deteriorating patient recognition", "variants": ["deteriorating resident", "deteriorating patient", "early warning score", "news", "obs monitoring", "calling a code", "rapid response"] },
-    { "canonical": "restraint minimisation", "variants": ["restraint use", "chemical restraint", "physical restraint", "least restraint practice", "restrictive practices", "restrictive practices procedures", "knowledge of restrictive practices"] },
-    { "canonical": "skin integrity assessment", "variants": ["skin assessment", "pressure injury assessment", "braden score"] },
-
-    { "canonical": "stroke care", "variants": ["stroke rehabilitation", "stroke recovery care", "stroke nursing care", "stroke and neuro care", "stroke care management"] },
-    { "canonical": "acquired brain injury support", "variants": ["acquired brain injury care", "abi support", "brain injury rehabilitation", "rehabilitation care for acquired brain injury", "experience working with clients with acquired brain injury"] },
-    { "canonical": "emergency department care", "variants": ["emergency care", "emergency department", "accident and emergency", "ed care", "emergency nursing care"] },
-    { "canonical": "complex care", "variants": ["complex care management", "complex clinical care", "complex nursing care", "complex health care", "complex and high-acuity care"] },
-    { "canonical": "patient safety", "variants": ["patient safety and welfare", "patient safety and quality", "patient safety practices", "safety and quality in patient care", "patient safety standards", "clinical nursing practice", "clinical safety and quality", "resident safety and wellbeing"] },
-    { "canonical": "risk identification and reporting", "variants": ["identifying and reporting risks", "risk reporting", "risk monitoring and reporting", "risk management and reporting", "risk identification", "incident identification and reporting", "risk management awareness"] },
-    { "canonical": "food handling", "variants": ["safe food handling", "food preparation and handling", "food safety practices", "food handling and preparation", "domestic cleaning tasks"] },
-    { "canonical": "independent living support", "variants": ["supporting independent living", "independence support", "supporting older people in the community", "independent living assistance", "retirement living and independence support", "supporting older people to live independently"] },
-    { "canonical": "participant rights and advocacy", "variants": ["client rights and advocacy", "consumer rights and advocacy", "rights and advocacy", "advocacy for clients", "participant advocacy", "rights-based approach to support"] },
-    { "canonical": "social work support", "variants": ["social work", "social work practice", "social work services"] },
-    { "canonical": "mental health support", "variants": ["mental health", "mental health care", "supporting mental health", "mental health services", "mental health and wellbeing"] },
-    { "canonical": "high intensity supports", "variants": ["high intensity support", "high-intensity supports", "high-intensity support", "ndis high intensity supports", "complex disability supports", "experience working with clients with high support needs"] },
-    { "canonical": "surgical orthopaedics", "variants": ["orthopaedic surgery care", "orthopaedic care", "surgical orthopaedic care", "ortho surgical care", "orthopedic surgery", "surgical orthopaedics ward processes"] },
-    { "canonical": "physiotherapy support", "variants": ["physiotherapy program implementation", "exercise program implementation", "support with exercise routines", "physio program support", "exercise program support", "physiotherapy assistance", "physiotherapy and exercise program implementation"] },
-    { "canonical": "lifestyle programs", "variants": ["leisure and lifestyle programs", "leisure and lifestyle programs for residents", "activity planning and coordination", "group activity facilitation", "program evaluation", "lifestyle program coordination", "resident lifestyle programs", "leisure activities"] },
-    { "canonical": "meal preparation", "variants": ["meal preparation and cooking", "preparing meals", "meal prep", "cooking meals", "meal planning and preparation"] },
-    { "canonical": "acute care", "variants": ["acute nursing care", "acute clinical care", "working in medical and surgical wards", "medical and surgical ward care", "previous experience in an acute healthcare area", "acute healthcare experience", "acute ward care", "medical and surgical nursing wards"] },
-
-    { "canonical": "antenatal care", "variants": ["antenatal assessments", "pregnancy care", "routine antenatal checks", "booking visits", "antenatal clinic"] },
-    { "canonical": "postnatal care", "variants": ["postpartum care", "newborn care", "breastfeeding support", "perineal care", "baby checks", "lactation support"] },
-    { "canonical": "labour and birth", "variants": ["intrapartum care", "active labour", "delivery suite", "vaginal birth", "normal birth", "water birth", "birth support"] },
-    { "canonical": "fetal monitoring", "variants": ["ctg", "cardiotocography", "fetal heart rate", "doppler", "intermittent auscultation", "fhr monitoring"] },
-    { "canonical": "perinatal mental health", "variants": ["antenatal depression", "postnatal depression", "pnd screening", "perinatal depression"] }
+    {
+      "canonical": "personal care",
+      "variants": [
+        "personal care delivery",
+        "personal hygiene care",
+        "personal care services",
+        "personal care for elderly residents",
+        "assistance with personal care",
+        "personal care assistance",
+        "provision of personal care",
+        "patient personal care",
+        "patient personal care needs",
+        "personal care for patients"
+      ],
+      "subsumes": [
+        "showering and bathing",
+        "dressing and grooming",
+        "toileting assistance",
+        "feeding assistance",
+        "continence care"
+      ]
+    },
+    {
+      "canonical": "activities of daily living",
+      "variants": [
+        "adls",
+        "adl support",
+        "daily living activities",
+        "functions of daily living",
+        "activities of daily living support",
+        "daily living assistance",
+        "daily living support",
+        "assistance with daily living",
+        "assisting with daily living activities",
+        "support with daily living",
+        "daily living care",
+        "assistance with activities of daily living",
+        "resident daily living support"
+      ]
+    },
+    {
+      "canonical": "showering and bathing",
+      "variants": [
+        "showering",
+        "bathing",
+        "bathing and showering",
+        "assistance with showering",
+        "showering support",
+        "bathing support",
+        "shower and bath assistance",
+        "shower assistance",
+        "assisting with showering"
+      ]
+    },
+    {
+      "canonical": "dressing and grooming",
+      "variants": [
+        "dressing",
+        "grooming",
+        "dressing assistance",
+        "assistance with dressing"
+      ]
+    },
+    {
+      "canonical": "toileting assistance",
+      "variants": [
+        "toileting",
+        "assistance with toileting",
+        "toileting support",
+        "continence and toileting support",
+        "toilet assistance",
+        "assisting with toileting",
+        "toilet hygiene support"
+      ]
+    },
+    {
+      "canonical": "feeding assistance",
+      "variants": [
+        "feeding",
+        "meal assistance",
+        "assistance with feeding",
+        "mealtime assistance",
+        "mealtime and feeding support",
+        "resident feeding assistance",
+        "meal preparation and feeding",
+        "assisting with meals",
+        "mealtime and nutritional support",
+        "nutritional support and feeding assistance",
+        "mealtime support",
+        "resident feeding",
+        "emotional care",
+        "feeding support",
+        "assisting with feeding",
+        "mealtime feeding support",
+        "assisted feeding"
+      ]
+    },
+    {
+      "canonical": "medication administration",
+      "variants": [
+        "medication assistance",
+        "administering medication",
+        "medication support",
+        "assisting with medication",
+        "medication prompting"
+      ]
+    },
+    {
+      "canonical": "electronic medication administration",
+      "variants": [
+        "electronic medication management",
+        "ements",
+        "electronic medication administration record"
+      ]
+    },
+    {
+      "canonical": "medication management",
+      "variants": [
+        "managing medications",
+        "medication oversight"
+      ]
+    },
+    {
+      "canonical": "dementia care",
+      "variants": [
+        "dementia support",
+        "caring for residents with dementia",
+        "supporting residents with dementia",
+        "experience working with clients with dementia"
+      ]
+    },
+    {
+      "canonical": "behaviour management",
+      "variants": [
+        "behavioural management",
+        "behaviour management techniques",
+        "behavioural management techniques",
+        "behaviours of concern",
+        "managing challenging behaviours",
+        "responsive behaviours"
+      ]
+    },
+    {
+      "canonical": "palliative care",
+      "variants": [
+        "end of life care",
+        "end-of-life care",
+        "palliative support"
+      ]
+    },
+    {
+      "canonical": "person-centred care",
+      "variants": [
+        "person centred care",
+        "person-centered care",
+        "person centered care",
+        "individualised care",
+        "individualized care",
+        "person-centred support",
+        "person centred support",
+        "person-centered support",
+        "resident-centred care",
+        "resident centred care",
+        "resident centered care",
+        "client-centred care",
+        "client centred care",
+        "consumer focused care",
+        "consumer-focused care",
+        "consumer centred care",
+        "patient-centred care",
+        "patient centered care",
+        "patient-centred care models",
+        "person-centred care approach",
+        "person-centred approach",
+        "holistic resident care",
+        "holistic care"
+      ]
+    },
+    {
+      "canonical": "wound care",
+      "variants": [
+        "wound management",
+        "wound dressing",
+        "wound dressings",
+        "basic wound care",
+        "simple wound care"
+      ]
+    },
+    {
+      "canonical": "pressure injury care",
+      "variants": [
+        "pressure area care",
+        "pressure injury prevention",
+        "pressure ulcer care",
+        "skin integrity"
+      ]
+    },
+    {
+      "canonical": "continence care",
+      "variants": [
+        "continence management",
+        "continence support",
+        "continence assistance"
+      ]
+    },
+    {
+      "canonical": "infection control",
+      "variants": [
+        "infection prevention and control",
+        "infection prevention",
+        "infection control practices",
+        "infection prevention and control requirements",
+        "infection control procedures",
+        "infection control protocols",
+        "infection control and ppe use",
+        "infection control and ppe",
+        "infection control and personal protective equipment",
+        "ppe use",
+        "standard precautions"
+      ]
+    },
+    {
+      "canonical": "manual handling",
+      "variants": [
+        "safe manual handling",
+        "manual handling techniques",
+        "no lift",
+        "safe handling",
+        "safe patient handling",
+        "safe patient handling and mobility assistance",
+        "safe patient handling and mobility",
+        "patient handling"
+      ]
+    },
+    {
+      "canonical": "mobility support",
+      "variants": [
+        "mobility assistance",
+        "assisting with mobility",
+        "mobility and transfers",
+        "transfers",
+        "patient transfers",
+        "hoist transfers",
+        "use of hoists",
+        "hoisting",
+        "patient mobility",
+        "resident mobility",
+        "client mobility",
+        "mobility and repositioning",
+        "mobility and transfer assistance",
+        "patient mobility assistance",
+        "transfer and mobility assistance",
+        "mobility and transfer support",
+        "safe mobility and transfers",
+        "safe resident mobility and transfers",
+        "safe mobility and transfer assistance",
+        "resident mobility and transfers",
+        "self-care needs and mobility"
+      ]
+    },
+    {
+      "canonical": "clinical observations",
+      "variants": [
+        "observations",
+        "health observations",
+        "monitoring observations",
+        "oxygen level monitoring",
+        "client observation",
+        "patient observation",
+        "monitoring patients",
+        "basic clinical care under supervision",
+        "basic clinical care support",
+        "basic clinical care",
+        "clinical monitoring support",
+        "oxygen monitoring equipment",
+        "oxygen monitoring",
+        "spo2 monitoring",
+        "monitoring oxygen levels",
+        "oxygen saturation monitoring"
+      ]
+    },
+    {
+      "canonical": "vital signs",
+      "variants": [
+        "vital signs monitoring",
+        "recording vital signs",
+        "obs",
+        "taking observations",
+        "observation skills",
+        "clinical observation skills"
+      ]
+    },
+    {
+      "canonical": "clinical assessments",
+      "variants": [
+        "clinical assessment",
+        "health assessments",
+        "resident assessments",
+        "nursing assessments"
+      ]
+    },
+    {
+      "canonical": "health monitoring",
+      "variants": [
+        "monitoring residents",
+        "monitoring health",
+        "monitoring and reporting",
+        "observation and reporting",
+        "observation and reporting of condition changes",
+        "monitoring and reporting of changes",
+        "client monitoring and reporting",
+        "reporting changes in condition",
+        "reporting changes in health",
+        "monitoring and reporting changes in condition",
+        "reporting changes in resident condition",
+        "monitoring changes in condition",
+        "observation and reporting of changes"
+      ]
+    },
+    {
+      "canonical": "clinical documentation",
+      "variants": [
+        "documentation",
+        "resident charting",
+        "charting",
+        "progress notes",
+        "care notes",
+        "resident charting and documentation",
+        "record keeping",
+        "nursing documentation",
+        "care documentation",
+        "electronic documentation",
+        "digital documentation",
+        "resident care documentation",
+        "care records",
+        "client documentation",
+        "healthcare documentation",
+        "documentation of care",
+        "electronic patient record keeping",
+        "documentation skills"
+      ]
+    },
+    {
+      "canonical": "care planning",
+      "variants": [
+        "care plans",
+        "individualised care plans",
+        "care plan implementation",
+        "implementing care plans",
+        "developing care plans",
+        "resident care planning",
+        "care plan development",
+        "person-centred care planning",
+        "care plan reviews",
+        "nursing care plans",
+        "care planning support",
+        "care planning documentation",
+        "care plan participation",
+        "participating in care planning",
+        "care plan management",
+        "nursing care planning"
+      ],
+      "subsumes": [
+        "individual planning process"
+      ]
+    },
+    {
+      "canonical": "clinical handover",
+      "variants": [
+        "handover",
+        "shift handover",
+        "end of shift handover",
+        "handover reports",
+        "handover processes",
+        "clinical handover processes",
+        "handover documentation",
+        "shift handover processes"
+      ]
+    },
+    {
+      "canonical": "aged care",
+      "variants": [
+        "residential aged care",
+        "residential care",
+        "aged care services",
+        "elderly care",
+        "elder care",
+        "aged care support",
+        "aged care experience",
+        "in-home aged care support",
+        "home and aged care support",
+        "care of elderly residents",
+        "supporting older people in the community",
+        "caring for elderly people",
+        "supporting elderly clients",
+        "care for older people"
+      ],
+      "subsumes": [
+        "home care",
+        "community care",
+        "dementia care",
+        "palliative care"
+      ]
+    },
+    {
+      "canonical": "patient care",
+      "variants": [
+        "patient care assistance",
+        "direct patient care",
+        "patient support",
+        "basic patient care procedures",
+        "patient care procedures",
+        "resident care in a healthcare or aged care setting"
+      ]
+    },
+    {
+      "canonical": "home care",
+      "variants": [
+        "in-home care",
+        "in home care",
+        "home care packages",
+        "domiciliary care",
+        "home care support work",
+        "home care support",
+        "home and community care",
+        "home care worker"
+      ]
+    },
+    {
+      "canonical": "domestic assistance",
+      "variants": [
+        "domestic support",
+        "household assistance",
+        "domestic duties",
+        "domestic tasks",
+        "domestic cleaning",
+        "home duties",
+        "household tasks",
+        "laundry and household tasks",
+        "domestic assistance in home care",
+        "domestic assistance and home care",
+        "domestic support services",
+        "laundry assistance",
+        "laundry and cleaning",
+        "cleaning and laundry",
+        "laundry support",
+        "washing and laundry",
+        "cleaning",
+        "household cleaning",
+        "cleaning support",
+        "general cleaning",
+        "light cleaning",
+        "home cleaning"
+      ]
+    },
+    {
+      "canonical": "community care",
+      "variants": [
+        "community aged care",
+        "community support",
+        "community health care",
+        "primary and community health care",
+        "community services",
+        "community services practice",
+        "community health"
+      ]
+    },
+    {
+      "canonical": "disability support",
+      "variants": [
+        "disability care",
+        "supporting people with disabilities",
+        "disability support work",
+        "working with people with disability",
+        "working with people with disabilities",
+        "supporting people with disability",
+        "disability services",
+        "ndis participant support",
+        "ndis environment",
+        "working in ndis",
+        "ndis support context",
+        "experience working with people with disabilities",
+        "experience working with clients with a disability"
+      ]
+    },
+    {
+      "canonical": "individual support",
+      "variants": [
+        "individualised support"
+      ]
+    },
+    {
+      "canonical": "individual planning process",
+      "variants": [
+        "individual support plan",
+        "individual plan",
+        "care planning process",
+        "support planning",
+        "goal setting with clients",
+        "individual care planning",
+        "individual support plan development",
+        "individualised support planning"
+      ]
+    },
+    {
+      "canonical": "catheter care",
+      "variants": [
+        "catheter management",
+        "urinary catheter care"
+      ]
+    },
+    {
+      "canonical": "stoma care",
+      "variants": [
+        "stoma management",
+        "ostomy care"
+      ]
+    },
+    {
+      "canonical": "peg feeding",
+      "variants": [
+        "peg feed",
+        "enteral feeding",
+        "tube feeding",
+        "enteral feeding management",
+        "enteral feeding support",
+        "enteral nutrition management",
+        "feeding equipment management",
+        "enteral feeding equipment",
+        "feeding tube management"
+      ]
+    },
+    {
+      "canonical": "diabetes management",
+      "variants": [
+        "blood glucose monitoring",
+        "bgl monitoring",
+        "diabetic care"
+      ]
+    },
+    {
+      "canonical": "falls prevention",
+      "variants": [
+        "falls management",
+        "fall prevention",
+        "reducing falls"
+      ]
+    },
+    {
+      "canonical": "nutrition and hydration support",
+      "variants": [
+        "nutrition support",
+        "hydration support",
+        "monitoring nutrition and hydration"
+      ]
+    },
+    {
+      "canonical": "restorative care",
+      "variants": [
+        "reablement",
+        "restorative support",
+        "wellness and reablement",
+        "supporting exercise routines",
+        "therapeutic exercise programs",
+        "exercise support",
+        "restorative programs",
+        "wellness programs"
+      ]
+    },
+    {
+      "canonical": "emotional support",
+      "variants": [
+        "emotional and social support",
+        "providing emotional support",
+        "social support",
+        "companionship"
+      ]
+    },
+    {
+      "canonical": "recreational activities support",
+      "variants": [
+        "recreational activities",
+        "meaningful recreational activities",
+        "recreational engagement",
+        "meaningful engagement in recreational activities",
+        "recreation support",
+        "leisure activities",
+        "lifestyle activities",
+        "social and recreational activities",
+        "supporting recreational activities",
+        "supporting meaningful recreational activities",
+        "support residents with meaningful recreational activities",
+        "participation in recreational activities",
+        "lifestyle and recreation"
+      ]
+    },
+    {
+      "canonical": "emergency response",
+      "variants": [
+        "responding to emergencies",
+        "emergency care",
+        "first response"
+      ]
+    },
+    {
+      "canonical": "risk management",
+      "variants": [
+        "clinical risk management",
+        "risk management in care",
+        "resident safety and risk management",
+        "personal safety and risk management",
+        "safety and risk management",
+        "risk assessment"
+      ]
+    },
+    {
+      "canonical": "acute care",
+      "variants": [
+        "acute care nursing",
+        "acute hospital care",
+        "acute inpatient care",
+        "acute ward",
+        "acute care setting"
+      ]
+    },
+    {
+      "canonical": "high support needs care",
+      "variants": [
+        "high support needs",
+        "high care needs",
+        "complex care needs",
+        "complex support needs",
+        "complex needs care",
+        "high level care",
+        "high dependency care"
+      ]
+    },
+    {
+      "canonical": "multidisciplinary team care",
+      "variants": [
+        "multidisciplinary team",
+        "mdt",
+        "multidisciplinary care",
+        "interdisciplinary care",
+        "multidisciplinary team work",
+        "working in a multidisciplinary team",
+        "collaborative care team",
+        "multidisciplinary healthcare team",
+        "multidisciplinary healthcare environment",
+        "interdisciplinary team",
+        "teamwork with multidisciplinary healthcare team",
+        "teamwork with multidisciplinary teams"
+      ]
+    },
+    {
+      "canonical": "primary care",
+      "variants": [
+        "primary health care",
+        "primary care nursing",
+        "primary healthcare"
+      ]
+    },
+    {
+      "canonical": "specimen collection",
+      "variants": [
+        "collecting specimens",
+        "urine specimen collection"
+      ]
+    },
+    {
+      "canonical": "tracheostomy care",
+      "variants": [
+        "trachy care",
+        "tracheostomy suctioning",
+        "trache management",
+        "trachy management"
+      ]
+    },
+    {
+      "canonical": "bowel care",
+      "variants": [
+        "bowel management",
+        "digital removal of faeces",
+        "manual evacuation",
+        "enema administration",
+        "suppository administration"
+      ]
+    },
+    {
+      "canonical": "seizure management",
+      "variants": [
+        "epilepsy management",
+        "seizure care",
+        "post-seizure care",
+        "midazolam administration",
+        "seizure response"
+      ]
+    },
+    {
+      "canonical": "oxygen therapy",
+      "variants": [
+        "oxygen administration",
+        "o2 therapy",
+        "oxygen saturation monitoring",
+        "spo2 monitoring",
+        "nasal prongs",
+        "oxygen mask"
+      ]
+    },
+    {
+      "canonical": "pain management",
+      "variants": [
+        "pain assessment",
+        "analgesia administration",
+        "pain scoring",
+        "pain relief",
+        "analgesia"
+      ]
+    },
+    {
+      "canonical": "respiratory support",
+      "variants": [
+        "cpap",
+        "bipap",
+        "non-invasive ventilation",
+        "niv",
+        "suctioning",
+        "oropharyngeal suction"
+      ]
+    },
+    {
+      "canonical": "dysphagia management",
+      "variants": [
+        "swallowing difficulties",
+        "texture-modified food",
+        "thickened fluids",
+        "speech pathology recommendations",
+        "modified diet"
+      ]
+    },
+    {
+      "canonical": "palliative symptom management",
+      "variants": [
+        "terminal care",
+        "end-of-life symptom control",
+        "pain and symptom management",
+        "breakthrough pain",
+        "anticipatory medications"
+      ]
+    },
+    {
+      "canonical": "subcutaneous medication",
+      "variants": [
+        "subcut injection",
+        "subcut fluids",
+        "subcutaneous fluids",
+        "clexane administration",
+        "insulin injection",
+        "subcutaneous injection"
+      ]
+    },
+    {
+      "canonical": "deteriorating patient recognition",
+      "variants": [
+        "deteriorating resident",
+        "deteriorating patient",
+        "early warning score",
+        "news",
+        "obs monitoring",
+        "calling a code",
+        "rapid response"
+      ]
+    },
+    {
+      "canonical": "restraint minimisation",
+      "variants": [
+        "restraint use",
+        "chemical restraint",
+        "physical restraint",
+        "least restraint practice",
+        "restrictive practices",
+        "restrictive practices procedures",
+        "knowledge of restrictive practices"
+      ]
+    },
+    {
+      "canonical": "skin integrity assessment",
+      "variants": [
+        "skin assessment",
+        "pressure injury assessment",
+        "braden score"
+      ]
+    },
+    {
+      "canonical": "stroke care",
+      "variants": [
+        "stroke rehabilitation",
+        "stroke recovery care",
+        "stroke nursing care",
+        "stroke and neuro care",
+        "stroke care management"
+      ]
+    },
+    {
+      "canonical": "acquired brain injury support",
+      "variants": [
+        "acquired brain injury care",
+        "abi support",
+        "brain injury rehabilitation",
+        "rehabilitation care for acquired brain injury",
+        "experience working with clients with acquired brain injury"
+      ]
+    },
+    {
+      "canonical": "emergency department care",
+      "variants": [
+        "emergency care",
+        "emergency department",
+        "accident and emergency",
+        "ed care",
+        "emergency nursing care"
+      ]
+    },
+    {
+      "canonical": "complex care",
+      "variants": [
+        "complex care management",
+        "complex clinical care",
+        "complex nursing care",
+        "complex health care",
+        "complex and high-acuity care"
+      ]
+    },
+    {
+      "canonical": "patient safety",
+      "variants": [
+        "patient safety and welfare",
+        "patient safety and quality",
+        "patient safety practices",
+        "safety and quality in patient care",
+        "patient safety standards",
+        "clinical nursing practice",
+        "clinical safety and quality",
+        "resident safety and wellbeing"
+      ]
+    },
+    {
+      "canonical": "risk identification and reporting",
+      "variants": [
+        "identifying and reporting risks",
+        "risk reporting",
+        "risk monitoring and reporting",
+        "risk management and reporting",
+        "risk identification",
+        "incident identification and reporting",
+        "risk management awareness",
+        "reporting changes",
+        "incident reporting",
+        "reporting observations",
+        "working with registered nurses",
+        "working alongside registered nurses",
+        "working under registered nurse supervision"
+      ]
+    },
+    {
+      "canonical": "food handling",
+      "variants": [
+        "safe food handling",
+        "food preparation and handling",
+        "food safety practices",
+        "food handling and preparation",
+        "domestic cleaning tasks"
+      ]
+    },
+    {
+      "canonical": "independent living support",
+      "variants": [
+        "supporting independent living",
+        "independence support",
+        "supporting older people in the community",
+        "independent living assistance",
+        "retirement living and independence support",
+        "supporting older people to live independently"
+      ]
+    },
+    {
+      "canonical": "participant rights and advocacy",
+      "variants": [
+        "client rights and advocacy",
+        "consumer rights and advocacy",
+        "rights and advocacy",
+        "advocacy for clients",
+        "participant advocacy",
+        "rights-based approach to support"
+      ]
+    },
+    {
+      "canonical": "social work support",
+      "variants": [
+        "social work",
+        "social work practice",
+        "social work services"
+      ]
+    },
+    {
+      "canonical": "mental health support",
+      "variants": [
+        "mental health",
+        "mental health care",
+        "supporting mental health",
+        "mental health services",
+        "mental health and wellbeing"
+      ]
+    },
+    {
+      "canonical": "high intensity supports",
+      "variants": [
+        "high intensity support",
+        "high-intensity supports",
+        "high-intensity support",
+        "ndis high intensity supports",
+        "complex disability supports",
+        "experience working with clients with high support needs"
+      ]
+    },
+    {
+      "canonical": "surgical orthopaedics",
+      "variants": [
+        "orthopaedic surgery care",
+        "orthopaedic care",
+        "surgical orthopaedic care",
+        "ortho surgical care",
+        "orthopedic surgery",
+        "surgical orthopaedics ward processes"
+      ]
+    },
+    {
+      "canonical": "physiotherapy support",
+      "variants": [
+        "physiotherapy program implementation",
+        "exercise program implementation",
+        "support with exercise routines",
+        "physio program support",
+        "exercise program support",
+        "physiotherapy assistance",
+        "physiotherapy and exercise program implementation"
+      ]
+    },
+    {
+      "canonical": "lifestyle programs",
+      "variants": [
+        "leisure and lifestyle programs",
+        "leisure and lifestyle programs for residents",
+        "activity planning and coordination",
+        "group activity facilitation",
+        "program evaluation",
+        "lifestyle program coordination",
+        "resident lifestyle programs",
+        "leisure activities"
+      ]
+    },
+    {
+      "canonical": "meal preparation",
+      "variants": [
+        "meal preparation and cooking",
+        "preparing meals",
+        "meal prep",
+        "cooking meals",
+        "meal planning and preparation"
+      ]
+    },
+    {
+      "canonical": "acute care",
+      "variants": [
+        "acute nursing care",
+        "acute clinical care",
+        "working in medical and surgical wards",
+        "medical and surgical ward care",
+        "previous experience in an acute healthcare area",
+        "acute healthcare experience",
+        "acute ward care",
+        "medical and surgical nursing wards"
+      ]
+    },
+    {
+      "canonical": "antenatal care",
+      "variants": [
+        "antenatal assessments",
+        "pregnancy care",
+        "routine antenatal checks",
+        "booking visits",
+        "antenatal clinic"
+      ]
+    },
+    {
+      "canonical": "postnatal care",
+      "variants": [
+        "postpartum care",
+        "newborn care",
+        "breastfeeding support",
+        "perineal care",
+        "baby checks",
+        "lactation support"
+      ]
+    },
+    {
+      "canonical": "labour and birth",
+      "variants": [
+        "intrapartum care",
+        "active labour",
+        "delivery suite",
+        "vaginal birth",
+        "normal birth",
+        "water birth",
+        "birth support"
+      ]
+    },
+    {
+      "canonical": "fetal monitoring",
+      "variants": [
+        "ctg",
+        "cardiotocography",
+        "fetal heart rate",
+        "doppler",
+        "intermittent auscultation",
+        "fhr monitoring"
+      ]
+    },
+    {
+      "canonical": "perinatal mental health",
+      "variants": [
+        "antenatal depression",
+        "postnatal depression",
+        "pnd screening",
+        "perinatal depression"
+      ]
+    },
+    {
+      "canonical": "transport assistance",
+      "variants": [
+        "transportation support",
+        "transportation assistance",
+        "client transport",
+        "transport to appointments",
+        "community transport",
+        "driving clients to appointments",
+        "driving",
+        "driver",
+        "transporting clients",
+        "accompanying clients to appointments",
+        "escorting clients to appointments",
+        "transport support",
+        "transport clients"
+      ]
+    },
+    {
+      "canonical": "shopping assistance",
+      "variants": [
+        "shopping support",
+        "grocery shopping",
+        "grocery shopping support",
+        "grocery assistance",
+        "community shopping",
+        "shopping escort",
+        "shopping and errands",
+        "errands assistance"
+      ]
+    },
+    {
+      "canonical": "non-verbal communication support",
+      "variants": [
+        "working with non-verbal participants",
+        "supporting non-verbal clients",
+        "non-verbal participant support",
+        "alternative communication methods",
+        "augmentative and alternative communication"
+      ]
+    }
   ],
-
   "soft_skills": [
-    { "canonical": "communication", "variants": ["effective communication", "communication skills", "interpersonal communication", "strong communication", "strong communication skills", "clear communication", "verbal and written communication", "effective interpersonal communication"], "subsumes": ["verbal communication", "written communication"] },
-    { "canonical": "verbal communication", "variants": ["effective verbal communication", "verbal communication skills", "oral communication"] },
-    { "canonical": "written communication", "variants": ["effective written communication", "written communication skills", "writing skills"] },
-    { "canonical": "teamwork", "variants": ["team work", "working in a team", "ability to work in a team", "collaborative working", "team player", "works well as part of a team", "work well as part of a team", "works well as a team", "as part of a team", "part of a team", "works well in a team", "ability to work as part of a team"] },
-    { "canonical": "collaboration", "variants": ["collaborating", "multidisciplinary collaboration", "working collaboratively"] },
-    { "canonical": "working autonomously", "variants": ["ability to work autonomously", "work autonomously", "working independently", "ability to work independently", "self-directed"] },
-    { "canonical": "time management", "variants": ["managing time", "time-management"] },
-    { "canonical": "organisation", "variants": ["organisational skills", "organization", "organizational skills", "well organised", "work planning", "planning and organisation", "planning and organizing"] },
-    { "canonical": "prioritisation", "variants": ["work prioritisation", "prioritization", "prioritising tasks", "ability to prioritise"] },
-    { "canonical": "empathy", "variants": ["empathetic", "empathetic nature", "compassion", "compassionate", "caring nature", "caring attitude", "compassionate approach", "compassionate care", "kindness"] },
-    { "canonical": "patience", "variants": ["patient", "patient nature", "patient approach"] },
-    { "canonical": "tolerance", "variants": ["tolerant", "tolerant nature"] },
-    { "canonical": "problem solving", "variants": ["problem-solving", "problem solving skills", "critical thinking", "analytical thinking"] },
-    { "canonical": "adaptability", "variants": ["adaptable", "flexible", "flexibility", "adapting to change", "flexible attitude", "flexible approach", "open to change", "flexibility for varying shifts", "flexible availability", "ability to adapt to different environments", "adaptability to diverse clinical environments"] },
-    { "canonical": "reliability", "variants": ["reliable", "dependable", "dependability", "reliability for allocated shifts", "reliability to commit to allocated shifts", "commitment to allocated shifts", "commitment to allocated shift", "commitment to shifts", "commitment to scheduled shifts", "commitment to rostered shifts", "shift commitment", "committed to shifts", "committed to allocated shifts", "punctuality"] },
-    { "canonical": "attention to detail", "variants": ["detail-oriented", "detail oriented", "thoroughness"] },
-    { "canonical": "de-escalation", "variants": ["de-escalation techniques", "de escalation", "conflict resolution", "conflict management"] },
-    { "canonical": "active listening", "variants": ["listening skills"] },
-    { "canonical": "cultural sensitivity", "variants": ["cultural awareness", "culturally sensitive", "cultural competence", "working with diverse cultures", "understanding of culturally and linguistically diverse communities", "working with culturally diverse clients", "ability to work with culturally diverse clients", "cultural responsiveness in care", "inclusiveness", "inclusive practice", "support for inclusion and diversity", "valuing diversity and inclusion"] },
-    { "canonical": "positive attitude", "variants": ["positive", "enthusiasm", "enthusiastic"] },
-    { "canonical": "advocacy", "variants": ["patient advocacy", "resident advocacy", "advocating for clients", "client advocacy", "advocacy for patients and residents", "advocacy for patients", "resident and patient advocacy"] },
-    { "canonical": "clinical reasoning", "variants": ["critical thinking in care", "clinical judgement", "nursing judgement", "clinical decision making"] },
-    { "canonical": "resilience", "variants": ["emotional resilience", "coping with pressure", "self-care", "self care", "calm under pressure", "composure under pressure", "working under pressure"] },
-    { "canonical": "accountability", "variants": ["accountable", "taking accountability", "professional accountability", "personal accountability", "responsibility", "responsible", "professional responsibility"] },
-    { "canonical": "respect", "variants": ["respectful", "respectfulness", "showing respect", "treating with respect", "treating residents with respect", "respect and dignity", "respect for clients", "respect for residents", "respect for patients", "respect for client rights", "respect for diversity and inclusion", "inclusiveness and respect for diversity", "respectful attitude", "respectful approach", "respect for client autonomy"] },
-    { "canonical": "safety awareness", "variants": ["safety focus", "safety conscious", "safety mindset", "safety-focused", "awareness of safety", "safety-oriented"] },
-    { "canonical": "initiative", "variants": ["showing initiative", "taking initiative", "proactive", "proactively", "self-motivated", "self motivated"] },
-    { "canonical": "interpersonal skills", "variants": ["interpersonal", "strong interpersonal skills", "interpersonal abilities", "people skills", "approachability", "approachable", "personable", "personable manner", "personable interpersonal style"] },
-    { "canonical": "relationship building", "variants": ["building relationships", "building rapport", "developing relationships", "meaningful engagement", "partnership with residents and families", "partnership with residents and family", "partnership with residents and their family", "partnership with residents and their families", "working in partnership with residents", "working in partnership with residents and family", "working in partnership with residents and their family", "in partnership with residents", "in partnership with residents and family", "partnership with families", "working in partnership", "partnership with clients and families", "partnership building", "building partnerships", "build partnerships", "building partnership", "building partnership with residents", "building partnerships with residents", "building partnerships with families", "building partnerships with residents and families", "build trusting relationships", "building trusting relationships"] },
-    { "canonical": "leadership", "variants": ["leading", "lead", "leading a team", "team leadership", "clinical leadership", "providing leadership"] },
-    { "canonical": "motivation", "variants": ["motivated", "self-motivated", "highly motivated", "drive and motivation"] },
-    { "canonical": "customer service", "variants": ["client service", "service delivery", "service excellence", "quality service", "resident service", "excellence in customer service", "client focus", "client-focused approach", "consumer-focused service orientation", "consumer focused service"] },
-    { "canonical": "dedication", "variants": ["dedicated", "dedicated professional", "dedicated worker", "dedication to work"] },
-    { "canonical": "resourcefulness", "variants": ["resourceful", "resourceful approach", "resourceful nature"] },
-    { "canonical": "professionalism", "variants": ["professional", "professional conduct", "professional behaviour", "acting professionally"] },
-    { "canonical": "cultural responsiveness", "variants": ["culturally responsive care", "culturally responsive", "culturally inclusive", "cultural inclusiveness", "cultural competency", "cultural responsiveness and inclusivity"] }
+    {
+      "canonical": "communication",
+      "variants": [
+        "effective communication",
+        "communication skills",
+        "interpersonal communication",
+        "strong communication",
+        "strong communication skills",
+        "clear communication",
+        "verbal and written communication",
+        "effective interpersonal communication"
+      ],
+      "subsumes": [
+        "verbal communication",
+        "written communication"
+      ]
+    },
+    {
+      "canonical": "verbal communication",
+      "variants": [
+        "effective verbal communication",
+        "verbal communication skills",
+        "oral communication"
+      ]
+    },
+    {
+      "canonical": "written communication",
+      "variants": [
+        "effective written communication",
+        "written communication skills",
+        "writing skills"
+      ]
+    },
+    {
+      "canonical": "teamwork",
+      "variants": [
+        "team work",
+        "working in a team",
+        "ability to work in a team",
+        "collaborative working",
+        "team player",
+        "works well as part of a team",
+        "work well as part of a team",
+        "works well as a team",
+        "as part of a team",
+        "part of a team",
+        "works well in a team",
+        "ability to work as part of a team"
+      ]
+    },
+    {
+      "canonical": "collaboration",
+      "variants": [
+        "collaborating",
+        "multidisciplinary collaboration",
+        "working collaboratively"
+      ]
+    },
+    {
+      "canonical": "working autonomously",
+      "variants": [
+        "ability to work autonomously",
+        "work autonomously",
+        "working independently",
+        "ability to work independently",
+        "self-directed"
+      ]
+    },
+    {
+      "canonical": "time management",
+      "variants": [
+        "managing time",
+        "time-management"
+      ]
+    },
+    {
+      "canonical": "organisation",
+      "variants": [
+        "organisational skills",
+        "organization",
+        "organizational skills",
+        "well organised",
+        "work planning",
+        "planning and organisation",
+        "planning and organizing"
+      ]
+    },
+    {
+      "canonical": "prioritisation",
+      "variants": [
+        "work prioritisation",
+        "prioritization",
+        "prioritising tasks",
+        "ability to prioritise"
+      ]
+    },
+    {
+      "canonical": "empathy",
+      "variants": [
+        "empathetic",
+        "empathetic nature",
+        "compassion",
+        "compassionate",
+        "caring nature",
+        "caring attitude",
+        "compassionate approach",
+        "compassionate care",
+        "kindness"
+      ]
+    },
+    {
+      "canonical": "patience",
+      "variants": [
+        "patient",
+        "patient nature",
+        "patient approach"
+      ]
+    },
+    {
+      "canonical": "tolerance",
+      "variants": [
+        "tolerant",
+        "tolerant nature"
+      ]
+    },
+    {
+      "canonical": "problem solving",
+      "variants": [
+        "problem-solving",
+        "problem solving skills",
+        "critical thinking",
+        "analytical thinking"
+      ]
+    },
+    {
+      "canonical": "adaptability",
+      "variants": [
+        "adaptable",
+        "flexible",
+        "flexibility",
+        "adapting to change",
+        "flexible attitude",
+        "flexible approach",
+        "open to change",
+        "flexibility for varying shifts",
+        "flexible availability",
+        "ability to adapt to different environments",
+        "adaptability to diverse clinical environments"
+      ]
+    },
+    {
+      "canonical": "reliability",
+      "variants": [
+        "reliable",
+        "dependable",
+        "dependability",
+        "reliability for allocated shifts",
+        "reliability to commit to allocated shifts",
+        "commitment to allocated shifts",
+        "commitment to allocated shift",
+        "commitment to shifts",
+        "commitment to scheduled shifts",
+        "commitment to rostered shifts",
+        "shift commitment",
+        "committed to shifts",
+        "committed to allocated shifts",
+        "punctuality"
+      ]
+    },
+    {
+      "canonical": "attention to detail",
+      "variants": [
+        "detail-oriented",
+        "detail oriented",
+        "thoroughness"
+      ]
+    },
+    {
+      "canonical": "de-escalation",
+      "variants": [
+        "de-escalation techniques",
+        "de escalation",
+        "conflict resolution",
+        "conflict management"
+      ]
+    },
+    {
+      "canonical": "active listening",
+      "variants": [
+        "listening skills"
+      ]
+    },
+    {
+      "canonical": "cultural sensitivity",
+      "variants": [
+        "cultural awareness",
+        "culturally sensitive",
+        "cultural competence",
+        "working with diverse cultures",
+        "understanding of culturally and linguistically diverse communities",
+        "working with culturally diverse clients",
+        "ability to work with culturally diverse clients",
+        "cultural responsiveness in care",
+        "inclusiveness",
+        "inclusive practice",
+        "support for inclusion and diversity",
+        "valuing diversity and inclusion"
+      ]
+    },
+    {
+      "canonical": "positive attitude",
+      "variants": [
+        "positive",
+        "enthusiasm",
+        "enthusiastic"
+      ]
+    },
+    {
+      "canonical": "advocacy",
+      "variants": [
+        "patient advocacy",
+        "resident advocacy",
+        "advocating for clients",
+        "client advocacy",
+        "advocacy for patients and residents",
+        "advocacy for patients",
+        "resident and patient advocacy"
+      ]
+    },
+    {
+      "canonical": "clinical reasoning",
+      "variants": [
+        "critical thinking in care",
+        "clinical judgement",
+        "nursing judgement",
+        "clinical decision making"
+      ]
+    },
+    {
+      "canonical": "resilience",
+      "variants": [
+        "emotional resilience",
+        "coping with pressure",
+        "self-care",
+        "self care",
+        "calm under pressure",
+        "composure under pressure",
+        "working under pressure"
+      ]
+    },
+    {
+      "canonical": "accountability",
+      "variants": [
+        "accountable",
+        "taking accountability",
+        "professional accountability",
+        "personal accountability",
+        "responsibility",
+        "responsible",
+        "professional responsibility"
+      ]
+    },
+    {
+      "canonical": "respect",
+      "variants": [
+        "respectful",
+        "respectfulness",
+        "showing respect",
+        "treating with respect",
+        "treating residents with respect",
+        "respect and dignity",
+        "respect for clients",
+        "respect for residents",
+        "respect for patients",
+        "respect for client rights",
+        "respect for diversity and inclusion",
+        "inclusiveness and respect for diversity",
+        "respectful attitude",
+        "respectful approach",
+        "respect for client autonomy"
+      ]
+    },
+    {
+      "canonical": "safety awareness",
+      "variants": [
+        "safety focus",
+        "safety conscious",
+        "safety mindset",
+        "safety-focused",
+        "awareness of safety",
+        "safety-oriented"
+      ]
+    },
+    {
+      "canonical": "initiative",
+      "variants": [
+        "showing initiative",
+        "taking initiative",
+        "proactive",
+        "proactively",
+        "self-motivated",
+        "self motivated"
+      ]
+    },
+    {
+      "canonical": "interpersonal skills",
+      "variants": [
+        "interpersonal",
+        "strong interpersonal skills",
+        "interpersonal abilities",
+        "people skills",
+        "approachability",
+        "approachable",
+        "personable",
+        "personable manner",
+        "personable interpersonal style"
+      ]
+    },
+    {
+      "canonical": "relationship building",
+      "variants": [
+        "building relationships",
+        "building rapport",
+        "developing relationships",
+        "meaningful engagement",
+        "partnership with residents and families",
+        "partnership with residents and family",
+        "partnership with residents and their family",
+        "partnership with residents and their families",
+        "working in partnership with residents",
+        "working in partnership with residents and family",
+        "working in partnership with residents and their family",
+        "in partnership with residents",
+        "in partnership with residents and family",
+        "partnership with families",
+        "working in partnership",
+        "partnership with clients and families",
+        "partnership building",
+        "building partnerships",
+        "build partnerships",
+        "building partnership",
+        "building partnership with residents",
+        "building partnerships with residents",
+        "building partnerships with families",
+        "building partnerships with residents and families",
+        "build trusting relationships",
+        "building trusting relationships"
+      ]
+    },
+    {
+      "canonical": "leadership",
+      "variants": [
+        "leading",
+        "lead",
+        "leading a team",
+        "team leadership",
+        "clinical leadership",
+        "providing leadership"
+      ]
+    },
+    {
+      "canonical": "motivation",
+      "variants": [
+        "motivated",
+        "self-motivated",
+        "highly motivated",
+        "drive and motivation"
+      ]
+    },
+    {
+      "canonical": "customer service",
+      "variants": [
+        "client service",
+        "service delivery",
+        "service excellence",
+        "quality service",
+        "resident service",
+        "excellence in customer service",
+        "client focus",
+        "client-focused approach",
+        "consumer-focused service orientation",
+        "consumer focused service"
+      ]
+    },
+    {
+      "canonical": "dedication",
+      "variants": [
+        "dedicated",
+        "dedicated professional",
+        "dedicated worker",
+        "dedication to work"
+      ]
+    },
+    {
+      "canonical": "resourcefulness",
+      "variants": [
+        "resourceful",
+        "resourceful approach",
+        "resourceful nature"
+      ]
+    },
+    {
+      "canonical": "professionalism",
+      "variants": [
+        "professional",
+        "professional conduct",
+        "professional behaviour",
+        "acting professionally"
+      ]
+    },
+    {
+      "canonical": "cultural responsiveness",
+      "variants": [
+        "culturally responsive care",
+        "culturally responsive",
+        "culturally inclusive",
+        "cultural inclusiveness",
+        "cultural competency",
+        "cultural responsiveness and inclusivity"
+      ]
+    }
   ],
-
   "technical": [
-    { "canonical": "BESTMed", "variants": ["bestmed", "best med"] },
-    { "canonical": "MedMobile", "variants": ["medmobile", "med mobile"] },
-    { "canonical": "Leecare", "variants": ["leecare", "lee care", "leecare platinum"] },
-    { "canonical": "Manad Plus", "variants": ["manad", "manad plus", "manadplus"] },
-    { "canonical": "iCare", "variants": ["icare"] },
-    { "canonical": "AutumnCare", "variants": ["autumncare", "autumn care"] },
-    { "canonical": "Carelink", "variants": ["carelink", "care link", "carelink+"] },
-    { "canonical": "Procura", "variants": ["procura"] },
-    { "canonical": "AlayaCare", "variants": ["alayacare", "alaya care"] },
-    { "canonical": "Epic", "variants": ["epic", "epic systems"] },
-    { "canonical": "Cerner", "variants": ["cerner"] },
-    { "canonical": "electronic health records", "variants": ["ehr", "electronic medical records", "emr", "digital health records"] },
-    { "canonical": "Microsoft Office", "variants": ["ms office", "microsoft office suite"] },
-    { "canonical": "Microsoft Word", "variants": ["ms word", "word"] },
-    { "canonical": "Microsoft Excel", "variants": ["ms excel", "excel", "spreadsheets"] },
-    { "canonical": "Microsoft Outlook", "variants": ["ms outlook", "outlook", "email"] },
-    { "canonical": "computer skills", "variants": ["basic computer skills", "computer literacy", "computer literate", "digital literacy", "data entry", "smartphone and mobile applications", "mobile applications", "smartphone skills", "smartphone use", "tablet and mobile applications", "digital tools", "digital devices", "basic computer use", "use of smartphone", "smartphone", "navigation of mobile and web applications", "computer and tablet use", "basic technology skills", "technology skills", "use of smartphone applications", "use of mobile applications", "basic computer knowledge", "basic smartphone working knowledge", "ability to use mobile app for managing rosters"] },
-    { "canonical": "eCase", "variants": ["ecase", "e-case", "e case"] },
-    { "canonical": "SupportAbility", "variants": ["support ability", "supportability software"] },
-    { "canonical": "Sandstone", "variants": ["sandstone care", "sandstone aged care"] },
-    { "canonical": "VCare", "variants": ["vcare", "v care", "v-care"] },
-    { "canonical": "HealthMetrics", "variants": ["health metrics", "healthmetrics software"] },
-    { "canonical": "Nexus", "variants": ["nexus aged care", "nexus care"] },
-    { "canonical": "PeoplePoint", "variants": ["people point", "peoplepoint software"] },
-    { "canonical": "Sara Steady", "variants": ["sara steady", "sara stedy", "sara plus", "arjo sara", "use of sara steady", "sara steady hoist"] },
-    { "canonical": "Hoyer lift", "variants": ["hoyer", "hoyer lift", "mechanical lift", "patient lift"] }
+    {
+      "canonical": "BESTMed",
+      "variants": [
+        "bestmed",
+        "best med"
+      ]
+    },
+    {
+      "canonical": "MedMobile",
+      "variants": [
+        "medmobile",
+        "med mobile"
+      ]
+    },
+    {
+      "canonical": "Leecare",
+      "variants": [
+        "leecare",
+        "lee care",
+        "leecare platinum"
+      ]
+    },
+    {
+      "canonical": "Manad Plus",
+      "variants": [
+        "manad",
+        "manad plus",
+        "manadplus"
+      ]
+    },
+    {
+      "canonical": "iCare",
+      "variants": [
+        "icare"
+      ]
+    },
+    {
+      "canonical": "AutumnCare",
+      "variants": [
+        "autumncare",
+        "autumn care"
+      ]
+    },
+    {
+      "canonical": "Carelink",
+      "variants": [
+        "carelink",
+        "care link",
+        "carelink+"
+      ]
+    },
+    {
+      "canonical": "Procura",
+      "variants": [
+        "procura"
+      ]
+    },
+    {
+      "canonical": "AlayaCare",
+      "variants": [
+        "alayacare",
+        "alaya care"
+      ]
+    },
+    {
+      "canonical": "Epic",
+      "variants": [
+        "epic",
+        "epic systems"
+      ]
+    },
+    {
+      "canonical": "Cerner",
+      "variants": [
+        "cerner"
+      ]
+    },
+    {
+      "canonical": "electronic health records",
+      "variants": [
+        "ehr",
+        "electronic medical records",
+        "emr",
+        "digital health records"
+      ]
+    },
+    {
+      "canonical": "Microsoft Office",
+      "variants": [
+        "ms office",
+        "microsoft office suite"
+      ]
+    },
+    {
+      "canonical": "Microsoft Word",
+      "variants": [
+        "ms word",
+        "word"
+      ]
+    },
+    {
+      "canonical": "Microsoft Excel",
+      "variants": [
+        "ms excel",
+        "excel",
+        "spreadsheets"
+      ]
+    },
+    {
+      "canonical": "Microsoft Outlook",
+      "variants": [
+        "ms outlook",
+        "outlook",
+        "email"
+      ]
+    },
+    {
+      "canonical": "computer skills",
+      "variants": [
+        "basic computer skills",
+        "computer literacy",
+        "computer literate",
+        "digital literacy",
+        "data entry",
+        "smartphone and mobile applications",
+        "mobile applications",
+        "smartphone skills",
+        "smartphone use",
+        "tablet and mobile applications",
+        "digital tools",
+        "digital devices",
+        "basic computer use",
+        "use of smartphone",
+        "smartphone",
+        "navigation of mobile and web applications",
+        "computer and tablet use",
+        "basic technology skills",
+        "technology skills",
+        "use of smartphone applications",
+        "use of mobile applications",
+        "basic computer knowledge",
+        "basic smartphone working knowledge",
+        "ability to use mobile app for managing rosters"
+      ]
+    },
+    {
+      "canonical": "eCase",
+      "variants": [
+        "ecase",
+        "e-case",
+        "e case"
+      ]
+    },
+    {
+      "canonical": "SupportAbility",
+      "variants": [
+        "support ability",
+        "supportability software"
+      ]
+    },
+    {
+      "canonical": "Sandstone",
+      "variants": [
+        "sandstone care",
+        "sandstone aged care"
+      ]
+    },
+    {
+      "canonical": "VCare",
+      "variants": [
+        "vcare",
+        "v care",
+        "v-care"
+      ]
+    },
+    {
+      "canonical": "HealthMetrics",
+      "variants": [
+        "health metrics",
+        "healthmetrics software"
+      ]
+    },
+    {
+      "canonical": "Nexus",
+      "variants": [
+        "nexus aged care",
+        "nexus care"
+      ]
+    },
+    {
+      "canonical": "PeoplePoint",
+      "variants": [
+        "people point",
+        "peoplepoint software"
+      ]
+    },
+    {
+      "canonical": "Sara Steady",
+      "variants": [
+        "sara steady",
+        "sara stedy",
+        "sara plus",
+        "arjo sara",
+        "use of sara steady",
+        "sara steady hoist"
+      ]
+    },
+    {
+      "canonical": "Hoyer lift",
+      "variants": [
+        "hoyer",
+        "hoyer lift",
+        "mechanical lift",
+        "patient lift"
+      ]
+    }
   ]
 }

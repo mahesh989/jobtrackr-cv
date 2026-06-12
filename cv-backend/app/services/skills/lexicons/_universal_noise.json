@@ -218,7 +218,15 @@
     "valid ndis worker check",
     "current ndis worker screening check",
     "current ndis workers check",
-    "valid ndis workers check"
+    "valid ndis workers check",
+    "current driver's licence",
+    "valid driver's licence",
+    "current drivers licence",
+    "valid drivers license",
+    "current driver's license",
+    "australian driver's licence",
+    "p plate licence",
+    "unrestricted driver's licence"
   ],
   "eligibility": [
     "work rights",
@@ -317,7 +325,13 @@
     "pre-employment medical requirements",
     "pre employment medical requirements",
     "pre-employment medical screening requirements",
-    "pre employment screening requirements"
+    "pre employment screening requirements",
+    "pre-employment medical clearance requirements",
+    "pre employment medical clearance requirements",
+    "ownership of reliable comprehensively insured vehicle",
+    "own reliable vehicle",
+    "reliable vehicle",
+    "reliable insured vehicle"
   ],
   "noise": [
     "duty of care",
@@ -876,6 +890,14 @@
     "leadership pathway",
     "aged care career development",
     "career pathways",
-    "professional development pathway"
+    "professional development pathway",
+    "calmness",
+    "attentiveness",
+    "attentive",
+    "working under clinical supervision",
+    "ability to work closely with family",
+    "ability to work with family",
+    "ability to follow policies and procedures",
+    "follow policies and procedures"
   ]
 }

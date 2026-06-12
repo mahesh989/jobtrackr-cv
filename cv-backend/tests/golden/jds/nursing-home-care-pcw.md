@@ -5,7 +5,7 @@ role_family: nursing
 subtype: home-care
 expected:
   required:
-    domain_knowledge: [domestic assistance, dressing and grooming, home care, individual support, showering and bathing, toileting assistance]
+    domain_knowledge: [domestic assistance, dressing and grooming, home care, individual support, showering and bathing, toileting assistance, transport assistance]
     soft_skills: [empathy, relationship building, reliability, respect, verbal communication]
     technical: []
 ---
