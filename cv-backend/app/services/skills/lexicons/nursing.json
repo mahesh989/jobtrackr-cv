@@ -209,7 +209,12 @@
         "patient dignity and independence",
         "promoting independence and choice",
         "promoting choice and independence",
-        "supporting independence and choice"
+        "supporting independence and choice",
+        "supporting residents' wellbeing and independence",
+        "supporting client wellbeing and independence",
+        "supporting patient wellbeing and independence",
+        "holistic care (physical, spiritual, social, cultural needs)",
+        "holistic care including physical, spiritual, social and cultural needs"
       ]
     },
     {
@@ -354,7 +359,10 @@
         "observation and reporting of changes",
         "reporting on client condition",
         "reporting on patient condition",
-        "reporting on resident condition"
+        "reporting on resident condition",
+        "observation and reporting of resident condition",
+        "observation and reporting of patient condition",
+        "observing and reporting on resident condition"
       ]
     },
     {
@@ -721,6 +729,8 @@
         "healthcare team collaboration",
         "working with registered nurses",
         "working under registered nurse direction",
+        "working under direction of registered nurse",
+        "working under the direction of a registered nurse",
         "collaboration in multidisciplinary teams",
         "multidisciplinary team collaboration",
         "collaborative multidisciplinary practice"
@@ -1322,7 +1332,9 @@
         "strong communication skills",
         "clear communication",
         "verbal and written communication",
-        "effective interpersonal communication"
+        "effective interpersonal communication",
+        "communication support",
+        "supportive communication"
       ],
       "subsumes": [
         "verbal communication",
@@ -1377,7 +1389,9 @@
         "work autonomously",
         "working independently",
         "ability to work independently",
-        "self-directed"
+        "self-directed",
+        "independent work",
+        "independent working"
       ]
     },
     {
@@ -1396,7 +1410,10 @@
         "well organised",
         "work planning",
         "planning and organisation",
-        "planning and organizing"
+        "planning and organizing",
+        "workload management",
+        "managing workload",
+        "workload prioritisation"
       ]
     },
     {
@@ -1830,7 +1847,10 @@
         "ehr",
         "electronic medical records",
         "emr",
-        "digital health records"
+        "digital health records",
+        "electronic patient records",
+        "electronic patient record",
+        "epr"
       ]
     },
     {
