@@ -244,24 +244,24 @@ def _distinctive_employer_tokens(employer: str) -> set[str]:
 
 
 def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list[str]) -> bool:
-    """True if S2 contains an employer's DISTINCTIVE token or a numeric metric.
-
-    NOTE: tool presence DOES NOT count as concrete evidence. The composition
-    prompt explicitly forbids naming tools in S2 ("NO TOOL NAMES in S2 —
-    tools live in the Skills section"). If the AI ignores that rule and
-    emits a tool-named S2 like "...using BESTMed and MedMobile...", we
-    treat it as NOT concrete so ``enforce_summary_concreteness`` rebuilds
-    it via ``_compose_concrete_s2`` into a brief employer-anchored
-    sentence. The cv_tools parameter is retained for signature stability
-    (callers still pass it) but no longer counts toward concreteness.
+    """True if S2 contains an employer's DISTINCTIVE token, a CV-named tool,
+    or a numeric metric.
 
     Partial matching (distinctive tokens) catches cases where the LLM cited
     only the brand suffix — e.g. 'The Marion' (fragment of 'Uniting – The
     Marion') correctly counts as employer-named via the 'marion' token.
     Exact-string substring matching would have missed this and replaced
     valid content with a template.
+
+    Note on tools: the composition prompt forbids naming tools in S2 (NO TOOL
+    NAMES IN S2 rule), but if the AI emits a tool-named S2 we DO NOT force a
+    rebuild — the AI's sentence is informative and almost always preserves
+    the prompt's 10-22 word S2 floor, whereas the deterministic rebuild
+    produces a 4-word stub. The tool-naming rule is now enforced upstream by
+    the CANNED-SHAPE BAN prompt block; this function's only job is to detect
+    GENERIC S2 ('provides safe care to elderly residents') with no anchoring
+    signal at all.
     """
-    del cv_tools  # intentionally ignored; see docstring
     if not s2:
         return False
     low = s2.lower()
@@ -274,6 +274,9 @@ def _s2_has_concrete_evidence(s2: str, employer_names: list[str], cv_tools: list
         for tok in _distinctive_employer_tokens(emp):
             if re.search(r"\b" + re.escape(tok) + r"\b", low):
                 return True
+    for tool in cv_tools:
+        if tool.lower() in low:
+            return True
     if _METRIC_TOKEN_RE.search(s2):
         return True
     return False
@@ -392,6 +395,37 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
 
     # Compose new prose: S1 + new_s2 + any trailing sentences (rare).
     new_prose = " ".join([s1, new_s2] + rest).strip()
+
+    # ANTI-GUT GUARD (Opal Healthcare regression, 2026-06-12): the rebuild
+    # exists to ADD concreteness, not to shrink the summary. With only ONE
+    # present employer and no attributable tools, _compose_concrete_s2 produces
+    # a 4-word stub ("Recent experience at Uniting."). When the AI's original S2
+    # is a SUBSTANTIAL sentence, replacing it with that stub guts the summary
+    # below the prompt's 35-word floor and reads as a placeholder.
+    #
+    # Guard precisely. Skip the rebuild ONLY when ALL hold:
+    #   • single employer (the stub case — a 2-employer rebuild names both
+    #     roles and is substantive, so it's exempt: that's the intended
+    #     Sprint-E behaviour and the test_awkward_double_and_s2_replaced case);
+    #   • the AI's ORIGINAL S2 is itself a real sentence (>= 10 words) worth
+    #     keeping — a thin generic filler S2 (< 10 words) is NOT worth
+    #     protecting, so the concrete employer rebuild fires for it (that's the
+    #     honesty-fix test: 'Provides safe, respectful support for older
+    #     people.' -> 'Recent experience at Uniting.');
+    #   • the rebuild actually shortens the summary.
+    _WORD_FLOOR = 35  # noqa: F841 — documents the prompt floor this guard protects
+    s2_words = len(s2.split())
+    old_words = len(prose.split())
+    new_words = len(new_prose.split())
+    if len(employers) < 2 and s2_words >= 10 and new_words < old_words:
+        logger.info(
+            "sprint-E summary S2 enforcer: SKIPPED rebuild — single-employer "
+            "stub would gut a substantial %d-word S2 (summary %d→%d words); "
+            "keeping AI's original S2.",
+            s2_words, old_words, new_words,
+        )
+        return markdown
+
     # Emit on the first prose line; blank the others to avoid leftovers.
     for i in prose_idx:
         lines[i] = ""

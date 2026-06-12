@@ -104,8 +104,39 @@ def _parse_award_parts(content: str) -> tuple:
       paren form:  "Name – Org (Date), description"
       plain form:  "Name – Org (Date)"
       bare name:   "Dean's List"
+      nested form: "Name (Org (Date))" — the AI occasionally double-wraps the
+                   org+date in nested parens. Without a dedicated handler the
+                   inner `\(([^()]+)\)` regex below matches the date paren, the
+                   outer '(' stays stuck in the name field, and the outer ')'
+                   spills into description, producing the malformed render
+                   'Name (Org (Date)' + newline + ').' (Opal Healthcare bug,
+                   2026-06-12).
     """
     name = org = date = description = ""
+
+    # Nested-paren shape — handle BEFORE the standard regex below would
+    # mis-parse the inner paren as the date. Only fires when the inner paren
+    # contains a 4-digit year or a month name so we don't accidentally
+    # collapse legitimate "Award (Company Name (LLC))" shapes.
+    nested = re.match(
+        r"^(?P<name>[^()]+?)\s*"
+        r"\(\s*(?P<org>[^()]+?)\s*"
+        r"\(\s*(?P<date>[^()]+?)\s*\)\s*\)\s*"
+        r"(?P<desc>.*)$",
+        content.strip(),
+    )
+    if nested:
+        inner = nested.group("date").strip()
+        if re.search(
+            r"\b\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
+            inner,
+            re.IGNORECASE,
+        ):
+            name = nested.group("name").strip()
+            org = nested.group("org").strip().rstrip(",").strip()
+            date = inner
+            description = nested.group("desc").strip().lstrip(",.").strip()
+            return name.strip(), org.strip(), date.strip(), description.strip()
     if "|" in content:
         left, right = content.rsplit("|", 1)
         right = right.strip()
@@ -235,6 +266,84 @@ def _strip_au_location(org: str) -> str:
     return cleaned if cleaned else org
 
 
+def _dedupe_award_description_sentences(desc: str) -> str:
+    """Drop near-duplicate sentences from an awards description.
+
+    Production bug (Opal Healthcare, 2026-06-12). Two cases observed:
+
+      (a) Oxford-comma-only variants (exact after punctuation strip):
+          "Recognised for hard work, caring nature and positive attitude.
+           Recognised for hard work, caring nature, and positive attitude."
+
+      (b) FUZZY near-duplicates — one sentence is a near-superset of the
+          other, differing by a few extra words:
+          "Recognised for hard work, caring nature, empathy and positive
+           attitude in resident care.
+           Recognised for hard work, caring nature, and positive attitude."
+
+    Both come from upstream (the source CV repeated it, or verify_claims
+    appended a reworded copy). This dedupe runs before rendering so the
+    user sees ONE sentence — the most informative (longest) of a duplicate
+    cluster.
+
+    Strategy:
+      1. Split into sentences.
+      2. Exact-normalised dedupe (handles case (a)).
+      3. Fuzzy pass: process longest-first; drop a sentence whose content
+         tokens are ≥80% contained in an already-kept (longer) sentence
+         (handles case (b) — the shorter subset is dropped, the richer
+         superset is kept). Re-emit in original order.
+    """
+    if not desc or "." not in desc:
+        return desc
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", desc) if s.strip()]
+    if len(sentences) <= 1:
+        return desc
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s.lower())).strip()
+
+    def _tokens(s: str) -> set:
+        return set(_norm(s).split())
+
+    # Pass 1 — exact-normalised dedupe (preserves first-seen order).
+    seen_exact: set[str] = set()
+    stage1: list[str] = []
+    for s in sentences:
+        key = _norm(s)
+        if not key or key in seen_exact:
+            continue
+        seen_exact.add(key)
+        stage1.append(s)
+
+    # Pass 2 — fuzzy subset dedupe. Process longest-first so the richest
+    # sentence in a duplicate cluster is the one retained; a shorter sentence
+    # whose tokens are ≥80% covered by a kept longer one is dropped.
+    order = {s: i for i, s in enumerate(stage1)}
+    by_len_desc = sorted(stage1, key=lambda s: len(_tokens(s)), reverse=True)
+    kept_fuzzy: list[str] = []
+    for s in by_len_desc:
+        toks = _tokens(s)
+        if not toks:
+            continue
+        is_dup = False
+        for k in kept_fuzzy:
+            ktoks = _tokens(k)
+            overlap = len(toks & ktoks) / len(toks)
+            if overlap >= 0.8:
+                is_dup = True
+                break
+        if not is_dup:
+            kept_fuzzy.append(s)
+
+    # Re-emit in original order.
+    final = sorted(kept_fuzzy, key=lambda s: order.get(s, 0))
+
+    if len(final) == len(sentences):
+        return desc  # no duplicates → return original verbatim
+    return " ".join(final)
+
+
 def _format_award_entry(name: str, org: str, date: str, description: str = "") -> list:
     """Produce the canonical bullet-list entry for ## Awards.
 
@@ -303,6 +412,12 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         # Strip any leading "Month YYYY. " or "YYYY. " that sometimes gets
         # prepended to descriptions (the date already appears on the name line).
         desc = _LEADING_DATE_RE.sub("", desc).strip()
+        # Deduplicate near-identical sentences. Observed (Opal Healthcare,
+        # 2026-06-12) after the parens-parse fix landed: descriptions sometimes
+        # contain two near-identical sentences differing only by an Oxford
+        # comma or minor wording. The duplicate was hidden before because the
+        # whole description was just ')' from a broken parse — now visible.
+        desc = _dedupe_award_description_sentences(desc)
         # Strip stray leading punctuation — e.g. ". Recognised for..." when
         # verify_claims appends description directly after a closing paren date.
         desc = desc.lstrip(".,;").strip()

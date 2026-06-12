@@ -94,16 +94,32 @@ def _classify_jd_setting(jd_text: str, jd_analysis: Dict[str, Any]) -> str:
         r"|\bndiswc[s]?\b"
     )
     full_text_ndis = _ndis_cred_re.sub("", full_text)
+    primary_ndis = _ndis_cred_re.sub("", primary)
     # Word-boundary regex so 'ndis' doesn't accidentally match unrelated
     # tokens (e.g. an unstripped 'ndiswc' or any future credential variant).
     # The bare 'ndis' keyword still hits when it stands alone as a sector
     # mention.
-    _ndis_kw_re = _re.compile(
-        r"\b(?:ndis|disability\s+support|non-verbal\s+participant"
+    _ndis_strong = _re.compile(
+        r"\bndis\b|\bdisability\s+support\s+worker\b"
+        r"|\bsupported\s+independent\s+living\b|\bsil\b"
+        r"|\bdisability\s+services\s+(?:worker|officer)\b"
+    )
+    if _ndis_strong.search(primary_ndis):
+        return _SETTING_NDIS
+
+    _ndis_weak = _re.compile(
+        r"\b(?:disability\s+support|non-verbal\s+participant"
         r"|acquired\s+brain\s+injury|high\s+intensity\s+support"
         r"|disability\s+worker)\b"
     )
-    if _ndis_kw_re.search(full_text_ndis):
+    _residential_strong = _re.compile(
+        r"\bresidential\s+aged\s+care\b"
+        r"|\baged\s+care\s+(?:facility|home|community)\b"
+        r"|\bnursing\s+home\b"
+        r"|\bcare\s+community\b"
+    )
+    if (_ndis_weak.search(primary_ndis)
+            and not _residential_strong.search(primary_ndis)):
         return _SETTING_NDIS
 
     # 5. Hospital / acute
@@ -209,10 +225,56 @@ _HIGHLIGHT_HEADINGS_SET = frozenset([
 
 def _strip_canned_summary_phrase(md: str) -> str:
     """Remove the generic 'Currently delivering care at X using BESTMed and
-    MedMobile' sentence wherever it appears. The phrase is distinctive enough
-    that a global substitution is safe — it is never generated outside Career
-    Highlights. Called before enforce_summary_concreteness so the concreteness
-    pass can replace the gap with a specific, JD-relevant achievement."""
+    MedMobile' sentence — but ONLY when removing it leaves the surrounding
+    Summary section with meaningful content.
+
+    Production regression (Opal Healthcare AIN, 2026-06-12): when the canned
+    phrase is the ENTIRE S2, an unconditional strip leaves S2 empty. The
+    downstream rebuild then fills the void with a 4-word stub ("Recent
+    experience at Uniting."). Net effect: Professional Summary becomes
+    26 words — below the prompt's hard 35-word floor — and reads as a
+    placeholder, not a summary.
+
+    Guard: skip the strip if it would remove ≥ 80% of the Summary section's
+    prose. The prompt's CANNED-SHAPE BAN (added separately) is the authoritative
+    enforcement for new generations — the strip is now a soft cleanup, not a
+    blunt instrument.
+    """
+    if not md:
+        return md
+    matches = list(_CANNED_SUMMARY_RE.finditer(md))
+    if not matches:
+        return md
+
+    from app.services.eval.writers.summary import _find_summary_section, _extract_summary_prose
+
+    # Estimate Summary section prose length so we can guard against gutting it.
+    lines = md.split("\n")
+    bounds = _find_summary_section(lines)
+    if not bounds:
+        return _CANNED_SUMMARY_RE.sub("", md)  # no Summary section bounds; fall back
+
+    start, end = bounds
+    prose, _ = _extract_summary_prose(lines, start, end)
+    prose_chars = len(prose or "")
+    if prose_chars == 0:
+        return md
+
+    # Sum of characters the strip would remove from the Summary section.
+    canned_chars = 0
+    section_text = "\n".join(lines[start:end])
+    for m in _CANNED_SUMMARY_RE.finditer(section_text):
+        canned_chars += len(m.group(0))
+
+    if canned_chars >= 0.8 * prose_chars:
+        logger.info(
+            "_strip_canned_summary_phrase: SKIPPED — stripping would remove "
+            "%d of %d Summary chars (>=80%%); rebuild would gut the summary. "
+            "Leaving canned phrase intact; prompt CANNED-SHAPE BAN handles it.",
+            canned_chars, prose_chars,
+        )
+        return md
+
     return _CANNED_SUMMARY_RE.sub("", md)
 
 

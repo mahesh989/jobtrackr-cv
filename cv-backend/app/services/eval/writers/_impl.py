@@ -516,7 +516,7 @@ from app.services.eval.writers.awards_parsing import (  # noqa: E402, F401 — r
     _LOCATION_ANCHOR_RE, _is_valid_date, _add_desc_sentence, _parse_award_parts,
     _strip_duplicate_trailing_word, _strip_au_location, _format_award_entry,
     _format_award_bullet, _classify_entry_line, _looks_like_location,
-    _split_award_name_org, _parse_award_raw_entry,
+    _split_award_name_org, _parse_award_raw_entry, _dedupe_award_description_sentences,
 )
 # Awards/credentials section logic was extracted to writers.awards.
 # Re-imported so _impl's remaining code + the test-suite keep referencing
