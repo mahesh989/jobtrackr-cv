@@ -1,3 +1,10 @@
 
 # Python virtualenv (local test harness)
 .venv/
+
+# Real-test loop (see docs/REAL_TEST_LOOP_INSTRUCTIONS.md)
+# - the OpenAI key file must never be committed
+# - per-job raw analysis output is PII-adjacent (contains CV/JD text)
+# - ledger.json IS committed (audit trail) and is deliberately NOT ignored here
+.env.realtest
+docs/realtest/runs/

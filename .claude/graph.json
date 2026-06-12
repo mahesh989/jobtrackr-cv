@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.9",
-    "updated": "2026-06-10",
+    "version": "0.10",
+    "updated": "2026-06-12",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -38,10 +38,11 @@
     "billing_high_level": "Adding paid subscriptions (Stripe, AUD) gating the platform — not AI tokens (BYOK). Plans: 3-day card-upfront TRIAL (3 tailored CVs + 3 cover letters, 1 profile, 1 run) → WEEKLY (50 unique / 75 total CVs + letters, 5 profiles, 30 runs) → MONTHLY (250 unique / 375 total, 10 profiles, 120 runs) → UNLIMITED (∞, higher price). Total = unique × 1.5. Tailored CV and cover letter are SEPARATE buckets, equal caps (either/or). Caps reset per Stripe billing period (counted by current_period_start). Auto-renew ON (Stripe default; trial auto-converts after 3 days; subscriptions auto-renew each period). On cancel/expiry → READ-ONLY (existing CVs/letters viewable, no new analyses). Existing role='beta' users grandfathered via a comp subscription with a 14-day grace. Enforcement is at the 4 web-layer choke points only (createProfile, profiles/[id]/run, jobs/[id]/analyze, jobs/[id]/cover-letter); cv-backend + worker untouched. Migration 051_billing.sql. Pricing numbers are placeholders to finalize before go-live.",
     "previous_phase": "post-12 — CV tailoring quality + polish",
     "production_writer": "w8_verified (W8+) — active via TAILORED_CV_WRITER=w8_verified Fly secret on jobtrackr-cv-api. All /internal/analyze runs use this. Beta /internal/analyze-eval is a separate isolated harness.",
-    "production_ats_scorer": "S1 (deterministic: 50pt keyword + 35pt experience + 15pt formatting, presence-aware). 2026-05-31: tailored ATS score is now computed by the SAME deterministic scorer + SAME baseline as the original (run_tailored_rescoring), guaranteeing a monotonic, genuine lift. The prior AI re-match (Step 6.5b) was REMOVED — its fresh non-deterministic cv_jd_matching call could push the tailored score BELOW the original (the 'bizarre regression' bug). New method: experience signal frozen (raw_match_score rides through untouched — tailoring surfaces keywords, doesn't add experience); keyword coverage promotes any missed JD keyword that literally appears in the tailored CV AND is not on the cannot_inject honesty blocklist (generalises beyond the feasibility allowlist); formatting floored at the original's (a missing-contact artifact can't manufacture a phantom drop). Production now matches the beta /analyze-eval S1 harness exactly. NEEDS FLY DEPLOY.",
+    "production_ats_scorer": "PRODUCTION (main): S1 v1 deterministic 50/35/15. REFACTOR BRANCH (refactor/architecture-review): ATS v2 = 50 keyword / 40 experience / 10 formatting. Experience score REBUILT from three CV<->JD-alignment sub-signals: responsibility coverage (20, JD duties <-> CV bullets), relevant tenure (12, CV months in JD vertical vs experience_years_required), vertical alignment (8, %% CV entries in JD vertical). Removed v1's two defects: required-keyword double-count + role-family freebie. Tailoring invariant: keyword injection moves Cat 1 only (experience reads the narrative, formatting reads structure - neither fabricable from the feasibility plan, so predicted lift == actual lift). New module app/services/cv/experience_parser.py. min_initial_ats lowered 60->50 to match honest scoring. Full design: cv-backend/docs/ATS_SCORING_V2.md.",
     "last_shipped": "2026-06-10 — JD-analysis quality sweep + summary honesty gates (6 commits deployed). KEY DIAGNOSIS: Australian Unity AIN dropped 86%→57%→69% on the SAME JD across 3 runs. Root cause: (a) lexicon is curated-by-phrasing — new JD phrasings (NDISWC abbrev, 'flexibility for X shifts') leaked through as skills; (b) JD analysis prompt is IT-centric, never extracts care skills from prose-heavy responsibilities → empty domain_knowledge bucket; (c) presence-aware ATS scoring (May 30 + Jun 3, 1dbf4a6+8c87f56) amplifies AI variance — empty domain → scale 50/15=3.33×, populated → scale 50/35=1.43× = 20+ point swings on tiny AI noise. SHIPPED TODAY: (1) 6fca5e3 — lexicon: NDISWC abbrev + 'flexibility for X shifts' families to noise. (2) 8c79922 — enrich_required_skills_from_jd_body(): deterministic JD-body scan against vertical lexicon canonicals (nursing.json domain_knowledge); fires BEFORE post_process_jd_analysis; surfaces care skills the LLM missed; closes redistribution variance. (3) 1336734 — three honesty gates in writers.py: _tools_attributable_to_employer (S2 must not say 'at Uniting using BESTMed' when tools used at Jesmond), _cv_has_hospital_experience gate (skip HOSPITAL bridge if CV has no acute markers — was fabricating 'acute clinical settings'), _classify_jd_setting tightened (weak signals 'acute care'/'hospital setting' require primary band; corporate boilerplate no longer promotes residential AIN to HOSPITAL). (4) 21667b6 — three pattern recognisers in post_process.py: _split_conditional_phrase + demoter (strips 'or willingness to apply' and moves to preferred), _looks_like_language (forces 'cantonese language' etc. to technical/Other Skills, not Care Skills), _is_au_unit_code (HLTHPS007/CHCCCS015/HLTAID011 patterns → credential sidecar). 703 tests green. Production v??? on jobtrackr-cv-api. EARLIER: 2026-06-05 Phase 3B lexicon foundation, 2026-06-02 post-verify skills hygiene + Awards bullet format, 2026-05-30 nursing sub-type labels + cover-letter hardening + adaptive PDF layout.",
-    "next_session": "FOCUS: deep-dive on JD/CV categorisation, Professional Summary composition, and keyword-feasibility/injection pipelines — user wants to improve all three. See cv-backend/docs/NEXT_SESSION_INSTRUCTIONS.md for the full architecture map + diagnostic plan + improvement candidates. NO uncommitted changes pending. Re-analyse a nursing JD first to verify today's three deploys behave as expected before changing more.",
-    "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–048), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF (w8_verified production writer), cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFeed/SmartToolbar, 5-theme system, per-profile source selection, client-side instant filtering on both boards, driving-distance feature."
+    "next_session": "REAL-TEST LOOP: re-analyse all ~40 already-analysed jobs against the active CV, in batches of 5, through the LLM-backed pipeline (user supplies a fresh OpenAI key). For each batch: analyse -> compare -> diagnose -> apply BROAD/GENERALISABLE fixes (lexicon JSON, post_process recognisers, scoring - NEVER per-JD hacks) -> pytest -> commit -> update the disk ledger. Must auto-resume across context compaction and overnight via a /loop + on-disk progress ledger. FULL RUNBOOK: cv-backend/docs/REAL_TEST_LOOP_INSTRUCTIONS.md. Branch stays refactor/architecture-review.",
+    "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–048), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF (w8_verified production writer), cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFeed/SmartToolbar, 5-theme system, per-profile source selection, client-side instant filtering on both boards, driving-distance feature.",
+    "active_branch_work": "branch refactor/architecture-review (NOT merged to main; user merges later). Carries: (1) JD-extraction quality programme Phases 1-4 (evidence-grounded extraction + groundedness gate; multi-bucket recall floor; subsumption dedup; golden-JD regression harness). (2) ATS scoring v2 (50/40/10 envelope, experience score rebuilt from CV<->JD alignment). (3) Lexicon fixes from real Jesmond AIN re-runs (night-shift/partnership noise, partnership-building + recreational-activities canonicals). 915 tests passing. See cv-backend/docs/PHASE_2_PLUS_STATUS.md and cv-backend/docs/ATS_SCORING_V2.md."
   },
   "architecture": {
     "client_side_filtering": {
@@ -74,12 +75,25 @@
         "web/src/app/(dashboard)/dashboard/billing/page.tsx",
         "web/src/app/onboarding/plan/page.tsx"
       ],
-      "env": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_PRICE_WEEKLY", "STRIPE_PRICE_MONTHLY", "STRIPE_PRICE_UNLIMITED"]
+      "env": [
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_PRICE_WEEKLY",
+        "STRIPE_PRICE_MONTHLY",
+        "STRIPE_PRICE_UNLIMITED"
+      ]
     },
     "css_theming": {
       "rule": "Always use var(--brand), border-border, text-text, bg-surface. NEVER hardcode hex.",
       "default": "Notion is the project default (getStoredTheme() + the FOUC script in app/layout.tsx fall back to 'notion' when nothing is stored; an explicit 'default' choice is still honoured).",
-      "themes": ["Default (#0969DA)", "Classic (#3B82F6)", "Gilded Noir (gold)", "Notion (purple #5645D4) — DEFAULT", "Clay (#FF4D8B)"],
+      "themes": [
+        "Default (#0969DA)",
+        "Classic (#3B82F6)",
+        "Gilded Noir (gold)",
+        "Notion (purple #5645D4) — DEFAULT",
+        "Clay (#FF4D8B)"
+      ],
       "public_pages": "Landing (app/landing.css scoped to .landing), auth (login/signup inline styles) and privacy do NOT consume theme tokens — they were hand-restyled to the Notion palette (lavender canvas #E6E0F5 / surface #F4EEFB, purple #5645D4 accent, deep purple/navy #241A5C dark sections) + Manrope/Noto Serif. Changing the Notion theme later won't auto-update these."
     }
   },
@@ -88,44 +102,106 @@
       "method": "POST",
       "path": "/internal/analyze",
       "auth": "HMAC-SHA256(secret, X-Timestamp + body)",
-      "body": ["run_id","user_id","jd_text","jd_source_url","jd_meta","cv_version_id","cv_text","ai_provider","ai_api_key"],
+      "body": [
+        "run_id",
+        "user_id",
+        "jd_text",
+        "jd_source_url",
+        "jd_meta",
+        "cv_version_id",
+        "cv_text",
+        "ai_provider",
+        "ai_api_key"
+      ],
       "response": "202 Accepted { run_id }"
     },
     "internal_extract_cv_text": {
       "method": "POST",
       "path": "/internal/extract-cv-text",
-      "body": ["storage_path"],
+      "body": [
+        "storage_path"
+      ],
       "response": "{ cv_text }"
     },
     "internal_research_company": {
       "method": "POST",
       "path": "/internal/research-company",
       "auth": "HMAC-SHA256",
-      "body": ["company_name","company_domain (optional)","ai_provider","ai_api_key","ai_model (optional)"],
+      "body": [
+        "company_name",
+        "company_domain (optional)",
+        "ai_provider",
+        "ai_api_key",
+        "ai_model (optional)"
+      ],
       "response": "{ company_id, status, research: CompanyResearch }"
     },
     "internal_scrape_jd": {
       "method": "POST",
       "path": "/internal/scrape-jd",
-      "body": ["url"],
+      "body": [
+        "url"
+      ],
       "response": "{ jd_text, job_title }"
     }
   },
   "decisions": [
-    { "id": "D1", "decision": "Two services — cv-backend stays Python (FastAPI + ReportLab). Preserves 100% of pipeline logic." },
-    { "id": "D2", "decision": "Shared Supabase project with production JobTrackr. FK from analysis_runs.job_id → jobs.id requires same DB." },
-    { "id": "D3", "decision": "BYOK Anthropic + OpenAI; no platform AI credits. Zero ongoing cost; user controls spend." },
-    { "id": "D4", "decision": "HMAC-signed internal API between web and cv-backend. Simpler than JWKS; one caller." },
-    { "id": "D5", "decision": "Realtime via Supabase postgres_changes on analysis_runs. Same pattern as cv-magic; no polling tax." },
-    { "id": "D6", "decision": "Stale strategy: new run on (user, job) marks prior runs is_stale=true. Re-run is user-triggered only." },
-    { "id": "D9", "decision": "Preferred AI provider stored in localStorage (not DB). No migration; preference is per-browser." },
-    { "id": "D11", "decision": "Dropdowns inside overflow:hidden use createPortal + position:fixed + getBoundingClientRect." },
-    { "id": "D14", "decision": "Cover letter: single rich AI call + verbatim voice sample + intent rubric + anti-patterns. Replaces 3-pass pipeline that produced mechanical output." },
-    { "id": "D15", "decision": "Monetize the platform via Stripe subscriptions (AUD), NOT AI tokens — BYOK stays for now. Subscription bounds infra/Apify cost (job discovery, scraping, pipeline orchestration)." },
-    { "id": "D16", "decision": "BYOK is transitional — planned removal in the future (platform will supply AI keys). Until then D3 holds. When removed, AI cost becomes the platform's and plan caps/pricing must be revisited." },
-    { "id": "D17", "decision": "Prioritise direct scraping (seekDirect / Adzuna direct / Careerjet HTML) over the Apify actor to cut per-run cost — actor remains fallback only. Reinforces why runs are capped per plan." },
-    { "id": "D18", "decision": "Billing enforcement is web-layer-only at 4 choke points (createProfile, run, analyze, cover-letter). cv-backend + worker stay billing-unaware. consume_usage() RPC + DB triggers are the authoritative meter (reserve/commit/void)." },
-    { "id": "D19", "decision": "On subscription cancel/expiry → READ-ONLY (existing artifacts viewable, no new work) rather than hard-lock. Grandfather existing beta users with a 14-day comp subscription." }
+    {
+      "id": "D1",
+      "decision": "Two services — cv-backend stays Python (FastAPI + ReportLab). Preserves 100% of pipeline logic."
+    },
+    {
+      "id": "D2",
+      "decision": "Shared Supabase project with production JobTrackr. FK from analysis_runs.job_id → jobs.id requires same DB."
+    },
+    {
+      "id": "D3",
+      "decision": "BYOK Anthropic + OpenAI; no platform AI credits. Zero ongoing cost; user controls spend."
+    },
+    {
+      "id": "D4",
+      "decision": "HMAC-signed internal API between web and cv-backend. Simpler than JWKS; one caller."
+    },
+    {
+      "id": "D5",
+      "decision": "Realtime via Supabase postgres_changes on analysis_runs. Same pattern as cv-magic; no polling tax."
+    },
+    {
+      "id": "D6",
+      "decision": "Stale strategy: new run on (user, job) marks prior runs is_stale=true. Re-run is user-triggered only."
+    },
+    {
+      "id": "D9",
+      "decision": "Preferred AI provider stored in localStorage (not DB). No migration; preference is per-browser."
+    },
+    {
+      "id": "D11",
+      "decision": "Dropdowns inside overflow:hidden use createPortal + position:fixed + getBoundingClientRect."
+    },
+    {
+      "id": "D14",
+      "decision": "Cover letter: single rich AI call + verbatim voice sample + intent rubric + anti-patterns. Replaces 3-pass pipeline that produced mechanical output."
+    },
+    {
+      "id": "D15",
+      "decision": "Monetize the platform via Stripe subscriptions (AUD), NOT AI tokens — BYOK stays for now. Subscription bounds infra/Apify cost (job discovery, scraping, pipeline orchestration)."
+    },
+    {
+      "id": "D16",
+      "decision": "BYOK is transitional — planned removal in the future (platform will supply AI keys). Until then D3 holds. When removed, AI cost becomes the platform's and plan caps/pricing must be revisited."
+    },
+    {
+      "id": "D17",
+      "decision": "Prioritise direct scraping (seekDirect / Adzuna direct / Careerjet HTML) over the Apify actor to cut per-run cost — actor remains fallback only. Reinforces why runs are capped per plan."
+    },
+    {
+      "id": "D18",
+      "decision": "Billing enforcement is web-layer-only at 4 choke points (createProfile, run, analyze, cover-letter). cv-backend + worker stay billing-unaware. consume_usage() RPC + DB triggers are the authoritative meter (reserve/commit/void)."
+    },
+    {
+      "id": "D19",
+      "decision": "On subscription cancel/expiry → READ-ONLY (existing artifacts viewable, no new work) rather than hard-lock. Grandfather existing beta users with a 14-day comp subscription."
+    }
   ],
   "operational_notes": [
     {
