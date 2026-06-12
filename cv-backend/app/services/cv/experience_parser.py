@@ -57,6 +57,15 @@ from app.services.skills.classifier import (
 _EXPERIENCE_HEADING_RE = re.compile(
     r"^##\s+(Experience|Work Experience|Professional Experience)\s*$", re.IGNORECASE
 )
+# Plain-text (pypdf) section headers — all-caps variants for experience sections
+_PLAIN_EXPERIENCE_SECTION_RE = re.compile(
+    r"^\s*(CLINICAL\s+PLACEMENT|WORK\s+EXPERIENCE|PROFESSIONAL\s+EXPERIENCE|"
+    r"EMPLOYMENT\s+HISTORY|WORK\s+HISTORY|CLINICAL\s+EXPERIENCE|"
+    r"VOLUNTEER\s+EXPERIENCE|INTERNSHIP|EXPERIENCE)\s*$",
+    re.IGNORECASE,
+)
+# All-caps section headers that terminate an experience section in plain text
+_PLAIN_SECTION_RE = re.compile(r"^\s*[A-Z][A-Z\s&/,]+[A-Z]\s*$")
 _MONTH_TO_NUM: Dict[str, int] = {
     "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
     "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
@@ -122,6 +131,97 @@ def _split_into_entries(body_lines: List[str]) -> List[List[str]]:
     for k, start in enumerate(indices):
         end = indices[k + 1] if k + 1 < len(indices) else len(body_lines)
         entries.append(body_lines[start:end])
+    return entries
+
+
+# ---------------------------------------------------------------------------
+# Plain-text (pypdf) experience parsing — fallback when no Markdown headings
+# ---------------------------------------------------------------------------
+
+def _find_plaintext_experience_sections(lines: List[str]) -> List[Tuple[int, int]]:
+    """Find all experience sections in a plain-text (pypdf) CV.
+
+    Returns a list of (start, end) line-index pairs, one per section.
+    Multiple sections (e.g. CLINICAL PLACEMENT + WORK EXPERIENCE) are each
+    returned so their entries are all collected.
+    """
+    sections: List[Tuple[int, int]] = []
+    i = 0
+    while i < len(lines):
+        if _PLAIN_EXPERIENCE_SECTION_RE.match(lines[i]):
+            start = i
+            end = len(lines)
+            for j in range(i + 1, len(lines)):
+                ln = lines[j].strip()
+                if not ln:
+                    continue
+                # Next all-caps section header that is NOT an experience section ends this one
+                if _PLAIN_SECTION_RE.match(lines[j]) and not _PLAIN_EXPERIENCE_SECTION_RE.match(lines[j]):
+                    end = j
+                    break
+            sections.append((start, end))
+            i = end
+        else:
+            i += 1
+    return sections
+
+
+def _parse_plaintext_section_entries(body_lines: List[str]) -> List["ExperienceEntry"]:
+    """Parse employer blocks from one plain-text experience section body.
+
+    Strategy: a line that matches a date range is the anchor for each entry.
+    The 1-2 non-empty lines before it are employer + role; bullet lines
+    (starting with • or -) that follow are the bullets.
+    """
+    # Find all date-range lines — each marks one entry
+    date_positions = []
+    for i, ln in enumerate(body_lines):
+        if _parse_role_date_range(ln.strip()):
+            date_positions.append(i)
+
+    if not date_positions:
+        return []
+
+    entries: List[ExperienceEntry] = []
+    for k, date_idx in enumerate(date_positions):
+        # Employer / role: up to 2 non-empty lines immediately before the date line
+        pre_lines = []
+        j = date_idx - 1
+        while j >= 0 and len(pre_lines) < 2:
+            s = body_lines[j].strip()
+            if s and not _PLAIN_SECTION_RE.match(body_lines[j]):
+                pre_lines.insert(0, s)
+            elif s:
+                break
+            j -= 1
+        employer = pre_lines[0] if pre_lines else ""
+        role = pre_lines[1] if len(pre_lines) > 1 else ""
+
+        # Bullets: lines starting with • or - after the date line, until next entry
+        next_date = date_positions[k + 1] if k + 1 < len(date_positions) else len(body_lines)
+        bullets = []
+        for b in range(date_idx + 1, next_date):
+            s = body_lines[b].strip()
+            if s.startswith(("•", "-", "*")) and len(s) > 2:
+                bullets.append(s.lstrip("•-* ").strip())
+
+        date_range = _parse_role_date_range(body_lines[date_idx].strip())
+        if date_range:
+            entry_start, entry_end = date_range
+        else:
+            entry_start, entry_end = None, None
+
+        # Build a synthetic "role line" for vertical classification
+        role_line = f"{role} {employer}"
+        hits = _classify_entry_verticals(role_line, bullets)
+        entries.append(ExperienceEntry(
+            employer=employer,
+            role=role,
+            start=entry_start,
+            end=entry_end,
+            bullets=bullets,
+            vertical_hits=hits,
+        ))
     return entries
 
 
@@ -297,49 +397,59 @@ def _extract_bullets(entry_lines: List[str]) -> List[str]:
 
 
 def parse_cv_experience(cv_text: str) -> List[ExperienceEntry]:
-    """Parse the Markdown CV's ``## Experience`` section into structured
-    entries. Returns an empty list when the section is absent or empty.
+    """Parse the CV text's experience entries into structured records.
 
-    Order is preserved (top-to-bottom in the source markdown) — callers
-    that need reverse-chronological can sort by ``start`` themselves; for
-    the ATS scorer the order doesn't matter.
+    Tries Markdown format first (``## Experience`` / ``### Employer``), then
+    falls back to plain-text pypdf format (``WORK EXPERIENCE`` / ``CLINICAL
+    PLACEMENT`` all-caps headers with date-anchored entries).
+
+    Returns an empty list when no experience section is found in either format.
+    Order is preserved (top-to-bottom in the source) — the ATS scorer doesn't
+    require a particular order.
     """
     if not cv_text:
         return []
     lines = cv_text.split("\n")
-    section = _find_experience_section(lines)
-    if not section:
-        return []
-    start_i, end_i = section
-    body = lines[start_i + 1: end_i]
-    blocks = _split_into_entries(body)
-    if not blocks:
-        return []
 
-    entries: List[ExperienceEntry] = []
-    for block in blocks:
-        if not block:
-            continue
-        # Skip an orphan 'pre' block — it has no H3 employer line.
-        if not any(ln.strip().startswith("### ") for ln in block):
-            continue
-        employer = _extract_employer(block)
-        role_line = _extract_role_line(block)
-        date_range = _parse_role_date_range(role_line) if role_line else None
-        if date_range:
-            entry_start, entry_end = date_range
-        else:
-            entry_start, entry_end = None, None
-        bullets = _extract_bullets(block)
-        hits = _classify_entry_verticals(role_line, bullets)
-        entries.append(ExperienceEntry(
-            employer=employer,
-            role=role_line,
-            start=entry_start,
-            end=entry_end,
-            bullets=bullets,
-            vertical_hits=hits,
-        ))
+    # ── Markdown path ──────────────────────────────────────────────────────
+    section = _find_experience_section(lines)
+    if section:
+        start_i, end_i = section
+        body = lines[start_i + 1: end_i]
+        blocks = _split_into_entries(body)
+        entries: List[ExperienceEntry] = []
+        for block in blocks:
+            if not block:
+                continue
+            if not any(ln.strip().startswith("### ") for ln in block):
+                continue
+            employer = _extract_employer(block)
+            role_line = _extract_role_line(block)
+            date_range = _parse_role_date_range(role_line) if role_line else None
+            if date_range:
+                entry_start, entry_end = date_range
+            else:
+                entry_start, entry_end = None, None
+            bullets = _extract_bullets(block)
+            hits = _classify_entry_verticals(role_line, bullets)
+            entries.append(ExperienceEntry(
+                employer=employer,
+                role=role_line,
+                start=entry_start,
+                end=entry_end,
+                bullets=bullets,
+                vertical_hits=hits,
+            ))
+        return entries
+
+    # ── Plain-text (pypdf) fallback ────────────────────────────────────────
+    plain_sections = _find_plaintext_experience_sections(lines)
+    if not plain_sections:
+        return []
+    entries = []
+    for start_i, end_i in plain_sections:
+        body = lines[start_i + 1: end_i]
+        entries.extend(_parse_plaintext_section_entries(body))
     return entries
 
 

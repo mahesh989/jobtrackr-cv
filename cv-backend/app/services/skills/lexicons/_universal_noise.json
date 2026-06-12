@@ -8,10 +8,9 @@
       "noise": "Framework concept / responsibility phrasing / value / environment descriptor / availability. Dropped entirely from skill buckets. Never displayed, never matched as a skill."
     },
     "matching_note": "For 'credential' and 'eligibility', CV-JD matching checks the user PROFILE (contact_details.credentials), not the CV text. This is what makes 'police check' / 'work rights' count as MATCHED when the user has them stamped.",
-    "review_status": "DRAFT — Phase 0 seed for review. Add/remove freely.",
+    "review_status": "DRAFT \u2014 Phase 0 seed for review. Add/remove freely.",
     "matching": "Lookup is case-insensitive on a normalised form (lowercased, punctuation collapsed). Each key below is already normalised."
   },
-
   "credential": [
     "police check",
     "national police check",
@@ -115,7 +114,6 @@
     "immunisation requirements",
     "immunization requirement",
     "immunization requirements",
-
     "ahpra",
     "ahpra registered",
     "ahpra registration",
@@ -129,45 +127,37 @@
     "en registration",
     "midwife registration",
     "registered nurse registration",
-
     "basic life support",
     "bls",
     "bls certificate",
     "bls certification",
     "advanced life support",
     "als certification",
-
     "manual handling certificate",
     "manual handling certification",
     "certificate in manual handling",
     "no lift training",
-
     "dementia training",
     "dementia essentials",
     "dementia care training",
     "dementia care essentials",
-
     "ndis worker orientation module",
     "ndis worker orientation",
     "ndis orientation",
     "ndis quality and safeguarding",
     "ndis worker check",
     "disability inclusion training",
-
     "aged care quality standards training",
     "aged care quality standards",
     "acqs training",
-
     "food safety certificate",
     "food safety supervisor",
     "safefood handler",
     "safe food handling certificate",
-
     "covid-19 vaccination certificate",
     "influenza vaccination certificate",
     "annual flu shot",
     "annual influenza vaccination",
-
     "wwvp",
     "work with vulnerable people",
     "working with vulnerable people",
@@ -178,7 +168,6 @@
     "nt ochre card",
     "sa dhs working with children",
     "ochre card",
-
     "national police certificate",
     "npc",
     "national police check or ndis workers check",
@@ -187,12 +176,10 @@
     "national police check and ndis worker check",
     "police check or ndis workers check",
     "police check and ndis workers check",
-
     "pre-employment medical",
     "pre employment medical",
     "pre-employment health check",
     "pre employment health check",
-
     "certificate in disability",
     "cert in disability",
     "certificate iii in disability",
@@ -203,22 +190,18 @@
     "cert iv in disability",
     "cert iii in community services",
     "cert iv in community services",
-
     "ndis worker screening clearance",
     "ndis workers check",
     "ndis worker check",
     "ndis worker screening requirements",
     "working with children check requirements",
-
     "pre-employment medical clearance",
     "pre-employment medical assessment",
     "pre-employment medical assessment clearance",
     "pass pre-employment medical",
-
     "cpr certification",
     "cpr certify",
     "current cpr",
-
     "immunisation compliance",
     "immunization compliance",
     "vaccination compliance",
@@ -227,7 +210,6 @@
     "new worker ndis induction module",
     "ndis induction module",
     "ndis worker induction module",
-
     "ndiswc",
     "current ndiswc",
     "valid ndiswc",
@@ -238,7 +220,6 @@
     "current ndis workers check",
     "valid ndis workers check"
   ],
-
   "eligibility": [
     "work rights",
     "working rights",
@@ -266,20 +247,16 @@
     "evidence of work rights",
     "proof of right to work",
     "proof of work rights",
-
     "permanent residency or citizenship",
     "citizenship or permanent residency",
     "residency or citizenship",
-
     "australian citizen or permanent resident",
     "australian citizen or pr",
     "australian citizen or permanent residency",
-
     "new zealand citizen",
     "nz citizen",
     "special category visa",
     "scv",
-
     "full work rights",
     "full working rights",
     "australian full working rights",
@@ -293,7 +270,6 @@
     "no sponsorship required",
     "no visa sponsorship",
     "valid visa with work rights",
-
     "partner visa",
     "spouse visa",
     "temporary skills shortage visa",
@@ -308,19 +284,16 @@
     "subclass 190",
     "491 visa",
     "subclass 491",
-
     "working holiday visa",
     "whv",
     "417 visa",
     "subclass 417",
     "462 visa",
     "subclass 462",
-
     "graduate visa",
     "subclass 485",
     "student visa",
     "subclass 500",
-
     "australian aged care work rights and compliance",
     "aged care work rights and compliance",
     "australian work rights compliance",
@@ -330,7 +303,6 @@
     "right to work and compliance",
     "work rights requirements",
     "right to work requirements",
-
     "permanent residency or citizenship in australia",
     "australian citizenship or permanent residency",
     "australian citizenship and permanent residency",
@@ -341,9 +313,12 @@
     "national police check or ndis workers check requirements",
     "national police check and ndis worker check",
     "australian aged care employment compliance",
-    "eligibility to work in australia"
+    "eligibility to work in australia",
+    "pre-employment medical requirements",
+    "pre employment medical requirements",
+    "pre-employment medical screening requirements",
+    "pre employment screening requirements"
   ],
-
   "noise": [
     "duty of care",
     "duty of care mindset",
@@ -442,7 +417,6 @@
     "work in partnership",
     "work in partnership with residents",
     "work in partnership with residents and their families",
-
     "flexibility for shifts",
     "flexibility for shift work",
     "flexibility for day shifts",
@@ -467,25 +441,21 @@
     "flexible roster",
     "consistent availability across weekdays",
     "consistent weekday availability",
-
     "dignity and independence",
     "resident dignity and independence",
     "client dignity and independence",
     "independence and dignity",
-
     "reliable comprehensively insured vehicle",
     "comprehensively insured vehicle",
     "own comprehensively insured vehicle",
     "fully comprehensively insured vehicle",
     "own fully insured vehicle",
     "own reliable vehicle",
-
     "working with disadvantaged and vulnerable people",
     "work with disadvantaged and vulnerable people",
     "supporting disadvantaged and vulnerable people",
     "working with disadvantaged individuals",
     "working with vulnerable individuals",
-
     "nursing",
     "nursing care",
     "nursing studies",
@@ -494,27 +464,22 @@
     "use of laptop or tablet",
     "use of computer and tablet",
     "use of tablet",
-
     "desire to help others",
     "desire to make a difference",
     "desire to care for others",
     "passion for helping others",
     "passion for making a difference",
-
     "professional approach",
     "professional manner",
     "professional conduct",
-
     "awareness of limitations and willingness to seek support",
     "awareness of own limitations",
     "know your limits",
-
     "respect for patient dignity",
     "respect for resident dignity",
     "respect for client dignity",
     "upholding patient dignity",
     "maintaining dignity",
-
     "rural and remote healthcare",
     "rural healthcare",
     "remote healthcare",
@@ -545,7 +510,6 @@
     "mission statement",
     "company values",
     "organisational values",
-
     "self-starter",
     "self starter",
     "hit the ground running",
@@ -569,18 +533,15 @@
     "competitive salary",
     "career progression opportunities",
     "career development opportunities",
-
     "work ethic suitable for rotating rosters",
     "rotating roster availability",
     "ability to work rotating rosters",
     "available for rotating rosters",
-
     "nursing studies in progress",
     "interest in leadership development pathways",
     "interest in leadership development",
     "interest in career development",
     "interest in professional development",
-
     "excellence",
     "commitment to excellence",
     "commitment to quality care",
@@ -597,11 +558,9 @@
     "supporting people with illness",
     "understanding of community health services",
     "transporting clients using own vehicle",
-
     "willingness to engage in ongoing learning and development",
     "willingness to engage in ongoing professional development",
     "willingness to learn and develop",
-
     "ability to complete pre-employment medical",
     "ability to complete police check",
     "ability to obtain police check",
@@ -611,11 +570,9 @@
     "ability to obtain ndis worker screening",
     "ability to complete working with children check",
     "ability to obtain ndis worker screening clearance",
-
     "ability to use sector-leading care systems and technology",
     "ability to use sector-leading care systems",
     "ability to use industry-standard care systems",
-
     "passion for technology",
     "passion for tech",
     "passion for coding",
@@ -626,14 +583,12 @@
     "passion for cleaning",
     "passion for hospitality",
     "passion for customer service",
-
     "fast learner",
     "quick learner",
     "fast learner who",
     "eager to learn",
     "love of learning",
     "love learning",
-
     "results-driven",
     "results driven",
     "outcome-driven",
@@ -644,7 +599,6 @@
     "goal oriented",
     "driven professional",
     "motivated professional",
-
     "self-motivated",
     "self motivated",
     "highly motivated",
@@ -660,31 +614,25 @@
     "proactive attitude",
     "proactive mindset",
     "proactive approach",
-
     "works well under pressure",
     "ability to work under pressure",
     "thrives under pressure",
     "calm under pressure",
-
     "presentable appearance",
     "well-presented",
     "professional appearance",
     "neat and tidy appearance",
     "groomed appearance",
-
     "police clearance required",
     "ability to obtain police clearance",
     "ability to pass background check",
     "ability to obtain background check",
-
     "understanding of residential care community operations",
     "understanding of residential aged care operations",
     "understanding of community care operations",
-
     "ethical conduct",
     "ethical behaviour",
     "code of ethical conduct",
-
     "occupational health and safety in healthcare",
     "occupational health and safety",
     "work health and safety in healthcare",
@@ -695,29 +643,24 @@
     "quality improvement in healthcare",
     "quality and safety in healthcare",
     "safety and quality improvement",
-
     "accreditation requirements",
     "aged care accreditation",
     "compliance with accreditation standards",
-
     "nsw health policies and procedures",
     "nsw health vaccination and screening policy",
     "government health policies",
     "health service policies",
     "clinical governance policies",
-
     "child safe standards",
     "child safety and protection practices",
     "child-safe practice principles",
     "child safe practice",
     "child safe framework",
     "mandatory reporting requirements",
-
     "public health sector work environment",
     "awareness of public sector inclusion and diversity principles",
     "public sector values",
     "government sector environment",
-
     "multi-purpose service model",
     "rural and regional healthcare context",
     "rural and remote healthcare setting",
@@ -725,18 +668,15 @@
     "regional healthcare context",
     "geographically isolated community",
     "understanding of geographically isolated communities",
-
     "reconciliation and aboriginal and torres strait islander health perspectives",
     "aboriginal and torres strait islander health",
     "cultural safety for aboriginal and torres strait islander people",
     "research project participation in healthcare settings",
-
     "rehabilitation care environment",
     "acute surgical care environment",
     "acute and primary care settings",
     "general medicine care",
     "aged care placement experience",
-
     "ndis worker clearance requirements",
     "overseas nursing qualification",
     "overseas qualified nurse",
@@ -756,7 +696,6 @@
     "infection prevention and immunisation compliance",
     "female gender as per client request",
     "gender requirement as per client request",
-
     "commitment to high-quality care",
     "commitment to best-practice care",
     "commitment to caring for others",
@@ -767,7 +706,6 @@
     "commitment to patient-centred care",
     "commitment to bayside health values",
     "commitment to quality aged care",
-
     "ability to work under supervision",
     "ability to work under direction",
     "ability to work collaboratively as part of an interdisciplinary team",
@@ -780,33 +718,26 @@
     "ability to communicate effectively with staff patients and families",
     "ability to complete delegated tasks within required timeframes",
     "ability to work independently under delegation",
-
     "supporting independence and dignity",
     "promoting independence and dignity",
     "independence and wellbeing",
     "awareness of limitations in knowledge and willingness to seek support",
-
     "willingness to contribute to quality patient care",
     "willingness to learn",
     "willingness to travel",
-
     "infection control and immunity requirements",
     "compliance with vaccination and screening protocols",
     "mandatory vaccination requirements for healthcare workers",
     "vaccination and screening requirements",
     "infection prevention and vaccination awareness",
-
     "retirement living environment",
     "community nursing environment",
     "general medicine environment",
-
     "person-centred care principles",
     "quality of care",
     "high quality care",
     "striving for excellence in care",
-
     "local area familiarity",
-
     "nursing practice",
     "nursing student with aged care placement",
     "nursing student with aged care placement experience",
@@ -819,25 +750,20 @@
     "allied health training",
     "assistant in nursing skills",
     "aged care worker skills",
-
     "clinical placement experience",
     "undergraduate nursing education",
     "nursing education",
-
     "in-home aged care support",
     "home and aged care support",
-
     "worker health and safety compliance",
     "worker health and safety",
     "work health and safety",
     "work health and safety act",
-
     "quality improvement",
     "quality improvement initiatives",
     "continuous quality improvement",
     "scope of practice compliance",
     "scope of practice adherence",
-
     "acute healthcare environment",
     "acute hospital setting",
     "acute ward environment",
@@ -862,40 +788,33 @@
     "respecting client dignity and independence",
     "respect for dignity and independence",
     "supporting dignity and independence",
-
     "public health sector policies for category a positions",
     "public sector policies",
     "category a position requirements",
-
     "ndis worker requirements",
     "ndis compliance requirements",
     "police clearance requirements",
     "police check requirements",
-
     "organisational policy and procedure compliance",
     "organisational policy compliance",
     "compliance with organisational policy",
     "compliance with vaccination and screening requirements",
     "compliance with healthcare vaccination and screening policies",
     "compliance with screening protocols",
-
     "experience as a carer",
     "experience as a support worker",
     "experience working with elderly people",
     "experience with older adults",
-
     "working within local service areas",
     "local area knowledge",
     "familiarity with local area",
     "vehicle ownership with comprehensive insurance",
-
     "supporting older people",
     "supporting older adults",
     "supporting the elderly",
     "supporting elderly people",
     "working with seniors",
     "working with the elderly",
-
     "evidence-based nursing care",
     "nursing practice standards",
     "hospital clinical workflows",
@@ -908,7 +827,6 @@
     "public health sector policies",
     "positive ageing principles",
     "rural health care",
-
     "commitment",
     "supporting client goal setting",
     "adherence to policies and procedures",
@@ -923,7 +841,6 @@
     "experience as a support worker in home care or disability",
     "experience as a personal care worker in aged care",
     "experience in a similar healthcare setting",
-
     "ability to work rotating shifts",
     "availability for weekend and night shifts",
     "ability to work in a surgical ward environment",
@@ -941,6 +858,24 @@
     "driving and transport of clients",
     "health and safety guidelines",
     "knowledge of queensland public health system",
-    "awareness of inclusion and diversity principles in public sector"
+    "awareness of inclusion and diversity principles in public sector",
+    "passion",
+    "enthusiasm",
+    "nsw health policies and code of conduct",
+    "health policies and code of conduct",
+    "policies and code of conduct",
+    "nsw health values",
+    "nsw health policy",
+    "patients rights",
+    "patients' rights",
+    "patient rights",
+    "resident rights",
+    "residents rights",
+    "service user rights",
+    "leadership pathways",
+    "leadership pathway",
+    "aged care career development",
+    "career pathways",
+    "professional development pathway"
   ]
 }
