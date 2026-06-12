@@ -26,7 +26,7 @@
     { "canonical": "wiping surfaces", "variants": ["surface wiping", "wiping down surfaces", "spot cleaning"] },
     { "canonical": "polishing", "variants": ["polish", "surface polishing", "metal polishing"] },
     { "canonical": "scrubbing", "variants": ["scrub", "floor scrubbing"] },
-    { "canonical": "floor care", "variants": ["floor cleaning", "floor maintenance", "stripping and sealing", "stripping & sealing", "waxing", "floor waxing", "buffing", "floor buffing"] },
+    { "canonical": "floor care", "variants": ["floor cleaning", "floor maintenance", "stripping and sealing", "stripping & sealing", "waxing", "floor waxing", "buffing", "floor buffing"], "subsumes": ["vacuuming", "mopping", "sweeping", "scrubbing"] },
     { "canonical": "carpet cleaning", "variants": ["carpet shampooing", "carpet steam cleaning", "carpet extraction"] },
     { "canonical": "window cleaning", "variants": ["windows", "glass cleaning", "interior window cleaning", "external window cleaning"] },
     { "canonical": "high-pressure cleaning", "variants": ["pressure washing", "pressure cleaning", "high pressure cleaning", "jet washing"] },

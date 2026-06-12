@@ -285,7 +285,7 @@
     { "canonical": "frontend development", "variants": ["front-end development", "front end development", "client-side development"] },
     { "canonical": "object-oriented programming", "variants": ["oop", "object oriented programming", "object-oriented design", "oop principles"] },
     { "canonical": "functional programming", "variants": ["functional paradigm", "fp", "pure functions"] },
-    { "canonical": "cloud computing", "variants": ["cloud platforms", "cloud infrastructure", "cloud services", "cloud architecture", "experience with cloud platforms", "cloud-native", "cloud native"] },
+    { "canonical": "cloud computing", "variants": ["cloud platforms", "cloud infrastructure", "cloud services", "cloud architecture", "experience with cloud platforms", "cloud-native", "cloud native"], "subsumes": ["AWS", "Azure", "Google Cloud"] },
     { "canonical": "test automation", "variants": ["automated testing", "automation testing", "test scripts", "automated tests"] },
     { "canonical": "unit testing", "variants": ["unit tests", "unit test", "unit level testing"] },
     { "canonical": "integration testing", "variants": ["integration tests", "api testing", "service testing"] },

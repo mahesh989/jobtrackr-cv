@@ -1,0 +1,54 @@
+{
+  "job_title": "Senior Backend Engineer",
+  "summary": "Senior backend engineer building SaaS platform services.",
+  "responsibilities": [
+    "Design and ship microservices in Python",
+    "Deploy and operate workloads on AWS using Docker and Kubernetes",
+    "Build and maintain REST APIs",
+    "Own ci/cd pipelines"
+  ],
+  "required_skills": {
+    "technical": [
+      "Python",
+      "PostgreSQL",
+      "AWS",
+      "Docker",
+      "Kubernetes"
+    ],
+    "soft_skills": [
+      "problem solving",
+      "communication",
+      "collaboration",
+      "ownership"
+    ],
+    "domain_knowledge": [
+      "microservices",
+      "REST API",
+      "CI/CD",
+      "agile"
+    ]
+  },
+  "preferred_skills": {
+    "technical": [],
+    "soft_skills": [],
+    "domain_knowledge": [
+      "observability"
+    ]
+  },
+  "skill_evidence": {
+    "python": "Design and ship microservices in Python",
+    "postgresql": "backed by PostgreSQL",
+    "aws": "Deploy and operate workloads on AWS",
+    "docker": "using Docker and Kubernetes",
+    "kubernetes": "using Docker and Kubernetes",
+    "problem solving": "Strong problem solving skills",
+    "communication": "Excellent communication skills",
+    "collaboration": "comfort collaborating with cross-functional teams",
+    "ownership": "You take ownership of what you ship",
+    "microservices": "Design and ship microservices in Python",
+    "rest api": "Build and maintain REST APIs",
+    "ci/cd": "ci/cd pipelines",
+    "agile": "Experience working in an agile environment.",
+    "observability": "Familiarity with observability tooling."
+  }
+}

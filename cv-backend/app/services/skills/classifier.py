@@ -190,9 +190,34 @@ def _load_vertical(vertical: VerticalT) -> Dict[str, Tuple[str, CategoryT]]:
     return out
 
 
+def _load_subsumes(vertical: VerticalT) -> Dict[str, set]:
+    """Build {parent_canonical_lower: {child_canonical_lower, ...}} from the
+    optional ``subsumes`` field on each lexicon entry.
+
+    A parent that lists ``subsumes: ["a", "b"]`` is saying: when ANY of those
+    children appears in the same bucket as the parent, the parent is the
+    generic catch-all and should be dropped in favour of the more specific
+    children. The deterministic dedup pass in post_process consumes this map.
+    """
+    path = _LEXICON_DIR / f"{vertical}.json"
+    data = json.loads(path.read_text())
+    out: Dict[str, set] = {}
+    for cat in _CATEGORIES:
+        for entry in data.get(cat, []):
+            children = entry.get("subsumes") or []
+            if not children:
+                continue
+            parent = entry["canonical"].lower()
+            out[parent] = {str(c).lower() for c in children if c}
+    return out
+
+
 _NOISE_LOOKUP: Dict[str, NoiseT] = _load_noise()
 _VERTICAL_LOOKUPS: Dict[VerticalT, Dict[str, Tuple[str, CategoryT]]] = {
     v: _load_vertical(v) for v in _VERTICALS
+}
+_SUBSUMES: Dict[VerticalT, Dict[str, set]] = {
+    v: _load_subsumes(v) for v in _VERTICALS
 }
 
 

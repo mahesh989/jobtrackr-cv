@@ -1,0 +1,42 @@
+{
+  "job_title": "Assistant in Nursing — Residential Aged Care",
+  "summary": "AIN in residential aged care delivering personal care to residents.",
+  "responsibilities": [
+    "Support residents with showering, dressing and grooming",
+    "Assist with mobility including hoist transfers",
+    "Provide medication assistance under RN supervision",
+    "Contribute to clinical documentation"
+  ],
+  "required_skills": {
+    "technical": [],
+    "soft_skills": [
+      "teamwork",
+      "empathy",
+      "verbal communication",
+      "written communication"
+    ],
+    "domain_knowledge": [
+      "personal care",
+      "aged care",
+      "medication assistance",
+      "clinical documentation",
+      "showering and bathing"
+    ]
+  },
+  "preferred_skills": {
+    "technical": [],
+    "soft_skills": [],
+    "domain_knowledge": []
+  },
+  "skill_evidence": {
+    "teamwork": "You work well as part of a team",
+    "empathy": "You bring empathy and a person-centred approach to every interaction.",
+    "verbal communication": "effective verbal and written communication skills",
+    "written communication": "effective verbal and written communication skills",
+    "personal care": "deliver personal care to our residents",
+    "aged care": "Our residential aged care home",
+    "medication assistance": "Provide medication assistance under the supervision of the RN",
+    "clinical documentation": "contribute to clinical documentation at the end of each shift",
+    "showering and bathing": "Support residents with showering, dressing and grooming as part of daily personal care."
+  }
+}

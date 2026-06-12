@@ -23,6 +23,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.skills.classifier import (
+    _SUBSUMES,
     _VERTICAL_LOOKUPS,
     classify,
     is_noise,
@@ -885,6 +886,73 @@ def demote_off_setting_keywords(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 — subsumption dedup
+# ---------------------------------------------------------------------------
+#
+# Some lexicon canonicals are GENERIC parents that the LLM extracts alongside
+# one or more SPECIFIC children. Example: a nursing JD says "verbal and
+# written communication" — the LLM happily emits all three of
+# {communication, verbal communication, written communication}. The parent is
+# pure redundancy: the children already say everything the parent says, with
+# more specificity. Keeping the parent inflates the bucket and dilutes ATS
+# match weight per item.
+#
+# The lexicon declares parent→children via the optional ``subsumes`` field
+# on a canonical entry. ``_SUBSUMES`` in classifier.py loads those into
+# ``{parent_canonical_lower: {child_canonical_lower, ...}}`` per vertical.
+#
+# Rule: within ONE bucket, if parent + ≥1 child are both present, drop the
+# parent. Parent alone → kept. Cross-bucket presence (parent in required,
+# child in preferred) is a deliberate non-action: those are different
+# urgencies, not a redundancy.
+
+def _dedupe_by_subsumption(
+    jd_analysis: Dict[str, Any], vertical: Optional[str],
+) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """Drop generic parent canonicals when ≥1 child is in the same bucket.
+
+    Returns ``(mutated_copy, removed)``. ``removed`` lists the drops as
+    ``{bucket, side, parent, children_present}`` dicts for diagnostics.
+    No-op when the vertical has no subsumption map or no entries to drop.
+    """
+    if vertical is None:
+        return jd_analysis, []
+    sub_map = _SUBSUMES.get(vertical) or {}  # type: ignore[arg-type]
+    if not sub_map:
+        return jd_analysis, []
+
+    removed: List[Dict[str, str]] = []
+    out = dict(jd_analysis)
+
+    for side in ("required_skills", "preferred_skills"):
+        block = dict(out.get(side) or {})
+        for cat in _CATEGORIES:
+            items = list(block.get(cat) or [])
+            if not items:
+                continue
+            # Build a case-insensitive index of what's in this bucket.
+            present_lower = {s.strip().lower() for s in items if isinstance(s, str)}
+            kept: List[str] = []
+            for s in items:
+                if not isinstance(s, str):
+                    continue
+                key = s.strip().lower()
+                children = sub_map.get(key)
+                if children and (children & present_lower):
+                    removed.append({
+                        "side": side, "bucket": cat,
+                        "parent": s,
+                        "children_present": sorted(children & present_lower),
+                    })
+                    continue
+                kept.append(s)
+            block[cat] = kept
+        out[side] = block
+
+    return out, removed
+
+
 def post_process_jd_analysis(
     jd_analysis: Dict[str, Any],
     *,
@@ -899,7 +967,8 @@ def post_process_jd_analysis(
 
     Runs the conditional-clause demoter FIRST so any "X or willingness to
     apply" required entries are moved to preferred BEFORE per-bucket
-    classification / dedup runs.
+    classification / dedup runs. Subsumption dedup runs LAST so it sees
+    the final canonicalised set.
     """
     # Demote conditional REQUIRED entries to PREFERRED — must run before
     # post_process_skills() because the demoter moves entries BETWEEN buckets
@@ -917,11 +986,16 @@ def post_process_jd_analysis(
 
     out["required_skills"] = req_clean
     out["preferred_skills"] = pref_clean
+
+    vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
+    out, subsumed = _dedupe_by_subsumption(out, vertical)
+
     out["lexicon_meta"] = {
         "role_family": role_family_id,
-        "vertical": _ROLE_FAMILY_TO_VERTICAL.get(role_family_id),
+        "vertical": vertical,
         "required": req_side,
         "preferred": pref_side,
+        "subsumed": subsumed,
     }
 
     # Single concise log line summarising what changed. Useful when

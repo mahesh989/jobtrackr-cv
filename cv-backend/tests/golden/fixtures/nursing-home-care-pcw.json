@@ -1,0 +1,40 @@
+{
+  "job_title": "Personal Care Worker — Home Care Services",
+  "summary": "PCW delivering in-home care to older people.",
+  "responsibilities": [
+    "Provide personal care in clients' homes",
+    "Support clients with light domestic assistance",
+    "Assist with mobility around the home and community outings",
+    "Build trusting relationships with clients and families"
+  ],
+  "required_skills": {
+    "technical": [],
+    "soft_skills": [
+      "empathy",
+      "verbal communication",
+      "relationship building"
+    ],
+    "domain_knowledge": [
+      "home care",
+      "personal care",
+      "showering and bathing",
+      "toileting assistance",
+      "domestic assistance"
+    ]
+  },
+  "preferred_skills": {
+    "technical": [],
+    "soft_skills": [],
+    "domain_knowledge": []
+  },
+  "skill_evidence": {
+    "empathy": "Demonstrates empathy and a warm, respectful manner.",
+    "verbal communication": "Has effective verbal communication skills",
+    "relationship building": "Build strong, trusting relationships with clients and their families",
+    "home care": "deliver in-home care to older people",
+    "personal care": "Provide personal care in clients' homes",
+    "showering and bathing": "including showering, dressing and toileting assistance",
+    "toileting assistance": "including showering, dressing and toileting assistance",
+    "domestic assistance": "Support clients with light domestic assistance"
+  }
+}

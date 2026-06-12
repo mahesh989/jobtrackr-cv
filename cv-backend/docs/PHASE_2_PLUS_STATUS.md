@@ -1,6 +1,6 @@
 # JD-extraction quality programme — status & next-session handoff
 
-> **Last updated:** 2026-06-12 (Phase 2 complete).
+> **Last updated:** 2026-06-12 (Phases 1–4 all complete; pre-merge).
 > **Branch:** `refactor/architecture-review`. NOT merged to `main`.
 
 ## Branch state
@@ -12,10 +12,11 @@ main ──── (production)
         │
         ├── 599de98 Phase 1 — evidence-grounded extraction
         ├── 2e39806 Phase 2 partial — multi-bucket recall floor + nursing variants
-        └── (HEAD)  Phase 2 complete — tests, tech+cleaning paraphrases, audit script
+        ├── 562c46a Phase 2 complete — tests, tech+cleaning paraphrases, audit script
+        └── (HEAD)  Phase 3 + Phase 4 — subsumption dedup, golden-JD regression harness
 ```
 
-- Tests: **869 passed** at HEAD.
+- Tests: **902 passed** at HEAD (864 → +5 recall-floor → +14 subsumption → +19 golden).
 - The refactor branch is what's deployed to the Vercel **preview URL**.
 - Production prod URL still runs `main` — these quality fixes are NOT live yet.
 - Other simultaneous session: was experimenting with `ats_scoring.py` weights
@@ -131,7 +132,7 @@ variants.
 
 ---
 
-## 🟦 Phase 3 — Subsumption dedup (NOT STARTED)
+## ✅ Phase 3 — Subsumption dedup (DONE)
 
 ### What it does
 Kills the redundancy class: when the LLM extracts both a generic parent
@@ -193,7 +194,7 @@ no children are present.
 
 ---
 
-## 🟦 Phase 4 — Golden-JD regression harness (NOT STARTED)
+## ✅ Phase 4 — Golden-JD regression harness (DONE)
 
 ### What it does
 The thing that makes "works on any JD, forever" real. A corpus of 15–20
@@ -261,14 +262,62 @@ extracted that isn't in the gold set is a hallucination) and **recall**
 
 ---
 
+### What shipped (commit HEAD)
+
+**Phase 3 — Subsumption dedup**
+- `subsumes` field added to lexicon canonicals across all three verticals
+  (nursing, tech, cleaning). Starting families per the spec — e.g.
+  `communication ⊃ {verbal communication, written communication}`,
+  `personal care ⊃ {showering and bathing, dressing and grooming,
+  toileting assistance, feeding assistance, continence care}`,
+  `aged care ⊃ {home care, community care, dementia care, palliative
+  care}`, `floor care ⊃ {vacuuming, mopping, sweeping, scrubbing}`.
+- `_SUBSUMES: Dict[vertical, Dict[parent_lower, Set[child_lower]]]`
+  built at lexicon load time in `classifier.py`.
+- `_dedupe_by_subsumption()` in `post_process.py` runs LAST inside
+  `post_process_jd_analysis` — same bucket + same side only. Drops are
+  recorded under `lexicon_meta.subsumed` for diagnostics.
+- `tests/test_skills_subsumption.py` — 14 cases covering rule shape,
+  cross-bucket non-action, multiple-children dedup-once, unknown parent
+  noop, vertical=None noop, end-to-end via `post_process_jd_analysis`.
+
+**Phase 4 — Golden-JD regression harness**
+- Corpus under `tests/golden/jds/` — 4 starter JDs:
+  `nursing-residential-ain`, `nursing-home-care-pcw`,
+  `tech-backend-engineer`, `cleaning-commercial`. Each is a Markdown
+  file with YAML-ish frontmatter (id / vertical / role_family /
+  subtype / expected) and the JD body below.
+- Fixtures under `tests/golden/fixtures/<id>.json` — recorded
+  raw-LLM-shape `jd_analysis` payloads (incl. `skill_evidence`) used
+  for mock-mode evaluation. No live AI in the test path.
+- `tests/golden/harness.py` — shared eval library. `load_corpus()`,
+  `load_fixture()`, `evaluate(jd, raw)` run the full deterministic
+  chain (`verify_skill_evidence` → recall floor →
+  `post_process_jd_analysis` incl. subsumption) and compute macro
+  precision / recall plus hallucination + missed lists.
+- `scripts/golden_jd_eval.py` — CLI. `--mock` (default) replays
+  fixtures; `--live` calls real AI; `--summary` prints a Markdown
+  table. JSON report to `--out` or stdout.
+- `tests/test_golden_jd_mock.py` — 19 in-suite assertions:
+  per-JD precision 1.00, recall 1.00, zero hallucinations; aggregate
+  precision/recall 1.00; corpus shape (≥4 JDs, all verticals present,
+  every JD has a fixture).
+
+When the chain is changed and a JD's expected list needs to move, the
+right workflow is: run the CLI, eyeball the diff, paste the new
+canonical set into the JD's frontmatter. The expected list is a
+snapshot of the contract.
+
 ## Verification check before resuming next session
 
 ```bash
 cd /Users/mahesh/Documents/Github/jobtrackr-cv
 git branch --show-current     # should be: refactor/architecture-review
-git log --oneline -3          # should show Phase-2-complete, 2e39806, 599de98
+git log --oneline -5          # should show Phase-3+4, 562c46a, 39f8160, 2e39806, 599de98
 cd cv-backend
-./.venv/bin/pytest -q         # should report: 869 passed
+./.venv/bin/pytest -q         # should report: 902 passed
+./.venv/bin/python scripts/golden_jd_eval.py --summary >/dev/null
+                              # should show macro 1.00 / 1.00 / 0 halluc / 0 missed
 ```
 
 If the branch is `main` again (other session may have switched), run
@@ -276,13 +325,18 @@ If the branch is `main` again (other session may have switched), run
 
 ## When to merge refactor → main
 
-NOT yet. Phase 1 + Phase 2 are now both complete on this branch.
-Remaining gates (in order):
-1. After Phase 3 — once subsumption dedup is in and tests are green
-2. After Phase 4 — once the golden harness shows precision ≥95% across
-   the corpus
-3. Final merge: with the user re-running the Jesmond Group AIN JD on
-   preview and confirming ATS lands ≥ 85 with no hallucinations and
-   "reliability" present in the soft skills
+Phases 1–4 are all complete on this branch. The only remaining gate is:
 
-Until then, the refactor branch stays the preview environment.
+1. **User-driven preview validation** — re-run the Jesmond Group AIN JD
+   on the Vercel preview and confirm ATS lands ≥ 85 with no
+   hallucinations and `reliability` present in the soft skills bucket.
+2. Once that lands, the branch is mergeable to `main`.
+
+If new JDs surface chain regressions before then, the workflow is:
+- Add the JD as a Markdown file under `tests/golden/jds/`
+- Drop the recorded `jd_analysis` payload under `tests/golden/fixtures/`
+- Run `pytest tests/test_golden_jd_mock.py` — failures are the regression
+  signal; if the new behaviour is intended, paste the chain's actual
+  output into the JD's `expected:` block.
+
+Until merge, `refactor/architecture-review` stays the preview environment.

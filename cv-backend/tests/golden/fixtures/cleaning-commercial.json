@@ -1,0 +1,42 @@
+{
+  "job_title": "Commercial Cleaner — Office Buildings",
+  "summary": "Commercial cleaner for CBD office buildings, afternoon/evening shift.",
+  "responsibilities": [
+    "Routine commercial cleaning of office floors",
+    "Bathroom cleaning, restocking supplies",
+    "Wiping down surfaces, dusting, emptying bins",
+    "Safe use of cleaning chemicals and PPE"
+  ],
+  "required_skills": {
+    "technical": [],
+    "soft_skills": [
+      "attention to detail",
+      "working autonomously",
+      "following instructions"
+    ],
+    "domain_knowledge": [
+      "commercial cleaning",
+      "vacuuming",
+      "mopping",
+      "bathroom cleaning",
+      "waste management",
+      "ppe use"
+    ]
+  },
+  "preferred_skills": {
+    "technical": [],
+    "soft_skills": [],
+    "domain_knowledge": []
+  },
+  "skill_evidence": {
+    "attention to detail": "High attention to detail",
+    "working autonomously": "Ability to work independently without close supervision.",
+    "following instructions": "Follows site safety procedures and instructions.",
+    "commercial cleaning": "Routine commercial cleaning of office floors",
+    "vacuuming": "vacuuming carpeted areas",
+    "mopping": "mopping hard floors",
+    "bathroom cleaning": "Bathroom cleaning, restocking supplies",
+    "waste management": "waste management across the building",
+    "ppe use": "Safe use of cleaning chemicals and PPE at all times."
+  }
+}
