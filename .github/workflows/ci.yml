@@ -28,7 +28,7 @@ jobs:
       - name: Route auth guard
         run: node web/scripts/check-route-auth.mjs
       - name: Migration version lint
-        run: node supabase/scripts/lint-migrations.mjs
+        run: node shared/supabase/scripts/lint-migrations.mjs
 
   web-typecheck:
     name: web · typecheck

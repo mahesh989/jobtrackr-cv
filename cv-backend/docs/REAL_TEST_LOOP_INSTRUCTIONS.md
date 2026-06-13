@@ -73,7 +73,7 @@ saves a wrong-shaped script later.
 - **The 40 jobs + their JD text:** look at how the web app lists analysed jobs. Reference:
   `web/src/app/(dashboard)/dashboard/**` queries and the `analysis_runs` / `jobs` tables.
   `grep -rn "analysis_runs\|jobs" web/src/lib` and the Supabase migrations under
-  `supabase/migrations/` for column names.
+  `shared/supabase/migrations/` for column names.
 - **The active CV:** `cv_versions` table, `is_active = true` for the user (one per user, partial
   unique index — see CLAUDE.md decision #8). Get its `cv_text` + `contact_details`.
 - **The user_id:** the owner of those jobs. Confirm there's exactly one relevant user.

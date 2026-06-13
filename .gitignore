@@ -43,8 +43,8 @@ next-env.d.ts
 coverage/
 
 # Supabase
-supabase/.branches
-supabase/.temp
+shared/supabase/.branches
+shared/supabase/.temp
 
 # Python bytecode
 __pycache__/
@@ -66,10 +66,10 @@ worker/fix-dead-links.js
 worker/scripts/seek-*.ts
 worker/scripts/.seek-capture/
 worker/src/scripts/test*.ts
-supabase/migrations/ain_jobs*.json
-supabase/migrations/scrape_*.py
+shared/supabase/migrations/ain_jobs*.json
+shared/supabase/migrations/scrape_*.py
 .env*.local
 
 # Local Scraper Tests
-supabase/migrations/careerjet_data_analyst_melbourne.json
-supabase/migrations/careerjet_sample.html
+shared/supabase/migrations/careerjet_data_analyst_melbourne.json
+shared/supabase/migrations/careerjet_sample.html
