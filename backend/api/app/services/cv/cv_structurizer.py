@@ -2,12 +2,17 @@
 
 Turns raw extracted CV text into a normalised structured object:
 
-    {contact, summary, experience[], education[], certifications[],
+    {summary, experience[], education[], awards[], certifications[],
      skills{}, references[], gaps[]}
 
-This is the analysis source of truth. The AI does the faithful extraction
-(dates verbatim, never inferred — same philosophy as honesty_guard) and
-returns categorised skills in the same response (single AI call).
+`skills` is a MIRROR of the categorised_skills column (populated by the
+dedicated `/internal/categorise-cv` AI call) — the structurize prompt
+itself does NOT extract skills. The web layer merges the categoriser's
+output into `structured_cv.skills` before persisting so the review form
+has a single editable view.
+
+Contact details are NOT extracted from the CV text — they come from the
+user's profile via stamp_contact_line() in the analysis renderer.
 
 A deterministic pass then:
   • normalises/coerces the shape so the review form always gets valid data,
@@ -35,7 +40,7 @@ _MAX_CV_CHARS = 24_000
 # Bump whenever parser logic changes — the review page's server component
 # silently re-runs structurization on any CV whose stored `_version` is
 # below this. Mirror in frontend/web/src/lib/cvBackend.ts.
-STRUCTURED_CV_VERSION = 2
+STRUCTURED_CV_VERSION = 3
 
 
 # ---------------------------------------------------------------------------
@@ -74,12 +79,16 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
 
-    contact = _normalise_contact(raw.get("contact"))
     summary = _str(raw.get("summary"))
     experience = [_normalise_experience(e) for e in _as_list(raw.get("experience"))]
     education = [_normalise_education(e) for e in _as_list(raw.get("education"))]
+    awards = [_normalise_award(a) for a in _as_list(raw.get("awards"))]
     certifications = [_normalise_cert(c) for c in _as_list(raw.get("certifications"))]
     references = [_normalise_referee(r) for r in _as_list(raw.get("references"))]
+    # `skills` is a mirror of categorised_skills, written by the web layer
+    # after the parallel categoriseCv call. Preserve anything the caller
+    # passed in (e.g. an existing structured_cv being re-normalised on
+    # PATCH); fall back to empty buckets.
     skills_obj = _normalise_skills_from_ai(raw.get("skills"))
 
     # Care-sector VET quals → Education (deterministic safety net). The
@@ -89,10 +98,10 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
     education, certifications = _route_care_vet_to_education(education, certifications)
 
     structured = {
-        "contact":        contact,
         "summary":        summary,
         "experience":     experience,
         "education":      education,
+        "awards":         awards,
         "certifications": certifications,
         "skills":         skills_obj,
         "references":     references,
@@ -114,12 +123,6 @@ def detect_gaps(structured: Dict[str, Any]) -> List[Dict[str, str]]:
     not block analysis.
     """
     gaps: List[Dict[str, str]] = []
-
-    contact = structured.get("contact") or {}
-    if not contact.get("email"):
-        gaps.append(_gap("contact", "", "email", "No contact email found — add one so employers can reach you."))
-    if not contact.get("name"):
-        gaps.append(_gap("contact", "", "name", "No name detected on the CV."))
 
     if not _str(structured.get("summary")):
         gaps.append(_gap("summary", "", "summary", "No professional summary — a 2–3 line summary strengthens the CV."))
@@ -147,18 +150,6 @@ def detect_gaps(structured: Dict[str, Any]) -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 # Normalisers
 # ---------------------------------------------------------------------------
-
-def _normalise_contact(raw: Any) -> Dict[str, Any]:
-    raw = raw if isinstance(raw, dict) else {}
-    links = raw.get("links")
-    return {
-        "name":     _str(raw.get("name")),
-        "email":    _str(raw.get("email")),
-        "phone":    _str(raw.get("phone")),
-        "location": _str(raw.get("location")),
-        "links":    [_str(x) for x in links if _str(x)] if isinstance(links, list) else [],
-    }
-
 
 _BULLET_PREFIX_RE = re.compile(r"^[\s\-•·*]+")
 _SENTENCE_END_RE  = re.compile(r"[\.!?\"'\)\]]\s*$")
@@ -243,6 +234,17 @@ def _normalise_education(raw: Any) -> Dict[str, Any]:
         # certifications; the UI surfaces an "moved from certifications"
         # badge so the user understands the rebucketing.
         "_moved_from_certifications": bool(raw.get("_moved_from_certifications")),
+    }
+
+
+def _normalise_award(raw: Any) -> Dict[str, Any]:
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "name":        _str(raw.get("name")),
+        "issuer":      _str(raw.get("issuer")),
+        "location":    _str(raw.get("location")),
+        "date":        _str(raw.get("date")),
+        "description": _str(raw.get("description")),
     }
 
 

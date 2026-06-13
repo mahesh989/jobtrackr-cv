@@ -4,11 +4,13 @@ Turns the raw extracted CV text into a normalised structured object the
 review form edits and the analysis pipeline consumes. Dates are copied
 VERBATIM (never inferred) — consistency with the honesty_guard philosophy.
 
-Extracts contact, summary, experience, education, certifications, and
-references. Skills are categorised in a SEPARATE dedicated AI call (see
-`/internal/categorise-cv`) — that prompt has explicit per-bucket caps and
-breadth incentives this one lacks. The web layer merges the categorised
-skills back into structured_cv before persisting.
+Extracts summary, experience, education, awards, certifications, and
+references. Contact details come from the user's profile (not from the CV
+text) via stamp_contact_line() in the analysis renderer. Skills are
+categorised in a SEPARATE dedicated AI call (see `/internal/categorise-cv`)
+— that prompt has explicit per-bucket caps and breadth incentives this one
+lacks. The web layer keeps both columns (structured_cv +
+categorised_skills) in sync.
 """
 from __future__ import annotations
 
@@ -53,13 +55,6 @@ CRITICAL — DATES:
 OUTPUT JSON SCHEMA — return EXACTLY this structure:
 
 {
-  "contact": {
-    "name":     "",
-    "email":    "",
-    "phone":    "",
-    "location": "",
-    "links":    []                // LinkedIn / portfolio / GitHub URLs, verbatim
-  },
   "summary": "",                  // the professional-summary prose, verbatim if present, else ""
   "experience": [                 // ALL roles, most-recent first. Do not cap.
     {
@@ -80,6 +75,15 @@ OUTPUT JSON SCHEMA — return EXACTLY this structure:
       "start_date":   "",
       "end_date":     "",
       "completed":    false        // true if the CV shows it complete; false if ongoing/in-progress
+    }
+  ],
+  "awards": [                     // awards, recognitions, commendations, scholarships, honours
+    {
+      "name":        "",           // e.g. "Staff Excellence Award"
+      "issuer":      "",           // e.g. "The Jesmond Group"
+      "location":    "",
+      "date":        "",           // verbatim, or "" if absent
+      "description": ""            // any qualifying line under the award, verbatim
     }
   ],
   "certifications": [             // licences and short courses — see CLASSIFICATION
@@ -109,6 +113,10 @@ CLASSIFICATION RULES:
   academic credentials, NOT under certifications.
 - Other certifications / licences (First Aid, CPR, White Card, Police
   Check, Driver Licence, vaccination evidence) → certifications.
+- **Awards / recognitions / commendations / scholarships / honours → awards,
+  NOT certifications.** Examples: "Staff Excellence Award", "Dean's List",
+  "Employee of the Month", "Vice-Chancellor's Scholarship". These celebrate
+  the candidate; they are not licences.
 - An ONGOING course (e.g. "Master of … Jul 2025 – Present") is education
   with completed=false — include it; never drop ongoing study.
 - Keep every experience entry, including roles unrelated to the
