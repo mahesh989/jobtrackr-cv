@@ -1513,4 +1513,30 @@ async def run_tailored_cv_w8_verified(
     if not md or len(md.strip()) < 200:
         raise ValueError("w8_verified tailored CV: response too short")
     storage_path = _upload_to_storage(user_id, run_id, md)
+    # Persist the honesty_guard rewrite notes alongside the run. Best-effort —
+    # if migration 057 (analysis_runs.quality_flags) hasn't been applied yet,
+    # this writes nothing rather than failing the pipeline.
+    _persist_quality_flags(run_id, result)
     return md, storage_path
+
+
+def _persist_quality_flags(run_id: uuid.UUID, result: "WriterResult") -> None:
+    """Write the honesty_guard notes + dropped roles + risk flag to the
+    analysis_runs row. Tolerates the column being missing (older deployments
+    before migration 057 has been applied) — logs and moves on."""
+    extras = result.extras or {}
+    flags = {
+        "honesty_guard_notes": extras.get("honesty_guard_notes") or [],
+        "pre_filter_dropped_roles": extras.get("pre_filter_dropped_roles") or [],
+        "honesty_risk": extras.get("honesty_risk") or {},
+    }
+    try:
+        from app.database import get_supabase
+        sb = get_supabase()
+        sb.table("analysis_runs").update({"quality_flags": flags}).eq("id", str(run_id)).execute()
+    except Exception as e:
+        msg = str(e)
+        if "quality_flags" in msg or "column" in msg.lower():
+            logger.info("quality_flags column missing — skipping persistence (apply migration 057)")
+        else:
+            logger.warning("quality_flags persist failed: %s", e)

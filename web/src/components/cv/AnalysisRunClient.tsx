@@ -12,6 +12,7 @@ import { FeasibilityCard }      from "@/components/cv/FeasibilityCard";
 import { RecommendationsCard }  from "@/components/cv/RecommendationsCard";
 import { TailoredCvCard }       from "@/components/cv/TailoredCvCard";
 import { TailoredScoreCard }    from "@/components/cv/TailoredScoreCard";
+import { QualityFlagsCard }     from "@/components/cv/QualityFlagsCard";
 import { AnalyzeJobButton }     from "@/components/cv/AnalyzeJobButton";
 
 interface AnalysisRunRow {
@@ -42,6 +43,11 @@ interface AnalysisRunRow {
   match_score:                 number | null;
   tailored_match_score:        number | null;
   ats_lift:                    number | null;
+  quality_flags:               {
+    honesty_guard_notes?:        string[];
+    pre_filter_dropped_roles?:   string[];
+    honesty_risk?:               { risk_level?: string; vertical_months?: number };
+  } | null;
   error_message:               string | null;
   jd_text?:                    string;
   ai_provider?:                string | null;
@@ -243,7 +249,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
       const { data } = await supabase
         .from("analysis_runs")
-        .select("id, job_id, status, step_status, cover_letter_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, error_message, jd_text, ai_provider, ai_model, created_at")
+        .select("id, job_id, status, step_status, cover_letter_status, jd_analysis_result, cv_jd_matching_result, ats_scoring_result, input_recommendations, keyword_feasibility, ai_recommendations, tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, match_score, tailored_match_score, ats_lift, quality_flags, error_message, jd_text, ai_provider, ai_model, created_at")
         .eq("id", runId)
         .single();
       if (data && active) {
@@ -533,6 +539,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
       {run.ai_recommendations && (
         <RecommendationsCard markdown={run.ai_recommendations} />
       )}
+      {run.quality_flags && <QualityFlagsCard flags={run.quality_flags} />}
       {(run.match_score != null || run.tailored_match_score != null) && (
         <TailoredScoreCard
           beforeScore={run.match_score}
