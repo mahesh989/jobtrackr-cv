@@ -11,7 +11,7 @@ the user.
 Read these before reviewing:
 - CLAUDE.md (project rules)
 - .claude/graph.json (current state and phase history)
-- DESIGN.md (architectural decisions)
+- docs/design.md (architectural decisions)
 - The original plan if one exists (often referenced in the conversation 
   or in graph.json)
 
@@ -40,8 +40,8 @@ Your job:
    In jobtrackr-cv, no test suite exists yet — use lint, typecheck, 
    and manual code reading instead.
 
-5. Verify build still works if relevant: `npm run build` in web/, or 
-   Python imports resolve in cv-backend/.
+5. Verify build still works if relevant: `npm run build` in frontend/web/, or 
+   Python imports resolve in backend/api/.
 
 ────────────────────────────────────────────────────────────────────
 

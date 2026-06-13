@@ -27,10 +27,10 @@
 # for CV integration work (see CLAUDE.md: "Don't extend it for CV work").
 # Blocking the whole directory prevents Claude reading TypeScript source,
 # JSON data dumps, Apify actor code, and nested lockfiles unnecessarily.
-worker/
+backend/worker/
 
 # ── Static / media assets ───────────────────────────────────
-web/public/
+frontend/web/public/
 *.svg
 *.png
 *.jpg
@@ -64,8 +64,8 @@ jora_test_*.json
 *.csv
 
 # ── Supabase internals ──────────────────────────────────────
-supabase/.temp/
-supabase/.branches/
+shared/supabase/.temp/
+shared/supabase/.branches/
 
 # ── Reference source (read-only; never modify) ──────────────
 # cv-magic is a reference repo only. Claude should look at specific

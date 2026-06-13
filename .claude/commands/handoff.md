@@ -12,7 +12,7 @@ this exact structure:
 ```
 Working on jobtrackr-cv.
 [2-3 sentences: what just happened in this session — what was completed, what state things are in]
-Read CLAUDE.md, .claude/graph.json, and DESIGN.md for full context.
+Read CLAUDE.md, .claude/graph.json, and docs/design.md for full context.
 Next task: [1-2 sentences describing what's next]
 Specific files to read first:
 * [path] — [reason]

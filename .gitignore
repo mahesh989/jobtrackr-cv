@@ -41,10 +41,11 @@ next-env.d.ts
 
 # Coverage
 coverage/
+.pytest_cache/
 
 # Supabase
-supabase/.branches
-supabase/.temp
+shared/supabase/.branches
+shared/supabase/.temp
 
 # Python bytecode
 __pycache__/
@@ -54,22 +55,26 @@ __pycache__/
 # Test artefacts and one-off scripts — removed 2026-05-16
 # Do not re-add these. If you need ad-hoc scraping scripts, put them in
 # /scripts/ at repo root with a clear name and commit them properly.
-web/jora_jobs_*.csv
-web/discovered_slugs.json
-web/jora_scraper.py
-web/verify_slugs.py
-worker/jora_test_*.json
-worker/test-update.js
-worker/fix-dead-links.js
+frontend/web/jora_jobs_*.csv
+frontend/web/discovered_slugs.json
+frontend/web/jora_scraper.py
+frontend/web/verify_slugs.py
+backend/worker/jora_test_*.json
+backend/worker/test-update.js
+backend/worker/fix-dead-links.js
 
 # Scraper probe/debug scripts — one-off diagnostics, not production code
-worker/scripts/seek-*.ts
-worker/scripts/.seek-capture/
-worker/src/scripts/test*.ts
-supabase/migrations/ain_jobs*.json
-supabase/migrations/scrape_*.py
+backend/worker/scripts/seek-*.ts
+backend/worker/scripts/.seek-capture/
+backend/worker/src/scripts/test*.ts
+shared/supabase/migrations/ain_jobs*.json
+shared/supabase/migrations/scrape_*.py
 .env*.local
 
 # Local Scraper Tests
-supabase/migrations/careerjet_data_analyst_melbourne.json
-supabase/migrations/careerjet_sample.html
+shared/supabase/migrations/careerjet_data_analyst_melbourne.json
+shared/supabase/migrations/careerjet_sample.html
+
+# Apify SDK local runtime state — auto-generated on actor run, never read in prod
+backend/worker/src/sources/*/storage/
+backend/worker/apify-actors/*/storage/

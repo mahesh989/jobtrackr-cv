@@ -12,13 +12,13 @@ that works for **any CV / any job**. Built an A/B/C/D harness to compare prompt/
 variants on the same CV+JD and iterate with evidence, not guesses.
 
 ## What was built (all additive, isolated)
-- **DB**: `supabase/migrations/043_eval_runs.sql` + `044_eval_runs_status.sql` — isolated
+- **DB**: `shared/supabase/migrations/043_eval_runs.sql` + `044_eval_runs_status.sql` — isolated
   `eval_runs` table (RLS on, service-role only). No existing table touched.
-- **Backend** (`cv-backend/app/services/eval/`): `runner.py` (background compute+persist),
+- **Backend** (`backend/api/app/services/eval/`): `runner.py` (background compute+persist),
   `writers.py` (writer registry), `scorers.py` (scorer registry), `grounding.py` (Layer-A
   fabrication metric), `enforce.py` (skills hygiene), `enforce_w3.py` (deterministic gates),
   `role_families.py` (RoleFamilyProfile config + router). Prompts in
-  `cv-backend/app/services/ai/prompts/variants/` (tailored_cv_general, tailored_cv_chat,
+  `backend/api/app/services/ai/prompts/variants/` (tailored_cv_general, tailored_cv_chat,
   composition, tailored_cv_w6).
 - **Backend endpoints** (`routes/internal.py`): `POST /internal/analyze-eval` (202+id,
   background) + `GET /internal/eval-run/{id}` (poll). HMAC-gated.
@@ -82,7 +82,7 @@ fuzzy title gate to avoid false-drop downgrade).
 - **Deferred (Phase C, not built):** Stage 4 production ensemble + Stage 8 auto-judge/
   ATS-parser-sim. Knowledge corpus + Learning Flywheel remain out of scope.
 
-### W8 mechanism (`cv-backend/app/services/eval/enforce_w8.py`)
+### W8 mechanism (`backend/api/app/services/eval/enforce_w8.py`)
 The frozen production contract (`steps/tailored_cv._enforce_structure` +
 `_inject_missing_skills`, `contact_line.stamp_contact_line`) and the W3 gates are all
 hard-wired to the TECH/master canonical section names. W8 reuses them VERBATIM for any
@@ -144,7 +144,7 @@ answer the scorer question; real validation needs callback data, not more scorer
 ## NEXT SESSION
 User wants MORE TESTS first. To run: deploy branch, use `/dashboard/beta` on the Vercel
 preview.
-- Deploy: `git push` (web→preview) + `flyctl deploy` from inside `cv-backend/` (additive).
+- Deploy: `git push` (web→preview) + `flyctl deploy` from inside `backend/api/` (additive).
 - No new migration needed (043+044 already applied to Supabase).
 - Suggested tests: cleaner/admin JD (W7, vertical=cleaner); re-run MONEYME W7 to confirm
   "transaction monitoring" now lands in Honest gaps; more diverse CVs/JDs.

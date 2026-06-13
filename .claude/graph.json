@@ -7,29 +7,29 @@
   },
   "project": {
     "name": "JobTrackr-CV",
-    "summary": "AI-assisted job discovery + CV tailoring SaaS. One codebase, one Supabase DB, three services (web/Vercel, worker/Fly, cv-backend/Fly).",
+    "summary": "AI-assisted job discovery + CV tailoring SaaS. One codebase, one Supabase DB, three services: frontend/web (Vercel), backend/worker (Fly), backend/api (Fly).",
     "repo": "https://github.com/mahesh989/jobtrackr-cv",
     "local": "/Users/mahesh/Documents/Github/jobtrackr-cv"
   },
   "services": {
     "web": {
-      "path": "web/",
+      "path": "frontend/web/",
       "host": "Vercel (jobtrackr-cv)",
       "stack": "Next.js 16 (Turbopack) App Router, Tailwind v4, Supabase browser client",
       "deploy": "git push origin main — auto-deploys to production"
     },
     "worker": {
-      "path": "worker/",
+      "path": "backend/worker/",
       "host": "Fly.io (jobtrackr-worker)",
       "stack": "Node.js 22, TypeScript, BullMQ, curl_cffi subprocess",
-      "deploy": "flyctl deploy --config /Users/mahesh/Documents/Github/jobtrackr-cv/worker/fly.toml",
+      "deploy": "flyctl deploy --config /Users/mahesh/Documents/Github/jobtrackr-cv/backend/worker/fly.toml",
       "notes": "Stage-4b filter is title-only + optional teaser rescue (driven by profile.must_include_phrases, migration 046). Primary SEEK: seekDirect (curl_cffi Chrome-124 TLS, no proxy); Apify actor: fallback only via profile.seek_method='actor'. Careerjet: direct HTML scraping via curl_cffi (API abandoned to avoid tracking URL IP-blocks). Adzuna: API teasers by default (profile.adzuna_method='api'); opt-in 'direct' mode scrapes /details/<id> HTML for full JDs (migration 047, cap 50). Full-JD threshold: 1400 chars. Jora: disabled (OOM on 512MB VM)."
     },
     "cv_backend": {
-      "path": "cv-backend/",
+      "path": "backend/api/",
       "host": "Fly.io (jobtrackr-cv-api)",
       "stack": "FastAPI, Python 3.11, ReportLab, Supabase service-role client",
-      "deploy": "flyctl deploy --config /Users/mahesh/Documents/Github/jobtrackr-cv/cv-backend/fly.toml",
+      "deploy": "flyctl deploy --config /Users/mahesh/Documents/Github/jobtrackr-cv/backend/api/fly.toml",
       "status": "active"
     }
   },
@@ -38,21 +38,21 @@
     "billing_high_level": "Adding paid subscriptions (Stripe, AUD) gating the platform — not AI tokens (BYOK). Plans: 3-day card-upfront TRIAL (3 tailored CVs + 3 cover letters, 1 profile, 1 run) → WEEKLY (50 unique / 75 total CVs + letters, 5 profiles, 30 runs) → MONTHLY (250 unique / 375 total, 10 profiles, 120 runs) → UNLIMITED (∞, higher price). Total = unique × 1.5. Tailored CV and cover letter are SEPARATE buckets, equal caps (either/or). Caps reset per Stripe billing period (counted by current_period_start). Auto-renew ON (Stripe default; trial auto-converts after 3 days; subscriptions auto-renew each period). On cancel/expiry → READ-ONLY (existing CVs/letters viewable, no new analyses). Existing role='beta' users grandfathered via a comp subscription with a 14-day grace. Enforcement is at the 4 web-layer choke points only (createProfile, profiles/[id]/run, jobs/[id]/analyze, jobs/[id]/cover-letter); cv-backend + worker untouched. Migration 051_billing.sql. Pricing numbers are placeholders to finalize before go-live.",
     "previous_phase": "post-12 — CV tailoring quality + polish",
     "production_writer": "w8_verified (W8+) — active via TAILORED_CV_WRITER=w8_verified Fly secret on jobtrackr-cv-api. All /internal/analyze runs use this. Beta /internal/analyze-eval is a separate isolated harness.",
-    "production_ats_scorer": "PRODUCTION (main): S1 v1 deterministic 50/35/15. REFACTOR BRANCH (refactor/architecture-review): ATS v2 = 50 keyword / 40 experience / 10 formatting. Experience score REBUILT from three CV<->JD-alignment sub-signals: responsibility coverage (20, JD duties <-> CV bullets), relevant tenure (12, CV months in JD vertical vs experience_years_required), vertical alignment (8, %% CV entries in JD vertical). Removed v1's two defects: required-keyword double-count + role-family freebie. Tailoring invariant: keyword injection moves Cat 1 only (experience reads the narrative, formatting reads structure - neither fabricable from the feasibility plan, so predicted lift == actual lift). New module app/services/cv/experience_parser.py. min_initial_ats lowered 60->50 to match honest scoring. Full design: cv-backend/docs/ATS_SCORING_V2.md.",
+    "production_ats_scorer": "PRODUCTION (main): S1 v1 deterministic 50/35/15. REFACTOR BRANCH (refactor/architecture-review): ATS v2 = 50 keyword / 40 experience / 10 formatting. Experience score REBUILT from three CV<->JD-alignment sub-signals: responsibility coverage (20, JD duties <-> CV bullets), relevant tenure (12, CV months in JD vertical vs experience_years_required), vertical alignment (8, %% CV entries in JD vertical). Removed v1's two defects: required-keyword double-count + role-family freebie. Tailoring invariant: keyword injection moves Cat 1 only (experience reads the narrative, formatting reads structure - neither fabricable from the feasibility plan, so predicted lift == actual lift). New module app/services/cv/experience_parser.py. min_initial_ats lowered 60->50 to match honest scoring. Full design: backend/api/docs/ATS_SCORING_V2.md.",
     "last_shipped": "2026-06-10 — JD-analysis quality sweep + summary honesty gates (6 commits deployed). KEY DIAGNOSIS: Australian Unity AIN dropped 86%→57%→69% on the SAME JD across 3 runs. Root cause: (a) lexicon is curated-by-phrasing — new JD phrasings (NDISWC abbrev, 'flexibility for X shifts') leaked through as skills; (b) JD analysis prompt is IT-centric, never extracts care skills from prose-heavy responsibilities → empty domain_knowledge bucket; (c) presence-aware ATS scoring (May 30 + Jun 3, 1dbf4a6+8c87f56) amplifies AI variance — empty domain → scale 50/15=3.33×, populated → scale 50/35=1.43× = 20+ point swings on tiny AI noise. SHIPPED TODAY: (1) 6fca5e3 — lexicon: NDISWC abbrev + 'flexibility for X shifts' families to noise. (2) 8c79922 — enrich_required_skills_from_jd_body(): deterministic JD-body scan against vertical lexicon canonicals (nursing.json domain_knowledge); fires BEFORE post_process_jd_analysis; surfaces care skills the LLM missed; closes redistribution variance. (3) 1336734 — three honesty gates in writers.py: _tools_attributable_to_employer (S2 must not say 'at Uniting using BESTMed' when tools used at Jesmond), _cv_has_hospital_experience gate (skip HOSPITAL bridge if CV has no acute markers — was fabricating 'acute clinical settings'), _classify_jd_setting tightened (weak signals 'acute care'/'hospital setting' require primary band; corporate boilerplate no longer promotes residential AIN to HOSPITAL). (4) 21667b6 — three pattern recognisers in post_process.py: _split_conditional_phrase + demoter (strips 'or willingness to apply' and moves to preferred), _looks_like_language (forces 'cantonese language' etc. to technical/Other Skills, not Care Skills), _is_au_unit_code (HLTHPS007/CHCCCS015/HLTAID011 patterns → credential sidecar). 703 tests green. Production v??? on jobtrackr-cv-api. EARLIER: 2026-06-05 Phase 3B lexicon foundation, 2026-06-02 post-verify skills hygiene + Awards bullet format, 2026-05-30 nursing sub-type labels + cover-letter hardening + adaptive PDF layout.",
-    "next_session": "REAL-TEST LOOP: re-analyse all ~40 already-analysed jobs against the active CV, in batches of 5, through the LLM-backed pipeline (user supplies a fresh OpenAI key). For each batch: analyse -> compare -> diagnose -> apply BROAD/GENERALISABLE fixes (lexicon JSON, post_process recognisers, scoring - NEVER per-JD hacks) -> pytest -> commit -> update the disk ledger. Must auto-resume across context compaction and overnight via a /loop + on-disk progress ledger. FULL RUNBOOK: cv-backend/docs/REAL_TEST_LOOP_INSTRUCTIONS.md. Branch stays refactor/architecture-review.",
+    "next_session": "REAL-TEST LOOP: re-analyse all ~40 already-analysed jobs against the active CV, in batches of 5, through the LLM-backed pipeline (user supplies a fresh OpenAI key). For each batch: analyse -> compare -> diagnose -> apply BROAD/GENERALISABLE fixes (lexicon JSON, post_process recognisers, scoring - NEVER per-JD hacks) -> pytest -> commit -> update the disk ledger. Must auto-resume across context compaction and overnight via a /loop + on-disk progress ledger. FULL RUNBOOK: backend/api/docs/REAL_TEST_LOOP_INSTRUCTIONS.md. Branch stays refactor/architecture-review.",
     "completed_summary": "All core phases 0–12 complete: infra, DB migrations (001–048), CV upload, BYOK AI keys, full 9-step analysis pipeline, tailored CV PDF (w8_verified production writer), cover letter generation, Gmail/Outlook OAuth dispatch, applications outbox, voice-directed drafting, analytics funnel, pipeline automation (gate-based auto-tailoring), worker sources (SEEK/Adzuna/Careerjet/Greenhouse/Lever), PipelineDonut (5 lenses), SmartFeed/SmartToolbar, 5-theme system, per-profile source selection, client-side instant filtering on both boards, driving-distance feature.",
-    "active_branch_work": "branch refactor/architecture-review (NOT merged to main; user merges later). Carries: (1) JD-extraction quality programme Phases 1-4 (evidence-grounded extraction + groundedness gate; multi-bucket recall floor; subsumption dedup; golden-JD regression harness). (2) ATS scoring v2 (50/40/10 envelope, experience score rebuilt from CV<->JD alignment). (3) Lexicon fixes from real Jesmond AIN re-runs (night-shift/partnership noise, partnership-building + recreational-activities canonicals). 915 tests passing. See cv-backend/docs/PHASE_2_PLUS_STATUS.md and cv-backend/docs/ATS_SCORING_V2.md."
+    "active_branch_work": "branch refactor/architecture-review (NOT merged to main; user merges later). Carries: (1) JD-extraction quality programme Phases 1-4 (evidence-grounded extraction + groundedness gate; multi-bucket recall floor; subsumption dedup; golden-JD regression harness). (2) ATS scoring v2 (50/40/10 envelope, experience score rebuilt from CV<->JD alignment). (3) Lexicon fixes from real Jesmond AIN re-runs (night-shift/partnership noise, partnership-building + recreational-activities canonicals). 915 tests passing. See backend/api/docs/PHASE_2_PLUS_STATUS.md and backend/api/docs/ATS_SCORING_V2.md."
   },
   "architecture": {
     "client_side_filtering": {
       "summary": "Both dashboard (/dashboard) and profile board (/dashboard/profiles/[id]/jobs) use instant client-side filtering.",
       "pattern": "Server fetches all ≤200 non-dismissed jobs once, computes progress/pipelineState/atsBand. Client component holds full set and applies filterJobs+sortJobs in useMemo. Stage/triage/sort/keywords use shallowSetParams (History API) — no server round-trip. Location/posted_within/dismissed still hit server.",
       "key_files": [
-        "web/src/components/jobs/JobBoard.tsx",
-        "web/src/components/jobs/ProfileJobBoard.tsx",
-        "web/src/components/jobs/jobFilters.ts",
-        "web/src/components/jobs/shallowNav.ts"
+        "frontend/web/src/components/jobs/JobBoard.tsx",
+        "frontend/web/src/components/jobs/ProfileJobBoard.tsx",
+        "frontend/web/src/components/jobs/jobFilters.ts",
+        "frontend/web/src/components/jobs/shallowNav.ts"
       ]
     },
     "pipeline_automation": {
@@ -61,19 +61,19 @@
       "cover_letter": "Co-generated with email body+subject in ONE AI call. Voice profile (fingerprint + sample) drives register."
     },
     "billing": {
-      "summary": "Stripe subscriptions (AUD) monetize the platform. Enforcement lives ONLY in the web layer at 4 choke points; cv-backend/worker are unaware of billing.",
+      "summary": "Stripe subscriptions (AUD) monetize the platform. Enforcement lives ONLY in the web layer at 4 choke points; backend/api and backend/worker are unaware of billing.",
       "model": "Two metered buckets (tailored_cv, cover_letter) + profiles (live count of search_profiles) + runs (per-period event count). consume_usage() Postgres RPC does an atomic cap-check + reservation (FOR UPDATE on subscription). Reserve on trigger (pending) → trigger on analysis_runs/cover_letters status flips to committed (completed) or voided (failed). Dangling pending self-heals after 1h TTL in the count.",
       "entitlement_resolution": "founder/admin → unlimited bypass. status='trialing' → TRIAL limits (3/3/1/1) regardless of chosen plan, window = trial period. status='active' → chosen plan limits. status='past_due' → access continues (dunning banner) until Stripe moves to canceled/unpaid. plan='comp' (grandfathered beta) → unlimited until current_period_end (14-day grace) then read-only. canceled/unpaid/no-sub → READ-ONLY + redirect to /onboarding/plan.",
       "key_files": [
-        "supabase/migrations/051_billing.sql",
-        "web/src/lib/billing/plans.ts",
-        "web/src/lib/billing/entitlements.ts",
-        "web/src/lib/billing/stripe.ts",
-        "web/src/app/api/billing/checkout/route.ts",
-        "web/src/app/api/billing/portal/route.ts",
-        "web/src/app/api/billing/webhook/route.ts",
-        "web/src/app/(dashboard)/dashboard/billing/page.tsx",
-        "web/src/app/onboarding/plan/page.tsx"
+        "shared/supabase/migrations/051_billing.sql",
+        "frontend/web/src/lib/billing/plans.ts",
+        "frontend/web/src/lib/billing/entitlements.ts",
+        "frontend/web/src/lib/billing/stripe.ts",
+        "frontend/web/src/app/api/billing/checkout/route.ts",
+        "frontend/web/src/app/api/billing/portal/route.ts",
+        "frontend/web/src/app/api/billing/webhook/route.ts",
+        "frontend/web/src/app/(dashboard)/dashboard/billing/page.tsx",
+        "frontend/web/src/app/onboarding/plan/page.tsx"
       ],
       "env": [
         "STRIPE_SECRET_KEY",
@@ -211,8 +211,8 @@
     },
     {
       "id": "OPS-2",
-      "title": "bullmq + ioredis in web/package.json are legitimate",
-      "detail": "Used by web/src/app/api/profiles/[id]/run/route.ts and web/src/lib/actions.ts for BullMQ queue trigger. Server-side only, do not remove."
+      "title": "bullmq + ioredis in frontend/web/package.json are legitimate",
+      "detail": "Used by frontend/web/src/app/api/profiles/[id]/run/route.ts and frontend/web/src/lib/actions.ts for BullMQ queue trigger. Server-side only, do not remove."
     },
     {
       "id": "OPS-12",
@@ -237,17 +237,17 @@
     {
       "id": "OPS-16",
       "title": "Never import runtime values from a 'use client' module into a server component",
-      "detail": "Next.js returns a client-reference proxy (not the real value), so arithmetic → NaN and the render crashes. This caused the instructions ?step=N 'This page couldn't load' bug. Fix pattern: keep shared constants/data in a neutral plain module (e.g. web/src/lib/setupSteps.ts) that both server and client import."
+      "detail": "Next.js returns a client-reference proxy (not the real value), so arithmetic → NaN and the render crashes. This caused the instructions ?step=N 'This page couldn't load' bug. Fix pattern: keep shared constants/data in a neutral plain module (e.g. frontend/web/src/lib/setupSteps.ts) that both server and client import."
     },
     {
       "id": "OPS-17",
       "title": "Dashboard empty state has two modes (gate = !hasAnyJob)",
-      "detail": "web/src/app/(dashboard)/dashboard/page.tsx: when no jobs exist, coreComplete = status.profile && status.cv && status.aiKey. !coreComplete → FirstRunScreen (Get-set-up wizard / SetupCards). coreComplete → ReadyToScanScreen (create/run a search-profile CTA + the How-it-works deck). The How-it-works deck is the shared component web/src/components/onboarding/HowItWorksDeck.tsx (built on SwipeDeck.tsx) reused by both this screen and the instructions 'How it works' tab."
+      "detail": "frontend/web/src/app/(dashboard)/dashboard/page.tsx: when no jobs exist, coreComplete = status.profile && status.cv && status.aiKey. !coreComplete → FirstRunScreen (Get-set-up wizard / SetupCards). coreComplete → ReadyToScanScreen (create/run a search-profile CTA + the How-it-works deck). The How-it-works deck is the shared component frontend/web/src/components/onboarding/HowItWorksDeck.tsx (built on SwipeDeck.tsx) reused by both this screen and the instructions 'How it works' tab."
     },
     {
       "id": "OPS-18",
       "title": "Profile Location field uses Google Places via a server-side proxy",
-      "detail": "web/src/app/api/places/autocomplete/route.ts (auth-gated GET ?q=) calls the Places Autocomplete API (New) at places.googleapis.com/v1/places:autocomplete, restricted includedRegionCodes:['au'] + includedPrimaryTypes:['(cities)']. Key is PLACES_API_KEY (server-only, NOT NEXT_PUBLIC_) so it never reaches the browser. UI: web/src/components/LocationAutocomplete.tsx — controlled input + 300ms-debounced dropdown, still free-typeable (Remote etc.), strips trailing ', Australia' on select to keep the 'Sydney NSW' shape the worker sources expect; replaces the plain input in ProfileForm.tsx. Requires 'Places API (New)' enabled in GCP (distinct from legacy Places API) + billing. Do NOT add an HTTP-referrer key restriction — calls are server→Google from Vercel IPs; an API restriction (limit to Places API New) is fine."
+      "detail": "frontend/web/src/app/api/places/autocomplete/route.ts (auth-gated GET ?q=) calls the Places Autocomplete API (New) at places.googleapis.com/v1/places:autocomplete, restricted includedRegionCodes:['au'] + includedPrimaryTypes:['(cities)']. Key is PLACES_API_KEY (server-only, NOT NEXT_PUBLIC_) so it never reaches the browser. UI: frontend/web/src/components/LocationAutocomplete.tsx — controlled input + 300ms-debounced dropdown, still free-typeable (Remote etc.), strips trailing ', Australia' on select to keep the 'Sydney NSW' shape the worker sources expect; replaces the plain input in ProfileForm.tsx. Requires 'Places API (New)' enabled in GCP (distinct from legacy Places API) + billing. Do NOT add an HTTP-referrer key restriction — calls are server→Google from Vercel IPs; an API restriction (limit to Places API New) is fine."
     }
   ],
   "known_issues": [
@@ -267,14 +267,14 @@
       "id": "BUG-5",
       "title": "Jora adapter hangs Chromium on 512MB Fly worker — disabled",
       "severity": "medium",
-      "detail": "Commented out in worker/src/sources/index.ts. Fix: (A) fly scale memory 1024; (B) rewrite to HTTP/SSR parse; (C) drop Jora."
+      "detail": "Commented out in backend/worker/src/sources/index.ts. Fix: (A) fly scale memory 1024; (B) rewrite to HTTP/SSR parse; (C) drop Jora."
     }
   ],
   "deferred_features": [
     {
       "id": "DEFERRED-1",
       "title": "Tier 4 user-initiated JD URL fetch",
-      "file": "web/src/lib/scrapeJobUrl.ts",
+      "file": "frontend/web/src/lib/scrapeJobUrl.ts",
       "status": "built, not wired — no API route calls it",
       "to_activate": "Create POST /api/jobs/scrape-url. Wire to 'Fetch from URL' button on JobEditModal."
     },
@@ -283,6 +283,20 @@
       "title": "Multi-source shared jobs pool for scale (1000s of users)",
       "status": "designed, not built — current per-user live fetch is fine for 10-20 test users",
       "reconsider": "When approaching 50-100 daily active users or source rate-limit errors appear."
+    },
+    {
+      "id": "DEFERRED-3",
+      "title": "Split oversized service files (1k+ lines)",
+      "status": "watch list — refactor opportunity, no behaviour change required",
+      "candidates": [
+        "backend/api/app/services/eval/writers/_impl.py (1542 lines — split per writer variant)",
+        "backend/api/app/services/pipeline/steps/tailored_structural_validation.py (1265 lines — split per validator)",
+        "backend/api/app/services/ai/prompts/tailored_cv.py (1234 lines — split by section/variant)",
+        "backend/api/app/services/eval/enforce_w3.py (1139 lines — VERIFY DEAD: production writer is w8_verified; w3 may be deletable entirely)",
+        "backend/api/app/services/pipeline/steps/tailored_cv.py (841 lines — orchestrator + helpers)",
+        "backend/api/app/services/eval/role_families.py (706 lines — extract role-family configs to JSON)"
+      ],
+      "when_to_act": "When touching one of these files for an unrelated reason, or when a feature needs to add to it. Do NOT do a big-bang split — high regression risk."
     }
   ]
 }

@@ -4,8 +4,8 @@
 > Hard constraint honoured throughout: **the CV-tailoring pipeline and the
 > sourcing pipeline are not to be touched.** Everything proposed below is
 > non-behavioural — renames, moves, boundaries, docs, tooling, security,
-> DB hygiene. No logic inside `cv-backend/app/services/pipeline/**`,
-> `cv-backend/app/services/eval/**`, or `worker/src/pipeline/**` changes.
+> DB hygiene. No logic inside `backend/api/app/services/pipeline/**`,
+> `backend/api/app/services/eval/**`, or `backend/worker/src/pipeline/**` changes.
 
 ---
 
@@ -17,7 +17,7 @@ Three runtimes, two clouds, one database:
 |----------------|--------------------|-------------|--------------------------------------------------|
 | `web/`         | Next.js 14 (TS)    | Vercel      | Frontend **and** ~40 backend API routes          |
 | `worker/`      | Node + BullMQ (TS) | Fly.io      | Job sourcing pipeline (scrape → normalise → save) |
-| `cv-backend/`  | FastAPI (Python)   | Fly.io      | CV-tailoring pipeline (the precious one)          |
+| `backend/api/`  | FastAPI (Python)   | Fly.io      | CV-tailoring pipeline (the precious one)          |
 | Supabase       | Postgres+Storage+Realtime | managed | Shared DB, 27 tables, 26 with RLS          |
 | Upstash, Apify | —                  | managed     | Redis queue, scraper actors                       |
 
@@ -40,7 +40,7 @@ The fix for the *perception* problem is cheap (Section 1). The deeper items
 ## 1. Project & file architecture
 
 **Findings**
-- `web/src/components` mixes ~18 flat top-level components with feature
+- `frontend/web/src/components` mixes ~18 flat top-level components with feature
   subfolders (`jobs/`, `applications/`, `cv/`…). Inconsistent.
 - Large files concentrating risk: `SmartFeed.tsx` 1417, `JobFeedBetaClient` 987,
   `ApplicationCardV2` 986, `CoverLetterPanel` 812, `PipelineDonut` 807,
@@ -185,6 +185,6 @@ touch deploy config (Vercel root dir, Fly working dirs) — do those in lockstep
 4. **Boundaries** (ongoing): service-contract doc, `packages/contracts`, BFF rule,
    split `lib/actions.ts` and the 800+ line components.
 
-**Untouched by all of the above:** `cv-backend/app/services/pipeline/**`,
-`cv-backend/app/services/eval/**`, `worker/src/pipeline/**`,
-`worker/src/sources/**`. The pipeline keeps running exactly as it does today.
+**Untouched by all of the above:** `backend/api/app/services/pipeline/**`,
+`backend/api/app/services/eval/**`, `backend/worker/src/pipeline/**`,
+`backend/worker/src/sources/**`. The pipeline keeps running exactly as it does today.
