@@ -17,7 +17,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { decryptApiKey }             from "@/lib/integrations/crypto";
-import { extractCvText, structurizeCv, CvBackendError, type StructuredCv } from "@/lib/cvBackend";
+import { extractCvText, CvBackendError, type StructuredCv, type CategoriseCvResponse } from "@/lib/cvBackend";
+import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 
 // Same priority order as /api/jobs/[id]/analyze — Anthropic preferred for quality.
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
@@ -138,13 +139,16 @@ export async function POST(req: NextRequest) {
     .eq("is_active", true);
   const shouldActivate = (activeCount ?? 0) === 0;
 
-  // ── 4. Structurize the CV in ONE AI call: contact, summary, experience,
-  //      education, certifications, references, AND categorised skills all
-  //      come back together. Non-fatal — failure leaves structured_cv NULL
-  //      and the analysis pipeline falls back to raw cv_text.
+  // ── 4. Structurize + categorise in TWO AI calls. Skills are extracted by a
+  //      DEDICATED categoriser (explicit caps + breadth incentives) — folding
+  //      it into the structurize prompt produced thinner skill lists. We then
+  //      merge the categoriser's skills back into structured_cv before persist
+  //      and re-render canonical text so normalized_cv_text reflects the full
+  //      skill set. Non-fatal — failure leaves structured_cv NULL and the
+  //      analysis pipeline falls back to raw cv_text.
   let structuredCv: StructuredCv | null = null;
   let normalizedCvText: string | null = null;
-  let categorised: { technical: string[]; soft_skills: string[]; domain_knowledge: string[] } | null = null;
+  let categorised: CategoriseCvResponse | null = null;
   const { data: keyRows } = await admin
     .from("user_integrations")
     .select("provider, encrypted_api_key, config")
@@ -169,22 +173,10 @@ export async function POST(req: NextRequest) {
     try {
       const apiKey      = decryptApiKey(k.encrypted_api_key);
       const storedModel = k.config?.model ?? null;
-      try {
-        const r = await structurizeCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: storedModel });
-        structuredCv     = r.structured_cv;
-        normalizedCvText = r.normalized_cv_text;
-        categorised      = r.structured_cv.skills;
-      } catch (firstErr) {
-        if (storedModel) {
-          console.warn("[/api/cv POST] structurize with stored model failed, retrying default:", firstErr);
-          const r = await structurizeCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: null });
-          structuredCv     = r.structured_cv;
-          normalizedCvText = r.normalized_cv_text;
-          categorised      = r.structured_cv.skills;
-        } else {
-          throw firstErr;
-        }
-      }
+      const r = await runStructurizeAndCategorise(cvText, chosen, apiKey, storedModel);
+      structuredCv     = r.structured_cv;
+      normalizedCvText = r.normalized_cv_text;
+      categorised      = r.categorised;
     } catch (err) {
       console.warn("[/api/cv POST] structurization failed (non-fatal):", err);
     }
