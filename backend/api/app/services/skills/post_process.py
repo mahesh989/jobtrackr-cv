@@ -110,6 +110,45 @@ def _is_qualification_phrase(phrase: str) -> bool:
     return lowered in _STUDENT_NOISE
 
 
+# Embedded credential markers — the qualification pattern above is anchored at
+# the START of the phrase, so it misses cases where a credential marker is
+# embedded mid-phrase: "individual support at certificate iv level",
+# "medication endorsement (HLTHPS007 unit)". This regex scans for those
+# markers anywhere in the phrase.
+_EMBEDDED_CREDENTIAL_MARKER_RE = re.compile(
+    r"(?ix)("
+    # "at certificate iv level" / "at cert iv level" / "(certificate iv)" / "(cert iv)"
+    r"\b(?:at\s+)?(?:certificate|cert\.?)\s*(?:i{1,4}|iv|[1-4])"
+    r"\s*(?:level\b|\)|$)"
+    r"|"
+    # Embedded AU VET unit codes anywhere in the phrase:
+    # "(HLTHPS007)", "(HLTHPS007 unit)", " HLTHPS007 ", etc.
+    r"\b(?:hltaid|hlthps|chcccs|chc|hlt|bsb|fsk|sit|cpp|ahc)\d{3,}"
+    r"|"
+    # The medication-endorsement family — never a skill.
+    r"\bmedication\s+endorsement\b"
+    r")"
+)
+
+
+def _has_credential_marker(phrase: str) -> bool:
+    """True when the phrase contains an embedded credential/qualification
+    marker that the leading-anchored ``_QUAL_PATTERN`` misses.
+
+    Examples that match:
+      • "individual support at certificate iv level"
+      • "aged care at certificate iv level"
+      • "medication endorsement (HLTHPS007 unit)"
+      • "experience with HLTAID011"
+
+    Used by ``post_process_skills`` to route these phrases to the
+    credential sidecar instead of leaving them as Care Skills.
+    """
+    if not phrase:
+        return False
+    return bool(_EMBEDDED_CREDENTIAL_MARKER_RE.search(phrase.lower()))
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -372,6 +411,18 @@ def post_process_skills(
             #     here before noise lookup because they're not in the static
             #     noise lexicon (there are hundreds; pattern is cleaner).
             if _is_au_unit_code(phrase):
+                sidecar["credential"].append(phrase)
+                continue
+
+            # 1a''. Embedded credential markers — the qualification-phrase
+            #      and unit-code detectors above are anchored at the START
+            #      of the phrase, so they miss embedded markers like
+            #      "individual support at certificate iv level" or
+            #      "medication endorsement (HLTHPS007 unit)". This scan
+            #      catches them anywhere in the phrase and routes to the
+            #      credential sidecar so the JD-analysis display stays
+            #      clean of credential leakage.
+            if _has_credential_marker(phrase):
                 sidecar["credential"].append(phrase)
                 continue
 
