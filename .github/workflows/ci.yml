@@ -46,8 +46,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
-  cv-backend-tests:
-    name: cv-backend · pytest
+  api-tests:
+    name: api · pytest
     runs-on: ubuntu-latest
     defaults:
       run:

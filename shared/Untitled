@@ -1,0 +1,3 @@
+cd ~/Documents/Github/jobtrackr-cv
+git checkout refactor/repo-layout
+git log --stat main..HEAD
