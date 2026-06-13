@@ -10,7 +10,7 @@
  *   Row 2: "STAGE" label · 7 chips with live counts
  *          Thin JD · Full JD · Analysed · CV ready · Letter ready · Applied · Archived
  *   Row 3: "ATS" label · 4 chips with counts, colour-coded per band
- *          ≥ 70 · 60–69 · < 60 · Not analysed
+ *          ATS Above · ATS Fair · ATS Below · Not analysed
  *
  * Single-select per row — click an active chip to clear it. URL params:
  *   stage / triage / ats   — view filters, shallow nav (instant, no refetch)

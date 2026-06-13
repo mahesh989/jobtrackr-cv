@@ -28,14 +28,16 @@ export interface AtsThresholds {
  * Per-vertical fixed cutoff overrides. Care/nursing JDs legitimately score
  * lower on the deterministic ATS scorer (more off-axis transferable matches),
  * so the global 60/70 buckets genuine matches as "below final". Healthcare
- * profiles get a lower fixed pair.
+ * profiles get a lower fixed pair so that genuine residential AIN matches
+ * (which honestly score 40–65 on the deterministic scorer for sub-12-month
+ * candidates) clear the initial gate and proceed to tailoring.
  *
  * Keyed by the search-profile `target_verticals` value ("healthcare" is the
  * nursing/care sourcing vertical — there is no separate "nursing" vertical).
  * Everything else falls through to the global 60/70.
  */
 const VERTICAL_THRESHOLDS: Record<string, AtsThresholds> = {
-  healthcare: { initial: 55, final: 65 },
+  healthcare: { initial: 40, final: 65 },
 };
 
 /**

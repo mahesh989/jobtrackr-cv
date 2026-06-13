@@ -104,10 +104,10 @@ function isPostedToday(j: BoardJob): boolean {
 // ── ATS band visuals (mirrors lib/atsThresholds) ────────────────────────
 
 const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg: string; chipText: string; barColor: string; tip: string }> = {
-  above_final:   { label: "≥ 70",  dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800", barColor: "bg-green-500", tip: "Passed final gate — auto cover letter eligible" },
-  below_final:   { label: "60–69", dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800", barColor: "bg-amber-500", tip: "Tailored CV — between gates" },
-  below_initial: { label: "< 60",  dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800",   barColor: "bg-red-500",   tip: "Below initial gate — pipeline stopped" },
-  no_ats:        { label: "—",     dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
+  above_final:   { label: "ATS Above", dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800", barColor: "bg-green-500", tip: "Passed final gate — auto cover letter eligible" },
+  below_final:   { label: "ATS Fair",  dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800", barColor: "bg-amber-500", tip: "Tailored CV — between gates" },
+  below_initial: { label: "ATS Below", dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800",   barColor: "bg-red-500",   tip: "Below initial gate — pipeline stopped" },
+  no_ats:        { label: "—",         dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
 };
 
 export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
@@ -115,26 +115,17 @@ export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: n
   const th = job.atsThresholds ?? { initial: 60, final: 70 };
   const staticMeta = ATS_BAND_META[band];
 
+  // Labels stay constant ("ATS Above" / "ATS Fair" / "ATS Below"); the
+  // threshold values only appear in the hover tip, so users see consistent
+  // chip text across verticals while still being able to inspect the cutoff.
   if (band === "above_final") {
-    return {
-      ...staticMeta,
-      label: `≥ ${th.final}`,
-      tip: `Passed final gate (${th.final}) — auto cover letter eligible`,
-    };
+    return { ...staticMeta, tip: `Passed final gate (≥ ${th.final}) — auto cover letter eligible` };
   }
   if (band === "below_final") {
-    return {
-      ...staticMeta,
-      label: `${th.initial}–${th.final - 1}`,
-      tip: `Tailored CV — between gates (${th.initial}–${th.final - 1})`,
-    };
+    return { ...staticMeta, tip: `Tailored CV — between gates (${th.initial}–${th.final - 1})` };
   }
   if (band === "below_initial") {
-    return {
-      ...staticMeta,
-      label: `< ${th.initial}`,
-      tip: `Below initial gate (${th.initial}) — pipeline stopped`,
-    };
+    return { ...staticMeta, tip: `Below initial gate (< ${th.initial}) — pipeline stopped` };
   }
   return staticMeta;
 }
