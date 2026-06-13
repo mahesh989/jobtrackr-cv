@@ -234,6 +234,28 @@ class ExtractCvReferencesResponse(BaseModel):
     referees: list[CvReferee]
 
 
+# ── /internal/structurize-cv ─────────────────────────────────────────────────
+
+class StructurizeCvRequest(BaseModel):
+    """Parse a CV into the normalised structured-CV object (BYOK).
+
+    `skills` is the already-computed categorised_skills dict from upload; it
+    is merged verbatim into the structured result so skills stay canonical.
+    """
+    cv_text:     str = Field(min_length=1)
+    ai_provider: Literal["anthropic", "openai", "deepseek"]
+    ai_api_key:  str = Field(min_length=1)
+    ai_model:    Optional[str] = None
+    skills:      Optional[dict] = None
+
+
+class StructurizeCvResponse(BaseModel):
+    # The full structured CV object — shape defined in
+    # app/services/cv/cv_structurizer.py. Kept as a free dict so the schema
+    # can evolve without a migration on this transport type.
+    structured_cv: dict
+
+
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────
 
 class ExtractVoiceFingerprintRequest(BaseModel):

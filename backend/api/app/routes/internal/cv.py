@@ -16,10 +16,13 @@ from app.schemas.internal import (
     ExtractCvReferencesResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
+    StructurizeCvRequest,
+    StructurizeCvResponse,
 )
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.cv.references_extractor import extract_cv_references
+from app.services.cv.cv_structurizer import structurize_cv
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +186,35 @@ async def extract_cv_references_route(
     return ExtractCvReferencesResponse(
         referees=[CvReferee(**r) for r in referees],
     )
+
+
+# ── /internal/structurize-cv ─────────────────────────────────────────────────
+
+@router.post("/structurize-cv", response_model=StructurizeCvResponse)
+async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvResponse:
+    """
+    BYOK CV structurization. Parses raw CV text into the normalised
+    structured-CV object (contact / summary / experience / education /
+    certifications / skills / references / gaps). Called at upload time;
+    the result is stored on cv_versions.structured_cv and edited in the
+    review form. Dates are extracted verbatim (never inferred).
+    """
+    try:
+        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
+    except AIClientError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        structured = await structurize_cv(ai_client, body.cv_text, skills=body.skills)
+    except AIClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI structurization failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    return StructurizeCvResponse(structured_cv=structured)
 
 
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────
