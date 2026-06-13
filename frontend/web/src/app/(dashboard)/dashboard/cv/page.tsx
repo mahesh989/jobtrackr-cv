@@ -13,18 +13,27 @@ export default async function CvPage() {
 
   const admin = createAdminClient();
 
-  const [{ data: cvs }, { data: prefs }] = await Promise.all([
-    admin
+  // Try the full select first; fall back to legacy (without structured_cv_status)
+  // when migration 058 hasn't been applied yet so the page still renders.
+  const cvsExt = await admin
+    .from("cv_versions")
+    .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at, structured_cv_status")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+  let cvs = cvsExt.data as Array<Record<string, unknown>> | null;
+  if (cvsExt.error && /structured_cv_status|column/i.test(cvsExt.error.message)) {
+    const fallback = await admin
       .from("cv_versions")
       .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("user_preferences")
-      .select("contact_details")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ]);
+      .order("created_at", { ascending: false });
+    cvs = fallback.data as Array<Record<string, unknown>> | null;
+  }
+  const { data: prefs } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   const contactDetails = (prefs?.contact_details ?? {}) as Record<string, unknown>;
   const referencesData = (contactDetails.references ?? null) as ReferencesData | null;
@@ -49,7 +58,8 @@ export default async function CvPage() {
           </p>
         </div>
 
-        <CvLibraryClient initial={cvs ?? []} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <CvLibraryClient initial={(cvs ?? []) as any} />
 
         <div className="border-t border-border" />
 
