@@ -121,6 +121,23 @@ class TestNormalise:
         assert s["certifications"] == []
         assert any("Individual Support" in e["qualification"] for e in s["education"])
 
+    def test_bullets_strip_leading_markers(self):
+        """Bullets stored as text only — leading •/-/·/* stripped so the
+        renderer's "- " marker doesn't render twice next to each line."""
+        raw = {"experience": [{"employer": "X", "role": "Y",
+                               "start_date": "2024", "end_date": "2025",
+                               "bullets": ["• Provided care.", "- Assisted with meals.",
+                                           "* Documented progress.", "·  Handled handovers.",
+                                           "Plain bullet."]}]}
+        s = normalise_structured_cv(raw)
+        bullets = s["experience"][0]["bullets"]
+        # No bullet starts with a marker character anymore.
+        for b in bullets:
+            assert b and b[0] not in "•-*·"
+        # Words after the marker preserved verbatim.
+        assert "Provided care." in bullets
+        assert "Plain bullet." in bullets
+
     def test_malformed_input_never_raises(self):
         for junk in (None, [], "string", 42, {"experience": "not a list"}):
             s = normalise_structured_cv(junk)

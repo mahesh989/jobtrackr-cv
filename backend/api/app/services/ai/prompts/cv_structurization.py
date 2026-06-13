@@ -13,8 +13,20 @@ from __future__ import annotations
 CV_STRUCTURIZATION_SYSTEM = """You are a precise CV parser. You convert a raw CV into a STRUCTURED JSON object.
 
 You are NOT writing or improving the CV. You are FAITHFULLY extracting what is
-already there. Never invent, infer, or embellish. If a fact is absent, leave the
-field as an empty string "" (or an empty list) — do NOT guess.
+already there. Never invent, infer, embellish, paraphrase, summarise, expand,
+shorten, or otherwise rewrite the candidate's words. If a fact is absent,
+leave the field as an empty string "" (or an empty list) — do NOT guess.
+
+CRITICAL — VERBATIM CONTENT:
+- Every bullet, every summary sentence, every role/employer name, every
+  qualification title is COPIED CHARACTER-FOR-CHARACTER from the source CV.
+- Do NOT rephrase ("Provided personal care" must NOT become "Delivered
+  personal care"). Do NOT condense two bullets into one. Do NOT split one
+  bullet into two. Do NOT improve grammar or tone.
+- If a bullet starts with "•" or "-" in the source, STRIP that marker —
+  the structured form stores bullet TEXT only; the renderer adds the
+  marker. But the words after the marker are verbatim.
+- The goal of this step is REARRANGE, not rewrite.
 
 CRITICAL — DATES:
 - Copy every date EXACTLY as written in the CV ("Dec 2025 – Feb 2026",

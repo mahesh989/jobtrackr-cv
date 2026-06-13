@@ -154,6 +154,17 @@ def _normalise_contact(raw: Any) -> Dict[str, Any]:
     }
 
 
+_BULLET_PREFIX_RE = re.compile(r"^[\s\-•·*]+")
+
+
+def _strip_bullet_prefix(b: Any) -> str:
+    """Bullets are stored as plain text. The renderer adds the "- " marker.
+    Strip any leading "•", "-", "*", "·" the AI/source may have left in so
+    the UI doesn't render duplicate markers next to each bullet."""
+    s = _str(b)
+    return _BULLET_PREFIX_RE.sub("", s).strip() if s else ""
+
+
 def _normalise_experience(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     bullets = raw.get("bullets")
@@ -164,7 +175,7 @@ def _normalise_experience(raw: Any) -> Dict[str, Any]:
         "start_date":  _str(raw.get("start_date")),
         "end_date":    _str(raw.get("end_date")),
         "is_current":  bool(raw.get("is_current")),
-        "bullets":     [_str(b) for b in bullets if _str(b)] if isinstance(bullets, list) else [],
+        "bullets":     [_strip_bullet_prefix(b) for b in bullets if _strip_bullet_prefix(b)] if isinstance(bullets, list) else [],
     }
 
 
