@@ -34,7 +34,7 @@ This project integrates the cv-magic CV-tailoring pipeline into JobTrackr. **Rea
 
 ## Non-Negotiable Decisions
 
-1. **Two services, one DB.** JobTrackr's Next.js + worker stay TypeScript. cv-backend stays Python (FastAPI). Communicating via HMAC-signed HTTP. Shared Supabase.
+1. **Two services, one DB.** `frontend/web` + `backend/worker` stay TypeScript. `backend/api` stays Python (FastAPI). Communicating via HMAC-signed HTTP. Shared Supabase.
 2. **No logic porting.** cv-magic's pipeline orchestrator, 7 step files, ReportLab PDF generator, AI prompts — all stay Python verbatim.
 3. **Strip cv-magic of:** Clerk auth, Stripe billing, quota, Resend email, webhooks, user/company/cv_versions routes (we add our own).
 4. **BYOK only.** Users supply Anthropic / OpenAI keys. Encrypted with the same AES-256-GCM helper JobTrackr already uses for Apify.
@@ -45,10 +45,10 @@ This project integrates the cv-magic CV-tailoring pipeline into JobTrackr. **Rea
 
 ## Code Conventions
 
-- **Frontend** — same as JobTrackr: TypeScript, Next.js App Router, Tailwind, TanStack Query, Supabase browser client only for Realtime.
-- **Worker** — unchanged from JobTrackr. Don't extend it for CV work; that's cv-backend's job.
-- **cv-backend** — Python 3.11+, FastAPI, async-only, httpx, Supabase service-role client (no SQLAlchemy session for this project — direct REST writes are simpler).
-- **Bridge** — internal HMAC-SHA256(timestamp + body), shared secret in env. Never expose cv-backend endpoints to the browser.
+- **frontend/web** — same as JobTrackr: TypeScript, Next.js App Router, Tailwind, TanStack Query, Supabase browser client only for Realtime.
+- **backend/worker** — unchanged from JobTrackr. Don't extend it for CV work; that's backend/api's job.
+- **backend/api** — Python 3.11+, FastAPI, async-only, httpx, Supabase service-role client (no SQLAlchemy session for this project — direct REST writes are simpler).
+- **Bridge** — internal HMAC-SHA256(timestamp + body), shared secret in env. Never expose backend/api endpoints to the browser.
 
 ## Phase Verification Gates (do not skip)
 
@@ -56,7 +56,7 @@ Before marking a phase `completed`, run the gate manually and capture the result
 
 - **Phase 0:** Vercel preview URL loads JobTrackr unchanged.
 - **Phase 1:** Manual SQL INSERT/SELECT on new tables works; Realtime fires.
-- **Phase 2:** `curl` to cv-backend `/health` returns 200 from Fly.io; signed `/internal/analyze` returns 202.
+- **Phase 2:** `curl` to backend/api `/health` returns 200 from Fly.io; signed `/internal/analyze` returns 202.
 - **Phase 3:** Upload PDF, see extracted text, switch active CV.
 - **Phase 4:** Paste real Anthropic key, validated, masked, saved.
 - **Phase 5:** Click Analyze on a SEEK job → step 1 result appears via Realtime.
