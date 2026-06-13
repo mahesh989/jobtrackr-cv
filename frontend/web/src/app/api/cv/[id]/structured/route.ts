@@ -98,12 +98,18 @@ export async function PATCH(
     ? "verified"
     : (currentStatus === "verified" ? "verified" : "edited");
 
+  // Keep categorised_skills (a denormalised column read by the CV-library
+  // listing and the analysis pipeline) in lockstep with structured_cv.skills
+  // — the form is the editor of record for both.
+  const skills = structuredCv.skills ?? { technical: [], soft_skills: [], domain_knowledge: [] };
+
   const { error: updateErr } = await admin
     .from("cv_versions")
     .update({
       structured_cv:        structuredCv,
       structured_cv_status: newStatus,
       normalized_cv_text:   normalizedCvText,
+      categorised_skills:   skills,
     })
     .eq("id", id);
 

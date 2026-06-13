@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_CV_CHARS = 24_000
 
+# Bump whenever parser logic changes — the review page's server component
+# silently re-runs structurization on any CV whose stored `_version` is
+# below this. Mirror in frontend/web/src/lib/cvBackend.ts.
+STRUCTURED_CV_VERSION = 2
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -91,6 +96,7 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
         "certifications": certifications,
         "skills":         skills_obj,
         "references":     references,
+        "_version":       STRUCTURED_CV_VERSION,
     }
     structured["gaps"] = detect_gaps(structured)
     return structured

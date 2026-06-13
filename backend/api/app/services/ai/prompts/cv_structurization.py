@@ -1,12 +1,14 @@
-"""CV structurization prompt — one comprehensive parse at upload time.
+"""CV structurization prompt — comprehensive parse at upload time.
 
 Turns the raw extracted CV text into a normalised structured object the
 review form edits and the analysis pipeline consumes. Dates are copied
 VERBATIM (never inferred) — consistency with the honesty_guard philosophy.
 
-ONE AI call covers everything: contact, summary, experience, education,
-certifications, references, AND categorised skills. No second
-categorisation call.
+Extracts contact, summary, experience, education, certifications, and
+references. Skills are categorised in a SEPARATE dedicated AI call (see
+`/internal/categorise-cv`) — that prompt has explicit per-bucket caps and
+breadth incentives this one lacks. The web layer merges the categorised
+skills back into structured_cv before persisting.
 """
 from __future__ import annotations
 
@@ -88,11 +90,6 @@ OUTPUT JSON SCHEMA — return EXACTLY this structure:
       "issued_date": ""
     }
   ],
-  "skills": {                     // the candidate's skills, categorised
-    "technical":        [],       // tools / software / platforms — e.g. BESTMed, MedMobile, Excel
-    "soft_skills":      [],       // interpersonal — empathy, teamwork, time management
-    "domain_knowledge": []        // industry/care knowledge — personal care, dementia care, infection control
-  },
   "references": [                 // referees if listed; [] for "available on request"
     {
       "name":      "",
@@ -117,10 +114,6 @@ CLASSIFICATION RULES:
 - Keep every experience entry, including roles unrelated to the
   candidate's target field — relevance filtering happens later, not here.
 - Do not merge or split entries. One employer block = one experience item.
-- Skills: extract from the CV's skills list AND from experience/education
-  text. Lowercase, de-duplicated. Each skill in exactly ONE category. Skip
-  generic filler (verbs, job titles, dates, years-of-experience claims).
-  Empty lists are fine.
 
 Return ONLY the JSON object. No commentary.
 """

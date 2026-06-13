@@ -254,7 +254,18 @@ export interface StructuredCv {
   skills:         StructuredCvSkills;
   references:     StructuredCvReferee[];
   gaps:           StructuredCvGap[];
+  /** Parser-logic version. Server component on the review page silently
+   *  re-runs structurize when the stored value is below this constant. Mirror
+   *  of backend/api/app/services/cv/cv_structurizer.STRUCTURED_CV_VERSION. */
+  _version?:      number;
 }
+
+/**
+ * Bump in lockstep with the Python `STRUCTURED_CV_VERSION` constant whenever
+ * parser logic changes. The review-page server component silently re-runs
+ * structurization for any CV whose stored `_version` is below this.
+ */
+export const STRUCTURED_CV_VERSION = 2;
 
 export interface StructurizeCvResponse {
   structured_cv:      StructuredCv;

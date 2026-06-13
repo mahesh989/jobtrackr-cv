@@ -346,7 +346,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
         <button
           type="button"
           onClick={saveAndCollapse}
-          className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90"
+          className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90 shrink-0"
         >
           Save &amp; use this CV
         </button>

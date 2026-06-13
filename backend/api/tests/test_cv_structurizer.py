@@ -7,6 +7,7 @@ must be robust to malformed AI output.
 from __future__ import annotations
 
 from app.services.cv.cv_structurizer import (
+    STRUCTURED_CV_VERSION,
     normalise_structured_cv,
     detect_gaps,
 )
@@ -74,6 +75,10 @@ class TestNormalise:
     def test_skills_default_empty_when_absent(self):
         s = normalise_structured_cv(SHANTI_RAW)
         assert s["skills"] == {"technical": [], "soft_skills": [], "domain_knowledge": []}
+
+    def test_emits_structured_cv_version(self):
+        s = normalise_structured_cv(SHANTI_RAW)
+        assert s["_version"] == STRUCTURED_CV_VERSION
 
     def test_dates_preserved_verbatim(self):
         s = normalise_structured_cv(SHANTI_RAW)
