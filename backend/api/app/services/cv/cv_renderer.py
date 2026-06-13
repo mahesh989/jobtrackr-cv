@@ -15,9 +15,10 @@ Order is fixed (Skills above Summary per product call):
   2. Professional Summary
   3. Experience
   4. Education
-  5. Awards               (omitted if empty)
-  6. Certifications & licences  (omitted if empty)
-  7. References
+  5. Languages            (omitted if empty)
+  6. Awards               (omitted if empty)
+  7. Certifications & licences  (omitted if empty)
+  8. References
 
 Contact details are NOT rendered here — the analysis orchestrator stamps
 the contact line from the user's profile via stamp_contact_line(). The
@@ -76,6 +77,18 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
             out.extend(_render_education_entry(entry))
             out.append("")
 
+    # Languages (omitted when empty). Not used by the tailored-CV composer
+    # — preserved so the original verbatim view stays complete.
+    languages = structured.get("languages") or []
+    if languages:
+        out.append("## Languages")
+        out.append("")
+        for l in languages:
+            line = _render_language_line(l)
+            if line:
+                out.append(f"- {line}")
+        out.append("")
+
     # Awards (omitted when empty)
     awards = structured.get("awards") or []
     if awards:
@@ -113,6 +126,16 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 # Section renderers
 # ---------------------------------------------------------------------------
+
+def _render_language_line(l: Dict[str, Any]) -> str:
+    lang = _str(l.get("language"))
+    prof = _str(l.get("proficiency"))
+    if not lang and not prof:
+        return ""
+    if lang and prof:
+        return f"{lang} ({prof})"
+    return lang or prof
+
 
 def _render_award_lines(a: Dict[str, Any]) -> List[str]:
     name = _str(a.get("name"))

@@ -30,6 +30,7 @@ import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X } from 
 import type {
   StructuredCv,
   StructuredCvAward,
+  StructuredCvLanguage,
   StructuredCvExperience,
   StructuredCvEducation,
   StructuredCvCertification,
@@ -39,7 +40,7 @@ import type {
 const AUTOSAVE_MS = 10_000;
 
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-type SectionKey = "skills" | "summary" | "experience" | "education" | "awards" | "certifications" | "references";
+type SectionKey = "skills" | "summary" | "experience" | "education" | "languages" | "awards" | "certifications" | "references";
 
 interface Props {
   cvId:                 string;
@@ -62,6 +63,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     summary:        true,
     experience:     true,
     education:      true,
+    languages:      true,
     awards:         true,
     certifications: true,
     references:     false,
@@ -71,7 +73,8 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   const collapseAll = () =>
     setOpen({
       skills: false, summary: false, experience: false,
-      education: false, awards: false, certifications: false, references: false,
+      education: false, languages: false, awards: false,
+      certifications: false, references: false,
     });
 
   // Debounced autosave — pauses-then-saves so we don't spam the backend.
@@ -115,7 +118,15 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   async function saveAndCollapse() {
     if (timer.current) clearTimeout(timer.current);
     const ok = await persist(doc, true);
-    if (ok) collapseAll();
+    if (ok) {
+      collapseAll();
+      // After collapsing, the page is much shorter — scroll to the top so
+      // the user lands on the header instead of being stuck looking at the
+      // (now near-empty) save bar.
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
   }
 
   const liveGaps = useMemo(() => clientGaps(doc), [doc]);
@@ -131,6 +142,12 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     setDoc(d => ({ ...d, awards: [...(d.awards ?? []), { name: "", issuer: "", location: "", date: "", description: "" }] }));
   const removeAward = (i: number) =>
     setDoc(d => ({ ...d, awards: (d.awards ?? []).filter((_, idx) => idx !== i) }));
+  const patchLanguage = (i: number, next: Partial<StructuredCvLanguage>) =>
+    setDoc(d => ({ ...d, languages: (d.languages ?? []).map((l, idx) => idx === i ? { ...l, ...next } : l) }));
+  const addLanguage = () =>
+    setDoc(d => ({ ...d, languages: [...(d.languages ?? []), { language: "", proficiency: "" }] }));
+  const removeLanguage = (i: number) =>
+    setDoc(d => ({ ...d, languages: (d.languages ?? []).filter((_, idx) => idx !== i) }));
   const patchCert = (i: number, next: Partial<StructuredCvCertification>) =>
     setDoc(d => ({ ...d, certifications: d.certifications.map((c, idx) => idx === i ? { ...c, ...next } : c) }));
   const patchReferee = (i: number, next: Partial<StructuredCvReferee>) =>
@@ -290,6 +307,40 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             </label>
           </div>
         ))}
+      </Section>
+
+      {/* LANGUAGES — preserved verbatim; not used by the tailored-CV composer */}
+      <Section
+        title="Languages"
+        subtitle="Kept as a record — not used in tailored CV generation"
+        open={open.languages}
+        onToggle={() => toggle("languages")}
+      >
+        {(doc.languages ?? []).length === 0 ? (
+          <p className="text-[13px] text-text-3">No languages on your CV. You can add one or leave this empty.</p>
+        ) : (doc.languages ?? []).map((l, i) => (
+          <div key={i} className={`flex items-start gap-2 ${i > 0 ? "mt-2" : ""}`}>
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Language"    value={l.language}    onChange={v => patchLanguage(i, { language: v })} />
+              <Field label="Proficiency" value={l.proficiency} onChange={v => patchLanguage(i, { proficiency: v })} />
+            </div>
+            <button
+              type="button"
+              onClick={() => removeLanguage(i)}
+              aria-label="Remove language"
+              className="mt-5 text-text-3 hover:text-text p-1"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addLanguage}
+          className="inline-flex items-center gap-1 text-xs text-text-2 hover:text-text mt-2"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add language
+        </button>
       </Section>
 
       {/* AWARDS */}

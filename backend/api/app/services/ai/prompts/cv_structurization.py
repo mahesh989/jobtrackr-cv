@@ -86,6 +86,12 @@ OUTPUT JSON SCHEMA — return EXACTLY this structure:
       "description": ""            // any qualifying line under the award, verbatim
     }
   ],
+  "languages": [                  // languages and proficiency from the CV
+    {
+      "language":    "",           // e.g. "English", "Hindi", "Nepali"
+      "proficiency": ""            // verbatim, e.g. "Advanced", "Intermediate", "Native"
+    }
+  ],
   "certifications": [             // licences and short courses — see CLASSIFICATION
     {
       "name":        "",
@@ -122,6 +128,13 @@ CLASSIFICATION RULES:
 - Keep every experience entry, including roles unrelated to the
   candidate's target field — relevance filtering happens later, not here.
 - Do not merge or split entries. One employer block = one experience item.
+- **Experience order: MOST-RECENT FIRST.** Use end_date (or `is_current=true`)
+  as the ordering signal. A "Present"/"Current"/`is_current=true` role
+  comes first. Then descending by end-date. Entries with no dates go LAST.
+- **Place a care-VET qualification (Certificate III/IV / Diploma in Ageing
+  Support, Individual Support, Community Services, etc.) in ONE list only —
+  the `education` list.** Do NOT additionally list it under `certifications`.
+  This is a common source of duplicates.
 
 Return ONLY the JSON object. No commentary.
 """

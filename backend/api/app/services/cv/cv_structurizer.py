@@ -40,7 +40,7 @@ _MAX_CV_CHARS = 24_000
 # Bump whenever parser logic changes — the review page's server component
 # silently re-runs structurization on any CV whose stored `_version` is
 # below this. Mirror in frontend/web/src/lib/cvBackend.ts.
-STRUCTURED_CV_VERSION = 3
+STRUCTURED_CV_VERSION = 4
 
 
 # ---------------------------------------------------------------------------
@@ -81,8 +81,11 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
 
     summary = _str(raw.get("summary"))
     experience = [_normalise_experience(e) for e in _as_list(raw.get("experience"))]
+    experience = _sort_experience_recent_first(experience)
     education = [_normalise_education(e) for e in _as_list(raw.get("education"))]
+    education = _dedupe_education(education)
     awards = [_normalise_award(a) for a in _as_list(raw.get("awards"))]
+    languages = [_normalise_language(l) for l in _as_list(raw.get("languages"))]
     certifications = [_normalise_cert(c) for c in _as_list(raw.get("certifications"))]
     references = [_normalise_referee(r) for r in _as_list(raw.get("references"))]
     # `skills` is a mirror of categorised_skills, written by the web layer
@@ -102,6 +105,7 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
         "experience":     experience,
         "education":      education,
         "awards":         awards,
+        "languages":      languages,
         "certifications": certifications,
         "skills":         skills_obj,
         "references":     references,
@@ -248,6 +252,14 @@ def _normalise_award(raw: Any) -> Dict[str, Any]:
     }
 
 
+def _normalise_language(raw: Any) -> Dict[str, str]:
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "language":    _str(raw.get("language")),
+        "proficiency": _str(raw.get("proficiency")),
+    }
+
+
 def _normalise_cert(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     return {
@@ -310,6 +322,19 @@ def _looks_like_care_vet(cert_name: str) -> bool:
     return bool(_CARE_VET_PATTERNS.search(cert_name or ""))
 
 
+_VET_NORMALISE_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _vet_qual_key(name: str) -> str:
+    """Normalise a qualification name for fuzzy dedupe — lowercase, strip
+    non-alphanumerics, and trim any leading AU unit code (e.g. "CHC43015 -")
+    so 'CHC43015 - Certificate IV in Ageing Support' and 'Certificate IV in
+    Ageing Support' compare equal."""
+    s = (name or "").lower()
+    s = re.sub(r"^\s*[a-z]{2,5}\d{3,7}\s*[-:]\s*", "", s)
+    return _VET_NORMALISE_RE.sub("", s)
+
+
 def _route_care_vet_to_education(
     education: List[Dict[str, Any]],
     certifications: List[Dict[str, Any]],
@@ -321,14 +346,25 @@ def _route_care_vet_to_education(
         name        → qualification
         issuer      → institution
         issued_date → end_date    (with completed=True)
+
+    Dedupe: if education already contains a fuzzy-matching qualification
+    (same name modulo unit code prefix + punctuation), drop the cert instead
+    of adding a second copy. The AI sometimes puts the same Cert IV in BOTH
+    education and certifications.
     """
     if not certifications:
         return education, certifications
 
+    existing_keys = {_vet_qual_key(e.get("qualification", "")) for e in education}
     new_education = list(education)
     remaining_certs: List[Dict[str, Any]] = []
     for c in certifications:
         if _looks_like_care_vet(c.get("name", "")):
+            key = _vet_qual_key(c.get("name", ""))
+            if key and key in existing_keys:
+                # Already represented in education — drop the duplicate cert.
+                continue
+            existing_keys.add(key)
             new_education.append({
                 "institution":   c.get("issuer", ""),
                 "qualification": c.get("name", ""),
@@ -341,6 +377,77 @@ def _route_care_vet_to_education(
         else:
             remaining_certs.append(c)
     return new_education, remaining_certs
+
+
+# ---------------------------------------------------------------------------
+# Experience ordering + education dedupe
+# ---------------------------------------------------------------------------
+
+_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+}
+
+
+def _parse_end_date(date_str: str, is_current: bool) -> tuple[int, int]:
+    """Return a (year, month) tuple used as a sort key — higher = more recent.
+    "Present"/is_current → (9999, 12). Unparseable → (0, 0)."""
+    if is_current:
+        return (9999, 12)
+    s = (date_str or "").strip().lower()
+    if not s:
+        return (0, 0)
+    if "present" in s or "current" in s or "now" in s or "ongoing" in s:
+        return (9999, 12)
+
+    # "Feb 2026", "February, 11, 2026", "Feb, 2026"
+    m = re.search(r"\b([a-z]{3,9})\.?,?\s*\d{0,2},?\s*(\d{4})\b", s)
+    if m and m.group(1) in _MONTHS:
+        return (int(m.group(2)), _MONTHS[m.group(1)])
+    # "05/2025" or "5/2025"
+    m = re.search(r"\b(\d{1,2})\s*/\s*(\d{4})\b", s)
+    if m:
+        return (int(m.group(2)), int(m.group(1)))
+    # "2025-05"
+    m = re.search(r"\b(\d{4})\s*-\s*(\d{1,2})\b", s)
+    if m:
+        return (int(m.group(1)), int(m.group(2)))
+    # Bare year
+    m = re.search(r"\b(20\d{2}|19\d{2})\b", s)
+    if m:
+        return (int(m.group(1)), 12)
+    return (0, 0)
+
+
+def _sort_experience_recent_first(experience: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Stable sort by parsed end_date descending. Entries with no parsable
+    date sink to the bottom (still in their original relative order)."""
+    indexed = list(enumerate(experience))
+    indexed.sort(
+        key=lambda pair: (
+            _parse_end_date(pair[1].get("end_date", ""), bool(pair[1].get("is_current"))),
+            -pair[0],  # stability inverted so earlier entries lose ties on equal dates
+        ),
+        reverse=True,
+    )
+    return [e for _, e in indexed]
+
+
+def _dedupe_education(education: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fuzzy-dedupe by qualification name (modulo unit code prefix). Keeps
+    the FIRST occurrence; the AI sometimes lists the same Cert IV twice."""
+    seen: set[str] = set()
+    out: List[Dict[str, Any]] = []
+    for e in education:
+        key = _vet_qual_key(e.get("qualification", ""))
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        out.append(e)
+    return out
 
 
 # ---------------------------------------------------------------------------

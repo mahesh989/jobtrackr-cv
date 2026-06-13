@@ -231,6 +231,11 @@ export interface StructuredCvAward {
   description: string;
 }
 
+export interface StructuredCvLanguage {
+  language:    string;
+  proficiency: string;
+}
+
 export interface StructuredCvReferee {
   name:      string;
   job_title: string;
@@ -250,6 +255,7 @@ export interface StructuredCv {
   experience:     StructuredCvExperience[];
   education:      StructuredCvEducation[];
   awards:         StructuredCvAward[];
+  languages:      StructuredCvLanguage[];
   certifications: StructuredCvCertification[];
   skills:         StructuredCvSkills;
   references:     StructuredCvReferee[];
@@ -265,7 +271,7 @@ export interface StructuredCv {
  * parser logic changes. The review-page server component silently re-runs
  * structurization for any CV whose stored `_version` is below this.
  */
-export const STRUCTURED_CV_VERSION = 3;
+export const STRUCTURED_CV_VERSION = 4;
 
 export interface StructurizeCvResponse {
   structured_cv:      StructuredCv;

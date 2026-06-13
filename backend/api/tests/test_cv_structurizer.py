@@ -83,6 +83,66 @@ class TestNormalise:
         s = normalise_structured_cv({"summary": ""})
         assert s["awards"] == []
 
+    def test_languages_normalised(self):
+        raw = {"languages": [
+            {"language": "English", "proficiency": "Advanced"},
+            {"language": "Nepali",  "proficiency": "Native"},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["languages"] == [
+            {"language": "English", "proficiency": "Advanced"},
+            {"language": "Nepali",  "proficiency": "Native"},
+        ]
+
+    def test_languages_default_empty(self):
+        assert normalise_structured_cv({})["languages"] == []
+
+    def test_experience_sorted_recent_first(self):
+        raw = {"experience": [
+            {"employer": "Dimeo",  "role": "Cleaner",     "start_date": "", "end_date": "", "is_current": False, "bullets": ["x"]},
+            {"employer": "Akala",  "role": "Accountant",  "start_date": "01/2024", "end_date": "05/2025", "is_current": False, "bullets": ["x"]},
+            {"employer": "RFBI",   "role": "AIN",         "start_date": "Dec 2025", "end_date": "Feb 2026", "is_current": False, "bullets": ["x"]},
+        ]}
+        s = normalise_structured_cv(raw)
+        employers = [e["employer"] for e in s["experience"]]
+        assert employers == ["RFBI", "Akala", "Dimeo"]
+
+    def test_experience_current_role_first(self):
+        raw = {"experience": [
+            {"employer": "Old", "start_date": "2024", "end_date": "2025", "is_current": False, "bullets": ["x"]},
+            {"employer": "Now", "start_date": "2026", "end_date": "Present", "is_current": True, "bullets": ["x"]},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["experience"][0]["employer"] == "Now"
+
+    def test_education_dedupes_cert_iv(self):
+        """AI sometimes lists the same Cert IV twice — once plain, once with the unit code prefix."""
+        raw = {"education": [
+            {"institution": "Elite", "qualification": "Certificate IV in Ageing Support",
+             "start_date": "", "end_date": "Apr 2026", "completed": True},
+            {"institution": "Elite", "qualification": "CHC43015 - Certificate IV in Ageing Support",
+             "start_date": "", "end_date": "Apr 2026", "completed": True},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert len(s["education"]) == 1
+
+    def test_cert_iv_dedupes_when_already_in_education(self):
+        """If the AI puts the same Cert IV in BOTH education and certifications,
+        the router moves it only when not already represented."""
+        raw = {
+            "education": [
+                {"institution": "Elite", "qualification": "Certificate IV in Ageing Support",
+                 "start_date": "", "end_date": "Apr 2026", "completed": True},
+            ],
+            "certifications": [
+                {"name": "CHC43015 - Certificate IV in Ageing Support",
+                 "issuer": "Elite", "code": "CHC43015", "issued_date": "Apr 2026"},
+            ],
+        }
+        s = normalise_structured_cv(raw)
+        assert len(s["education"]) == 1
+        assert s["certifications"] == []
+
     def test_skills_lowercased_and_deduped(self):
         s = normalise_structured_cv(SHANTI_RAW_WITH_SKILLS)
         # Lowercased

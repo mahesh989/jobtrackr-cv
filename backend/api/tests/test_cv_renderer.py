@@ -71,6 +71,20 @@ class TestRender:
         out = render_canonical_cv(no_awards)
         assert "## Awards" not in out
 
+    def test_languages_rendered_when_present(self):
+        with_langs = {**SHANTI_STRUCTURED, "languages": [
+            {"language": "English", "proficiency": "Advanced"},
+            {"language": "Nepali",  "proficiency": "Native"},
+        ]}
+        out = render_canonical_cv(with_langs)
+        assert "## Languages" in out
+        assert "English (Advanced)" in out
+        assert "Nepali (Native)" in out
+
+    def test_empty_languages_section_omitted(self):
+        out = render_canonical_cv(SHANTI_STRUCTURED)
+        assert "## Languages" not in out
+
     def test_skills_use_canonical_labels(self):
         out = render_canonical_cv(SHANTI_STRUCTURED)
         assert "**Care Skills:**" in out

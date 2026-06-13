@@ -63,12 +63,23 @@ export default async function CvPage() {
 
         <div className="border-t border-border" />
 
-        <ReferencesSection
-          initial={referencesData}
-          contactDetails={contactDetails}
-          activeCvId={activeCv?.id ?? null}
-          extractedReferences={activeCv?.extracted_references ?? null}
-        />
+        <details className="group">
+          <summary className="flex cursor-pointer items-center justify-between gap-2 list-none rounded-md px-2 py-3 -mx-2 hover:bg-[var(--surface-2)]/40">
+            <div>
+              <h2 className="text-[16px] font-semibold text-text">References</h2>
+              <p className="text-[13px] text-text-2 mt-0.5">Manage who employers can contact and how they appear on your CV.</p>
+            </div>
+            <span aria-hidden="true" className="text-text-3 group-open:rotate-90 transition-transform">›</span>
+          </summary>
+          <div className="mt-4">
+            <ReferencesSection
+              initial={referencesData}
+              contactDetails={contactDetails}
+              activeCvId={activeCv?.id ?? null}
+              extractedReferences={activeCv?.extracted_references ?? null}
+            />
+          </div>
+        </details>
       </div>
     </div>
   );
