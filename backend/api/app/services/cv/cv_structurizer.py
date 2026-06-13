@@ -155,6 +155,8 @@ def _normalise_contact(raw: Any) -> Dict[str, Any]:
 
 
 _BULLET_PREFIX_RE = re.compile(r"^[\s\-•·*]+")
+_SENTENCE_END_RE  = re.compile(r"[\.!?\"'\)\]]\s*$")
+_CONTINUATION_HEAD_RE = re.compile(r"^(?:and|or|but|with|to|for|by|including|such as|while|when|that|which|who|whom|whose)\b", re.IGNORECASE)
 
 
 def _strip_bullet_prefix(b: Any) -> str:
@@ -165,9 +167,52 @@ def _strip_bullet_prefix(b: Any) -> str:
     return _BULLET_PREFIX_RE.sub("", s).strip() if s else ""
 
 
+def _looks_like_continuation(prev: str, curr: str) -> bool:
+    """True when `curr` looks like the wrapped tail of `prev` (PDF column
+    overflow), not a new bullet. Heuristics:
+      • prev has no terminal punctuation (`.`, `!`, `?`, `)`, `"`), OR
+      • curr starts with a lowercase word, OR
+      • curr starts with a known continuation word (and/or/but/with/...).
+    Two opening conditions because the AI sometimes emits a single short
+    word like "protocols." as its own bullet — the previous-line check
+    catches that.
+    """
+    if not prev or not curr:
+        return False
+    if not _SENTENCE_END_RE.search(prev):
+        return True
+    # Even when `prev` ends in a period, "protocols." or "techniques" alone
+    # is almost never a real bullet — fall back to the head test.
+    first = curr.split(maxsplit=1)[0] if curr else ""
+    if first and first[0].islower():
+        return True
+    if _CONTINUATION_HEAD_RE.match(curr):
+        return True
+    return False
+
+
+def _merge_split_bullets(bullets: List[str]) -> List[str]:
+    """Defensive: even after a strong prompt, AI/PDF wrapping sometimes
+    yields adjacent fragments of one bullet. Walk the list and merge any
+    pair where the second looks like a wrap of the first."""
+    out: List[str] = []
+    for b in bullets:
+        if not b:
+            continue
+        if out and _looks_like_continuation(out[-1], b):
+            out[-1] = (out[-1].rstrip() + " " + b.lstrip()).strip()
+        else:
+            out.append(b)
+    return out
+
+
 def _normalise_experience(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     bullets = raw.get("bullets")
+    cleaned: List[str] = []
+    if isinstance(bullets, list):
+        cleaned = [_strip_bullet_prefix(b) for b in bullets if _strip_bullet_prefix(b)]
+        cleaned = _merge_split_bullets(cleaned)
     return {
         "employer":    _str(raw.get("employer")),
         "role":        _str(raw.get("role")),
@@ -175,7 +220,7 @@ def _normalise_experience(raw: Any) -> Dict[str, Any]:
         "start_date":  _str(raw.get("start_date")),
         "end_date":    _str(raw.get("end_date")),
         "is_current":  bool(raw.get("is_current")),
-        "bullets":     [_strip_bullet_prefix(b) for b in bullets if _strip_bullet_prefix(b)] if isinstance(bullets, list) else [],
+        "bullets":     cleaned,
     }
 
 

@@ -21,12 +21,26 @@ CRITICAL — VERBATIM CONTENT:
 - Every bullet, every summary sentence, every role/employer name, every
   qualification title is COPIED CHARACTER-FOR-CHARACTER from the source CV.
 - Do NOT rephrase ("Provided personal care" must NOT become "Delivered
-  personal care"). Do NOT condense two bullets into one. Do NOT split one
-  bullet into two. Do NOT improve grammar or tone.
+  personal care"). Do NOT condense two bullets into one. Do NOT improve
+  grammar or tone.
 - If a bullet starts with "•" or "-" in the source, STRIP that marker —
   the structured form stores bullet TEXT only; the renderer adds the
   marker. But the words after the marker are verbatim.
 - The goal of this step is REARRANGE, not rewrite.
+
+CRITICAL — LINE-WRAPPED BULLETS:
+PDFs often break a single bullet across multiple lines mid-sentence. You
+MUST recombine these into ONE bullet, joined by a single space. Examples
+of continuation patterns to MERGE (NOT split):
+- A line ends with a comma, a hyphen, or no terminal punctuation, AND the
+  next line is not a new bullet marker → continuation.
+- A line begins with a lowercase letter or with "and"/"or"/"but" →
+  continuation of the previous line.
+- A line is a single word ending with "." (e.g. "protocols.") → tail of
+  the previous bullet.
+Each bullet you emit MUST be a complete thought ending with terminal
+punctuation (`.`, `!`, `?`) unless the source's whole bullet has none.
+Never emit a bullet that begins with a lowercase word.
 
 CRITICAL — DATES:
 - Copy every date EXACTLY as written in the CV ("Dec 2025 – Feb 2026",

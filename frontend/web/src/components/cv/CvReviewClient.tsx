@@ -180,15 +180,15 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
         <SaveBadge status={save} verified={status === "verified"} err={err} />
       </div>
 
-      {/* Gap banner */}
+      {/* Gap banner — neutral theme with a tinted icon only */}
       {liveGaps.length > 0 ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-300/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[13px] text-amber-900 dark:text-amber-200">
-          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+        <div className="flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2 text-[13px] text-text">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
           <span>{liveGaps.length} item{liveGaps.length === 1 ? "" : "s"} need your attention — you can fill them now or skip and analyse anyway.</span>
         </div>
       ) : (
-        <div className="flex items-start gap-2 rounded-md border border-emerald-300/40 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 text-[13px] text-emerald-900 dark:text-emerald-200">
-          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+        <div className="flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2 text-[13px] text-text">
+          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
           <span>All set — nothing flagged.</span>
         </div>
       )}
@@ -211,13 +211,18 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       </Section>
 
       {/* SUMMARY */}
-      <Section title="Profile summary" subtitle="Verbatim from your CV — edit if you'd like to refine" open={open.summary} onToggle={() => toggle("summary")}>
+      <Section
+        title="Profile summary"
+        subtitle={doc.summary ? "Verbatim from your CV — edit if you'd like to refine" : "Your CV doesn't have one — adding 2–3 lines is optional but helps"}
+        open={open.summary}
+        onToggle={() => toggle("summary")}
+      >
         <textarea
           rows={4}
           className="block w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
           value={doc.summary}
           onChange={e => setDoc(d => ({ ...d, summary: e.target.value }))}
-          placeholder="A short paragraph describing your background."
+          placeholder="Optional — leave blank if your CV doesn't have one."
         />
       </Section>
 
@@ -266,8 +271,8 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
         ) : doc.education.map((e, i) => (
           <div key={i} className={`${i > 0 ? "pt-3 mt-3 border-t border-[var(--border)]" : ""}`}>
             {e._moved_from_certifications && (
-              <span className="inline-block mb-2 px-2 py-0.5 text-[11px] rounded bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                Moved here from certifications (care qualifications go in Education)
+              <span className="inline-block mb-2 px-2 py-0.5 text-[11px] rounded border border-[var(--border)] bg-[var(--surface-2)]/40 text-text-2">
+                Moved here from certifications — care qualifications go in Education
               </span>
             )}
             <Field label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} bold />
@@ -408,7 +413,7 @@ function DatesField({ start, end, onStart, onEnd }: { start: string; end: string
   return (
     <div>
       <span className="text-xs text-text-3">
-        Dates {blank && <span className="text-amber-700 dark:text-amber-300">· missing</span>}
+        Dates {blank && <span className="text-text-2">· missing — add or leave blank</span>}
       </span>
       <div className="grid grid-cols-2 gap-2 mt-1">
         <input
@@ -498,10 +503,10 @@ function SkillsBucket({
 function SaveBadge({ status, verified, err }: { status: SaveStatus; verified: boolean; err: string | null }) {
   const map: Record<SaveStatus, { text: string; tone: string }> = {
     idle:   { text: verified ? "Verified" : "Saved",         tone: "text-text-3" },
-    dirty:  { text: "Unsaved — autosaving in 10s",           tone: "text-amber-700 dark:text-amber-300" },
+    dirty:  { text: "Unsaved — autosaving in 10s",           tone: "text-text-2" },
     saving: { text: "Saving…",                               tone: "text-text-3" },
-    saved:  { text: verified ? "Verified ✓" : "Saved ✓",     tone: "text-emerald-700 dark:text-emerald-300" },
-    error:  { text: err ?? "Save failed",                    tone: "text-red-600 dark:text-red-400" },
+    saved:  { text: verified ? "Verified" : "Saved",         tone: "text-text" },
+    error:  { text: err ?? "Save failed",                    tone: "text-red" },
   };
   const m = map[status];
   return <span className={`text-xs ${m.tone}`}>{m.text}</span>;
