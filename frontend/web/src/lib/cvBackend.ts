@@ -223,12 +223,12 @@ export interface StructuredCvCertification {
   issued_date: string;
 }
 
-export interface StructuredCvContact {
-  name:     string;
-  email:    string;
-  phone:    string;
-  location: string;
-  links:    string[];
+export interface StructuredCvAward {
+  name:        string;
+  issuer:      string;
+  location:    string;
+  date:        string;
+  description: string;
 }
 
 export interface StructuredCvReferee {
@@ -246,10 +246,10 @@ export interface StructuredCvGap {
 }
 
 export interface StructuredCv {
-  contact:        StructuredCvContact;
   summary:        string;
   experience:     StructuredCvExperience[];
   education:      StructuredCvEducation[];
+  awards:         StructuredCvAward[];
   certifications: StructuredCvCertification[];
   skills:         StructuredCvSkills;
   references:     StructuredCvReferee[];
@@ -265,7 +265,7 @@ export interface StructuredCv {
  * parser logic changes. The review-page server component silently re-runs
  * structurization for any CV whose stored `_version` is below this.
  */
-export const STRUCTURED_CV_VERSION = 2;
+export const STRUCTURED_CV_VERSION = 3;
 
 export interface StructurizeCvResponse {
   structured_cv:      StructuredCv;
@@ -278,7 +278,7 @@ export function structurizeCv(
   return callCvBackend<StructurizeCvResponse>(
     "/internal/structurize-cv",
     payload,
-    { timeoutMs: 60_000 },   // one AI call covers contact/summary/experience/edu/certs/skills/refs
+    { timeoutMs: 60_000 },   // covers summary/experience/education/awards/certs/refs (skills come from categoriseCv)
   );
 }
 

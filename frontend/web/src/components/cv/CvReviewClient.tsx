@@ -29,7 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X } from "lucide-react";
 import type {
   StructuredCv,
-  StructuredCvContact,
+  StructuredCvAward,
   StructuredCvExperience,
   StructuredCvEducation,
   StructuredCvCertification,
@@ -39,7 +39,7 @@ import type {
 const AUTOSAVE_MS = 10_000;
 
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-type SectionKey = "contact" | "skills" | "summary" | "experience" | "education" | "certifications" | "references";
+type SectionKey = "skills" | "summary" | "experience" | "education" | "awards" | "certifications" | "references";
 
 interface Props {
   cvId:                 string;
@@ -58,11 +58,11 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   // user can re-expand by clicking any header. References starts collapsed
   // by default (it's a secondary signal); everything else expanded.
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
-    contact:        true,
     skills:         true,
     summary:        true,
     experience:     true,
     education:      true,
+    awards:         true,
     certifications: true,
     references:     false,
   });
@@ -70,8 +70,8 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   const toggle = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
   const collapseAll = () =>
     setOpen({
-      contact: false, skills: false, summary: false, experience: false,
-      education: false, certifications: false, references: false,
+      skills: false, summary: false, experience: false,
+      education: false, awards: false, certifications: false, references: false,
     });
 
   // Debounced autosave — pauses-then-saves so we don't spam the backend.
@@ -121,12 +121,16 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   const liveGaps = useMemo(() => clientGaps(doc), [doc]);
 
   // — patching helpers (immutable) —
-  const patchContact = (next: Partial<StructuredCvContact>) =>
-    setDoc(d => ({ ...d, contact: { ...d.contact, ...next } }));
   const patchExperience = (i: number, next: Partial<StructuredCvExperience>) =>
     setDoc(d => ({ ...d, experience: d.experience.map((e, idx) => idx === i ? { ...e, ...next } : e) }));
   const patchEducation = (i: number, next: Partial<StructuredCvEducation>) =>
     setDoc(d => ({ ...d, education: d.education.map((e, idx) => idx === i ? { ...e, ...next } : e) }));
+  const patchAward = (i: number, next: Partial<StructuredCvAward>) =>
+    setDoc(d => ({ ...d, awards: (d.awards ?? []).map((a, idx) => idx === i ? { ...a, ...next } : a) }));
+  const addAward = () =>
+    setDoc(d => ({ ...d, awards: [...(d.awards ?? []), { name: "", issuer: "", location: "", date: "", description: "" }] }));
+  const removeAward = (i: number) =>
+    setDoc(d => ({ ...d, awards: (d.awards ?? []).filter((_, idx) => idx !== i) }));
   const patchCert = (i: number, next: Partial<StructuredCvCertification>) =>
     setDoc(d => ({ ...d, certifications: d.certifications.map((c, idx) => idx === i ? { ...c, ...next } : c) }));
   const patchReferee = (i: number, next: Partial<StructuredCvReferee>) =>
@@ -192,16 +196,6 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           <span>All set — nothing flagged.</span>
         </div>
       )}
-
-      {/* CONTACT */}
-      <Section title="Contact" open={open.contact} onToggle={() => toggle("contact")}>
-        <Grid>
-          <Field label="Name"     value={doc.contact.name}     onChange={v => patchContact({ name: v })} />
-          <Field label="Email"    value={doc.contact.email}    onChange={v => patchContact({ email: v })} />
-          <Field label="Phone"    value={doc.contact.phone}    onChange={v => patchContact({ phone: v })} />
-          <Field label="Location" value={doc.contact.location} onChange={v => patchContact({ location: v })} />
-        </Grid>
-      </Section>
 
       {/* SKILLS — above summary per product call */}
       <Section title="Skills" subtitle="From your CV — remove junk or add your own" open={open.skills} onToggle={() => toggle("skills")}>
@@ -296,6 +290,53 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             </label>
           </div>
         ))}
+      </Section>
+
+      {/* AWARDS */}
+      <Section
+        title="Awards"
+        subtitle="Recognitions, scholarships, honours — none required"
+        open={open.awards}
+        onToggle={() => toggle("awards")}
+      >
+        {(doc.awards ?? []).length === 0 ? (
+          <p className="text-[13px] text-text-3">No awards on your CV. You can add one or leave this empty.</p>
+        ) : (doc.awards ?? []).map((a, i) => (
+          <div key={i} className={`${i > 0 ? "pt-3 mt-3 border-t border-[var(--border)]" : ""}`}>
+            <div className="flex items-start justify-between gap-2">
+              <Field label="Name" value={a.name} onChange={v => patchAward(i, { name: v })} bold />
+              <button
+                type="button"
+                onClick={() => removeAward(i)}
+                aria-label="Remove award"
+                className="mt-5 text-text-3 hover:text-text p-1"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <Grid cols={3} mt>
+              <Field label="Issuer"   value={a.issuer}   onChange={v => patchAward(i, { issuer: v })} />
+              <Field label="Location" value={a.location} onChange={v => patchAward(i, { location: v })} />
+              <Field label="Date"     value={a.date}     onChange={v => patchAward(i, { date: v })} />
+            </Grid>
+            <label className="block mt-3">
+              <span className="text-xs text-text-3">Description (optional)</span>
+              <textarea
+                rows={2}
+                className="block w-full mt-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[13px] text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+                value={a.description}
+                onChange={e => patchAward(i, { description: e.target.value })}
+              />
+            </label>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addAward}
+          className="inline-flex items-center gap-1 text-xs text-text-2 hover:text-text mt-2"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add award
+        </button>
       </Section>
 
       {/* CERTIFICATIONS — only shown if anything remained */}
@@ -516,7 +557,6 @@ function SaveBadge({ status, verified, err }: { status: SaveStatus; verified: bo
 // recomputed server-side on save).
 function clientGaps(d: StructuredCv): string[] {
   const g: string[] = [];
-  if (!d.contact?.email) g.push("contact email missing");
   if (!d.summary)        g.push("no profile summary");
   (d.experience || []).forEach((e, i) => {
     if (!e.start_date && !e.end_date) g.push(`role ${i + 1} dates missing`);
