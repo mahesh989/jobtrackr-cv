@@ -42,7 +42,13 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/confirm` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/confirm`,
+        // Force Google's account chooser every time. Without this Google
+        // silently picks the only signed-in account and skips the picker,
+        // which makes switching accounts impossible on shared machines.
+        queryParams: { prompt: "select_account" },
+      },
     });
     if (error) { setError(error.message); setGoogleLoading(false); }
   }
