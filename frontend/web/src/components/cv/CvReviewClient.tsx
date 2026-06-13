@@ -118,6 +118,34 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     if (ok) collapseAll();
   }
 
+  // Re-parse from the raw cv_text — useful when the original parse was made
+  // with a stale prompt or before deterministic fixes (e.g. bullet merging)
+  // landed. Replaces the current structured_cv wholesale; user re-edits.
+  const [reparsing, setReparsing] = useState(false);
+  async function reparse() {
+    if (!confirm("Re-run the AI parse from your original CV? Any edits you've made in this form will be replaced.")) return;
+    setReparsing(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/cv/${cvId}/structurize`, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        setErr(j.error ?? `Re-parse failed (${res.status})`);
+        return;
+      }
+      // Reload the structured CV from the DB.
+      const r2 = await fetch(`/api/cv/${cvId}/structured`);
+      if (!r2.ok) { setErr("Could not reload structured CV after re-parse"); return; }
+      const data = await r2.json() as { structured_cv: StructuredCv };
+      setDoc(data.structured_cv);
+      setSave("saved");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Re-parse failed");
+    } finally {
+      setReparsing(false);
+    }
+  }
+
   const liveGaps = useMemo(() => clientGaps(doc), [doc]);
 
   // — patching helpers (immutable) —
@@ -341,15 +369,26 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       </Section>
 
       {/* Save bar */}
-      <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-[var(--surface)]/95 backdrop-blur border-t border-[var(--border)] flex items-center justify-between">
+      <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-[var(--surface)]/95 backdrop-blur border-t border-[var(--border)] flex items-center justify-between gap-3">
         <div className="text-xs text-text-3">Edits autosave every 10 seconds. This tidied CV is what the analysis pipeline uses.</div>
-        <button
-          type="button"
-          onClick={saveAndCollapse}
-          className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90"
-        >
-          Save &amp; use this CV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={reparse}
+            disabled={reparsing}
+            className="rounded-md border border-[var(--border)] px-3 py-2 text-xs text-text hover:bg-[var(--surface-2)]/40 disabled:opacity-50"
+            title="Re-run the AI parse from your original CV"
+          >
+            {reparsing ? "Re-parsing…" : "Re-parse from original"}
+          </button>
+          <button
+            type="button"
+            onClick={saveAndCollapse}
+            className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90"
+          >
+            Save &amp; use this CV
+          </button>
+        </div>
       </div>
     </div>
   );
