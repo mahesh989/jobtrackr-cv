@@ -11,7 +11,7 @@ the user.
 Read these before reviewing:
 - CLAUDE.md (project rules)
 - .claude/graph.json (current state and phase history)
-- DESIGN.md (architectural decisions)
+- docs/design.md (architectural decisions)
 - The original plan if one exists (often referenced in the conversation 
   or in graph.json)
 

@@ -1,12 +1,12 @@
 # JobTrackr-CV — Claude Rules
 
-This project integrates the cv-magic CV-tailoring pipeline into JobTrackr. **Read `DESIGN.md` once at the start of every fresh conversation** — the phased plan, bridge contract, and data model live there. Then check `.claude/graph.json` for current state.
+This project integrates the cv-magic CV-tailoring pipeline into JobTrackr. **Read `docs/design.md` once at the start of every fresh conversation** — the phased plan, bridge contract, and data model live there. Then check `.claude/graph.json` for current state.
 
 ## How to Use This Repo Efficiently
 
 **SESSION START — mandatory:**
 1. Read `.claude/graph.json` in full
-2. Read `DESIGN.md` (skim if already familiar)
+2. Read `docs/design.md` (skim if already familiar)
 3. Check `build_state.current_phase` and `build_state.next_action` — resume there
 4. Within the current phase, find the next task with `status: planned` whose `depends_on` are all `completed`
 5. Do NOT skip phases. Each phase has a verification gate that must pass before moving on

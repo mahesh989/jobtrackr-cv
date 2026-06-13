@@ -12,7 +12,7 @@ worker/      Fly.io Node.js — existing JobTrackr pipeline (untouched)
 cv-backend/  FastAPI Python — CV-tailoring pipeline (added in Phase 2)
 supabase/    Migration SQL — additive only, new tables for CV/analysis
 .claude/     graph.json (project model), settings.json (Stop hook)
-DESIGN.md    Full integration plan — read this first
+docs/design.md  Full integration plan — read this first
 CLAUDE.md    Build rules + session protocol
 ```
 
@@ -29,10 +29,10 @@ CLAUDE.md    Build rules + session protocol
 ## Source of truth
 
 - **Build plan & status:** `.claude/graph.json` → `build_state` + `build_plan`
-- **Architecture & decisions:** `DESIGN.md`
+- **Architecture & decisions:** `docs/design.md`
 - **Session rules:** `CLAUDE.md`
 
-Read `DESIGN.md` for the full integration plan including phased rollout, bridge contract, data model, and verification gates.
+Read `docs/design.md` for the full integration plan including phased rollout, bridge contract, data model, and verification gates.
 
 ## Local dev
 

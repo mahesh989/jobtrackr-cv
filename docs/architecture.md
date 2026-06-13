@@ -1,6 +1,6 @@
 # JobTrackr-CV — Architecture Reference
 
-> Companion to `DESIGN.md` (which has the full phase plan and locked decisions).
+> Companion to `design.md` (which has the full phase plan and locked decisions).
 > This doc is the quick-reference for planners and contributors — system shape,
 > file locations, and boundaries at a glance. Keep it current when topology changes.
 
@@ -167,4 +167,4 @@ Vercel environment variables set in Vercel dashboard. Fly.io secrets set with `f
 4. **BYOK only** — no platform AI spend. Keys flow in request payloads; never stored in cv-backend.
 5. **RLS on everything** — every new table gets RLS. Service-role key used only in cv-backend pipeline writes.
 
-See `DESIGN.md` for the full locked-decisions list and phase verification gates.
+See `design.md` for the full locked-decisions list and phase verification gates.

@@ -13,7 +13,7 @@ plan — never to execute the work yourself.
 Read these before planning anything:
 - CLAUDE.md (project rules)
 - .claude/graph.json (current state and phase history)
-- DESIGN.md (architectural decisions)
+- docs/design.md (architectural decisions)
 - /docs/ if any files exist there
 
 Your output must be a single markdown plan in this exact structure:

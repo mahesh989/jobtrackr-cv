@@ -11,7 +11,7 @@ Read these before any check:
 - .claude/graph.json — specifically the operational_notes section about 
   migration tracking (currently: CLI-untracked, manually applied)
 - supabase/migrations/ — the current migration history
-- CLAUDE.md and DESIGN.md — for any migration-related conventions
+- CLAUDE.md and docs/design.md — for any migration-related conventions
 
 ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ migration work and surface any risks before the user executes:
      sequential number
 
 3. External references check
-   - Grep for migration filenames in: graph.json, DESIGN.md, CLAUDE.md, 
+   - Grep for migration filenames in: graph.json, docs/design.md, CLAUDE.md, 
      and application code (web/, cv-backend/, worker/)
    - If renames are proposed: list every reference that will need 
      updating
