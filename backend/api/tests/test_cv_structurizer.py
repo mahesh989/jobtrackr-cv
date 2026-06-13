@@ -16,8 +16,6 @@ from app.services.cv.cv_structurizer import (
 # A realistic raw-AI payload modelled on Shanti's CV (3-month placement +
 # off-field accountant/cleaner, ongoing Master's, Cert IV, missing dates).
 SHANTI_RAW = {
-    "contact": {"name": "Shanti Giri", "email": "shanti@example.com",
-                "phone": "0415690003", "location": "Hurstville, NSW", "links": []},
     "summary": "Aged Care Support Worker with Certificate IV in Ageing Support.",
     "experience": [
         {"employer": "RFBI Concord Community Village", "role": "Aged Care Placement",
@@ -39,6 +37,10 @@ SHANTI_RAW = {
         {"institution": "Pokhara University", "qualification": "Bachelor of Business Administration",
          "location": "Pokhara", "start_date": "", "end_date": "Completed 2021", "completed": True},
     ],
+    "awards": [
+        {"name": "Staff Excellence Award", "issuer": "The Jesmond Group",
+         "location": "Sydney", "date": "August 2025", "description": ""},
+    ],
     "certifications": [
         {"name": "Certificate IV in Ageing Support", "issuer": "Elite Institute",
          "code": "CHC43015", "issued_date": "Apr 2026"},
@@ -59,9 +61,27 @@ SHANTI_RAW_WITH_SKILLS = {
 class TestNormalise:
     def test_full_shape_present(self):
         s = normalise_structured_cv(SHANTI_RAW)
-        for key in ("contact", "summary", "experience", "education",
+        for key in ("summary", "experience", "education", "awards",
                     "certifications", "skills", "references", "gaps"):
             assert key in s
+
+    def test_contact_block_not_emitted(self):
+        s = normalise_structured_cv(SHANTI_RAW)
+        assert "contact" not in s
+
+    def test_awards_preserved_verbatim(self):
+        s = normalise_structured_cv(SHANTI_RAW)
+        assert s["awards"] == [{
+            "name": "Staff Excellence Award",
+            "issuer": "The Jesmond Group",
+            "location": "Sydney",
+            "date": "August 2025",
+            "description": "",
+        }]
+
+    def test_awards_default_empty(self):
+        s = normalise_structured_cv({"summary": ""})
+        assert s["awards"] == []
 
     def test_skills_lowercased_and_deduped(self):
         s = normalise_structured_cv(SHANTI_RAW_WITH_SKILLS)
@@ -200,10 +220,10 @@ class TestGapDetection:
         gaps = detect_gaps(normalise_structured_cv(raw))
         assert any(g["section"] == "education" and g["field"] == "dates" for g in gaps)
 
-    def test_flags_missing_email(self):
-        raw = {"contact": {"name": "X", "email": ""}}
-        gaps = detect_gaps(normalise_structured_cv(raw))
-        assert any(g["section"] == "contact" and g["field"] == "email" for g in gaps)
+    def test_does_not_flag_contact(self):
+        """Contact gaps are not surfaced — contact comes from user profile."""
+        gaps = detect_gaps(normalise_structured_cv({"summary": "x"}))
+        assert not any(g["section"] == "contact" for g in gaps)
 
     def test_flags_no_summary(self):
         raw = {"summary": ""}
@@ -218,7 +238,6 @@ class TestGapDetection:
 
     def test_clean_cv_has_no_date_or_contact_gaps(self):
         raw = {
-            "contact": {"name": "Jane", "email": "jane@x.com"},
             "summary": "Experienced AIN.",
             "experience": [{"employer": "ABC Care", "role": "AIN",
                             "start_date": "Jan 2024", "end_date": "Present",

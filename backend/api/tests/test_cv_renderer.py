@@ -5,8 +5,6 @@ from app.services.cv.cv_renderer import render_canonical_cv
 
 
 SHANTI_STRUCTURED = {
-    "contact": {"name": "Shanti Giri", "email": "shanti@example.com",
-                "phone": "0415690003", "location": "Hurstville, NSW", "links": []},
     "summary": "Aged Care Support Worker with Cert IV.",
     "experience": [
         {"employer": "RFBI Concord Community Village", "role": "Aged Care Placement",
@@ -25,6 +23,10 @@ SHANTI_STRUCTURED = {
          "location": "", "start_date": "", "end_date": "Apr 2026",
          "completed": True, "_moved_from_certifications": True},
     ],
+    "awards": [
+        {"name": "Staff Excellence Award", "issuer": "The Jesmond Group",
+         "location": "", "date": "August 2025", "description": ""},
+    ],
     "certifications": [
         {"name": "First Aid", "issuer": "NovaCare", "code": "HLTAID011", "issued_date": "Apr 2026"},
     ],
@@ -40,13 +42,34 @@ SHANTI_STRUCTURED = {
 class TestRender:
     def test_section_order(self):
         out = render_canonical_cv(SHANTI_STRUCTURED)
-        # Skills above Summary per product decision; Cert/Lic after Education.
+        # Skills above Summary per product decision; Awards between Education
+        # and Certifications.
         skills_at = out.index("## Skills")
         summary_at = out.index("## Professional Summary")
         experience_at = out.index("## Experience")
         education_at = out.index("## Education")
+        awards_at = out.index("## Awards")
         cert_at = out.index("## Certifications & Licences")
-        assert skills_at < summary_at < experience_at < education_at < cert_at
+        assert skills_at < summary_at < experience_at < education_at < awards_at < cert_at
+
+    def test_no_contact_line_rendered(self):
+        out = render_canonical_cv(SHANTI_STRUCTURED)
+        # Contact comes from user profile via stamp_contact_line() in the
+        # analysis renderer — never from the structured CV.
+        assert "shanti@example.com" not in out
+        assert "Hurstville" not in out
+        assert "0415690003" not in out
+
+    def test_awards_rendered(self):
+        out = render_canonical_cv(SHANTI_STRUCTURED)
+        assert "## Awards" in out
+        assert "Staff Excellence Award" in out
+        assert "August 2025" in out
+
+    def test_empty_awards_section_omitted(self):
+        no_awards = {**SHANTI_STRUCTURED, "awards": []}
+        out = render_canonical_cv(no_awards)
+        assert "## Awards" not in out
 
     def test_skills_use_canonical_labels(self):
         out = render_canonical_cv(SHANTI_STRUCTURED)
@@ -95,10 +118,6 @@ class TestRender:
     def test_empty_structured_renders_empty_string(self):
         assert render_canonical_cv({}).strip() == ""
         assert render_canonical_cv(None).strip() == ""
-
-    def test_contact_line_format(self):
-        out = render_canonical_cv(SHANTI_STRUCTURED)
-        assert "Hurstville, NSW · 0415690003 · [shanti@example.com](mailto:shanti@example.com)" in out
 
     def test_bullets_rendered_with_dash_prefix(self):
         out = render_canonical_cv(SHANTI_STRUCTURED)

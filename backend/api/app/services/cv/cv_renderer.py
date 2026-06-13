@@ -11,13 +11,18 @@ out.
 
 Order is fixed (Skills above Summary per product call):
 
-  1. Contact line
+  1. Skills
   2. Professional Summary
-  3. Skills
-  4. Experience
-  5. Education
+  3. Experience
+  4. Education
+  5. Awards               (omitted if empty)
   6. Certifications & licences  (omitted if empty)
   7. References
+
+Contact details are NOT rendered here — the analysis orchestrator stamps
+the contact line from the user's profile via stamp_contact_line(). The
+review form has no contact section; the user edits their contact via the
+profile page.
 
 Dates and content are rendered verbatim — never altered, never inferred.
 Sections with no content are simply omitted; the same structured CV always
@@ -33,17 +38,8 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
     structured = structured or {}
     out: List[str] = []
 
-    # Heading: name as H1
-    name = _str((structured.get("contact") or {}).get("name"))
-    if name:
-        out.append(f"# {name}")
-        out.append("")
-
-    # Contact line
-    contact_line = _render_contact_line(structured.get("contact") or {})
-    if contact_line:
-        out.append(contact_line)
-        out.append("")
+    # No name/contact line — the orchestrator's stamp_contact_line() adds
+    # them from the user profile when the analysis pipeline runs.
 
     # Professional Summary (rendered AFTER Skills per product call, but the
     # bucket order chose Skills above Summary because skills lead with what
@@ -80,6 +76,16 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
             out.extend(_render_education_entry(entry))
             out.append("")
 
+    # Awards (omitted when empty)
+    awards = structured.get("awards") or []
+    if awards:
+        out.append("## Awards")
+        out.append("")
+        for a in awards:
+            for line in _render_award_lines(a):
+                out.append(line)
+        out.append("")
+
     # Certifications & licences (omitted when empty — care VET quals get
     # routed to Education upstream by the structurizer).
     certifications = structured.get("certifications") or []
@@ -108,22 +114,27 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
 # Section renderers
 # ---------------------------------------------------------------------------
 
-def _render_contact_line(contact: Dict[str, Any]) -> str:
+def _render_award_lines(a: Dict[str, Any]) -> List[str]:
+    name = _str(a.get("name"))
+    issuer = _str(a.get("issuer"))
+    location = _str(a.get("location"))
+    date = _str(a.get("date"))
+    description = _str(a.get("description"))
     parts: List[str] = []
-    location = _str(contact.get("location"))
+    if name:
+        parts.append(name)
+    if issuer:
+        parts.append(issuer)
     if location:
         parts.append(location)
-    phone = _str(contact.get("phone"))
-    if phone:
-        parts.append(phone)
-    email = _str(contact.get("email"))
-    if email:
-        parts.append(f"[{email}](mailto:{email})")
-    for link in contact.get("links") or []:
-        link_s = _str(link)
-        if link_s:
-            parts.append(link_s)
-    return " · ".join(parts)
+    if date:
+        parts.append(date)
+    lines: List[str] = []
+    if parts:
+        lines.append(f"- {' · '.join(parts)}")
+    if description:
+        lines.append(f"  {description}")
+    return lines
 
 
 def _render_skills(skills: Dict[str, Any]) -> List[str]:
