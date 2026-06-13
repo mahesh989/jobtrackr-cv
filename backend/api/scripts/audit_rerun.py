@@ -49,7 +49,7 @@ SHANTI = {
         # NSW Health undergrad — De-escalation hallucination + Technical Skills label
         "bf4bdf33-df2f-42d1-84b4-48edd89362fa",
     ],
-    "jobs_index_path": "cv-backend/docs/realtest/jobs_index.json",
+    "jobs_index_path": "backend/api/docs/realtest/jobs_index.json",
 }
 
 RASHMI = {

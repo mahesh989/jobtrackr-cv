@@ -1,7 +1,7 @@
 """
 Tests for the adaptive PDF layout engine (adaptive_layout.py + pdf_generator.py).
 
-Run from cv-backend/:
+Run from backend/api/:
     PYTHONPATH=. python -m pytest tests/test_pdf_adaptive.py -v
 
 Gates verified:

@@ -1,7 +1,7 @@
 """Golden-JD regression harness — CLI entry point.
 
 Phase 4 of the JD-extraction quality programme. See
-``cv-backend/docs/PHASE_2_PLUS_STATUS.md`` for the rationale; see
+``backend/api/docs/PHASE_2_PLUS_STATUS.md`` for the rationale; see
 ``tests/golden/harness.py`` for the shared evaluation library.
 
 Two modes:
@@ -35,8 +35,8 @@ from pathlib import Path
 from typing import List
 
 
-# Make ``cv-backend/`` importable so tests.golden.harness resolves whether
-# this script is run from cv-backend/ or elsewhere.
+# Make ``backend/api/`` importable so tests.golden.harness resolves whether
+# this script is run from backend/api/ or elsewhere.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))

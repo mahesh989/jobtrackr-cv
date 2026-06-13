@@ -12,7 +12,7 @@ The JD-analysis pipeline writes two diagnostic streams:
     A regex extractor pulls the structured payload back out of a log file
     if one is supplied.
 
-Run from cv-backend/:
+Run from backend/api/:
 
     python scripts/audit_lexicon_gaps.py \\
         --unknown /tmp/jobtrackr_unknown_phrases.jsonl \\

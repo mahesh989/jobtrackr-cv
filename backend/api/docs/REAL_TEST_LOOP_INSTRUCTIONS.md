@@ -49,7 +49,7 @@ hack it.
 2. **Tests baseline.** `cd cv-backend && ./.venv/bin/pytest -q` → must be **915 passed**.
    This is the floor; never commit a batch that drops below it.
 3. **OpenAI key.** The user pastes it in chat. **Never write it to a committed file.** Export
-   it into the loop's environment only (e.g. a gitignored `cv-backend/.env.realtest` that the
+   it into the loop's environment only (e.g. a gitignored `backend/api/.env.realtest` that the
    driver reads, or an inline env var). Confirm it's gitignored.
 4. **Local cv-backend, refactor-branch code.** The whole point is to test *our new code*
    without a Fly deploy. Run cv-backend locally so edits take effect on restart:
@@ -58,7 +58,7 @@ hack it.
    ```
    (Run it in the background via the Bash tool's `run_in_background`. Verify it answers
    `GET /health` or similar before driving traffic.)
-   - It already has Supabase service-role creds in `cv-backend/.env` → it can read jobs + the
+   - It already has Supabase service-role creds in `backend/api/.env` → it can read jobs + the
      active CV and write `analysis_runs`.
    - The HMAC header: internal routes are HMAC-guarded (`JOBTRACKR_HMAC_SECRET`). The driver
      must sign requests the same way the web layer does — **find the signing helper first**
@@ -89,13 +89,13 @@ saves a wrong-shaped script later.
 
 - **Option B — in-process (simpler for a dev loop):** import and call
   `run_analysis_pipeline(AnalyzeRequest(...))` directly from a small script under
-  `cv-backend/scripts/realtest_driver.py`, using `make_ai_client("openai", key, model)`.
+  `backend/api/scripts/realtest_driver.py`, using `make_ai_client("openai", key, model)`.
   No HTTP, no HMAC, but you must replicate the row pre-creation the orchestrator expects
   (check `orchestrator.py` for what it reads/writes; it pre-reads cached step results, so a
   fresh `run_id` per re-run avoids resume collisions). **This is the recommended path** —
   fewer moving parts, and you can read the returned/persisted result directly.
 
-Write `cv-backend/scripts/realtest_driver.py` as the reusable entry the loop calls. Keep it
+Write `backend/api/scripts/realtest_driver.py` as the reusable entry the loop calls. Keep it
 **idempotent per job** (fresh `run_id`, but record the source job id in the ledger so we never
 double-process).
 
@@ -105,8 +105,8 @@ double-process).
 The only reliable progress record is **on disk.** Create and maintain:
 
 ```
-cv-backend/docs/realtest/ledger.json     # progress + findings (COMMITTED each batch)
-cv-backend/docs/realtest/runs/<jobid>.json   # raw analysis output per job (for diffing)
+backend/api/docs/realtest/ledger.json     # progress + findings (COMMITTED each batch)
+backend/api/docs/realtest/runs/<jobid>.json   # raw analysis output per job (for diffing)
 ```
 
 `ledger.json` shape (create it on first run):
@@ -188,7 +188,7 @@ ledger (top issue classes, total commits, anything deferred), commit, and **stop
 
 **How the user starts it (they type this once):**
 ```
-/loop continue the real-test loop per cv-backend/docs/REAL_TEST_LOOP_INSTRUCTIONS.md — read the ledger, process the next batch of 5, fix broadly, commit, update the ledger, repeat until all 40 done
+/loop continue the real-test loop per backend/api/docs/REAL_TEST_LOOP_INSTRUCTIONS.md — read the ledger, process the next batch of 5, fix broadly, commit, update the ledger, repeat until all 40 done
 ```
 (No interval → self-paced. The model picks the wake delay with `ScheduleWakeup` after each
 batch — a batch involves real LLM calls + edits + pytest, so pace at the natural batch

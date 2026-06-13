@@ -37,7 +37,7 @@ migration work and surface any risks before the user executes:
 
 3. External references check
    - Grep for migration filenames in: graph.json, docs/design.md, CLAUDE.md, 
-     and application code (web/, cv-backend/, worker/)
+     and application code (web/, backend/api/, backend/worker/)
    - If renames are proposed: list every reference that will need 
      updating
 
@@ -111,6 +111,6 @@ Rules:
   user to clarify. Do not guess.
 - Be specific. "There's a risk" is useless. "Migration 021 drops the 
   cv_versions.original_pdf_path column which is read by 
-  cv-backend/app/services/cv/pdf_generator.py line 47 — this will 
+  backend/api/app/services/cv/pdf_generator.py line 47 — this will 
   break PDF generation for any analysis run that references an 
   unmigrated CV" is useful.

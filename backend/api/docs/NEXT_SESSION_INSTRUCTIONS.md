@@ -47,13 +47,13 @@ orchestrator.py
 
 | Concern | File |
 |---|---|
-| JD analysis system prompt | `cv-backend/app/services/ai/prompts/jd_analysis.py` (UNCHANGED — IT-centric, only domain_knowledge examples are GDPR/data warehouse/IFRS/agile) |
-| JD analysis runner | `cv-backend/app/services/pipeline/steps/jd_analysis.py` |
-| Role-family resolver | `cv-backend/app/services/eval/role_families.py` (`resolve_role_family`, `category_labels`, `category_order`) |
-| Lexicon classifier | `cv-backend/app/services/skills/classifier.py` (`classify`, `normalise`, `is_noise`) |
-| Lexicon post-process | `cv-backend/app/services/skills/post_process.py` (`post_process_skills`, `post_process_jd_analysis`, the three new recognisers, the new JD-body scan) |
-| Lexicons | `cv-backend/app/services/skills/lexicons/{_universal_noise,nursing,tech,cleaning}.json` |
-| Orchestrator wiring | `cv-backend/app/services/pipeline/orchestrator.py:155-217` |
+| JD analysis system prompt | `backend/api/app/services/ai/prompts/jd_analysis.py` (UNCHANGED — IT-centric, only domain_knowledge examples are GDPR/data warehouse/IFRS/agile) |
+| JD analysis runner | `backend/api/app/services/pipeline/steps/jd_analysis.py` |
+| Role-family resolver | `backend/api/app/services/eval/role_families.py` (`resolve_role_family`, `category_labels`, `category_order`) |
+| Lexicon classifier | `backend/api/app/services/skills/classifier.py` (`classify`, `normalise`, `is_noise`) |
+| Lexicon post-process | `backend/api/app/services/skills/post_process.py` (`post_process_skills`, `post_process_jd_analysis`, the three new recognisers, the new JD-body scan) |
+| Lexicons | `backend/api/app/services/skills/lexicons/{_universal_noise,nursing,tech,cleaning}.json` |
+| Orchestrator wiring | `backend/api/app/services/pipeline/orchestrator.py:155-217` |
 
 ### Known weaknesses to investigate (improvement candidates)
 
@@ -86,9 +86,9 @@ CV skills are categorised at **upload time** (separate from JD analysis), then r
 
 | File | Role |
 |---|---|
-| `cv-backend/app/services/cv/skill_categoriser.py` | AI categoriser (per-CV, one-time, cached on `cv_versions.skill_categories`) |
-| `cv-backend/app/services/ai/prompts/cv_skill_categorisation.py` | Categoriser system prompt (HAS nursing/care examples — unlike JD) |
-| `cv-backend/app/services/skills/post_process.py:post_process_cv_skills` | Universal-noise filter ONLY (no vertical lexicon — CV-side vertical is unknown at upload time) |
+| `backend/api/app/services/cv/skill_categoriser.py` | AI categoriser (per-CV, one-time, cached on `cv_versions.skill_categories`) |
+| `backend/api/app/services/ai/prompts/cv_skill_categorisation.py` | Categoriser system prompt (HAS nursing/care examples — unlike JD) |
+| `backend/api/app/services/skills/post_process.py:post_process_cv_skills` | Universal-noise filter ONLY (no vertical lexicon — CV-side vertical is unknown at upload time) |
 
 ### Known weaknesses
 
@@ -130,11 +130,11 @@ Post-composition deterministic passes (writers.py):
 
 | File | Role |
 |---|---|
-| `cv-backend/app/services/ai/prompts/variants/composition.py` | The big universal-engine prompt + nursing pack |
-| `cv-backend/app/services/eval/writers.py:1632-1900` | Summary post-processors (concreteness, breadth, dedup) |
-| `cv-backend/app/services/eval/writers.py:3900-4100` | Setting classifier + bridge phrases |
-| `cv-backend/app/services/eval/writers.py:1736-1810` | `_compose_concrete_s2` deterministic template |
-| `cv-backend/app/services/eval/enforce_w3.py` | `enforce_summary_identity` |
+| `backend/api/app/services/ai/prompts/variants/composition.py` | The big universal-engine prompt + nursing pack |
+| `backend/api/app/services/eval/writers.py:1632-1900` | Summary post-processors (concreteness, breadth, dedup) |
+| `backend/api/app/services/eval/writers.py:3900-4100` | Setting classifier + bridge phrases |
+| `backend/api/app/services/eval/writers.py:1736-1810` | `_compose_concrete_s2` deterministic template |
+| `backend/api/app/services/eval/enforce_w3.py` | `enforce_summary_identity` |
 
 ### Known weaknesses
 
@@ -178,12 +178,12 @@ writers._writer_w8_verified
 
 | File | Role |
 |---|---|
-| `cv-backend/app/services/pipeline/steps/keyword_feasibility.py` | The feasibility AI call + qualification filter |
-| `cv-backend/app/services/ai/prompts/keyword_feasibility.py` | Feasibility prompt |
-| `cv-backend/app/services/eval/writers.py:`_inject_approved_skills`` | Cap-aware injector (Fix C, family-aware) |
-| `cv-backend/app/services/eval/writers.py:`_targeted_bullet_rewrites`` | Per-bullet AI rewrites for missed inject_as_extension keywords |
-| `cv-backend/app/services/eval/writers.py:`_drop_subsumed_generic_skills`` | Removes generic skill once a specific child surfaces |
-| `cv-backend/app/services/eval/role_families.py:`promote_matched_equivalents`` | Sprint L: synonym promotions + cert hierarchy |
+| `backend/api/app/services/pipeline/steps/keyword_feasibility.py` | The feasibility AI call + qualification filter |
+| `backend/api/app/services/ai/prompts/keyword_feasibility.py` | Feasibility prompt |
+| `backend/api/app/services/eval/writers.py:`_inject_approved_skills`` | Cap-aware injector (Fix C, family-aware) |
+| `backend/api/app/services/eval/writers.py:`_targeted_bullet_rewrites`` | Per-bullet AI rewrites for missed inject_as_extension keywords |
+| `backend/api/app/services/eval/writers.py:`_drop_subsumed_generic_skills`` | Removes generic skill once a specific child surfaces |
+| `backend/api/app/services/eval/role_families.py:`promote_matched_equivalents`` | Sprint L: synonym promotions + cert hierarchy |
 
 ### Known weaknesses
 
@@ -218,25 +218,25 @@ writers._writer_w8_verified
 
 | Concern | File |
 |---|---|
-| Orchestrator (pipeline glue) | `cv-backend/app/services/pipeline/orchestrator.py` |
-| JD analysis AI step | `cv-backend/app/services/pipeline/steps/jd_analysis.py` |
-| JD analysis prompt | `cv-backend/app/services/ai/prompts/jd_analysis.py` |
-| CV-JD matching AI step | `cv-backend/app/services/pipeline/steps/cv_jd_matching.py` |
-| CV-JD matching prompt | `cv-backend/app/services/ai/prompts/cv_jd_matching.py` |
-| ATS scoring (deterministic) | `cv-backend/app/services/pipeline/steps/ats_scoring.py` |
-| Feasibility AI step | `cv-backend/app/services/pipeline/steps/keyword_feasibility.py` |
-| Lexicon classifier | `cv-backend/app/services/skills/classifier.py` |
-| Lexicon post-process (incl. JD-body scan + 3 recognisers) | `cv-backend/app/services/skills/post_process.py` |
-| Skill lexicons | `cv-backend/app/services/skills/lexicons/{_universal_noise,nursing,tech,cleaning}.json` |
-| Role families + equivalences | `cv-backend/app/services/eval/role_families.py` |
-| Production tailored-CV writer | `cv-backend/app/services/eval/writers.py:_writer_w8_verified` |
-| Composition prompt (W8 user msg) | `cv-backend/app/services/ai/prompts/variants/composition.py` |
-| W3 enforcement (apply_w3_gates) | `cv-backend/app/services/eval/enforce_w3.py` |
-| Summary honesty gates | `cv-backend/app/services/eval/writers.py:1632-1900, 3900-4280` |
-| Skills-section hygiene tests | `cv-backend/tests/test_skills_hygiene.py` |
-| Lexicon post-process tests | `cv-backend/tests/test_skills_post_process.py` |
-| Summary honesty tests | `cv-backend/tests/test_summary_honesty_fixes.py` |
-| JD setting classifier tests | `cv-backend/tests/test_jd_setting_classifier.py` |
-| Sprint E summary concreteness tests | `cv-backend/tests/test_sprint_e_summary.py` |
+| Orchestrator (pipeline glue) | `backend/api/app/services/pipeline/orchestrator.py` |
+| JD analysis AI step | `backend/api/app/services/pipeline/steps/jd_analysis.py` |
+| JD analysis prompt | `backend/api/app/services/ai/prompts/jd_analysis.py` |
+| CV-JD matching AI step | `backend/api/app/services/pipeline/steps/cv_jd_matching.py` |
+| CV-JD matching prompt | `backend/api/app/services/ai/prompts/cv_jd_matching.py` |
+| ATS scoring (deterministic) | `backend/api/app/services/pipeline/steps/ats_scoring.py` |
+| Feasibility AI step | `backend/api/app/services/pipeline/steps/keyword_feasibility.py` |
+| Lexicon classifier | `backend/api/app/services/skills/classifier.py` |
+| Lexicon post-process (incl. JD-body scan + 3 recognisers) | `backend/api/app/services/skills/post_process.py` |
+| Skill lexicons | `backend/api/app/services/skills/lexicons/{_universal_noise,nursing,tech,cleaning}.json` |
+| Role families + equivalences | `backend/api/app/services/eval/role_families.py` |
+| Production tailored-CV writer | `backend/api/app/services/eval/writers.py:_writer_w8_verified` |
+| Composition prompt (W8 user msg) | `backend/api/app/services/ai/prompts/variants/composition.py` |
+| W3 enforcement (apply_w3_gates) | `backend/api/app/services/eval/enforce_w3.py` |
+| Summary honesty gates | `backend/api/app/services/eval/writers.py:1632-1900, 3900-4280` |
+| Skills-section hygiene tests | `backend/api/tests/test_skills_hygiene.py` |
+| Lexicon post-process tests | `backend/api/tests/test_skills_post_process.py` |
+| Summary honesty tests | `backend/api/tests/test_summary_honesty_fixes.py` |
+| JD setting classifier tests | `backend/api/tests/test_jd_setting_classifier.py` |
+| Sprint E summary concreteness tests | `backend/api/tests/test_sprint_e_summary.py` |
 | Skills audit beta page | `web/src/app/(dashboard)/dashboard/beta/skills-audit/` |
 | Summary audit beta page | `web/src/app/(dashboard)/dashboard/beta/summary-audit/` |

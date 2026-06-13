@@ -55,7 +55,7 @@ type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 const JD_MIN_CHARS = 50;
 
-/** Replicate make_company_slug() from cv-backend/app/services/company/slug.py */
+/** Replicate make_company_slug() from backend/api/app/services/company/slug.py */
 function makeCompanySlug(name: string): string {
   return (
     name

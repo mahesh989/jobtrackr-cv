@@ -41,7 +41,7 @@ Your job:
    and manual code reading instead.
 
 5. Verify build still works if relevant: `npm run build` in web/, or 
-   Python imports resolve in cv-backend/.
+   Python imports resolve in backend/api/.
 
 ────────────────────────────────────────────────────────────────────
 

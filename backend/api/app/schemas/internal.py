@@ -50,7 +50,7 @@ class AnalyzeRequest(BaseModel):
     # compat with any caller that still sends them.
     #
     # Initial-gate value lowered 60 → 50 alongside ATS scoring v2
-    # (cv-backend/docs/ATS_SCORING_V2.md): v1 awarded an 8-pt role-family
+    # (backend/api/docs/ATS_SCORING_V2.md): v1 awarded an 8-pt role-family
     # "freebie" and double-counted required-keyword match-rate in Cat 2,
     # which inflated borderline CVs into the 60s. v2 removes both, so an
     # honest moderate-fit CV that v1 scored 62 (with 8 freebie + ~7

@@ -121,7 +121,7 @@ callers continue working unchanged.
 
 ## Phase 1 — Extract JD Setting Bridge
 
-**New file:** `cv-backend/app/services/eval/summary_bridge.py`
+**New file:** `backend/api/app/services/eval/summary_bridge.py`
 
 **Move these definitions out of writers.py (lines ~3898–4139):**
 ```python
@@ -171,7 +171,7 @@ python3 -c "from app.services.eval.summary_bridge import _classify_jd_setting; p
 
 ## Phase 2 — Extract Skill Hygiene
 
-**New file:** `cv-backend/app/services/eval/skill_hygiene.py`
+**New file:** `backend/api/app/services/eval/skill_hygiene.py`
 
 **Move these out of writers.py (lines ~1962–2566 and ~2265–2565):**
 ```python
@@ -231,7 +231,7 @@ print('Pipeline skill imports OK')
 
 ## Phase 3 — Extract Awards & Credentials
 
-**New file:** `cv-backend/app/services/eval/awards_credentials.py`
+**New file:** `backend/api/app/services/eval/awards_credentials.py`
 
 **Move these out of writers.py (lines ~2567–3703):**
 ```python
@@ -295,7 +295,7 @@ print('Awards/credentials imports OK')
 **Confirmed by audit:** All Phase 4 symbols are defined in writers.py.
 This is real work — not a no-op.
 
-**New file:** `cv-backend/app/services/eval/body_polish.py`
+**New file:** `backend/api/app/services/eval/body_polish.py`
 
 **Move these out of writers.py (lines ~506–1900, mixed in with experience/polish):**
 ```python
@@ -351,7 +351,7 @@ print('Body polish imports OK')
 
 ## Phase 5 — Extract Summary + Bullet Utilities
 
-**New file:** `cv-backend/app/services/eval/summary_utils.py`
+**New file:** `backend/api/app/services/eval/summary_utils.py`
 
 **Move these out of writers.py (lines ~1638–1960 and ~4380–4572):**
 ```python
@@ -402,7 +402,7 @@ print('Summary/bullet imports OK')
 
 **This is the largest and riskiest phase. Do last.**
 
-**New file:** `cv-backend/app/services/eval/writer_variants_eval.py`
+**New file:** `backend/api/app/services/eval/writer_variants_eval.py`
 
 **Move writer functions that are NOT used by production:**
 ```python

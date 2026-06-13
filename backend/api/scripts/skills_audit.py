@@ -2,7 +2,7 @@
 DB skills audit: extract Other Skills from all recent tailored CVs, classify each
 item, and output a gap report. No API calls — purely DB read + classify().
 
-Usage (from cv-backend/):
+Usage (from backend/api/):
     python3 scripts/skills_audit.py > /tmp/skills_audit.json
 """
 import json, re, os, sys

@@ -255,7 +255,7 @@ async def run_fixture_check(
     Prints story counts, story summaries, and the PASS criteria for each
     fixture. The auditor reads the output and confirms each P-criterion manually.
 
-    Usage (from cv-backend/):
+    Usage (from backend/api/):
         python -c "
         import asyncio, os
         from app.services.ai.prompts.cover_letter.story_extraction_fixtures import run_fixture_check

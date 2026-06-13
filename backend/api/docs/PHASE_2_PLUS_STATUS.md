@@ -116,7 +116,7 @@ in a single call. Full suite: **869 passed** (up from 864).
 
 Emits JSON with: top-N unknown phrases grouped by vertical+bucket,
 top-N overall unknown phrases, top-N ungrounded drops keyed by
-`(vertical, skill, reason)`. Run from `cv-backend/`:
+`(vertical, skill, reason)`. Run from `backend/api/`:
 
 ```bash
 python scripts/audit_lexicon_gaps.py \
@@ -206,7 +206,7 @@ extracted that isn't in the gold set is a hallucination) and **recall**
 (% of gold-set keywords extracted).
 
 ### Design
-1. **Corpus.** `cv-backend/tests/golden/jds/` — one Markdown file per
+1. **Corpus.** `backend/api/tests/golden/jds/` — one Markdown file per
    JD with a YAML frontmatter:
    ```yaml
    ---
@@ -228,7 +228,7 @@ extracted that isn't in the gold set is a hallucination) and **recall**
    `expected.required.{cat}` is the **ground truth** for that JD —
    what an honest, complete, non-hallucinating analysis should produce.
 
-2. **Harness** (`cv-backend/scripts/golden_jd_eval.py`):
+2. **Harness** (`backend/api/scripts/golden_jd_eval.py`):
    - Loads each JD + its expected set.
    - Calls `run_jd_analysis(ai_client, jd_text)` — real AI call, BYOK key
      read from env (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`).

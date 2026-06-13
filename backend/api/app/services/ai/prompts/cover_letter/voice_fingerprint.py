@@ -1,6 +1,6 @@
 """Voice fingerprint extraction prompt — Phase 1 of the cover letter feature.
 
-Used in: cv-backend/app/services/voice/voice_fingerprint.py
+Used in: backend/api/app/services/voice/voice_fingerprint.py
 Reused in: Phase 4, Pass 2 (voice transfer) — same fingerprint, same prompt.
 """
 

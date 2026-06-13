@@ -20,7 +20,7 @@
 --   'failed:<short_reason>'  — INSERT errored or trigger errored. Reason
 --                              is the truncated exception summary.
 --
--- All writes go through cv-backend/app/services/automation/auto_cover_letter.py
+-- All writes go through backend/api/app/services/automation/auto_cover_letter.py
 -- and orchestrator.py — never from web. Read by the analyze run detail page.
 
 ALTER TABLE analysis_runs
