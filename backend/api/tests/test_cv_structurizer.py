@@ -121,6 +121,43 @@ class TestNormalise:
         assert s["certifications"] == []
         assert any("Individual Support" in e["qualification"] for e in s["education"])
 
+    def test_merges_wrapped_bullets(self):
+        """PDF column wrapping splits one bullet into 2-3 fragments. The
+        deterministic merger rejoins them based on continuation cues."""
+        raw = {"experience": [{"employer": "Uniting", "role": "AIN",
+                               "start_date": "Mar 2026", "end_date": "Present",
+                               "bullets": [
+                                   "Provide person-centred care to residents, supporting daily living activities such as bathing, dressing,",
+                                   "and meal assistance.",
+                                   "Monitor and report changes in residents' physical and emotional wellbeing to nursing staff.",
+                                   "Maintain a safe and comfortable environment, adhering to manual handling and infection control",
+                                   "protocols.",
+                                   "Support residents living with dementia using person-centred approaches, behavioural management",
+                                   "techniques, and meaningful engagement.",
+                               ]}]}
+        s = normalise_structured_cv(raw)
+        bullets = s["experience"][0]["bullets"]
+        # 7 raw fragments → 4 real bullets after merging.
+        assert len(bullets) == 4, bullets
+        assert "and meal assistance" in bullets[0]
+        assert bullets[1].startswith("Monitor")
+        assert "infection control protocols" in bullets[2]
+        assert "behavioural management techniques" in bullets[3]
+        # No bullet begins with a lowercase word after merging.
+        for b in bullets:
+            assert b[0].isupper() or b[0].isdigit(), b
+
+    def test_does_not_merge_independent_bullets(self):
+        """Two independent complete sentences must remain separate."""
+        raw = {"experience": [{"employer": "X", "role": "Y",
+                               "start_date": "2024", "end_date": "2025",
+                               "bullets": [
+                                   "Provided personal care to elderly residents.",
+                                   "Assisted with medication administration daily.",
+                               ]}]}
+        s = normalise_structured_cv(raw)
+        assert len(s["experience"][0]["bullets"]) == 2
+
     def test_bullets_strip_leading_markers(self):
         """Bullets stored as text only — leading •/-/·/* stripped so the
         renderer's "- " marker doesn't render twice next to each line."""
