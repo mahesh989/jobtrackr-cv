@@ -283,6 +283,20 @@
       "title": "Multi-source shared jobs pool for scale (1000s of users)",
       "status": "designed, not built — current per-user live fetch is fine for 10-20 test users",
       "reconsider": "When approaching 50-100 daily active users or source rate-limit errors appear."
+    },
+    {
+      "id": "DEFERRED-3",
+      "title": "Split oversized service files (1k+ lines)",
+      "status": "watch list — refactor opportunity, no behaviour change required",
+      "candidates": [
+        "backend/api/app/services/eval/writers/_impl.py (1542 lines — split per writer variant)",
+        "backend/api/app/services/pipeline/steps/tailored_structural_validation.py (1265 lines — split per validator)",
+        "backend/api/app/services/ai/prompts/tailored_cv.py (1234 lines — split by section/variant)",
+        "backend/api/app/services/eval/enforce_w3.py (1139 lines — VERIFY DEAD: production writer is w8_verified; w3 may be deletable entirely)",
+        "backend/api/app/services/pipeline/steps/tailored_cv.py (841 lines — orchestrator + helpers)",
+        "backend/api/app/services/eval/role_families.py (706 lines — extract role-family configs to JSON)"
+      ],
+      "when_to_act": "When touching one of these files for an unrelated reason, or when a feature needs to add to it. Do NOT do a big-bang split — high regression risk."
     }
   ]
 }

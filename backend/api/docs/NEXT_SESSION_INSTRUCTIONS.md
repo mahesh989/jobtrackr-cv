@@ -238,5 +238,5 @@ writers._writer_w8_verified
 | Summary honesty tests | `backend/api/tests/test_summary_honesty_fixes.py` |
 | JD setting classifier tests | `backend/api/tests/test_jd_setting_classifier.py` |
 | Sprint E summary concreteness tests | `backend/api/tests/test_sprint_e_summary.py` |
-| Skills audit beta page | `web/src/app/(dashboard)/dashboard/beta/skills-audit/` |
-| Summary audit beta page | `web/src/app/(dashboard)/dashboard/beta/summary-audit/` |
+| Skills audit beta page | `frontend/web/src/app/(dashboard)/dashboard/beta/skills-audit/` |
+| Summary audit beta page | `frontend/web/src/app/(dashboard)/dashboard/beta/summary-audit/` |

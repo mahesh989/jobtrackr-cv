@@ -544,7 +544,7 @@ Six phases. Each phase ships independently. Phase 1 is a standalone deliverable 
 ### Phase 4 — Generation pipeline
 - Three-pass generation orchestration
 - Model routing layer
-- Per-pass prompt files (under `cv-backend/app/services/ai/prompts/cover_letter/`)
+- Per-pass prompt files (under `backend/api/app/services/ai/prompts/cover_letter/`)
 
 ### Phase 5 — Quality gates
 - Honesty check (claims traceable to master CV)

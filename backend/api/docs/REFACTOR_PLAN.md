@@ -97,8 +97,8 @@ callers continue working unchanged.
 
 - `app/services/pipeline/orchestrator.py`
 - `app/services/pipeline/steps/` (any file)
-- Worker code (`worker/src/`)
-- Web frontend (`web/src/`)
+- Worker code (`backend/worker/src/`)
+- Web frontend (`frontend/web/src/`)
 - Database models / migrations
 - Any Supabase queries
 - Test files — they must pass unchanged; never edit a test to make a phase pass

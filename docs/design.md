@@ -50,7 +50,7 @@ cv-magic, as a separate product, ceases to exist in this project. It is folded i
 |---|---|---|
 | `web/` | Vercel `jobtrackr-cv` | JobTrackr UI + new CV/analysis pages |
 | `worker/` | Fly.io `jobtrackr-cv-worker` | Existing job-discovery pipeline (unchanged) |
-| `cv-backend/` | Fly.io `jobtrackr-cv-api` | CV-tailoring pipeline (added in Phase 2) |
+| `backend/api/` | Fly.io `jobtrackr-cv-api` | CV-tailoring pipeline (added in Phase 2) |
 | Postgres + Storage + Realtime | Supabase | Shared with production JobTrackr — additive tables only |
 
 ## 3. Locked decisions
@@ -211,7 +211,7 @@ Each phase ends in a manual verification gate. Do not advance until the gate pas
 - **Gate:** Manual INSERT/SELECT works; Realtime fires for a test row.
 
 ### Phase 2 — cv-backend skeleton
-- Copy `cv-magic/backend/` → `cv-backend/`
+- Copy `cv-magic/backend/` → `backend/api/`
 - Strip Clerk, Stripe, quota, Resend modules
 - Add HMAC middleware
 - Adapt AI client to BYOK

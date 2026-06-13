@@ -98,7 +98,7 @@ After each step: `mark_step(run_id, step_name, "completed")` writes to `analysis
 
 ## Auth Boundary
 
-**Supabase Auth** handles all user identity. Sessions are managed by `@supabase/ssr` in `web/src/middleware.ts`.
+**Supabase Auth** handles all user identity. Sessions are managed by `@supabase/ssr` in `frontend/web/src/middleware.ts`.
 
 Every table has RLS enforced: `auth.uid() = user_id`. No table is readable by unauthenticated requests. See `docs/database.md` for the full RLS policy summary.
 
