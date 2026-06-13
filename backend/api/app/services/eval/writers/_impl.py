@@ -727,6 +727,8 @@ from app.services.eval.writers.honesty_guard import (  # noqa: E402,F401
     enforce_summary_years_gate,
     enforce_source_settings,
     pin_skills_section_labels,
+    enforce_credential_claims,
+    enforce_summary_word_floor,
     filter_irrelevant_roles_pre,
     assess_honesty_risk,
 )
@@ -1303,6 +1305,21 @@ async def _writer_w8_verified(
     #    CVs surfaced in the audit.
     _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
     verified_md, _n = pin_skills_section_labels(verified_md, _rf_id)
+    _hg_notes.extend(_n)
+    # 5. Credential-claim guard — strip unverifiable compliance claims from
+    #    bullets ("AIN with current compliance for pre-employment medical,
+    #    police, and NDIS worker clearances …"). Verified against the user's
+    #    saved credentials (contact_details.credentials). Claims the user
+    #    genuinely holds (e.g. police_check=true) survive; the rest are
+    #    stripped and surfaced via quality_flags.
+    verified_md, _n = enforce_credential_claims(verified_md, contact_details)
+    _hg_notes.extend(_n)
+    # 6. Summary word-floor flag — the composer prompt declares 35 a HARD
+    #    MINIMUM but the LLM doesn't always comply, especially after the
+    #    years-gate or concreteness rewrites trim the summary. Surface a
+    #    note in quality_flags so the user sees thin summaries; we do NOT
+    #    pad here (silent padding would defeat honesty_guard's purpose).
+    _, _n = enforce_summary_word_floor(verified_md)
     _hg_notes.extend(_n)
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes

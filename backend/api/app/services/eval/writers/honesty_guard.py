@@ -558,6 +558,204 @@ def _strip_employer_blocks(cv_text: str, drop_employers: set) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Credential-claim guard — strip unverifiable compliance claims from bullets
+# ---------------------------------------------------------------------------
+#
+# The composer occasionally tries to inject credential claims into experience
+# bullets ("AIN with current compliance for pre-employment medical, police,
+# and NDIS worker clearances in residential aged care settings"). These are
+# real-world compliance items that the candidate may or may not hold — the
+# composer has no way to know. If the candidate's profile doesn't list the
+# credential, the claim is fabrication.
+#
+# This guard scans bullets for credential-claim phrases and verifies them
+# against the user's stored credentials (contact_details["credentials"]).
+# Anything claimed but not held is downgraded — the claim phrase is stripped
+# from the bullet and the user is notified via the quality_flags badge.
+
+# Credential families. (name, individual_regex, profile_key, holds_check_alone)
+# `individual_regex` matches the credential in isolation. `profile_key` is the
+# slot in contact_details.credentials we check; None means we have no profile
+# evidence either way and must strip when the claim is found.
+_CREDENTIAL_FAMILIES = [
+    ("pre-employment medical",
+     re.compile(r"(?ix)\bpre[-\s]?employment\s+medical\b"),
+     None),
+    ("ndis worker clearance",
+     re.compile(r"(?ix)\bndis(?:\s+worker)?(?:\s+screening)?\b"),
+     None),
+    ("police clearance",
+     re.compile(r"(?ix)\b(?:national\s+)?police\b"),
+     "police_check"),
+    ("working with children check",
+     re.compile(r"(?ix)\b(?:working\s+with\s+children\s+check|wwcc|blue\s+card)\b"),
+     "wwcc"),
+]
+
+# Match the COMPOUND compliance clause: " with [current] compliance for/with X,
+# Y, and Z clearances/checks/etc." — the form composers use to list multiple
+# credentials at once. Anchored on the trailing credential noun so we strip
+# the whole list at once rather than fragments.
+_COMPOUND_CLAIM_RE = re.compile(
+    r"(?ix)"
+    r"\s*,?\s+with\s+(?:current\s+)?(?:compliance\s+(?:for|with)\s+)?"
+    r"[a-z][a-z0-9\-\s,]*?"
+    r"\b(?:clearance|check|screening|endorsement|requirements?|compliance)s?\b\.?"
+)
+
+
+def _user_holds(credentials: Dict[str, Any], key: Optional[str]) -> bool:
+    if key is None:
+        return False  # no profile slot for this credential type
+    if not isinstance(credentials, dict):
+        return False
+    val = credentials.get(key)
+    if isinstance(val, str):
+        return bool(val.strip())
+    return bool(val)
+
+
+def enforce_credential_claims(
+    md: str,
+    contact_details: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, List[str]]:
+    """Strip credential-claim phrases from bullets when the user's profile
+    does not evidence holding that credential.
+
+    Two-stage strip:
+      1. The compound-clause form ("AIN with current compliance for X, Y,
+         and Z clearances.") — match the whole clause via _COMPOUND_CLAIM_RE
+         and check each credential family inside it. If NONE of the
+         credentials listed are held by the user, the entire clause is
+         removed.
+      2. Any leftover individual mentions ("Current police check.") are
+         stripped per-family.
+
+    Only bullet lines are touched (`- ` / `* ` / `• ` prefix) — never the
+    summary, role italic-header, or skills line.
+
+    Returns (rewritten_md, notes). Notes carry the human-readable list of
+    stripped claims for the quality_flags badge.
+    """
+    creds = (contact_details or {}).get("credentials") or {}
+    if not isinstance(creds, dict):
+        creds = {}
+
+    notes: List[str] = []
+    lines = md.splitlines(keepends=True)
+
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not (stripped.startswith("- ") or stripped.startswith("* ") or stripped.startswith("• ")):
+            continue
+
+        updated = line
+
+        # ── Stage 1: compound clause strip ───────────────────────────────
+        def _strip_compound(match: "re.Match[str]") -> str:
+            clause = match.group(0)
+            mentioned: List[Tuple[str, Optional[str]]] = []
+            for name, family_re, profile_key in _CREDENTIAL_FAMILIES:
+                if family_re.search(clause):
+                    mentioned.append((name, profile_key))
+            if not mentioned:
+                return clause  # no known credential family in this clause
+            # Strip when AT LEAST ONE mentioned credential is not held —
+            # the composer cannot claim "compliance with [unheld]" honestly
+            # even if it bundled other credentials the user does hold.
+            unheld = [n for n, k in mentioned if not _user_holds(creds, k)]
+            if not unheld:
+                return clause  # everything mentioned is held → honest claim
+            notes.append(
+                "Stripped unverifiable compliance claim: " + ", ".join(unheld)
+            )
+            return ""
+
+        updated = _COMPOUND_CLAIM_RE.sub(_strip_compound, updated)
+
+        # ── Stage 2: leftover individual mentions ────────────────────────
+        for name, family_re, profile_key in _CREDENTIAL_FAMILIES:
+            # Look for ", X check"  or  " X clearance"  or  "X check"  trailing forms.
+            # The trailing noun is required so a stray "police" word (e.g. inside
+            # the word "policy") is not stripped.
+            trailing = re.compile(
+                family_re.pattern + r"\s+(?:clearance|check|screening|endorsement|compliance|requirements?)s?\b\.?",
+                family_re.flags,
+            )
+            if not trailing.search(updated):
+                continue
+            if _user_holds(creds, profile_key):
+                continue
+            new_line = trailing.sub("", updated)
+            if new_line != updated:
+                updated = new_line
+                notes.append(f"Stripped unverifiable claim: '{name}'")
+
+        if updated != line:
+            # Cosmetic cleanup: collapse the kinds of debris stripping leaves
+            # behind so the bullet still reads naturally.
+            updated = re.sub(r"\s+,", ",", updated)
+            updated = re.sub(r",\s*,", ",", updated)
+            updated = re.sub(r"\s+\.", ".", updated)
+            updated = re.sub(r"\s{2,}", " ", updated)
+            # Strip dangling " with" / " with current" / " in" left behind
+            # when a trailing clause is removed.
+            updated = re.sub(
+                r"\s+(?:with(?:\s+current)?|in)\s*\.?\s*$",
+                ".",
+                updated.rstrip("\n"),
+            ) + ("\n" if line.endswith("\n") else "")
+            lines[i] = updated
+
+    return "".join(lines), notes
+
+
+# ---------------------------------------------------------------------------
+# Summary word-floor enforcer — composer prompt declares 35 a HARD MINIMUM
+# but the LLM doesn't always comply, especially after the years-gate or
+# concreteness rewrites trim the summary. This deterministic detector
+# surfaces a quality flag so the user knows the summary is below floor and
+# can edit. We deliberately do NOT pad — silent fabrication would defeat
+# the purpose of honesty_guard.
+# ---------------------------------------------------------------------------
+
+# Floor mirrors the value declared in the composition prompt
+# (composition.py:286). Bump both together.
+_SUMMARY_WORD_FLOOR = 35
+
+
+def enforce_summary_word_floor(md: str) -> Tuple[str, List[str]]:
+    """Surface a flag when the Professional Summary is below the 35-word
+    floor declared in the composer prompt. Returns the markdown unchanged
+    (no padding) plus a notes list carrying a one-line message for the
+    quality_flags badge.
+
+    Behaviour:
+      • No Summary section found → no flag (caller decides what's normal).
+      • Summary present, < 35 words → flag.
+      • Summary present, >= 35 words → no flag.
+    """
+    if not md:
+        return md, []
+    block = _find_summary_block(md)
+    if not block:
+        return md, []
+    start, end = block
+    body = md[start:end].strip()
+    if not body:
+        return md, []
+    # Strip markdown noise so the word count reflects prose only.
+    prose = re.sub(r"[*_#`>\-]+", " ", body)
+    words = [w for w in re.split(r"\s+", prose) if w]
+    n = len(words)
+    if n >= _SUMMARY_WORD_FLOOR:
+        return md, []
+    return md, [
+        f"Professional Summary below the {_SUMMARY_WORD_FLOOR}-word floor ({n} words) — consider expanding with a CV-supported detail."
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Risk flag for the lift-vs-quality decision
 # ---------------------------------------------------------------------------
 

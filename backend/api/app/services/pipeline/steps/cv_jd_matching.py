@@ -86,6 +86,22 @@ async def run_cv_jd_matching(
     # truthful even when the model loses track.
     _reconcile_with_jd(result, jd_analysis)
 
+    # Credential sidecar — pull credential-shaped JD requirements out of
+    # matched/missed before any scoring/feasibility logic runs. JD analysis
+    # routinely mis-buckets `police clearance compliance`, `ndis worker
+    # clearance compliance`, `medication endorsement (HLTHPS007)`, and
+    # `cert iv aged care` as Care Skills; the lexicon noise list now catches
+    # most of them as exact strings, but this regex is the safety net.
+    # See _extract_credential_sidecar.
+    credentials_sidecar = _extract_credential_sidecar(result["matched"], result["missed"])
+    if any(credentials_sidecar[b][c] for b in _BUCKETS for c in _CATEGORIES):
+        result["credentials_required"] = credentials_sidecar
+        logger.info(
+            "CV-JD matching: extracted credential-shaped JD requirements to sidecar — %s",
+            {b: {c: credentials_sidecar[b][c] for c in _CATEGORIES if credentials_sidecar[b][c]}
+             for b in _BUCKETS},
+        )
+
     # Verify the AI's match_evidence: if it quoted a CV phrase that doesn't
     # actually appear in cv_text, the match was hallucinated. Demote that
     # keyword from matched → missed. Pure substring check, no LLM. The
@@ -290,6 +306,81 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Profile credential promotion
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Credential sidecar — JD analysis routinely mis-buckets credential strings
+# (police clearance compliance, ndis worker clearance, cert iv aged care,
+# medication endorsement) into domain_knowledge. The downstream score then
+# either falsely matches them as Care Skills (when the candidate happens to
+# hold the credential and it leaks into the CV text) or counts them as gaps
+# (when missing). Neither is what we want — credentials belong on the
+# Registration & Licences sidecar, evaluated against user-stored credentials,
+# not as keywords.
+#
+# This pre-match sweep extracts those JD requirements into a separate
+# `credentials_required` block so the matched/missed lists — and therefore
+# the keyword score — only carry actual skills.
+# ---------------------------------------------------------------------------
+
+# Regex pattern for credential-shaped phrases. Each branch is a distinct
+# credential family the lexicon noise list (_universal_noise.json credential
+# section) also covers as exact strings; this regex is the belt-and-braces
+# net for variants we haven't enumerated yet.
+_CREDENTIAL_PHRASE_RE = _re.compile(
+    r"(?ix)\b("
+    # Compliance / clearance / check phrases.
+    r"(?:police|national\s+police|ndis(?:\s+worker(?:\s+screening)?)?|"
+    r"pre[-\s]?employment\s+medical|criminal\s+history|"
+    r"vaccine|vaccination|immuni[sz]ation|infection\s+control|"
+    r"working\s+with\s+children|working\s+rights?|work\s+rights?|"
+    r"first\s+aid|cpr)\s+"
+    r"(?:clearance|check|requirements?|compliance|screening|endorsement)"
+    r"|"
+    # Australian unit codes (CHC… / HLT… / BSB… / FSK… / SIT… / CPP… / AHC…).
+    r"(?:chc|hlt(?:aid|hps)?|bsb|fsk|sit|cpp|ahc)\d{3,}"
+    r"|"
+    # "Cert III/IV in X" or "X cert III/IV" — qualification names.
+    r"cert(?:ificate)?\s*(?:iii|iv|3|4)"
+    r"|"
+    # Medication endorsement is a credential, not a skill.
+    r"medication\s+endorsement(?:\s*\([^)]+\))?"
+    r")\b"
+)
+
+
+def _looks_like_credential(keyword: str) -> bool:
+    """True when the phrase matches a credential pattern — should not be
+    scored as a skill keyword."""
+    return bool(_CREDENTIAL_PHRASE_RE.search(keyword or ""))
+
+
+def _extract_credential_sidecar(
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
+) -> Dict[str, Dict[str, List[str]]]:
+    """Move credential-shaped keywords OUT of matched/missed and into a sidecar.
+
+    Mutates matched/missed in-place. Returns the sidecar dict with the same
+    bucket × category shape, carrying only the moved credential strings so
+    the UI can still surface them under a 'Required credentials' section
+    without polluting the keyword score.
+    """
+    sidecar: Dict[str, Dict[str, List[str]]] = {
+        b: {c: [] for c in _CATEGORIES} for b in _BUCKETS
+    }
+    for source, label in ((matched, "matched"), (missed, "missed")):
+        for bucket in _BUCKETS:
+            for cat in _CATEGORIES:
+                kept: List[str] = []
+                for kw in source[bucket][cat]:
+                    if _looks_like_credential(kw):
+                        sidecar[bucket][cat].append(kw)
+                    else:
+                        kept.append(kw)
+                source[bucket][cat] = kept
+        del label  # quiet linter
+    return sidecar
 
 
 def _promote_profile_credentials(

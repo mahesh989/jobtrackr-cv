@@ -17,6 +17,8 @@ from app.services.eval.writers.honesty_guard import (
     enforce_summary_years_gate,
     enforce_source_settings,
     pin_skills_section_labels,
+    enforce_credential_claims,
+    enforce_summary_word_floor,
     filter_irrelevant_roles_pre,
     assess_honesty_risk,
     extract_source_facts,
@@ -371,3 +373,102 @@ class TestSourceFacts:
     def test_missing_experience_section(self):
         facts = extract_source_facts("JOHN DOE\nNo work here.\n")
         assert facts.entries == ()
+
+
+# ---------------------------------------------------------------------------
+# 7. Credential-claim guard — strip unverifiable compliance claims from bullets
+# ---------------------------------------------------------------------------
+
+class TestEnforceCredentialClaims:
+
+    def test_strips_pre_employment_medical_when_not_held(self):
+        md = (
+            "## Experience\n"
+            "### The Jesmond Group\n"
+            "*AIN | May 2025 – June 2026*\n\n"
+            "- AIN with current compliance for pre-employment medical, police, and NDIS worker clearances.\n"
+        )
+        out, notes = enforce_credential_claims(md, contact_details={})
+        assert "pre-employment medical" not in out.lower()
+        assert "ndis" not in out.lower()
+        assert "police" not in out.lower()
+        assert any("pre-employment medical" in n for n in notes)
+
+    def test_keeps_police_check_when_user_holds_it(self):
+        md = "- AIN with current police clearance compliance.\n"
+        out, _notes = enforce_credential_claims(
+            md, contact_details={"credentials": {"police_check": True}},
+        )
+        # The phrase remains because the user genuinely holds the credential.
+        assert "police" in out.lower()
+
+    def test_strips_police_check_when_user_does_not_hold(self):
+        md = "- AIN with current police clearance compliance in residential aged care.\n"
+        out, notes = enforce_credential_claims(md, contact_details={"credentials": {}})
+        assert "police clearance" not in out.lower()
+        assert any("police" in n for n in notes)
+
+    def test_leaves_non_credential_bullet_untouched(self):
+        md = "- Provided personal care to elderly residents including dementia support.\n"
+        out, notes = enforce_credential_claims(md, contact_details={})
+        assert out == md
+        assert notes == []
+
+    def test_leaves_section_headers_untouched(self):
+        md = (
+            "## Professional Summary\n"
+            "Compliance with NDIS worker clearance requirements is critical.\n"
+        )
+        out, notes = enforce_credential_claims(md, contact_details={})
+        # Non-bullet line is left as-is even if it contains the phrase.
+        assert "NDIS worker clearance" in out
+        assert notes == []
+
+    def test_handles_missing_contact_details(self):
+        md = "- AIN with current pre-employment medical clearance.\n"
+        out, notes = enforce_credential_claims(md, contact_details=None)
+        assert "pre-employment medical" not in out.lower()
+        assert notes
+
+
+# ---------------------------------------------------------------------------
+# 8. Summary word-floor flag
+# ---------------------------------------------------------------------------
+
+class TestSummaryWordFloor:
+
+    def test_flag_when_below_35_words(self):
+        # The production sample we saw — ~22 words. Should flag.
+        md = (
+            "## Professional Summary\n\n"
+            "Assistant in Nursing with experience in residential aged care, individual support, "
+            "medication administration and dementia care for elderly residents. "
+            "Recent experience at Uniting.\n\n"
+            "## Experience\n"
+        )
+        _, notes = enforce_summary_word_floor(md)
+        assert notes
+        assert "35-word floor" in notes[0]
+
+    def test_no_flag_when_at_or_above_floor(self):
+        md = (
+            "## Professional Summary\n\n"
+            "Compassionate Aged Care Support Worker with Certificate IV in Ageing Support and "
+            "120 hours of supervised clinical placement in residential aged care settings, "
+            "skilled in personal care, dementia support, medication administration, and "
+            "multidisciplinary care delivery. Recent experience at RFBI Concord and Akala Motors.\n\n"
+            "## Experience\n"
+        )
+        _, notes = enforce_summary_word_floor(md)
+        assert notes == []
+
+    def test_no_flag_when_no_summary_section(self):
+        md = "## Experience\n- Bullet only.\n"
+        _, notes = enforce_summary_word_floor(md)
+        assert notes == []
+
+    def test_does_not_mutate_markdown(self):
+        # Honesty rule: this guard surfaces a note but never pads silently.
+        md = "## Professional Summary\n\nShort summary.\n"
+        out, _ = enforce_summary_word_floor(md)
+        assert out == md
