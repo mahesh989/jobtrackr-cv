@@ -722,6 +722,14 @@ async def _writer_w7_converged(
 from app.services.eval.writers.bridges import (  # noqa: E402,F401
     _SETTING_HOME, _SETTING_HOSPITAL, _SETTING_NDIS, _SETTING_LIFESTYLE, _SETTING_THEATRE, _SETTING_RESIDENTIAL, _classify_jd_setting, _build_jd_setting_block, _CANNED_SUMMARY_RE, _HIGHLIGHT_HEADINGS_SET, _strip_canned_summary_phrase, _S1_RESIDENTIAL_RE, _SETTING_BRIDGES, _CV_HOSPITAL_MARKERS_RE, _scan_experience_section, _cv_has_hospital_experience, _CV_HOME_MARKERS_RE, _CV_NDIS_MARKERS_RE, _CV_LIFESTYLE_MARKERS_RE, _CV_THEATRE_MARKERS_RE, _cv_has_home_care_experience, _cv_has_ndis_experience, _cv_has_lifestyle_experience, _cv_has_theatre_experience, _BRIDGE_EVIDENCE_GATES, _apply_setting_bridge,
 )
+from app.services.eval.writers.honesty_guard import (  # noqa: E402,F401
+    enforce_source_dates,
+    enforce_summary_years_gate,
+    enforce_source_settings,
+    pin_skills_section_labels,
+    filter_irrelevant_roles_pre,
+    assess_honesty_risk,
+)
 async def _writer_w8_integrated(
     client: AIClient,
     cv_text: str,
@@ -731,6 +739,18 @@ async def _writer_w8_integrated(
     vertical: Optional[str] = None,
     upstream: Optional[Dict[str, Any]] = None,
 ) -> WriterResult:
+    # ── PRE-COMPOSITION HONESTY GATE ──────────────────────────────────────
+    # Strip Experience entries whose primary vertical differs from the JD's
+    # AND drops are above the floor (always keep ≥2 roles). Mutates cv_text
+    # consistently so upstream metrics + composition see the same trimmed
+    # source. Safe no-op when JD vertical is unknown or source has too few
+    # roles. The dropped employer names land in extras for the surfacing
+    # report.
+    _pre_dropped: list[str] = []
+    if vertical:
+        cv_text, _pre_dropped = filter_irrelevant_roles_pre(cv_text, vertical)
+        if _pre_dropped:
+            logger.info("w8_integrated: pre-composition role filter dropped %s", _pre_dropped)
     # `upstream` lets the production orchestrator hand in its already-computed
     # jd_analysis/matching/ats/input_recs/feasibility so the w8 path doesn't
     # re-pay those AI calls. The eval harness passes nothing → recompute.
@@ -927,6 +947,13 @@ async def _writer_w8_integrated(
         tailored_md=final_md,
     )
 
+    # Honesty-risk signal (logged, not gated). HIGH when the candidate has
+    # <3 months of vertical tenure AND the initial ATS is already low — the
+    # tailored CV probably can't add much real value, only inflation risk.
+    _honesty_risk = assess_honesty_risk(
+        cv_text, vertical,
+        initial_ats=(up["ats"] or {}).get("overall_score") if isinstance(up["ats"], dict) else None,
+    )
     return WriterResult(
         tailored_md=final_md,
         jd_analysis=up["jd_analysis"],
@@ -940,6 +967,8 @@ async def _writer_w8_integrated(
             "section_order": role_family.section_order,
             "knockouts": knockouts,
             "jd_setting": _setting,  # passed to _writer_w8_verified for bridge pass
+            "pre_filter_dropped_roles": _pre_dropped,
+            "honesty_risk": _honesty_risk,
         },
     )
 
@@ -1240,6 +1269,44 @@ async def _writer_w8_verified(
         verified_md, _setting_for_bridge, cv_text=cv_text,
     )
     verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
+    # Deterministic anchors against the source CV. Each guard is idempotent,
+    # returns (md, notes); the notes accumulate into result.extras so the
+    # orchestrator can surface "we omitted dates / dropped a setting label"
+    # as a per-run quality_flag (the user asked to be notified).
+    _hg_notes: list[str] = []
+    # 1. Date guard — replace fabricated/placeholder role dates with source-
+    #    verbatim values or strip the date slot if source has none. Kills
+    #    the "[Dates] – [Dates]" template leak + "2017–2021" / "2023–2024"
+    #    fabrications surfaced in the real-test audit.
+    verified_md, _n = enforce_source_dates(verified_md, cv_text)
+    _hg_notes.extend(_n)
+    # 2. Years-gate — strip "N+ years' experience" framing from the Summary
+    #    when the source has <12 months of vertical-aligned tenure. The
+    #    composer's default opener was overclaiming on a 3-month placement
+    #    candidate; this pulls the framing back to qualification-led.
+    #    `vertical` is passed in; fall back to the JD analysis if absent.
+    _jd_vert = vertical
+    if not _jd_vert and isinstance(result.jd_analysis, dict):
+        _jd_vert = result.jd_analysis.get("vertical")
+    verified_md, _n = enforce_summary_years_gate(verified_md, cv_text, _jd_vert)
+    _hg_notes.extend(_n)
+    # 3. Setting guard — strip setting descriptors ("retirement village",
+    #    "acute hospital ward") from role italic-headers when the source
+    #    role doesn't evidence that setting. Bullets keep their JD-vocab
+    #    reframing; the role's identity comes from source.
+    verified_md, _n = enforce_source_settings(verified_md, cv_text)
+    _hg_notes.extend(_n)
+    # 4. Skills-section label pin — force the headline label to the family's
+    #    convention (Care Skills for nursing) regardless of what the LLM
+    #    emitted. Fixes the 12/20 "Technical Skills" misrouting on nursing
+    #    CVs surfaced in the audit.
+    _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
+    verified_md, _n = pin_skills_section_labels(verified_md, _rf_id)
+    _hg_notes.extend(_n)
+    if _hg_notes:
+        result.extras["honesty_guard_notes"] = _hg_notes
+        logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
     # Targeted bullet rewrites — for inject_as_extension keywords the composition
     # LLM missed, run one small focused call per bullet concurrently. Zero cost
     # when the LLM applied all rewrites correctly (no missed items → no calls).
