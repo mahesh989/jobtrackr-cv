@@ -239,21 +239,32 @@ class ExtractCvReferencesResponse(BaseModel):
 class StructurizeCvRequest(BaseModel):
     """Parse a CV into the normalised structured-CV object (BYOK).
 
-    `skills` is the already-computed categorised_skills dict from upload; it
-    is merged verbatim into the structured result so skills stay canonical.
+    Single AI call — returns contact, summary, experience, education,
+    certifications, skills (categorised), and references in one response.
     """
     cv_text:     str = Field(min_length=1)
     ai_provider: Literal["anthropic", "openai", "deepseek"]
     ai_api_key:  str = Field(min_length=1)
     ai_model:    Optional[str] = None
-    skills:      Optional[dict] = None
 
 
 class StructurizeCvResponse(BaseModel):
     # The full structured CV object — shape defined in
     # app/services/cv/cv_structurizer.py. Kept as a free dict so the schema
     # can evolve without a migration on this transport type.
+    structured_cv:      dict
+    normalized_cv_text: str
+
+
+class RenderCanonicalCvRequest(BaseModel):
+    """Re-render a structured CV into canonical markdown text. Pure +
+    deterministic (no AI call) — used by the autosave path so the web layer
+    doesn't carry its own copy of the renderer."""
     structured_cv: dict
+
+
+class RenderCanonicalCvResponse(BaseModel):
+    normalized_cv_text: str
 
 
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────

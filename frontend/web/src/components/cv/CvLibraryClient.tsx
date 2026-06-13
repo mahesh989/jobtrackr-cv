@@ -206,6 +206,14 @@ export function CvLibraryClient({ initial }: Props) {
           : prev;
         return [newRow, ...demoted];
       });
+      // Forced review step — every freshly-structurized CV must pass through
+      // the review form before it can drive analysis. The route only returns
+      // `redirect_to` when structurization succeeded; when it didn't, we stay
+      // on the library (legacy fallback path).
+      if (typeof json.redirect_to === "string" && json.redirect_to.length > 0) {
+        router.push(json.redirect_to);
+        return;
+      }
     } catch (err) {
       await supabase.storage.from("cvs").remove([storagePath]);
       setError(

@@ -181,6 +181,116 @@ export function extractCvReferences(
   );
 }
 
+// ── /internal/structurize-cv ─────────────────────────────────────────────────
+
+export interface StructurizeCvPayload {
+  cv_text:     string;
+  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_api_key:  string;
+  ai_model?:   string | null;
+}
+
+export interface StructuredCvSkills {
+  technical:        string[];
+  soft_skills:      string[];
+  domain_knowledge: string[];
+}
+
+export interface StructuredCvExperience {
+  employer:   string;
+  role:       string;
+  location:   string;
+  start_date: string;
+  end_date:   string;
+  is_current: boolean;
+  bullets:    string[];
+}
+
+export interface StructuredCvEducation {
+  institution:   string;
+  qualification: string;
+  location:      string;
+  start_date:    string;
+  end_date:      string;
+  completed:     boolean;
+  _moved_from_certifications?: boolean;
+}
+
+export interface StructuredCvCertification {
+  name:        string;
+  issuer:      string;
+  code:        string;
+  issued_date: string;
+}
+
+export interface StructuredCvContact {
+  name:     string;
+  email:    string;
+  phone:    string;
+  location: string;
+  links:    string[];
+}
+
+export interface StructuredCvReferee {
+  name:      string;
+  job_title: string;
+  company:   string;
+  email:     string;
+}
+
+export interface StructuredCvGap {
+  section:     string;
+  entry_index: string;
+  field:       string;
+  message:     string;
+}
+
+export interface StructuredCv {
+  contact:        StructuredCvContact;
+  summary:        string;
+  experience:     StructuredCvExperience[];
+  education:      StructuredCvEducation[];
+  certifications: StructuredCvCertification[];
+  skills:         StructuredCvSkills;
+  references:     StructuredCvReferee[];
+  gaps:           StructuredCvGap[];
+}
+
+export interface StructurizeCvResponse {
+  structured_cv:      StructuredCv;
+  normalized_cv_text: string;
+}
+
+export function structurizeCv(
+  payload: StructurizeCvPayload,
+): Promise<StructurizeCvResponse> {
+  return callCvBackend<StructurizeCvResponse>(
+    "/internal/structurize-cv",
+    payload,
+    { timeoutMs: 60_000 },   // one AI call covers contact/summary/experience/edu/certs/skills/refs
+  );
+}
+
+// ── /internal/render-canonical-cv ────────────────────────────────────────────
+
+export interface RenderCanonicalCvPayload {
+  structured_cv: StructuredCv;
+}
+
+export interface RenderCanonicalCvResponse {
+  normalized_cv_text: string;
+}
+
+export function renderCanonicalCv(
+  payload: RenderCanonicalCvPayload,
+): Promise<RenderCanonicalCvResponse> {
+  return callCvBackend<RenderCanonicalCvResponse>(
+    "/internal/render-canonical-cv",
+    payload,
+    { timeoutMs: 10_000 },  // pure function, no AI
+  );
+}
+
 export interface AnalyzePayload {
   run_id:        string;
   user_id:       string;

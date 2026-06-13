@@ -120,19 +120,40 @@ export async function POST(
   );
 
   // ── 1b. User must have an active CV ──────────────────────────────────────
-  const { data: cv } = await admin
+  // Prefer the user-verified `normalized_cv_text` (rendered from the review
+  // form's structured_cv) over the raw `cv_text`. Consistency story: every
+  // analysis run reads the same canonical skeleton, regardless of how the
+  // original CV was laid out. Falls back to `cv_text` for legacy CVs OR
+  // when migration 059 (the column itself) hasn't been applied yet.
+  const baseSelect = await admin
     .from("cv_versions")
     .select("id, cv_text")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
+  const cv = baseSelect.data;
   if (!cv) {
     return NextResponse.json(
       { error: "No active CV. Upload a CV in the CV library and mark it active." },
       { status: 422 },
     );
   }
-  if (!cv.cv_text || cv.cv_text.trim().length < 50) {
+  let normalizedText: string | null = null;
+  try {
+    const ext = await admin
+      .from("cv_versions")
+      .select("normalized_cv_text")
+      .eq("id", cv.id)
+      .maybeSingle();
+    if (!ext.error) normalizedText = (ext.data as { normalized_cv_text?: string | null } | null)?.normalized_cv_text ?? null;
+  } catch {
+    // Column not present yet (migration 059 unapplied) — fall back silently.
+  }
+  const cvTextSource =
+    typeof normalizedText === "string" && normalizedText.trim().length >= 50
+      ? normalizedText
+      : cv.cv_text;
+  if (!cvTextSource || cvTextSource.trim().length < 50) {
     return NextResponse.json(
       { error: "Active CV has no usable text. Re-upload your CV." },
       { status: 422 },
@@ -286,7 +307,7 @@ export async function POST(
   // Augment the CV text with the user's saved portfolio projects so the
   // tailoring AI considers them even if they're not already in the CV PDF.
   // Appended as a markdown section the AI naturally recognises.
-  let cvTextForAnalysis = cv.cv_text;
+  let cvTextForAnalysis = cvTextSource;
   if (portfolioProjects.length > 0) {
     const lines = ["", "## Projects"];
     for (const p of portfolioProjects) {
@@ -296,7 +317,7 @@ export async function POST(
       if (titleParts.length > 0) lines.push(`- ${titleParts.join(" · ")}`);
       if (p.description) lines.push(`  ${p.description}`);
     }
-    cvTextForAnalysis = `${cv.cv_text.trimEnd()}\n${lines.join("\n")}\n`;
+    cvTextForAnalysis = `${cvTextSource.trimEnd()}\n${lines.join("\n")}\n`;
   }
 
   // Drop the bulky 'projects' sub-array before sending — cv-backend only
