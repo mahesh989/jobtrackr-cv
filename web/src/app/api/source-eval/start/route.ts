@@ -17,7 +17,7 @@ import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 const QUEUE = "jobtrackr-source-eval";
 
-// Whitelist — must match EvalSourceKey in worker/src/eval/sourceEval.ts.
+// Whitelist — must match EvalSourceKey in backend/worker/src/eval/sourceEval.ts.
 // New sources require a worker change, so we don't accept arbitrary strings.
 const SUPPORTED = new Set([
   "adzuna",

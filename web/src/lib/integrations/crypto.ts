@@ -1,6 +1,6 @@
 /**
  * AES-256-GCM encryption for integration API keys — web app side.
- * Same algorithm as worker/src/lib/crypto.ts. Both use INTEGRATION_ENCRYPTION_KEY.
+ * Same algorithm as backend/worker/src/lib/crypto.ts. Both use INTEGRATION_ENCRYPTION_KEY.
  *
  * Only ever call these from server-side code (Route Handlers, Server Actions).
  * The browser must never see the raw or encrypted token.

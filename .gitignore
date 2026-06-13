@@ -58,14 +58,14 @@ web/jora_jobs_*.csv
 web/discovered_slugs.json
 web/jora_scraper.py
 web/verify_slugs.py
-worker/jora_test_*.json
-worker/test-update.js
-worker/fix-dead-links.js
+backend/worker/jora_test_*.json
+backend/worker/test-update.js
+backend/worker/fix-dead-links.js
 
 # Scraper probe/debug scripts — one-off diagnostics, not production code
-worker/scripts/seek-*.ts
-worker/scripts/.seek-capture/
-worker/src/scripts/test*.ts
+backend/worker/scripts/seek-*.ts
+backend/worker/scripts/.seek-capture/
+backend/worker/src/scripts/test*.ts
 shared/supabase/migrations/ain_jobs*.json
 shared/supabase/migrations/scrape_*.py
 .env*.local

@@ -1,6 +1,6 @@
 // BullMQ Worker that processes source_eval jobs.
 //
-// Booted from worker/src/index.ts alongside the main pipeline Worker.
+// Booted from backend/worker/src/index.ts alongside the main pipeline Worker.
 // Concurrency is intentionally > 1 — none of the 6 eval sources spawn a
 // Playwright Chromium, so the memory pressure that forces the main worker
 // to concurrency=1 doesn't apply here.
