@@ -168,12 +168,24 @@ def enforce_source_dates(md: str, cv_text: str) -> Tuple[str, List[str]]:
 
     notes: List[str] = []
 
+    # Lower-cased source text for the "does this date string actually
+    # appear in the source?" check used when we can't match the employer
+    # to a parsed entry (the plain-text parser skips dateless blocks; an
+    # entry can still exist in the raw text).
+    src_lower = cv_text.lower()
+
+    def _dates_appear_in_source(date_str: str) -> bool:
+        """True iff every year mentioned in `date_str` appears in source.
+        Strict: ANY year in the tailored date that's not in source means
+        the date string is at least partially fabricated → strip."""
+        years = re.findall(r"\b(19|20)\d{2}\b", date_str)
+        return all(y in src_lower for y in [m for m in re.findall(r"\b(?:19|20)\d{2}\b", date_str)]) and bool(years)
+
     def _rewrite(m: re.Match) -> str:
         prefix, inner, suffix = m.group(1), m.group(2), m.group(3)
         current = inner.strip()
         # Universal placeholder strip — `[Dates] – [Dates]` and `Dates not
         # specified` are template-fallback leaks, never legitimate output.
-        # Strip these even when we can't identify the source employer.
         is_placeholder = bool(_NO_DATE_TOKENS_RE.search(current))
 
         employer = _find_h3_for_match(md, m.start())
@@ -181,25 +193,33 @@ def enforce_source_dates(md: str, cv_text: str) -> Tuple[str, List[str]]:
 
         source_dates = _fmt_source_date_range(entry) if entry else ""
 
-        # If neither source-dates nor placeholder → leave alone.
-        if not source_dates and not is_placeholder:
-            return m.group(0)
+        # When the employer matched a parsed source entry:
+        if entry:
+            if source_dates and current == source_dates:
+                return m.group(0)
+            if source_dates:
+                notes.append(f"{employer}: dates set to '{source_dates}' (was '{current}')")
+                return f"{prefix}{source_dates}{suffix}"
+            # Matched entry but source has no dates → strip slot.
+            notes.append(f"{employer}: dates omitted (no source dates)")
+            head = prefix.rstrip()
+            if head.endswith("|"):
+                head = head[:-1].rstrip()
+            return f"{head}{suffix}"
 
-        # If source-verbatim already matches current → no-op.
-        if source_dates and current == source_dates:
-            return m.group(0)
+        # No parsed source entry for this employer. Decide whether the
+        # current date string is fabricated by checking whether its years
+        # appear ANYWHERE in the source CV text.
+        if is_placeholder or not _dates_appear_in_source(current):
+            label_for_note = employer or "(unknown employer)"
+            reason = "placeholder" if is_placeholder else "fabricated (not in source CV)"
+            notes.append(f"{label_for_note}: dates omitted — {reason}")
+            head = prefix.rstrip()
+            if head.endswith("|"):
+                head = head[:-1].rstrip()
+            return f"{head}{suffix}"
 
-        if source_dates:
-            notes.append(f"{employer}: dates set to '{source_dates}' (was '{current}')")
-            return f"{prefix}{source_dates}{suffix}"
-        # No source dates available (entry missing OR has no dates) — strip
-        # the " | dates" slot entirely so the role renders as "* Role *".
-        label_for_note = employer or "(unknown employer)"
-        notes.append(f"{label_for_note}: dates omitted (no source dates)")
-        head = prefix.rstrip()
-        if head.endswith("|"):
-            head = head[:-1].rstrip()
-        return f"{head}{suffix}"
+        return m.group(0)
 
     rewritten = _ROLE_LINE_RE.sub(_rewrite, md)
     return rewritten, notes

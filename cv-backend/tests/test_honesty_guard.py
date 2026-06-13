@@ -111,9 +111,9 @@ class TestEnforceSourceDates:
         assert out == tailored
         assert notes == []
 
-    def test_unknown_employer_unchanged(self):
-        """A tailored employer that doesn't appear in source is left alone —
-        the guard can't make a claim about something it doesn't know."""
+    def test_unknown_employer_dates_stripped_when_years_not_in_source(self):
+        """A tailored employer with dates whose YEARS don't appear anywhere
+        in the source CV is treated as fabricated → date slot stripped."""
         tailored = """# Shanti Giri
 
 ## Professional Experience
@@ -123,7 +123,25 @@ class TestEnforceSourceDates:
 - Bullet.
 """
         out, notes = enforce_source_dates(tailored, SHANTI_CV)
-        assert out == tailored
+        # 2020/2021 don't appear in Shanti's source CV → fabricated → strip.
+        assert "2020 – 2021" not in out
+        assert notes  # explanatory note added
+
+    def test_unknown_employer_kept_when_years_match_source(self):
+        """If the years in the tailored date DO appear in source (even on
+        another employer), give the benefit of the doubt — could be a real
+        employer the parser missed."""
+        tailored = """# Shanti Giri
+
+## Professional Experience
+### Mystery Employer Pty Ltd | Sydney, Australia
+*Random Role | Jan 2024 – May 2025*
+
+- Bullet.
+"""
+        out, notes = enforce_source_dates(tailored, SHANTI_CV)
+        # 2024/2025 ARE in Shanti's source → keep.
+        assert "Jan 2024 – May 2025" in out
         assert notes == []
 
     def test_no_experience_section_in_source(self):
