@@ -232,10 +232,10 @@ export function SmartToolbar({
   }
 
   const atsBands: { id: AtsBand; label: string; tip: string; dot: string; chipBg: string; chipText: string }[] = [
-    { id: "above_final",   label: `ATS ≥ ${thresholds.final}`,     tip: `Above the final gate (${thresholds.final}) — auto cover letter eligible`, dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800" },
-    { id: "below_final",   label: `ATS ${thresholds.initial}–${thresholds.final - 1}`,    tip: `Between gates — tailored CV, no auto cover letter`,      dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800" },
-    { id: "below_initial", label: `ATS < ${thresholds.initial}`,     tip: `Below the initial gate (${thresholds.initial}) — pipeline stopped`,         dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800"   },
-    { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",           dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
+    { id: "above_final",   label: "ATS Above",    tip: `Above the final gate (≥ ${thresholds.final}) — auto cover letter eligible`,                    dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800" },
+    { id: "below_final",   label: "ATS Fair",     tip: `Between gates (${thresholds.initial}–${thresholds.final - 1}) — tailored CV, no auto letter`, dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800" },
+    { id: "below_initial", label: "ATS Below",    tip: `Below the initial gate (< ${thresholds.initial}) — pipeline stopped`,                         dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800"   },
+    { id: "no_ats",        label: "Not analysed", tip: "No ATS score yet — click Analyze on the card",                                                dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2"    },
   ];
   const JDS_CHIPS: StageChip[] = [
     { id: "thinJd",      label: "Thin JD",      kind: "triage",  value: "thinJd",      countKey: "thinJd"      },
