@@ -10,6 +10,7 @@ import pytest
 
 from app.services.skills.post_process import (
     _demote_conditional_required_to_preferred,
+    _has_credential_marker,
     _is_au_unit_code,
     _looks_like_language,
     _split_conditional_phrase,
@@ -834,3 +835,56 @@ class TestAustralianUnityEndToEnd:
         assert "greek language" in pref_tech
         assert "arabic language" in pref_tech
         assert out["preferred_skills"]["domain_knowledge"] == []
+
+
+class TestEmbeddedCredentialMarkers:
+    """Catch credential leakage when the marker is mid-phrase (the leading-
+    anchored qualification detector misses these). Real Opal HealthCare JD."""
+
+    def test_detector_catches_certificate_at_iv_level(self):
+        assert _has_credential_marker("individual support at certificate iv level")
+        assert _has_credential_marker("aged care at certificate iv level")
+        assert _has_credential_marker("aged care at cert iv level")
+        assert _has_credential_marker("aged care at certificate 4 level")
+
+    def test_detector_catches_medication_endorsement(self):
+        assert _has_credential_marker("medication endorsement (hlthps007 unit)")
+        assert _has_credential_marker("medication endorsement")
+        assert _has_credential_marker("medication endorsement (HLTHPS007)")
+
+    def test_detector_catches_embedded_unit_codes(self):
+        assert _has_credential_marker("experience with HLTAID011")
+        assert _has_credential_marker("training in CHCCCS015")
+
+    def test_detector_does_not_false_fire_on_real_skills(self):
+        assert not _has_credential_marker("individual support")
+        assert not _has_credential_marker("aged care")
+        assert not _has_credential_marker("personal care")
+        assert not _has_credential_marker("dementia care")
+        assert not _has_credential_marker("clinical documentation")
+
+    def test_jd_analysis_routes_embedded_credentials_to_sidecar(self):
+        """The real Opal HealthCare JD that surfaced this issue."""
+        jd = {
+            "required_skills": {"technical": [], "soft_skills": [],
+                                "domain_knowledge": ["individual support", "aged care"]},
+            "preferred_skills": {"technical": [], "soft_skills": [],
+                                 "domain_knowledge": [
+                                     "individual support at certificate iv level",
+                                     "aged care at certificate iv level",
+                                     "medication endorsement (hlthps007 unit)",
+                                 ]},
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        pref_dom = out["preferred_skills"]["domain_knowledge"]
+        # Care Skills bucket must NOT contain any of the three credential phrases.
+        for phrase in (
+            "individual support at certificate iv level",
+            "aged care at certificate iv level",
+            "medication endorsement (hlthps007 unit)",
+        ):
+            assert phrase not in pref_dom, f"{phrase} still leaking to Care Skills"
+        # All three should be in the preferred credential sidecar.
+        pref_creds = out["lexicon_meta"]["preferred"]["credential"]
+        assert any("certificate iv" in c.lower() for c in pref_creds)
+        assert any("medication endorsement" in c.lower() for c in pref_creds)
