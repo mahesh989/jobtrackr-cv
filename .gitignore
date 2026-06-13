@@ -74,3 +74,7 @@ shared/supabase/migrations/scrape_*.py
 # Local Scraper Tests
 shared/supabase/migrations/careerjet_data_analyst_melbourne.json
 shared/supabase/migrations/careerjet_sample.html
+
+# Apify SDK local runtime state — auto-generated on actor run, never read in prod
+backend/worker/src/sources/*/storage/
+backend/worker/apify-actors/*/storage/
