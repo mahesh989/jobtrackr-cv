@@ -40,7 +40,7 @@ Your job:
    In jobtrackr-cv, no test suite exists yet — use lint, typecheck, 
    and manual code reading instead.
 
-5. Verify build still works if relevant: `npm run build` in web/, or 
+5. Verify build still works if relevant: `npm run build` in frontend/web/, or 
    Python imports resolve in backend/api/.
 
 ────────────────────────────────────────────────────────────────────

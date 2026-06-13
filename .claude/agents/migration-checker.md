@@ -37,7 +37,7 @@ migration work and surface any risks before the user executes:
 
 3. External references check
    - Grep for migration filenames in: graph.json, docs/design.md, CLAUDE.md, 
-     and application code (web/, backend/api/, backend/worker/)
+     and application code (frontend/web/, backend/api/, backend/worker/)
    - If renames are proposed: list every reference that will need 
      updating
 

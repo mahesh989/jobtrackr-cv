@@ -23,7 +23,7 @@ import { jsPDF } from "jspdf";
  */
 export function renderCoverLetterPdf(templatedText: string): Buffer {
   // A4 portrait, 0.8in margins all sides, 11pt Helvetica.
-  // Matches CoverLetterPanel.handleDownloadPDF (web/src/components/cv/...).
+  // Matches CoverLetterPanel.handleDownloadPDF (frontend/web/src/components/cv/...).
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const pageWidth   = doc.internal.pageSize.getWidth();
   const pageHeight  = doc.internal.pageSize.getHeight();

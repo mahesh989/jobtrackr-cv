@@ -54,10 +54,10 @@ __pycache__/
 # Test artefacts and one-off scripts — removed 2026-05-16
 # Do not re-add these. If you need ad-hoc scraping scripts, put them in
 # /scripts/ at repo root with a clear name and commit them properly.
-web/jora_jobs_*.csv
-web/discovered_slugs.json
-web/jora_scraper.py
-web/verify_slugs.py
+frontend/web/jora_jobs_*.csv
+frontend/web/discovered_slugs.json
+frontend/web/jora_scraper.py
+frontend/web/verify_slugs.py
 backend/worker/jora_test_*.json
 backend/worker/test-update.js
 backend/worker/fix-dead-links.js

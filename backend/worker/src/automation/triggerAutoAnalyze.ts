@@ -34,7 +34,7 @@ const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich
 interface ProfileThresholds {
   user_id: string;
   // Per-vertical ATS cutoffs: healthcare/nursing profiles get 55/65, everything
-  // else the global 60/70. Mirrors web/src/lib/atsThresholds.ts (worker is a
+  // else the global 60/70. Mirrors frontend/web/src/lib/atsThresholds.ts (worker is a
   // separate package, so the small resolver is duplicated, not imported).
   target_verticals?: string[] | null;
 }

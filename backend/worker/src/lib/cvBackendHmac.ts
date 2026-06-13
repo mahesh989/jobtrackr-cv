@@ -1,7 +1,7 @@
 /**
  * Worker-side helper for calling cv-backend's /internal/* endpoints.
  *
- * Mirrors web/src/lib/cvBackend.ts: HMAC-SHA256 over (X-Timestamp + raw body),
+ * Mirrors frontend/web/src/lib/cvBackend.ts: HMAC-SHA256 over (X-Timestamp + raw body),
  * keyed by JOBTRACKR_HMAC_SECRET. cv-backend rejects anything unsigned or
  * stale (>5 min).
  *

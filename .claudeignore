@@ -30,7 +30,7 @@
 backend/worker/
 
 # ── Static / media assets ───────────────────────────────────
-web/public/
+frontend/web/public/
 *.svg
 *.png
 *.jpg

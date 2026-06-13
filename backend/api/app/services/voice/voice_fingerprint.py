@@ -10,7 +10,7 @@ PRIVACY BOUNDARY — voice_sample_raw handling:
   - NEVER logged in plaintext. This function emits no log statements that
     include the raw sample; callers must not log the `voice_sample` argument.
   - NEVER returned to the client after initial submission. The GET endpoint
-    in web/src/app/api/user/voice-profile/route.ts enforces this at the
+    in frontend/web/src/app/api/user/voice-profile/route.ts enforces this at the
     application layer (deliberately excluded from the SELECT query).
   - NEVER stored in cv-backend's database or filesystem.
   - API-level no-training flags (OpenAI store=False, Anthropic headers):
