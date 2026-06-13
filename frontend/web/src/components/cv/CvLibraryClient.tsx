@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ClipboardEdit } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, ClipboardEdit, Loader2 } from "lucide-react";
+import { CvReviewClient } from "@/components/cv/CvReviewClient";
+import type { StructuredCv } from "@/lib/cvBackend";
 
 interface CategorisedSkills {
   technical?:        string[];
@@ -63,6 +65,20 @@ export function CvLibraryClient({ initial }: Props) {
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<CvRow | null>(null);
   const [deleting, setDeleting]         = useState(false);
+
+  // Inline review-expand state — only one CV expanded at a time so the
+  // page stays focused; clicking the same CV again collapses it.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Active CV always first; the rest keep their existing (newest-first) order.
+  const orderedCvs = useMemo(() => {
+    const list = [...cvs];
+    list.sort((a, b) => {
+      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+      return 0;
+    });
+    return list;
+  }, [cvs]);
 
   /**
    * Trigger the hidden file input from the visible "Upload CV" button.
@@ -313,7 +329,7 @@ export function CvLibraryClient({ initial }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {cvs.map((cv) => {
+          {orderedCvs.map((cv) => {
             const ext = cv.pdf_storage_path?.endsWith(".docx") ? "DOCX" : "PDF";
             const created = new Date(cv.created_at).toLocaleDateString("en-AU", {
               day: "numeric", month: "short", year: "numeric",
@@ -325,8 +341,13 @@ export function CvLibraryClient({ initial }: Props) {
                 ext={ext}
                 created={created}
                 pending={pendingId === cv.id}
+                expanded={expandedId === cv.id}
+                onToggleExpand={() => setExpandedId(prev => prev === cv.id ? null : cv.id)}
                 onActivate={() => handleSetActive(cv.id)}
                 onDelete={() => setDeleteTarget(cv)}
+                onStatusChange={(newStatus) =>
+                  setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, structured_cv_status: newStatus } : c))
+                }
                 onSkillsUpdated={(skills) =>
                   setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, categorised_skills: skills } : c))
                 }
@@ -386,103 +407,237 @@ function CvRowCard({
   ext,
   created,
   pending,
+  expanded,
+  onToggleExpand,
   onActivate,
   onDelete,
+  onStatusChange,
   onSkillsUpdated,
 }: {
   cv:              CvRow;
   ext:             string;
   created:         string;
   pending:         boolean;
+  expanded:        boolean;
+  onToggleExpand:  () => void;
   onActivate:      () => void;
   onDelete:        () => void;
+  onStatusChange:  (status: string) => void;
   onSkillsUpdated: (skills: CategorisedSkills) => void;
 }) {
-  const router = useRouter();
-  const [reviewing, setReviewing] = useState(false);
-  const [reviewErr, setReviewErr] = useState<string | null>(null);
-  const alreadyStructured = !!cv.structured_cv_status;
-
-  async function handleReview() {
-    setReviewErr(null);
-    if (alreadyStructured) {
-      router.push(`/dashboard/cv/${cv.id}/review`);
-      return;
-    }
-    setReviewing(true);
-    try {
-      const res = await fetch(`/api/cv/${cv.id}/structurize`, { method: "POST" });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({})) as { error?: string };
-        setReviewErr(j.error ?? `Could not prepare review (${res.status})`);
-        return;
-      }
-      router.push(`/dashboard/cv/${cv.id}/review`);
-    } catch (e) {
-      setReviewErr(e instanceof Error ? e.message : "Network error");
-    } finally {
-      setReviewing(false);
-    }
-  }
-
   return (
     <div
       className={
-        "flex items-start justify-between gap-3 rounded-lg glass p-4 " +
-        (cv.is_active ? "border border-[var(--brand)]/40 shadow-gold" : "shadow-gold")
+        "rounded-xl bg-[var(--surface)] transition-all overflow-hidden " +
+        (cv.is_active
+          ? "border-2 border-[var(--brand)]/50 shadow-sm"
+          : "border border-[var(--border)] hover:border-[var(--border)] hover:shadow-sm")
       }
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-text truncate">{cv.label}</span>
-          <span className="text-xs text-text-3">{ext}</span>
-          {cv.is_active && (
-            <span className="flex items-center gap-1 rounded-sm border border-[var(--brand)]/20 bg-[var(--brand)]/15 px-2 py-0.5 text-xs font-semibold text-[var(--brand)]">
-              <CheckCircle2 className="h-3 w-3" />
-              Active
-            </span>
-          )}
-          {cv.structured_cv_status === "verified" && (
-            <span className="rounded-sm border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-              Reviewed
-            </span>
-          )}
+      {/* HEADER — entire row clickable to expand. Action buttons stopPropagation. */}
+      <button
+        type="button"
+        onClick={onToggleExpand}
+        aria-expanded={expanded}
+        className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-[var(--surface-2)]/30 transition-colors"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-text truncate">{cv.label}</span>
+            <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">{ext}</span>
+            {cv.is_active && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--brand)]">
+                <CheckCircle2 className="h-3 w-3" />
+                Active
+              </span>
+            )}
+            {cv.structured_cv_status === "verified" && (
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                Reviewed
+              </span>
+            )}
+            {cv.structured_cv_status && cv.structured_cv_status !== "verified" && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)]/60 px-2 py-0.5 text-[11px] font-medium text-text-2">
+                Needs review
+              </span>
+            )}
+          </div>
+          <div className="mt-1 flex items-center gap-3 text-[12px] text-text-3" suppressHydrationWarning>
+            <span>Uploaded {created}</span>
+            {!expanded && <span className="text-[var(--brand)]/80 font-medium">· Click to review</span>}
+          </div>
         </div>
-        <div className="mt-1 flex items-center gap-3 text-xs text-text-3" suppressHydrationWarning>
-          <span>Uploaded {created}</span>
-        </div>
-        <CvSkillsBlock skills={cv.categorised_skills} cvId={cv.id} onSkillsUpdated={onSkillsUpdated} />
-        {reviewErr && <div className="mt-2 text-xs text-red">{reviewErr}</div>}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={handleReview}
-          disabled={pending || reviewing}
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-1.5 text-xs font-semibold text-text hover:bg-[var(--brand)]/5 hover:text-[var(--brand)] hover:border-[var(--brand)]/40 transition-colors disabled:opacity-50"
-          title={alreadyStructured ? "Open the review form" : "Run AI parse, then open the review form"}
-        >
-          <ClipboardEdit className="h-3.5 w-3.5" />
-          {reviewing ? "Preparing…" : "Review"}
-        </button>
-        {!cv.is_active && (
-          <button
-            onClick={onActivate}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Inline actions — span-as-button so the outer button doesn't nest;
+              roles + onKeyDown give native click semantics. */}
+          {!cv.is_active && (
+            <InlineAction
+              label="Set active"
+              disabled={pending}
+              onClick={onActivate}
+            />
+          )}
+          <InlineAction
+            label={expanded ? "Close" : "Review"}
+            icon={<ClipboardEdit className="h-3.5 w-3.5" />}
+            primary
             disabled={pending}
-            className="rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-1.5 text-xs font-semibold text-text hover:bg-[var(--brand)]/5 hover:text-[var(--brand)] hover:border-[var(--brand)]/40 transition-colors disabled:opacity-50"
-          >
-            Set active
-          </button>
-        )}
-        <button
-          onClick={onDelete}
-          disabled={pending}
-          className="rounded p-1.5 text-text-3 hover:bg-red-light hover:text-red transition-colors disabled:opacity-50"
-          aria-label="Delete CV"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
+            onClick={onToggleExpand}
+          />
+          <InlineAction
+            label="Delete CV"
+            iconOnly
+            icon={<Trash2 className="h-4 w-4" />}
+            danger
+            disabled={pending}
+            onClick={onDelete}
+          />
+          <span className="ml-1 text-text-3 transition-transform" aria-hidden="true">
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+        </div>
+      </button>
+
+      {/* COLLAPSED BODY — skills block (kept lightweight) */}
+      {!expanded && (
+        <div className="px-4 pb-4">
+          <CvSkillsBlock skills={cv.categorised_skills} cvId={cv.id} onSkillsUpdated={onSkillsUpdated} />
+        </div>
+      )}
+
+      {/* EXPANDED BODY — full review form, lazy-loaded */}
+      {expanded && (
+        <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-5 sm:px-6">
+          <InlineCvReview cvId={cv.id} initialLabel={cv.label} initialStatus={cv.structured_cv_status} onStatusChange={onStatusChange} />
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * InlineAction — span styled as a button, stops propagation so it doesn't
+ * trigger the row's expand toggle. Tab/Enter/Space activate it.
+ */
+function InlineAction({
+  label, icon, primary, danger, iconOnly, disabled, onClick,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  primary?: boolean;
+  danger?: boolean;
+  iconOnly?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const base = "inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md transition-colors select-none cursor-pointer";
+  const tone = danger
+    ? "p-1.5 text-text-3 hover:bg-red-light hover:text-red"
+    : primary
+    ? "px-3 py-1.5 border border-[var(--brand)]/40 bg-[var(--brand)]/10 text-[var(--brand)] hover:bg-[var(--brand)]/15"
+    : "px-3 py-1.5 border border-[var(--border)] bg-[var(--surface-2)]/40 text-text hover:bg-[var(--brand)]/5 hover:text-[var(--brand)] hover:border-[var(--brand)]/40";
+  return (
+    <span
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label={iconOnly ? label : undefined}
+      onClick={(e) => { e.stopPropagation(); if (!disabled) onClick(); }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        }
+      }}
+      className={`${base} ${tone} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      {icon}
+      {!iconOnly && label}
+    </span>
+  );
+}
+
+/**
+ * InlineCvReview — lazy-loads structured_cv on first mount, then renders
+ * CvReviewClient inline. If not yet structurized, runs structurize first.
+ */
+function InlineCvReview({
+  cvId, initialLabel, initialStatus, onStatusChange,
+}: {
+  cvId:          string;
+  initialLabel:  string;
+  initialStatus: string | null | undefined;
+  onStatusChange: (status: string) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [data, setData]       = useState<{ label: string; structured_cv: StructuredCv; status: string } | null>(null);
+
+  // Load once per mount. Re-expanding remounts and re-fetches — fresh state
+  // is preferable to stale autosave state from a prior session.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        // Not yet structurized → run it first.
+        if (!initialStatus) {
+          const r = await fetch(`/api/cv/${cvId}/structurize`, { method: "POST" });
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({})) as { error?: string };
+            if (!cancelled) setError(j.error ?? `Could not prepare review (${r.status})`);
+            return;
+          }
+        }
+        const r = await fetch(`/api/cv/${cvId}/structured`);
+        if (!r.ok) {
+          if (!cancelled) setError(`Could not load review (${r.status})`);
+          return;
+        }
+        const j = await r.json() as {
+          label: string;
+          structured_cv: StructuredCv;
+          structured_cv_status: string;
+        };
+        if (!cancelled) {
+          setData({ label: j.label, structured_cv: j.structured_cv, status: j.structured_cv_status });
+          onStatusChange(j.structured_cv_status);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Network error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cvId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-text-3 text-sm">
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        Preparing review…
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="rounded-md border border-red/20 bg-red-light/40 px-3 py-2 text-sm text-red">
+        {error ?? "Could not load review."}
+      </div>
+    );
+  }
+  return (
+    <CvReviewClient
+      cvId={cvId}
+      label={data.label || initialLabel}
+      initialStructuredCv={data.structured_cv}
+      initialStatus={data.status}
+    />
   );
 }
 

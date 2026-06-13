@@ -61,17 +61,24 @@ export default async function CvPage() {
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <CvLibraryClient initial={(cvs ?? []) as any} />
 
-        <div className="border-t border-border" />
-
-        <details className="group">
-          <summary className="flex cursor-pointer items-center justify-between gap-2 list-none rounded-md px-2 py-3 -mx-2 hover:bg-[var(--surface-2)]/40">
-            <div>
-              <h2 className="text-[16px] font-semibold text-text">References</h2>
-              <p className="text-[13px] text-text-2 mt-0.5">Manage who employers can contact and how they appear on your CV.</p>
+        <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:shadow-sm transition-all overflow-hidden">
+          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-4 hover:bg-[var(--surface-2)]/30 transition-colors">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-text">References</span>
+                <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
+                  Profile setting
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] text-text-3">
+                Manage who employers can contact and how they appear on your CV. <span className="text-[var(--brand)]/80 font-medium">Click to expand</span>
+              </p>
             </div>
-            <span aria-hidden="true" className="text-text-3 group-open:rotate-90 transition-transform">›</span>
+            <span aria-hidden="true" className="mt-1 text-text-3 transition-transform group-open:rotate-90 shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </span>
           </summary>
-          <div className="mt-4">
+          <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-5 sm:px-6">
             <ReferencesSection
               initial={referencesData}
               contactDetails={contactDetails}
