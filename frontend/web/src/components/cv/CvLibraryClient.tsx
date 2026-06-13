@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ClipboardEdit } from "lucide-react";
 
 interface CategorisedSkills {
   technical?:        string[];
@@ -13,12 +13,13 @@ interface CategorisedSkills {
 }
 
 interface CvRow {
-  id:                  string;
-  label:               string;
-  pdf_storage_path:    string;
-  is_active:           boolean;
-  categorised_skills?: CategorisedSkills | null;
-  created_at:          string;
+  id:                    string;
+  label:                 string;
+  pdf_storage_path:      string;
+  is_active:             boolean;
+  categorised_skills?:   CategorisedSkills | null;
+  created_at:            string;
+  structured_cv_status?: string | null;
 }
 
 interface Props {
@@ -397,6 +398,33 @@ function CvRowCard({
   onDelete:        () => void;
   onSkillsUpdated: (skills: CategorisedSkills) => void;
 }) {
+  const router = useRouter();
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
+  const alreadyStructured = !!cv.structured_cv_status;
+
+  async function handleReview() {
+    setReviewErr(null);
+    if (alreadyStructured) {
+      router.push(`/dashboard/cv/${cv.id}/review`);
+      return;
+    }
+    setReviewing(true);
+    try {
+      const res = await fetch(`/api/cv/${cv.id}/structurize`, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        setReviewErr(j.error ?? `Could not prepare review (${res.status})`);
+        return;
+      }
+      router.push(`/dashboard/cv/${cv.id}/review`);
+    } catch (e) {
+      setReviewErr(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   return (
     <div
       className={
@@ -414,13 +442,28 @@ function CvRowCard({
               Active
             </span>
           )}
+          {cv.structured_cv_status === "verified" && (
+            <span className="rounded-sm border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              Reviewed
+            </span>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-3 text-xs text-text-3" suppressHydrationWarning>
           <span>Uploaded {created}</span>
         </div>
         <CvSkillsBlock skills={cv.categorised_skills} cvId={cv.id} onSkillsUpdated={onSkillsUpdated} />
+        {reviewErr && <div className="mt-2 text-xs text-red">{reviewErr}</div>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={handleReview}
+          disabled={pending || reviewing}
+          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-1.5 text-xs font-semibold text-text hover:bg-[var(--brand)]/5 hover:text-[var(--brand)] hover:border-[var(--brand)]/40 transition-colors disabled:opacity-50"
+          title={alreadyStructured ? "Open the review form" : "Run AI parse, then open the review form"}
+        >
+          <ClipboardEdit className="h-3.5 w-3.5" />
+          {reviewing ? "Preparing…" : "Review"}
+        </button>
         {!cv.is_active && (
           <button
             onClick={onActivate}
