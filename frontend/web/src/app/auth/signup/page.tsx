@@ -51,6 +51,8 @@ export default function SignupPage() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/confirm`,
+        // Force Google's account chooser every time.
+        queryParams: { prompt: "select_account" },
       },
     });
     if (error) {
