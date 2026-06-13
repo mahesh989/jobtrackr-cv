@@ -5,21 +5,21 @@ Turns raw extracted CV text into a normalised structured object:
     {contact, summary, experience[], education[], certifications[],
      skills{}, references[], gaps[]}
 
-This is the analysis source of truth (Phase 3). The AI does the faithful
-extraction (dates verbatim, never inferred — same philosophy as
-honesty_guard); a deterministic pass then:
+This is the analysis source of truth. The AI does the faithful extraction
+(dates verbatim, never inferred — same philosophy as honesty_guard) and
+returns categorised skills in the same response (single AI call).
+
+A deterministic pass then:
   • normalises/coerces the shape so the review form always gets valid data,
-  • tags each experience entry with a vertical_hint via the same lexicon
-    classifier used everywhere else (one source of truth),
+  • applies the bucketing rule (care-sector VET quals → education,
+    everything else stays where the AI placed it),
   • computes `gaps` — the missing/incomplete fields the form surfaces as
     amber, non-blocking warnings.
-
-Skills are merged in from the existing skill categoriser output so we keep
-one canonical skills representation; the caller passes them in.
 """
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from app.services.ai.client import AIClient, AIClientError
@@ -40,14 +40,9 @@ _MAX_CV_CHARS = 24_000
 async def structurize_cv(
     client: AIClient,
     cv_text: str,
-    *,
-    skills: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Any]:
-    """Parse `cv_text` into the structured CV object.
-
-    `skills` (the categorised_skills dict already computed at upload) is
-    merged in verbatim so the structured CV carries one canonical skills
-    representation. Pass None to leave skills empty.
+    """Parse `cv_text` into the structured CV object — including skills — in
+    a single AI call.
 
     Raises AIClientError on AI/parse failure — caller treats as "structurize
     failed" and can fall back to leaving structured_cv NULL.
@@ -62,16 +57,12 @@ async def structurize_cv(
         max_tokens=4096,
         temperature=0.0,
     )
-    return normalise_structured_cv(raw, skills=skills)
+    return normalise_structured_cv(raw)
 
 
-def normalise_structured_cv(
-    raw: Any,
-    *,
-    skills: Optional[Dict[str, List[str]]] = None,
-) -> Dict[str, Any]:
-    """Coerce the AI response into the canonical structured-CV shape, tag
-    experience verticals, merge skills, and compute deterministic gaps.
+def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
+    """Coerce the AI response into the canonical structured-CV shape, apply
+    the care-VET → education bucketing rule, and compute deterministic gaps.
 
     Pure + defensive: tolerates a malformed AI response by returning a
     well-formed object with whatever could be salvaged (never raises)."""
@@ -84,13 +75,13 @@ def normalise_structured_cv(
     education = [_normalise_education(e) for e in _as_list(raw.get("education"))]
     certifications = [_normalise_cert(c) for c in _as_list(raw.get("certifications"))]
     references = [_normalise_referee(r) for r in _as_list(raw.get("references"))]
+    skills_obj = _normalise_skills_from_ai(raw.get("skills"))
 
-    # Tag each experience entry with its lexicon vertical so the tailoring
-    # selection (Phase 4) can rank by JD relevance without re-deriving it.
-    for e in experience:
-        e["vertical_hint"] = _classify_entry_vertical(e)
-
-    skills_obj = _normalise_skills(skills)
+    # Care-sector VET quals → Education (deterministic safety net). The
+    # prompt asks the AI to do this, but a stricter post-processor ensures
+    # the rule holds even when the AI misroutes (e.g. on a Certificate IV
+    # that came in under certifications historically).
+    education, certifications = _route_care_vet_to_education(education, certifications)
 
     structured = {
         "contact":        contact,
@@ -186,6 +177,10 @@ def _normalise_education(raw: Any) -> Dict[str, Any]:
         "start_date":    _str(raw.get("start_date")),
         "end_date":      _str(raw.get("end_date")),
         "completed":     bool(raw.get("completed")),
+        # Carried through when the post-processor moved an item out of
+        # certifications; the UI surfaces an "moved from certifications"
+        # badge so the user understands the rebucketing.
+        "_moved_from_certifications": bool(raw.get("_moved_from_certifications")),
     }
 
 
@@ -209,39 +204,79 @@ def _normalise_referee(raw: Any) -> Dict[str, Any]:
     }
 
 
-def _normalise_skills(skills: Optional[Dict[str, List[str]]]) -> Dict[str, List[str]]:
+def _normalise_skills_from_ai(skills: Any) -> Dict[str, List[str]]:
+    """Coerce the AI-returned skills block. De-dupe within each bucket,
+    lowercase, drop blanks. Never raises."""
     skills = skills if isinstance(skills, dict) else {}
     out: Dict[str, List[str]] = {}
     for key in ("technical", "soft_skills", "domain_knowledge"):
         v = skills.get(key)
-        out[key] = [_str(x) for x in v if _str(x)] if isinstance(v, list) else []
+        cleaned: List[str] = []
+        seen: set[str] = set()
+        if isinstance(v, list):
+            for x in v:
+                s = _str(x).lower()
+                if s and s not in seen:
+                    cleaned.append(s)
+                    seen.add(s)
+        out[key] = cleaned
     return out
 
 
 # ---------------------------------------------------------------------------
-# Vertical tagging — reuse the shared lexicon classifier (one source of truth)
+# Bucketing rule: care-sector VET qualifications → Education
 # ---------------------------------------------------------------------------
 
-def _classify_entry_vertical(entry: Dict[str, Any]) -> str:
-    """Best-effort vertical for an experience entry. Reuses the experience
-    parser's per-vertical hit counter (the same lexicon `classify()` used by
-    JD analysis + skill categorisation — one source of truth). Returns the
-    winning vertical name, or "other" when nothing resolves."""
-    try:
-        from app.services.cv.experience_parser import _classify_entry_verticals
-    except Exception:  # pragma: no cover - import guard
-        return "other"
+# Care/health VET qualifications belong with the candidate's main
+# academic credentials, not the licence/short-course pile. Match the
+# qualification NAME (not the issuer): "Certificate IV in Ageing Support",
+# "Certificate III in Individual Support", "Diploma of Community Services",
+# etc. Match is case-insensitive substring on a normalised name.
+_CARE_VET_PATTERNS = re.compile(
+    r"(?ix)\b"
+    r"(?:certificate\s+(?:iii|iv|3|4)|diploma|advanced\s+diploma)\b"
+    r".*?\b(?:"
+    r"ageing\s+support|aged\s+care|individual\s+support|disability(?:\s+support)?|"
+    r"community\s+services|nursing|health\s+services\s+assistance|allied\s+health"
+    r")\b"
+)
 
-    try:
-        hits = _classify_entry_verticals(entry.get("role") or "", entry.get("bullets") or [])
-    except Exception:  # noqa: BLE001 — tagging must never abort structurization
-        return "other"
 
-    best, best_n = "other", 0
-    for vert, n in (hits or {}).items():
-        if n > best_n:
-            best, best_n = vert, n
-    return best
+def _looks_like_care_vet(cert_name: str) -> bool:
+    return bool(_CARE_VET_PATTERNS.search(cert_name or ""))
+
+
+def _route_care_vet_to_education(
+    education: List[Dict[str, Any]],
+    certifications: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Move any care-sector VET quals from certifications into education.
+
+    A certifications entry is moved when its `name` matches the care-VET
+    pattern. The translation maps certification fields → education fields:
+        name        → qualification
+        issuer      → institution
+        issued_date → end_date    (with completed=True)
+    """
+    if not certifications:
+        return education, certifications
+
+    new_education = list(education)
+    remaining_certs: List[Dict[str, Any]] = []
+    for c in certifications:
+        if _looks_like_care_vet(c.get("name", "")):
+            new_education.append({
+                "institution":   c.get("issuer", ""),
+                "qualification": c.get("name", ""),
+                "location":      "",
+                "start_date":    "",
+                "end_date":      c.get("issued_date", ""),
+                "completed":     True,
+                "_moved_from_certifications": True,
+            })
+        else:
+            remaining_certs.append(c)
+    return new_education, remaining_certs
 
 
 # ---------------------------------------------------------------------------

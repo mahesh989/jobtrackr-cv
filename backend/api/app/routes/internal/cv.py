@@ -16,13 +16,17 @@ from app.schemas.internal import (
     ExtractCvReferencesResponse,
     ExtractCvTextRequest,
     ExtractCvTextResponse,
+    RenderCanonicalCvRequest,
+    RenderCanonicalCvResponse,
     StructurizeCvRequest,
     StructurizeCvResponse,
 )
+from app.services.cv.cv_structurizer import normalise_structured_cv
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.cv.references_extractor import extract_cv_references
 from app.services.cv.cv_structurizer import structurize_cv
+from app.services.cv.cv_renderer import render_canonical_cv
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +209,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     try:
-        structured = await structurize_cv(ai_client, body.cv_text, skills=body.skills)
+        structured = await structurize_cv(ai_client, body.cv_text)
     except AIClientError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -214,7 +218,30 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
-    return StructurizeCvResponse(structured_cv=structured)
+    return StructurizeCvResponse(
+        structured_cv=     structured,
+        normalized_cv_text=render_canonical_cv(structured),
+    )
+
+
+# ── /internal/render-canonical-cv ────────────────────────────────────────────
+
+@router.post("/render-canonical-cv", response_model=RenderCanonicalCvResponse)
+async def render_canonical_cv_route(
+    body: RenderCanonicalCvRequest,
+) -> RenderCanonicalCvResponse:
+    """Re-render a structured CV (post-edits) into canonical markdown text.
+
+    Pure + deterministic — no AI call. Used by the review-form autosave
+    path so the renderer stays a single source of truth on the backend
+    (web layer doesn't need its own copy). Re-runs normalise_structured_cv
+    so the care-VET → education rule + gap detection are always applied,
+    even after a user edit that bypasses them.
+    """
+    structured = normalise_structured_cv(body.structured_cv)
+    return RenderCanonicalCvResponse(
+        normalized_cv_text=render_canonical_cv(structured),
+    )
 
 
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────
