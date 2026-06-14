@@ -64,11 +64,23 @@ Browser → POST /api/cv
   → Supabase Storage upload (cvs/{user_id}/{cv_version_id}.pdf)
   → callCvBackend("/internal/extract-cv-text", { storage_path })
     → cv-backend: pypdf / python-docx extracts plain text
-  → INSERT cv_versions (cv_text, pdf_storage_path, is_active)
-  → [optional] callCvBackend("/internal/categorise-cv", { cv_text, ai_key })
-    → cv-backend: LLM classifies skills → technical/soft_skills/domain_knowledge
-  → UPDATE cv_versions (categorised_skills)
+  → [parallel] runStructurizeAndCategorise()
+       ├─ /internal/structurize-cv  → structured_cv (no contact, no skills)
+       └─ /internal/categorise-cv   → categorised_skills (technical / soft / domain)
+     → merge categoriser skills into structured_cv.skills mirror
+     → /internal/render-canonical-cv → normalized_cv_text
+  → INSERT cv_versions (cv_text, pdf_storage_path, is_active,
+                        categorised_skills, structured_cv,
+                        structured_cv_status='parsed', normalized_cv_text)
+  → Forced redirect → /dashboard/cv (inline review card auto-expands)
 ```
+
+Edits in the review form PATCH /api/cv/[id]/structured, re-render
+normalized_cv_text, and keep categorised_skills in lockstep with
+structured_cv.skills. /api/jobs/[id]/analyze reads normalized_cv_text when
+present (falls back to cv_text). See
+`.claude/graph.json → architecture.structured_cv_review_form` for full
+schema + bucketing rules + key files.
 
 ### Job Analysis (7-step pipeline)
 ```

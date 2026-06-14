@@ -17,7 +17,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { decryptApiKey }             from "@/lib/integrations/crypto";
-import { extractCvText, categoriseCv, CvBackendError } from "@/lib/cvBackend";
+import { extractCvText, CvBackendError, type StructuredCv, type CategoriseCvResponse } from "@/lib/cvBackend";
+import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 
 // Same priority order as /api/jobs/[id]/analyze — Anthropic preferred for quality.
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
@@ -138,9 +139,16 @@ export async function POST(req: NextRequest) {
     .eq("is_active", true);
   const shouldActivate = (activeCount ?? 0) === 0;
 
-  // ── 4. Categorise CV skills if the user has an AI key. Non-fatal: a failure
-  //      here just leaves categorised_skills null. They can re-trigger later.
-  let categorised: { technical: string[]; soft_skills: string[]; domain_knowledge: string[] } | null = null;
+  // ── 4. Structurize + categorise in TWO AI calls. Skills are extracted by a
+  //      DEDICATED categoriser (explicit caps + breadth incentives) — folding
+  //      it into the structurize prompt produced thinner skill lists. We then
+  //      merge the categoriser's skills back into structured_cv before persist
+  //      and re-render canonical text so normalized_cv_text reflects the full
+  //      skill set. Non-fatal — failure leaves structured_cv NULL and the
+  //      analysis pipeline falls back to raw cv_text.
+  let structuredCv: StructuredCv | null = null;
+  let normalizedCvText: string | null = null;
+  let categorised: CategoriseCvResponse | null = null;
   const { data: keyRows } = await admin
     .from("user_integrations")
     .select("provider, encrypted_api_key, config")
@@ -163,38 +171,58 @@ export async function POST(req: NextRequest) {
   if (chosen) {
     const k = keyByProvider.get(chosen)!;
     try {
-      const apiKey   = decryptApiKey(k.encrypted_api_key);
+      const apiKey      = decryptApiKey(k.encrypted_api_key);
       const storedModel = k.config?.model ?? null;
-      try {
-        categorised = await categoriseCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: storedModel });
-      } catch (firstErr) {
-        // Stored model may be a non-chat or unrecognised name — retry with provider default.
-        if (storedModel) {
-          console.warn("[/api/cv POST] stored model failed, retrying with default:", firstErr);
-          categorised = await categoriseCv({ cv_text: cvText, ai_provider: chosen, ai_api_key: apiKey, ai_model: null });
-        } else {
-          throw firstErr;
-        }
-      }
+      const r = await runStructurizeAndCategorise(cvText, chosen, apiKey, storedModel);
+      structuredCv     = r.structured_cv;
+      normalizedCvText = r.normalized_cv_text;
+      categorised      = r.categorised;
     } catch (err) {
-      console.warn("[/api/cv POST] categorisation failed (non-fatal):", err);
+      console.warn("[/api/cv POST] structurization failed (non-fatal):", err);
     }
   }
 
-  // ── 5. INSERT the row.
-  const { data: row, error: insertErr } = await admin
-    .from("cv_versions")
-    .insert({
-      id:                 cv_id,
-      user_id:            user.id,
-      label,
-      pdf_storage_path:   storagePath,
-      cv_text:            cvText,
-      is_active:          shouldActivate,
-      categorised_skills: categorised,
-    })
-    .select("id, label, pdf_storage_path, is_active, categorised_skills")
-    .single();
+  // ── 5. INSERT the row. structured_cv columns are migrated separately
+  //      (058 + 059) — if they don't exist yet, fall back to the legacy
+  //      insert shape so the upload still succeeds on pre-migration deploys.
+  const baseRow = {
+    id:                 cv_id,
+    user_id:            user.id,
+    label,
+    pdf_storage_path:   storagePath,
+    cv_text:            cvText,
+    is_active:          shouldActivate,
+    categorised_skills: categorised,
+  };
+  const withStructured = {
+    ...baseRow,
+    structured_cv:        structuredCv,
+    structured_cv_status: structuredCv ? "parsed" : null,
+    normalized_cv_text:   normalizedCvText,
+  };
+
+  let row: { id: string; label: string; pdf_storage_path: string; is_active: boolean; categorised_skills: unknown; structured_cv_status?: string | null } | null = null;
+  let insertErr: { message: string } | null = null;
+  {
+    const first = await admin
+      .from("cv_versions")
+      .insert(withStructured)
+      .select("id, label, pdf_storage_path, is_active, categorised_skills, structured_cv_status")
+      .single();
+    if (first.error && /structured_cv|normalized_cv_text|column/i.test(first.error.message)) {
+      console.warn("[/api/cv POST] structured_cv columns missing — falling back to legacy insert (apply migrations 058+059):", first.error.message);
+      const fallback = await admin
+        .from("cv_versions")
+        .insert(baseRow)
+        .select("id, label, pdf_storage_path, is_active, categorised_skills")
+        .single();
+      row = fallback.data as typeof row;
+      insertErr = fallback.error ? { message: fallback.error.message } : null;
+    } else {
+      row = first.data as typeof row;
+      insertErr = first.error ? { message: first.error.message } : null;
+    }
+  }
 
   if (insertErr || !row) {
     console.error("[/api/cv POST] insert failed:", insertErr?.message);
@@ -205,9 +233,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Forced redirect: a freshly-parsed CV must be reviewed before it's used.
+  // When structurization failed (no key, AI error), skip the review and behave
+  // like the legacy flow — analysis still works against the raw cv_text.
+  const redirect_to = structuredCv ? `/dashboard/cv/${cv_id}/review` : null;
+
+  const responseRow = row as Record<string, unknown>;
   return NextResponse.json({
-    ...row,
-    word_count: cvText.split(/\s+/).length,
+    ...responseRow,
+    word_count:         cvText.split(/\s+/).length,
     has_categorisation: categorised !== null,
+    redirect_to,
   });
 }

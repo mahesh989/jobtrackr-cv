@@ -317,10 +317,10 @@ _REFERENCES_HEADING = "## References"
 
 
 def _build_referee_row(ref: Dict[str, Any]) -> Optional[str]:
-    """Return a single markdown table row for one referee, or None if blank.
+    """Return a single plain-text referee line, or None if blank.
 
-    Format (left col = name+title+company, right col = email — right-aligned):
-        | **Name**, Job title, Company | email@example.com |
+    Format (one line per referee, email at the end):
+        **Name**, Job title, Company — email@example.com
     """
     name      = _clean(ref.get("name"))
     job_title = _clean(ref.get("job_title"))
@@ -333,9 +333,10 @@ def _build_referee_row(ref: Dict[str, Any]) -> Optional[str]:
     if name:      left_parts.append(f"**{name}**")
     if job_title: left_parts.append(job_title)
     if company:   left_parts.append(company)
-    left = ", ".join(left_parts) if left_parts else "—"
-    right = email or ""
-    return f"| {left} | {right} |"
+    left = ", ".join(left_parts)
+    if left and email:
+        return f"{left} — {email}"
+    return left or email
 
 
 def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -383,15 +384,10 @@ def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optiona
     if not rows:
         return None
 
-    # Two-column markdown table — left-align the description, right-align email.
-    # The right-aligned ":---:"-style spec keeps emails flush to the right edge
-    # under both ReportLab and Pandoc-style PDF renderers.
-    table = [
-        "| Referee | Email |",
-        "|:--------|------:|",
-        *rows,
-    ]
-    return f"{_REFERENCES_HEADING}\n\n" + "\n".join(table) + "\n"
+    # Plain-text lines — one referee per line. No table header, no dividers;
+    # renderers (PDF + web preview) lay these out as a clean list rather than
+    # a labelled two-column table.
+    return f"{_REFERENCES_HEADING}\n\n" + "\n\n".join(rows) + "\n"
 
 
 def stamp_references(

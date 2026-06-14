@@ -1,5 +1,13 @@
 # Structured CV Review — handoff for next session
 
+> **STATUS: IMPLEMENTED on branch `feat/structured-cv-review-v2`,
+> [PR #2](https://github.com/mahesh989/jobtrackr-cv/pull/2) (open as of
+> 2026-06-14). Backend deployed to fly. Awaiting merge to `main`.**
+>
+> See `.claude/graph.json → architecture.structured_cv_review_form` for the
+> live shape, key files, and behaviour notes. The narrative below is kept
+> for historical context.
+
 This is a **complete instruction set** for picking up the structured-CV /
 review-form feature in a new session. The previous attempt was rolled back
 from `main` (preserved on branch `feat/structured-cv-review`); migrations

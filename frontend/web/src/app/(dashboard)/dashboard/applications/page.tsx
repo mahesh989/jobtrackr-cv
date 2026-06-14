@@ -197,9 +197,18 @@ export default async function ApplicationsPage({
   if (allRows.length === 0) return <EmptyState />;
 
   // ── 6. Bucket filtering (2-tab) ───────────────────────────────────────────
-  //   pool: cover-letter jobs not yet applied/dismissed (letter_id IS NOT NULL guaranteed)
+  //   pool: COMPLETE jobs not yet applied/dismissed. "Complete" means we have
+  //         all three artifacts — an analysis run, a tailored CV (PDF or
+  //         markdown) on that run, AND a cover letter. If any piece is missing
+  //         the job is silently excluded from the pool (a partial job is not
+  //         ready to apply with). Sent-tab logic is unchanged.
   //   sent: applied_at IS NOT NULL AND NOT dismissed — includes applied-only rows
-  const isPool = (r: ApplicationRowV2) => !!r.letter_id && !r.job_applied_at && !r.job_dismissed_at;
+  const isPool = (r: ApplicationRowV2) =>
+    !!r.letter_id &&
+    !!r.latest_run_id &&
+    !!(r.tailored_pdf_storage_path || r.tailored_cv_storage_path) &&
+    !r.job_applied_at &&
+    !r.job_dismissed_at;
   const isSent = (r: ApplicationRowV2) => !!r.job_applied_at && !r.job_dismissed_at;
 
   const letterCount = allRows.filter((r) => !!r.letter_id).length;

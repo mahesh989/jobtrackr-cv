@@ -27,7 +27,6 @@ import { LiveRunStatus } from "@/components/LiveRunStatus";
 import { LiveLogConsole } from "@/components/LiveLogConsole";
 import { type Job } from "@/components/jobs/JobTable";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
-import { type RailJob } from "@/components/jobs/ContinueRail";
 import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
 import {
@@ -213,21 +212,6 @@ export default async function JobsPage({
     };
   });
 
-  // ── Continue rail — top 3 most recently progressed ───────────────────────
-  const railJobs: RailJob[] = [...boardJobs]
-    .filter((j) => j.progress.last_progress_at !== null && !j.dismissed_at)
-    .sort((a, b) =>
-      (b.progress.last_progress_at ?? "").localeCompare(a.progress.last_progress_at ?? ""),
-    )
-    .slice(0, 3)
-    .map((j) => ({
-      id:         j.id,
-      profile_id: j.profile_id,
-      title:      j.title,
-      company:    j.company,
-      progress:   j.progress,
-    }));
-
   // (allRows, runsRes, lettersRes fetched in BATCH 1 and BATCH 2 above)
 
   const analysedSet    = new Set((runsRes.data ?? []).map((r) => r.job_id));
@@ -347,7 +331,6 @@ export default async function JobsPage({
           <ProfileJobBoard
             jobs={boardJobs}
             counts={funnelCounts}
-            railJobs={railJobs}
             homeAddress={p.home_address}
             thresholds={th}
             isManual={p.is_manual ?? false}

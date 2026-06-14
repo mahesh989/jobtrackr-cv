@@ -181,6 +181,133 @@ export function extractCvReferences(
   );
 }
 
+// ── /internal/structurize-cv ─────────────────────────────────────────────────
+
+export interface StructurizeCvPayload {
+  cv_text:     string;
+  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_api_key:  string;
+  ai_model?:   string | null;
+}
+
+export interface StructuredCvSkills {
+  technical:        string[];
+  soft_skills:      string[];
+  domain_knowledge: string[];
+}
+
+export interface StructuredCvExperience {
+  employer:   string;
+  role:       string;
+  location:   string;
+  start_date: string;
+  end_date:   string;
+  is_current: boolean;
+  bullets:    string[];
+}
+
+export interface StructuredCvEducation {
+  institution:   string;
+  qualification: string;
+  location:      string;
+  start_date:    string;
+  end_date:      string;
+  completed:     boolean;
+  _moved_from_certifications?: boolean;
+}
+
+export interface StructuredCvCertification {
+  name:        string;
+  issuer:      string;
+  code:        string;
+  issued_date: string;
+}
+
+export interface StructuredCvAward {
+  name:        string;
+  issuer:      string;
+  location:    string;
+  date:        string;
+  description: string;
+}
+
+export interface StructuredCvLanguage {
+  language:    string;
+  proficiency: string;
+}
+
+export interface StructuredCvReferee {
+  name:      string;
+  job_title: string;
+  company:   string;
+  email:     string;
+}
+
+export interface StructuredCvGap {
+  section:     string;
+  entry_index: string;
+  field:       string;
+  message:     string;
+}
+
+export interface StructuredCv {
+  summary:        string;
+  experience:     StructuredCvExperience[];
+  education:      StructuredCvEducation[];
+  awards:         StructuredCvAward[];
+  languages:      StructuredCvLanguage[];
+  certifications: StructuredCvCertification[];
+  skills:         StructuredCvSkills;
+  references:     StructuredCvReferee[];
+  gaps:           StructuredCvGap[];
+  /** Parser-logic version. Server component on the review page silently
+   *  re-runs structurize when the stored value is below this constant. Mirror
+   *  of backend/api/app/services/cv/cv_structurizer.STRUCTURED_CV_VERSION. */
+  _version?:      number;
+}
+
+/**
+ * Bump in lockstep with the Python `STRUCTURED_CV_VERSION` constant whenever
+ * parser logic changes. The review-page server component silently re-runs
+ * structurization for any CV whose stored `_version` is below this.
+ */
+export const STRUCTURED_CV_VERSION = 4;
+
+export interface StructurizeCvResponse {
+  structured_cv:      StructuredCv;
+  normalized_cv_text: string;
+}
+
+export function structurizeCv(
+  payload: StructurizeCvPayload,
+): Promise<StructurizeCvResponse> {
+  return callCvBackend<StructurizeCvResponse>(
+    "/internal/structurize-cv",
+    payload,
+    { timeoutMs: 60_000 },   // covers summary/experience/education/awards/certs/refs (skills come from categoriseCv)
+  );
+}
+
+// ── /internal/render-canonical-cv ────────────────────────────────────────────
+
+export interface RenderCanonicalCvPayload {
+  structured_cv: StructuredCv;
+}
+
+export interface RenderCanonicalCvResponse {
+  normalized_cv_text: string;
+}
+
+export function renderCanonicalCv(
+  payload: RenderCanonicalCvPayload,
+): Promise<RenderCanonicalCvResponse> {
+  return callCvBackend<RenderCanonicalCvResponse>(
+    "/internal/render-canonical-cv",
+    payload,
+    { timeoutMs: 10_000 },  // pure function, no AI
+  );
+}
+
 export interface AnalyzePayload {
   run_id:        string;
   user_id:       string;

@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { ensureSomeoneActive }       from "@/lib/cv/ensureActive";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 
@@ -110,6 +111,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 
+  // If the user just deactivated their only active CV, auto-promote a
+  // remaining one so they never end up in a "no active CV" state when CVs
+  // still exist in their library.
+  if (!body.is_active) await ensureSomeoneActive(admin, user.id);
+
   return NextResponse.json({ id, is_active: body.is_active });
 }
 
@@ -148,6 +154,11 @@ export async function DELETE(
     console.error("[/api/cv/:id] db error:", error.message);
     return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
+
+  // If the deleted CV was the active one and there are other CVs left,
+  // promote the most recent one so the user always has an active CV when
+  // any CVs exist.
+  await ensureSomeoneActive(admin, user.id);
 
   return NextResponse.json({ deleted: true });
 }
