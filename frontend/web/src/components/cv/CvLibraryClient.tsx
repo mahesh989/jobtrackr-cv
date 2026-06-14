@@ -434,21 +434,38 @@ function CvRowCard({
   onStructuredUpdated: (structured: StructuredCv) => void;
   onSkillsUpdated:     (skills: CategorisedSkills) => void;
 }) {
+  // When collapsed, the WHOLE card is the click target — header, meta, and
+  // skills block all toggle expand. Once expanded, the click is removed so
+  // nested form interactions don't accidentally collapse the card.
+  const collapsedProps = expanded ? {} : {
+    role:      "button" as const,
+    tabIndex:  0,
+    "aria-expanded": false,
+    onClick:   onToggleExpand,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onToggleExpand();
+      }
+    },
+  };
+
   return (
     <div
+      {...collapsedProps}
       className={
-        "rounded-xl bg-[var(--surface)] transition-all overflow-hidden " +
+        "group rounded-xl bg-[var(--surface)] transition-all overflow-hidden " +
+        (expanded ? "" : "cursor-pointer hover:bg-[var(--surface-2)]/30 hover:shadow-md ") +
         (cv.is_active
           ? "border-2 border-[var(--brand)]/50 shadow-sm"
-          : "border border-[var(--border)] hover:border-[var(--border)] hover:shadow-sm")
+          : "border border-[var(--border)] hover:border-[var(--brand)]/40")
       }
     >
-      {/* HEADER — entire row clickable to expand. Action buttons stopPropagation. */}
-      <button
-        type="button"
-        onClick={onToggleExpand}
-        aria-expanded={expanded}
-        className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-[var(--surface-2)]/30 transition-colors"
+      {/* HEADER — non-interactive; the wrapper handles click when collapsed,
+          and the Collapse button handles it when expanded. Action buttons
+          (InlineAction) stopPropagation in either state. */}
+      <div
+        className="flex w-full items-start justify-between gap-3 p-4 text-left"
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -503,7 +520,7 @@ function CvRowCard({
             onClick={onDelete}
           />
         </div>
-      </button>
+      </div>
 
       {/* COLLAPSED BODY — skills block (kept lightweight) */}
       {!expanded && (
@@ -707,13 +724,13 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
 
   if (!skills) {
     return (
-      <div className="mt-2">
+      <div className="mt-2" onClick={e => e.stopPropagation()}>
         <p className="text-[11px] text-text-3 italic mb-1.5">
           Skills not yet categorised. Make sure an AI key is connected, then click below.
         </p>
         {reCatError && <p className="text-[11px] text-red mb-1">{reCatError}</p>}
         <button
-          onClick={handleRecategorise}
+          onClick={(e) => { e.stopPropagation(); handleRecategorise(); }}
           disabled={reCatLoading}
           className="text-[11px] font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
         >
@@ -730,10 +747,10 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
   if (total === 0) return null;
 
   return (
-    <div className="mt-2">
+    <div className="mt-2" onClick={e => e.stopPropagation()}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="text-xs text-text-2 hover:text-[var(--brand)] inline-flex items-center gap-1 transition-colors"
       >
         <ChevronRight className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} />
