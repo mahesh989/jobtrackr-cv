@@ -21,7 +21,7 @@ from app.config import get_settings
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
 from app.schemas.internal import AnalyzeRequest
-from app.services.ai.client import AIClientError, make_ai_client
+from app.services.ai.client import AIBillingError, AIClientError, AIRateLimitError, make_ai_client
 from app.services.cv.pdf_generator import generate_pdf_from_markdown
 from app.services.pipeline.jd_expiry import detect_jd_expiry
 from app.services.pipeline.progress import (
@@ -521,6 +521,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # marked failed with "Cancelled by user" by the web action. Don't
         # overwrite that with mark_run_failed — just log and exit cleanly.
         logger.info("run %s: pipeline stopped by user", run_id)
+    except AIBillingError as exc:
+        # User-actionable: provider rejected the call because the user's
+        # account has no credit. Surface a clean message with a top-up URL
+        # so the UI can render a CTA instead of a scary "AI client: ..."
+        # error blob. Subclass check must come BEFORE AIClientError.
+        await mark_run_failed(run_id, str(exc), step_status)
+    except AIRateLimitError as exc:
+        await mark_run_failed(run_id, str(exc), step_status)
     except AIClientError as exc:
         await mark_run_failed(run_id, f"AI client: {exc}", step_status)
     except Exception as exc:

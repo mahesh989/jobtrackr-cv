@@ -106,6 +106,99 @@ class AIClientError(Exception):
     """Raised when the AI client fails (auth, network, parsing)."""
 
 
+class AIBillingError(AIClientError):
+    """Raised when the provider rejects the call because the user's account
+    has no remaining credit / quota. Distinct from AIClientError so the
+    orchestrator can surface a user-actionable message ("top up your
+    Anthropic credits") instead of a scary internal-error string.
+
+    `provider` and `top_up_url` are surfaced verbatim to the UI."""
+
+    _PROVIDER_DISPLAY = {"anthropic": "Anthropic", "openai": "OpenAI", "deepseek": "DeepSeek"}
+
+    def __init__(self, provider: str, top_up_url: str, raw: str = ""):
+        self.provider = provider
+        self.top_up_url = top_up_url
+        self.raw = raw
+        display = self._PROVIDER_DISPLAY.get(provider, provider.capitalize())
+        super().__init__(
+            f"Your {display} account has no remaining credit / quota. "
+            f"Top up at {top_up_url}, then re-run the analysis."
+        )
+
+
+class AIRateLimitError(AIClientError):
+    """Raised when the provider returns 429 and we exhausted retries. The
+    request was throttled, not rejected — re-running later is the fix.
+    Distinct from AIClientError so the UI can say 'rate-limited' instead of
+    'internal error'."""
+
+    _PROVIDER_DISPLAY = {"anthropic": "Anthropic", "openai": "OpenAI", "deepseek": "DeepSeek"}
+
+    def __init__(self, provider: str, raw: str = ""):
+        self.provider = provider
+        self.raw = raw
+        display = self._PROVIDER_DISPLAY.get(provider, provider.capitalize())
+        super().__init__(
+            f"{display} rate-limited the request after multiple retries. "
+            f"Wait a moment and re-run the analysis."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Error classification — turn raw SDK errors into typed AIClientError variants
+# ---------------------------------------------------------------------------
+
+_ANTHROPIC_TOP_UP_URL = "https://console.anthropic.com/settings/billing"
+_OPENAI_TOP_UP_URL    = "https://platform.openai.com/settings/organization/billing"
+
+# Message fragments that mean "out of money", not "rate-limited momentarily".
+# Anthropic 400 invalid_request_error with this phrase; OpenAI 429 with
+# `insufficient_quota` or "exceeded your current quota".
+_BILLING_PATTERNS = (
+    "credit balance is too low",
+    "credit balance too low",
+    "insufficient_quota",
+    "insufficient credits",
+    "exceeded your current quota",
+    "you exceeded your current quota",
+    "billing hard limit",
+)
+
+
+def _is_billing_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(p in msg for p in _BILLING_PATTERNS)
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    """Plain 429 from either provider — throttling, not billing. Caller
+    checks _is_billing_error FIRST so insufficient_quota (which also comes
+    back as 429 on OpenAI) is routed to AIBillingError."""
+    if _is_billing_error(exc):
+        return False
+    msg = str(exc).lower()
+    if "ratelimit" in type(exc).__name__.lower():
+        return True
+    return (
+        "error code: 429" in msg
+        or "status code: 429" in msg
+        or "429 too many" in msg
+        or "rate limit" in msg
+        or "rate_limit" in msg
+    )
+
+
+def _classify_provider_error(provider: str, exc: BaseException) -> AIClientError:
+    """Return the most specific AIClientError subclass for an SDK exception."""
+    if _is_billing_error(exc):
+        top_up = _ANTHROPIC_TOP_UP_URL if provider == "anthropic" else _OPENAI_TOP_UP_URL
+        return AIBillingError(provider=provider, top_up_url=top_up, raw=str(exc))
+    if _is_rate_limit_error(exc):
+        return AIRateLimitError(provider=provider, raw=str(exc))
+    return AIClientError(f"{provider.capitalize()} API error: {exc}")
+
+
 Provider = Literal["anthropic", "openai", "deepseek"]
 
 # DeepSeek exposes an OpenAI-compatible REST surface at a different host.
@@ -252,27 +345,38 @@ class AIClient:
                         response = await _call(max_tokens * 2)
                     break  # success
                 except Exception as exc:
-                    if _is_transient(exc) and attempt < _MAX_RETRIES:
+                    # Billing failures (Anthropic invalid_request_error with
+                    # "credit balance is too low") are NOT transient — retrying
+                    # won't make money appear. Surface immediately with a
+                    # user-actionable message.
+                    if _is_billing_error(exc):
+                        raise _classify_provider_error("anthropic", exc) from exc
+                    # 429 from Anthropic is retryable transient — fall through
+                    # to the standard retry path. _is_transient already covers
+                    # most cases via APIConnectionError; explicitly retry rate
+                    # limits too.
+                    is_rate_limit = _is_rate_limit_error(exc)
+                    if (_is_transient(exc) or is_rate_limit) and attempt < _MAX_RETRIES:
                         delay = _RETRY_BASE_DELAY * (2 ** attempt)
                         logger.warning(
-                            "Anthropic transient error (attempt %d/%d): %s — retrying in %.1fs",
+                            "Anthropic %s error (attempt %d/%d): %s — retrying in %.1fs",
+                            "rate-limit" if is_rate_limit else "transient",
                             attempt + 1, _MAX_RETRIES + 1, exc, delay,
                         )
                         last_exc = exc
-                        # Track the transient error before sleeping
                         usage_tracker.track(
                             operation=operation, provider="anthropic", model=self.model,
                             input_tokens=0, output_tokens=0,
                             latency_ms=int((_time.monotonic() - _t0) * 1000),
                             retry_count=attempt, status="error",
-                            error_type="transient",
+                            error_type="rate_limit" if is_rate_limit else "transient",
                             user_id=self.user_id, run_id=self.run_id,
                         )
                         await _asyncio_mod.sleep(delay)
                         continue
-                    raise AIClientError(f"Anthropic API error: {exc}") from exc
+                    raise _classify_provider_error("anthropic", exc) from exc
             else:
-                raise AIClientError(f"Anthropic API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+                raise _classify_provider_error("anthropic", last_exc) from last_exc
 
             # Emit usage record — fire-and-forget, never delays the caller.
             _latency_ms = int((_time.monotonic() - _t0) * 1000)
@@ -416,10 +520,17 @@ class AIClient:
                         response = await _do_call(bumped)
                     break  # success
                 except Exception as exc:
-                    if _is_transient(exc) and attempt < _MAX_RETRIES:
+                    # OpenAI 429 is overloaded: insufficient_quota means out
+                    # of money (no retry); plain rate-limit means throttled
+                    # (retry with backoff). Billing check first.
+                    if _is_billing_error(exc):
+                        raise _classify_provider_error(self.provider, exc) from exc
+                    is_rate_limit = _is_rate_limit_error(exc)
+                    if (_is_transient(exc) or is_rate_limit) and attempt < _MAX_RETRIES:
                         delay = _RETRY_BASE_DELAY * (2 ** attempt)
                         logger.warning(
-                            "OpenAI transient error (attempt %d/%d): %s — retrying in %.1fs",
+                            "OpenAI %s error (attempt %d/%d): %s — retrying in %.1fs",
+                            "rate-limit" if is_rate_limit else "transient",
                             attempt + 1, _MAX_RETRIES + 1, exc, delay,
                         )
                         last_exc = exc
@@ -427,14 +538,15 @@ class AIClient:
                             operation=operation, provider=self.provider, model=self.model,
                             input_tokens=0, output_tokens=0,
                             latency_ms=int((_time.monotonic() - _oai_t0) * 1000),
-                            retry_count=attempt, status="error", error_type="transient",
+                            retry_count=attempt, status="error",
+                            error_type="rate_limit" if is_rate_limit else "transient",
                             user_id=self.user_id, run_id=self.run_id,
                         )
                         await _asyncio_mod.sleep(delay)
                         continue
-                    raise AIClientError(f"OpenAI API error: {exc}") from exc
+                    raise _classify_provider_error(self.provider, exc) from exc
             else:
-                raise AIClientError(f"OpenAI API error after {_MAX_RETRIES + 1} attempts: {last_exc}") from last_exc
+                raise _classify_provider_error(self.provider, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget.
             _oai_latency = int((_time.monotonic() - _oai_t0) * 1000)
