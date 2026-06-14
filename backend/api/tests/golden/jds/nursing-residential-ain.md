@@ -5,7 +5,10 @@ role_family: nursing
 subtype: aged-care
 expected:
   required:
-    domain_knowledge: [aged care, clinical documentation, dressing and grooming, individual support, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
+    # 'individual support' (Cert III in Individual Support fragment) is
+    # stripped to the credential sidecar at the JD-extraction layer. See
+    # post_process._CREDENTIAL_COMPONENT_LABELS.
+    domain_knowledge: [aged care, clinical documentation, dressing and grooming, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
     soft_skills: [empathy, relationship building, reliability, teamwork, verbal communication, written communication]
     technical: []
 ---

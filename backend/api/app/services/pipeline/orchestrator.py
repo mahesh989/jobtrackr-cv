@@ -220,6 +220,17 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
 
+            # Essential vs Desirable deterministic clamp — move skills between
+            # required ↔ preferred where the JD's section headers contradict
+            # the LLM's bucketing (classic miss: "Basic computer and smartphone
+            # working knowledge" sits under Desirable but the LLM put it in
+            # required.technical). Idempotent; no-op when no section headers.
+            try:
+                from app.services.skills.post_process import clamp_by_jd_sections
+                jd_analysis = clamp_by_jd_sections(jd_analysis, payload.jd_text)
+            except Exception:  # noqa: BLE001 — never block on a heuristic
+                logger.debug("section clamp: failed", exc_info=True)
+
             # Off-setting boilerplate demotion: for a residential aged-care JD
             # whose About-Us / brand prose leaks "disability support" or
             # "mental health support" into required skills, move them to

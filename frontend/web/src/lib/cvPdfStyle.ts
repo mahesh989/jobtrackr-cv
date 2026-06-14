@@ -173,4 +173,24 @@ export const CV_PDF_STYLE = `
   .cv-entry:last-child { margin-bottom: 4pt; }
   .cv-entry ul, .cv-entry ol { margin-top: 3pt; }
   .cv-root > *:last-child { margin-bottom: 0; }
+
+  /* References (and any other) GFM tables — borderless, no padding. */
+  .cv-root table {
+    width: 100%;
+    border-collapse: collapse;
+    border: none;
+    margin: 0;
+    padding: 0;
+  }
+  .cv-root table th,
+  .cv-root table td {
+    border: none;
+    padding: 2pt 0;
+    margin: 0;
+    font-size: 10pt;
+    line-height: 11pt;
+    color: #000000;
+    background: transparent;
+  }
+  .cv-root table thead { display: none; }
 `;

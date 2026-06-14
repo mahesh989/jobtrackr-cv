@@ -120,13 +120,13 @@ never all). If the candidate has only 1-2 roles, keep them all. Each role:
   Per bullet, prefer content that shares the JD's domain or method; rewrite
   off-topic bullets toward the role's JD-relevant work.
 
-EDUCATION — If the candidate has 3 or fewer degrees in total, KEEP all of them. The dropping of irrelevant graduate degrees is valid ONLY if they have more than 3 degrees (to select at most 3 entries). Two-line shape:
-    ### Institution | Location
-    *Full Degree Name | Year – Year*
-  ALWAYS keep the candidate's most recent Bachelor's degree as a baseline
-  credential, even if its field differs. If candidate has >3 degrees, drop graduate
-  degrees (Master's/PhD) whose field shares NEITHER the JD's domain NOR its
-  methodology. No bullets under degrees.
+EDUCATION — Count the total number of education entries (degrees, diplomas, AND VET qualifications) on the CV:
+  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory. Do NOT drop any degree (including Master's or PhDs), regardless of whether they match the JD.
+  - If more than 3: Select the top 1-3 entries. In this case, drop graduate degrees (Master's/PhD) whose field shares NEITHER the JD's domain NOR its methodology. ALWAYS keep the most recent Bachelor's degree as a baseline credential.
+  - Same two-line shape:
+      ### Institution | Location
+      *Full Degree Name | Year – Year*
+  - No bullets under degrees.
 
 SKILLS — exactly three lines, JD-relevant only:
     **Technical Skills:** (or **Clinical Skills** / **Core Skills** for

@@ -5,7 +5,11 @@ role_family: nursing
 subtype: home-care
 expected:
   required:
-    domain_knowledge: [domestic assistance, dressing and grooming, home care, individual support, showering and bathing, toileting assistance, transport assistance]
+    # 'home care' (sector descriptor) and 'individual support' (credential
+    # component — fragment of "Cert III in Individual Support") are now
+    # stripped at the JD-extraction layer. See post_process._SECTOR_SETTING_LABELS
+    # and _CREDENTIAL_COMPONENT_LABELS.
+    domain_knowledge: [domestic assistance, dressing and grooming, showering and bathing, toileting assistance, transport assistance]
     soft_skills: [empathy, relationship building, reliability, respect, verbal communication]
     technical: []
 ---

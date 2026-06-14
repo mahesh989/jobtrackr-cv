@@ -700,12 +700,9 @@ SECTION SELECTION CAPS
       → Drop Outlier.ai (AI training has no overlap with fundraising
         analytics). Keep Bitrates + iBuild + Property Console (all
         carry analyst / dashboard / metrics work).
-- Education: if the candidate has 3 or fewer degrees in total, KEEP all of them. The DEGREE RELEVANCE TEST and dropping of irrelevant graduate degrees are valid ONLY if the candidate has more than 3 degrees in total. If they have more than 3, apply the test below to select the most relevant ones and keep at most 3 entries.
-  Graduate degrees (Master's, PhD) in fields with no overlap to
-  the JD's domain or methodology MUST be dropped — they actively HURT
-  the application by signaling overqualification and field mismatch.
-  Bachelor's degrees are exempt and may be kept as baseline credentials
-  even if the field differs.
+- Education: Count the total number of education entries (degrees, diplomas, AND care-sector VET qualifications) on the candidate's CV.
+  - If the candidate has 3 or fewer degrees in total: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory in this case. Do NOT drop any degree (including Master's or PhDs) even if its field differs from the JD.
+  - If the candidate has more than 3 degrees in total: You must select the top 1-3 most relevant entries and drop the others. In this case, apply the DEGREE RELEVANCE TEST below. Graduate degrees (Master's, PhD) in fields with no overlap to the JD's domain or methodology MUST be dropped to prevent signaling overqualification, while Bachelor's degrees are kept as baseline credentials.
 
   DEGREE RELEVANCE TEST — MANDATORY pre-output procedure (applicable ONLY if candidate has >3 degrees):
 

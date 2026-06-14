@@ -126,19 +126,22 @@ in ## Professional Experience may describe the same project (not even
 with different wording).
 
 EDUCATION
-- If the candidate has 3 or fewer degrees in total, KEEP all of them. The DEGREE RELEVANCE TEST and dropping of irrelevant graduate degrees are valid ONLY if the candidate has more than 3 degrees in total (to select at most 3 entries). Same two-line shape:
+- Count the total number of education entries (degrees, diplomas, AND VET qualifications) on the candidate's CV:
+  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory. Do NOT drop any degree (including Master's or PhDs), regardless of whether they match the JD.
+  - If more than 3: Select the top 1-3 entries and drop the others. In this case, run the DEGREE RELEVANCE TEST below. Graduate degrees (Master's / PhD) in fields with no overlap to the JD's domain or methodology MUST be dropped (no exceptions, regardless of prestige), while Bachelor's degrees are kept as baseline credentials.
+- Same two-line shape:
     ### Institution | Location
     *Degree | Year – Year*
   Use the FULL degree name (e.g. "Master of Data Science", "Bachelor of
   Science", "PhD in <Field>"). Append "(GPA: X)" only if the CV reports it.
+- ZERO BULLETS under Education entries. Two-line shape only. (A
+  post-processor strips bullets here.)
+
 - DEGREE RELEVANCE TEST (applicable ONLY if candidate has >3 degrees) for each graduate degree (Master's / PhD):
     Q1: Does its field share the JD's domain?
     Q2: Does its field share the JD's methodology?
   If BOTH answers are "no", the degree is irrelevant and MUST be dropped —
   no exceptions, regardless of prestige.
-- Bachelor's degrees are exempt from the relevance drop; keep one as a baseline credential.
-- ZERO BULLETS under Education entries. Two-line shape only. (A
-  post-processor strips bullets here.)
 
 SKILLS  (## Skills)
 - EXACTLY three category lines, in this order:

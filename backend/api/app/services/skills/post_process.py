@@ -347,16 +347,64 @@ _ROLE_FAMILY_TO_VERTICAL: Dict[str, Optional[str]] = {
 }
 
 
+# JD-side sector / setting labels — descriptors of the role's WORK SETTING or
+# SECTOR, not skills the candidate exercises. The CV side already filters
+# these from the Skills section (see eval/enforce.py _ROLE_CATEGORY_LABELS);
+# this is the symmetric JD-side strip so they don't appear as JD keywords the
+# CV must "match". Each entry is the canonical-lower form returned by the
+# vertical lexicon (or a bare variant that the LLM is likely to emit).
+#
+# Conservative — we INCLUDE the home/community/disability/retirement variants
+# that have been confirmed as JD-leak symptoms, and EXCLUDE 'aged care' and
+# 'domestic assistance' because:
+#   • 'aged care' is often the role's primary vertical (when a JD says
+#     "5 years aged care experience" we want to keep it).
+#   • 'domestic assistance' describes a duty (washing/ironing/vacuuming),
+#     not a setting — the JD genuinely demands it as a skill.
+_SECTOR_SETTING_LABELS: frozenset = frozenset({
+    "home care",
+    "in-home care",
+    "in home care",
+    "domiciliary care",
+    "home care worker",
+    "community care",
+    "community aged care",
+    "home and community care",
+    "disability support",
+    "disability care",
+    "disability services",
+    "retirement living",
+    "retirement village",
+    "residential care",
+    "residential aged care",
+})
+
+
+# JD-side credential-component labels — phrases that ONLY appear as fragments
+# of a credential name (notably "Certificate III/IV in Individual Support
+# (Ageing, Home, and Community)"). The LLM splits the parenthetical into
+# bare skills ("individual support" / "ageing support") which are neither
+# settings nor competencies — they're qualification components. Route to the
+# credential sidecar so they don't pollute the Skills bucket.
+_CREDENTIAL_COMPONENT_LABELS: frozenset = frozenset({
+    "individual support",
+    "ageing support",
+    "ageing, home and community",
+    "ageing home and community",
+})
+
+
 def _empty_sidecar() -> Dict[str, list]:
     # Keys are kept SINGULAR to match the source-of-truth NoiseT literals
     # ("credential", "eligibility", "noise") returned by `is_noise()` so the
     # sidecar can be indexed by noise_type directly without a translation map.
     return {
-        "credential": [],   # phrases that resolved to noise.credential
-        "eligibility": [],  # phrases that resolved to noise.eligibility
-        "noise": [],        # phrases that resolved to noise.noise
-        "unknown": [],      # vertical-lexicon misses (kept in LLM bucket)
-        "moved": [],        # phrase moved between categories by the lexicon
+        "credential": [],     # phrases that resolved to noise.credential
+        "eligibility": [],    # phrases that resolved to noise.eligibility
+        "noise": [],          # phrases that resolved to noise.noise
+        "unknown": [],        # vertical-lexicon misses (kept in LLM bucket)
+        "moved": [],          # phrase moved between categories by the lexicon
+        "setting_label": [],  # phrases stripped as sector/setting descriptors
     }
 
 
@@ -423,6 +471,21 @@ def post_process_skills(
             #      credential sidecar so the JD-analysis display stays
             #      clean of credential leakage.
             if _has_credential_marker(phrase):
+                sidecar["credential"].append(phrase)
+                continue
+
+            phrase_lower = phrase.lower().strip()
+
+            # 1a'''. Sector / setting descriptors — strip from Skills, route
+            #       to setting_label sidecar. Symmetric to the CV-side
+            #       _ROLE_CATEGORY_LABELS filter in eval/enforce.py.
+            if phrase_lower in _SECTOR_SETTING_LABELS:
+                sidecar["setting_label"].append(phrase)
+                continue
+
+            # 1a''''. Bare credential-component labels (fragments of Cert III
+            #        in Individual Support / Ageing). Route to credentials.
+            if phrase_lower in _CREDENTIAL_COMPONENT_LABELS:
                 sidecar["credential"].append(phrase)
                 continue
 
@@ -547,6 +610,49 @@ _GROUND_FUZZY_TOKEN_HEAD: int = 5
 appear as a substring — tolerates trivial whitespace/punctuation drift."""
 
 
+# Soft-skill grounding guard — when a soft-skill candidate's only support in
+# the evidence is an adjective qualifying an INANIMATE NOUN, reject. Classic
+# case: JD says "reliable vehicle" (about the car) and the LLM emits
+# "reliability" as a candidate soft skill. The candidate's reliability as a
+# person is unsupported; the noun phrase is about the equipment.
+#
+# Map: skill_canonical → (adjective root, inanimate-noun set).
+# Conservative — only the recurring real-world misextractions.
+_SOFT_SKILL_INANIMATE_GUARD: Dict[str, Tuple[str, frozenset]] = {
+    "reliability": ("reliab", frozenset({
+        "vehicle", "car", "transport", "transportation", "insurance",
+        "equipment", "internet", "broadband", "connection", "wifi",
+        "service", "supply", "supplies",
+    })),
+    "flexibility": ("flexib", frozenset({
+        "hours", "schedule", "scheduling", "roster", "rostering", "shifts",
+        "arrangement", "arrangements", "availability", "working hours",
+    })),
+}
+
+
+def _evidence_only_modifies_inanimate(skill: str, evidence_norm: str) -> bool:
+    """True when the only support for ``skill`` in ``evidence_norm`` is an
+    adjective qualifying an inanimate noun (e.g. "reliable vehicle"). Caller
+    treats True as "not actually grounded as a soft skill". Returns False
+    when the skill isn't in the guard map, or when the evidence ALSO mentions
+    a person-anchored use of the same adjective family."""
+    guard = _SOFT_SKILL_INANIMATE_GUARD.get(skill.strip().lower())
+    if not guard:
+        return False
+    root, inanimate_nouns = guard
+    # Find all "{root}* {noun}" pairs in the evidence.
+    pattern = re.compile(rf"\b{root}[a-z]*\b\s+(\w+)")
+    matches = pattern.findall(evidence_norm)
+    if not matches:
+        return False
+    # If EVERY occurrence is followed by an inanimate noun, the evidence
+    # doesn't ground the soft skill. If ANY occurrence is followed by a
+    # person/role noun (or no noun match at all from a bare adjective use),
+    # we keep the skill — too risky to reject.
+    return all(noun in inanimate_nouns for noun in matches)
+
+
 def _normalise_for_match(text: str) -> str:
     """Lowercase, collapse whitespace, normalise unicode dashes + quotes."""
     if not text:
@@ -593,6 +699,12 @@ def _skill_derivable_from_evidence(
     """
     skill_norm = skill.strip().lower()
     if not skill_norm:
+        return False
+
+    # Inanimate-anchor guard — if the evidence's ONLY support for this
+    # soft-skill candidate is an adjective qualifying equipment (vehicle,
+    # internet, etc.), reject before any other path can accept it.
+    if _evidence_only_modifies_inanimate(skill_norm, evidence_norm):
         return False
 
     # (a) direct token overlap, OR 4-char prefix match for compound tokens.
@@ -806,6 +918,13 @@ def enrich_required_skills_from_jd_body(
         canon_lower = canonical.lower()
         if canon_lower in already:
             continue
+        # Skip sector / setting labels and credential components — the
+        # post-process layer strips them from LLM extractions, so the
+        # recall floor must not re-inject them via the vertical lexicon.
+        if canon_lower in _SECTOR_SETTING_LABELS:
+            continue
+        if canon_lower in _CREDENTIAL_COMPONENT_LABELS:
+            continue
         if len(norm_phrase.split()) > _MAX_PHRASE_TOKENS:
             continue
         by_bucket_canonical[cat].setdefault(canon_lower, []).append(norm_phrase)
@@ -933,6 +1052,175 @@ def demote_off_setting_keywords(
     logger.info(
         "off-setting demotion (setting=%s): %d keyword(s) moved required→preferred: %s",
         jd_setting, len(demoted), demoted,
+    )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Section-header clamp — Essential vs Desirable
+# ---------------------------------------------------------------------------
+#
+# Many JDs split candidate requirements under explicit headings:
+#   "Essential / Required / Must have / You must have / To be considered:"
+#   "Desirable / Preferred / Nice to have / Highly desirable / Bonus:"
+#
+# The LLM often gets the Required/Preferred split right on the SECTION-LEVEL
+# extraction, but slips when an item from one section is verbally similar to
+# an item from another (e.g. "Basic computer and smartphone working knowledge"
+# under DESIRABLE ends up in required.technical as "computer skills").
+#
+# This deterministic clamp walks the raw JD text, locates each section's
+# body, and for every skill currently in the WRONG bucket relative to the
+# section it appears in, MOVES it to the right bucket. Same category
+# (technical / soft / domain) preserved. Idempotent.
+
+_SECTION_HEAD_ESSENTIAL = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?\**\s*"
+    r"(essential|required|must\s+have|you\s+must\s+have|"
+    r"to\s+be\s+considered|requirements?)"
+    r"\s*[:\-]?\s*\**\s*$",
+)
+_SECTION_HEAD_DESIRABLE = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?\**\s*"
+    r"(desirable|preferred|nice\s+to\s+have|highly\s+desirable|"
+    r"bonus|advantageous|would\s+be\s+(?:a\s+)?(?:plus|advantage))"
+    r"\s*[:\-]?\s*\**\s*$",
+)
+# Inline "Essential:" / "Desirable:" prefix on a single line. Captures the
+# rest-of-line tail as that section's body when the JD uses the compact
+# "Essential: ..." pattern instead of a multi-line section.
+_INLINE_ESSENTIAL = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?(?:essential|required|must\s+have)\s*[:\-]\s*(.+)$",
+)
+_INLINE_DESIRABLE = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?(?:desirable|preferred|nice\s+to\s+have|highly\s+desirable)\s*[:\-]\s*(.+)$",
+)
+
+
+def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
+    """Return (essential_blob, desirable_blob) lowercase blobs by scanning
+    section headers in ``jd_text``. Inline 'Essential: …' / 'Desirable: …'
+    lines also contribute to the relevant blob. Empty string when a section
+    isn't present."""
+    if not jd_text:
+        return "", ""
+    lines = jd_text.splitlines()
+    essential_parts: List[str] = []
+    desirable_parts: List[str] = []
+    current: Optional[str] = None
+    for line in lines:
+        bare = line.strip()
+        if not bare:
+            continue
+        # Inline prefix lines contribute regardless of current section.
+        m = _INLINE_ESSENTIAL.match(bare)
+        if m:
+            essential_parts.append(m.group(1).lower())
+            current = "essential"
+            continue
+        m = _INLINE_DESIRABLE.match(bare)
+        if m:
+            desirable_parts.append(m.group(1).lower())
+            current = "desirable"
+            continue
+        if _SECTION_HEAD_ESSENTIAL.match(bare):
+            current = "essential"
+            continue
+        if _SECTION_HEAD_DESIRABLE.match(bare):
+            current = "desirable"
+            continue
+        # Section bodies end at a blank line OR a long header-like line. We
+        # already skipped blanks; cap by length to avoid running into prose
+        # paragraphs. 200 chars is generous for a bullet, restrictive for
+        # the "About Us" paragraph that often follows.
+        if current and len(bare) <= 200:
+            if current == "essential":
+                essential_parts.append(bare.lower())
+            elif current == "desirable":
+                desirable_parts.append(bare.lower())
+    return " | ".join(essential_parts), " | ".join(desirable_parts)
+
+
+def _phrase_in_blob(phrase: str, blob: str) -> bool:
+    """True when any content token of ``phrase`` (>3 chars) appears in
+    ``blob`` AND the matched span is within a window suggesting the phrase
+    really belongs to that section. Approximation — but combined with the
+    head/body extraction in ``_collect_section_bodies`` it catches the
+    common cases without over-firing on incidental keyword mentions
+    elsewhere in the JD."""
+    if not phrase or not blob:
+        return False
+    tokens = [t for t in re.findall(r"[a-z][a-z\-]+", phrase.lower()) if len(t) > 3]
+    if not tokens:
+        return False
+    return any(t in blob for t in tokens)
+
+
+def clamp_by_jd_sections(
+    jd_analysis: Dict[str, Any], jd_text: str,
+) -> Dict[str, Any]:
+    """Move skills between required ↔ preferred when the JD's Essential /
+    Desirable section headers contradict the LLM's bucketing.
+
+    Mutates a shallow copy. No-op when neither section is detected in the
+    JD text. Records moves under ``lexicon_meta.section_clamp`` for
+    diagnostics."""
+    essential_blob, desirable_blob = _collect_section_bodies(jd_text)
+    if not essential_blob and not desirable_blob:
+        return jd_analysis
+
+    req = dict(jd_analysis.get("required_skills") or {})
+    pref = dict(jd_analysis.get("preferred_skills") or {})
+    moves: List[Dict[str, str]] = []
+
+    for cat in _CATEGORIES:
+        req_items = list(req.get(cat) or [])
+        pref_items = list(pref.get(cat) or [])
+        new_req: List[str] = []
+        new_pref: List[str] = list(pref_items)
+
+        # Required → Preferred when phrase only matches Desirable blob.
+        for s in req_items:
+            if not isinstance(s, str):
+                continue
+            in_desirable = desirable_blob and _phrase_in_blob(s, desirable_blob)
+            in_essential = essential_blob and _phrase_in_blob(s, essential_blob)
+            if in_desirable and not in_essential:
+                if s.lower() not in {p.lower() for p in new_pref}:
+                    new_pref.append(s)
+                moves.append({"skill": s, "from": "required", "to": "preferred", "category": cat})
+            else:
+                new_req.append(s)
+
+        # Preferred → Required when phrase only matches Essential blob.
+        final_pref: List[str] = []
+        for s in new_pref:
+            if not isinstance(s, str):
+                continue
+            in_essential = essential_blob and _phrase_in_blob(s, essential_blob)
+            in_desirable = desirable_blob and _phrase_in_blob(s, desirable_blob)
+            if in_essential and not in_desirable:
+                if s.lower() not in {r.lower() for r in new_req}:
+                    new_req.append(s)
+                moves.append({"skill": s, "from": "preferred", "to": "required", "category": cat})
+            else:
+                final_pref.append(s)
+
+        req[cat] = new_req
+        pref[cat] = final_pref
+
+    if not moves:
+        return jd_analysis
+
+    out = dict(jd_analysis)
+    out["required_skills"] = req
+    out["preferred_skills"] = pref
+    meta = dict(out.get("lexicon_meta") or {})
+    meta["section_clamp"] = moves
+    out["lexicon_meta"] = meta
+    logger.info(
+        "section clamp: moved %d skill(s) between required/preferred per JD section headers",
+        len(moves),
     )
     return out
 
