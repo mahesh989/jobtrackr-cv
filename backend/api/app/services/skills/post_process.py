@@ -118,8 +118,11 @@ def _is_qualification_phrase(phrase: str) -> bool:
 _EMBEDDED_CREDENTIAL_MARKER_RE = re.compile(
     r"(?ix)("
     # "at certificate iv level" / "at cert iv level" / "(certificate iv)" / "(cert iv)"
+    # Also catches slashed pairs like "(certificate iii/iv)" and "cert iii or iv"
+    # by allowing an optional "/iv" or " or iv" tail before the closer.
     r"\b(?:at\s+)?(?:certificate|cert\.?)\s*(?:i{1,4}|iv|[1-4])"
-    r"\s*(?:level\b|\)|$)"
+    r"(?:\s*(?:[/]|\bor\b)\s*(?:iv|i{1,4}|[1-4]))?"
+    r"\s*(?:level\b|\)|$|\sin\b|\sof\b)"
     r"|"
     # Embedded AU VET unit codes anywhere in the phrase:
     # "(HLTHPS007)", "(HLTHPS007 unit)", " HLTHPS007 ", etc.
@@ -685,6 +688,8 @@ def _evidence_in_jd(evidence_norm: str, jd_norm: str) -> bool:
 
 def _skill_derivable_from_evidence(
     skill: str, evidence_norm: str, vertical: Optional[str],
+    *,
+    is_soft_skill: bool = False,
 ) -> bool:
     """True if the skill is supported by the evidence.
 
@@ -725,7 +730,13 @@ def _skill_derivable_from_evidence(
         if len(tok) > 4 and re.search(r"\b" + re.escape(tok[:4]), evidence_norm):
             return True
 
-    # (b) lexicon synonym mapping (vertical-aware)
+    # (b) lexicon synonym mapping (vertical-aware) — DISABLED for soft skills.
+    # The lexicon crosses word families on soft-skill canonicals (e.g.
+    # "compassionate" → canonical "empathy", "flexible" → "adaptability"),
+    # which contradicts the JD-analysis prompt's verbatim rule. For soft
+    # skills we accept only direct token / 4-char-prefix overlap (path (a)).
+    if is_soft_skill:
+        return False
     if vertical:
         try:
             skill_class = classify(skill_norm, vertical)
@@ -802,7 +813,10 @@ def verify_skill_evidence(
                         "evidence": evidence, "reason": "evidence_not_in_jd",
                     })
                     continue
-                if not _skill_derivable_from_evidence(skill, evidence_norm, vertical):
+                if not _skill_derivable_from_evidence(
+                    skill, evidence_norm, vertical,
+                    is_soft_skill=(cat == "soft_skills"),
+                ):
                     ungrounded.append({
                         "skill": skill, "bucket": f"{block_key}.{cat}",
                         "evidence": evidence, "reason": "skill_not_derivable",
@@ -914,6 +928,17 @@ def enrich_required_skills_from_jd_body(
     }
     for norm_phrase, (canonical, cat) in lookup.items():
         if cat not in _CATEGORIES:
+            continue
+        # Soft skills are extracted VERBATIM by the LLM per the JD-analysis
+        # prompt's candidate-traits rule. The lexicon canonicalisation
+        # crosses word families (e.g. "compassionate" → canonical "empathy",
+        # "flexible" → canonical "adaptability"), which violates the
+        # verbatim-preservation goal and contradicts the prompt's own rule
+        # ("do NOT silently substitute 'empathy'"). The groundedness gate
+        # already drops LLM hallucinations; we don't need recall augmentation
+        # on soft skills — and adding it actively re-introduces hallucinated
+        # canonicals after the gate cleaned them.
+        if cat == "soft_skills":
             continue
         canon_lower = canonical.lower()
         if canon_lower in already:
@@ -1329,13 +1354,44 @@ def post_process_jd_analysis(
     vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
     out, subsumed = _dedupe_by_subsumption(out, vertical)
 
-    out["lexicon_meta"] = {
+    # Cross-bucket dedup — same canonical (case-insensitive) in both
+    # required and preferred means the LLM emitted it twice from two
+    # different bits of JD prose. Required wins; drop the preferred copy.
+    # Same category required.
+    req_blk = dict(out.get("required_skills") or {})
+    pref_blk = dict(out.get("preferred_skills") or {})
+    cross_dropped: List[str] = []
+    for cat in _CATEGORIES:
+        req_lower = {s.lower() for s in (req_blk.get(cat) or []) if isinstance(s, str)}
+        if not req_lower:
+            continue
+        kept_pref: List[str] = []
+        for s in (pref_blk.get(cat) or []):
+            if isinstance(s, str) and s.lower() in req_lower:
+                cross_dropped.append(f"{cat}:{s}")
+                continue
+            kept_pref.append(s)
+        pref_blk[cat] = kept_pref
+    if cross_dropped:
+        out["preferred_skills"] = pref_blk
+        logger.info(
+            "cross-bucket dedup: dropped %d duplicate(s) from preferred "
+            "(already present in required): %s",
+            len(cross_dropped), cross_dropped,
+        )
+
+    # Preserve any prior lexicon_meta entries (e.g. ``ungrounded`` written
+    # by verify_skill_evidence). Merging instead of overwriting keeps the
+    # full diagnostic trail visible downstream.
+    prior_meta = dict(jd_analysis.get("lexicon_meta") or {})
+    prior_meta.update({
         "role_family": role_family_id,
         "vertical": vertical,
         "required": req_side,
         "preferred": pref_side,
         "subsumed": subsumed,
-    }
+    })
+    out["lexicon_meta"] = prior_meta
 
     # Single concise log line summarising what changed. Useful when
     # something looks off in a production run — quick to spot whether

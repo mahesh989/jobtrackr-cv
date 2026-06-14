@@ -13,7 +13,7 @@ import {
   type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
 import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
-import { fitCvToPage } from "@/lib/cvPdfFit";
+import { renderTailoredCvHtml, renderTailoredCvBlob } from "@/lib/cvPdfRender";
 
 interface Props {
   storagePath:    string | null;   // markdown path in tailored-cvs bucket
@@ -107,11 +107,6 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
     return () => clearTimeout(t);
   }, [showPreview, formattedMd]);
 
-  function ensurePreviewVisible(): Promise<HTMLElement | null> {
-    setShowPreview(true);
-    return new Promise((resolve) => setTimeout(() => resolve(previewRef.current), 100));
-  }
-
   // ── Download .md (raw) ────────────────────────────────────────────────────
   function handleDownloadMd() {
     if (!formattedMd) return;
@@ -121,159 +116,32 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
 
   // ── Print / PDF — open clean window, then call window.print ───────────────
   async function handlePrint() {
-    const root = await ensurePreviewVisible();
-    if (!root) return;
-    const html = root.innerHTML;
-    if (!html) return;
+    // Open the window synchronously (inside the click gesture) so popup
+    // blockers don't eat it. Populate after the async rendering completes.
     const win = window.open("", "_blank", "width=900,height=1100");
     if (!win) return;
-    win.document.write(buildPrintDocument(html));
-    win.document.close();
-    setTimeout(() => win.print(), 300);
+    win.document.write("<p>Preparing…</p>");
+    try {
+      const html = await renderTailoredCvHtml({ markdown: rawMd || "", contactDetails: contact });
+      win.document.open();
+      win.document.write(buildPrintDocument(html));
+      win.document.close();
+      setTimeout(() => win.print(), 300);
+    } catch (e) {
+      win.close();
+      setErr(e instanceof Error ? e.message : "Print preparation failed");
+    }
   }
 
   // ── Download PDF — html2canvas-pro + jsPDF client-side render ───────────
   async function handleDownloadPdf() {
-    const root = await ensurePreviewVisible();
     setDP(true); setErr(null);
-    let wrapper: HTMLDivElement | null = null;
     try {
-      const html = root?.innerHTML;
-      if (!html) throw new Error("Preview HTML is empty");
-
-      // A4 content area = 794px page width − 2 × 36px (0.5in) margin = 722px
-      const PAGE_W_PX = 794;   // 8.27in @ 96dpi
-      const PAGE_H_PX = 1123;  // 11.69in @ 96dpi
-      const MARGIN_PT = 36;    // 0.5in
-      const CONTENT_W_PX = PAGE_W_PX - 2 * 48;  // 698px (matches preview)
-
-      wrapper = document.createElement("div");
-      Object.assign(wrapper.style, {
-        position: "fixed", left: "0", top: "0",
-        width: `${CONTENT_W_PX}px`,
-        padding: "0",
-        background: "#ffffff",
-        opacity: "0",
-        pointerEvents: "none",
-        zIndex: "-1",
-        // Reset inherited color so html2canvas-pro never has to parse a
-        // Tailwind v4 lab()/oklch() value from a parent.
-        color: "#000000",
-        colorScheme: "light",
-      });
-      wrapper.innerHTML = `<style>${CV_PDF_STYLE}</style><main class="cv-root">${html}</main>`;
-      document.body.appendChild(wrapper);
-      const cvRoot = wrapper.querySelector(".cv-root") as HTMLElement | null;
-      if (!cvRoot) throw new Error("cv-root not found");
-      applyCvSectionLayout(cvRoot);
-      // Two RAF ticks so layout settles before snapshot.
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-      // Grow typography to fill one page when the CV is sparse (no bottom gap).
-      const styleEl = wrapper.querySelector("style") as HTMLStyleElement | null;
-      if (styleEl) await fitCvToPage(cvRoot, styleEl, CV_PDF_STYLE);
-
-      const [{ default: html2canvas }, { default: JsPDF }] = await Promise.all([
-        import("html2canvas-pro"),
-        import("jspdf"),
-      ]);
-
-      const canvas = await html2canvas(cvRoot, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        // Fail fast on weird CSS rather than swallow it silently.
-        logging: false,
-      });
-
-      const pdf = new JsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const usableW = pageW - 2 * MARGIN_PT;
-      // Convert canvas px → pt to keep proportions
-      const imgW = usableW;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      const usableH = pageH - 2 * MARGIN_PT;
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-
-      if (imgH <= usableH) {
-        pdf.addImage(imgData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, imgH);
-      } else {
-        // Multi-page: slice the canvas vertically. Instead of cutting at the
-        // exact pixel where the page boundary lands (which slices through the
-        // middle of text lines), scan upward from the ideal cut to find a row
-        // of all-white pixels — text never lives on a fully-white row, so
-        // cutting there cleanly breaks between lines/paragraphs/sections.
-        const pageHpx  = (canvas.width * usableH) / usableW;
-        const srcCtx   = canvas.getContext("2d", { willReadFrequently: true });
-        if (!srcCtx) throw new Error("Source canvas 2D context unavailable");
-
-        // How far we're willing to scan upward to find a clean break before
-        // giving up and using the original cut point. 18% of a page is enough
-        // to clear a line of text or a section header but won't sacrifice a
-        // huge portion of usable space.
-        const SCAN_BACK_PX = Math.floor(pageHpx * 0.18);
-
-        const findSafeBreak = (idealY: number): number => {
-          const minY = Math.max(idealY - SCAN_BACK_PX, 1);
-          // Read the strip we need to scan in one go for performance.
-          const strip = srcCtx.getImageData(0, minY, canvas.width, idealY - minY);
-          // Scan rows from bottom up.
-          for (let yRel = strip.height - 1; yRel >= 0; yRel--) {
-            let rowIsBlank = true;
-            const rowStart = yRel * strip.width * 4;
-            for (let x = 0; x < strip.width; x++) {
-              const i = rowStart + x * 4;
-              // Treat anything darker than ~245/255 on any channel as content.
-              if (strip.data[i] < 245 || strip.data[i + 1] < 245 || strip.data[i + 2] < 245) {
-                rowIsBlank = false;
-                break;
-              }
-            }
-            if (rowIsBlank) return minY + yRel;
-          }
-          // No clean break found — fall back to the original cut.
-          return idealY;
-        };
-
-        let yPx = 0;
-        let pageCount = 0;
-        while (yPx < canvas.height) {
-          const remaining = canvas.height - yPx;
-          // Ideal bottom of this page in source-canvas coords.
-          const idealEndY = yPx + Math.min(pageHpx, remaining);
-          // If this is the last page (everything fits), just take the rest.
-          const isLastPage = idealEndY >= canvas.height - 1;
-          const endY = isLastPage ? canvas.height : findSafeBreak(idealEndY);
-          const sliceH = endY - yPx;
-
-          const slice = document.createElement("canvas");
-          slice.width  = canvas.width;
-          slice.height = sliceH;
-          const ctx = slice.getContext("2d");
-          if (!ctx) throw new Error("Canvas 2D context unavailable");
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, slice.width, slice.height);
-          ctx.drawImage(canvas, 0, -yPx);
-
-          if (pageCount > 0) pdf.addPage();
-          const sliceData = slice.toDataURL("image/jpeg", 0.95);
-          const sliceImgH = (sliceH * imgW) / canvas.width;
-          pdf.addImage(sliceData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, sliceImgH);
-
-          yPx = endY;
-          pageCount += 1;
-          void PAGE_H_PX; // suppress unused-var: we use pdf.internal.pageSize instead
-        }
-      }
-
-      pdf.save(`tailored-cv-${runId.slice(0, 8)}.pdf`);
+      const pdfBlob = await renderTailoredCvBlob({ markdown: rawMd || "", contactDetails: contact });
+      triggerDownload(pdfBlob, `tailored-cv-${runId.slice(0, 8)}.pdf`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "PDF generation failed");
     } finally {
-      if (wrapper?.parentNode) wrapper.parentNode.removeChild(wrapper);
       setDP(false);
     }
   }

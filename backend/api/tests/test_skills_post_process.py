@@ -555,93 +555,66 @@ def _empty_jd_analysis(jd_text: str, *, summary: str = "", responsibilities=None
 
 
 class TestRecallFloorAllBuckets:
-    def test_reliability_injected_from_commitment_to_allocated_shifts(self):
-        """JD body says 'commitment to allocated shifts' (lexicon variant of
-        `reliability`) but the LLM missed it. The multi-bucket recall floor
-        must inject `reliability` into soft_skills."""
-        jd_text = (
-            "We are seeking an AIN who can show commitment to allocated "
-            "shifts across weekdays and weekends."
-        )
-        jd = _empty_jd_analysis(jd_text)
-        out = enrich_required_skills_from_jd_body(
-            jd, jd_text, role_family_id="nursing",
-        )
-        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
-        assert "reliability" in soft, (
-            "recall floor must surface `reliability` from the lexicon variant "
-            "`commitment to allocated shifts` present in the JD body"
-        )
+    """Recall floor policy:
+      • soft_skills — DISABLED. The lexicon canonicalisation crosses word
+        families ("compassionate" → canonical "empathy", "flexible" →
+        "adaptability"), which violates the JD-analysis prompt's verbatim
+        rule. The LLM already extracts 6-9 soft skills per JD; the
+        groundedness gate filters hallucinations. No augmentation needed.
+      • technical + domain_knowledge — still active. These are deterministic
+        lexicon matches and the canonicals are stable word-family rewrites
+        ("commercial cleaning" canonical surfaces from "industrial cleaning"
+        variants — same noun, same role).
+    """
 
-    def test_teamwork_injected_from_works_well_as_part_of_a_team(self):
-        """`works well as part of a team` is a lexicon variant of `teamwork`.
-        Empty soft_skills + this phrase in JD body → teamwork injected."""
+    def test_soft_skills_recall_disabled(self):
+        """JD body contains lexicon variants of soft canonicals, but the
+        floor must NOT inject them — soft-skill recall is intentionally off
+        to preserve the JD's surface phrasing."""
         jd_text = (
-            "The successful candidate works well as part of a team and "
-            "supports colleagues across shifts."
+            "We need someone compassionate who is flexible with shifts and "
+            "works well as part of a team."
         )
         jd = _empty_jd_analysis(jd_text)
         out = enrich_required_skills_from_jd_body(
             jd, jd_text, role_family_id="nursing",
         )
         soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
-        assert "teamwork" in soft
+        # None of these canonicals — emanating from different word families —
+        # should be auto-injected into soft_skills by the floor.
+        for canon in ("empathy", "adaptability", "teamwork"):
+            assert canon not in soft, (
+                f"{canon} re-injected from a cross-family variant — the "
+                "soft-skills recall floor must remain disabled"
+            )
+
+    def test_domain_knowledge_recall_still_active(self):
+        """domain_knowledge floor remains on — the recall safety net was
+        added specifically to fix the empty-domain-bucket variance issue."""
+        jd_text = (
+            "Provide personal care and emotional support to residents."
+        )
+        jd = _empty_jd_analysis(jd_text)
+        out = enrich_required_skills_from_jd_body(
+            jd, jd_text, role_family_id="nursing",
+        )
+        dom = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
+        assert "personal care" in dom
+        assert "emotional support" in dom
 
     def test_per_bucket_cap_respected_when_full(self):
-        """If soft_skills already has 10 items (the schema cap), the recall
-        floor must NOT push past the cap — no injection."""
-        jd_text = (
-            "Commitment to allocated shifts and works well as part of a "
-            "team are both required."
-        )
-        ten_existing = [f"soft_{i}" for i in range(10)]
+        """Cap still honoured for the still-active buckets."""
+        jd_text = "Provide personal care, mobility support, falls prevention."
+        ten_existing = [f"dom_{i}" for i in range(10)]
         jd = _empty_jd_analysis(jd_text)
-        jd["required_skills"]["soft_skills"] = list(ten_existing)
+        jd["required_skills"]["domain_knowledge"] = list(ten_existing)
         out = enrich_required_skills_from_jd_body(
             jd, jd_text, role_family_id="nursing",
         )
         # Cap honoured — list length never exceeds 10
-        assert len(out["required_skills"]["soft_skills"]) == 10
-        # And we didn't displace any of the existing items
+        assert len(out["required_skills"]["domain_knowledge"]) == 10
         for kw in ten_existing:
-            assert kw in out["required_skills"]["soft_skills"]
-
-    def test_recall_floor_fills_partial_bucket_up_to_cap(self):
-        """soft_skills with 9 items + 2 lexicon hits in body → cap at 10,
-        only one of the two new canonicals lands."""
-        jd_text = (
-            "Commitment to allocated shifts and works well as part of a "
-            "team are both required."
-        )
-        nine_existing = [f"soft_{i}" for i in range(9)]
-        jd = _empty_jd_analysis(jd_text)
-        jd["required_skills"]["soft_skills"] = list(nine_existing)
-        out = enrich_required_skills_from_jd_body(
-            jd, jd_text, role_family_id="nursing",
-        )
-        soft = out["required_skills"]["soft_skills"]
-        assert len(soft) == 10
-        added = [s for s in soft if s not in nine_existing]
-        assert len(added) == 1, f"expected exactly one addition, got {added}"
-        assert added[0].lower() in {"reliability", "teamwork"}
-
-    def test_multi_bucket_injection_in_one_call(self):
-        """A single JD with one hit per bucket should populate all three
-        buckets simultaneously — proves the scan iterates all categories."""
-        jd_text = (
-            "We need someone with personal care experience, commitment to "
-            "allocated shifts, and basic computer skills."
-        )
-        jd = _empty_jd_analysis(jd_text)
-        out = enrich_required_skills_from_jd_body(
-            jd, jd_text, role_family_id="nursing",
-        )
-        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
-        dom = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
-        # soft_skills hit (reliability variant)
-        assert "reliability" in soft
-        # domain_knowledge hit (personal care literal)
-        assert "personal care" in dom
+            assert kw in out["required_skills"]["domain_knowledge"]
 
 
 # ---------------------------------------------------------------------------
@@ -846,6 +819,13 @@ class TestEmbeddedCredentialMarkers:
         assert _has_credential_marker("aged care at certificate iv level")
         assert _has_credential_marker("aged care at cert iv level")
         assert _has_credential_marker("aged care at certificate 4 level")
+
+    def test_detector_catches_slashed_cert(self):
+        """Real Uniting JD pattern: 'aged care (certificate iii/iv)'."""
+        assert _has_credential_marker("aged care (certificate iii/iv)")
+        assert _has_credential_marker("aged care (certificate iii / iv)")
+        assert _has_credential_marker("aged care (cert iii or iv)")
+        assert _has_credential_marker("individual support certificate iii in ageing")
 
     def test_detector_catches_medication_endorsement(self):
         assert _has_credential_marker("medication endorsement (hlthps007 unit)")

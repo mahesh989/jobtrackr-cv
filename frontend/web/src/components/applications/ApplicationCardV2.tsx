@@ -379,6 +379,11 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
   const [cvPreviewing, setCvPreviewing] = useState(false);
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
+    // Open the tab synchronously (inside the click gesture) so popup
+    // blockers don't eat it. Navigate to the PDF blob URL after rendering.
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write("<p>Rendering tailored CV…</p>");
     setActionError(null);
     setCvPreviewing(true);
     try {
@@ -400,9 +405,10 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
       const url = URL.createObjectURL(pdfBlob);
-      window.open(url, "_blank", "noopener,noreferrer");
+      win.location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
+      win.close();
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);
@@ -792,6 +798,11 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
+    // Open the tab synchronously (inside the click gesture) so popup
+    // blockers don't eat it. Navigate to the PDF blob URL after rendering.
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write("<p>Rendering tailored CV…</p>");
     setCvPreviewing(true);
     setActionError(null);
     try {
@@ -813,9 +824,10 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
       const url = URL.createObjectURL(pdfBlob);
-      window.open(url, "_blank", "noopener,noreferrer");
+      win.location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
+      win.close();
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);

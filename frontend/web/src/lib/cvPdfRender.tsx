@@ -40,6 +40,70 @@ const CONTENT_W_PX = PAGE_W_PX - 2 * 48;      // 698px
 const SCAN_BACK_FRAC = 0.18;                  // % of a page to scan back for clean breaks
 
 /**
+ * Produce the styled HTML string from raw tailored CV markdown using the same
+ * off-screen rendering pipeline.
+ */
+export async function renderTailoredCvHtml({ markdown, contactDetails }: RenderInput): Promise<string> {
+  const formattedMd = padPipesAndCleanArtifacts(
+    boldSkillCategories(
+      stampContactClient(tidyContactLine(markdown), contactDetails),
+    ),
+  );
+
+  const host = document.createElement("div");
+  Object.assign(host.style, {
+    position:      "fixed",
+    left:          "0",
+    top:           "0",
+    width:         `${CONTENT_W_PX}px`,
+    padding:       "0",
+    background:    "#ffffff",
+    opacity:       "0",
+    pointerEvents: "none",
+    zIndex:        "-1",
+    color:         "#000000",
+    colorScheme:   "light",
+  });
+  const mainEl = document.createElement("main");
+  mainEl.className = "cv-root";
+  host.appendChild(mainEl);
+  document.body.appendChild(host);
+
+  let root: Root | null = null;
+  try {
+    root = createRoot(mainEl);
+    await new Promise<void>((resolve) => {
+      root!.render(
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#000080", textDecoration: "none" }}
+              >
+                {children}
+              </a>
+            ),
+          }}
+        >
+          {formattedMd}
+        </ReactMarkdown>
+      );
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    applyCvSectionLayout(mainEl);
+    return mainEl.innerHTML;
+  } finally {
+    if (root) root.unmount();
+    if (host.parentNode) host.parentNode.removeChild(host);
+  }
+}
+
+/**
  * Produce a PDF Blob from raw tailored CV markdown using the same client
  * pipeline as the analysis-page Download PDF button.
  *

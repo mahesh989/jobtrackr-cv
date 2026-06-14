@@ -10,7 +10,10 @@ expected:
     # stripped at the JD-extraction layer. See post_process._SECTOR_SETTING_LABELS
     # and _CREDENTIAL_COMPONENT_LABELS.
     domain_knowledge: [domestic assistance, dressing and grooming, showering and bathing, toileting assistance, transport assistance]
-    soft_skills: [empathy, relationship building, reliability, respect, verbal communication]
+    # Recall floor disabled for soft_skills (policy: preserve LLM's verbatim
+    # phrasing; do not cross word-families via lexicon canonicalisation).
+    # Expected = LLM extraction only.
+    soft_skills: [empathy, relationship building, verbal communication]
     technical: []
 ---
 Personal Care Worker — Home Care Services

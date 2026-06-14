@@ -9,7 +9,8 @@ expected:
     # stripped to the credential sidecar at the JD-extraction layer. See
     # post_process._CREDENTIAL_COMPONENT_LABELS.
     domain_knowledge: [aged care, clinical documentation, dressing and grooming, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
-    soft_skills: [empathy, relationship building, reliability, teamwork, verbal communication, written communication]
+    # Recall floor disabled for soft_skills (policy: preserve LLM verbatim).
+    soft_skills: [empathy, teamwork, verbal communication, written communication]
     technical: []
 ---
 Assistant in Nursing — Residential Aged Care

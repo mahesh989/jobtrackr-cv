@@ -6,7 +6,8 @@ subtype: commercial
 expected:
   required:
     domain_knowledge: [bathroom cleaning, chemical handling, commercial cleaning, deep cleaning, dusting, mopping, ppe use, vacuuming, waste management, wiping surfaces]
-    soft_skills: [attention to detail, following instructions, punctuality, reliability, working autonomously]
+    # Recall floor disabled for soft_skills (policy: preserve LLM verbatim).
+    soft_skills: [attention to detail, following instructions, working autonomously]
     technical: []
 ---
 Commercial Cleaner — Office Buildings
