@@ -23,6 +23,39 @@ async function authedUser() {
   return user;
 }
 
+/**
+ * Ensure exactly one of the user's CVs is active. If the user has CVs but
+ * none are flagged active (the case after deleting the active one, or after
+ * a PATCH set is_active=false), promote the most recently uploaded CV.
+ *
+ * Idempotent — when at least one row is already active, it's a no-op.
+ */
+async function ensureSomeoneActive(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<void> {
+  const { count } = await admin
+    .from("cv_versions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("is_active", true);
+  if ((count ?? 0) > 0) return;
+
+  const { data: candidate } = await admin
+    .from("cv_versions")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!candidate) return;
+
+  await admin
+    .from("cv_versions")
+    .update({ is_active: true })
+    .eq("id", candidate.id);
+}
+
 // ── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(
@@ -110,6 +143,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 
+  // If the user just deactivated their only active CV, auto-promote a
+  // remaining one so they never end up in a "no active CV" state when CVs
+  // still exist in their library.
+  if (!body.is_active) await ensureSomeoneActive(admin, user.id);
+
   return NextResponse.json({ id, is_active: body.is_active });
 }
 
@@ -148,6 +186,11 @@ export async function DELETE(
     console.error("[/api/cv/:id] db error:", error.message);
     return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
+
+  // If the deleted CV was the active one and there are other CVs left,
+  // promote the most recent one so the user always has an active CV when
+  // any CVs exist.
+  await ensureSomeoneActive(admin, user.id);
 
   return NextResponse.json({ deleted: true });
 }
