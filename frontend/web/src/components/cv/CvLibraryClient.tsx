@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, ClipboardEdit, Loader2 } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
 import { CvReviewClient } from "@/components/cv/CvReviewClient";
 import type { StructuredCv } from "@/lib/cvBackend";
 
@@ -473,7 +473,6 @@ function CvRowCard({
           </div>
           <div className="mt-1 flex items-center gap-3 text-[12px] text-text-3" suppressHydrationWarning>
             <span>Uploaded {created}</span>
-            {!expanded && <span className="text-[var(--brand)]/80 font-medium">· Click to review</span>}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -487,8 +486,10 @@ function CvRowCard({
             />
           )}
           <InlineAction
-            label={expanded ? "Close" : "Review"}
-            icon={<ClipboardEdit className="h-3.5 w-3.5" />}
+            label={expanded ? "Collapse" : "Expand"}
+            icon={expanded
+              ? <ChevronDown className="h-3.5 w-3.5" />
+              : <ChevronRight className="h-3.5 w-3.5" />}
             primary
             disabled={pending}
             onClick={onToggleExpand}
@@ -501,9 +502,6 @@ function CvRowCard({
             disabled={pending}
             onClick={onDelete}
           />
-          <span className="ml-1 text-text-3 transition-transform" aria-hidden="true">
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </span>
         </div>
       </button>
 
