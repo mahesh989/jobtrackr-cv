@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
-import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
@@ -66,14 +65,12 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
 export function ProfileJobBoard({
   jobs,
   counts,
-  railJobs,
   homeAddress = null,
   thresholds,
   isManual = false,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
-  railJobs:    RailJob[];
   /** Profile's home_address (Migration 048). When set, the toolbar shows the
    *  "Within X km" distance filter and the distance ribbon renders. */
   homeAddress?: string | null;
@@ -204,8 +201,6 @@ export function ProfileJobBoard({
           </>
         )}
       </div>
-
-      <ContinueRail jobs={railJobs} currentTab={stage} />
 
       {/* When the user picks any sort other than the default "Date posted",
           skip the smart-section grouping (Today's picks / Closest / Fresh /

@@ -36,7 +36,10 @@ export async function getSetupStatus(
 
   const [prefRes, cvRes, voiceRes, aiRes, emailRes, apifyRes, jobRes] = await Promise.all([
     supabase.from("user_preferences").select("contact_details").eq("user_id", userId).maybeSingle(),
-    supabase.from("cv_versions").select("id").eq("user_id", userId).eq("is_active", true).limit(1),
+    // Any CV in the library counts the step as done — the first upload
+    // auto-becomes active, and an inactive CV is still progress the user
+    // shouldn't be nagged about.
+    supabase.from("cv_versions").select("id").eq("user_id", userId).limit(1),
     supabase.from("voice_profiles").select("user_id").eq("user_id", userId).limit(1),
     admin.from("user_integrations").select("provider, status").eq("user_id", userId)
       .in("provider", ["anthropic", "openai", "deepseek"]),

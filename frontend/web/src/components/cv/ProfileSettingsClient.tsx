@@ -163,8 +163,11 @@ export function ProfileSettingsClient({ initial }: Props) {
           <Field label="State"              value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="NSW" />
           <Field label="Postcode"           value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220" />
           <Field label="LinkedIn URL"       value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="linkedin.com/in/yourname" />
-          <Field label="Other (label)"      value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
-          <Field label="Other (URL)"        value={cd.other_url   ?? ""} onChange={(v) => setField("other_url",   v)} placeholder="https://..." />
+          {/* Other link — label + URL share one row (label compact, URL wide). */}
+          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
+            <Field label="Other (label)" value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
+            <Field label="Other (URL)"   value={cd.other_url   ?? ""} onChange={(v) => setField("other_url",   v)} placeholder="https://..." />
+          </div>
         </div>
 
         <p className="text-xs text-text-3">
