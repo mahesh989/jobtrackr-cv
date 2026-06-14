@@ -482,11 +482,6 @@ function CvRowCard({
                 Reviewed
               </span>
             )}
-            {cv.structured_cv_status && cv.structured_cv_status !== "verified" && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)]/60 px-2 py-0.5 text-[11px] font-medium text-text-2">
-                Needs review
-              </span>
-            )}
           </div>
           <div className="mt-1 flex items-center gap-3 text-[12px] text-text-3" suppressHydrationWarning>
             <span>Uploaded {created}</span>

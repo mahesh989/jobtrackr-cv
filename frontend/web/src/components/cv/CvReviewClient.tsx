@@ -216,11 +216,11 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       {/* STATUS BANNER — pill style */}
       <div className="mb-6">
         {liveGaps.length > 0 ? (
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-text">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/15">
-              <AlertTriangle className="h-3 w-3 text-amber-600" aria-hidden="true" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-red-700 dark:text-red-300">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15">
+              <AlertTriangle className="h-3 w-3 text-red-600" aria-hidden="true" />
             </span>
-            <span><strong className="text-text font-medium">{liveGaps.length} item{liveGaps.length === 1 ? "" : "s"}</strong> to look at — optional</span>
+            <span><strong className="font-semibold">{liveGaps.length} item{liveGaps.length === 1 ? "" : "s"} need attention</strong> — review highlighted fields below</span>
           </div>
         ) : (
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-text">
@@ -576,7 +576,7 @@ function DatesField({ start, end, onStart, onEnd }: { start: string; end: string
   return (
     <div>
       <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-0.5">
-        Dates {blank && <span className="normal-case tracking-normal text-amber-600/80">· missing</span>}
+        Dates {blank && <span className="normal-case tracking-normal text-red-600 font-semibold">· missing</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
         <input
@@ -744,7 +744,7 @@ function RemoveBtn({ label, onClick }: { label: string; onClick: () => void }) {
 function SaveBadge({ status, verified, err, compact }: { status: SaveStatus; verified: boolean; err: string | null; compact?: boolean }) {
   const map: Record<SaveStatus, { text: string; tone: string; dot: string }> = {
     idle:   { text: verified ? "Verified" : "Saved",         tone: "text-text-2",  dot: "bg-emerald-500" },
-    dirty:  { text: "Autosaving in 10s",                     tone: "text-text-2",  dot: "bg-amber-500" },
+    dirty:  { text: "Unsaved — autosaves in 10s",            tone: "text-text-2",  dot: "bg-text-3" },
     saving: { text: "Saving…",                               tone: "text-text-2",  dot: "bg-[var(--brand)] animate-pulse" },
     saved:  { text: verified ? "Verified" : "Saved",         tone: "text-text",    dot: "bg-emerald-500" },
     error:  { text: err ?? "Save failed",                    tone: "text-red",     dot: "bg-red-500" },
