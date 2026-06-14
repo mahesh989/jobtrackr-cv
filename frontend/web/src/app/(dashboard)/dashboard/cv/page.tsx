@@ -1,8 +1,9 @@
-import { createClient }      from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { redirect }          from "next/navigation";
-import { CvLibraryClient }   from "@/components/cv/CvLibraryClient";
+import { createClient }       from "@/lib/supabase/server";
+import { createAdminClient }  from "@/lib/supabase/admin";
+import { redirect }           from "next/navigation";
+import { CvLibraryClient }    from "@/components/cv/CvLibraryClient";
 import { ReferencesSection, type ReferencesData, type Referee } from "@/components/cv/ReferencesSection";
+import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 
 export const metadata = { title: "CV library — JobTrackr" };
 
@@ -12,6 +13,10 @@ export default async function CvPage() {
   if (!user) redirect("/auth/login");
 
   const admin = createAdminClient();
+
+  // Heal the "no active CV" state before reading the list so the page never
+  // renders a library where every row has 'Set active' visible. Cheap, idempotent.
+  await ensureSomeoneActive(admin, user.id);
 
   // Try the full select first; fall back to legacy (without structured_cv_status
   // / structured_cv) when migration 058 hasn't been applied yet so the page

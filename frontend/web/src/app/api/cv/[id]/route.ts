@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { ensureSomeoneActive }       from "@/lib/cv/ensureActive";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 
@@ -21,39 +22,6 @@ async function authedUser() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   return user;
-}
-
-/**
- * Ensure exactly one of the user's CVs is active. If the user has CVs but
- * none are flagged active (the case after deleting the active one, or after
- * a PATCH set is_active=false), promote the most recently uploaded CV.
- *
- * Idempotent — when at least one row is already active, it's a no-op.
- */
-async function ensureSomeoneActive(
-  admin: ReturnType<typeof createAdminClient>,
-  userId: string,
-): Promise<void> {
-  const { count } = await admin
-    .from("cv_versions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("is_active", true);
-  if ((count ?? 0) > 0) return;
-
-  const { data: candidate } = await admin
-    .from("cv_versions")
-    .select("id")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!candidate) return;
-
-  await admin
-    .from("cv_versions")
-    .update({ is_active: true })
-    .eq("id", candidate.id);
 }
 
 // ── GET ──────────────────────────────────────────────────────────────────────
