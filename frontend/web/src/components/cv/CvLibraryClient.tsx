@@ -22,6 +22,10 @@ interface CvRow {
   categorised_skills?:   CategorisedSkills | null;
   created_at:            string;
   structured_cv_status?: string | null;
+  /** Eager-loaded from the server so expand is instant. Null when the CV
+   *  hasn't been structurized yet (uploads pre-rollout); InlineCvReview
+   *  falls back to POST /structurize on demand. */
+  structured_cv?:        StructuredCv | null;
 }
 
 interface Props {
@@ -348,6 +352,9 @@ export function CvLibraryClient({ initial }: Props) {
                 onStatusChange={(newStatus) =>
                   setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, structured_cv_status: newStatus } : c))
                 }
+                onStructuredUpdated={(structured) =>
+                  setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, structured_cv: structured } : c))
+                }
                 onSkillsUpdated={(skills) =>
                   setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, categorised_skills: skills } : c))
                 }
@@ -412,18 +419,20 @@ function CvRowCard({
   onActivate,
   onDelete,
   onStatusChange,
+  onStructuredUpdated,
   onSkillsUpdated,
 }: {
-  cv:              CvRow;
-  ext:             string;
-  created:         string;
-  pending:         boolean;
-  expanded:        boolean;
-  onToggleExpand:  () => void;
-  onActivate:      () => void;
-  onDelete:        () => void;
-  onStatusChange:  (status: string) => void;
-  onSkillsUpdated: (skills: CategorisedSkills) => void;
+  cv:                  CvRow;
+  ext:                 string;
+  created:             string;
+  pending:             boolean;
+  expanded:            boolean;
+  onToggleExpand:      () => void;
+  onActivate:          () => void;
+  onDelete:            () => void;
+  onStatusChange:      (status: string) => void;
+  onStructuredUpdated: (structured: StructuredCv) => void;
+  onSkillsUpdated:     (skills: CategorisedSkills) => void;
 }) {
   return (
     <div
@@ -505,10 +514,19 @@ function CvRowCard({
         </div>
       )}
 
-      {/* EXPANDED BODY — full review form, lazy-loaded */}
+      {/* EXPANDED BODY — review form. Uses eager-loaded structured_cv for
+          instant open; falls back to a lazy fetch when missing (only happens
+          for CVs uploaded before the structurize column existed). */}
       {expanded && (
         <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-5 sm:px-6">
-          <InlineCvReview cvId={cv.id} initialLabel={cv.label} initialStatus={cv.structured_cv_status} onStatusChange={onStatusChange} />
+          <InlineCvReview
+            cvId={cv.id}
+            initialLabel={cv.label}
+            initialStatus={cv.structured_cv_status}
+            initialStructuredCv={cv.structured_cv ?? null}
+            onStatusChange={onStatusChange}
+            onStructuredLoaded={onStructuredUpdated}
+          />
         </div>
       )}
     </div>
@@ -559,30 +577,38 @@ function InlineAction({
 }
 
 /**
- * InlineCvReview — lazy-loads structured_cv on first mount, then renders
- * CvReviewClient inline. If not yet structurized, runs structurize first.
+ * InlineCvReview — renders the review form using the eager-loaded
+ * structured_cv when available (instant open). When the CV hasn't been
+ * structurized yet, runs POST /structurize + GET /structured first.
  */
 function InlineCvReview({
-  cvId, initialLabel, initialStatus, onStatusChange,
+  cvId, initialLabel, initialStatus, initialStructuredCv,
+  onStatusChange, onStructuredLoaded,
 }: {
-  cvId:          string;
-  initialLabel:  string;
-  initialStatus: string | null | undefined;
-  onStatusChange: (status: string) => void;
+  cvId:                 string;
+  initialLabel:         string;
+  initialStatus:        string | null | undefined;
+  initialStructuredCv:  StructuredCv | null;
+  onStatusChange:       (status: string) => void;
+  onStructuredLoaded:   (structured: StructuredCv) => void;
 }) {
-  const [loading, setLoading] = useState(true);
+  // Fast path: structured_cv is already on the page — render immediately.
+  const hasEager = !!initialStructuredCv;
+  const [loading, setLoading] = useState(!hasEager);
   const [error, setError]     = useState<string | null>(null);
-  const [data, setData]       = useState<{ label: string; structured_cv: StructuredCv; status: string } | null>(null);
+  const [data, setData]       = useState<{ structured_cv: StructuredCv; status: string } | null>(
+    hasEager ? { structured_cv: initialStructuredCv!, status: initialStatus ?? "parsed" } : null,
+  );
 
-  // Load once per mount. Re-expanding remounts and re-fetches — fresh state
-  // is preferable to stale autosave state from a prior session.
+  // Only run on mount when there's no eager data. Once fetched, the parent
+  // memoises it so re-expanding the same row stays instant.
   useEffect(() => {
+    if (hasEager) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        // Not yet structurized → run it first.
         if (!initialStatus) {
           const r = await fetch(`/api/cv/${cvId}/structurize`, { method: "POST" });
           if (!r.ok) {
@@ -602,8 +628,9 @@ function InlineCvReview({
           structured_cv_status: string;
         };
         if (!cancelled) {
-          setData({ label: j.label, structured_cv: j.structured_cv, status: j.structured_cv_status });
+          setData({ structured_cv: j.structured_cv, status: j.structured_cv_status });
           onStatusChange(j.structured_cv_status);
+          onStructuredLoaded(j.structured_cv);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Network error");
@@ -614,7 +641,7 @@ function InlineCvReview({
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cvId]);
+  }, [cvId, hasEager]);
 
   if (loading) {
     return (
@@ -634,7 +661,7 @@ function InlineCvReview({
   return (
     <CvReviewClient
       cvId={cvId}
-      label={data.label || initialLabel}
+      label={initialLabel}
       initialStructuredCv={data.structured_cv}
       initialStatus={data.status}
     />

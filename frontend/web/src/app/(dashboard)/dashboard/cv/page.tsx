@@ -13,15 +13,17 @@ export default async function CvPage() {
 
   const admin = createAdminClient();
 
-  // Try the full select first; fall back to legacy (without structured_cv_status)
-  // when migration 058 hasn't been applied yet so the page still renders.
+  // Try the full select first; fall back to legacy (without structured_cv_status
+  // / structured_cv) when migration 058 hasn't been applied yet so the page
+  // still renders. Eager-loading structured_cv lets the inline review form
+  // open instantly without a round-trip — typical CV JSON is small.
   const cvsExt = await admin
     .from("cv_versions")
-    .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at, structured_cv_status")
+    .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at, structured_cv_status, structured_cv")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
   let cvs = cvsExt.data as Array<Record<string, unknown>> | null;
-  if (cvsExt.error && /structured_cv_status|column/i.test(cvsExt.error.message)) {
+  if (cvsExt.error && /structured_cv_status|structured_cv|column/i.test(cvsExt.error.message)) {
     const fallback = await admin
       .from("cv_versions")
       .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at")

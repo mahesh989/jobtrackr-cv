@@ -119,10 +119,22 @@ CLASSIFICATION RULES:
   academic credentials, NOT under certifications.
 - Other certifications / licences (First Aid, CPR, White Card, Police
   Check, Driver Licence, vaccination evidence) → certifications.
-- **Awards / recognitions / commendations / scholarships / honours → awards,
-  NOT certifications.** Examples: "Staff Excellence Award", "Dean's List",
-  "Employee of the Month", "Vice-Chancellor's Scholarship". These celebrate
-  the candidate; they are not licences.
+- **Awards / Recognition / Recognitions / Honours / Honors / Commendations /
+  Achievements / Scholarships → awards array, NOT certifications.** A
+  section with ANY of these headings — even just one of them, even singular
+  — emits award entries. Examples to capture:
+    • "Staff Excellence Award, The Jesmond Group · August 2025"
+        → {name:"Staff Excellence Award", issuer:"The Jesmond Group", date:"August 2025", description:""}
+    • "Dean's List · 2023"
+    • "Employee of the Month"
+    • "Vice-Chancellor's Scholarship"
+  PDF extraction sometimes mangles section headings (the heading bleeds
+  into the next section's first line, e.g. "Recognition\n Staff Excellence
+  Award... Placement"). Even when the heading is mashed, recognise the
+  award PATTERN ("X Award", "X Scholarship", "Recognized for...",
+  "Employee of the X", "X of the Year") and emit an award entry. If a
+  short citation follows the title (e.g. "Recognized for hard work, caring
+  nature, and positive attitude"), put it in `description` verbatim.
 - An ONGOING course (e.g. "Master of … Jul 2025 – Present") is education
   with completed=false — include it; never drop ongoing study.
 - Keep every experience entry, including roles unrelated to the
