@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
+from typing import List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -385,6 +385,151 @@ def _select_on_vertical_employers(
     return [emp for emp, _ in on_vertical[:limit]], off_vertical
 
 
+# ---------------------------------------------------------------------------
+# Part B — deterministic JD-anchored S2 fallback for zero-on-vertical CVs.
+#
+# When the candidate has NO on-vertical experience (pure career-changer),
+# Part A can't name an employer. Part B scans the CV for JD-relevant
+# certifications, education, clinical placements, or volunteer work and
+# builds a short anchoring sentence from the best evidence. No LLM call.
+# ---------------------------------------------------------------------------
+
+_CERT_SECTION_RE = re.compile(
+    r"^(?:#+\s*)?(certif|licen|credentials|accreditation|clinical placement|placements)",
+    re.IGNORECASE,
+)
+_EDUCATION_SECTION_RE = re.compile(
+    r"^(?:#+\s*)?(education|qualifications|academic)",
+    re.IGNORECASE,
+)
+_VOLUNTEER_SECTION_RE = re.compile(
+    r"^(?:#+\s*)?(volunteer|community service|extracurricular|projects)",
+    re.IGNORECASE,
+)
+
+
+def _extract_section_lines(cv_text: str, heading_re: re.Pattern) -> List[str]:
+    """Return non-blank content lines under the FIRST section whose heading
+    matches ``heading_re``, stopping at the next heading of equal or higher rank."""
+    lines = cv_text.split("\n")
+    capture: List[str] = []
+    capturing = False
+    heading_level = 0
+    for ln in lines:
+        stripped = ln.strip()
+        # Detect headings: markdown (## / ###) or plain-text ALL-CAPS.
+        is_heading = False
+        level = 0
+        if stripped.startswith("#"):
+            level = len(stripped) - len(stripped.lstrip("#"))
+            is_heading = True
+        elif stripped.isupper() and 3 <= len(stripped) <= 60:
+            level = 2  # treat all-caps as H2
+            is_heading = True
+        if is_heading:
+            if capturing:
+                if level <= heading_level:
+                    break
+                # Sub-heading inside the section — continue capturing.
+            elif heading_re.search(stripped.lstrip("#").strip()):
+                capturing = True
+                heading_level = level
+                continue
+        if capturing and stripped:
+            capture.append(stripped)
+    return capture
+
+
+def _pick_jd_relevant_evidence(
+    cv_text: str, jd_vocab: Set[str],
+) -> Optional[str]:
+    """Find the single best JD-relevant anchor from non-Experience sections.
+
+    Returns a short phrase like "Certificate IV in Ageing Support" or
+    "120-hour clinical placement in residential aged care", or None."""
+    # Priority: certifications/placements > education > volunteer/projects.
+    for heading_re in (_CERT_SECTION_RE, _EDUCATION_SECTION_RE, _VOLUNTEER_SECTION_RE):
+        section_lines = _extract_section_lines(cv_text, heading_re)
+        if not section_lines:
+            continue
+        # Score each line by JD vocab overlap — pick the best.
+        best_line, best_score = "", 0
+        for ln in section_lines:
+            toks = set(re.findall(r"[a-z0-9]{4,}", ln.lower()))
+            score = len(toks & jd_vocab)
+            if score > best_score:
+                best_score = score
+                best_line = ln
+        if best_score >= 1:
+            # Clean the line: strip bullet markers, trailing dates, and locations.
+            clean = re.sub(r"^[-•*]\s*", "", best_line).strip()
+            clean = re.sub(r"\s*\|.*$", "", clean).strip()
+            # Strip trailing date phrases like "April 2026" or "Jul 2025 – Present"
+            clean = re.sub(
+                r"\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*"
+                r"\s+\d{4}(?:\s*[–—-]\s*(?:Present|\w+\s+\d{4}))?\s*$",
+                "", clean, flags=re.IGNORECASE,
+            ).strip()
+            # Cap length — we want a phrase, not a paragraph.
+            if len(clean) > 120:
+                clean = clean[:117].rsplit(" ", 1)[0] + "…"
+            return clean
+    return None
+
+
+def _strip_employer_from_s2(s2: str, off_vertical: List[str]) -> str:
+    """Remove off-vertical employer references from S2 text, collapsing the
+    surrounding "Recent experience at X and Y." pattern to either the on-vertical
+    employer or an empty string."""
+    result = s2
+    for emp in off_vertical:
+        # "X and Emp." or "Emp and X." patterns
+        result = re.sub(
+            r"\s+and\s+" + re.escape(emp), "", result, flags=re.IGNORECASE,
+        )
+        result = re.sub(
+            re.escape(emp) + r"\s+and\s+", "", result, flags=re.IGNORECASE,
+        )
+        # Bare "at Emp." or standalone reference
+        result = re.sub(re.escape(emp), "", result, flags=re.IGNORECASE)
+    # Collapse "Recent experience at ." → ""
+    result = re.sub(r"Recent experience at\s*\.\s*$", "", result, flags=re.IGNORECASE)
+    result = re.sub(r"\s{2,}", " ", result).strip()
+    return result
+
+
+def _compose_part_b_s2(
+    s2: str, off_vertical: List[str], original_cv_text: str,
+    jd_analysis: Optional[dict],
+) -> str:
+    """Part B fallback: build a JD-oriented S2 for zero-on-vertical CVs.
+
+    Strategy:
+    1. Try to find JD-relevant evidence from certs/education/projects/volunteer.
+       If found → "Holds a <evidence>." or "Completed <evidence>."
+    2. If nothing JD-relevant → strip the off-vertical employer from the AI's S2
+       and return whatever remains (may be empty → caller keeps original).
+    """
+    from app.services.eval.enforce_w3 import _jd_vocab
+    vocab = _jd_vocab(jd_analysis or {})
+
+    evidence = _pick_jd_relevant_evidence(original_cv_text, vocab) if vocab else None
+
+    if evidence:
+        # Build a grounded sentence from real CV content.
+        low = evidence.lower()
+        if any(w in low for w in ("certificate", "cert ", "diploma", "licence", "license")):
+            return f"Holds a {evidence}."
+        if any(w in low for w in ("placement", "practicum", "internship", "clinical")):
+            return f"Completed {evidence}."
+        return f"Background includes {evidence}."
+
+    # No JD-relevant non-Experience evidence found. Strip the off-vertical
+    # employer from the AI's S2 and return what's left.
+    stripped = _strip_employer_from_s2(s2, off_vertical)
+    return stripped if stripped and len(stripped.split()) >= 4 else ""
+
+
 def enforce_summary_concreteness(
     markdown: str,
     original_cv_text: str,
@@ -494,19 +639,31 @@ def enforce_summary_concreteness(
 
     new_s2 = _compose_concrete_s2(name_set, attributable_tools)
     if not new_s2:
-        # No on-vertical employer to name. We deliberately do NOT inject the
-        # off-vertical employer here. If S2 currently leaks one, regenerating a
-        # JD-oriented S2 from projects/other content is Part B's job (a focused
-        # LLM pass) — left unchanged for now and logged so the realtest harness
-        # can spot the gap.
+        # Part B: no on-vertical employer to name. Build a JD-anchored S2 from
+        # certifications, education, placements, or volunteer work. If nothing
+        # JD-relevant is found, strip the off-vertical reference and keep what
+        # remains. Never inject an off-vertical employer into the summary.
         if s2_leaks_off_vertical:
+            fallback_s2 = _compose_part_b_s2(
+                s2, off_vertical, original_cv_text, jd_analysis,
+            )
+            if fallback_s2:
+                new_prose = " ".join([s1, fallback_s2] + rest).strip()
+                for i in prose_idx:
+                    lines[i] = ""
+                lines[prose_idx[0]] = new_prose
+                logger.info(
+                    "summary S2 (Part B): zero on-vertical employers — replaced "
+                    "off-vertical S2 with JD-anchored fallback '%s'",
+                    fallback_s2,
+                )
+                return "\n".join(lines)
             logger.info(
-                "summary S2: off-vertical employer named with NO on-vertical "
-                "employer to substitute — leaving S2 for Part B (LLM fallback). "
-                "off_vertical=%s",
+                "summary S2 (Part B): no JD-relevant evidence found to replace "
+                "off-vertical S2; leaving unchanged. off_vertical=%s",
                 off_vertical,
             )
-        return markdown  # no on-vertical employer to name → leave S2 as is
+        return markdown
 
     # Compose new prose: S1 + new_s2 + any trailing sentences (rare).
     new_prose = " ".join([s1, new_s2] + rest).strip()

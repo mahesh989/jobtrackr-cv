@@ -555,11 +555,27 @@ Aged Care Support Worker. Recent experience at RFBI Concord Community Village an
         out = enforce_summary_concreteness(md, _MIXED_SRC)
         assert out == md
 
-    def test_no_on_vertical_experience_leaves_s2_for_part_b(self):
-        # CV has ONLY an off-vertical role → nothing on-vertical to name. Part A
-        # does not inject the off-vertical employer; the existing S2 is left for
-        # the Part B LLM fallback. S1 preserved.
+    def test_part_b_cert_replaces_off_vertical_s2(self):
+        # CV has ONLY off-vertical experience, but a JD-relevant certification.
+        # Part B should replace the off-vertical employer S2 with a cert anchor.
         cv = """
+WORK EXPERIENCE
+
+Akala Motors Private Limited
+Junior Accountant
+Jan 2024 – May 2025
+Pokhara, Nepal
+• Reconciled accounts and prepared monthly financial statements.
+
+CERTIFICATIONS
+
+Certificate IV in Ageing Support (CHC43015) April 2026
+""".lstrip()
+        md = """
+## Professional Summary
+
+Aged Care Support Worker. Recent experience at Akala Motors Private Limited.
+
 ## Experience
 
 ### Akala Motors Private Limited | Pokhara, Nepal
@@ -568,17 +584,85 @@ Aged Care Support Worker. Recent experience at RFBI Concord Community Village an
 
 - Reconciled accounts and prepared financial statements.
 """.lstrip()
+        jd = {"required_skills": {"domain_knowledge": ["aged care", "ageing support"]}}
+        out = enforce_summary_concreteness(
+            md, cv, vertical="nursing", jd_analysis=jd,
+        )
+        summary = _summary_section(out)
+        assert "Akala" not in summary
+        assert "Certificate IV in Ageing Support" in summary
+        # S1 preserved.
+        assert "Aged Care Support Worker" in summary
+
+    def test_part_b_no_relevant_evidence_leaves_unchanged(self):
+        # CV has only off-vertical experience AND no JD-relevant certs/education.
+        # Part B can't anchor — leaves S2 as-is to avoid making it worse.
+        cv = """
+WORK EXPERIENCE
+
+Akala Motors Private Limited
+Junior Accountant
+Jan 2024 – May 2025
+Pokhara, Nepal
+• Reconciled accounts and prepared monthly financial statements.
+
+EDUCATION
+
+Master of Professional Accounting Jul 2025 – Present
+CQ University, Sydney, Australia
+""".lstrip()
         md = """
 ## Professional Summary
 
 Aged Care Support Worker. Recent experience at Akala Motors Private Limited.
 
 ## Experience
+
+### Akala Motors Private Limited | Pokhara, Nepal
+
+*Junior Accountant | Jan 2024 – May 2025*
+
+- Reconciled accounts and prepared financial statements.
 """.lstrip()
+        # Empty JD vocab → nothing is "relevant" → no fallback
         out = enforce_summary_concreteness(
             md, cv, vertical="nursing", jd_analysis={},
         )
-        assert out == md  # unchanged — deferred to Part B
+        assert out == md
+
+    def test_part_b_placement_section_anchor(self):
+        # CV has a clinical placement section (no experience) → Part B anchors on it.
+        cv = """
+CLINICAL PLACEMENT
+
+RFBI Concord Community Village
+Aged Care Placement (120 hours)
+Dec 2025 – Feb 2026
+Rhodes, NSW
+• Provided personal care to elderly residents, including individuals with dementia.
+• Assisted with daily living activities including dressing, bathing, feeding.
+""".lstrip()
+        md = """
+## Professional Summary
+
+Aged Care Support Worker. Recent experience at Akala Motors Private Limited.
+
+## Experience
+
+### Akala Motors Private Limited | Pokhara, Nepal
+
+*Junior Accountant | Jan 2024 – May 2025*
+
+- Reconciled accounts and prepared financial statements.
+""".lstrip()
+        jd = {"required_skills": {"domain_knowledge": ["personal care", "aged care"]}}
+        out = enforce_summary_concreteness(
+            md, cv, vertical="nursing", jd_analysis=jd,
+        )
+        summary = _summary_section(out)
+        assert "Akala" not in summary
+        # Should anchor on something from the placement section.
+        assert "RFBI" in summary or "Aged Care Placement" in summary or "Placement" in summary
 
     def test_more_than_two_on_vertical_picks_two_jd_relevant(self):
         cv = """
