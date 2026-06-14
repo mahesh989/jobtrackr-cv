@@ -24,6 +24,24 @@ from app.services.eval.writers import (
 )
 
 
+def _summary_section(md: str) -> str:
+    """The prose under '## Professional Summary' up to the next '## ' heading —
+    so assertions about the SUMMARY don't accidentally match the Experience
+    section (where an off-vertical role is legitimately retained)."""
+    out, grabbing = [], False
+    for line in md.split("\n"):
+        if line.startswith("## "):
+            if grabbing:
+                break
+            grabbing = line[3:].strip().lower() in (
+                "professional summary", "career highlights", "summary", "profile",
+            )
+            continue
+        if grabbing:
+            out.append(line)
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Building blocks
 # ---------------------------------------------------------------------------
@@ -440,3 +458,163 @@ Nothing parseable.
         # CV fixture below has no employers → leave alone.
         out = enforce_summary_concreteness(md, "## Skills\n\nPython")
         assert out == md
+
+
+# ---------------------------------------------------------------------------
+# Part A — on-vertical scoping of the summary's "Recent experience at …" line.
+# The Experience SECTION may keep an off-vertical role (2-role floor), but the
+# summary must never bill it as relevant. Mirrors the real Sabitri/AIN bug:
+# "Junior Accountant at Akala Motors" leaking into an aged-care summary.
+# ---------------------------------------------------------------------------
+
+# Production passes TWO documents: the tailored MARKDOWN (markdown ### form, used
+# for employer extraction) and the plain-text SOURCE cv (used for vertical
+# classification). They are different documents — the fixtures mirror that.
+#
+# Plain-text source: RFBI = nursing (bullet lexicon hits), Akala "Junior
+# Accountant" = no nursing/tech/cleaning hits → primary_vertical None → off-vertical.
+# (The plain-text parser classifies from `•` bullet lines, like the real upload.)
+_MIXED_SRC = """
+WORK EXPERIENCE
+
+RFBI Concord Community Village
+Aged Care Placement (120 hours)
+Dec 2025 – Feb 2026
+Rhodes, NSW
+• Provided personal care to elderly residents, including individuals with dementia, ensuring safety and comfort.
+• Assisted with daily living activities including dressing, bathing, feeding, and mobility support.
+
+Akala Motors Private Limited
+Junior Accountant
+Jan 2024 – May 2025
+Pokhara, Nepal
+• Reconciled accounts and prepared monthly financial statements.
+""".lstrip()
+
+# Tailored markdown Experience section (markdown ### form) — what the employer
+# extractor reads in production.
+_MIXED_EXPERIENCE_MD = """
+## Experience
+
+### RFBI Concord Community Village | Rhodes, NSW
+
+*Assistant in Nursing | Dec 2025 – Feb 2026*
+
+- Provided personal care and dementia support to residents.
+
+### Akala Motors Private Limited | Pokhara, Nepal
+
+*Junior Accountant | Jan 2024 – May 2025*
+
+- Reconciled accounts and prepared financial statements.
+""".lstrip()
+
+
+class TestSummaryOnVerticalScoping:
+    def test_off_vertical_employer_dropped_from_s2(self):
+        md = """
+## Professional Summary
+
+Compassionate Aged Care Support Worker with a Certificate IV in Ageing Support and 120 hours of supervised clinical placement. Recent experience at RFBI Concord Community Village and Akala Motors Private Limited.
+
+""".lstrip() + _MIXED_EXPERIENCE_MD
+        out = enforce_summary_concreteness(
+            md, _MIXED_SRC, vertical="nursing", jd_analysis={},
+        )
+        summary = _summary_section(out)
+        assert "Akala" not in summary                       # off-vertical gone from SUMMARY
+        assert "RFBI Concord Community Village" in summary   # on-vertical kept
+        # Off-vertical role is KEPT in the Experience section (2-role floor).
+        assert "### Akala Motors Private Limited" in out
+        # S1 preserved unchanged.
+        assert "Compassionate Aged Care Support Worker" in summary
+
+    def test_generic_s2_rebuilds_to_on_vertical_only(self):
+        md = """
+## Professional Summary
+
+Aged Care Support Worker with placement experience. Provides safe support for older people in facility environments.
+
+""".lstrip() + _MIXED_EXPERIENCE_MD
+        out = enforce_summary_concreteness(
+            md, _MIXED_SRC, vertical="nursing", jd_analysis={},
+        )
+        summary = _summary_section(out)
+        assert "RFBI Concord Community Village" in summary
+        assert "Akala" not in summary
+
+    def test_vertical_none_is_legacy_no_op(self):
+        # Without a vertical hint, the off-vertical filter does not run — S2
+        # already names an employer, so the legacy path returns it unchanged.
+        md = """
+## Professional Summary
+
+Aged Care Support Worker. Recent experience at RFBI Concord Community Village and Akala Motors Private Limited.
+
+""".lstrip() + _MIXED_EXPERIENCE_MD
+        out = enforce_summary_concreteness(md, _MIXED_SRC)
+        assert out == md
+
+    def test_no_on_vertical_experience_leaves_s2_for_part_b(self):
+        # CV has ONLY an off-vertical role → nothing on-vertical to name. Part A
+        # does not inject the off-vertical employer; the existing S2 is left for
+        # the Part B LLM fallback. S1 preserved.
+        cv = """
+## Experience
+
+### Akala Motors Private Limited | Pokhara, Nepal
+
+*Junior Accountant | Jan 2024 – May 2025*
+
+- Reconciled accounts and prepared financial statements.
+""".lstrip()
+        md = """
+## Professional Summary
+
+Aged Care Support Worker. Recent experience at Akala Motors Private Limited.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_concreteness(
+            md, cv, vertical="nursing", jd_analysis={},
+        )
+        assert out == md  # unchanged — deferred to Part B
+
+    def test_more_than_two_on_vertical_picks_two_jd_relevant(self):
+        cv = """
+## Experience
+
+### Alpha Aged Care | Sydney, NSW
+
+*Assistant in Nursing | Jan 2024 – Dec 2024*
+
+- Delivered dementia care and palliative care.
+
+### Beta Nursing Home | Sydney, NSW
+
+*Care Worker | Jan 2023 – Dec 2023*
+
+- Provided medication administration and wound care.
+
+### Gamma Residences | Sydney, NSW
+
+*Support Worker | Jan 2022 – Dec 2022*
+
+- Personal care and mobility support.
+""".lstrip()
+        md = """
+## Professional Summary
+
+Aged Care Support Worker. Provides safe support for older people in facility environments.
+
+## Experience
+""".lstrip()
+        jd = {"required_skills": {"technical": [
+            "dementia care", "palliative care",
+            "medication administration", "wound care",
+        ]}}
+        out = enforce_summary_concreteness(md, cv, vertical="nursing", jd_analysis=jd)
+        # The two JD-relevant employers are named; the low-relevance one is not.
+        assert "Alpha Aged Care" in out
+        assert "Beta Nursing Home" in out
+        assert "Gamma Residences" not in out

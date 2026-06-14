@@ -308,7 +308,89 @@ def _compose_concrete_s2(employer_names: list[str], cv_tools: list[str]) -> str:
     return f"Recent experience at {emp_clause}."
 
 
-def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
+def _norm_employer_name(name: str) -> str:
+    """Lower-case, collapse internal whitespace — matches honesty_guard's
+    employer-key normalisation so names parsed from cv_text line up with
+    names extracted from the tailored markdown."""
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def _s2_names_any_employer(s2: str, employer_names: list[str]) -> bool:
+    """True when S2 names ANY of ``employer_names`` (whole-name substring or a
+    distinctive proper-noun token). Metric/tool-free on purpose: this answers
+    'does S2 mention one of THESE specific employers?', used to detect an
+    OFF-vertical employer leaking into the summary even when an on-vertical one
+    co-occurs (which the generic concreteness check would mask)."""
+    if not s2:
+        return False
+    low = s2.lower()
+    for emp in employer_names:
+        if emp.lower() in low:
+            return True
+        for tok in _distinctive_employer_tokens(emp):
+            if re.search(r"\b" + re.escape(tok) + r"\b", low):
+                return True
+    return False
+
+
+def _select_on_vertical_employers(
+    employers: list[str],
+    original_cv_text: str,
+    vertical: str,
+    jd_analysis: Optional[dict],
+    limit: int = 2,
+) -> tuple[list[str], list[str]]:
+    """Split ``employers`` into (on-vertical, off-vertical) using the same
+    ``ExperienceEntry.primary_vertical`` signal that ``filter_irrelevant_roles_pre``
+    relies on. The summary may name AT MOST ``limit`` on-vertical employers; when
+    more exist they are ranked by JD relevance (overlap of the entry's role+bullets
+    with the JD vocabulary), recency preserved as the tie-break.
+
+    An employer the parser can't classify (``primary_vertical is None``, e.g. an
+    accounting role with no nursing/tech/cleaning lexicon hits) is treated as
+    off-vertical — we only NAME experience we can positively tie to the JD's
+    vertical. Returns (on_vertical_names[:limit], off_vertical_names)."""
+    from app.services.cv.experience_parser import parse_cv_experience
+
+    by_norm: dict[str, tuple[Optional[str], str]] = {}
+    for e in parse_cv_experience(original_cv_text):
+        if e.employer:
+            # Strip the same "| Location" / ", Location" suffix that
+            # _extract_present_employers_from_experience strips, so the parser's
+            # employer key lines up with the extracted name we look up by.
+            emp_key = e.employer.split("|", 1)[0].split(",")[0].strip()
+            entry_text = " ".join([e.role or "", *(e.bullets or [])])
+            by_norm[_norm_employer_name(emp_key)] = (e.primary_vertical, entry_text)
+
+    on_vertical: list[tuple[str, str]] = []   # (employer, entry_text)
+    off_vertical: list[str] = []
+    for emp in employers:
+        pv, entry_text = by_norm.get(_norm_employer_name(emp), (None, ""))
+        if pv is not None and pv == vertical:
+            on_vertical.append((emp, entry_text))
+        else:
+            off_vertical.append(emp)
+
+    if len(on_vertical) > limit and jd_analysis:
+        from app.services.eval.enforce_w3 import _jd_vocab
+        vocab = _jd_vocab(jd_analysis)
+
+        def _relevance(item: tuple[str, str]) -> int:
+            toks = set(re.findall(r"[a-z0-9]{4,}", item[1].lower()))
+            return len(toks & vocab)
+
+        # Stable sort keeps original (recency) order for equal-relevance ties.
+        on_vertical = sorted(on_vertical, key=_relevance, reverse=True)
+
+    return [emp for emp, _ in on_vertical[:limit]], off_vertical
+
+
+def enforce_summary_concreteness(
+    markdown: str,
+    original_cv_text: str,
+    vertical: Optional[str] = None,
+    jd_analysis: Optional[dict] = None,
+) -> str:
     """Sprint E: replace a generic Professional Summary S2 with a deterministic
     employer/tool-naming sentence built from the original CV.
 
@@ -351,6 +433,22 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
     employers = _extract_present_employers_from_experience(markdown)
     if not employers:
         employers = _extract_present_employers_from_experience(original_cv_text)
+
+    # On-vertical scoping (Part A). The Experience SECTION legitimately keeps
+    # off-vertical roles (filter_irrelevant_roles_pre honours a 2-role floor so
+    # a thin CV isn't gutted), but the summary's "Recent experience at …" line
+    # must NOT bill an off-vertical employer as relevant — e.g. a "Junior
+    # Accountant at Akala Motors" surfacing in an aged-care AIN summary. Drop
+    # off-vertical employers from the naming set and cap on-vertical naming at 2
+    # (JD-ranked when more exist). No-op when `vertical` is None (legacy
+    # behaviour / non-W3 callers): name_set == employers, off_vertical empty.
+    if vertical:
+        name_set, off_vertical = _select_on_vertical_employers(
+            employers, original_cv_text, vertical, jd_analysis,
+        )
+    else:
+        name_set, off_vertical = employers, []
+
     # Tools: combine matches from BOTH the markdown and the original CV
     # text. Some brand mentions only survive in one source.
     tools_md = _extract_cv_named_tools_for_summary(markdown)
@@ -363,8 +461,13 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
             seen.add(t.lower())
             tools.append(t)
 
-    if _s2_has_concrete_evidence(s2, employers, tools):
-        return markdown  # already concrete
+    # Force a rebuild when S2 NAMES an off-vertical employer — even if it also
+    # names an on-vertical one (the plain concreteness check would see the
+    # on-vertical name and wrongly conclude "already concrete", leaving the
+    # off-vertical leak in place).
+    s2_leaks_off_vertical = bool(off_vertical) and _s2_names_any_employer(s2, off_vertical)
+    if _s2_has_concrete_evidence(s2, name_set, tools) and not s2_leaks_off_vertical:
+        return markdown  # already concrete, no off-vertical leak
 
     # Honest tool attribution — only attribute tools to an employer when the
     # CV actually evidences that connection. Without this guard, a candidate
@@ -374,24 +477,36 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
     # "all CV tools". The reporting candidate (and recruiters who check)
     # will notice this immediately.
     attributable_tools: list[str] = []
-    if employers and tools:
+    if name_set and tools:
         attributable_tools = _tools_attributable_to_employer(
-            original_cv_text, markdown, employers[0], tools,
+            original_cv_text, markdown, name_set[0], tools,
         )
         # When there are 2 employers in the clause, include tools attributable
         # to EITHER (the AND clause covers both — keeps the OR semantically
         # correct).
-        if len(employers) > 1:
+        if len(name_set) > 1:
             also = _tools_attributable_to_employer(
-                original_cv_text, markdown, employers[1], tools,
+                original_cv_text, markdown, name_set[1], tools,
             )
             for t in also:
                 if t not in attributable_tools:
                     attributable_tools.append(t)
 
-    new_s2 = _compose_concrete_s2(employers, attributable_tools)
+    new_s2 = _compose_concrete_s2(name_set, attributable_tools)
     if not new_s2:
-        return markdown  # no employers to name → leave S2 as is
+        # No on-vertical employer to name. We deliberately do NOT inject the
+        # off-vertical employer here. If S2 currently leaks one, regenerating a
+        # JD-oriented S2 from projects/other content is Part B's job (a focused
+        # LLM pass) — left unchanged for now and logged so the realtest harness
+        # can spot the gap.
+        if s2_leaks_off_vertical:
+            logger.info(
+                "summary S2: off-vertical employer named with NO on-vertical "
+                "employer to substitute — leaving S2 for Part B (LLM fallback). "
+                "off_vertical=%s",
+                off_vertical,
+            )
+        return markdown  # no on-vertical employer to name → leave S2 as is
 
     # Compose new prose: S1 + new_s2 + any trailing sentences (rare).
     new_prose = " ".join([s1, new_s2] + rest).strip()
@@ -417,7 +532,15 @@ def enforce_summary_concreteness(markdown: str, original_cv_text: str) -> str:
     s2_words = len(s2.split())
     old_words = len(prose.split())
     new_words = len(new_prose.split())
-    if len(employers) < 2 and s2_words >= 10 and new_words < old_words:
+    # The anti-gut guard protects an HONEST substantial S2 from being replaced
+    # by a thin stub. It must NOT protect an S2 whose substance comes from an
+    # off-vertical employer leak — gutting that is exactly the fix we want.
+    if (
+        not s2_leaks_off_vertical
+        and len(name_set) < 2
+        and s2_words >= 10
+        and new_words < old_words
+    ):
         logger.info(
             "sprint-E summary S2 enforcer: SKIPPED rebuild — single-employer "
             "stub would gut a substantial %d-word S2 (summary %d→%d words); "

@@ -932,7 +932,9 @@ async def _writer_w8_integrated(
     #     employer-naming sentence built from CV evidence. Fixes generic
     #     filler like "Provides safe support for older people in facility
     #     environments." S1 is preserved unchanged.
-    final_md = enforce_summary_concreteness(final_md, cv_text)
+    final_md = enforce_summary_concreteness(
+        final_md, cv_text, vertical=vertical, jd_analysis=up["jd_analysis"],
+    )
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
@@ -1270,7 +1272,9 @@ async def _writer_w8_verified(
     verified_md = _apply_setting_bridge(
         verified_md, _setting_for_bridge, cv_text=cv_text,
     )
-    verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    verified_md = enforce_summary_concreteness(
+        verified_md, cv_text, vertical=vertical, jd_analysis=result.jd_analysis,
+    )
     # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
     # Deterministic anchors against the source CV. Each guard is idempotent,
     # returns (md, notes); the notes accumulate into result.extras so the
@@ -1447,7 +1451,9 @@ async def _writer_w8_critique(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
-    verified_md = enforce_summary_concreteness(verified_md, cv_text)
+    verified_md = enforce_summary_concreteness(
+        verified_md, cv_text, vertical=vertical, jd_analysis=result.jd_analysis,
+    )
     # Cap FIRST, then cap-aware inject (mirrors _writer_w8_verified ordering).
     verified_md = enforce_skills_section(verified_md)
     verified_md = _inject_approved_skills(verified_md, result.feasibility)
