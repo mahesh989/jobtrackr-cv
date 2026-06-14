@@ -775,3 +775,37 @@ HLTHPS007 certified care worker with CHC43015 Certificate IV in Ageing Support. 
         # No student lead → no rewrite → unit codes remain (they're cleaned
         # by Part B or other passes, not this guard's job when it no-ops).
         assert out == md
+
+    def test_bare_student_with_label_stripped(self):
+        md = """
+## Professional Summary
+
+International student with residential aged care placement experience in personal care and medication administration. Brings strong teamwork and communication skills from care roles.
+
+## Experience
+""".lstrip()
+        jd = {
+            "job_title": "Assistant in Nursing",
+            "required_skills": {"domain_knowledge": ["aged care", "personal care"]},
+        }
+        out = enforce_summary_vertical_alignment(md, jd, "nursing")
+        summary = _summary_section(out)
+        assert "International student" not in summary
+        assert "Residential aged care" in summary
+
+    def test_off_vertical_role_type_scrubbed_from_s2(self):
+        md = """
+## Professional Summary
+
+Compassionate care worker with placement experience. Brings strong teamwork, time management, and communication skills from both care and accounting roles.
+
+## Experience
+""".lstrip()
+        jd = {
+            "job_title": "Assistant in Nursing",
+            "required_skills": {"domain_knowledge": ["aged care"]},
+        }
+        out = enforce_summary_vertical_alignment(md, jd, "nursing")
+        summary = _summary_section(out)
+        assert "accounting" not in summary
+        assert "care roles" in summary

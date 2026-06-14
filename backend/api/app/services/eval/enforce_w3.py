@@ -324,52 +324,116 @@ def enforce_summary_vertical_alignment(
         return md
     s1 = sentences[0]
 
-    # Try the "student pursuing X with Y" pattern — trim everything before "with".
+    vocab = _jd_vocab(jd_analysis)
+    s2_changed = False
+
+    # ── S2 off-vertical role-type scrub (runs first so all S1 patterns
+    #    compose with the cleaned S2) ─────────────────────────────────────
+    # The AI sometimes writes "from both care and accounting roles" when
+    # the candidate has mixed-vertical experience. Strip the off-vertical
+    # role-type reference.
+    _OFF_ROLE_TYPES = re.compile(
+        r"\b(?:accounting|finance|financial|administrative|clerical|"
+        r"retail|hospitality|engineering|marketing|legal|teaching)\b",
+        re.IGNORECASE,
+    )
+    if len(sentences) >= 2:
+        s2 = sentences[1]
+        off_matches = list(_OFF_ROLE_TYPES.finditer(s2))
+        if off_matches:
+            off_words = {m.group(0).lower() for m in off_matches}
+            if not (off_words & vocab):
+                cleaned = s2
+                cleaned = re.sub(
+                    r"\bboth\s+(\w+)\s+and\s+" + _OFF_ROLE_TYPES.pattern
+                    + r"\s+(roles?|backgrounds?|experience)",
+                    r"\1 \2", cleaned, flags=re.IGNORECASE,
+                )
+                cleaned = re.sub(
+                    r"\band\s+" + _OFF_ROLE_TYPES.pattern
+                    + r"\s+(roles?|backgrounds?|experience)",
+                    r" \1", cleaned, flags=re.IGNORECASE,
+                )
+                cleaned = re.sub(
+                    _OFF_ROLE_TYPES.pattern + r"\s+and\s+",
+                    "", cleaned, flags=re.IGNORECASE,
+                )
+                cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+                if cleaned != s2:
+                    logger.info(
+                        "enforce_summary_vertical_alignment: scrubbed off-vertical "
+                        "role-type from S2: '%s' → '%s'",
+                        s2[:60], cleaned[:60],
+                    )
+                    sentences[1] = cleaned
+                    s2_changed = True
+
+    # Helper: commit current sentences to lines and return.
+    def _commit() -> str:
+        lines[pidx] = " ".join(sentences)
+        return "\n".join(lines)
+
+    # ── Pattern 1: "student pursuing X with Y" — trim preamble, keep Y. ──
     m = _STUDENT_CRED_LEAD_RE.match(s1)
     if m:
         preamble = s1[: m.end()]
         remainder = s1[m.end() :].strip()
-        # Verify the preamble is off-vertical (no JD vocab overlap).
-        vocab = _jd_vocab(jd_analysis)
         preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
         if preamble_toks & vocab:
-            return md  # credential is JD-relevant — keep it
+            return _commit() if s2_changed else md
 
         if remainder:
             remainder = _strip_unit_codes(remainder)
-            # Capitalize the first letter of the remainder.
             remainder = remainder[0].upper() + remainder[1:]
-            # Ensure S1 ends with a period.
             if not remainder.endswith("."):
                 remainder += "."
-            new_sentences = [remainder] + sentences[1:]
-            lines[pidx] = " ".join(new_sentences)
+            sentences[0] = remainder
             logger.info(
                 "enforce_summary_vertical_alignment: trimmed off-vertical S1 "
                 "preamble '%s' → lead is now '%s'",
                 preamble.strip(), remainder[:80],
             )
-            return "\n".join(lines)
+            return _commit()
 
-    # Try the simpler "student pursuing X. <rest>" pattern — drop the whole
-    # first sentence if it's purely a student-credential statement followed
-    # by an in-vertical second sentence.
+    # ── Pattern 2: "student pursuing X. <rest>" — drop the sentence. ─────
     m2 = _STUDENT_SIMPLE_LEAD_RE.match(s1)
     if m2 and len(sentences) > 1:
         preamble = s1[: m2.end()]
-        vocab = _jd_vocab(jd_analysis)
         preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
         if not (preamble_toks & vocab):
-            # Drop the off-vertical first sentence; S2 becomes the new S1.
-            lines[pidx] = " ".join(sentences[1:])
+            sentences = sentences[1:]
             logger.info(
                 "enforce_summary_vertical_alignment: dropped off-vertical S1 "
                 "'%s' — S2 promoted to lead.",
                 s1[:80],
             )
-            return "\n".join(lines)
+            return _commit()
 
-    return md
+    # ── Pattern 3: bare "International/domestic student with …" ──────────
+    m3 = re.match(
+        r"^((?:international|domestic)\s+student)\s+with\s+",
+        s1,
+        re.IGNORECASE,
+    )
+    if m3:
+        label = m3.group(1)
+        label_toks = set(re.findall(r"[a-z0-9]{4,}", label.lower()))
+        if not (label_toks & vocab):
+            remainder = s1[m3.end():].strip()
+            if remainder:
+                remainder = _strip_unit_codes(remainder)
+                remainder = remainder[0].upper() + remainder[1:]
+                if not remainder.endswith("."):
+                    remainder += "."
+                sentences[0] = remainder
+                logger.info(
+                    "enforce_summary_vertical_alignment: stripped bare student "
+                    "label '%s' from S1 → '%s'",
+                    label, remainder[:80],
+                )
+                return _commit()
+
+    return _commit() if s2_changed else md
 
 
 def enforce_summary_identity(md: str, jd_analysis: Dict[str, Any] | None) -> str:
