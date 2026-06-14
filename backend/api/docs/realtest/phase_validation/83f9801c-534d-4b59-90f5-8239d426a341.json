@@ -1,0 +1,124 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 82,
+  "tailored_match_score": 82,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/0b41c3a6-2a84-4c8c-9c2a-e831a9157081.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "The Assistant in Nursing (AIN) role involves providing basic nursing care under the supervision of a Registered Nurse within a team setting at The Children's Hospital at Westmead. The position focuses on delivering quality individualized care to children and young people living with cancer, while adhering to health guidelines and maintaining patient confidentiality.",
+    "job_title": "Assistant in Nursing",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [
+          "certificate iii in health services assistance"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "soft_skills",
+          "parent": "communication",
+          "children_present": [
+            "verbal communication",
+            "written communication"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing",
+      "off_setting_demoted": {
+        "demoted": [
+          "community care"
+        ],
+        "setting": "residential"
+      }
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "teamwork": "Demonstrated ability to be an effective team member",
+      "time management": "Demonstrated effective time management skills",
+      "verbal communication": "Demonstrated excellent written and verbal communication skills",
+      "written communication": "Demonstrated excellent written and verbal communication skills",
+      "certificate iii in health services assistance": "Completion of HLT33115 Certificate III in Health Services Assistance (Descriptor Assisting in Nursing Work in Acute Care)"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "teamwork",
+        "written communication",
+        "verbal communication",
+        "time management",
+        "collaboration",
+        "prioritisation",
+        "empathy",
+        "patience",
+        "adaptability"
+      ],
+      "domain_knowledge": [
+        "person-centred care",
+        "patient care",
+        "acute care",
+        "multidisciplinary team care"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": [
+        "community care"
+      ]
+    },
+    "responsibilities": [
+      "Assist in the provision of basic nursing care under the direct supervision of a Registered Nurse.",
+      "Maintain patient confidentiality at all times.",
+      "Demonstrate ethical behaviour in their performance.",
+      "Understand and respect patients' rights.",
+      "Provide evidence of completion of annual mandatory training.",
+      "Practice within the NSW Health guidelines and adhere to Policies and Procedures."
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 82,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Dimeo Cleaning Excellence: dates omitted \u2014 placeholder",
+      "Professional Summary below the 35-word floor (26 words) \u2014 consider expanding with a CV-supported detail.",
+      "Flagged skills with no source evidence: Adaptability, Verbal Communication, Teamwork",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 1 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "83f9801c-534d-4b59-90f5-8239d426a341",
+  "_title": "Assistant in Nursing Oncology",
+  "_company": "NSW Health",
+  "_run_id": "0b41c3a6-2a84-4c8c-9c2a-e831a9157081"
+}

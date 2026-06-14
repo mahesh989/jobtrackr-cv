@@ -1,0 +1,118 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 39,
+  "tailored_match_score": 55,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/b441ddc5-3e9c-41ac-9309-fc7943047be8.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "This role involves working as an Assistant in Nursing (AIN) within a dynamic nursing team at Nepean Private Hospital, providing support in patient care duties and ensuring excellent clinical outcomes. The position requires a commitment to customer service and quality improvement.",
+    "job_title": "Assistant in Nursing",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "planning"
+        ],
+        "unknown": [],
+        "credential": [
+          "certificate iv in health care"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "soft_skills",
+          "parent": "communication",
+          "children_present": [
+            "verbal communication",
+            "written communication"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "planning": "Excellent ability to plan and prioritise work",
+      "flexibility": "Flexibility to manage shift work (including, day & night shifts) over 7 days",
+      "customer service": "Excellent customer service skills",
+      "verbal communication": "Demonstrated, effective written, verbal communication",
+      "written communication": "Demonstrated, effective written, verbal communication",
+      "certificate iv in health care": "Certificate IV in Health Care from an approved training provider"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "customer service",
+        "written communication",
+        "verbal communication",
+        "adaptability",
+        "teamwork",
+        "organisation",
+        "prioritisation",
+        "patience"
+      ],
+      "domain_knowledge": [
+        "patient care",
+        "multidisciplinary team care",
+        "cardiology",
+        "obstetrics",
+        "orthopaedics",
+        "urology"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": []
+    },
+    "responsibilities": [
+      "Assist nurses or hospital staff in carrying out patient care duties",
+      "Work as part of the health care team",
+      "Practice in accordance with state legislation and within the designated scope of practice parameters",
+      "Answering patient/visitor/customer enquiries"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "high",
+      "initial_ats": 39,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Professional Summary below the 35-word floor (34 words) \u2014 consider expanding with a CV-supported detail.",
+      "Dropped skills with no source evidence: Patient Care",
+      "Flagged skills with no source evidence: Teamwork, Adaptability, Written Communication, Verbal Communication, Prioritisation, Customer Service",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 2 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "3c1aed9d-8ac5-4652-960a-0dd54880ea4a",
+  "_title": "Assistant in Nursing",
+  "_company": "Nepean Private Hospital",
+  "_run_id": "b441ddc5-3e9c-41ac-9309-fc7943047be8"
+}

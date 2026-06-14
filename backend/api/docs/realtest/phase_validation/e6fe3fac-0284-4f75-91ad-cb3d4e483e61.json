@@ -1,0 +1,103 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 37,
+  "tailored_match_score": 43,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/7e4977c0-7de9-4d70-bf27-dabf6a9609f4.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "Sanctuary Care Services is seeking a compassionate and reliable AIN / Disability Support Worker to support a young female participant in Rouse Hill. The role involves providing complex care support and assistance within the home.",
+    "job_title": "AIN / Disability Support Worker",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "subsumed": [],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "compassion": "We Are Looking For Someone Who: \u2705 Is calm, compassionate and attentive",
+      "reliability": "We Are Looking For Someone Who: \u2705 Is reliable and comfortable working closely with family supports",
+      "complex care": "Minimum of 2+ years experience in complex care or high intensity supports is required.",
+      "communication": "We Are Looking For Someone Who: \u2705 Has excellent communication and documentation skills",
+      "disability support": "Experience in disability or aged care highly regarded"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "empathy",
+        "reliability",
+        "communication"
+      ],
+      "domain_knowledge": [
+        "complex care",
+        "disability support",
+        "personal care",
+        "clinical observations",
+        "clinical documentation",
+        "clinical handover",
+        "aged care",
+        "high intensity supports",
+        "transport assistance"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": []
+    },
+    "responsibilities": [
+      "Completing handover with participant's mother",
+      "Wearing face mask/PPE on shift",
+      "Personal care including pad changes",
+      "Monitoring oxygen levels every 15 minutes",
+      "Assisting with medications",
+      "Managing feed bag top ups and changes",
+      "Providing support within the home as needed",
+      "Completing end-of-shift handover"
+    ],
+    "experience_years_required": 2
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "high",
+      "initial_ats": 37,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Flagged skills with no source evidence: Reliability, Communication",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 2 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "e6fe3fac-0284-4f75-91ad-cb3d4e483e61",
+  "_title": "Assistant in Nursing - NDIS Home Supports",
+  "_company": "Sanctuary Care and Support Services",
+  "_run_id": "7e4977c0-7de9-4d70-bf27-dabf6a9609f4"
+}

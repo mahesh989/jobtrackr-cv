@@ -1,0 +1,127 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 61,
+  "tailored_match_score": 66,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/592c15fb-ce35-426a-9524-9dac3ddbb30d.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "The Home Care Support Worker role involves delivering in-home support services to aged care customers, helping them live independently and empowered within their own homes and communities. The position requires assisting with personal care, transportation, and building relationships with clients.",
+    "job_title": "Home Care Support Worker",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [
+          "driver's license"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "personal care",
+          "children_present": [
+            "feeding assistance",
+            "showering and bathing",
+            "toileting assistance"
+          ]
+        },
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "aged care",
+          "children_present": [
+            "community care",
+            "home care"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "nursing": "We welcome applicants that have the below experience and/or a qualification",
+      "flexibility": "Flexibility and availability to work rosters between Monday to Friday",
+      "social work": "We welcome applicants that have the below experience and/or a qualification",
+      "mental health": "We welcome applicants that have the below experience and/or a qualification",
+      "driver's license": "Current Australian Driver\u2019s License and ownership of a reliable comprehensively insured vehicle",
+      "community services": "We welcome applicants that have the below experience and/or a qualification",
+      "disability support": "We welcome applicants that have the below experience and/or a qualification"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [
+        "computer skills"
+      ],
+      "soft_skills": [
+        "adaptability",
+        "reliability",
+        "relationship building"
+      ],
+      "domain_knowledge": [
+        "showering and bathing",
+        "toileting assistance",
+        "feeding assistance",
+        "clinical observations",
+        "home care",
+        "domestic assistance",
+        "community care",
+        "disability support"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": []
+    },
+    "responsibilities": [
+      "Help at Home: such as cleaning, laundry, and meal preparation etc.",
+      "Transportation and Personal Care: Experienced staff assist customers with appointments, shopping, social outings, showering, toileting, feeding etc.",
+      "Client Awareness: Building relationships with clients and their families, conducting client observations with ongoing support and training",
+      "Safety Practices: Adhering to health and safety guidelines and policies to keep yourself and our customers safe"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 61,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Dimeo Cleaning Excellence: dates omitted \u2014 fabricated (not in source CV)",
+      "Professional Summary below the 35-word floor (33 words) \u2014 consider expanding with a CV-supported detail.",
+      "Dropped skills with no source evidence: Feeding Assistance, Toileting Assistance, Showering And Bathing",
+      "Flagged skills with no source evidence: Relationship Building, Adaptability, Reliability",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 2 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "c6c9c0a2-cd30-49a8-8948-89c3613b667c",
+  "_title": "Home Care Support Worker - Denistone",
+  "_company": "Australian Unity",
+  "_run_id": "592c15fb-ce35-426a-9524-9dac3ddbb30d"
+}

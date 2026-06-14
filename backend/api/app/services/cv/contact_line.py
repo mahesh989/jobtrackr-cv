@@ -316,11 +316,12 @@ def stamp_credentials(
 _REFERENCES_HEADING = "## References"
 
 
-def _build_referee_row(ref: Dict[str, Any]) -> Optional[str]:
-    """Return a single plain-text referee line, or None if blank.
+def _build_referee_row(ref: Dict[str, Any]) -> Optional[tuple[str, str]]:
+    """Return ``(left, email)`` for a referee, or None if both blank.
 
-    Format (one line per referee, email at the end):
-        **Name**, Job title, Company — email@example.com
+    Caller renders these as a 2-column right-aligned GFM table so the
+    email column is always right-aligned — see ``build_references_block``.
+    The hyphen separator was removed at the user's request.
     """
     name      = _clean(ref.get("name"))
     job_title = _clean(ref.get("job_title"))
@@ -334,9 +335,7 @@ def _build_referee_row(ref: Dict[str, Any]) -> Optional[str]:
     if job_title: left_parts.append(job_title)
     if company:   left_parts.append(company)
     left = ", ".join(left_parts)
-    if left and email:
-        return f"{left} — {email}"
-    return left or email
+    return (left, email)
 
 
 def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -374,7 +373,7 @@ def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optiona
     referees = refs.get("referees") or []
     if not isinstance(referees, list):
         return None
-    rows: List[str] = []
+    rows: List[tuple[str, str]] = []
     for ref in referees[:3]:
         if not isinstance(ref, dict):
             continue
@@ -384,10 +383,19 @@ def build_references_block(contact_details: Optional[Dict[str, Any]]) -> Optiona
     if not rows:
         return None
 
-    # Plain-text lines — one referee per line. No table header, no dividers;
-    # renderers (PDF + web preview) lay these out as a clean list rather than
-    # a labelled two-column table.
-    return f"{_REFERENCES_HEADING}\n\n" + "\n\n".join(rows) + "\n"
+    # 2-column GFM table — empty header (renderers display nothing for it),
+    # left-aligned referee details, RIGHT-aligned email column. Hyphen
+    # separator removed — alignment is the visual separator now.
+    lines: List[str] = [
+        f"{_REFERENCES_HEADING}",
+        "",
+        "|   |   |",
+        "|:--|--:|",
+    ]
+    for left, email in rows:
+        lines.append(f"| {left} | {email} |")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def stamp_references(

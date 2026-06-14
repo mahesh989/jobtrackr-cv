@@ -1,0 +1,118 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 61,
+  "tailored_match_score": 76,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/7ea31123-e10c-4f31-b625-3af1956199d3.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "The Personal Care Worker role at Calvary Ryde Retirement Community involves providing resident-centred care within the aged care team. This hands-on position allows for a positive impact on the lives of residents while working in a supportive and inclusive environment.",
+    "job_title": "Personal Care Worker",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "whs"
+        ],
+        "unknown": [],
+        "credential": [
+          "certificate iii aged care"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "aged care",
+          "children_present": [
+            "home care"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing",
+      "off_setting_demoted": {
+        "demoted": [
+          "home care"
+        ],
+        "setting": "residential"
+      }
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "whs": "Working knowledge of WHS and Infection Control",
+      "aged care": "Calvary Ryde Retirement Community is a purpose-built residence providing leading aged care services",
+      "infection control": "Working knowledge of WHS and Infection Control",
+      "certificate iii aged care": "Certificate III Aged Care or Individual Support is essential",
+      "effective interpersonal communication": "Effective interpersonal communication; both written and verbal"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "communication",
+        "organisation",
+        "adaptability",
+        "positive attitude",
+        "interpersonal skills",
+        "leadership",
+        "professionalism"
+      ],
+      "domain_knowledge": [
+        "infection control",
+        "personal care",
+        "person-centred care",
+        "individual support"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": [
+        "home care"
+      ]
+    },
+    "responsibilities": [
+      "promote the delivery of quality care to residents and their families",
+      "demonstrating competence in the provision of resident-centred care"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 61,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Professional Summary below the 35-word floor (30 words) \u2014 consider expanding with a CV-supported detail.",
+      "Flagged skills with no source evidence: Communication, Adaptability, Organisation, Positive Attitude, Interpersonal Skills, Interpersonal",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 1 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "b0d131fa-e707-4a77-8bf2-0cb2035e9e2c",
+  "_title": "Personal Care Worker",
+  "_company": "Calvary",
+  "_run_id": "7ea31123-e10c-4f31-b625-3af1956199d3"
+}

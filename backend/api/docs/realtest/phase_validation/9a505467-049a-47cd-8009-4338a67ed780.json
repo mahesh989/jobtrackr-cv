@@ -1,0 +1,143 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 50,
+  "tailored_match_score": 62,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/34935f0e-ba74-48fe-a21f-59a160f1697e.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "Multicultural Care is seeking reliable, dedicated, and compassionate Aged Care Support Staff to provide essential in-home care to individuals across various regions in Sydney. The role involves offering personal care, domestic assistance, and social support to enhance the quality of life for elderly and special-needs clients.",
+    "job_title": "Aged Care Support Staff",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "passion",
+          "commitment"
+        ],
+        "unknown": [
+          {
+            "phrase": "nsw driver\u2019s license",
+            "category": "technical"
+          },
+          {
+            "phrase": "culturally diverse backgrounds",
+            "category": "domain_knowledge"
+          }
+        ],
+        "credential": [
+          "access to a car"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "aged care",
+          "children_present": [
+            "home care"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [
+          {
+            "phrase": "bilingual capability",
+            "category": "domain_knowledge"
+          }
+        ],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "passion": "You are passionate about supporting people, particularly those from culturally and linguistically diverse backgrounds.",
+      "aged care": "Experience as a carer or completion of a Certificate III in Aged Care or Disability",
+      "commitment": "You are committed to enhancing the quality of life for elderly and special-needs clients",
+      "compassion": "Multicultural Care is seeking reliable, dedicated, and compassionate Aged Care Support Staff",
+      "dedication": "Multicultural Care is seeking reliable, dedicated, and compassionate Aged Care Support Staff",
+      "reliability": "Multicultural Care is seeking reliable, dedicated, and compassionate Aged Care Support Staff",
+      "access to a car": "REQUIRED: NSW driver\u2019s license and access to a car with third-party property insurance",
+      "disability support": "Experience as a carer or completion of a Certificate III in Aged Care or Disability",
+      "bilingual capability": "Bilingual capability \u2013 proficiency in multiple languages like Spanish, Mandarin, Italian or Greek speaking is preferred.",
+      "nsw driver\u2019s license": "REQUIRED: NSW driver\u2019s license and access to a car with third-party property insurance",
+      "culturally diverse backgrounds": "You are passionate about supporting people, particularly those from culturally and linguistically diverse backgrounds."
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [
+        "nsw driver\u2019s license",
+        "computer skills"
+      ],
+      "soft_skills": [
+        "reliability",
+        "dedication",
+        "empathy",
+        "communication",
+        "teamwork",
+        "organisation",
+        "positive attitude",
+        "respect"
+      ],
+      "domain_knowledge": [
+        "disability support",
+        "culturally diverse backgrounds",
+        "personal care",
+        "health monitoring",
+        "home care",
+        "domestic assistance",
+        "emotional support",
+        "transport assistance"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": [
+        "bilingual capability"
+      ]
+    },
+    "responsibilities": [
+      "Offering personal care, domestic assistance, and social support",
+      "Assisting with shopping and transport",
+      "Managing and supervising medication, following doctor\u2019s advice",
+      "Monitoring and reporting on changes to a client\u2019s health and well-being"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 50,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Professional Summary below the 35-word floor (32 words) \u2014 consider expanding with a CV-supported detail.",
+      "Flagged skills with no source evidence: Teamwork, Communication, Organisation, Positive Attitude, Respect",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: appended (writer dropped this role)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "9a505467-049a-47cd-8009-4338a67ed780",
+  "_title": "Home and Community Aged Care Workers",
+  "_company": "Multicultural Care",
+  "_run_id": "34935f0e-ba74-48fe-a21f-59a160f1697e"
+}

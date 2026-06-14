@@ -49,10 +49,7 @@ OUTPUT SHAPE
 - Experience: 1-3 roles ranked by JD relevance. Each role uses a TWO-LINE
   block — `### Company | Location` then `*Title | Start – End*` — then
   2 or 3 bullets. Bullets are full sentences ending in periods.
-- Education: 1-3 entries. Same two-line shape — `### Institution | Location`
-  then `*Degree | Year – Year*`. No bullets under degrees. Drop graduate
-  degrees whose field shares neither the JD's domain NOR its methodology
-  (keeping one Bachelor's as a baseline is fine).
+- Education: If the candidate has 3 or fewer degrees in total, KEEP all of them. The dropping of irrelevant graduate degrees is valid ONLY if they have more than 3 degrees (to select at most 3 entries). Same two-line shape — `### Institution | Location` then `*Degree | Year – Year*`. No bullets under degrees. If they have >3 degrees, drop graduate degrees whose field shares neither the JD's domain NOR its methodology (keeping one Bachelor's as a baseline is fine).
 - Skills: three lines exactly —
     **Technical Skills:** … (languages, tools, platforms, frameworks)
     **Soft Skills:** … (interpersonal / cognitive capabilities)

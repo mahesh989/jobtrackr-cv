@@ -309,11 +309,10 @@ start typing the markdown:
       exist, output 2; if 1 exists, output 1; if none exist, omit
       the section. Never drop the section when projects exist.
       Apply R3 if in AI-Suppressed mode.
-  (c) Which 1-3 Education entries will you keep? For EVERY graduate
-      degree (Master's / PhD) on the source CV, internally answer the
-      DEGREE RELEVANCE TEST (Q1 domain match? Q2 methodology match?). If
-      both answers are "no", the degree is dropped — no exceptions. Final
-      Education list MUST contain ≤ 3 entries.
+  (c) Which 1-3 Education entries will you keep? If the candidate has 3 or
+      fewer degrees in total, keep them all. The DEGREE RELEVANCE TEST and
+      dropping of irrelevant graduate degrees are valid ONLY if the candidate has
+      more than 3 degrees in total (to select the top 1-3 entries).
   (d) What 3 categories of skills will appear in ## Skills? Apply R5 if
       in AI-Suppressed mode.
   (e) Will Certifications be present? Which ones? Apply R6 if in
@@ -682,7 +681,7 @@ SECTION SELECTION CAPS
   relevant role, but a near-empty Experience section kills the CV.
   The relevance tests below are tiebreakers when there's surplus, not
   filters when there's scarcity. Same idea for Education and Projects:
-  if the candidate has only 1 degree or 1 project, keep it.
+  if the candidate has 3 or fewer degrees in total, keep them all. If 1 project, keep it.
 
   ROLE RELEVANCE TEST (apply per role before keeping, but only when
   the candidate has 3+ roles available):
@@ -701,14 +700,14 @@ SECTION SELECTION CAPS
       → Drop Outlier.ai (AI training has no overlap with fundraising
         analytics). Keep Bitrates + iBuild + Property Console (all
         carry analyst / dashboard / metrics work).
-- Education: include 1 to 3 entries. Apply the DEGREE RELEVANCE TEST
-  below. Graduate degrees (Master's, PhD) in fields with no overlap to
+- Education: if the candidate has 3 or fewer degrees in total, KEEP all of them. The DEGREE RELEVANCE TEST and dropping of irrelevant graduate degrees are valid ONLY if the candidate has more than 3 degrees in total. If they have more than 3, apply the test below to select the most relevant ones and keep at most 3 entries.
+  Graduate degrees (Master's, PhD) in fields with no overlap to
   the JD's domain or methodology MUST be dropped — they actively HURT
   the application by signaling overqualification and field mismatch.
   Bachelor's degrees are exempt and may be kept as baseline credentials
   even if the field differs.
 
-  DEGREE RELEVANCE TEST — MANDATORY pre-output procedure:
+  DEGREE RELEVANCE TEST — MANDATORY pre-output procedure (applicable ONLY if candidate has >3 degrees):
 
     Step A — Identify, in your head, two things from the JD:
       • Primary domain (e.g. fundraising / marketing, SaaS data

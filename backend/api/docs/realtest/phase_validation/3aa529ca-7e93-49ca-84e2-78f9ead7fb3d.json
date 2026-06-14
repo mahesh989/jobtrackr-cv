@@ -1,0 +1,128 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 70,
+  "tailored_match_score": 76,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/3899bd5d-9e04-43ac-bb5a-eda437b54ad5.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "Hardi Aged Care is seeking AINs to provide personal care and clinical support to elderly residents. The role involves delivering best practice care while ensuring the health and wellbeing of residents.",
+    "job_title": "AIN",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "clinical skills"
+        ],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "soft_skills",
+          "parent": "communication",
+          "children_present": [
+            "written communication"
+          ]
+        },
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "personal care",
+          "children_present": [
+            "continence care"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "empathy": "Empathetic, tolerant and patient nature",
+      "aged care": "you love working with older people and understand how important the job of an AIN really is",
+      "organisation": "Excellent organisation and time management skills",
+      "clinical skills": "proven clinical skills in assessments, observations, wound and continence management",
+      "computer skills": "a candidate with writing skills and computer skills",
+      "risk management": "promote personal safety and risk management",
+      "time management": "Excellent organisation and time management skills",
+      "effective communication": "Effective communication skills, both written and verbal"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [
+        "computer skills"
+      ],
+      "soft_skills": [
+        "organisation",
+        "time management",
+        "empathy",
+        "written communication",
+        "patience",
+        "tolerance"
+      ],
+      "domain_knowledge": [
+        "continence care",
+        "clinical observations",
+        "clinical documentation",
+        "aged care",
+        "multidisciplinary team care"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": [
+        "risk management"
+      ]
+    },
+    "responsibilities": [
+      "Assist with delivering best practice clinical care and support that enhances the health and wellbeing of our residents.",
+      "Provide a wide range of personal care services.",
+      "Have proven clinical skills in assessments, observations, wound and continence management.",
+      "Practice a duty of care, and promote personal safety and risk management.",
+      "Adhere to policies and procedures regarding resident charting and documentation."
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 70,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Dimeo Cleaning Excellence: dates omitted \u2014 placeholder",
+      "Dropped skills with no source evidence: Continence Care",
+      "Flagged skills with no source evidence: Organisation, Written Communication, Tolerance",
+      "Flagged skills with no source evidence: [Relevant Software/tools If Applicable]",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 1 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "3aa529ca-7e93-49ca-84e2-78f9ead7fb3d",
+  "_title": "Assistant in Nursing (AIN) / Part time / Full time",
+  "_company": "Hardi Aged Care",
+  "_run_id": "3899bd5d-9e04-43ac-bb5a-eda437b54ad5"
+}

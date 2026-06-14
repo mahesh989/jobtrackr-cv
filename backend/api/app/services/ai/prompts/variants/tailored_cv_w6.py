@@ -120,12 +120,12 @@ never all). If the candidate has only 1-2 roles, keep them all. Each role:
   Per bullet, prefer content that shares the JD's domain or method; rewrite
   off-topic bullets toward the role's JD-relevant work.
 
-EDUCATION — 1 to 3 entries, two-line shape:
+EDUCATION — If the candidate has 3 or fewer degrees in total, KEEP all of them. The dropping of irrelevant graduate degrees is valid ONLY if they have more than 3 degrees (to select at most 3 entries). Two-line shape:
     ### Institution | Location
     *Full Degree Name | Year – Year*
   ALWAYS keep the candidate's most recent Bachelor's degree as a baseline
-  credential, even if its field differs. Drop only graduate degrees
-  (Master's/PhD) whose field shares NEITHER the JD's domain NOR its
+  credential, even if its field differs. If candidate has >3 degrees, drop graduate
+  degrees (Master's/PhD) whose field shares NEITHER the JD's domain NOR its
   methodology. No bullets under degrees.
 
 SKILLS — exactly three lines, JD-relevant only:

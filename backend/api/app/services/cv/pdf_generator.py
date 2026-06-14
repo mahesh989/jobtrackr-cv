@@ -1092,6 +1092,41 @@ def _render_certifications(items: List[Dict]) -> List[Any]:
     return out
 
 
+def _render_references(items: List[Dict]) -> List[Any]:
+    """References section — parse GFM table rows produced by
+    build_references_block (| Name, Title, Company | email |) into a
+    two-column layout with right-aligned email, matching the markdown intent.
+
+    Also handles the simple 'Available on request.' paragraph.
+    """
+    out: List[Any] = []
+    entry_count = 0
+    for item in items:
+        text = item["text"].strip()
+        if not text:
+            continue
+        # Skip GFM table header / alignment rows
+        if re.match(r'^\|[\s:|-]+\|$', text):
+            continue
+        # Data row: | left content | right content |
+        row_match = re.match(r'^\|\s*(.+?)\s*\|\s*(.*?)\s*\|$', text)
+        if row_match:
+            left_raw = row_match.group(1).strip()
+            right_raw = row_match.group(2).strip()
+            if not left_raw and not right_raw:
+                continue
+            if entry_count > 0:
+                out.append(_spacer(_cfg().subsection_gap))
+            entry_count += 1
+            left_para = _inline_markup(left_raw, _styles()["body"])
+            right_para = Paragraph(_escape(right_raw), _styles()["date_right"])
+            out.append(_two_col(left_para, right_para))
+            continue
+        # Plain text fallback (e.g. "Available on request.")
+        out.append(_inline_markup(text, _styles()["body"]))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Section routing — strict canonical order
 # ---------------------------------------------------------------------------
@@ -1119,9 +1154,11 @@ _SECTION_ALIASES: Dict[str, str] = {
     "recognition":                  "awards",
     "honours":                      "awards",
     "honors":                       "awards",
+    "references":                   "references",
+    "referees":                     "references",
 }
 
-_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications", "awards"]
+_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications", "awards", "references"]
 
 _SECTION_LABELS = {
     "highlights":     "Profile",
@@ -1131,6 +1168,7 @@ _SECTION_LABELS = {
     "projects":       "Projects",
     "certifications": "Professional Certifications",
     "awards":         "Awards",
+    "references":     "References",
 }
 
 
@@ -1142,6 +1180,7 @@ def _render_section(stype: str, items: List[Dict]) -> List[Any]:
     if stype == "projects":       return _render_projects(items)
     if stype == "certifications": return _render_certifications(items)
     if stype == "awards":         return _render_awards(items)
+    if stype == "references":     return _render_references(items)
     # Generic fallback
     out: List[Any] = []
     for item in items:

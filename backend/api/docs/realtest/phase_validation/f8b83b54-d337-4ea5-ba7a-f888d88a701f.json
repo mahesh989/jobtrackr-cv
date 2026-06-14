@@ -1,0 +1,101 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 42,
+  "tailored_match_score": 68,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/6940ed0f-4f06-40e9-9149-fd879789d2b3.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "The Assistant in Nursing provides support to the Nursing staff in the delivery of basic care in a busy surgical department at McQuoin Ward, The Mater Hospital. This role is ideal for those enrolled in nursing programs and offers experience that could assist in securing a New Graduate Position in the future.",
+    "job_title": "Assistant in Nursing",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "nursing"
+        ],
+        "unknown": [],
+        "credential": [
+          "fundamental clinical skills",
+          "health service assistance"
+        ],
+        "eligibility": []
+      },
+      "subsumed": [],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "role_family": "nursing"
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "nursing": "Enrolled in and undertaking a Bachelor of Nursing at 2nd year level.",
+      "flexibility": "Flexible and available to work on a 24/7 rotating roster.",
+      "acute healthcare": "Previous experience working in an acute healthcare area (desired).",
+      "health service assistance": "Certificate 3 in Health Service Assistance.",
+      "fundamental clinical skills": "Complete fundamental clinical skills, to assist the RN/EN workforce."
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "adaptability"
+      ],
+      "domain_knowledge": [
+        "acute care",
+        "aged care",
+        "multidisciplinary team care",
+        "surgical orthopaedics",
+        "surgical nursing",
+        "cardiology",
+        "oncology care",
+        "obstetrics"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": []
+    },
+    "responsibilities": [
+      "provide support to the Nursing staff in the delivery of basic care",
+      "integrate into the nursing and multidisciplinary team",
+      "assist the RN/EN workforce with fundamental clinical skills"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "high",
+      "initial_ats": 42,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Professional Summary below the 35-word floor (26 words) \u2014 consider expanding with a CV-supported detail.",
+      "Flagged skills with no source evidence: Adaptability",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 2 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "f8b83b54-d337-4ea5-ba7a-f888d88a701f",
+  "_title": "Assistant in Nursing",
+  "_company": "St Vincent's Health Australia",
+  "_run_id": "6940ed0f-4f06-40e9-9149-fd879789d2b3"
+}

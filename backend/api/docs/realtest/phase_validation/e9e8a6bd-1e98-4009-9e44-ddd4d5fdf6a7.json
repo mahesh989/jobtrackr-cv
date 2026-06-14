@@ -1,0 +1,133 @@
+{
+  "status": "completed",
+  "error_message": null,
+  "role_family_id": "nursing",
+  "match_score": 87,
+  "tailored_match_score": 90,
+  "tailored_cv_storage_path": "4e6f1a49-df6d-4303-a56f-edd24bee5d67/c8a5ae09-8efe-4b36-84ff-05245a5ae66b.md",
+  "ai_recommendations": null,
+  "jd_analysis_result": {
+    "summary": "Join our Aged Care Team to provide care, companionship, and emotional support to residents in an aged care home. This role involves assisting with daily living activities and supporting residents' independence and quality of life.",
+    "job_title": "Aged Care Carer",
+    "role_family": "nursing",
+    "lexicon_meta": {
+      "required": {
+        "moved": [],
+        "noise": [
+          "resourcefulness"
+        ],
+        "unknown": [],
+        "credential": [],
+        "eligibility": []
+      },
+      "subsumed": [
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "aged care",
+          "children_present": [
+            "community care"
+          ]
+        },
+        {
+          "side": "required_skills",
+          "bucket": "domain_knowledge",
+          "parent": "personal care",
+          "children_present": [
+            "dressing and grooming",
+            "showering and bathing"
+          ]
+        }
+      ],
+      "vertical": "nursing",
+      "preferred": {
+        "moved": [],
+        "noise": [],
+        "unknown": [],
+        "credential": [
+          "certificate iii in aged care"
+        ],
+        "eligibility": []
+      },
+      "role_family": "nursing",
+      "off_setting_demoted": {
+        "demoted": [
+          "community care"
+        ],
+        "setting": "residential"
+      }
+    },
+    "category_order": [
+      "domain_knowledge",
+      "soft_skills",
+      "technical"
+    ],
+    "skill_evidence": {
+      "empathy": "you will be able to live Uniting\u2019s everyday values of being compassionate, respectful, imaginative, and bold",
+      "aged care": "previous experience in aged or community care",
+      "adaptability": "you\u2019ll be adaptable, empathetic, and resourceful",
+      "personal care": "providing daily living assistance such as showering, personal hygiene, dressing, help at mealtimes and with general mobility",
+      "medication administration": "assisting with medication and simple wound dressings",
+      "certificate iii in aged care": "Ideally, you\u2019ll have a Certificate III/IV in Aged Care, Individual Support, or equivalent qualification"
+    },
+    "category_labels": {
+      "technical": "Other Skills",
+      "soft_skills": "Soft Skills",
+      "domain_knowledge": "Care Skills"
+    },
+    "required_skills": {
+      "technical": [],
+      "soft_skills": [
+        "empathy",
+        "adaptability",
+        "organisation",
+        "advocacy",
+        "respect",
+        "leadership"
+      ],
+      "domain_knowledge": [
+        "medication administration",
+        "activities of daily living",
+        "showering and bathing",
+        "dressing and grooming",
+        "wound care",
+        "individual support",
+        "emotional support"
+      ]
+    },
+    "seniority_level": "entry",
+    "preferred_skills": {
+      "technical": [],
+      "soft_skills": [],
+      "domain_knowledge": [
+        "community care"
+      ]
+    },
+    "responsibilities": [
+      "provide care, companionship and emotional support to residents living in our aged care home",
+      "providing daily living assistance such as showering, personal hygiene, dressing, help at mealtimes and with general mobility",
+      "assisting with medication and simple wound dressings",
+      "supporting residents in community-based recreational and social activities"
+    ],
+    "experience_years_required": null
+  },
+  "quality_flags": {
+    "honesty_risk": {
+      "risk_level": "medium",
+      "initial_ats": 87,
+      "vertical_months": 3
+    },
+    "honesty_guard_notes": [
+      "Dimeo Cleaning Excellence: dates omitted \u2014 fabricated (not in source CV)",
+      "Dropped skills with no source evidence: Showering And Bathing, Dressing And Grooming, Wound Care, Individual Support, Emotional Support",
+      "Flagged skills with no source evidence: Adaptability, Organisation, Advocacy",
+      "RFBI Concord Community Village: replaced 3 tailored bullet(s) with 6 source bullet(s)",
+      "Akala Motors Private Limited: replaced 2 tailored bullet(s) with 5 source bullet(s)"
+    ],
+    "pre_filter_dropped_roles": []
+  },
+  "_job_id": "e9e8a6bd-1e98-4009-9e44-ddd4d5fdf6a7",
+  "_title": "Care Worker",
+  "_company": "Uniting NSW & ACT",
+  "_run_id": "c8a5ae09-8efe-4b36-84ff-05245a5ae66b"
+}

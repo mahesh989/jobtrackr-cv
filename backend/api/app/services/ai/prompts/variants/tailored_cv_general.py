@@ -126,17 +126,17 @@ in ## Professional Experience may describe the same project (not even
 with different wording).
 
 EDUCATION
-- Include 1 to 3 entries. Same two-line shape:
+- If the candidate has 3 or fewer degrees in total, KEEP all of them. The DEGREE RELEVANCE TEST and dropping of irrelevant graduate degrees are valid ONLY if the candidate has more than 3 degrees in total (to select at most 3 entries). Same two-line shape:
     ### Institution | Location
     *Degree | Year – Year*
   Use the FULL degree name (e.g. "Master of Data Science", "Bachelor of
   Science", "PhD in <Field>"). Append "(GPA: X)" only if the CV reports it.
-- DEGREE RELEVANCE TEST for each graduate degree (Master's / PhD):
+- DEGREE RELEVANCE TEST (applicable ONLY if candidate has >3 degrees) for each graduate degree (Master's / PhD):
     Q1: Does its field share the JD's domain?
     Q2: Does its field share the JD's methodology?
   If BOTH answers are "no", the degree is irrelevant and MUST be dropped —
   no exceptions, regardless of prestige.
-- Bachelor's degrees are exempt; keep one as a baseline credential.
+- Bachelor's degrees are exempt from the relevance drop; keep one as a baseline credential.
 - ZERO BULLETS under Education entries. Two-line shape only. (A
   post-processor strips bullets here.)
 
