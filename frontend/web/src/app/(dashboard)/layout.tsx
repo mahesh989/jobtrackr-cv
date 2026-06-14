@@ -49,22 +49,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const profileIds = profiles.map((p) => p.id);
     const applicationsSeenAt = (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
 
-    // Pool = cover letters that are completed + not stale, whose job hasn't been
-    // applied or dismissed yet. pool_decision_at is no longer a gate — the new
-    // Applications design uses applied_at + dismissed_at as the sole signals.
-    let poolQuery = supabase.from("cover_letters")
-      .select("id, jobs!inner(applied_at, dismissed_at)", {
-        count: "exact",
-        head:  true,
-      })
+    // Pool badge — must match the Applications page filter exactly. A job is
+    // "in pool" only when it has a COMPLETE set: cover letter + analysis run +
+    // tailored CV. The page filter (isPool) and this badge are computed off
+    // the same three queries; mismatched logic was producing a 40-count when
+    // the page showed 0.
+    let poolLetters = supabase.from("cover_letters")
+      .select("id, job_id, completed_at, jobs!inner(applied_at, dismissed_at)")
       .eq("user_id", user.id)
       .eq("status", "completed")
       .eq("is_stale", false)
       .is("jobs.applied_at", null)
       .is("jobs.dismissed_at", null);
-    if (applicationsSeenAt) poolQuery = poolQuery.gt("completed_at", applicationsSeenAt);
+    if (applicationsSeenAt) poolLetters = poolLetters.gt("completed_at", applicationsSeenAt);
 
-    const [{ data: unseenRows }, { data: runRows }, { count: pc }] = await Promise.all([
+    const [{ data: unseenRows }, { data: runRows }, { data: letterRowsForBadge }] = await Promise.all([
       supabase.from("jobs")
         .select("profile_id")
         .in("profile_id", profileIds)
@@ -76,10 +75,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
         .select("profile_id, status")
         .in("profile_id", profileIds)
         .eq("status", "running"),
-      poolQuery,
+      poolLetters,
     ]);
 
-    poolCount = pc ?? 0;
+    const letterJobIds = Array.from(new Set(
+      ((letterRowsForBadge ?? []) as { job_id: string }[]).map((l) => l.job_id),
+    ));
+    if (letterJobIds.length > 0) {
+      const { data: runsForBadge } = await supabase.from("analysis_runs")
+        .select("job_id, tailored_pdf_storage_path, tailored_cv_storage_path")
+        .in("job_id", letterJobIds)
+        .eq("is_stale", false);
+      const completeJobs = new Set(
+        ((runsForBadge ?? []) as {
+          job_id: string;
+          tailored_pdf_storage_path: string | null;
+          tailored_cv_storage_path: string | null;
+        }[])
+          .filter((r) => !!(r.tailored_pdf_storage_path || r.tailored_cv_storage_path))
+          .map((r) => r.job_id),
+      );
+      poolCount = letterJobIds.filter((id) => completeJobs.has(id)).length;
+    }
     const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(
       (acc, r) => { acc[r.profile_id] = (acc[r.profile_id] ?? 0) + 1; return acc; }, {}
     );

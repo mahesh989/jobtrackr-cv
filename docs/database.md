@@ -48,6 +48,10 @@
 | 036 | `036_cover_letter_pdf_storage.sql` | Phase G — `cover_letters.pdf_storage_path text` + NEW `cover-letters` storage bucket (5 MB cap, PDF-only) + RLS owner-select policy |
 | 037 | `037_cover_letters_analysis_run_id.sql` | Phase E-2 bug fix — `cover_letters.analysis_run_id uuid REFERENCES analysis_runs(id) ON DELETE SET NULL` + partial index. Without this E-2's auto_cover_letter.py crashed with PG error 42703 on every insert |
 | 038 | `038_jd_quality_trigger.sql` | UX bug fix — `classify_jd_quality()` SQL function + BEFORE INSERT/UPDATE trigger on jobs so `jd_quality` auto-stamps on every scrape. Threshold aligned to worker's `JD_MIN_USABLE = 2000` (was 300 in 032) so the "Needs JD" chip / TriageBanner / pipelineState='needs_jd' badge actually fires on jobs the worker auto-skips. Includes a re-classify backfill |
+| 058 | `058_cv_versions_structured_cv.sql` | `cv_versions` — `structured_cv jsonb` + `structured_cv_status text` for the post-upload review form (parsed → edited → verified) |
+| 059 | `059_cv_versions_normalized_cv_text.sql` | `cv_versions` — `normalized_cv_text text`, canonical markdown re-rendered from `structured_cv`; analysis pipeline reads this when present, falls back to `cv_text` |
+
+> *(Migrations 039–057 omitted from this table — see `shared/supabase/migrations/` for the full sequence.)*
 
 ---
 
@@ -244,7 +248,7 @@ Stores per-user third-party credentials (worker keys + BYOK AI keys). Credential
 ---
 
 ### `cv_versions`
-Created: 010 | Extended: 016 | RLS: 010
+Created: 010 | Extended: 016, 058, 059 | RLS: 010
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -253,12 +257,15 @@ Created: 010 | Extended: 016 | RLS: 010
 | `label` | `text` | e.g. `"Master CV — 2026"` |
 | `pdf_storage_path` | `text` | `cvs/{user_id}/{cv_version_id}.pdf` |
 | `cv_text` | `text` | plain-text extraction via pypdf/python-docx |
-| `is_active` | `boolean` | default `false` |
+| `is_active` | `boolean` | default `false`. Invariant: if any CV exists for the user, exactly one is active. Maintained by `ensureSomeoneActive()` on upload / delete / deactivate / cv-library page-load. |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | auto-updated |
-| `categorised_skills` | `jsonb` | *016* `{ "technical": [...], "soft_skills": [...], "domain_knowledge": [...] }` — null while pending or no AI key |
+| `categorised_skills` | `jsonb` | *016* `{ "technical": [...], "soft_skills": [...], "domain_knowledge": [...] }` — written by `/internal/categorise-cv` and kept in lockstep with `structured_cv.skills` by the review-form PATCH. |
+| `structured_cv` | `jsonb` | *058* normalised CV body: `{ summary, experience[], education[], awards[], languages[], certifications[], skills{}, references[], gaps[], _version }`. NO contact (lives on user_preferences). Populated by `/internal/structurize-cv` at upload. |
+| `structured_cv_status` | `text` | *058* `'parsed'` / `'edited'` / `'verified'`. Only escalates; sets `'verified'` when user clicks "Save & use this CV". |
+| `normalized_cv_text` | `text` | *059* canonical markdown re-rendered from `structured_cv`. Read by the analysis pipeline as the CV source of truth; falls back to `cv_text` when null. |
 
-**Unique index:** `uq_one_active_cv_per_user (user_id) WHERE is_active = true` — enforces exactly one active CV per user.
+**Unique index:** `uq_one_active_cv_per_user (user_id) WHERE is_active = true` — enforces at most one active CV per user (the `ensureSomeoneActive` helper guarantees at least one).
 
 **Indexes:** `user_id`, `created_at DESC`
 
