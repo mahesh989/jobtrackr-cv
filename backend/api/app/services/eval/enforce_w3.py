@@ -17,8 +17,11 @@ Gates:
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List, Set
+
+logger = logging.getLogger(__name__)
 
 from app.services.eval.enforce import _split_items, _norm
 from app.services.eval.grounding import compute_grounding
@@ -227,6 +230,146 @@ def _meaningful_tokens(text: str) -> Set[str]:
 def _ends_in_role_noun(phrase: str) -> bool:
     words = re.findall(r"[a-z0-9]+", phrase.lower())
     return bool(words) and words[-1] in _ROLE_HEAD_NOUNS
+
+
+# ---------------------------------------------------------------------------
+# S1 vertical-alignment guard — trim off-vertical student/credential openers.
+#
+# The composer sometimes leads S1 with "International student currently
+# pursuing a Master of Professional Accounting with …" when the JD vertical
+# is nursing. The actual on-vertical content ("Certificate IV in Ageing
+# Support", placement details) follows AFTER the off-vertical preamble.
+# This guard detects the pattern and trims the preamble so the in-vertical
+# content leads. It never invents prose — only removes the off-axis prefix.
+# ---------------------------------------------------------------------------
+
+_AU_UNIT_CODE_INLINE_RE = re.compile(
+    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)"
+    r"[A-Z0-9]{2,6}\b",
+    re.IGNORECASE,
+)
+
+
+def _strip_unit_codes(text: str) -> str:
+    """Remove Australian VET unit codes (CHC43015, HLTHPS007, etc.) from prose.
+    These belong in a credentials line, not in a summary sentence."""
+    # Strip "(CODE)" form first, then bare CODE.
+    out = re.sub(r"\s*\(" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\)", "", text, flags=re.IGNORECASE)
+    out = re.sub(_AU_UNIT_CODE_INLINE_RE.pattern + r"\s*", "", out, flags=re.IGNORECASE)
+    return re.sub(r"\s{2,}", " ", out).strip()
+
+
+_STUDENT_CRED_LEAD_RE = re.compile(
+    r"^(?:international\s+|domestic\s+)?"
+    r"(?:"
+    r"student\s+(?:currently\s+)?(?:pursuing|completing|undertaking|studying)"
+    r"|recent(?:ly)?\s+graduate[ds]?\b"
+    r"|graduate\s+(?:currently\s+)?(?:pursuing|completing)"
+    r"|(?:mba|mpa|msc|bba|bcom)\s+(?:candidate|student|graduate)"
+    r"|visa\s+holder\s+(?:currently\s+)?(?:pursuing|studying)"
+    r")"
+    r"\s+.*?\b(?:with\s+(?:a\s+)?|holding\s+(?:a\s+)?|who\s+(?:also\s+)?holds?\s+(?:a\s+)?)",
+    re.IGNORECASE,
+)
+
+_STUDENT_SIMPLE_LEAD_RE = re.compile(
+    r"^(?:international\s+|domestic\s+)?"
+    r"(?:"
+    r"student\s+(?:currently\s+)?(?:pursuing|completing|undertaking|studying)"
+    r"|recent(?:ly)?\s+graduate[ds]?\b"
+    r"|graduate\s+(?:currently\s+)?(?:pursuing|completing)"
+    r")"
+    r"\s+(?:a\s+|an\s+)?(?:master(?:'?s)?\s+(?:of|in)\s+|bachelor(?:'?s)?\s+(?:of|in)\s+|"
+    r"mba|mpa|msc|bba|bcom).*?(?:\.\s*|,\s*)",
+    re.IGNORECASE,
+)
+
+
+def enforce_summary_vertical_alignment(
+    md: str,
+    jd_analysis: Dict[str, Any] | None,
+    vertical: str | None,
+) -> str:
+    """Trim off-vertical student/credential preamble from S1 so the in-vertical
+    content leads the summary. No-op when vertical is None, S1 doesn't match,
+    or the credential IS JD-relevant (vocab overlap)."""
+    if not vertical or not jd_analysis:
+        return md
+
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines,
+        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    pidx = next(
+        (
+            i
+            for i in range(start + 1, end)
+            if lines[i].strip()
+            and lines[i].strip()[:2] not in ("- ", "* ")
+            and not lines[i].strip().startswith("•")
+        ),
+        None,
+    )
+    if pidx is None:
+        return md
+
+    line = lines[pidx]
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(line) if s.strip()]
+    if not sentences:
+        return md
+    s1 = sentences[0]
+
+    # Try the "student pursuing X with Y" pattern — trim everything before "with".
+    m = _STUDENT_CRED_LEAD_RE.match(s1)
+    if m:
+        preamble = s1[: m.end()]
+        remainder = s1[m.end() :].strip()
+        # Verify the preamble is off-vertical (no JD vocab overlap).
+        vocab = _jd_vocab(jd_analysis)
+        preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
+        if preamble_toks & vocab:
+            return md  # credential is JD-relevant — keep it
+
+        if remainder:
+            remainder = _strip_unit_codes(remainder)
+            # Capitalize the first letter of the remainder.
+            remainder = remainder[0].upper() + remainder[1:]
+            # Ensure S1 ends with a period.
+            if not remainder.endswith("."):
+                remainder += "."
+            new_sentences = [remainder] + sentences[1:]
+            lines[pidx] = " ".join(new_sentences)
+            logger.info(
+                "enforce_summary_vertical_alignment: trimmed off-vertical S1 "
+                "preamble '%s' → lead is now '%s'",
+                preamble.strip(), remainder[:80],
+            )
+            return "\n".join(lines)
+
+    # Try the simpler "student pursuing X. <rest>" pattern — drop the whole
+    # first sentence if it's purely a student-credential statement followed
+    # by an in-vertical second sentence.
+    m2 = _STUDENT_SIMPLE_LEAD_RE.match(s1)
+    if m2 and len(sentences) > 1:
+        preamble = s1[: m2.end()]
+        vocab = _jd_vocab(jd_analysis)
+        preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
+        if not (preamble_toks & vocab):
+            # Drop the off-vertical first sentence; S2 becomes the new S1.
+            lines[pidx] = " ".join(sentences[1:])
+            logger.info(
+                "enforce_summary_vertical_alignment: dropped off-vertical S1 "
+                "'%s' — S2 promoted to lead.",
+                s1[:80],
+            )
+            return "\n".join(lines)
+
+    return md
 
 
 def enforce_summary_identity(md: str, jd_analysis: Dict[str, Any] | None) -> str:

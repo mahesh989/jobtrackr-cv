@@ -702,3 +702,76 @@ Aged Care Support Worker. Provides safe support for older people in facility env
         assert "Alpha Aged Care" in out
         assert "Beta Nursing Home" in out
         assert "Gamma Residences" not in out
+
+
+# ---------------------------------------------------------------------------
+# S1 vertical-alignment guard (enforce_w3) + unit-code stripping
+# ---------------------------------------------------------------------------
+
+from app.services.eval.enforce_w3 import enforce_summary_vertical_alignment
+
+
+class TestSummaryVerticalAlignment:
+    def test_student_credential_lead_trimmed(self):
+        md = """
+## Professional Summary
+
+International student currently pursuing a Master of Professional Accounting with a CHC43015 Certificate IV in Ageing Support. Completed a 120-hour aged care placement at RFBI Concord Community Village.
+
+## Experience
+""".lstrip()
+        jd = {
+            "job_title": "Assistant in Nursing",
+            "required_skills": {"domain_knowledge": ["aged care", "personal care"]},
+        }
+        out = enforce_summary_vertical_alignment(md, jd, "nursing")
+        summary = _summary_section(out)
+        assert "International student" not in summary
+        assert "Master of Professional Accounting" not in summary
+        assert "CHC43015" not in summary
+        assert "Certificate IV in Ageing Support" in summary
+
+    def test_jd_relevant_credential_kept(self):
+        md = """
+## Professional Summary
+
+Recent graduate completing a Master of Business Administration with experience in strategic planning and financial analysis. Proven track record of delivering business outcomes.
+
+## Experience
+""".lstrip()
+        jd = {
+            "job_title": "Strategy Consultant",
+            "required_skills": {"technical": ["strategic planning", "financial analysis", "business administration"]},
+        }
+        out = enforce_summary_vertical_alignment(md, jd, "tech")
+        assert out == md  # credential IS JD-relevant — no change
+
+    def test_no_vertical_no_op(self):
+        md = """
+## Professional Summary
+
+International student currently pursuing a Master of Professional Accounting with a Certificate IV in Ageing Support. Completed placement at RFBI.
+
+## Experience
+""".lstrip()
+        out = enforce_summary_vertical_alignment(md, {}, None)
+        assert out == md
+
+    def test_unit_codes_stripped_from_s1(self):
+        md = """
+## Professional Summary
+
+HLTHPS007 certified care worker with CHC43015 Certificate IV in Ageing Support. Recent experience at RFBI Concord Community Village.
+
+## Experience
+""".lstrip()
+        jd = {
+            "job_title": "Assistant in Nursing",
+            "required_skills": {"domain_knowledge": ["aged care"]},
+        }
+        # This doesn't match the student-lead pattern, so S1 guard no-ops.
+        # Unit code stripping only fires when the guard actually rewrites.
+        out = enforce_summary_vertical_alignment(md, jd, "nursing")
+        # No student lead → no rewrite → unit codes remain (they're cleaned
+        # by Part B or other passes, not this guard's job when it no-ops).
+        assert out == md

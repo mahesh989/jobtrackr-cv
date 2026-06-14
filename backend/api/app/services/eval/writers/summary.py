@@ -470,6 +470,16 @@ def _pick_jd_relevant_evidence(
                 r"\s+\d{4}(?:\s*[–—-]\s*(?:Present|\w+\s+\d{4}))?\s*$",
                 "", clean, flags=re.IGNORECASE,
             ).strip()
+            # Strip AU VET unit codes (CHC43015, HLTHPS007) — they belong in
+            # the credentials line, not a summary sentence.
+            clean = re.sub(
+                r"\s*\((?:HLT|CHC|BSB|FSK|SIT|CPP|AHC)[A-Z0-9]{2,6}\)",
+                "", clean, flags=re.IGNORECASE,
+            )
+            clean = re.sub(
+                r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC)[A-Z0-9]{2,6}\s*",
+                "", clean, flags=re.IGNORECASE,
+            ).strip()
             # Cap length — we want a phrase, not a paragraph.
             if len(clean) > 120:
                 clean = clean[:117].rsplit(" ", 1)[0] + "…"

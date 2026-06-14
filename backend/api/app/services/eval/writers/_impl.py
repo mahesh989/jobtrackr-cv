@@ -56,6 +56,7 @@ from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
     enforce_summary_identity,
+    enforce_summary_vertical_alignment,
     enforce_summary_breadth_consistency,
     enforce_summary_dedup,
     enforce_summary_title_dedup,
@@ -1209,6 +1210,9 @@ async def _writer_w8_verified(
     # verify_claims' summary repair can honestly (CV-true) re-introduce an
     # off-axis conjoined identity the integrated gate already trimmed. Anchored
     # on the JD title, deterministic, touches only the summary's lead role.
+    verified_md = enforce_summary_vertical_alignment(
+        verified_md, result.jd_analysis, vertical,
+    )
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
     # Summary title slot — strip a conjoined synonymous role from S1
     # ("Assistant in Nursing and Care Worker" → "Assistant in Nursing").
@@ -1419,6 +1423,9 @@ async def _writer_w8_critique(
     # Re-assert the field-agnostic lead-identity trim as the LAST word — same
     # rationale as w8_verified: verify's summary repair can re-add an off-axis
     # conjoined identity that's CV-true but not the JD's role.
+    verified_md = enforce_summary_vertical_alignment(
+        verified_md, result.jd_analysis, vertical,
+    )
     verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
     # Summary consistency parity with w8_verified: title-slot synonym trim, then
     # align S1/S2 (breadth), then drop any S2 clause that merely restates S1
