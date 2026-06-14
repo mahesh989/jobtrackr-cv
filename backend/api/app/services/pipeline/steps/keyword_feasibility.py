@@ -156,6 +156,13 @@ async def run_keyword_feasibility(
     plan = _reconcile_with_missing(
         plan, missing_block, matching=matching, contact_details=contact_details
     )
+    # Soft-skill inference rules — the LLM classifier judges each keyword in
+    # isolation and misses obvious inferences (empathy ← dementia care;
+    # compliance mindset ← legal/ethical standards). This deterministic pass
+    # walks cannot_inject and re-classifies any soft skill where the source
+    # CV contains an evidence phrase from the curated rule table. Removes
+    # run-to-run LLM inconsistency on these baseline soft skills.
+    plan = _apply_soft_skill_inference_rules(plan, cv_text)
 
     # Counts and expected-lift summary — use the per-family weights so the
     # lift estimate matches what ats_scoring will award. Falls back to the
@@ -540,3 +547,149 @@ def _empty_plan() -> Dict[str, Any]:
             "honest_gaps":             [],
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Soft-skill inference rules
+# ---------------------------------------------------------------------------
+#
+# The LLM classifier judges each soft-skill keyword in isolation and
+# routinely misses inferences that are obvious to a recruiter:
+#   • "empathy" — anyone who does dementia/palliative/mental-health care
+#     practises empathy daily; refusing to claim it is over-honest.
+#   • "compliance mindset" — "follow legal and ethical standards" + "follow
+#     care protocols" is what compliance IS.
+#   • "tolerance" — dementia care + mental-health support involves
+#     challenging behaviours that require tolerance.
+#   • "sense of belonging" — social engagement work fosters belonging.
+# Worse: the LLM is RUN-TO-RUN INCONSISTENT — empathy injected one run,
+# honest-gapped the next, same CV.
+#
+# This deterministic rule table runs AFTER the LLM classifier. For any
+# keyword in cannot_inject that matches a rule AND has evidence in source,
+# demote to inject_as_extension with a reason. Removes the inconsistency,
+# closes the over-honesty gap, surfaces a transparent evidence chain.
+#
+# Conservative by design: only baseline soft skills + obvious mappings.
+# Anything ambiguous stays an honest gap.
+
+_SOFT_SKILL_INFERENCE_RULES: Dict[str, List[str]] = {
+    "empathy": [
+        "dementia", "palliative", "mental health", "elderly residents",
+        "emotional", "compassion", "personal care", "supported residents",
+    ],
+    "compliance mindset": [
+        "legal and ethical", "protocols", "policies", "procedures",
+        "standards", "compliance",
+    ],
+    "tolerance": [
+        "dementia", "mental health", "challenging", "diverse",
+        "cultural",
+    ],
+    "sense of belonging": [
+        "social engagement", "community", "belonging", "relationships",
+        "social activities", "social interaction",
+    ],
+    "organisation": [
+        "scheduled", "documentation", "records", "coordinated",
+        "timely", "organised",
+    ],
+    "relationship building": [
+        "social engagement", "relationships", "rapport", "collaborated",
+        "trust", "communicated",
+    ],
+    "dedication": [
+        "committed", "motivated", "dedicated", "punctual", "reliable",
+    ],
+    "desire for continuous learning": [
+        "pursuing", "studying", "currently studying", "certificate",
+        "master", "bachelor", "training",
+    ],
+    "patience": [
+        "dementia", "palliative", "elderly", "supported", "calm",
+    ],
+    "active listening": [
+        "listened", "communicated", "engaged", "supported residents",
+    ],
+    "attention to detail": [
+        "accurate", "documentation", "records", "detailed", "precise",
+    ],
+    "problem-solving": [
+        "resolved", "analysed", "troubleshoot", "solved", "addressed",
+    ],
+    "emotional resilience": [
+        "dementia", "palliative", "challenging", "resilient", "calm",
+    ],
+    "customer service": [
+        "customer", "client", "stakeholder", "professional",
+    ],
+    "leadership": [
+        "led", "supervised", "coordinated", "mentored", "managed",
+    ],
+    "teamwork": [
+        "team", "collaborated", "multidisciplinary",
+    ],
+    "collaboration": [
+        "collaborated", "team", "multidisciplinary",
+    ],
+    "adaptability": [
+        "adapted", "flexible", "various", "diverse",
+    ],
+}
+
+
+def _apply_soft_skill_inference_rules(
+    plan: Dict[str, List[Dict[str, Any]]], cv_text: str
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Promote cannot_inject entries to inject_as_extension when a rule
+    matches and source CV contains the evidence.
+
+    Returns the modified plan dict (in place — caller may rebind).
+    """
+    if not plan.get("cannot_inject"):
+        return plan
+    cv_lower = (cv_text or "").lower()
+    promoted: List[Dict[str, Any]] = []
+    remaining: List[Dict[str, Any]] = []
+    for entry in plan["cannot_inject"]:
+        if not isinstance(entry, dict):
+            remaining.append(entry)
+            continue
+        kw = str(entry.get("keyword") or "").strip().lower()
+        evidence_terms = _SOFT_SKILL_INFERENCE_RULES.get(kw)
+        if not evidence_terms:
+            remaining.append(entry)
+            continue
+        hit = next((t for t in evidence_terms if t in cv_lower), None)
+        if not hit:
+            remaining.append(entry)
+            continue
+        # Match — promote to inject_as_extension with reason.
+        promoted_entry = dict(entry)
+        promoted_entry["evidence"] = f"Source CV contains '{hit}'"
+        promoted_entry["reason"] = (
+            f"Promoted by inference rule: '{kw}' is implied by source-CV "
+            f"evidence '{hit}'. Baseline soft skill — claimable when source "
+            f"shows the underlying activity."
+        )
+        # Keep category if present; otherwise default to soft skill.
+        if not promoted_entry.get("category"):
+            promoted_entry["category"] = "soft_skills"
+        if not promoted_entry.get("bucket"):
+            promoted_entry["bucket"] = entry.get("bucket") or "required"
+        if not promoted_entry.get("suggested_rewrite"):
+            # Generic skills-line append — the writer + force-inject pass will
+            # decide where to land it.
+            promoted_entry["suggested_rewrite"] = (
+                f"Soft Skills: ... {kw.title()}"
+            )
+        promoted.append(promoted_entry)
+
+    if promoted:
+        plan["cannot_inject"] = remaining
+        plan["inject_as_extension"] = list(plan.get("inject_as_extension") or []) + promoted
+        logger.info(
+            "soft-skill inference rules: promoted %d honest gap(s) to inject_as_extension: %s",
+            len(promoted), [p.get("keyword") for p in promoted],
+        )
+    return plan

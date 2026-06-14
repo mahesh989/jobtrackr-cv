@@ -1348,6 +1348,17 @@ async def _writer_w8_verified(
     verified_md = _drop_subsumed_generic_skills(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
+    # Force-inject — catches approved keywords the regular injector dropped
+    # via label-mismatch (category=technical on nursing where only "Other
+    # Skills" exists, not "Technical Skills"). Belt-and-braces.
+    from app.services.eval.writers.injection import force_inject_missed_approved
+    verified_md, _force_notes = force_inject_missed_approved(verified_md, result.feasibility)
+    if _force_notes:
+        # Merge into extras directly so this works in both the w8_verified
+        # path (which accumulates _hg_notes locally) and the w8_critique
+        # path (which doesn't have that local).
+        prior = result.extras.get("honesty_guard_notes") or []
+        result.extras["honesty_guard_notes"] = list(prior) + list(_force_notes)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -1467,6 +1478,17 @@ async def _writer_w8_critique(
     verified_md = _drop_subsumed_generic_skills(verified_md)
     verified_md = _normalise_skills_case(verified_md)
     verified_md = _dedupe_skills_across_lines(verified_md)
+    # Force-inject — catches approved keywords the regular injector dropped
+    # via label-mismatch (category=technical on nursing where only "Other
+    # Skills" exists, not "Technical Skills"). Belt-and-braces.
+    from app.services.eval.writers.injection import force_inject_missed_approved
+    verified_md, _force_notes = force_inject_missed_approved(verified_md, result.feasibility)
+    if _force_notes:
+        # Merge into extras directly so this works in both the w8_verified
+        # path (which accumulates _hg_notes locally) and the w8_critique
+        # path (which doesn't have that local).
+        prior = result.extras.get("honesty_guard_notes") or []
+        result.extras["honesty_guard_notes"] = list(prior) + list(_force_notes)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result

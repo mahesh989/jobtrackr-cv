@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.eval.enforce import DEFAULT_SKILL_CAPS, _ROLE_CATEGORY_LABELS
 from app.services.eval.writers.skills_section import _SKILLS_LINE_RE, _is_non_skill_phrase
@@ -535,6 +535,127 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
         )
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Force-inject pass — belt-and-braces for the approved-skill injector above.
+# ---------------------------------------------------------------------------
+#
+# Real-test surfaced: on nursing CVs the approved injector silently drops
+# `computer skills` (category=technical) because the vertical's Skills
+# section has no "Technical Skills" line (tools live in "Other Skills"
+# instead). Similarly `meal preparation` (domain_knowledge) sometimes
+# misses because the injector's match-and-skip heuristic flags it as
+# already-present-by-prefix when it isn't.
+#
+# This pass is the simplest possible guarantee: every keyword the
+# feasibility plan approved (direct, extension, inference) lands SOMEWHERE
+# in the Skills section unless it's explicitly a non-skill phrase. Falls
+# back to vertical-appropriate lines when the expected label is missing.
+
+# Per-category preference order: which Skills-line labels to try, in order,
+# when injecting an approved keyword of that category. Covers nursing
+# ("Care Skills" + "Other Skills"), tech ("Technical Skills"), trades
+# ("Trade Skills"), cleaning ("Cleaning Skills"), and the generic universal
+# labels. First label that exists in the markdown wins.
+_FORCE_INJECT_TARGET_LABELS: Dict[str, tuple[str, ...]] = {
+    "technical": (
+        "Technical Skills", "Tools", "Tools & Software",
+        "Other Skills",     # nursing/care vertical bucket for tools
+    ),
+    "soft_skills": ("Soft Skills",),
+    "domain_knowledge": (
+        "Care Skills", "Clinical Skills", "Trade Skills",
+        "Cleaning Skills", "Core Skills", "Other Skills",
+    ),
+}
+
+
+def _find_skills_line_by_label(lines: List[str], label: str,
+                                skills_start: int, skills_end: int) -> Optional[int]:
+    """Return the index of the Skills line whose label matches, or None.
+    Matches on the bold-label prefix (e.g. '**Care Skills:**')."""
+    needle = f"**{label}:**".lower()
+    for i in range(skills_start + 1, skills_end):
+        if needle in lines[i].lower():
+            return i
+    return None
+
+
+def force_inject_missed_approved(
+    markdown: str, feasibility: Optional[Dict[str, Any]],
+) -> Tuple[str, List[str]]:
+    """Ensure every approved keyword appears in the Skills section.
+
+    Runs LAST in the writer pass chain. For each feasibility-approved
+    keyword (direct, extension, inference) not already in the tailored CV
+    and not a non-skill phrase, append it to the most appropriate Skills
+    line for its category. Cap is intentionally relaxed here — the
+    earlier ``_inject_approved_skills`` already enforced the cap; this
+    pass is the safety net for items that fell through label mismatches.
+
+    Returns ``(rewritten_md, notes)`` — notes record what got force-added.
+    """
+    entries = _approved_skill_entries(feasibility)
+    if not entries:
+        return markdown, []
+
+    lines = markdown.split("\n")
+    skills_start = None
+    skills_end = len(lines)
+    for i, line in enumerate(lines):
+        if line.strip() == "## Skills":
+            skills_start = i
+        elif skills_start is not None and line.startswith("## "):
+            skills_end = i
+            break
+    if skills_start is None:
+        return markdown, []
+
+    skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
+
+    notes: List[str] = []
+    appended = 0
+
+    for kw, cat in entries:
+        # Already present somewhere in Skills → leave alone.
+        if _kw_in_skills(kw, skills_text_lower):
+            continue
+        # Non-skill phrase (sector/setting/credential filler) → don't force.
+        # The same filter the regular injector + rescorer use.
+        from app.services.eval.writers.skills_section import _is_non_skill_phrase
+        if _is_non_skill_phrase(kw):
+            continue
+        target_idx = None
+        for label in _FORCE_INJECT_TARGET_LABELS.get(cat, ()):
+            target_idx = _find_skills_line_by_label(lines, label, skills_start, skills_end)
+            if target_idx is not None:
+                break
+        if target_idx is None:
+            # No usable target line — best-effort skip.
+            continue
+
+        m = _INJECT_LINE_RE.match(lines[target_idx])
+        if not m:
+            continue
+        prefix, body = m.group(1), m.group(2)
+        display = _format_skill_label(kw)
+        # Defensive dedupe against the existing line items.
+        existing = {_norm_item(it) for it in body.split(",") if it.strip()}
+        if _norm_item(display) in existing:
+            continue
+        new_body = (body + ", " + display) if body.strip() else display
+        lines[target_idx] = prefix + new_body
+        skills_text_lower += ", " + display.lower()
+        notes.append(f"force-injected '{display}' → {lines[target_idx].split(':**', 1)[0].split('**')[-1]}")
+        appended += 1
+
+    if appended:
+        logger.info(
+            "force-inject: added %d approved keyword(s) the writer dropped: %s",
+            appended, [n.split("'")[1] for n in notes if "'" in n],
+        )
+    return "\n".join(lines), notes
 
 
 def _drop_subsumed_generic_skills(markdown: str) -> str:
