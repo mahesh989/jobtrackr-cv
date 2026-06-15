@@ -8,3 +8,4 @@
 # - ledger.json IS committed (audit trail) and is deliberately NOT ignored here
 .env.realtest
 docs/realtest/runs/
+docs/realtest/extraction_loop/
