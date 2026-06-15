@@ -308,3 +308,21 @@ class TestGapDetection:
         gaps = detect_gaps(normalise_structured_cv(raw))
         assert not any(g["field"] in ("dates", "email", "bullets") for g in gaps)
         assert not any(g["section"] == "summary" for g in gaps)
+
+    def test_education_sorting_recent_first(self):
+        raw = {
+            "education": [
+                {"qualification": "Bachelor of Business Administration", "end_date": "Completed 2021", "completed": True},
+                {"qualification": "Master of Professional Accounting", "end_date": "2025 – Present", "completed": False},
+            ],
+            "certifications": [
+                {"name": "Certificate IV in Ageing Support", "issued_date": "Issued 2026", "issuer": "Elite Institute"},
+            ],
+        }
+        s = normalise_structured_cv(raw)
+        edu = s["education"]
+        assert len(edu) == 3
+        # Expected order: Master (2025 - Present) first, Cert IV (2026) second, Bachelor (2021) third
+        assert "Master of Professional Accounting" in edu[0]["qualification"]
+        assert "Certificate IV in Ageing Support" in edu[1]["qualification"]
+        assert "Bachelor of Business Administration" in edu[2]["qualification"]

@@ -99,6 +99,7 @@ def normalise_structured_cv(raw: Any) -> Dict[str, Any]:
     # the rule holds even when the AI misroutes (e.g. on a Certificate IV
     # that came in under certifications historically).
     education, certifications = _route_care_vet_to_education(education, certifications)
+    education = _sort_education_recent_first(education)
 
     structured = {
         "summary":        summary,
@@ -465,6 +466,20 @@ def _sort_experience_recent_first(experience: List[Dict[str, Any]]) -> List[Dict
     indexed.sort(
         key=lambda pair: (
             _parse_end_date(pair[1].get("end_date", ""), bool(pair[1].get("is_current"))),
+            -pair[0],  # stability inverted so earlier entries lose ties on equal dates
+        ),
+        reverse=True,
+    )
+    return [e for _, e in indexed]
+
+
+def _sort_education_recent_first(education: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Stable sort education by parsed end_date descending. Entries with no parsable
+    date sink to the bottom (still in their original relative order)."""
+    indexed = list(enumerate(education))
+    indexed.sort(
+        key=lambda pair: (
+            _parse_end_date(pair[1].get("end_date", ""), not pair[1].get("completed", True)),
             -pair[0],  # stability inverted so earlier entries lose ties on equal dates
         ),
         reverse=True,
