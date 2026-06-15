@@ -54,8 +54,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxCvUnique: 3, maxCvTotal: 3, maxLetterUnique: 3, maxLetterTotal: 3,
   },
   weekly: {
-    maxProfiles: 5, maxRuns: 30,
-    maxCvUnique: 50, maxCvTotal: 75, maxLetterUnique: 50, maxLetterTotal: 75,
+    maxProfiles: null, maxRuns: null,
+    maxCvUnique: null, maxCvTotal: null, maxLetterUnique: null, maxLetterTotal: null,
   },
   monthly: {
     maxProfiles: 10, maxRuns: 120,
@@ -83,10 +83,10 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
     isPublic: true,
     blurb: "For an active job search sprint.",
     highlights: [
-      "50 tailored CVs / week",
-      "50 cover letters / week",
-      "5 search profiles",
-      "30 discovery runs / week",
+      "Unlimited tailored CVs",
+      "Unlimited cover letters",
+      "Unlimited profiles & runs",
+      "No caps",
     ],
     ...PLAN_LIMITS.weekly,
   },

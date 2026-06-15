@@ -54,7 +54,7 @@ insert into public.plans
    price_cents, sort_order, is_public)
 values
   ('trial',     'Free trial',  null, 'day',   3,  1,   1,    3,    3,    3,    3,        0,   0, false),
-  ('weekly',    'Weekly',      null, 'week',  0,  5,   30,   50,   75,   50,   75,     999,   1, true),
+  ('weekly',    'Weekly',      null, 'week',  0,  null, null, null, null, null, null,     999,   1, true),
   ('monthly',   'Monthly',     null, 'month', 0,  10,  120,  250,  375,  250,  375,   2499,   2, true),
   ('unlimited', 'Unlimited',   null, 'month', 0,  null, null, null, null, null, null,  4999,   3, true),
   ('comp',      'Complimentary', null, 'month', 0, null, null, null, null, null, null,    0, 100, false)
