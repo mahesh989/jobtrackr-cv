@@ -285,6 +285,10 @@ EDUCATION
     graduate degree (Master's/PhD) ONLY when its field shares NEITHER the
     JD's domain NOR its methodology — an off-field graduate degree signals
     overqualification and mismatch.
+- STRIP QUALIFICATION/COURSE CODES from degree names: write "Certificate IV
+  in Ageing Support", NOT "CHC43015 - Certificate IV in Ageing Support".
+  Codes like CHC43015, HLTAID011, BSB50420 are internal catalogue numbers
+  and must never appear on the CV.
 
 CAREER-STYLE SUMMARY (the summary section named by your role pack)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one

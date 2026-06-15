@@ -934,6 +934,12 @@ field order below is fixed and why bullet-list shapes are forbidden.
            - The degree label is the FULL form, not abbreviated:
              "Master of Data Science", "Bachelor of Science (Physics)",
              "PhD in Physics". Never "MDS", "BSc", "MS".
+           - STRIP QUALIFICATION/COURSE CODES: never include unit codes
+             or qualification codes in the degree name. Write
+             "Certificate IV in Ageing Support", NOT "CHC43015 -
+             Certificate IV in Ageing Support". Codes like CHC43015,
+             HLTAID011, BSB50420 etc. are internal catalogue numbers —
+             they are ugly on a CV and add zero value.
            - Append a "(GPA: X)" suffix to the degree only when the
              original CV reports a GPA — never invent one.
            - Year range uses an en-dash with spaces: "2018 – 2022".

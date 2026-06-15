@@ -1124,6 +1124,31 @@ def _jd_vocab(jd_analysis: Dict[str, Any]) -> Set[str]:
     return bag
 
 
+def strip_education_vet_codes(md: str) -> str:
+    """Strip Australian VET unit codes (CHC43015, HLTAID011, etc.) from the
+    Education section's degree lines. The AI writer sometimes copies these
+    from the raw CV text. They belong in structured data, not rendered prose."""
+    lines = md.split("\n")
+    bounds = _section_bounds(lines, lambda s: s.lower() == "## education")
+    if not bounds:
+        return md
+    start, end = bounds
+    changed = False
+    for i in range(start + 1, end):
+        original = lines[i]
+        cleaned = _AU_UNIT_CODE_INLINE_RE.sub("", original)
+        # Also strip leftover separators: "CHC43015 - Certificate" -> " - Certificate" -> "Certificate"
+        cleaned = re.sub(r"^(\s*(?:\*|###)?)\s*[-–—:]\s*", r"\1", cleaned)
+        cleaned = re.sub(r"\s*[-–—:]\s*$", "", cleaned)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned)
+        if cleaned != original:
+            lines[i] = cleaned
+            changed = True
+    if not changed:
+        return md
+    return "\n".join(lines)
+
+
 def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
     """
     Drop graduate degrees (Master/PhD) whose line shares no token with the JD
@@ -1339,6 +1364,7 @@ def apply_w3_gates(
         md = suppress_ai_identity(md, jd_text, jd_analysis)
     md = enforce_summary_identity(md, jd_analysis)
     md = clamp_two_sentences(md)
+    md = strip_education_vet_codes(md)
     md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:
         md = strip_ungrounded_bullet_parentheticals(md, original_cv_text)
