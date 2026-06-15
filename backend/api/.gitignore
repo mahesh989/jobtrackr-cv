@@ -9,3 +9,4 @@
 .env.realtest
 docs/realtest/runs/
 docs/realtest/extraction_loop/
+docs/realtest/tailored_loop/

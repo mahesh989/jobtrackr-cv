@@ -164,6 +164,16 @@ async def run_keyword_feasibility(
     # run-to-run LLM inconsistency on these baseline soft skills.
     plan = _apply_soft_skill_inference_rules(plan, cv_text)
 
+    # Deterministic honesty gate — for `inject_directly` entries (which the
+    # downstream writer treats as "Strong CV evidence — added verbatim"),
+    # require that the keyword's content tokens actually appear in the
+    # supplied CV evidence quote. The LLM frequently cites a related-skill
+    # quote and rationalises a cross-skill inference (e.g. evidence
+    # "dressing, bathing, feeding" → claim "continence care"), which is
+    # NOT verbatim grounding. Downgrade those to `inject_with_inference`
+    # so they surface as "Inferred from adjacent evidence" in the UI.
+    plan = _enforce_inject_directly_groundedness(plan, cv_text)
+
     # Counts and expected-lift summary — use the per-family weights so the
     # lift estimate matches what ats_scoring will award. Falls back to the
     # tech-shaped defaults if no role family is attached.
@@ -547,6 +557,139 @@ def _empty_plan() -> Dict[str, Any]:
             "honest_gaps":             [],
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Deterministic groundedness gate — inject_directly must be VERBATIM
+# ---------------------------------------------------------------------------
+#
+# The keyword_feasibility LLM is asked to classify each missed keyword into:
+#
+#   • inject_directly       — "Strong CV evidence — added verbatim"
+#   • inject_as_extension   — "Reframed from existing achievements (reword)"
+#   • inject_with_inference — "Inferred from adjacent evidence (defensible)"
+#   • cannot_inject         — "Honest gap (no CV evidence)"
+#
+# In practice the LLM routinely puts cross-skill inferences in
+# `inject_directly` (citing a CV quote that supports a DIFFERENT but related
+# skill). Examples observed in production runs:
+#
+#   • evidence "dressing, bathing, feeding"        → claim "continence care"
+#   • evidence "Time Management & Prioritization"  → claim "organisation"
+#   • evidence "Infection Control & Workplace Safety" → claim "risk management"
+#   • evidence "Collaborated with Registered Nurses…" → claim "verbal communication"
+#
+# The writer treats `inject_directly` as load-bearing — it goes straight
+# into the Skills section with a literal-evidence label. Mis-bucketing
+# costs honesty.
+#
+# Rule: an `inject_directly` entry must have an `evidence` quote that
+# (a) appears in cv_text and (b) shares a >=4-char prefix-match content
+# token with the keyword. Entries failing this test are DOWNGRADED to
+# `inject_with_inference` — same content survives, but the UI now labels
+# it "Inferred from adjacent evidence (defensible in interview)" instead
+# of "Strong CV evidence — verbatim".
+
+_VERBATIM_TOKEN_MIN_LEN = 4
+
+
+def _content_tokens(text: str) -> List[str]:
+    """Lowercase alpha-only tokens of length >= _VERBATIM_TOKEN_MIN_LEN."""
+    return [
+        t for t in re.findall(r"[a-z][a-z\-]+", text.lower())
+        if len(t) >= _VERBATIM_TOKEN_MIN_LEN
+    ]
+
+
+def _evidence_grounds_keyword_verbatim(
+    keyword: str, evidence: str, cv_text: str,
+) -> bool:
+    """True when:
+      (1) ``evidence`` is non-empty and literally appears in ``cv_text``, AND
+      (2) ``evidence`` contains at least one content token whose 4-char
+          prefix is a prefix of a content token of ``keyword`` (or vice
+          versa) — i.e. the evidence shares the keyword's word family.
+    The 4-char prefix tolerates plural/inflection drift (continence ↔
+    continent? — same family; manage ↔ management — same family) without
+    accepting cross-family pairs (dressing ↔ continence — different).
+    """
+    if not keyword or not evidence:
+        return False
+    ev = evidence.strip()
+    if not ev:
+        return False
+    # (1) literal CV presence — normalise whitespace + punctuation for the
+    # check, but not so aggressively that we accept anything.
+    cv_norm = re.sub(r"\s+", " ", cv_text).lower()
+    ev_norm = re.sub(r"\s+", " ", ev).lower()
+    if ev_norm not in cv_norm:
+        # Also accept fuzzy match: first 6 content tokens of evidence appear
+        # in CV (tolerates trailing punctuation/quote drift).
+        head = " ".join(ev_norm.split()[:6])
+        if head not in cv_norm:
+            return False
+    # (2) word-family overlap between keyword and evidence
+    kw_tokens = _content_tokens(keyword)
+    ev_tokens = _content_tokens(evidence)
+    if not kw_tokens or not ev_tokens:
+        return False
+    for kt in kw_tokens:
+        for et in ev_tokens:
+            short, long_ = (kt, et) if len(kt) <= len(et) else (et, kt)
+            if long_.startswith(short[:_VERBATIM_TOKEN_MIN_LEN]):
+                return True
+    return False
+
+
+def _enforce_inject_directly_groundedness(
+    plan: Dict[str, List[Dict[str, Any]]], cv_text: str,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Move `inject_directly` entries whose evidence doesn't literally
+    contain the keyword's word family to `inject_with_inference`.
+    Mutates a shallow copy. Idempotent."""
+    if not plan or not cv_text:
+        return plan
+    direct = list(plan.get("inject_directly") or [])
+    if not direct:
+        return plan
+    kept_direct: List[Dict[str, Any]] = []
+    downgraded: List[Dict[str, Any]] = []
+    for entry in direct:
+        if not isinstance(entry, dict):
+            continue
+        kw = entry.get("keyword") or ""
+        ev = entry.get("evidence") or ""
+        if _evidence_grounds_keyword_verbatim(kw, ev, cv_text):
+            kept_direct.append(entry)
+        else:
+            # Downgrade — re-shape as inject_with_inference. Map rationale
+            # → inference_chain (the existing rationale describes the
+            # inference jump anyway); inferred_from carries the evidence
+            # phrase; confidence stays medium.
+            inferred_entry = {
+                "keyword":          entry.get("keyword"),
+                "category":         entry.get("category"),
+                "bucket":           entry.get("bucket"),
+                "injection_target": entry.get("injection_target") or "skills_section",
+                "evidence":         ev,
+                "rationale":        entry.get("rationale") or "",
+                "suggested_rewrite": "",
+                "inference_chain":  entry.get("rationale") or "",
+                "inferred_from":    [ev] if ev else [],
+                "confidence":       "medium",
+            }
+            downgraded.append(inferred_entry)
+    if not downgraded:
+        return plan
+    out = dict(plan)
+    out["inject_directly"] = kept_direct
+    out["inject_with_inference"] = list(out.get("inject_with_inference") or []) + downgraded
+    logger.info(
+        "feasibility groundedness gate: downgraded %d inject_directly → "
+        "inject_with_inference (evidence quote did not contain keyword): %s",
+        len(downgraded), [d["keyword"] for d in downgraded],
+    )
+    return out
 
 
 # ---------------------------------------------------------------------------

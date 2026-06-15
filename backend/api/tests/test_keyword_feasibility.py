@@ -141,3 +141,138 @@ class TestForceInjectMissedApproved:
         out, notes = force_inject_missed_approved(md, feasibility)
         assert "experience in aged care" not in out.lower()
         assert notes == []
+
+
+class TestInjectDirectlyGroundednessGate:
+    """Real Shanti tailored runs surfaced: the LLM puts cross-skill rationale
+    entries into inject_directly. e.g. evidence 'dressing, bathing, feeding'
+    → claim 'continence care'. The deterministic gate downgrades any
+    inject_directly entry whose evidence quote doesn't share a word-family
+    token with the keyword. Same data survives — moves to
+    inject_with_inference so the UI labels it 'Inferred from adjacent
+    evidence' instead of 'Strong CV evidence'."""
+
+    _CV = (
+        "Aged Care Placement at RFBI Concord. Assisted with daily living "
+        "activities including dressing, bathing, feeding, and mobility "
+        "support. Time Management & Prioritization. Infection Control "
+        "& Workplace Safety. Continence care for residents."
+    )
+
+    def test_cross_skill_inference_downgraded(self):
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [
+                # The LLM-emitted cross-skill claim — evidence is in CV
+                # but doesn't share word family with the keyword.
+                {"keyword": "risk management",
+                 "category": "domain_knowledge", "bucket": "required",
+                 "evidence": "Infection Control & Workplace Safety",
+                 "rationale": "infection control is risk management"},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        out = _enforce_inject_directly_groundedness(plan, self._CV)
+        # Gone from direct
+        assert out["inject_directly"] == []
+        # In inference, with the rationale preserved
+        infs = out["inject_with_inference"]
+        assert len(infs) == 1
+        assert infs[0]["keyword"] == "risk management"
+        assert "infection control" in infs[0]["inference_chain"].lower()
+        assert infs[0]["inferred_from"] == ["Infection Control & Workplace Safety"]
+        assert infs[0]["confidence"] == "medium"
+
+    def test_verbatim_keyword_kept_in_direct(self):
+        """When the evidence quote contains the keyword's word family,
+        keep inject_directly — this is the legitimate case."""
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [
+                {"keyword": "continence care",
+                 "category": "domain_knowledge", "bucket": "required",
+                 "evidence": "Continence care for residents",
+                 "rationale": "literal"},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        out = _enforce_inject_directly_groundedness(plan, self._CV)
+        assert len(out["inject_directly"]) == 1
+        assert out["inject_with_inference"] == []
+
+    def test_evidence_not_in_cv_downgraded(self):
+        """Even if the LLM cites text that looks plausible, if it's not in
+        the actual CV the entry must be downgraded."""
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [
+                {"keyword": "wound care",
+                 "category": "domain_knowledge", "bucket": "required",
+                 "evidence": "Performed wound care daily",  # NOT in CV
+                 "rationale": ""},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        out = _enforce_inject_directly_groundedness(plan, self._CV)
+        assert out["inject_directly"] == []
+        assert len(out["inject_with_inference"]) == 1
+
+    def test_empty_evidence_downgraded(self):
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [
+                {"keyword": "teamwork",
+                 "category": "soft_skills", "bucket": "required",
+                 "evidence": "", "rationale": "implied"},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        out = _enforce_inject_directly_groundedness(plan, self._CV)
+        assert out["inject_directly"] == []
+
+    def test_within_family_inflection_accepted(self):
+        """managing/management/manager all share the 'manag' prefix —
+        within-family rewrite acceptable in inject_directly."""
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        cv = "Managed the rostering process; managing 12 carers daily."
+        plan = {
+            "inject_directly": [
+                {"keyword": "management",
+                 "category": "soft_skills", "bucket": "required",
+                 "evidence": "Managed the rostering process",
+                 "rationale": ""},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        out = _enforce_inject_directly_groundedness(plan, cv)
+        # 'managed' is a within-family token of 'management' → kept direct.
+        assert len(out["inject_directly"]) == 1
+
+    def test_empty_plan_no_op(self):
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {"inject_directly": [], "inject_as_extension": [],
+                "inject_with_inference": [], "cannot_inject": []}
+        out = _enforce_inject_directly_groundedness(plan, self._CV)
+        assert out == plan
