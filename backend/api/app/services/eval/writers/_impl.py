@@ -31,7 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
-from app.services.ai.client import AIClient
+from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
 from app.services.ai.prompts import (
     TAILORED_CV_USER_TEMPLATE,
 )
@@ -55,8 +55,6 @@ from app.services.eval.enforce import enforce_skills_section, reroute_skills_by_
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
-    enforce_summary_skills_dedup,
-    strip_off_vertical_preamble,
 )
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
@@ -224,7 +222,8 @@ async def _writer_w2_general(
         system=TAILORED_CV_GENERAL_SYSTEM,
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.3,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W2 tailored CV: response too short")
@@ -263,9 +262,8 @@ async def _writer_w4_chat(
         system=TAILORED_CV_CHAT_SYSTEM,
         user=user_prompt,
         max_tokens=6144,
-        # A touch warmer than W1/W2 — short principle prompts benefit from a
-        # little more latitude. Still constrained enough to be stable.
-        temperature=0.4,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W4 tailored CV: response too short")
@@ -318,7 +316,8 @@ async def _writer_w3_composition(
         system=system_prompt,
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.35,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W3 tailored CV: response too short")
@@ -426,16 +425,19 @@ from app.services.eval.writers.experience import (  # noqa: E402,F401
     _DATE_WITH_DAY_RE, normalise_date_formats,
 )
 
-# Professional Summary S2 enforcement was extracted to writers.summary.
-# Re-imported so _impl's remaining code + the test-suite keep referencing
-# these unqualified.
-from app.services.eval.writers.summary import (  # noqa: E402,F401
-    _SUMMARY_HEADINGS, _SENT_END_RE, _METRIC_TOKEN_RE, _find_summary_section, _extract_summary_prose, _extract_present_employers_from_experience, _extract_cv_named_tools_for_summary, _employer_block_text, _block_until_next_section, _tools_attributable_to_employer, _EMPLOYER_GENERIC_TOKENS, _distinctive_employer_tokens, _s2_has_concrete_evidence, _compose_concrete_s2, enforce_summary_concreteness,
-)
-
 # ---------------------------------------------------------------------------
 # End-of-tailoring report
 # ---------------------------------------------------------------------------
+
+# Re-export summary helpers for the test-suite (not used in the production pipeline).
+from app.services.eval.writers.summary import (  # noqa: F401
+    _SUMMARY_HEADINGS, _SENT_END_RE, _METRIC_TOKEN_RE, _find_summary_section,
+    _extract_summary_prose, _extract_present_employers_from_experience,
+    _extract_cv_named_tools_for_summary, _employer_block_text,
+    _block_until_next_section, _tools_attributable_to_employer,
+    _EMPLOYER_GENERIC_TOKENS, _distinctive_employer_tokens,
+    _s2_has_concrete_evidence, _compose_concrete_s2, enforce_summary_concreteness,
+)
 
 
 def _log_tailoring_report(
@@ -543,7 +545,11 @@ async def _writer_w5_surfacing(
         cv_text=cv_text, jd_text=jd_text, surface_terms=surface_block,
     )
     raw = await client.complete(
-        system=system_prompt, user=user_prompt, max_tokens=6144, temperature=0.3,
+        system=system_prompt,
+        user=user_prompt,
+        max_tokens=6144,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W5 tailored CV: response too short")
@@ -608,7 +614,8 @@ async def _writer_w6_general(
         system=TAILORED_CV_W6_SYSTEM,
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.3,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W6 tailored CV: response too short")
@@ -656,7 +663,8 @@ async def _writer_w7_converged(
         system=TAILORED_CV_W6_SYSTEM,   # W6's generation prompt
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.3,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W7 tailored CV: response too short")
@@ -717,15 +725,13 @@ async def _writer_w7_converged(
 # Re-imported so _impl's remaining code + the test-suite keep referencing them
 # unqualified.
 from app.services.eval.writers.bridges import (  # noqa: E402,F401
-    _SETTING_HOME, _SETTING_HOSPITAL, _SETTING_NDIS, _SETTING_LIFESTYLE, _SETTING_THEATRE, _SETTING_RESIDENTIAL, _classify_jd_setting, _build_jd_setting_block, _CANNED_SUMMARY_RE, _HIGHLIGHT_HEADINGS_SET, _strip_canned_summary_phrase, _S1_RESIDENTIAL_RE, _SETTING_BRIDGES, _CV_HOSPITAL_MARKERS_RE, _scan_experience_section, _cv_has_hospital_experience, _CV_HOME_MARKERS_RE, _CV_NDIS_MARKERS_RE, _CV_LIFESTYLE_MARKERS_RE, _CV_THEATRE_MARKERS_RE, _cv_has_home_care_experience, _cv_has_ndis_experience, _cv_has_lifestyle_experience, _cv_has_theatre_experience, _BRIDGE_EVIDENCE_GATES, _apply_setting_bridge,
+    _SETTING_HOME, _SETTING_HOSPITAL, _SETTING_NDIS, _SETTING_LIFESTYLE, _SETTING_THEATRE, _SETTING_RESIDENTIAL, _classify_jd_setting, _build_jd_setting_block, _CANNED_SUMMARY_RE, _HIGHLIGHT_HEADINGS_SET, _strip_canned_summary_phrase, _S1_RESIDENTIAL_RE, _SETTING_BRIDGES, _CV_HOSPITAL_MARKERS_RE, _scan_experience_section, _cv_has_hospital_experience, _CV_HOME_MARKERS_RE, _CV_NDIS_MARKERS_RE, _CV_LIFESTYLE_MARKERS_RE, _CV_THEATRE_MARKERS_RE, _cv_has_home_care_experience, _cv_has_ndis_experience, _cv_has_lifestyle_experience, _cv_has_theatre_experience, _BRIDGE_EVIDENCE_GATES,
 )
 from app.services.eval.writers.honesty_guard import (  # noqa: E402,F401
     enforce_source_dates,
-    enforce_summary_years_gate,
     enforce_source_settings,
     pin_skills_section_labels,
     enforce_credential_claims,
-    enforce_summary_word_floor,
     filter_irrelevant_roles_pre,
     assess_honesty_risk,
 )
@@ -782,7 +788,8 @@ async def _writer_w8_integrated(
         system=system_prompt,
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.35,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
     if not raw or len(raw.strip()) < 200:
         raise ValueError("W8 tailored CV: response too short")
@@ -808,6 +815,7 @@ async def _writer_w8_integrated(
         suppress=role_family.id in ("tech", "master"),
         original_cv_text=cv_text,
         keep_skills=_inject_keyword_set(up["feasibility"]),
+        jd_vertical=vertical,
     )
     md = enforce_skills_section(
         md,
@@ -924,14 +932,6 @@ async def _writer_w8_integrated(
     # 4i. Sprint C — strip day-of-month from CV dates. "Sept 20, 2024" →
     #     "Sept 2024". Standard CV convention.
     final_md = normalise_date_formats(final_md)
-    # 4j. Sprint E — enforce Professional Summary S2 concreteness. If S2
-    #     contains no employer/tool/metric token, replace with a deterministic
-    #     employer-naming sentence built from CV evidence. Fixes generic
-    #     filler like "Provides safe support for older people in facility
-    #     environments." S1 is preserved unchanged.
-    final_md = enforce_summary_concreteness(
-        final_md, cv_text, vertical=vertical, jd_analysis=up["jd_analysis"],
-    )
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
@@ -1202,13 +1202,16 @@ async def _writer_w8_verified(
         client, cv_text, jd_text, contact_details, vertical=vertical, upstream=upstream,
     )
     verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
-    _vert = vertical or result.jd_analysis.get("vertical")
-    if _vert:
-        verified_md = strip_off_vertical_preamble(verified_md, _vert)
-    # Summary-vs-Skills de-duplication — drop any S2 clause where every content
-    # word already appears in the ## Skills section (the clause is prose-form
-    # skill re-list). Always keeps at least one S2 clause.
-    verified_md = enforce_summary_skills_dedup(verified_md)
+    role_family = resolve_role_family(vertical, result.jd_analysis)
+    verified_md = apply_w3_gates(
+        verified_md,
+        jd_text=jd_text,
+        jd_analysis=result.jd_analysis,
+        suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
+        keep_skills=_inject_keyword_set(result.feasibility),
+        jd_vertical=vertical,
+    )
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent
@@ -1243,23 +1246,6 @@ async def _writer_w8_verified(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
-    # Strip the canned "Currently delivering care at X using BESTMed and
-    # MedMobile" phrase BEFORE enforce_summary_concreteness so the concreteness
-    # pass can replace it with a specific, JD-relevant achievement.
-    verified_md = _strip_canned_summary_phrase(verified_md)
-    # Deterministic setting bridge — replaces "residential aged care settings"
-    # in S1 with the correct bridge phrase for home care, hospital, NDIS, or
-    # theatre JDs. Re-classifies directly from jd_text + result.jd_analysis
-    # rather than trusting result.extras, which can be stale in resume paths.
-    # No-op for residential JDs.
-    _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
-    logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
-    verified_md = _apply_setting_bridge(
-        verified_md, _setting_for_bridge, cv_text=cv_text,
-    )
-    verified_md = enforce_summary_concreteness(
-        verified_md, cv_text, vertical=vertical, jd_analysis=result.jd_analysis,
-    )
     # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
     # Deterministic anchors against the source CV. Each guard is idempotent,
     # returns (md, notes); the notes accumulate into result.extras so the
@@ -1272,43 +1258,26 @@ async def _writer_w8_verified(
     #    fabrications surfaced in the real-test audit.
     verified_md, _n = enforce_source_dates(verified_md, cv_text)
     _hg_notes.extend(_n)
-    # 2. Years-gate — strip "N+ years' experience" framing from the Summary
-    #    when the source has <12 months of vertical-aligned tenure. The
-    #    composer's default opener was overclaiming on a 3-month placement
-    #    candidate; this pulls the framing back to qualification-led.
-    #    `vertical` is passed in; fall back to the JD analysis if absent.
-    _jd_vert = vertical
-    if not _jd_vert and isinstance(result.jd_analysis, dict):
-        _jd_vert = result.jd_analysis.get("vertical")
-    verified_md, _n = enforce_summary_years_gate(verified_md, cv_text, _jd_vert)
-    _hg_notes.extend(_n)
-    # 3. Setting guard — strip setting descriptors ("retirement village",
+    # 2. Setting guard — strip setting descriptors ("retirement village",
     #    "acute hospital ward") from role italic-headers when the source
     #    role doesn't evidence that setting. Bullets keep their JD-vocab
     #    reframing; the role's identity comes from source.
     verified_md, _n = enforce_source_settings(verified_md, cv_text)
     _hg_notes.extend(_n)
-    # 4. Skills-section label pin — force the headline label to the family's
+    # 3. Skills-section label pin — force the headline label to the family's
     #    convention (Care Skills for nursing) regardless of what the LLM
     #    emitted. Fixes the 12/20 "Technical Skills" misrouting on nursing
     #    CVs surfaced in the audit.
     _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
     verified_md, _n = pin_skills_section_labels(verified_md, _rf_id)
     _hg_notes.extend(_n)
-    # 5. Credential-claim guard — strip unverifiable compliance claims from
+    # 4. Credential-claim guard — strip unverifiable compliance claims from
     #    bullets ("AIN with current compliance for pre-employment medical,
     #    police, and NDIS worker clearances …"). Verified against the user's
     #    saved credentials (contact_details.credentials). Claims the user
     #    genuinely holds (e.g. police_check=true) survive; the rest are
     #    stripped and surfaced via quality_flags.
     verified_md, _n = enforce_credential_claims(verified_md, contact_details)
-    _hg_notes.extend(_n)
-    # 6. Summary word-floor flag — the composer prompt declares 35 a HARD
-    #    MINIMUM but the LLM doesn't always comply, especially after the
-    #    years-gate or concreteness rewrites trim the summary. Surface a
-    #    note in quality_flags so the user sees thin summaries; we do NOT
-    #    pad here (silent padding would defeat honesty_guard's purpose).
-    _, _n = enforce_summary_word_floor(verified_md)
     _hg_notes.extend(_n)
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
@@ -1412,13 +1381,15 @@ async def _writer_w8_critique(
 
     # 4. Final honesty gate: per-claim entailment on the (possibly) revised CV.
     verified_md, vreport = await verify_claims(client, revised, cv_text)
-    _vert = vertical or result.jd_analysis.get("vertical")
-    if _vert:
-        verified_md = strip_off_vertical_preamble(verified_md, _vert)
-    # Summary consistency parity with w8_verified: drop any S2 clause where every
-    # content word already appears in the ## Skills section. Always keeps at least
-    # one S2 clause.
-    verified_md = enforce_summary_skills_dedup(verified_md)
+    verified_md = apply_w3_gates(
+        verified_md,
+        jd_text=jd_text,
+        jd_analysis=result.jd_analysis,
+        suppress=role_family.id in ("tech", "master"),
+        original_cv_text=cv_text,
+        keep_skills=_inject_keyword_set(result.feasibility),
+        jd_vertical=vertical,
+    )
     # Re-run the awards/section normalisers — verify_claims can rewrite the
     # Awards/Certifications section back to a messy shape; these deterministic
     # idempotent passes guarantee the structured Awards layout survives.
@@ -1443,9 +1414,6 @@ async def _writer_w8_critique(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
-    verified_md = enforce_summary_concreteness(
-        verified_md, cv_text, vertical=vertical, jd_analysis=result.jd_analysis,
-    )
     # Cap FIRST, then cap-aware inject (mirrors _writer_w8_verified ordering).
     verified_md = enforce_skills_section(verified_md)
     verified_md = _inject_approved_skills(verified_md, result.feasibility)

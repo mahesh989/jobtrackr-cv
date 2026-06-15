@@ -204,6 +204,13 @@ Provider = Literal["anthropic", "openai", "deepseek"]
 # DeepSeek exposes an OpenAI-compatible REST surface at a different host.
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 
+# Shared kwargs for tailored-CV composition — maximally deterministic output.
+TAILORED_CV_GENERATION: Dict[str, Any] = {
+    "temperature": 0.0,
+    "reasoning_effort": "none",
+    "seed": 42,
+}
+
 
 @dataclass
 class AIClient:
@@ -228,6 +235,8 @@ class AIClient:
         user: str,
         max_tokens: int = 4096,
         temperature: float = 0.3,
+        reasoning_effort: Optional[str] = None,
+        seed: Optional[int] = None,
         no_training: bool = False,
         operation: Optional[str] = None,
     ) -> str:
@@ -246,6 +255,7 @@ class AIClient:
         base_url = DEEPSEEK_BASE_URL if self.provider == "deepseek" else None
         return await self._openai_complete(
             system=system, user=user, max_tokens=max_tokens, temperature=temperature,
+            reasoning_effort=reasoning_effort, seed=seed,
             base_url=base_url, no_training=no_training, operation=op,
         )
 
@@ -403,6 +413,7 @@ class AIClient:
 
     async def _openai_complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float,
+        reasoning_effort: Optional[str] = None, seed: Optional[int] = None,
         base_url: Optional[str] = None, no_training: bool = False, operation: str = "unknown",
     ) -> str:
         try:
@@ -442,6 +453,10 @@ class AIClient:
             }
             if not skip_temperature:
                 request_kwargs["temperature"] = temperature
+            if reasoning_effort is not None:
+                request_kwargs["reasoning_effort"] = reasoning_effort
+            if seed is not None:
+                request_kwargs["seed"] = seed
             if no_training:
                 # Opt out of OpenAI using this completion for model training.
                 # TODO: DeepSeek is OpenAI-compatible but does not document 'store';
@@ -468,6 +483,18 @@ class AIClient:
                         )
                         retry = {k: v for k, v in kwargs.items() if k != "temperature"}
                         return await client.chat.completions.create(**retry)
+                    for param in ("reasoning_effort", "seed"):
+                        if param in kwargs and param in msg and (
+                            "unsupported" in msg.lower()
+                            or "does not support" in msg.lower()
+                            or "unknown parameter" in msg.lower()
+                        ):
+                            logger.info(
+                                "Model %s rejected %s; retrying without it.",
+                                self.model, param,
+                            )
+                            retry = {k: v for k, v in kwargs.items() if k != param}
+                            return await client.chat.completions.create(**retry)
                     # Detect legacy completions-only models (e.g. gpt-3.5-turbo-instruct)
                     # that don't support the chat/completions endpoint.
                     not_chat_model = (

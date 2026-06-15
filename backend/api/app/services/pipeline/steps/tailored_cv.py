@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from app.config import get_settings
 from app.database import get_supabase
-from app.services.ai.client import AIClient
+from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
 from app.services.eval.enforce import _split_compound_skills
 from app.services.ai.prompts import (
     TAILORED_CV_SYSTEM,
@@ -58,7 +58,8 @@ async def run_tailored_cv(
         system=TAILORED_CV_SYSTEM,
         user=user_prompt,
         max_tokens=6144,
-        temperature=0.3,
+        operation="tailored_cv",
+        **TAILORED_CV_GENERATION,
     )
 
     if not markdown or len(markdown.strip()) < 200:
