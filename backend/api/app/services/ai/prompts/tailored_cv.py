@@ -70,6 +70,22 @@ CONTACT BLOCK
 
 ## Career Highlights – EXACT TWO SENTENCES
 
+### CRITICAL RULE #1 (read this before anything else)
+**The very first word of the entire Career Highlights section MUST be a job title** (e.g., "Aged Care Worker", "Personal Care Worker", "Data Analyst").
+
+❌ **FORBIDDEN** – these are NOT job titles and must NEVER appear as the first word(s):
+- "Certificate", "Diploma", "Bachelor", "Master", "PhD"
+- "International", "Student", "Graduate", "Recent", "Aspiring"
+- "With", "Having", "Experienced", "Background"
+
+❌ **Example of a WRONG opening** (this exact pattern is forbidden):
+   *"Certificate IV in Ageing Support and placement experience in residential aged care..."*
+
+✅ **Correct opening** – start with the role title:
+   *"Personal Care Worker with 120‑hour placement experience in residential aged care..."*
+
+Now proceed to the two-step plan below. If you violate CRITICAL RULE #1, your output will be rejected.
+
 You will write the summary in TWO STEPS. Do not output anything until step 2.
 
 ### STEP 1 – PLAN (internal, do not write)
