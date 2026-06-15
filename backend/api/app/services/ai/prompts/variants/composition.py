@@ -477,8 +477,9 @@ place; do not emit until every item passes):
 (9)  JD_MIRROR: where the candidate honestly supports them, JD phrases appear
      VERBATIM (no generic synonyms left in place).
 (10) PROJECTS/EDU/CERTS: Projects (if any) best-FIT ≤2, no duplication in
-     Experience; Bachelor kept, off-field graduate degree dropped; Certifications
-     obey the role pack's cert policy (within cap, same-issuer merged).
+     Experience; Education ≤3 entries → all kept, >3 → top 1-3 kept and
+     off-field graduate degrees dropped; Certifications obey the role pack's
+     cert policy (within cap, same-issuer merged).
 (11) TRUTH + INJECTION: no invented skill/employer/metric/cert/proper noun; no
      cannot_inject keyword anywhere; off-axis identity suppressed per JD focus;
      off-axis tools kept out of Skills.
