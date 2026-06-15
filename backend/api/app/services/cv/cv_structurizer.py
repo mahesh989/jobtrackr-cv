@@ -226,47 +226,12 @@ def _normalise_experience(raw: Any) -> Dict[str, Any]:
     }
 
 
-def strip_vet_code(name: str) -> str:
-    """Strip Australian VET unit codes (e.g. CHC43015, HLTAID011) from course names."""
-    if not name:
-        return ""
-    # Strip leading unit codes: "CHC43015 - Certificate IV..." or "CHC43015: ..."
-    s = re.sub(
-        r"^\s*\b(?:hltaid|hlthps|chcccs|chc|hlt|bsb|fsk|sit|cpp|ahc)\d{3,}\b\s*[-:—–]\s*",
-        "",
-        name,
-        flags=re.IGNORECASE
-    )
-    # Strip trailing unit codes in parentheses: "... (CHC43015)"
-    s = re.sub(
-        r"\s*\(\s*\b(?:hltaid|hlthps|chcccs|chc|hlt|bsb|fsk|sit|cpp|ahc)\d{3,}\b\s*\)",
-        "",
-        s,
-        flags=re.IGNORECASE
-    )
-    # Strip trailing unit codes with separator: "... - CHC43015"
-    s = re.sub(
-        r"\s*[-:—–]\s*\b(?:hltaid|hlthps|chcccs|chc|hlt|bsb|fsk|sit|cpp|ahc)\d{3,}\b\s*$",
-        "",
-        s,
-        flags=re.IGNORECASE
-    )
-    # Strip standalone unit codes at end: "... CHC43015"
-    s = re.sub(
-        r"\s+\b(?:hltaid|hlthps|chcccs|chc|hlt|bsb|fsk|sit|cpp|ahc)\d{3,}\b\s*$",
-        "",
-        s,
-        flags=re.IGNORECASE
-    )
-    return s.strip()
-
-
 def _normalise_education(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     qual = _str(raw.get("qualification"))
     return {
         "institution":   _str(raw.get("institution")),
-        "qualification": strip_vet_code(qual),
+        "qualification": qual,
         "location":      _str(raw.get("location")),
         "start_date":    _str(raw.get("start_date")),
         "end_date":      _str(raw.get("end_date")),
@@ -301,7 +266,7 @@ def _normalise_cert(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     name = _str(raw.get("name"))
     return {
-        "name":        strip_vet_code(name),
+        "name":        name,
         "issuer":      _str(raw.get("issuer")),
         "code":        _str(raw.get("code")),
         "issued_date": _str(raw.get("issued_date")),

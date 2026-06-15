@@ -16,6 +16,8 @@ Compared to W1/W2: ~30× shorter, no worked examples, principles only.
 """
 from __future__ import annotations
 
+from app.services.ai.prompts.education_rules import EDUCATION_EXACT_RULES
+
 TAILORED_CV_CHAT_SYSTEM = """You are an expert CV writer.
 
 You are given the candidate's CV and a job description. Rewrite the CV as
@@ -49,7 +51,7 @@ OUTPUT SHAPE
 - Experience: 1-3 roles ranked by JD relevance. Each role uses a TWO-LINE
   block — `### Company | Location` then `*Title | Start – End*` — then
   2 or 3 bullets. Bullets are full sentences ending in periods.
-- Education: Count the total number of education entries (degrees, diplomas, AND VET qualifications) on the CV. If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory. Do NOT drop any degree (including Master's or PhDs), regardless of whether they match the JD. If more than 3: Select the top 1-3 entries. In this case, drop graduate degrees whose field shares neither the JD's domain NOR its methodology (keeping one Bachelor's as a baseline is fine). Same two-line shape — `### Institution | Location` then `*Degree | Year – Year*`. No bullets under degrees.
+""" + EDUCATION_EXACT_RULES + """
 - Skills: three lines exactly —
     **Technical Skills:** … (languages, tools, platforms, frameworks)
     **Soft Skills:** … (interpersonal / cognitive capabilities)

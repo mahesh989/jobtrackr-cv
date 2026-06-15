@@ -25,6 +25,8 @@ was bias + examples, not rigor — so W6 keeps the rigor and drops the bias.
 """
 from __future__ import annotations
 
+from app.services.ai.prompts.education_rules import EDUCATION_EXACT_RULES
+
 # Reuses TAILORED_CV_USER_TEMPLATE from app.services.ai.prompts (same inputs
 # as W1: cv_text, jd_analysis_json, ai_recommendations_md, feasibility_json).
 
@@ -120,14 +122,7 @@ never all). If the candidate has only 1-2 roles, keep them all. Each role:
   Per bullet, prefer content that shares the JD's domain or method; rewrite
   off-topic bullets toward the role's JD-relevant work.
 
-EDUCATION — Count the total number of education entries (degrees, diplomas, AND VET qualifications) on the CV:
-  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory. Do NOT drop any degree (including Master's or PhDs), regardless of whether they match the JD.
-  - If more than 3: Select the top 1-3 entries. In this case, drop graduate degrees (Master's/PhD) whose field shares NEITHER the JD's domain NOR its methodology. ALWAYS keep the most recent Bachelor's degree as a baseline credential.
-  - Same two-line shape:
-      ### Institution | Location
-      *Full Degree Name | Year – Year*
-  - No bullets under degrees.
-
+""" + EDUCATION_EXACT_RULES + """
 SKILLS — exactly three lines, JD-relevant only:
     **Technical Skills:** (or **Clinical Skills** / **Core Skills** for
       non-technical fields) — tools, systems, methods specific to the role.

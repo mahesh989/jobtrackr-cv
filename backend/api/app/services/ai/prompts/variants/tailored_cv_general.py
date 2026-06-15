@@ -19,6 +19,8 @@ to live in the prompt are still enforced — just by code, not by prose.
 """
 from __future__ import annotations
 
+from app.services.ai.prompts.education_rules import EDUCATION_EXACT_RULES
+
 # The user template is identical to W1 — we reuse TAILORED_CV_USER_TEMPLATE
 # from the production prompts module to avoid drift on input shape.
 
@@ -124,25 +126,7 @@ PER-BULLET RELEVANCE TEST (apply BEFORE writing each Experience bullet):
 PROJECT-DUPLICATION BAN — if a project appears in ## Projects, no bullet
 in ## Professional Experience may describe the same project (not even
 with different wording).
-
-EDUCATION
-- Count the total number of education entries (degrees, diplomas, AND VET qualifications) on the candidate's CV:
-  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory. Do NOT drop any degree (including Master's or PhDs), regardless of whether they match the JD.
-  - If more than 3: Select the top 1-3 entries and drop the others. In this case, run the DEGREE RELEVANCE TEST below. Graduate degrees (Master's / PhD) in fields with no overlap to the JD's domain or methodology MUST be dropped (no exceptions, regardless of prestige), while Bachelor's degrees are kept as baseline credentials.
-- Same two-line shape:
-    ### Institution | Location
-    *Degree | Year – Year*
-  Use the FULL degree name (e.g. "Master of Data Science", "Bachelor of
-  Science", "PhD in <Field>"). Append "(GPA: X)" only if the CV reports it.
-- ZERO BULLETS under Education entries. Two-line shape only. (A
-  post-processor strips bullets here.)
-
-- DEGREE RELEVANCE TEST (applicable ONLY if candidate has >3 degrees) for each graduate degree (Master's / PhD):
-    Q1: Does its field share the JD's domain?
-    Q2: Does its field share the JD's methodology?
-  If BOTH answers are "no", the degree is irrelevant and MUST be dropped —
-  no exceptions, regardless of prestige.
-
+""" + EDUCATION_EXACT_RULES + """
 SKILLS  (## Skills)
 - EXACTLY three category lines, in this order:
     **Technical Skills:** languages, libraries, tools, platforms, databases,

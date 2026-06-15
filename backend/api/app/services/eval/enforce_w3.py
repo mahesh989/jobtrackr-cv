@@ -12,8 +12,6 @@ Gates:
                              suffixes, remove AI/ML skills, drop AI-only
                              projects (keeping ≥1 project).
   • clamp_two_sentences    — Career Highlights / Summary → at most 2 sentences.
-  • enforce_degree_relevance — drop graduate degrees with zero JD-vocab overlap;
-                             always keep a Bachelor and ≥1 entry.
 """
 from __future__ import annotations
 
@@ -174,12 +172,6 @@ def suppress_ai_identity(
         md = _drop_ai_projects(md)
     return md
 
-
-_AU_UNIT_CODE_INLINE_RE = re.compile(
-    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)"
-    r"[A-Z0-9]{2,6}\b",
-    re.IGNORECASE,
-)
 
 # ---------------------------------------------------------------------------
 # Two-sentence Highlights clamp
@@ -362,117 +354,6 @@ def enforce_summary_skills_dedup(md: str) -> str:
         lines[i] = ""
     lines[prose_idx[0]] = new_prose
     return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Degree relevance
-# ---------------------------------------------------------------------------
-
-_GRAD_RE = re.compile(
-    r"\b(ph\.?d|doctorate|master(?:'s|s)?|m\.?sc|m\.?s\.?\b|m\.?a\.?\b|mba|m\.?phil)\b",
-    re.IGNORECASE,
-)
-_BACHELOR_RE = re.compile(r"\b(bachelor|b\.?sc|b\.?a\.?\b|b\.?eng|undergrad)\b", re.IGNORECASE)
-_REL_STOP = {
-    "the", "and", "of", "in", "for", "with", "a", "an", "on", "to", "is", "as",
-    "at", "by", "or", "from", "into", "via", "applied", "general", "studies",
-    "study", "advanced", "introduction", "fundamentals", "master", "bachelor",
-    "phd", "doctorate", "science", "degree", "university", "college", "institute",
-    "gpa", "present",
-}
-
-
-def _jd_vocab(jd_analysis: Dict[str, Any]) -> Set[str]:
-    bag: Set[str] = set()
-
-    def add(text: str) -> None:
-        for w in re.split(r"[^a-z0-9]+", (text or "").lower()):
-            if len(w) >= 4 and w not in _REL_STOP:
-                bag.add(w)
-
-    if jd_analysis:
-        add(str(jd_analysis.get("job_title") or ""))
-        for block in ("required_skills", "preferred_skills"):
-            cats = jd_analysis.get(block) or {}
-            if isinstance(cats, dict):
-                for cat in ("technical", "soft_skills", "domain_knowledge"):
-                    for kw in cats.get(cat) or []:
-                        add(str(kw))
-    return bag
-
-
-def strip_education_vet_codes(md: str) -> str:
-    """Strip Australian VET unit codes (CHC43015, HLTAID011, etc.) from the
-    Education section's degree lines."""
-    lines = md.split("\n")
-    bounds = _section_bounds(lines, lambda s: s.lower() == "## education")
-    if not bounds:
-        return md
-    start, end = bounds
-    changed = False
-    for i in range(start + 1, end):
-        original = lines[i]
-        cleaned = _AU_UNIT_CODE_INLINE_RE.sub("", original)
-        # Also strip leftover separators: "CHC43015 - Certificate" -> " - Certificate" -> "Certificate"
-        cleaned = re.sub(r"^(\s*(?:\*|###)?)\s*[-–—:]\s*", r"\1", cleaned)
-        cleaned = re.sub(r"\s*[-–—:]\s*$", "", cleaned)
-        cleaned = re.sub(r"\s{2,}", " ", cleaned)
-        if cleaned != original:
-            lines[i] = cleaned
-            changed = True
-    if not changed:
-        return md
-    return "\n".join(lines)
-
-
-def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
-    """
-    Drop graduate degrees (Master/PhD) whose line shares no token with the JD
-    vocabulary. Always keep Bachelor's and never empty the section.
-    """
-    vocab = _jd_vocab(jd_analysis)
-    if not vocab:
-        return md
-
-    lines = md.split("\n")
-    bounds = _section_bounds(lines, lambda s: s.lower() == "## education")
-    if not bounds:
-        return md
-    start, end = bounds
-
-    entry_starts = [i for i in range(start + 1, end) if lines[i].lstrip().startswith("### ")]
-    if len(entry_starts) <= 3:
-        return md
-
-    entries: List[tuple[int, int]] = []
-    for idx, s in enumerate(entry_starts):
-        e = entry_starts[idx + 1] if idx + 1 < len(entry_starts) else end
-        entries.append((s, e))
-
-    def _overlaps(blob: str) -> bool:
-        toks = {w for w in re.split(r"[^a-z0-9]+", blob.lower()) if len(w) >= 4}
-        return bool(toks & vocab)
-
-    keep: List[bool] = []
-    for (s, e) in entries:
-        blob = " ".join(lines[s:e])
-        is_grad = bool(_GRAD_RE.search(blob)) and not _BACHELOR_RE.search(blob)
-        if is_grad and not _overlaps(blob):
-            keep.append(False)
-        else:
-            keep.append(True)
-
-    if all(keep):
-        return md
-    if not any(keep):
-        keep[0] = True
-
-    out: List[str] = lines[: start + 1]
-    for idx, (s, e) in enumerate(entries):
-        if keep[idx]:
-            out.extend(lines[s:e])
-    out.extend(lines[end:])
-    return "\n".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -718,8 +599,6 @@ def apply_w3_gates(
     _vert = jd_vertical or jd_analysis.get("vertical")
     if _vert:
         md = strip_off_vertical_preamble(md, _vert)
-    md = strip_education_vet_codes(md)
-    md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:
         md = strip_ungrounded_bullet_parentheticals(md, original_cv_text)
         md = strip_ungrounded_skill_entities(md, original_cv_text, keep_skills)

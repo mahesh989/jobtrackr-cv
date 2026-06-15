@@ -112,6 +112,9 @@ OUTPUT JSON SCHEMA — return EXACTLY this structure:
 
 CLASSIFICATION RULES:
 - University DEGREE / diploma → education.
+  Copy the human-readable qualification name only — omit AU VET unit codes
+  (CHC43015, HLTAID011, etc.) from `qualification`; never prefix the name
+  with a code.
 - **Care-sector VET qualifications** (Certificate III/IV in Ageing Support,
   Individual Support, Disability, Community Services, or similar
   health/care VET awards) → ALSO education. These are formally the

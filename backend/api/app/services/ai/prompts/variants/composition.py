@@ -20,6 +20,7 @@ restoring the honesty guardrails W2 lost.
 """
 from __future__ import annotations
 
+from app.services.ai.prompts.education_rules import EDUCATION_EXACT_RULES
 from app.services.eval.role_families import RoleFamilyProfile
 
 
@@ -273,23 +274,7 @@ qualification, e.g. nursing/manual licences — AHPRA registration, White Card,
 forklift licence, First Aid). The role pack carries the final say on which
 clause applies; this rule explains the reasoning when both seem to qualify.
 
-EDUCATION
-- Count the total number of education entries (degrees, diplomas, AND VET
-  qualifications) on the candidate's CV.
-  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping
-    all degrees is mandatory. Do NOT drop any degree (including Master's or
-    PhDs), regardless of whether its field matches the JD.
-  - If more than 3: Select the top 1-3 entries and drop the others. ALWAYS
-    keep the candidate's most recent Bachelor's degree as a baseline
-    credential — never drop it, even if its field differs from the JD. Drop a
-    graduate degree (Master's/PhD) ONLY when its field shares NEITHER the
-    JD's domain NOR its methodology — an off-field graduate degree signals
-    overqualification and mismatch.
-- STRIP QUALIFICATION/COURSE CODES from degree names: write "Certificate IV
-  in Ageing Support", NOT "CHC43015 - Certificate IV in Ageing Support".
-  Codes like CHC43015, HLTAID011, BSB50420 are internal catalogue numbers
-  and must never appear on the CV.
-
+""" + EDUCATION_EXACT_RULES + """
 CAREER-STYLE SUMMARY (the summary section named by your role pack)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one
   sentence is a failure. No bullets, no skills line, no third sentence.
@@ -481,9 +466,9 @@ place; do not emit until every item passes):
 (9)  JD_MIRROR: where the candidate honestly supports them, JD phrases appear
      VERBATIM (no generic synonyms left in place).
 (10) PROJECTS/EDU/CERTS: Projects (if any) best-FIT ≤2, no duplication in
-     Experience; Education ≤3 entries → all kept, >3 → top 1-3 kept and
-     off-field graduate degrees dropped; Certifications obey the role pack's
-     cert policy (within cap, same-issuer merged).
+     Experience; Education obeys the EXACT rules block (≤3 when 4+ source
+     entries, date order, two-line shape, no codes); Certifications obey the
+     role pack's cert policy (within cap, same-issuer merged).
 (11) TRUTH + INJECTION: no invented skill/employer/metric/cert/proper noun; no
      cannot_inject keyword anywhere; off-axis identity suppressed per JD focus;
      off-axis tools kept out of Skills.

@@ -1,6 +1,8 @@
 """Step 6 — Tailored CV Generation prompt templates."""
 from __future__ import annotations
 
+from .education_rules import EDUCATION_EXACT_RULES
+
 TAILORED_CV_SYSTEM = """You are an expert CV writer.
 
 Rewrite the candidate's CV so it is tailored for the target role described
@@ -180,8 +182,7 @@ SECTION SELECTION CAPS
   than dropping for relevance — bullet-rewriting can reframe a less
   relevant role, but a near-empty Experience section kills the CV.
   The relevance tests below are tiebreakers when there's surplus, not
-  filters when there's scarcity. Same idea for Education and Projects:
-  if the candidate has 3 or fewer degrees in total, keep them all. If 1 project, keep it.
+  filters when there's scarcity. Same idea for Projects: if 1 project, keep it.
 
   ROLE RELEVANCE TEST (apply per role before keeping, but only when
   the candidate has 3+ roles available):
@@ -200,70 +201,6 @@ SECTION SELECTION CAPS
       → Drop Outlier.ai (AI training has no overlap with fundraising
         analytics). Keep Bitrates + iBuild + Property Console (all
         carry analyst / dashboard / metrics work).
-- Education: Count the total number of education entries (degrees, diplomas, AND care-sector VET qualifications) on the candidate's CV.
-  - If the candidate has 3 or fewer degrees in total: KEEP ALL of them. Bypassing the relevance test and keeping all degrees is mandatory in this case. Do NOT drop any degree (including Master's or PhDs) even if its field differs from the JD.
-  - If the candidate has more than 3 degrees in total: You must select the top 1-3 most relevant entries and drop the others. In this case, apply the DEGREE RELEVANCE TEST below. Graduate degrees (Master's, PhD) in fields with no overlap to the JD's domain or methodology MUST be dropped to prevent signaling overqualification, while Bachelor's degrees are kept as baseline credentials.
-
-  DEGREE RELEVANCE TEST — MANDATORY pre-output procedure (applicable ONLY if candidate has >3 degrees):
-
-    Step A — Identify, in your head, two things from the JD:
-      • Primary domain (e.g. fundraising / marketing, SaaS data
-        analytics, ML engineering, healthcare informatics, quant finance)
-      • Primary methodology (e.g. SQL + dashboards, deep learning,
-        statistics, qualitative research, stochastic modeling)
-
-    Step B — For EACH Master's / PhD on the candidate's CV, run this
-    exact two-question check before deciding to keep it:
-      Q1: Does its field share the JD's domain? (yes / no)
-      Q2: Does its field share the JD's methodology? (yes / no)
-      → If BOTH answers are "no", the degree is IRRELEVANT and MUST be
-        dropped. No exceptions. Do not keep it "just in case", do not
-        keep it "for completeness", do not keep it because the candidate
-        worked hard for it. Keeping an irrelevant graduate degree is a
-        FAILURE of this task.
-
-    Step C — Sanity check before emitting Education:
-      • Did you drop EVERY graduate degree where both Q1 and Q2 = "no"?
-      • If your output Education has 4+ entries, you have failed — stop
-        and re-run Step B with stricter judgement.
-      • If the JD is for a non-research, non-academic role, a PhD in a
-        pure-science field (Physics, Pure Math, Theoretical Chemistry,
-        Philosophy, Literature) is OVERWHELMINGLY likely to be irrelevant
-        and should be dropped unless it ties to a quantitative/research
-        methodology required by the JD.
-
-  WORKED EXAMPLE 1 — DROP overqualifying degrees:
-    JD: "Data Analyst — Marketing & Fundraising at a non-profit"
-    Candidate: PhD in Theoretical Physics, Master in Theoretical Physics,
-               Master of Data Science, Bachelor of IT.
-    Reasoning:
-      • PhD Theoretical Physics: Q1 (marketing/fundraising domain?) NO.
-        Q2 (SQL/dashboards/marketing analytics methodology?) NO. → DROP.
-      • Master Theoretical Physics: same answers. → DROP.
-      • Master of Data Science: Q2 = YES (direct methodology match). → KEEP.
-      • Bachelor of IT: exempt baseline. → KEEP.
-    Output: 2 entries. Master of Data Science + Bachelor of IT.
-
-  WORKED EXAMPLE 2 — KEEP because methodology matches:
-    JD: "Quantitative Researcher — Hedge Fund"
-    Candidate: PhD in Theoretical Physics + Master of Data Science.
-    Reasoning:
-      • PhD Theoretical Physics: Q2 = YES (stochastic modeling, statistical
-        mechanics → quant finance). → KEEP.
-      • Master of Data Science: Q2 = YES. → KEEP.
-    Output: 2 entries.
-
-  WORKED EXAMPLE 3 — DROP for an engineering role:
-    JD: "Backend Software Engineer — Python/Go"
-    Candidate: PhD Philosophy, Master CS, Bachelor CS.
-    Reasoning:
-      • PhD Philosophy: Q1 NO, Q2 NO. → DROP. (Even though candidate
-        has the PhD, listing it here signals career drift, not strength.)
-      • Master CS + Bachelor CS: KEEP.
-
-  Bachelor's degrees are exempt from the drop rule — keep the most
-  recent / highest-tier Bachelor as a baseline credential.
-
 - Projects: include 1 to 2 projects if the candidate has any that are
   directly relevant to the JD. Projects EARN their own section even
   when the underlying work is touched in an Experience bullet — a named
@@ -418,66 +355,7 @@ and the page goes ragged.
   two-line shape with both lines carrying a ` | `. Do NOT mix "### Name"
   alone for one project and "### Name | Status" for another.
 
-EDUCATION ENTRY HEADER  (two lines per degree, exactly this shape)
-Emit each degree as a TWO-LINE block. Same visual rhythm as roles and
-projects so the page scans as one consistent grid. The renderer splits
-on the ` | ` and right-justifies the second half — that is why the
-field order below is fixed and why bullet-list shapes are forbidden.
-
-  Line 1 — h3, exactly: "### Institution | Location"
-           Renders as: bold institution on the left, location on the
-           right.
-
-  Line 2 — italic paragraph, exactly: "*Degree | Year – Year*"
-           Renders as: italic degree on the left, italic dates on the
-           right. The single asterisks wrap the WHOLE line.
-           - The degree label is the FULL form, not abbreviated:
-             "Master of Data Science", "Bachelor of Science (Physics)",
-             "PhD in Physics". Never "MDS", "BSc", "MS".
-           - STRIP QUALIFICATION/COURSE CODES: never include unit codes
-             or qualification codes in the degree name. Write
-             "Certificate IV in Ageing Support", NOT "CHC43015 -
-             Certificate IV in Ageing Support". Codes like CHC43015,
-             HLTAID011, BSB50420 etc. are internal catalogue numbers —
-             they are ugly on a CV and add zero value.
-           - Append a "(GPA: X)" suffix to the degree only when the
-             original CV reports a GPA — never invent one.
-           - Year range uses an en-dash with spaces: "2018 – 2022".
-             Use "Present" only for in-progress degrees.
-
-  Then a blank line before the next entry. NEVER use a bullet-list
-  shape (`- **Institution | Location** *Degree | Year*`) for Education.
-
-  ZERO BULLETS UNDER EDUCATION ENTRIES (HARD RULE — no exceptions in
-  the default case). Do NOT write filler bullets like "Leveraged this
-  program to…", "Coursework in…", "Studying…", or any other prose
-  explaining what the degree is about — the degree title already
-  conveys that. The Education section must be H3 + italic line only,
-  nothing else, for every entry.
-
-  The ONLY allowed exception is a single bullet quoting a thesis
-  title or formal honour (e.g. "First-class Honours", "Dean's List")
-  that is BOTH (a) explicitly present in the source CV and (b) directly
-  relevant to the JD. Inferred or invented bullets are forbidden — a
-  post-processor strips bullets from Education before render, so
-  emitting them is wasted output.
-
-  CONSISTENCY (HARD): every degree in the Education section MUST use
-  the same two-line shape. Do NOT mix shapes across entries.
-
-  WRONG (bullet-list shape — renderer cannot align it):
-    - **Charles Darwin University | Sydney, Australia** *Master of Data Science (GPA: 6.35/7) | 2023 – 2024*
-
-  RIGHT (two-line shape per entry, consistent across all degrees):
-
-    ### Charles Darwin University | Sydney, Australia
-    *Master of Data Science (GPA: 6.35/7) | 2023 – 2024*
-
-    ### CY Cergy Paris University | Cergy-Pontoise, France
-    *PhD in Physics | 2018 – 2022*
-
-    ### Tribhuvan University | Kathmandu, Nepal
-    *Bachelor of Science in Information Technology (GPA: 83%) | July 2014 – Aug. 2018*
+__EDUCATION_RULES_PLACEHOLDER__
 
 BULLET RULES (apply to every Experience role and every Project)
 - EXACTLY 2 or 3 bullets per entry — never 4, never more. Hard cap.
@@ -717,6 +595,10 @@ CERTIFICATIONS SECTION  (## Certifications) — OPTIONAL, RARELY INCLUDED
       RIGHT:
         - AWS Certified Solutions Architect — AWS 2023
 """
+
+TAILORED_CV_SYSTEM = TAILORED_CV_SYSTEM.replace(
+    "__EDUCATION_RULES_PLACEHOLDER__", EDUCATION_EXACT_RULES
+)
 
 TAILORED_CV_USER_TEMPLATE = """Original CV:
 
