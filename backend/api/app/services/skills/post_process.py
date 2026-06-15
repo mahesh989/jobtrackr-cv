@@ -143,13 +143,41 @@ def _has_credential_marker(phrase: str) -> bool:
       • "aged care at certificate iv level"
       • "medication endorsement (HLTHPS007 unit)"
       • "experience with HLTAID011"
+      • "individual support (ageing, home and community)"
+      • "infection prevention (vaccination awareness)"
+      • "infection prevention and control (immunisation requirements)"
 
     Used by ``post_process_skills`` to route these phrases to the
     credential sidecar instead of leaving them as Care Skills.
     """
     if not phrase:
         return False
-    return bool(_EMBEDDED_CREDENTIAL_MARKER_RE.search(phrase.lower()))
+    p = phrase.lower()
+    if _EMBEDDED_CREDENTIAL_MARKER_RE.search(p):
+        return True
+    # Parenthetical credential tail — phrase ends in "(X)" where X contains
+    # a credential-flavoured token. Distinguishes between a clarifying
+    # parenthetical ("(BESTMed)" after a tool name) and a credential one
+    # ("(immunisation requirements)" after a clinical skill).
+    if _CREDENTIAL_PAREN_TAIL_RE.search(p):
+        return True
+    return False
+
+
+_CREDENTIAL_PAREN_TAIL_RE = re.compile(
+    r"(?ix)"
+    r"\("
+    r"[^()]{0,200}"
+    r"(?:"
+    r"vaccination|immunisation|immunization|"
+    r"certificate|cert\.?\s*[iv1-4]|cert\s*[iv1-4]|"
+    r"ahpra|nmba|registration\s+number|"
+    r"(?:ageing|aged)\s*,\s*home(?:\s*,)?\s*(?:and\s+)?community|"
+    r"(?:home|community)\s*,\s*(?:ageing|aged)"
+    r")"
+    r"[^()]{0,200}"
+    r"\)\s*$",
+)
 
 
 logger = logging.getLogger(__name__)
@@ -397,6 +425,29 @@ _CREDENTIAL_COMPONENT_LABELS: frozenset = frozenset({
 })
 
 
+_WORD_FAMILY_TOKEN_RE = re.compile(r"[a-z][a-z]+")
+
+
+def _share_content_token(phrase_a: str, phrase_b: str, *, min_len: int = 4) -> bool:
+    """True when any content token (alpha-only, >= ``min_len`` chars) of
+    one phrase is a prefix of any content token of the other. This catches
+    same-family pairs like ``team`` ↔ ``teamwork`` and ``verbal`` ↔ ``verbal
+    communication`` while correctly rejecting cross-family pairs like
+    ``compassion`` ↔ ``empathy`` and ``flexible`` ↔ ``adaptability``.
+
+    Used to decide whether a lexicon canonical is from the SAME word family
+    as the LLM's surface phrase. Cross-family rewrites are blocked for
+    soft skills via this check."""
+    a = [t for t in _WORD_FAMILY_TOKEN_RE.findall(phrase_a.lower()) if len(t) >= min_len]
+    b = [t for t in _WORD_FAMILY_TOKEN_RE.findall(phrase_b.lower()) if len(t) >= min_len]
+    for ta in a:
+        for tb in b:
+            shorter, longer = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+            if longer.startswith(shorter):
+                return True
+    return False
+
+
 def _empty_sidecar() -> Dict[str, list]:
     # Keys are kept SINGULAR to match the source-of-truth NoiseT literals
     # ("credential", "eligibility", "noise") returned by `is_noise()` so the
@@ -526,8 +577,26 @@ def post_process_skills(
             if vertical is not None:
                 c = classify(phrase, vertical)  # type: ignore[arg-type]
                 if c is not None and c.is_skill:
-                    display = c.canonical
                     target_cat = c.category  # type: ignore[assignment]
+                    # For SOFT SKILLS we PRESERVE the LLM's surface phrase
+                    # when the lexicon canonical is from a DIFFERENT word
+                    # family (e.g. "compassion" → canonical "empathy",
+                    # "flexible" → "adaptability"). Cross-family rewrites
+                    # contradict the JD-analysis prompt's verbatim rule and
+                    # break tailored-CV matching to the JD's actual wording.
+                    #
+                    # Within-family canonicalisation is still fine
+                    # ("effective verbal communication" → "verbal
+                    # communication"; "ability to work in a team" →
+                    # "teamwork" — both share a content token).
+                    if (
+                        cat == "soft_skills"
+                        and target_cat == "soft_skills"
+                        and not _share_content_token(phrase, c.canonical)
+                    ):
+                        display = phrase  # preserve verbatim (cross-family)
+                    else:
+                        display = c.canonical
                     if target_cat != cat:
                         sidecar["moved"].append({
                             "phrase": phrase,
@@ -540,6 +609,20 @@ def post_process_skills(
                     # 3. Unknown — keep the LLM phrase in its bucket but
                     #    flag for visibility (so the lexicon can grow).
                     sidecar["unknown"].append({"phrase": phrase, "category": cat})
+
+            # 2b. Re-check sector / credential-component after lexicon
+            # canonicalisation. The lexicon collapses variants like "home
+            # care support" → canonical "home care", "individualised
+            # support" → "individual support" — those canonicals are
+            # exactly the labels we need to strip, but step 1a' could only
+            # see the LLM's surface phrase. Catch them now.
+            canon_lower = display.lower()
+            if canon_lower in _SECTOR_SETTING_LABELS:
+                sidecar["setting_label"].append(phrase)
+                continue
+            if canon_lower in _CREDENTIAL_COMPONENT_LABELS:
+                sidecar["credential"].append(phrase)
+                continue
 
             key = (display.lower(), target_cat)
             if key in seen:

@@ -80,6 +80,45 @@ class TestSectorLabelStrip:
         assert "personal care" in skills_after
         assert "domestic assistance" in skills_after
 
+    def test_post_canonicalisation_strip(self):
+        """Real Sanctuary NDIS JD: LLM emits 'home care support' (lexicon
+        variant of 'home care'). The strip must catch it post-classification."""
+        jd = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["home care support", "personal care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        assert "home care" not in out["required_skills"]["domain_knowledge"]
+        assert "home care support" not in out["required_skills"]["domain_knowledge"]
+        assert "personal care" in out["required_skills"]["domain_knowledge"]
+        sidecar = out["lexicon_meta"]["required"]["setting_label"]
+        assert "home care support" in sidecar
+
+    def test_post_canonicalisation_credential_component(self):
+        """LLM emits a variant of 'individual support' canonical →
+        route to credential sidecar post-classify."""
+        jd = {
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["individualised support", "personal care"],
+            },
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        # 'individualised support' is a variant of 'individual support'
+        # canonical → strip post-classify.
+        assert "individual support" not in out["preferred_skills"]["domain_knowledge"]
+        assert "individualised support" not in out["preferred_skills"]["domain_knowledge"]
+        creds = out["lexicon_meta"]["preferred"]["credential"]
+        assert any("individual" in c.lower() for c in creds)
+
     def test_setting_labels_set_matches_design(self):
         """Sanity check on the curated set itself — guards against silent
         deletions that would re-open the leak path."""
@@ -299,6 +338,68 @@ class TestSectionClamp:
 # ---------------------------------------------------------------------------
 # Fix 3 — universal noise additions
 # ---------------------------------------------------------------------------
+
+
+class TestSoftSkillCrossFamilyPreservation:
+    """Round-2 finding: 'compassion' → canonical 'empathy' substitution
+    happened in post_process_skills' per-phrase classify step (NOT the
+    recall floor). Verbatim preservation across word families is now
+    enforced for soft skills only — within-family canonicalisation still
+    happens ('ability to work in a team' → 'teamwork')."""
+
+    def test_compassion_preserved_not_rewritten_to_empathy(self):
+        from app.services.skills import post_process_jd_analysis
+        jd = {
+            "required_skills": {
+                "technical": [], "soft_skills": ["compassion"],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        assert "compassion" in soft, "compassion must NOT be rewritten to empathy"
+        assert "empathy" not in soft
+
+    def test_flexible_preserved_not_rewritten_to_adaptability(self):
+        from app.services.skills import post_process_jd_analysis
+        jd = {
+            "required_skills": {
+                "technical": [], "soft_skills": ["flexible"],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        assert "flexible" in soft
+        assert "adaptability" not in soft
+
+    def test_within_family_canonicalisation_still_works(self):
+        """Same-family variants are still canonicalised — only cross-family
+        substitution is blocked."""
+        from app.services.skills import post_process_jd_analysis
+        jd = {
+            "required_skills": {
+                "technical": [], "soft_skills": [
+                    "effective verbal communication",
+                    "ability to work in a team",
+                ],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = post_process_jd_analysis(jd, role_family_id="nursing")
+        soft = [s.lower() for s in out["required_skills"]["soft_skills"]]
+        # Within-family — canonical form lands
+        assert "verbal communication" in soft  # 'verbal' shared
+        assert "teamwork" in soft              # 'team' prefix of 'teamwork'
 
 
 class TestSoftSkillGateNoLexiconSynonym:

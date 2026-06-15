@@ -827,6 +827,28 @@ class TestEmbeddedCredentialMarkers:
         assert _has_credential_marker("aged care (cert iii or iv)")
         assert _has_credential_marker("individual support certificate iii in ageing")
 
+    def test_detector_catches_credential_paren_tails(self):
+        """Real Anglicare + Nurselink JDs: parenthetical credential indicators
+        after a skill-shaped head."""
+        # Anglicare — Cert III area listing
+        assert _has_credential_marker("individual support (ageing, home and community)")
+        assert _has_credential_marker("individual support (aged, home, and community)")
+        # Nurselink — immunisation
+        assert _has_credential_marker(
+            "infection prevention and control (immunisation requirements)"
+        )
+        # Anglicare round-5 variant
+        assert _has_credential_marker("infection prevention (vaccination awareness)")
+        # AHPRA registration
+        assert _has_credential_marker("registered nurse registration (ahpra)")
+
+    def test_paren_tail_does_NOT_fire_on_clarifying_parens(self):
+        """Clarifying parentheticals (tool synonyms, abbreviations) must
+        stay; only credential-flavoured tails are stripped."""
+        assert not _has_credential_marker("medication management (bestmed)")
+        assert not _has_credential_marker("emr (electronic medical record)")
+        assert not _has_credential_marker("personal care (showering, dressing)")
+
     def test_detector_catches_medication_endorsement(self):
         assert _has_credential_marker("medication endorsement (hlthps007 unit)")
         assert _has_credential_marker("medication endorsement")

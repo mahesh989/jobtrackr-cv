@@ -214,7 +214,7 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
                             prose-headings:text-gray-900 prose-p:text-gray-800
                             prose-li:text-gray-800 prose-strong:text-gray-900
                             prose-a:text-[#000080]
-                            prose-table:border-none prose-th:border-none prose-td:border-none
+                            prose-table:border-none prose-tr:border-none prose-th:border-none prose-td:border-none
                             prose-thead:hidden
                             prose-th:p-0 prose-td:p-0">
               <ReactMarkdown
