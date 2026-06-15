@@ -274,11 +274,17 @@ forklift licence, First Aid). The role pack carries the final say on which
 clause applies; this rule explains the reasoning when both seem to qualify.
 
 EDUCATION
-- Keep 1-3 entries. ALWAYS keep the candidate's most recent Bachelor's degree as
-  a baseline credential — never drop it, even if its field differs from the JD.
-- Drop a graduate degree (Master's/PhD) ONLY when its field shares NEITHER the
-  JD's domain NOR its methodology — an off-field graduate degree signals
-  overqualification and mismatch. If the candidate has only one degree, keep it.
+- Count the total number of education entries (degrees, diplomas, AND VET
+  qualifications) on the candidate's CV.
+  - If 3 or fewer: KEEP ALL of them. Bypassing the relevance test and keeping
+    all degrees is mandatory. Do NOT drop any degree (including Master's or
+    PhDs), regardless of whether its field matches the JD.
+  - If more than 3: Select the top 1-3 entries and drop the others. ALWAYS
+    keep the candidate's most recent Bachelor's degree as a baseline
+    credential — never drop it, even if its field differs from the JD. Drop a
+    graduate degree (Master's/PhD) ONLY when its field shares NEITHER the
+    JD's domain NOR its methodology — an off-field graduate degree signals
+    overqualification and mismatch.
 
 CAREER-STYLE SUMMARY (the summary section named by your role pack)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one
