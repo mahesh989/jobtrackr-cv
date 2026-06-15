@@ -303,6 +303,19 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   NO off-axis sector/identity labels: do not cite an industry or specialism the
   JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
   name only JD-aligned domains.
+  WORKED EXAMPLE — off-vertical background + short placement: candidate's CV
+  is dominated by Finance/Accounting roles, with one 120-hour residential aged
+  care placement. JD = Assistant in Nursing.
+    WRONG: "A strong background in finance and accounting and recent 120-hour
+    residential aged care placement experience supporting older people with
+    personal care, dementia care, and activities of daily living..." — leads
+    with the off-axis sector. FORBIDDEN.
+    RIGHT: "Aged Care Worker with recent hands-on experience from a 120-hour
+    residential aged care placement, supporting older people with personal
+    care, dementia care, and activities of daily living." — title slot uses
+    the on-axis (JD-aligned) identity; placement framing substitutes for
+    years; the off-axis sector is dropped from the summary entirely (it may
+    still appear in its own Experience entry).
 - Sentence 2 (achievement, ≤22 words): action verb + method + quantified
   result + anchor (see COMPANY ANCHOR below — the anchor is an employer name
   OR, for breadth-framed experience, the scope). When S1 framed 2+ DISTINCT
@@ -404,7 +417,11 @@ place; do not emit until every item passes):
 (3)  SUMMARY_S1: role title + (years OR breadth framing when <2 yrs across
      multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
      specialisations do NOT echo the title's own words; no tool names; no off-
-     axis sector labels.
+     axis sector labels. S1 must NOT open with an off-axis sector/career-history
+     framing ("A background in X industry...", "Experienced in X and recently...").
+     If the candidate's prior roles sit in a different vertical than the JD, the
+     title slot still uses the on-axis (JD-aligned) identity — placement/breadth
+     framing substitutes for years, not the off-axis sector name.
 (4)  SUMMARY_S2: first read how S1 framed the experience, then enforce S2 to
      MATCH it (S1 and S2 must tell the same story):
      • If S1 used BREADTH framing ("across multiple settings / facilities /
