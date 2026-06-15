@@ -116,3 +116,21 @@ def test_case_insensitive_match():
     # First match preserved as-is; 2nd and 3rd replaced with short form.
     assert out.count("Acme") == 3  # 1 full + 2 short
     assert "Corp" not in out.replace("Acme Corp", "", 1)
+
+
+# ---------------------------------------------------------------------------
+# strip_vet_codes_from_cover_letter — cleanup qualification codes
+# ---------------------------------------------------------------------------
+
+def test_strip_vet_codes_from_cover_letter():
+    from app.services.cover_letter.generator import strip_vet_codes_from_cover_letter
+
+    assert strip_vet_codes_from_cover_letter("With my CHC43015 Certificate IV in Ageing Support") == "With my Certificate IV in Ageing Support"
+    assert strip_vet_codes_from_cover_letter("With my CHC43015 - Certificate IV in Ageing Support") == "With my Certificate IV in Ageing Support"
+    assert strip_vet_codes_from_cover_letter("Certificate IV in Ageing Support (CHC43015)") == "Certificate IV in Ageing Support"
+    assert strip_vet_codes_from_cover_letter("Certificate IV in Ageing Support - CHC43015") == "Certificate IV in Ageing Support"
+    assert strip_vet_codes_from_cover_letter("Certificate IV (HLTAID011)") == "Certificate IV"
+    assert strip_vet_codes_from_cover_letter("Certificate IV HLTAID011") == "Certificate IV"
+    assert strip_vet_codes_from_cover_letter(
+        "With my Certificate IV in Ageing Support (CHC43015) and HLTAID011 First Aid"
+    ) == "With my Certificate IV in Ageing Support and First Aid"

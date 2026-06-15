@@ -1166,7 +1166,7 @@ def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
     start, end = bounds
 
     entry_starts = [i for i in range(start + 1, end) if lines[i].lstrip().startswith("### ")]
-    if len(entry_starts) <= 1:
+    if len(entry_starts) <= 3:
         return md
 
     entries: List[tuple[int, int]] = []

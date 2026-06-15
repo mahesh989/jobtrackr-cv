@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -57,6 +58,57 @@ from app.services.ai.prompts.cover_letter.generate import (
 )
 
 logger = logging.getLogger(__name__)
+
+_AU_UNIT_CODE_INLINE_RE = re.compile(
+    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)[A-Z0-9]{2,6}\b",
+    re.IGNORECASE,
+)
+
+
+def strip_vet_codes_from_cover_letter(text: str) -> str:
+    """
+    Strip Australian VET unit codes (CHC43015, HLTAID011, etc.) from the cover letter text,
+    including surrounding parentheses or trailing/leading hyphens/dashes/colons/spaces.
+    """
+    if not text:
+        return text
+
+    # 1. Strip "(CODE)" form first, e.g. "Certificate IV in Ageing Support (CHC43015)"
+    out = re.sub(
+        r"\s*\(\s*" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\s*\)",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # 2. Strip "CODE - " or "CODE: " or "CODE – " form, e.g. "CHC43015 - Certificate IV"
+    out = re.sub(
+        r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*[-–—:]\s*",
+        "",
+        out,
+        flags=re.IGNORECASE
+    )
+
+    # 3. Strip " - CODE" or " – CODE" form, e.g. "Certificate IV - CHC43015"
+    out = re.sub(
+        r"\s*[-–—:]\s*\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b",
+        "",
+        out,
+        flags=re.IGNORECASE
+    )
+
+    # 4. Strip bare CODE, e.g. "CHC43015 Certificate IV"
+    out = re.sub(
+        r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*",
+        "",
+        out,
+        flags=re.IGNORECASE
+    )
+
+    # Clean up double spaces
+    out = re.sub(r" {2,}", " ", out)
+
+    return out.strip()
 
 _TABLE = "cover_letters"
 
@@ -318,6 +370,7 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
         # Guarantee the prompt's "full name once, short form after" rule
         # deterministically — the model is best-effort about it.
         body = normalise_company_in_body(body, payload.company_name)
+        body = strip_vet_codes_from_cover_letter(body)
 
         await _patch(letter_id, {
             "pass_3_final": body,
@@ -359,6 +412,7 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                         honesty_retry_block=retry_block,
                     )
                 body = normalise_company_in_body(body, payload.company_name)
+                body = strip_vet_codes_from_cover_letter(body)
                 await _patch(letter_id, {"pass_3_final": body})
                 passed_2, unsupported_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,
