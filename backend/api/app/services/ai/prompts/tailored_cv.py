@@ -68,595 +68,79 @@ CONTACT BLOCK
   contact field — just emit a placeholder line if you must, it will be
   overwritten.
 
-CAREER HIGHLIGHTS  (## Career Highlights — replaces "Profile" / "Summary")
-This section is THE most important hook of the CV. It must be tightly
-tailored to THIS JD — never generic. It is exactly TWO SENTENCES of
-prose — no bullet points, no skills line, no sub-clauses after
-semicolons within Part 1. Total word count: 35-50 words HARD LIMIT.
+## Career Highlights – EXACT TWO SENTENCES
 
-MANDATORY PRE-CHECK — run this BEFORE writing a single word:
+You will write the summary in TWO STEPS. Do not output anything until step 2.
 
-Step A — Classify the JD setting from responsibilities[0] and job_title:
+### STEP 1 – PLAN (internal, do not write)
 
-  HOME / COMMUNITY CARE — if responsibilities[0] contains ANY of:
-    "in their homes", "in the home", "domestic assistance", "cleaning",
-    "laundry", "meal preparation", "transport to appointments",
-    "shopping", "community", "retirement living residents in their homes"
+Answer these three questions silently:
 
-  HOSPITAL / ACUTE — if responsibilities[0] or job_title contains:
-    "ward", "surgical", "theatre", "CSSD", "instrument", "patients"
-    (where patients clearly means hospital patients, not aged care
-    residents), "multidisciplinary team", "scope of practice and
-    state legislation", "acute", "medical department"
+1. What is the JD's target vertical? (e.g., aged care, nursing, data analysis)
+2. From the candidate's CV, what is their **ONLY experience IN that vertical**?  
+   - If a placement/internship: note the hours and setting.  
+   - If a full role: note the employer and tenure.  
+   - If none: say "none" – then you will use the most transferable adjacent experience.
+3. What is the JD‑aligned role title? (e.g., "Aged Care Worker", not "Finance Professional")
 
-  NDIS / DISABILITY — if responsibilities[0] or job_title contains:
-    "NDIS", "participant", "disability support", "acquired brain
-    injury", "high intensity support", "non-verbal"
+### STEP 2 – WRITE EXACTLY TWO SENTENCES
 
-  SPECIALIST ROLE — if job_title contains:
-    "lifestyle coordinator", "leisure", "activities coordinator",
-    "theatre technician", "CSSD", "instrument technician"
+**SENTENCE 1** (≤28 words) – MUST start with the role title from Step 1.  
+- If vertical experience is a short placement (<6 months):  
+  `"<Role> with [X-hour/week] placement experience in <setting>, supporting <clients> with <specialisations>."`  
+- If vertical experience is a full role:  
+  `"<Role> with [X] years' experience in <specialisations>, delivering <outcome> for <audience>."`  
 
-  RESIDENTIAL AGED CARE — everything else (residents, aged care
-    facility, care community, nursing home).
+**FORBIDDEN**: leading with any other industry, degree, or background.  
+**FORBIDDEN**: naming tools or echoing the title's own words in specialisations.
 
-Step B — Apply the setting rule based on classification:
+**SENTENCE 2** (≤22 words) – an achievement anchored to the **specific employer** (if full role) or **scope phrase** (if placement).  
+- Full role: `"<Action> <method> <result> at <employer>."`  
+- Placement: `"Delivered <care type> and <care type> across <scope> in collaboration with <team>."`  
 
-  If HOME / COMMUNITY CARE:
-    → S1 MUST use a bridge phrase. Forbidden: "residential aged care
-      settings" as the setting. Use instead:
-      "residential aged care background, transitioning to in-home
-      [care / support / community care]" OR
-      "aged care and in-home support experience"
-    → S2 must evidence personal care, daily living, or domestic-
-      adjacent work from CV — NOT medication administration.
+**FORBIDDEN**: generic claims ("compassionate care") without employer or scope.  
+**FORBIDDEN**: naming tools.
 
-  If HOSPITAL / ACUTE:
-    → S1: "residential aged care and acute care settings" OR
-      "aged care experience, transitioning into hospital-based care"
-    → S2: evidence working within scope of practice, under RN
-      direction, in a clinical team environment — things the CV shows.
+---
 
-  If NDIS / DISABILITY:
-    → S1: "aged care and disability support settings" OR
-      "applying aged care skills to NDIS-funded support"
-    → S2: evidence personal care, behavioural support, or complex
-      personal care from CV. Do not lead with medication.
+## FEW‑SHOT EXAMPLES
 
-  If SPECIALIST ROLE (Lifestyle Coordinator):
-    → S1 specialisations MUST be activities, engagement, wellbeing,
-      lifestyle programming — NOT personal care or medication.
-    → S2 must evidence resident engagement, activities support, or
-      supporting recreational involvement from CV. If the CV shows
-      any involvement in activities or engagement, use that.
-      If none, use the closest transferable skill (e.g. "person-
-      centred care that supported resident wellbeing and engagement").
+### Example 1 (off‑vertical background)
+**CV**: Finance & accounting roles + 120‑hour aged care placement (Cert IV)  
+**JD**: Assistant in Nursing (aged care facility)
 
-  If HOSPITAL / THEATRE / CSSD (instruments, sterile stock):
-    → This is a clinical support role. S1 should frame the candidate
-      as bringing clinical awareness and healthcare exposure rather
-      than care skills. S2 should draw on the closest transferable
-      experience (e.g. working within clinical protocols, attention
-      to documentation/accuracy).
+**WRONG (off‑vertical lead)** ❌  
+*"A strong background in finance and accounting and recent 120‑hour residential aged care placement experience supporting older people..."*
 
-  If RESIDENTIAL AGED CARE:
-    → Proceed normally. "residential aged care settings" is permitted.
+**RIGHT** ✅  
+*"Aged Care Worker with 120-hour placement experience in residential aged care, supporting older people with personal care and dementia care. Delivered safe, person‑centred care and supported medication administration in collaboration with registered nurses across the facility."*
 
-Step C — BANNED PHRASE CHECK:
-  Do NOT use the phrase "Currently delivering care at [X] using
-  BESTMed and MedMobile" in Career Highlights. This is a canned
-  employer sentence that is not tailored to any JD. If the JD
-  requires evidence of current employment, write a specific
-  achievement at that employer instead.
+### Example 2 (full role, two distinct employers)
+**CV**: Data Analyst at iBuild (2y), Data Analyst at Bitrates (1y)  
+**JD**: Data Analyst – marketing analytics
 
-CRITICAL — TAILORED-CV-ONLY SOURCING RULE (HARD)
-Every claim in Career Highlights must be supported by content that ALSO
-appears later in THIS tailored CV. Treat Career Highlights as a TRAILER
-for the rest of this document — not a summary of the original CV.
+**RIGHT** ✅  
+*"Data Analyst with 3+ years' experience in marketing analytics and customer segmentation, delivering dashboards for e‑commerce teams. Improved retention forecasting by 25% at Bitrates through cohort modelling; reduced reporting time by 30% at iBuild via automated ETL pipelines."*
 
-JD-SIGNAL SCAN + IDENTITY MODE (MANDATORY — runs FIRST, before anything else)
+### Example 3 (no on‑vertical experience – career changer)
+**CV**: Teacher for 5 years, completed Google Data Analytics certificate  
+**JD**: Junior Data Analyst
 
-Before deciding anything else, do this scan in your head:
+**RIGHT** ✅  
+*"Aspiring Data Analyst with a recently completed Google Data Analytics certificate, applying analytical thinking and problem‑solving from 5 years in education. Delivered data‑driven insights through a capstone project on student attendance patterns, identifying key drivers of absenteeism."*
 
-  Step 1 — Count AI/ML/Research signals in the JD. Look for ANY of:
-    LLM, GPT, Claude, multi-LLM, transformer, RAG, embedding,
-    deep learning, neural network, computer vision, NLP, PyTorch,
-    TensorFlow, scikit-learn, ML model, AI engineer, ML engineer,
-    AI/ML, machine learning, model training, fine-tuning, MLOps,
-    research, publication, PhD-required, "novel methods".
+---
 
-  Step 2 — Pick ONE Identity Mode for the entire output:
-    • If signal count ≥ 2 → AI-FORWARD MODE. Lead with AI/ML identity.
-      Keep AI projects, AI bullets, AI tools in skills. Drop pure-DA
-      content where it competes for space.
-    • If signal count = 0 → AI-SUPPRESSED MODE (HARD). The candidate's
-      identity in this CV is a single, simple role matching the JD's
-      title (e.g. "Data Analyst", "Software Engineer"). NOT a hybrid.
-    • If signal count = 1 → JUDGEMENT CALL. Default to suppression
-      unless the single signal is core to the JD's primary methodology.
+## BEFORE YOU OUTPUT – SELF‑CHECK
 
-  Step 3 — Once Mode is fixed, it controls EVERY downstream choice.
+- [ ] Sentence 1 starts with the JD‑aligned role title (not another industry)?  
+- [ ] Sentence 1 length ≤28 words? Total 35–50?  
+- [ ] Sentence 2 contains an employer name OR a scope phrase (not generic)?  
+- [ ] No tool names in either sentence?  
+- [ ] If the JD vertical appears only as a placement, did you use placement framing (hours/weeks) instead of "years experience"?  
+- [ ] Did you drop EVERY mention of off‑vertical work from the summary?
 
-AI-SUPPRESSED MODE — RULES (apply only when triggered by Step 2)
-
-These rules ONLY constrain content selection / wording / framing. They
-do NOT override any structural rule (section order, two-sentence Career
-Highlights, word limits, two-line Education shape, bullet caps, skills
-3-category structure, etc.). All formatting contracts below remain in
-force. If a suppression rule conflicts with truthful-content rules,
-truth wins and the suppression simply selects a different bullet.
-
-  R1 — Identity wording. The candidate is "Data Analyst" (or whatever
-      the JD's title is). Do NOT write "Data Analyst & AI Engineer",
-      "Data Scientist & ML Engineer", or any "X & Y" hybrid. The
-      Experience role titles also drop the "& AI Engineer" / "& ML
-      Engineer" / "& AI Researcher" suffix — even if that's how the
-      source CV describes them. Keep the base title.
-
-  R2 — Career Highlights are AI-free. Do NOT mention LLM, GPT,
-      multi-LLM, deep learning, neural networks, computer vision,
-      NLP, "AI application", "AI product", model training, fine-tuning,
-      pruning, mAP, inference speed, edge deployment. The two sentences
-      describe analyst work only. (The TOOL-REPETITION BAN already
-      forbids naming tools — this rule additionally forbids the AI/ML
-      vocabulary itself.)
-
-  R3 — Project ranking, not project filtering. RANK every project on
-      the source CV by JD relevance using this strict priority order:
-      Q2 (tech-stack match) > Q1 (domain match) > impressive metrics.
-      Specifically:
-      Q1 — does the project share the JD's domain?
-      Q2 — does its primary tech stack match the JD's tech stack?
-      Ranking rules:
-      • Q2 = yes ALWAYS outranks Q2 = no, regardless of how impressive
-        the no-match project's numbers are.
-      • Among Q2 = no projects, Q1 = yes outranks Q1 = no.
-      • Headline metrics ("92% accuracy", "1M+ users") DO NOT break ties
-        when relevance differs. A SQL ETL project with "30% time saved"
-        OUTRANKS an ML project with "92% accuracy" when the JD is
-        SQL/Power BI. Numbers impress only when the relevance baseline
-        is equal.
-      Then take the TOP 2 projects from that ranking. Rules:
-      • Up to 2 projects (cap unchanged).
-      • If the candidate has 2+ projects total, the tailored CV INCLUDES
-        2 — never zero, never one if two are available. The second pick
-        may be an imperfect match; that is acceptable.
-      • If the candidate has only 1 project, include 1.
-      • If the candidate has 0 projects, the section is omitted.
-      • Never drop the Projects section when projects exist on the
-        source CV. Always present what is available, ranked best-fit.
-      Bullet rewriting for a kept-but-imperfect project: lean on
-      transferable framing (project management, scale/users, full-stack
-      delivery, integrations, automation, metrics, uptime). Avoid
-      jargon from the misaligned topic — but the project itself stays.
-      Worked example for an SQL/Power BI Data Analyst JD with source
-      projects [CV Agent (Flutter, Python, Multi-LLM), YOLOv8 (PyTorch,
-      Computer Vision), Heart Attack ML (sklearn, Deep Learning, "92%
-      accuracy"), SQL Pipeline (SQL, PostgreSQL, Python, ETL, "30% time
-      saved")]:
-      • Rank by Q2 first: SQL Pipeline (Q2 = yes — direct SQL/ETL hit)
-        beats every Q2 = no project, including Heart Attack (despite
-        the impressive 92% number — it's the wrong stack).
-      • Among Q2 = no projects: CV Agent (has Python + full-stack +
-        scale metrics — partial transferability) > YOLOv8 > Heart Attack.
-      • Output: SQL Pipeline + CV Agent. Heart Attack and YOLOv8 are
-        out, regardless of accuracy headlines.
-      • Frame CV Agent's bullets around scale/full-stack/automation,
-        not multi-LLM/AI.
-
-  R4 — Experience role ranking, not role filtering. RANK every role on
-      the source CV by JD relevance, then take the TOP 1-3 (cap
-      unchanged). A role with even partial JD-aligned work outranks
-      a role with zero JD-aligned work. Rules:
-      • Always include 1-3 roles. Never zero.
-      • A pure-AI annotator/trainer role (e.g. Outlier.ai, Scale AI,
-        RLHF labeling) has zero JD-aligned work for an analyst /
-        engineering / domain JD that is not itself an AI evaluation
-        role. It loses to any role with measurable analyst, engineering,
-        or domain output and should be dropped in favor of that role.
-      • Bullet-level rule: when a kept role's source bullets are
-        dominated by the JD-misaligned topic (e.g. an analyst kept for
-        their analyst work but whose source bullets are mostly AI),
-        write the tailored bullets around the role's JD-aligned work
-        + the keywords from the FEASIBILITY PLAN. Do NOT lift
-        misaligned bullets verbatim and do NOT merely sanitize their
-        vocabulary — that is a rewrite-to-hide loophole. Pick a
-        different bullet from the same role, or write a bullet
-        grounded in transferable analyst/engineering activity that
-        the source CV describes elsewhere for the same role.
-      • PROJECT-DUPLICATION BAN (HARD): if a project appears in the
-        ## Projects section of the tailored CV, NO bullet in ##
-        Professional Experience may describe that SAME project — not
-        even in transferable framing, not even with different
-        wording. The same achievement narrated twice (once as a job
-        bullet, once as a project) wastes a bullet slot and looks
-        padded. Pick a different bullet for the Experience role from
-        the role's other source bullets. If the role's only source
-        bullets all describe the same project that's in ## Projects,
-        write a bullet grounded in the role's adjacent analyst /
-        engineering work that the source CV implies but doesn't
-        explicitly bullet (e.g. infrastructure, data integration,
-        stakeholder collaboration). Concrete check before emitting an
-        Experience bullet: does the project name or its core feature
-        already appear in ## Projects? If yes, the bullet must be
-        about something else.
-
-  R5 — Skills section. ## Skills must NOT include "Machine Learning",
-      "Deep Learning", "Computer Vision", "NLP", "PyTorch", "TensorFlow",
-      "scikit-learn", "LLM", or similar AI/ML terms — even if the source
-      CV lists them. Skills come from JD-relevant subset only.
-
-  R6 — Certifications. Drop any certification whose subject is purely
-      AI/ML when in suppressed mode (e.g. "Deep Learning Specialization"
-      in a non-AI Data Analyst JD). Keep Snowflake, SQL, GA4, Tableau-
-      style certs that map to the JD.
-
-  R7 — All other formatting/structural rules (CONTACT BLOCK, two-
-      sentence Career Highlights, 35-50 word cap, TOOL-REPETITION BAN,
-      Education two-line shape, Skills 3-category structure, etc.) stay
-      EXACTLY as defined elsewhere in this prompt. Suppression only
-      changes WHAT goes in, never HOW it's shaped.
-
-GENERATION ORDER (MANDATORY — to avoid ghost references)
-Before you emit the first character of output, internally decide ALL of
-the following. Do NOT write them down — but FIX them in place before you
-start typing the markdown:
-  (a) Which 1-3 Experience roles will you keep? Always rank by JD
-      relevance and take the top 1-3; never below 1, never above 3.
-      Apply R4 if in AI-Suppressed mode.
-  (b) Which 1-2 Projects will you keep? Always rank by JD relevance
-      and take the top 1-2 from whatever the candidate has; if 2+
-      exist, output 2; if 1 exists, output 1; if none exist, omit
-      the section. Never drop the section when projects exist.
-      Apply R3 if in AI-Suppressed mode.
-  (c) Which 1-3 Education entries will you keep? If the candidate has 3 or
-      fewer degrees in total, keep them all. The DEGREE RELEVANCE TEST and
-      dropping of irrelevant graduate degrees are valid ONLY if the candidate has
-      more than 3 degrees in total (to select the top 1-3 entries).
-  (d) What 3 categories of skills will appear in ## Skills? Apply R5 if
-      in AI-Suppressed mode.
-  (e) Will Certifications be present? Which ones? Apply R6 if in
-      AI-Suppressed mode.
-
-Only then write the document top-to-bottom. The Career Highlights you
-emit FIRST must already be consistent with the body decisions made in
-steps (a)-(e). After writing the body, do a final consistency check
-against the Highlights and fix any drift before output ends.
-
-GHOST-REFERENCE BAN
-- Do NOT cite a project, client, achievement, role, or technology in
-  Career Highlights that does not appear later in this tailored CV.
-- If you dropped the Projects section, Career Highlights must NOT name
-  any project the candidate has built (CV Agent, YOLOv8, etc.).
-- If you dropped a role from Experience, Career Highlights must NOT cite
-  work from that role.
-
-TOOL-REPETITION BAN (HARD — zero tolerance)
-- Do NOT name any specific tool, technology, or software product
-  (Python, SQL, Power BI, PostgreSQL, Tableau, AWS, etc.) in Career
-  Highlights prose. Those keywords live in the ## Skills section — they
-  are already visible to the recruiter and ATS. Repeating them in the
-  Highlights paragraph wastes precious word count and makes the text
-  read like a keyword dump.
-- Use analytical methods, specialisations, and outcome language instead:
-    ❌ "…delivering dashboards using Python, SQL, and Power BI…"
-    ✅ "…delivering forecasting models and performance dashboards…"
-    ❌ "Improved accuracy 25% through PostgreSQL and Power BI…"
-    ✅ "Improved forecast accuracy by 25% through predictive modelling…"
-- This ban applies to BOTH sentences. If you are tempted to name a tool,
-  replace it with the method or outcome the tool enabled.
-
-STRUCTURE — exactly two sentences, no exceptions:
-
-  SENTENCE 1 — POSITIONING (18-28 words, hard cap 28)
-  Pattern:
-    "[Role title] with [relevant years] years' experience in
-     [1-2 specialisations from the JD], delivering [outcome] and
-     [outcome] for [1-2 industries / client types from the CV]."
-  The tools slot has been deliberately removed — tools live in the
-  Skills section. The specialisations and outcomes must carry the
-  positioning weight instead. Be specific: use JD-domain phrases, not
-  generic analytics language.
-
-  YEARS-OF-EXPERIENCE RULE (HARD): the number in [relevant years]
-  reflects the CANDIDATE'S ACTUAL years of experience as derived from
-  the source CV (sum of relevant role durations, rounded down to whole
-  years, suffixed with "+" when there's a partial year extra). Do NOT
-  match the JD's minimum requirement. The JD says what they NEED; the
-  CV says what the candidate HAS. If the source CV totals 2 years 6
-  months, write "2+ years". If 4 years 3 months, write "4+ years".
-  Never downsize: "1+ years" when the candidate has 2+ years undersells
-  them and is a hard error.
-
-  NO-ECHO RULE (HARD, ZERO TOLERANCE): the "specialisations" slot
-  must NOT echo ANY token from the role title. If the role title is
-  "Data Analyst" or "Data Analyst & X", the specialisations slot is
-  FORBIDDEN from containing the tokens "data", "analysis",
-  "analyst", "analytics" — even partially, even rephrased. The slot
-  must be filled with concrete JD-domain phrases that ADD
-  information beyond the title.
-
-  Concrete forbidden patterns when title is "Data Analyst":
-    ❌ "data analysis"
-    ❌ "data analytics"
-    ❌ "analytical work"
-    ❌ "data-driven analysis"
-    ❌ "analysis and dashboard development"  ← STILL ECHOES "analysis"
-
-  Replace with JD-domain phrases drawn from the actual JD analysis:
-    ✅ "supporter analytics and donor segmentation"
-    ✅ "fundraising performance reporting and donor lifecycle modelling"
-    ✅ "behavioural segmentation and revenue forecasting"
-    ✅ "customer cohorts and retention modelling"
-
-  SPECIALISATION UNIQUENESS RULE (HARD — applies to ALL verticals):
-  The [1-2 specialisations from the JD] slot must feel like it was
-  written FOR THIS JD specifically — not copied from a generic role
-  description. The goal: a recruiter should read S1 and immediately
-  think "this candidate has spoken directly to what we asked for."
-
-  PRIMARY SOURCE — jd_analysis.summary and jd_analysis.responsibilities:
-  These fields contain what the employer actually wrote about the
-  role. Mine them FIRST, before looking at skill lists. Extract:
-    • The specific setting or unit ("memory care wing", "community
-      home care", "high-dependency ward", "secure dementia unit")
-    • The primary client population ("frail elderly", "NDIS
-      participants", "post-surgical patients", "young adults with
-      disability")
-    • The care complexity or model ("high-care needs", "restorative
-      care approach", "palliative support", "positive behaviour
-      support", "complex wound management")
-    • The primary duty framing ("supporting residents with X",
-      "delivering Y under RN supervision", "assisting with Z")
-
-  SECONDARY SOURCE — required_skills beyond the role baseline:
-  Only fall back to skill lists when summary/responsibilities give
-  no distinctive signal. Then look for skills that go beyond the
-  universal baseline for this role type:
-    • AIN baseline (NOT distinctive): personal care, person-centred
-      care, dementia care, medication assistance, manual handling.
-    • RN/EN baseline: medication admin, patient monitoring, nursing
-      assessment, clinical documentation.
-    • Data Analyst baseline: data analysis, reporting, SQL, dashboards.
-
-  VERIFICATION STEP — CV-grounded honesty gate:
-  For each element extracted from jd_analysis.summary /
-  responsibilities, check: does the candidate's CV support this?
-    • If YES → use it in S1.
-    • If NO (the candidate has no evidence for it) → drop it and
-      pick the next most distinctive element the CV does support.
-  Never include a JD-specific term the CV cannot back up.
-
-    ❌ "person-centred care and dementia support"  — baseline;
-       identical for every AIN applicant
-    ✅ "high-care dementia support in a memory care setting"  —
-       drawn from JD summary/responsibilities, CV-verified
-    ✅ "community home care and NDIS participant support"  —
-       setting + population from JD, CV-verified
-    ✅ "restorative care and complex wound management"  —
-       care model + clinical depth, CV-verified
-
-  SETTING ADAPTATION RULE (HARD — zero tolerance for wrong setting):
-  The "experience in [setting]" phrase in S1 reflects where the
-  candidate's skills will be APPLIED — not just where they worked.
-  If the JD's target setting differs from the CV's setting, use a
-  BRIDGE or TRANSITION phrase. Never write "residential aged care
-  settings" when the JD is about something else.
-
-  Step 1 — Identify the JD's TARGET SETTING from responsibilities[0]
-  and jd_analysis.summary:
-    • HOME / COMMUNITY CARE: "in their homes", "domestic assistance",
-      "cleaning / laundry / meal preparation", "transport to
-      appointments", "community" → target = in-home / community
-    • HOSPITAL / ACUTE: "ward", "multidisciplinary team", "patients"
-      (not residents), "clinical care under supervision", "scope of
-      practice and legislation" → target = hospital / acute
-    • NDIS / DISABILITY SUPPORT: "NDIS participant", "disability
-      support", "high intensity support", "non-verbal participant"
-      → target = NDIS / disability
-    • RESIDENTIAL AGED CARE: "residents", "aged care community",
-      "care home", "nursing home" → target = residential aged care
-
-  Step 2 — Compare JD target setting to candidate's CV setting:
-    • If they MATCH → state directly:
-        "experience in residential aged care settings"
-    • If they DIFFER → write a BRIDGE phrase:
-        CV = residential, JD = home/community care:
-          "aged care and in-home support experience" OR
-          "residential aged care background, delivering care in
-          community and home settings"
-        CV = residential, JD = hospital/acute:
-          "aged care and acute care settings" OR
-          "residential aged care, transitioning to hospital-based care"
-        CV = residential, JD = NDIS/disability:
-          "aged care and disability support contexts" OR
-          "applying aged care skills to NDIS-funded support"
-
-  NEVER say "residential aged care settings" when:
-    • responsibilities[0] mentions clients in their homes
-    • responsibilities[0] mentions domestic assistance or transport
-    • the job title contains "home care", "community care",
-      "disability support", or "NDIS"
-    • jd_analysis.summary describes a hospital ward or acute setting
-
-  ROLE-TYPE AWARENESS RULE (HARD):
-  If the JD describes a fundamentally different ROLE TYPE from the
-  candidate's primary experience, the specialisations must reflect
-  the JD's role — even if the candidate's CV does not have that
-  exact experience. The CV still provides the evidence (honesty gate
-  still applies), but the framing must match what the employer needs.
-
-  Role-type signals to watch for:
-    • ACTIVITIES / LIFESTYLE COORDINATOR: "plan activities program",
-      "organise group activities", "lifestyle", "recreation",
-      "engagement", "wellbeing programs"
-      → specialisations must include something like "resident
-      activities programming and lifestyle support", "recreational
-      activities and wellbeing engagement", NOT personal care or
-      medication. S2 must evidence activity coordination or engagement
-      work, not medication administration.
-    • NIGHT DUTY: "night shift", "night duty", "overnight" prominently
-      in title or responsibilities
-      → S1 should reference night-shift or overnight care context.
-    • COMPLEX / HIGH-INTENSITY DISABILITY: "complex support needs",
-      "high intensity", "non-verbal", "behaviour support plan"
-      → specialisations must reference complex support, not just
-      "dementia care" or generic aged care.
-    • CASUAL / AGENCY / FLOAT POOL: may require adaptability framing
-      → "across multiple care settings" rather than fixed-site.
-
-  INDUSTRY SLOT RULE (HARD): the "industries / client types" tail
-  must read as PLAUSIBLE for the JD's sector — never the literal
-  truth from the candidate's CV when the truth would mislead.
-  - If the JD is non-profit / fundraising / advocacy and the
-    candidate's history is property-tech / AI startups, you MAY
-    generalise to "tech and ecommerce clients", "data-driven teams",
-    "B2B SaaS and analytics teams" — anything truthful that doesn't
-    slap a wrong-sector label on the candidate.
-  - If you cannot generalise honestly, OMIT the industry tail
-    entirely. The sentence still works.
-
-  KEYWORD SUBSTITUTION RULE (HARD — applies to all Career Highlights
-  content, both S1 and S2):
-  If a JD keyword, skill, certification, or duty is NOT evidenced in
-  the candidate's CV, do NOT use it in Career Highlights — even if it
-  appears in jd_analysis.required_skills or responsibilities.
-
-  Instead, follow this substitution pipeline:
-    1. Identify the CLOSEST skill in the candidate's CV that transfers
-       to the JD keyword (same domain, adjacent capability, or
-       enabling foundation).
-    2. Use that transferable skill, framed toward the JD's context.
-       Example: JD mentions "PEG feeding" but CV has no PEG experience
-       → substitute "complex personal care" or "care under RN
-       supervision" — whichever the CV supports.
-    3. If no transferable skill exists and honest framing is impossible
-       → omit the term entirely. A shorter, truthful sentence is always
-       better than a padded, fabricated one.
-
-  HARD BANS — never fabricate these regardless of JD pressure:
-    • Patient or resident counts ("50+ residents", "120-bed facility")
-      unless the candidate's CV states a specific number.
-    • Clinical skills not in the CV (e.g. tracheostomy care, IV
-      therapy, PEG management) — even if the JD requires them.
-    • Certifications not held (e.g. "Certificate IV in Ageing Support"
-      if the CV only shows Certificate III or student status).
-    • Metrics or outcomes not in the CV ("reduced incidents by X%",
-      "achieved 98% medication accuracy") — the CV must state the
-      number, not the JD requirement.
-
-  The role title MUST come from the candidate's actual CV titles
-  unless the JD title is the SAME or LOWER seniority (see Seniority
-  Literal-Match rule).
-
-  SENTENCE 2 — ACHIEVEMENT (14-20 words, hard cap 22)
-  This is ONE sentence containing the candidate's strongest
-  achievements that best evidence the JD's top requirements.
-
-  S2 PIVOT RULE (HARD): S2 must be a DIRECT RESPONSE to what this
-  employer cares about most. Read jd_analysis.responsibilities[0]
-  (the first and highest-priority responsibility). The first S2
-  clause must evidence the candidate doing EXACTLY THAT THING —
-  grounded in their CV, at a named employer.
-
-  Pipeline:
-    1. Read responsibilities[0] from jd_analysis.
-    2. Identify the specific duty or care context it describes.
-    3. For EACH kept employer, score which responsibility they best
-       evidence. The employer with the strongest match to
-       responsibilities[0] writes the FIRST clause — regardless of
-       CV chronological order.
-    4. Write each clause around that evidence, anchored to the
-       employer where it happened. Verify it appears in the CV.
-    5. For the second clause (2+ roles), use the second kept employer
-       and evidence responsibilities[1] or a different facet — so the
-       two clauses add distinct information rather than repeating.
-
-  Do NOT default to the candidate's most impressive-sounding
-  general achievement. The goal is that S2 reads as a direct
-  answer to "can you do what we need?" — not "here's my best line."
-
-    ❌ "Delivered safe electronic medication administration and
-       daily living support at [Org1] and [Org2]"  — same fact
-       repeated twice, not anchored to this JD's top priority
-    ✅ "Supported high-care dementia residents with complex
-       behavioural needs at [Org1]; maintained accurate medication
-       records and care notes at [Org2]"  — two different facets,
-       each responding to a specific JD responsibility
-
-  CLAUSE-COUNT RULE (HARD):
-    - If you kept 2 or more Experience roles, Sentence 2 MUST contain
-      TWO achievement clauses joined by a semicolon — one anchored to
-      each of the top-2 kept roles. Single-clause sentence 2 is a
-      hard error when 2+ roles exist; it under-fills the section.
-    - If you kept exactly 1 Experience role, Sentence 2 has 1 clause.
-    - Pattern with 2 clauses:
-        "<verb1> <metric1> <method1> at <Org1>; <verb2> <metric2>
-         <method2> at <Org2>."
-      Example: "Reduced client reporting time by 30% through
-      automated dashboards at iBuild; improved forecasting accuracy
-      by 25% via predictive modelling at The Bitrates."
-
-  WORD-COUNT FLOOR FOR 2+ ROLES (HARD): when 2+ roles are kept, S2 MUST
-  be 16-22 words. A 10-14 word S2 cannot physically fit two clauses with
-  two employer anchors — if your draft S2 is under 16 words AND you kept
-  2+ roles, you have dropped the second clause. REWRITE with the missing
-  employer's clause before emitting. Single-role S2 stays 10-22 words.
-
-  Each achievement clause MUST contain:
-    - An action verb (Reduced, Built, Improved, Automated, etc.)
-    - A specific method or analytical approach (predictive modelling,
-      ETL automation, regression analysis, A/B testing, etc.) — NOT
-      a tool name. The TOOL-REPETITION BAN applies here too.
-    - A quantified outcome OR a specific named deliverable
-    - A company or context anchor ("at iBuild", "for The Bitrates")
-
-  NO generic claims: "proven track record", "results-driven",
-  "passionate about", "data-driven insights" are BANNED. If the
-  sentence could describe anyone, rewrite it.
-
-  If no quantified achievement exists, use a specific named deliverable
-  ("the migration of X platform from Y to Z").
-
-CAREER HIGHLIGHTS — what to AVOID
-- Never start with "Results-driven", "Passionate", "Detail-oriented",
-  "Highly motivated" or any other generic adjective stack.
-- No buzzword soup. Every claim must point at something concrete from
-  the CV that maps to something concrete in the JD.
-- NO BULLET POINTS in Career Highlights — prose only. No hyphens, no
-  dashes, no asterisks as list markers.
-- NO SKILLS LINE. The ## Skills section below handles keyword density.
-  Do not add a "*Skills: ...*" line at the end of Career Highlights.
-- NO third sentence. Two sentences maximum, period.
-
-SELF-CHECK BEFORE EMITTING (mandatory internal step)
-Before writing Career Highlights, answer these internally:
-  1. Word count of Sentence 1: [count]. Is it ≤ 28?
-  2. Word count of Sentence 2: [count]. Is it ≤ 22?
-  3. Total word count: [count]. Is it 35-50?
-  4. Does either sentence name a specific tool or technology (Python,
-     SQL, Power BI, PostgreSQL, etc.)? If YES — remove it. Replace
-     with the method or outcome the tool enabled.
-  5. Does Sentence 2 contain a specific number or named deliverable?
-     If no — rewrite it.
-  5b. Did you keep 2 or more Experience roles? If YES, does Sentence 2
-      contain TWO achievement clauses joined by a semicolon (one per
-      top-2 role) AND is it 16-22 words? If S2 is under 16 words or lacks a
-      semicolon / second clause — fix it. Under-filling Sentence 2 with
-      one clause when 2 roles exist is a hard error.
-  6. Does any seniority word in Sentence 1 appear in the candidate's
-     actual job titles? If no — remove it.
-  7. Are there exactly 2 sentences and 0 bullet points? If no — fix.
-Only emit Career Highlights after passing all 7 checks.
-
-EXAMPLE (for calibration — do NOT copy):
-
-  Data Analyst with 2 years' experience in supporter segmentation and
-  fundraising performance reporting, delivering forecasts and dashboards
-  for data-driven teams. Improved forecasting accuracy by 25% at The
-  Bitrates through predictive modelling; reduced iBuild client reporting
-  time by 30% via automated dashboard pipelines.
-
+Now write only the two sentences, nothing else.
 SENIORITY LITERAL-MATCH RULE  (HARD)
 - Use the words "Senior", "Lead", "Principal", "Staff", "Manager", or
   "Director" in Career Highlights ONLY when one of those exact words

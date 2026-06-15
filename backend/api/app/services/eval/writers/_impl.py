@@ -55,12 +55,8 @@ from app.services.eval.enforce import enforce_skills_section, reroute_skills_by_
 from app.services.eval.enforce_w3 import (
     apply_w3_gates,
     restrict_domain_to_direct,
-    enforce_summary_identity,
-    enforce_summary_vertical_alignment,
-    enforce_summary_breadth_consistency,
-    enforce_summary_dedup,
-    enforce_summary_title_dedup,
     enforce_summary_skills_dedup,
+    strip_off_vertical_preamble,
 )
 from app.services.eval.enforce_w8 import to_canonical, restore_and_order, ensure_bachelor
 from app.services.eval.verify import verify_claims
@@ -1206,24 +1202,9 @@ async def _writer_w8_verified(
         client, cv_text, jd_text, contact_details, vertical=vertical, upstream=upstream,
     )
     verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
-    # Re-assert the field-agnostic lead-identity trim as the LAST word:
-    # verify_claims' summary repair can honestly (CV-true) re-introduce an
-    # off-axis conjoined identity the integrated gate already trimmed. Anchored
-    # on the JD title, deterministic, touches only the summary's lead role.
-    verified_md = enforce_summary_vertical_alignment(
-        verified_md, result.jd_analysis, vertical,
-    )
-    verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
-    # Summary title slot — strip a conjoined synonymous role from S1
-    # ("Assistant in Nursing and Care Worker" → "Assistant in Nursing").
-    # Only fires when both titles belong to the same curated synonym cluster.
-    verified_md = enforce_summary_title_dedup(verified_md)
-    # Summary breadth/single-employer consistency — when S1 frames breadth
-    # ("multiple settings"), strip a cherry-picked single employer from S2.
-    verified_md = enforce_summary_breadth_consistency(verified_md)
-    # Summary S1↔S2 de-duplication — drop any S2 clause that merely restates S1
-    # (a near-repeat that just re-lists the Skills section as prose).
-    verified_md = enforce_summary_dedup(verified_md)
+    _vert = vertical or result.jd_analysis.get("vertical")
+    if _vert:
+        verified_md = strip_off_vertical_preamble(verified_md, _vert)
     # Summary-vs-Skills de-duplication — drop any S2 clause where every content
     # word already appears in the ## Skills section (the clause is prose-form
     # skill re-list). Always keeps at least one S2 clause.
@@ -1431,19 +1412,12 @@ async def _writer_w8_critique(
 
     # 4. Final honesty gate: per-claim entailment on the (possibly) revised CV.
     verified_md, vreport = await verify_claims(client, revised, cv_text)
-    # Re-assert the field-agnostic lead-identity trim as the LAST word — same
-    # rationale as w8_verified: verify's summary repair can re-add an off-axis
-    # conjoined identity that's CV-true but not the JD's role.
-    verified_md = enforce_summary_vertical_alignment(
-        verified_md, result.jd_analysis, vertical,
-    )
-    verified_md = enforce_summary_identity(verified_md, result.jd_analysis)
-    # Summary consistency parity with w8_verified: title-slot synonym trim, then
-    # align S1/S2 (breadth), then drop any S2 clause that merely restates S1
-    # or merely re-lists the Skills section as prose.
-    verified_md = enforce_summary_title_dedup(verified_md)
-    verified_md = enforce_summary_breadth_consistency(verified_md)
-    verified_md = enforce_summary_dedup(verified_md)
+    _vert = vertical or result.jd_analysis.get("vertical")
+    if _vert:
+        verified_md = strip_off_vertical_preamble(verified_md, _vert)
+    # Summary consistency parity with w8_verified: drop any S2 clause where every
+    # content word already appears in the ## Skills section. Always keeps at least
+    # one S2 clause.
     verified_md = enforce_summary_skills_dedup(verified_md)
     # Re-run the awards/section normalisers — verify_claims can rewrite the
     # Awards/Certifications section back to a messy shape; these deterministic

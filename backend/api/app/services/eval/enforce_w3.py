@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,7 @@ def jd_has_ai_signal(jd_text: str, threshold: int = 2) -> bool:
 
 
 # AI/ML tokens that, when present in the JD's OWN role title, mean the target
-# role really is AI-forward — so the candidate's AI identity should lead. A
-# plain title ("Data Analyst") must NOT keep an "& AI Engineer" tag even when
-# the JD body name-drops ML, which is exactly what the body-only signal gate got
-# wrong (a Data-Analyst JD mentioning "machine learning"/"data scientist" twice
-# disabled all suppression, leaking the AI identity into the summary).
+# role really is AI-forward — so the candidate's AI identity should lead.
 _AI_TITLE_TOKENS = (
     "ai", "ml", "a.i.", "artificial intelligence", "machine learning",
     "deep learning", "data scientist", "research scientist", "ml engineer",
@@ -169,19 +165,7 @@ def _drop_ai_projects(md: str) -> str:
 def suppress_ai_identity(
     md: str, jd_text: str, jd_analysis: Dict[str, Any] | None = None,
 ) -> str:
-    """Suppress the candidate's AI identity unless the JD is genuinely AI-forward.
-
-    Two independent decisions, because they carry different risk:
-
-    • Title-suffix strip ("& AI Engineer") — purely an identity tag, very low
-      risk to remove. Driven by the JD's OWN role title: a plainly-titled role
-      (e.g. "Data Analyst") should never carry an AI-engineer identity, even if
-      the JD body mentions ML. Only kept when the TITLE itself is AI/ML.
-
-    • Skill / project drops — aggressive (they remove real CV content), so they
-      stay gated on the broader body signal AND a non-AI title: don't nuke ML
-      skills/projects a partly-AI JD might genuinely value.
-    """
+    """Suppress the candidate's AI identity unless the JD is genuinely AI-forward."""
     title_is_ai = jd_title_is_ai(jd_analysis)
     if not title_is_ai:
         md = _strip_title_ai_suffix(md)
@@ -191,302 +175,11 @@ def suppress_ai_identity(
     return md
 
 
-# ---------------------------------------------------------------------------
-# Summary lead-identity trim (field-agnostic) — the general replacement for the
-# AI-only title-suffix strip. When the summary opens with a COMPOUND identity
-# ("Data Analyst and AI Engineer with ..."), keep the conjunct(s) that match the
-# JD's OWN job title and drop the off-axis one(s) — for ANY profession, ANY
-# field (Project Coordinator & Software Developer, Registered Nurse & Data
-# Analyst, etc.). Anchored on the JD title, so an AI-titled JD keeps "AI
-# Engineer" automatically. Deterministic, adds nothing, and conservative: it
-# acts only on a clear compound of full role titles.
-# ---------------------------------------------------------------------------
-
-# General profession head-nouns: the LAST word of a role title. Used only to
-# decide whether a conjoined lead is two SEPARATE roles (trimmable) vs one
-# multi-word role ("Data and Business Analyst" — not separable). Field-agnostic.
-_ROLE_HEAD_NOUNS: Set[str] = {
-    "engineer", "analyst", "manager", "developer", "scientist", "consultant",
-    "specialist", "coordinator", "designer", "architect", "administrator",
-    "officer", "worker", "assistant", "lead", "director", "accountant",
-    "technician", "nurse", "teacher", "programmer", "strategist", "planner",
-    "supervisor", "operator", "clerk", "advisor", "adviser", "representative",
-    "agent", "executive", "researcher", "evaluator", "trainer", "professional",
-    "practitioner", "associate", "intern", "writer", "editor", "marketer",
-    "recruiter", "auditor", "controller", "buyer", "estimator", "technologist",
-}
-
-_IDENTITY_STOPWORDS: Set[str] = {
-    "and", "of", "the", "a", "an", "with", "in", "for", "to", "at", "&",
-}
-_LEAD_SPLIT_RE = re.compile(r"\s+and\s+|,\s*", re.IGNORECASE)
-
-
-def _meaningful_tokens(text: str) -> Set[str]:
-    toks = re.findall(r"[a-z0-9]+", (text or "").lower())
-    return {t for t in toks if t not in _IDENTITY_STOPWORDS and len(t) >= 2}
-
-
-def _ends_in_role_noun(phrase: str) -> bool:
-    words = re.findall(r"[a-z0-9]+", phrase.lower())
-    return bool(words) and words[-1] in _ROLE_HEAD_NOUNS
-
-
-# ---------------------------------------------------------------------------
-# S1 vertical-alignment guard — trim off-vertical student/credential openers.
-#
-# The composer sometimes leads S1 with "International student currently
-# pursuing a Master of Professional Accounting with …" when the JD vertical
-# is nursing. The actual on-vertical content ("Certificate IV in Ageing
-# Support", placement details) follows AFTER the off-vertical preamble.
-# This guard detects the pattern and trims the preamble so the in-vertical
-# content leads. It never invents prose — only removes the off-axis prefix.
-# ---------------------------------------------------------------------------
-
 _AU_UNIT_CODE_INLINE_RE = re.compile(
     r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)"
     r"[A-Z0-9]{2,6}\b",
     re.IGNORECASE,
 )
-
-
-def _strip_unit_codes(text: str) -> str:
-    """Remove Australian VET unit codes (CHC43015, HLTHPS007, etc.) from prose.
-    These belong in a credentials line, not in a summary sentence."""
-    # Strip "(CODE)" form first, then bare CODE.
-    out = re.sub(r"\s*\(" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\)", "", text, flags=re.IGNORECASE)
-    out = re.sub(_AU_UNIT_CODE_INLINE_RE.pattern + r"\s*", "", out, flags=re.IGNORECASE)
-    return re.sub(r"\s{2,}", " ", out).strip()
-
-
-_STUDENT_CRED_LEAD_RE = re.compile(
-    r"^(?:international\s+|domestic\s+)?"
-    r"(?:"
-    r"student\s+(?:currently\s+)?(?:pursuing|completing|undertaking|studying)"
-    r"|recent(?:ly)?\s+graduate[ds]?\b"
-    r"|graduate\s+(?:currently\s+)?(?:pursuing|completing)"
-    r"|(?:mba|mpa|msc|bba|bcom)\s+(?:candidate|student|graduate)"
-    r"|visa\s+holder\s+(?:currently\s+)?(?:pursuing|studying)"
-    r")"
-    r"\s+.*?\b(?:with\s+(?:a\s+)?|holding\s+(?:a\s+)?|who\s+(?:also\s+)?holds?\s+(?:a\s+)?)",
-    re.IGNORECASE,
-)
-
-_STUDENT_SIMPLE_LEAD_RE = re.compile(
-    r"^(?:international\s+|domestic\s+)?"
-    r"(?:"
-    r"student\s+(?:currently\s+)?(?:pursuing|completing|undertaking|studying)"
-    r"|recent(?:ly)?\s+graduate[ds]?\b"
-    r"|graduate\s+(?:currently\s+)?(?:pursuing|completing)"
-    r")"
-    r"\s+(?:a\s+|an\s+)?(?:master(?:'?s)?\s+(?:of|in)\s+|bachelor(?:'?s)?\s+(?:of|in)\s+|"
-    r"mba|mpa|msc|bba|bcom).*?(?:\.\s*|,\s*)",
-    re.IGNORECASE,
-)
-
-
-def enforce_summary_vertical_alignment(
-    md: str,
-    jd_analysis: Dict[str, Any] | None,
-    vertical: str | None,
-) -> str:
-    """Trim off-vertical student/credential preamble from S1 so the in-vertical
-    content leads the summary. No-op when vertical is None, S1 doesn't match,
-    or the credential IS JD-relevant (vocab overlap)."""
-    if not vertical or not jd_analysis:
-        return md
-
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    pidx = next(
-        (
-            i
-            for i in range(start + 1, end)
-            if lines[i].strip()
-            and lines[i].strip()[:2] not in ("- ", "* ")
-            and not lines[i].strip().startswith("•")
-        ),
-        None,
-    )
-    if pidx is None:
-        return md
-
-    line = lines[pidx]
-    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(line) if s.strip()]
-    if not sentences:
-        return md
-    s1 = sentences[0]
-
-    vocab = _jd_vocab(jd_analysis)
-    s2_changed = False
-
-    # ── S2 off-vertical role-type scrub (runs first so all S1 patterns
-    #    compose with the cleaned S2) ─────────────────────────────────────
-    # The AI sometimes writes "from both care and accounting roles" when
-    # the candidate has mixed-vertical experience. Strip the off-vertical
-    # role-type reference.
-    _OFF_ROLE_TYPES = re.compile(
-        r"\b(?:accounting|finance|financial|administrative|clerical|"
-        r"retail|hospitality|engineering|marketing|legal|teaching)\b",
-        re.IGNORECASE,
-    )
-    if len(sentences) >= 2:
-        s2 = sentences[1]
-        off_matches = list(_OFF_ROLE_TYPES.finditer(s2))
-        if off_matches:
-            off_words = {m.group(0).lower() for m in off_matches}
-            if not (off_words & vocab):
-                cleaned = s2
-                cleaned = re.sub(
-                    r"\bboth\s+(\w+)\s+and\s+" + _OFF_ROLE_TYPES.pattern
-                    + r"\s+(roles?|backgrounds?|experience)",
-                    r"\1 \2", cleaned, flags=re.IGNORECASE,
-                )
-                cleaned = re.sub(
-                    r"\band\s+" + _OFF_ROLE_TYPES.pattern
-                    + r"\s+(roles?|backgrounds?|experience)",
-                    r" \1", cleaned, flags=re.IGNORECASE,
-                )
-                cleaned = re.sub(
-                    _OFF_ROLE_TYPES.pattern + r"\s+and\s+",
-                    "", cleaned, flags=re.IGNORECASE,
-                )
-                cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
-                if cleaned != s2:
-                    logger.info(
-                        "enforce_summary_vertical_alignment: scrubbed off-vertical "
-                        "role-type from S2: '%s' → '%s'",
-                        s2[:60], cleaned[:60],
-                    )
-                    sentences[1] = cleaned
-                    s2_changed = True
-
-    # Helper: commit current sentences to lines and return.
-    def _commit() -> str:
-        lines[pidx] = " ".join(sentences)
-        return "\n".join(lines)
-
-    # ── Pattern 1: "student pursuing X with Y" — trim preamble, keep Y. ──
-    m = _STUDENT_CRED_LEAD_RE.match(s1)
-    if m:
-        preamble = s1[: m.end()]
-        remainder = s1[m.end() :].strip()
-        preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
-        if preamble_toks & vocab:
-            return _commit() if s2_changed else md
-
-        if remainder:
-            remainder = _strip_unit_codes(remainder)
-            remainder = remainder[0].upper() + remainder[1:]
-            if not remainder.endswith("."):
-                remainder += "."
-            sentences[0] = remainder
-            logger.info(
-                "enforce_summary_vertical_alignment: trimmed off-vertical S1 "
-                "preamble '%s' → lead is now '%s'",
-                preamble.strip(), remainder[:80],
-            )
-            return _commit()
-
-    # ── Pattern 2: "student pursuing X. <rest>" — drop the sentence. ─────
-    m2 = _STUDENT_SIMPLE_LEAD_RE.match(s1)
-    if m2 and len(sentences) > 1:
-        preamble = s1[: m2.end()]
-        preamble_toks = set(re.findall(r"[a-z0-9]{4,}", preamble.lower()))
-        if not (preamble_toks & vocab):
-            sentences = sentences[1:]
-            logger.info(
-                "enforce_summary_vertical_alignment: dropped off-vertical S1 "
-                "'%s' — S2 promoted to lead.",
-                s1[:80],
-            )
-            return _commit()
-
-    # ── Pattern 3: bare "International/domestic student with …" ──────────
-    m3 = re.match(
-        r"^((?:international|domestic)\s+student)\s+with\s+",
-        s1,
-        re.IGNORECASE,
-    )
-    if m3:
-        label = m3.group(1)
-        label_toks = set(re.findall(r"[a-z0-9]{4,}", label.lower()))
-        if not (label_toks & vocab):
-            remainder = s1[m3.end():].strip()
-            if remainder:
-                remainder = _strip_unit_codes(remainder)
-                remainder = remainder[0].upper() + remainder[1:]
-                if not remainder.endswith("."):
-                    remainder += "."
-                sentences[0] = remainder
-                logger.info(
-                    "enforce_summary_vertical_alignment: stripped bare student "
-                    "label '%s' from S1 → '%s'",
-                    label, remainder[:80],
-                )
-                return _commit()
-
-    return _commit() if s2_changed else md
-
-
-def enforce_summary_identity(md: str, jd_analysis: Dict[str, Any] | None) -> str:
-    """Trim the summary's LEAD identity to the role(s) matching the JD title."""
-    title_toks = _meaningful_tokens(str((jd_analysis or {}).get("job_title") or ""))
-    if not title_toks:
-        return md
-
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    pidx = next(
-        (
-            i
-            for i in range(start + 1, end)
-            if lines[i].strip()
-            and lines[i].strip()[:2] not in ("- ", "* ")
-            and not lines[i].strip().startswith("•")
-        ),
-        None,
-    )
-    if pidx is None:
-        return md
-
-    line = lines[pidx]
-    m = re.search(r"\bwith\b", line, re.IGNORECASE)
-    if not m:
-        return md  # no "<role> with ..." anchor — leave it
-    head, tail = line[: m.start()].rstrip(), line[m.start():]
-    if len(head) > 70:
-        return md  # too long to be a bare identity
-
-    parts = [p.strip() for p in _LEAD_SPLIT_RE.split(head) if p.strip()]
-    if len(parts) < 2:
-        return md  # not a compound identity
-    if not all(_ends_in_role_noun(p) for p in parts):
-        return md  # e.g. "Data and Business Analyst" — single role, don't split
-
-    scored = [(len(_meaningful_tokens(p) & title_toks), p) for p in parts]
-    best = max(s for s, _ in scored)
-    kept = [p for s, p in scored if s >= 1] or [p for s, p in scored if s == best][:1]
-    if len(kept) == len(parts):
-        return md  # every conjunct is on-axis — nothing to trim
-
-    lines[pidx] = f"{' and '.join(kept)} {tail}"
-    return "\n".join(lines)
-
 
 # ---------------------------------------------------------------------------
 # Two-sentence Highlights clamp
@@ -524,256 +217,8 @@ def clamp_two_sentences(md: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Summary breadth/single-employer consistency
-# ---------------------------------------------------------------------------
-# When S1 frames the candidate's experience as breadth — "across multiple
-# residential aged care settings", "several facilities", etc. — naming ONE
-# specific employer in S2 ("at Jesmond Miranda Nursing Home") is a hard
-# contradiction. The prompt forbids it, but the AI doesn't always comply.
-#
-# DURABILITY NOTE (why this is the "final" form):
-#   The earlier versions of this gate tried to GUESS what an employer name
-#   looks like with a capitalised-token regex, anchored at the end of the
-#   sentence. Every new grammatical shape the model emitted ("…at X, where…",
-#   "…at X, providing…", "…for X…") slipped past, so the bug kept "coming
-#   back". This version does NOT guess. It reads the candidate's REAL employer
-#   names straight out of their own Experience `###` headings, then strips any
-#   of those exact names from S2 — wherever they appear, whatever follows.
-#   Matching a known string is bullet-proof; guessing a pattern is not.
-
-_BREADTH_RE = re.compile(
-    r"\b(?:multiple|several|various|many)\s+(?:[a-z]+\s+){0,3}"
-    r"(?:settings|facilities|sites|placements|locations|homes|wards|"
-    r"units|environments|services|providers|employers)\b",
-    re.IGNORECASE,
-)
-
-# Section headings whose `###` entries name an employer.
-_SUMMARY_EXPERIENCE_HEADINGS = {
-    "experience", "professional experience", "clinical experience",
-    "work experience", "employment", "employment history",
-}
-
-# Strip a trailing date parenthetical and any "| Location" / ", Location" tail.
-_HEADING_DATE_PAREN_RE = re.compile(r"\s*\([^)]*\)\s*$")
-_HEADING_FIELD_SPLIT_RE = re.compile(r"\s+[|–—]\s+|\s+-\s+")
-
-
-_AU_LOCATION_RE = re.compile(
-    r",\s*(?:NSW|VIC|QLD|WA|SA|TAS|NT|ACT)\b|,\s*Australia\b",
-    re.IGNORECASE,
-)
-_DATE_LINE_RE = re.compile(r"\b20\d{2}\b|\bPresent\b|\bCurrent\b", re.IGNORECASE)
-
-
-def _looks_like_org_name(line: str) -> bool:
-    """Return True if `line` looks like a plain-text employer name rather than
-    a location, date range, role title, or bullet."""
-    s = line.strip()
-    if not s or len(s) < 6:
-        return False
-    if s.startswith(("## ", "### ", "-", "*", "•", "·")):
-        return False
-    if _AU_LOCATION_RE.search(s):     # "Leichhardt, NSW, Australia"
-        return False
-    if _DATE_LINE_RE.search(s):       # "Mar 2026 – Present"
-        return False
-    return True
-
-
-def _employer_candidates(lines: List[str]) -> List[str]:
-    """Collect real employer-name strings from the Experience section(s).
-
-    Handles two formats:
-      1. ``### Role | Org (Dates)`` heading format — both sides of the split.
-      2. Plain-text format (W8 nursing CVs) — the first non-blank, non-bullet
-         line of each block within the Experience section.
-
-    Returns candidates longest-first so the fullest name is tried before
-    any prefix (avoids "Uniting" matching before "Uniting – The Marion").
-    """
-    cands: Set[str] = set()
-    i = 0
-    n = len(lines)
-    while i < n:
-        s = lines[i].strip()
-        if s.startswith("## ") and s[3:].strip().lower() in _SUMMARY_EXPERIENCE_HEADINGS:
-            i += 1
-            prev_blank = True  # treat section start as after a blank line
-            while i < n and not lines[i].strip().startswith("## "):
-                h = lines[i].strip()
-                if h.startswith("### "):
-                    # Format 1: ### heading
-                    head = _HEADING_DATE_PAREN_RE.sub("", h[4:].strip())
-                    parts = _HEADING_FIELD_SPLIT_RE.split(head)
-                    for p in parts:
-                        name = p.split(",")[0].strip()
-                        if len(name) >= 6:
-                            cands.add(name)
-                    prev_blank = False
-                elif not h:
-                    prev_blank = True
-                elif prev_blank and _looks_like_org_name(h):
-                    # Format 2: plain-text org name at start of block
-                    cands.add(h)
-                    prev_blank = False
-                else:
-                    prev_blank = False
-                i += 1
-            continue
-        i += 1
-    return sorted(cands, key=len, reverse=True)
-
-
-def _tidy_clause(s: str) -> str:
-    """Repair a sentence after an 'at <employer>' span was excised: collapse
-    whitespace, reattach punctuation, drop any now-dangling leading connector,
-    re-capitalise, and guarantee terminal punctuation."""
-    s = re.sub(r"\s{2,}", " ", s).strip()
-    s = re.sub(r"\s+([,.;:!?])", r"\1", s)          # " ," -> ","
-    s = re.sub(r"^(?:and|or|but|,|;)\s+", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s+(?:and|or)\s*([.!?])", r"\1", s)  # "… and ." -> "…."
-    s = re.sub(r",\s*,", ", ", s)
-    s = s.strip()
-    if s:
-        s = s[0].upper() + s[1:]
-    if s and s[-1] not in ".!?":
-        s += "."
-    return s
-
-
-def _strip_named_employers(s2: str, candidates: List[str]) -> str:
-    """Remove every 'at <known employer>' from S2. If the employer sat at the
-    sentence tail (nothing but terminal punctuation after it) it is replaced
-    with a scope phrase so S2 stays a complete, breadth-aligned thought;
-    mid-sentence mentions are simply excised and the clause repaired."""
-    out = s2
-    for name in candidates:
-        # (start-of-string | whitespace) + 'at' + name, on a word boundary.
-        pat = re.compile(
-            r"(?:^|\s)at\s+" + re.escape(name) + r"(?![\w'])",
-            re.IGNORECASE,
-        )
-        while True:
-            m = pat.search(out)
-            if not m:
-                break
-            after = out[m.end():]
-            is_tail = after.strip() == "" or after.lstrip()[:1] in (".", "!", "?")
-            replacement = " across these settings" if is_tail else ""
-            out = out[: m.start()] + replacement + out[m.end():]
-
-        # Dangling fragment fix: LLM sometimes drops the first word of a
-        # compound org name like "Uniting – The Marion", writing "care – The Marion"
-        # instead of "care at Uniting – The Marion". The "at … name" pattern above
-        # won't fire, but "– <partial_name>" is stranded. Strip it.
-        if "–" in name or "—" in name or "-" in name:
-            # Try each suffix after a dash separator.
-            for sep in ("–", "—", "-"):
-                if sep in name:
-                    suffix = name.split(sep, 1)[1].strip()
-                    if len(suffix) >= 4:
-                        frag_pat = re.compile(
-                            r"\s*[–—-]\s+" + re.escape(suffix) + r"(?![\w'])",
-                            re.IGNORECASE,
-                        )
-                        out = frag_pat.sub("", out)
-
-    return _tidy_clause(out) if out != s2 else s2
-
-
-def enforce_summary_breadth_consistency(md: str) -> str:
-    """If the summary's S1 uses breadth framing (multiple/several settings,
-    facilities, sites, placements, etc.) AND S2 names a SINGLE specific
-    employer drawn from the CV's own Experience section, strip that employer so
-    S1 and S2 tell the same story.
-
-    Examples (employer = "Jesmond Miranda Nursing Home"):
-      "…provided care at Jesmond Miranda Nursing Home."
-        → "…provided care across these settings."
-      "…at Jesmond Miranda Nursing Home and provided care."
-        → "…and provided care."
-      "…at Jesmond Miranda Nursing Home, providing person-centred care."
-        → "…, providing person-centred care."
-
-    No-op when:
-      - the Summary section is absent,
-      - S1 doesn't use breadth framing,
-      - S2 names no employer from the Experience section,
-      - S2 names two employers via a semicolon (the rule allows that).
-    """
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    prose_idx = [
-        i for i in range(start + 1, end)
-        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
-    ]
-    if not prose_idx:
-        return md
-    full = " ".join(lines[i].strip() for i in prose_idx).strip()
-    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
-    if len(sentences) < 2:
-        return md
-
-    s1, s2 = sentences[0], sentences[1]
-    if not _BREADTH_RE.search(s1):
-        return md  # S1 isn't breadth-framed — nothing to enforce.
-    if ";" in s2:
-        return md  # Two-clause S2 via semicolon (allowed when two dominant roles exist).
-
-    candidates = _employer_candidates(lines)
-    if not candidates:
-        return md  # No employer names to match against.
-
-    # Also allow S2 that explicitly mentions TWO known employers joined by "and"
-    # (e.g. "at Uniting – The Marion and Jesmond Miranda Nursing Home"). That is
-    # breadth-consistent — naming both dominant roles is fine.
-    named_in_s2 = [c for c in candidates if re.search(re.escape(c), s2, re.IGNORECASE)]
-    if len(named_in_s2) >= 2:
-        return md
-
-    new_s2 = _strip_named_employers(s2, candidates)
-    if new_s2 == s2:
-        return md  # S2 named no Experience employer — nothing to strip.
-
-    rest = sentences[2:] if len(sentences) > 2 else []
-    new_prose = " ".join([s1, new_s2] + rest)
-
-    for i in prose_idx:
-        lines[i] = ""
-    lines[prose_idx[0]] = new_prose
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
 # Summary S1↔S2 de-duplication
 # ---------------------------------------------------------------------------
-# The professional summary must be EXACTLY two sentences that tell a progressive
-# story — S2 should add competencies/outcomes NOT already in S1. The model
-# sometimes writes S2 as a near-restatement of S1 (S1 "medication support …
-# person-centred care" → S2 "electronic medication administration … personal
-# care …"), which reads as padding and just re-lists the Skills section.
-#
-# This deterministic gate removes any S2 *clause* (comma-separated span) whose
-# meaningful content words are ALL already covered by S1 — i.e. the clause adds
-# no new concept. It is conservative by construction:
-#   • generic modifier adjectives ("comprehensive", "ongoing", …) are ignored
-#     when judging redundancy, so "comprehensive personal care" is recognised as
-#     a restatement of S1's "person-centred care";
-#   • a clause survives the moment it carries ONE genuinely new content word
-#     ("electronic", "dementia", a named system), so distinct value is never
-#     lost;
-#   • the LAST surviving clause is never dropped — S2 always keeps real content;
-#   • a content word "covers" another when they share a 4-char prefix, catching
-#     morphological variants (residents/residential, support/supporting) without
-#     a stemmer.
 
 # Filler adjectives/adverbs that carry no distinct competency on their own — we
 # ignore them when deciding whether an S2 clause merely restates S1.
@@ -813,198 +258,32 @@ def _word_covered_by(word: str, pool: List[str]) -> bool:
     return any(w[:4] == p for w in pool)
 
 
-def enforce_summary_dedup(md: str) -> str:
-    """Drop fully-redundant S2 clauses that merely restate S1 (see header)."""
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    prose_idx = [
-        i for i in range(start + 1, end)
-        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
-    ]
-    if not prose_idx:
-        return md
-    full = " ".join(lines[i].strip() for i in prose_idx).strip()
-    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
-    if len(sentences) < 2:
-        return md
-
-    s1, s2 = sentences[0], sentences[1]
-    # A two-clause S2 joined by a SEMICOLON is the intentional "two distinct
-    # roles" shape — leave it untouched.
-    if ";" in s2:
-        return md
-
-    # Split S2 into comma clauses, stripping a leading "and " on each.
-    raw_clauses = [c.strip() for c in s2.rstrip(".!?").split(",")]
-    clauses = [re.sub(r"^(?:and|or)\s+", "", c, flags=re.IGNORECASE).strip() for c in raw_clauses]
-    clauses = [c for c in clauses if c]
-    if len(clauses) < 2:
-        return md  # nothing to thin out
-
-    s1_words = _summary_content_words(s1)
-
-    kept: List[str] = []
-    dropped = 0
-    for c in clauses:
-        cwords = _summary_content_words(c)
-        # Redundant = has content AND every content word is already covered by S1.
-        redundant = bool(cwords) and all(_word_covered_by(w, s1_words) for w in cwords)
-        if redundant and dropped < len(clauses) - 1:
-            dropped += 1
-            continue
-        kept.append(c)
-
-    if not dropped or not kept:
-        return md
-
-    # Reassemble: "A and B" for two, "A, B, and C" for three+.
-    if len(kept) == 1:
-        new_s2 = kept[0]
-    elif len(kept) == 2:
-        new_s2 = f"{kept[0]} and {kept[1]}"
-    else:
-        new_s2 = ", ".join(kept[:-1]) + f", and {kept[-1]}"
-    new_s2 = _tidy_clause(new_s2)
-
-    rest = sentences[2:] if len(sentences) > 2 else []
-    new_prose = " ".join([s1, new_s2] + rest)
-
-    for i in prose_idx:
-        lines[i] = ""
-    lines[prose_idx[0]] = new_prose
-    return "\n".join(lines)
+def _tidy_clause(s: str) -> str:
+    """Repair a sentence after an 'at <employer>' span was excised: collapse
+    whitespace, reattach punctuation, drop any now-dangling leading connector,
+    re-capitalise, and guarantee terminal punctuation."""
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    s = re.sub(r"\s+([,.;:!?])", r"\1", s)          # " ," -> ","
+    s = re.sub(r"^(?:and|or|but|,|;)\s+", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s+(?:and|or)\s*([.!?])", r"\1", s)  # "… and ." -> "…."
+    s = re.sub(r",\s*,", ", ", s)
+    s = s.strip()
+    if s:
+        s = s[0].upper() + s[1:]
+    if s and s[-1] not in ".!?":
+        s += "."
+    return s
 
 
 # ---------------------------------------------------------------------------
-# Summary title de-dup. The TITLE SLOT rule (a) in composition.py says:
-# when the candidate's CV has synonymous role variants (Assistant in Nursing /
-# Care Worker / Personal Care Assistant — same job, different employers; or
-# Data Analyst / BI Analyst / Reporting Analyst), the summary opener should
-# name ONLY ONE of them. The model sometimes chains both ("Assistant in
-# Nursing and Care Worker with experience…"). This gate strips the second
-# conjoined synonym so the opener reads as a single coherent identity.
-#
-# Conservative by design:
-# - Only fires when BOTH titles belong to the SAME curated cluster (so we
-#   never collapse genuinely-different roles like Cleaner + Receptionist).
-# - Only operates on the opener of S1, anchored by a small set of follower
-#   verbs ("with", "having", "delivering", "driving", "specialising").
-# - Idempotent.
+# Summary-vs-Skills de-duplication.
 # ---------------------------------------------------------------------------
 
-# Synonym clusters — each frozenset contains lowercased phrases that refer
-# to the SAME job at different employers. Add to a cluster sparingly; never
-# include words from two genuinely-different roles in one cluster.
-_SYNONYM_TITLE_CLUSTERS: tuple = (
-    # Nursing / aged-care / disability — entry-level
-    frozenset({
-        "assistant in nursing", "ain", "care worker", "personal care assistant",
-        "pca", "personal care worker", "aged care worker", "support worker",
-        "disability support worker", "individual support worker",
-        "home care worker", "community care worker",
-    }),
-    # Nursing — licensed
-    frozenset({
-        "registered nurse", "rn", "division 1 nurse",
-        "enrolled nurse", "en", "division 2 nurse",
-    }),
-    # Data / analytics
-    frozenset({
-        "data analyst", "bi analyst", "business intelligence analyst",
-        "reporting analyst", "analytics analyst",
-    }),
-    # Software engineering
-    frozenset({
-        "software engineer", "software developer",
-        "backend engineer", "backend developer",
-        "full-stack developer", "full stack developer", "fullstack developer",
-        "frontend engineer", "frontend developer",
-    }),
-)
-
-_TITLE_OPENER_RE = re.compile(
-    r"^(?P<t1>[A-Z][\w\-\s]*?)\s+and\s+(?P<t2>[A-Z][\w\-\s]*?)\s+"
-    r"(?P<rest>with\b|having\b|delivering\b|driving\b|specialising\b|specializing\b)",
-)
-
-
-def enforce_summary_title_dedup(md: str) -> str:
-    """Strip a conjoined synonymous title from the summary opener (S1).
-    See section header for rationale and safety nets. Idempotent."""
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    prose_idx = [
-        i for i in range(start + 1, end)
-        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
-    ]
-    if not prose_idx:
-        return md
-    full = " ".join(lines[i].strip() for i in prose_idx).strip()
-    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
-    if not sentences:
-        return md
-    s1 = sentences[0]
-
-    m = _TITLE_OPENER_RE.match(s1)
-    if not m:
-        return md
-    t1_norm = re.sub(r"\s+", " ", m.group("t1").strip().lower())
-    t2_norm = re.sub(r"\s+", " ", m.group("t2").strip().lower())
-    same_cluster = any(t1_norm in c and t2_norm in c for c in _SYNONYM_TITLE_CLUSTERS)
-    if not same_cluster:
-        return md
-
-    # Keep t1, drop "and t2", keep follower verb + rest. Slice to preserve
-    # original casing of the kept title.
-    rest_start = m.start("rest")
-    new_s1 = m.group("t1") + " " + s1[rest_start:]
-    new_s1 = re.sub(r"\s+", " ", new_s1).strip()
-    if new_s1 == s1:
-        return md
-
-    rest_sentences = sentences[1:]
-    new_prose = " ".join([new_s1] + rest_sentences)
-    for i in prose_idx:
-        lines[i] = ""
-    lines[prose_idx[0]] = new_prose
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Summary-vs-Skills de-duplication. The IT-shaped summary template wants S2
-# to read "method + quantified result" — distinct from the keyword-dense
-# Skills section. For nursing/care CVs, the care-types ARE both the skill
-# keywords AND the methods (Personal Care, Dementia Care, Medication
-# Assistance). When the model has nothing quantified to put in S2, it
-# dutifully writes "delivering safe personal care and behavioural support"
-# — every content word of which already appears in the Skills section.
-# This gate drops any S2 clause where EVERY content word is already covered
-# by the Skills pool. Always keeps at least one clause as a safety net.
-# ---------------------------------------------------------------------------
-
-# Re-uses _SKILLS_LINE_RE from writers.py for the category-line shape, but
-# inlined here to avoid a cross-module import.
 _SKILLS_CATEGORY_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
 
 
 def _skills_section_pool(md: str) -> List[str]:
-    """Content words from every entry in every ## Skills category line.
-    Uses the same content-word machinery as the S1-dedup gate, so coverage
-    semantics match (4-char prefix, filler-word skip, hyphen split)."""
+    """Content words from every entry in every ## Skills category line."""
     lines = md.split("\n")
     bounds = _section_bounds(lines, lambda s: s.strip() == "## Skills")
     if not bounds:
@@ -1020,9 +299,7 @@ def _skills_section_pool(md: str) -> List[str]:
 
 
 def enforce_summary_skills_dedup(md: str) -> str:
-    """Drop S2 clauses where EVERY content word is already in the ## Skills
-    section (the clause merely re-lists skills as prose). Always keeps at
-    least one S2 clause. Idempotent. See section header for rationale."""
+    """Drop S2 clauses where EVERY content word is already in the ## Skills section."""
     lines = md.split("\n")
     bounds = _section_bounds(
         lines,
@@ -1045,7 +322,7 @@ def enforce_summary_skills_dedup(md: str) -> str:
 
     s1, s2 = sentences[0], sentences[1]
     if ";" in s2:
-        return md  # intentional two-distinct-roles shape — never thin it
+        return md
 
     raw_clauses = [c.strip() for c in s2.rstrip(".!?").split(",")]
     clauses = [re.sub(r"^(?:and|or)\s+", "", c, flags=re.IGNORECASE).strip() for c in raw_clauses]
@@ -1126,8 +403,7 @@ def _jd_vocab(jd_analysis: Dict[str, Any]) -> Set[str]:
 
 def strip_education_vet_codes(md: str) -> str:
     """Strip Australian VET unit codes (CHC43015, HLTAID011, etc.) from the
-    Education section's degree lines. The AI writer sometimes copies these
-    from the raw CV text. They belong in structured data, not rendered prose."""
+    Education section's degree lines."""
     lines = md.split("\n")
     bounds = _section_bounds(lines, lambda s: s.lower() == "## education")
     if not bounds:
@@ -1152,8 +428,7 @@ def strip_education_vet_codes(md: str) -> str:
 def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
     """
     Drop graduate degrees (Master/PhD) whose line shares no token with the JD
-    vocabulary. Always keep Bachelor's and never empty the section. Operates on
-    the two-line '### Institution | Location' + '*Degree | Year*' block shape.
+    vocabulary. Always keep Bachelor's and never empty the section.
     """
     vocab = _jd_vocab(jd_analysis)
     if not vocab:
@@ -1190,11 +465,6 @@ def enforce_degree_relevance(md: str, jd_analysis: Dict[str, Any]) -> str:
     if all(keep):
         return md
     if not any(keep):
-        # Every entry is an irrelevant grad degree (the model dropped the
-        # Bachelor before the gate ran). Never empty Education — but don't keep
-        # the whole pile of irrelevant degrees either. Keep only the FIRST
-        # entry (CVs list education most-recent-first), so a data CV applying
-        # to nursing shows one degree, not three off-topic physics degrees.
         keep[0] = True
 
     out: List[str] = lines[: start + 1]
@@ -1213,12 +483,7 @@ _BULLET_PREFIXES = ("- ", "* ", "• ")
 
 
 def strip_ungrounded_bullet_parentheticals(md: str, original_cv_text: str) -> str:
-    """
-    Remove parenthetical clauses that name an ungrounded entity from EXPERIENCE
-    / PROJECT bullets, e.g. "...dashboards (integrated with SharePoint)..." when
-    SharePoint isn't in the CV. Scoped to bullet lines only, so legitimate
-    Skills inferences like "Power BI (DAX, M language)" are untouched.
-    """
+    """Remove parenthetical clauses that name an ungrounded entity."""
     report = compute_grounding(md, original_cv_text)
     toks = sorted(
         {t.strip() for t in (report.get("ungrounded") or []) if len(t.strip()) >= 3},
@@ -1239,15 +504,6 @@ def strip_ungrounded_bullet_parentheticals(md: str, original_cv_text: str) -> st
 
 # ---------------------------------------------------------------------------
 # Strip ungrounded named-entity SKILL items (BigQuery-class)
-#
-# verify_claims only fact-checks Experience/Projects bullets, and the bullet
-# parenthetical strip above only touches bullet lines — so a fabricated tool /
-# product / proper noun placed in the ## Skills line (the prime ATS keyword-
-# stuffing surface) survives every gate for non-"none" injection policies. This
-# closes that hole deterministically, for EVERY role family: a fabricated proper
-# noun is never policy-dependent. Generic lowercase skill words and items that
-# share a CV word are kept; only items whose HEAD token is in the ungrounded
-# named-entity set are dropped.
 # ---------------------------------------------------------------------------
 
 _SKILLS_LABEL_RE = re.compile(r"^\s*\*\*([^*]+?):\*\*\s*(.*)$")
@@ -1256,19 +512,7 @@ _SKILLS_LABEL_RE = re.compile(r"^\s*\*\*([^*]+?):\*\*\s*(.*)$")
 def strip_ungrounded_skill_entities(
     md: str, original_cv_text: str, allow: "frozenset[str] | set[str]" = frozenset(),
 ) -> str:
-    """
-    Drop any ## Skills item whose head token is a named entity absent from the
-    original CV, using the same detector as the bullet check (compute_grounding).
-    The head is the text before any parenthesis, so 'Power BI (DAX)' is judged on
-    'Power BI' (kept when grounded), not the parenthetical.
-
-    `allow` is the normalised set of keywords the feasibility plan / equivalence
-    table deliberately authorised (inject_directly) — these are honest by
-    construction (e.g. CV says 'SQL' → 'PostgreSQL' / 'Cloud' is a defensible
-    child→parent surfacing) even though they are not literal CV substrings, so
-    they are never stripped. compute_grounding is stricter than the curated
-    equivalence rule; this keeps the two from fighting.
-    """
+    """Drop any ## Skills item whose head token is a named entity absent from the original CV."""
     if not original_cv_text:
         return md
     report = compute_grounding(md, original_cv_text)
@@ -1292,7 +536,7 @@ def strip_ungrounded_skill_entities(
         for item in _split_items(rest):
             head_norm = _norm(item.split("(")[0])
             if head_norm in ungrounded and head_norm not in allow_norm and _norm(item) not in allow_norm:
-                continue  # fabricated named entity, not an authorised inference → drop
+                continue
             kept.append(item)
         lines[i] = f"**{label}:** " + ", ".join(kept)
     return "\n".join(lines)
@@ -1300,17 +544,6 @@ def strip_ungrounded_skill_entities(
 
 # ---------------------------------------------------------------------------
 # Domain-knowledge = direct-only (universal honesty rule)
-#
-# Confirmed systematic across two different JDs (CAE "financial analysis";
-# MONEYME "transaction monitoring"): the feasibility classifier approves
-# gray-zone DOMAIN-KNOWLEDGE terms as injectable, and the writer surfaces a
-# domain competency the candidate doesn't have. You can infer a TOOL
-# (SQL->PostgreSQL) and reframe a SOFT skill, but you cannot infer DOMAIN
-# EXPERTISE — you either have fraud/AML/clinical experience or you don't.
-#
-# This demotes every domain_knowledge entry out of inject_as_extension /
-# inject_with_inference into cannot_inject, for ALL verticals. inject_directly
-# domain entries (literally anchored in the CV) are kept.
 # ---------------------------------------------------------------------------
 
 
@@ -1347,6 +580,124 @@ def restrict_domain_to_direct(feasibility: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# strip_off_vertical_preamble gate
+# ---------------------------------------------------------------------------
+
+
+def strip_off_vertical_preamble(md: str, jd_vertical: str) -> str:
+    """Trim off-vertical background or student/visa preambles and clean off-vertical roles in S2."""
+    if not jd_vertical:
+        return md
+
+    vert = jd_vertical.lower()
+    is_care = any(k in vert for k in ["nurse", "nursing", "aged", "care", "support", "disability"])
+    if not is_care:
+        return md
+
+    lines = md.split("\n")
+    bounds = _section_bounds(
+        lines, lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS
+    )
+    if not bounds:
+        return md
+    start, end = bounds
+
+    prose_idx = [
+        i for i in range(start + 1, end)
+        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
+    ]
+    if not prose_idx:
+        return md
+    full = " ".join(lines[i].strip() for i in prose_idx).strip()
+    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
+    if not sentences:
+        return md
+
+    s1 = sentences[0]
+    off_vert_pattern = re.compile(
+        r"\b(?:accounting|finance|financial|business|commerce|marketing|mba|mpa|bba|bcom)\b",
+        re.IGNORECASE
+    )
+
+    # 1. Check for conjoined background/student phrase in S1 with off-vertical terms.
+    conjoined_match = re.search(
+        r"\s+(?:and|or|,)\s+(?:(?:international|domestic)\s+)?(?:student|graduate|visa\s+holder)\b.*?\b(with|holding|who\s+(?:also\s+)?holds?)\s+",
+        s1,
+        re.IGNORECASE
+    )
+    if conjoined_match and off_vert_pattern.search(conjoined_match.group(0)):
+        start_idx = conjoined_match.start()
+        end_idx = conjoined_match.end()
+        connector = conjoined_match.group(1)
+        s1 = s1[:start_idx] + f" {connector} " + s1[end_idx:]
+        s1 = re.sub(r"\s{2,}", " ", s1).strip()
+        sentences[0] = s1
+
+    # 2. Check for starting background in off-vertical areas.
+    background_match = re.search(
+        r"\bwith\s+(?:a\s+)?(?:strong\s+)?background\s+in\s+.*?\b(?:accounting|finance|financial|business|commerce|marketing|administration)\b.*?\b(and|with)\s+",
+        s1,
+        re.IGNORECASE
+    )
+    if background_match:
+        start_idx = background_match.start()
+        end_idx = background_match.end()
+        s1 = s1[:start_idx] + " with " + s1[end_idx:]
+        s1 = re.sub(r"\s{2,}", " ", s1).strip()
+        sentences[0] = s1
+
+    # 3. Check if S1 starts with student/graduate indicators, contains off-vertical term, and has a separator like "with", "holding", etc.
+    student_lead_match = re.match(
+        r"^(?:(?:international|domestic)\s+)?(?:student|graduate|visa\s+holder)\b.*?\b(with|holding|who\s+(?:also\s+)?holds?)\s+",
+        s1,
+        re.IGNORECASE
+    )
+    if student_lead_match and off_vert_pattern.search(s1[:student_lead_match.end()]):
+        remainder = s1[student_lead_match.end():].strip()
+        if remainder:
+            remainder = remainder[0].upper() + remainder[1:]
+            if not remainder.endswith("."):
+                remainder += "."
+            sentences[0] = remainder
+            s1 = remainder
+
+    # 4. Check for "student pursuing X. S2" -> where X has off-vertical terms and there is no "with"
+    elif re.match(r"^(?:(?:international|domestic)\s+)?(?:student|graduate)\s+.*?\b(?:master|bachelor|mba|mpa|bba|bcom)\b", s1, re.IGNORECASE):
+        if off_vert_pattern.search(s1) and len(sentences) > 1:
+            sentences = sentences[1:]
+            s1 = sentences[0] if sentences else ""
+
+    # 5. Scrub S2 if it mentions conjoined off-vertical roles.
+    if len(sentences) >= 2:
+        s2 = sentences[1]
+        cleaned_s2 = s2
+        cleaned_s2 = re.sub(
+            r"\bboth\s+(\w+)\s+and\s+(?:accounting|finance|financial|business|commerce|marketing|administration)\s+(roles?|backgrounds?|experience)",
+            r"\1 \2", cleaned_s2, flags=re.IGNORECASE,
+        )
+        cleaned_s2 = re.sub(
+            r"\band\s+(?:accounting|finance|financial|business|commerce|marketing|administration)\s+(roles?|backgrounds?|experience)",
+            r"", cleaned_s2, flags=re.IGNORECASE,
+        )
+        cleaned_s2 = re.sub(
+            r"\b(?:accounting|finance|financial|business|commerce|marketing|administration)\s+and\s+",
+            r"", cleaned_s2, flags=re.IGNORECASE,
+        )
+        cleaned_s2 = re.sub(r"\s{2,}", " ", cleaned_s2).strip()
+        if cleaned_s2 != s2:
+            sentences[1] = cleaned_s2
+
+    if sentences:
+        new_prose = " ".join(sentences)
+        for i in prose_idx:
+            lines[i] = ""
+        lines[prose_idx[0]] = new_prose
+        return "\n".join(lines)
+
+    return md
+
+
+# ---------------------------------------------------------------------------
 # Convenience: run all W3 gates in order
 # ---------------------------------------------------------------------------
 
@@ -1359,11 +710,14 @@ def apply_w3_gates(
     suppress: bool,
     original_cv_text: str = "",
     keep_skills: "frozenset[str] | set[str]" = frozenset(),
+    jd_vertical: Optional[str] = None,
 ) -> str:
     if suppress:
         md = suppress_ai_identity(md, jd_text, jd_analysis)
-    md = enforce_summary_identity(md, jd_analysis)
     md = clamp_two_sentences(md)
+    _vert = jd_vertical or jd_analysis.get("vertical")
+    if _vert:
+        md = strip_off_vertical_preamble(md, _vert)
     md = strip_education_vet_codes(md)
     md = enforce_degree_relevance(md, jd_analysis)
     if original_cv_text:
