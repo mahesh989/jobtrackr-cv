@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.11",
-    "updated": "2026-06-14",
+    "updated": "2026-06-16",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -304,6 +304,11 @@
     }
   ],
   "deferred_features": [
+    {
+      "id": "DEFERRED-0",
+      "title": "COMPLETED 2026-06-16: Deleted dead eval harnesses (Scope A + B)",
+      "detail": "Writer-variant eval (Scope A, commit 99aaafe) + source-eval beta tool (Scope B, commit 57a75fd). Both unused for 3+ weeks despite ongoing work. Removed ~2000 LOC, Redis worker, BullMQ queue, Supabase table writes. Recovery: git history + branches feat/writers-eval-beta and feat/source-eval-beta."
+    },
     {
       "id": "DEFERRED-1",
       "title": "Tier 4 user-initiated JD URL fetch",
