@@ -50,7 +50,7 @@ import { type AtsThresholds } from "@/lib/atsThresholds";
 /** 0–100 opinionated match score. Combines distance, ATS band, JD quality,
  *  freshness, visa hints. Shown as a bar on every card so the user can see
  *  *why* one job ranks above another. */
-export function matchScore(j: BoardJob): number {
+function matchScore(j: BoardJob): number {
   let s = 50;
   if (j.distance_km != null) s += Math.max(0, 30 - j.distance_km * 0.7);
   if (j.atsBand === "above_final")        s += 28;
@@ -114,7 +114,7 @@ const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg: strin
   no_ats:        { label: "—",     dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
 };
 
-export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
+function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
   const band = job.atsBand;
   const th = job.atsThresholds ?? { initial: 60, final: 70 };
   const staticMeta = ATS_BAND_META[band];

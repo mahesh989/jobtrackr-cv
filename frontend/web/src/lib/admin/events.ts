@@ -13,7 +13,7 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export type EventType =
+type EventType =
   | "login"
   | "logout"
   | "analysis_started"

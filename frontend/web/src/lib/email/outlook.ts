@@ -3,7 +3,7 @@
  * Only call from server-side code.
  */
 
-export interface OutlookAttachment {
+interface OutlookAttachment {
   filename:    string;
   contentType: string;
   data:        Buffer;

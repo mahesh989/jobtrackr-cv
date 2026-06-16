@@ -15,7 +15,7 @@
 // Host-px height of one usable A4 page at CONTENT_W_PX = 698 host-px width.
 // usableW = 523.28pt spans 698 host-px → 0.7497 pt/px; usableH = 769.89pt
 // → 769.89 / 0.7497 ≈ 1027 host-px.
-export const ONE_PAGE_HOST_PX = 1027;
+const ONE_PAGE_HOST_PX = 1027;
 
 const TARGET_FILL = 0.95;   // aim for this fraction of one page
 const MAX_FILL    = 0.97;   // never exceed — keeps it single-page-safe
@@ -26,7 +26,7 @@ const MAX_SCALE   = 1.45;   // cap zoom at ~1.45× (body 10pt → ~14.5pt) so a
                             // the full headroom.
 
 /** Multiply every pt/px/in numeric in the stylesheet by k. */
-export function scaleCvStyle(css: string, k: number): string {
+function scaleCvStyle(css: string, k: number): string {
   if (k === 1) return css;
   return css.replace(/(-?\d*\.?\d+)(pt|px|in)\b/g, (_m, num: string, unit: string) => {
     const scaled = parseFloat(num) * k;

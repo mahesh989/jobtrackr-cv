@@ -81,7 +81,7 @@ export async function runStructurizeAndCategorise(
 
 // ── Persistence wrapper ─────────────────────────────────────────────────────
 
-export type StructurizeAndPersistError =
+type StructurizeAndPersistError =
   | { kind: "not_found" }
   | { kind: "empty_cv_text" }
   | { kind: "no_ai_key" }

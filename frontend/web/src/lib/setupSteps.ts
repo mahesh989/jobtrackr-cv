@@ -55,7 +55,7 @@ export const SETUP_STEPS: SetupStep[] = [
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** Steps that gate "setup complete" — the recommended/optional ones don't. */
-export const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["profile", "cv", "searchProfile"];
+const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["profile", "cv", "searchProfile"];
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",

@@ -150,7 +150,7 @@ function sourceBadge(source: string) {
 
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
-export function JobTable({ jobs, showVisa, currentTab }: {
+function JobTable({ jobs, showVisa, currentTab }: {
   jobs:       Job[];
   showVisa:   boolean;
   currentTab: string;

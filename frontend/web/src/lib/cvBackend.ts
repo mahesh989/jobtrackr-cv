@@ -190,7 +190,7 @@ export interface StructurizeCvPayload {
   ai_model?:   string | null;
 }
 
-export interface StructuredCvSkills {
+interface StructuredCvSkills {
   technical:        string[];
   soft_skills:      string[];
   domain_knowledge: string[];
@@ -243,7 +243,7 @@ export interface StructuredCvReferee {
   email:     string;
 }
 
-export interface StructuredCvGap {
+interface StructuredCvGap {
   section:     string;
   entry_index: string;
   field:       string;
@@ -375,7 +375,7 @@ export function extractVoiceFingerprint(
   );
 }
 
-export interface StoryNumber {
+interface StoryNumber {
   metric: string;
   value:  string;
 }
@@ -438,7 +438,7 @@ export interface MatchStoriesPayload {
   stories: MatchStoriesStory[];
 }
 
-export interface ScoredStory {
+interface ScoredStory {
   story_id: string;
   score:    number;
 }
@@ -459,7 +459,7 @@ export function matchStories(
 
 // ── Company research (Phase 10.3) ─────────────────────────────────────────────
 
-export interface RecentEvent {
+interface RecentEvent {
   date:                       string | null;
   event:                      string;
   source_url:                 string | null;
@@ -467,7 +467,7 @@ export interface RecentEvent {
   stale:                      boolean;
 }
 
-export interface CompanyFacts {
+interface CompanyFacts {
   description_short:    string;
   industry:             string;
   size:                 "startup" | "small" | "mid" | "large" | "enterprise";
@@ -478,14 +478,14 @@ export interface CompanyFacts {
   distinguishing_facts: string[];
 }
 
-export interface VoiceSignals {
+interface VoiceSignals {
   tone:               "formal_corporate" | "professional_warm" | "casual_startup" | "technical" | "mission_driven";
   sample_text:        string;
   common_vocabulary:  string[];
   avoids:             string[];
 }
 
-export interface HiringIntel {
+interface HiringIntel {
   hiring_manager_likely: string | null;
   team_blog_posts:       string[];
   recent_hires_titles:   string[];
@@ -534,7 +534,7 @@ export function researchCompany(
   );
 }
 
-export interface RankedFact {
+interface RankedFact {
   fact_text:    string;
   score:        number;
   source_field: string;
@@ -685,7 +685,7 @@ export function voiceRewriteEmail(
 
 // ── Eval harness (beta A/B/C/D screen) ───────────────────────────────────────
 
-export interface AnalyzeEvalPayload {
+interface AnalyzeEvalPayload {
   cv_text:         string;
   jd_text:         string;
   writer_variant:  string;            // w1_current | w2_general | w3_composition | w4_chat
@@ -701,12 +701,12 @@ export interface AnalyzeEvalPayload {
   ai_model?:       string | null;
 }
 
-export interface AnalyzeEvalResult {
+interface AnalyzeEvalResult {
   eval_run_id: string;
   status:      "running";
 }
 
-export function triggerEvalRun(
+function triggerEvalRun(
   payload: AnalyzeEvalPayload,
 ): Promise<AnalyzeEvalResult> {
   return callCvBackend<AnalyzeEvalResult>(
@@ -716,7 +716,7 @@ export function triggerEvalRun(
   );
 }
 
-export interface EvalRunRow {
+interface EvalRunRow {
   id:                 string;
   status:             "running" | "completed" | "failed";
   error:              string | null;
@@ -745,7 +745,7 @@ export interface EvalRunRow {
  * Inlined here (rather than going through callCvBackend) because the existing
  * helper hardcodes POST; everything else about HMAC signing is identical.
  */
-export async function getEvalRun(evalRunId: string): Promise<EvalRunRow> {
+async function getEvalRun(evalRunId: string): Promise<EvalRunRow> {
   if (!BASE_URL) throw new Error("CV_BACKEND_URL is not set");
   if (!SECRET)   throw new Error("JOBTRACKR_HMAC_SECRET is not set");
 

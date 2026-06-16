@@ -155,7 +155,7 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
  * the array is safe, those rows just won't match.
  */
 
-export async function bulkMarkPoolNoEmail(jobIds: string[]) {
+async function bulkMarkPoolNoEmail(jobIds: string[]) {
   if (jobIds.length === 0) return { updated: 0 };
   const { supabase } = await authedClient();
   // pool_decision_at stamped, contact_email left null → routes to "Ready to apply".

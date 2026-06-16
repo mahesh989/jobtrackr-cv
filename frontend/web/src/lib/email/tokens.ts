@@ -41,7 +41,7 @@ export async function saveTokens(userId: string, tokens: StoredTokens): Promise<
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 
-export async function loadTokens(userId: string): Promise<StoredTokens | null> {
+async function loadTokens(userId: string): Promise<StoredTokens | null> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("email_integrations")

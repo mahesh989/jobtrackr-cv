@@ -4,7 +4,7 @@
  * Only call from server-side code.
  */
 
-export interface EmailAttachment {
+interface EmailAttachment {
   filename:    string;
   contentType: string;
   data:        Buffer;

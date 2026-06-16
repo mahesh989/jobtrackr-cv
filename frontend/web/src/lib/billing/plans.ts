@@ -174,7 +174,7 @@ export const DENY_COPY: Record<DenyReason, { title: string; body: string }> = {
   },
 };
 
-export function isUnlimited(v: number | null): v is null {
+function isUnlimited(v: number | null): v is null {
   return v === null;
 }
 

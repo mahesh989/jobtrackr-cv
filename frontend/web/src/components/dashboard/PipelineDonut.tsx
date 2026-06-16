@@ -65,7 +65,7 @@ const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface ProfileCount {
+interface ProfileCount {
   profileId: string;
   profileName: string;
   counts: [number, number, number];

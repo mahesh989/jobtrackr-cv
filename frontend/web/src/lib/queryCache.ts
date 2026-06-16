@@ -65,7 +65,7 @@ export function getCachedProfiles(userId: string): Promise<CachedProfile[]> {
 
 // ── CV versions ─────────────────────────────────────────────────────────────
 
-export type CachedCvVersion = {
+type CachedCvVersion = {
   id: string;
   label: string | null;
   cv_text: string;
@@ -78,7 +78,7 @@ export type CachedCvVersion = {
  * The user's active CV version.
  * Cached 60 s. Busted by revalidateTag(`cv-versions-${userId}`).
  */
-export function getCachedActiveCv(userId: string): Promise<CachedCvVersion | null> {
+function getCachedActiveCv(userId: string): Promise<CachedCvVersion | null> {
   return unstable_cache(
     async () => {
       const admin = createAdminClient();
@@ -97,7 +97,7 @@ export function getCachedActiveCv(userId: string): Promise<CachedCvVersion | nul
 
 // ── User preferences ─────────────────────────────────────────────────────────
 
-export type CachedPreferences = {
+type CachedPreferences = {
   contact_details: Record<string, unknown> | null;
 };
 
@@ -105,7 +105,7 @@ export type CachedPreferences = {
  * The user's saved contact details / preferences.
  * Cached 60 s. Busted by revalidateTag(`preferences-${userId}`).
  */
-export function getCachedPreferences(userId: string): Promise<CachedPreferences | null> {
+function getCachedPreferences(userId: string): Promise<CachedPreferences | null> {
   return unstable_cache(
     async () => {
       const admin = createAdminClient();

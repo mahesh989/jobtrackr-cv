@@ -29,7 +29,7 @@ export interface AssembleLetterInput {
 }
 
 /** Format user contact block. Name / "Street, Suburb Postcode" / phone / email. */
-export function buildContactBlock(cd: ContactDetails): string {
+function buildContactBlock(cd: ContactDetails): string {
   const lines: string[] = [];
   if (cd.name) lines.push(cd.name);
 

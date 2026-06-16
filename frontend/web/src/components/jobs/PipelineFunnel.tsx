@@ -92,7 +92,7 @@ const STAGE_DOTS = [
   "var(--purple)",
 ];
 
-export function PipelineFunnel({
+function PipelineFunnel({
   counts,
   currentStage,
   excludeStages = [],

@@ -29,7 +29,7 @@ const CONCURRENCY = 3;
 
 type RowStatus = "idle" | "saving" | "analysing" | "queued" | "error";
 
-export function BulkThinJdButton({ jobs }: { jobs: ThinJdJob[] }) {
+function BulkThinJdButton({ jobs }: { jobs: ThinJdJob[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 

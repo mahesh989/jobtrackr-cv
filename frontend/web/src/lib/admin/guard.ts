@@ -58,7 +58,7 @@ export function formatLatency(ms: number): string {
 }
 
 /** ISO date → "12 Jun" */
-export function fmtDate(iso: string): string {
+function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 }
 

@@ -250,7 +250,7 @@ export interface JobGroup {
  *  order; empty bands are omitted. The "unknown" bucket falls to the bottom
  *  so unresolved locations never claim the top slot. Jobs inside each band
  *  preserve the caller's incoming order (already sorted by `sortJobs`). */
-export function groupByDistance(jobs: BoardJob[]): JobGroup[] {
+function groupByDistance(jobs: BoardJob[]): JobGroup[] {
   const near:   BoardJob[] = [];
   const mid:    BoardJob[] = [];
   const far:    BoardJob[] = [];
@@ -321,7 +321,7 @@ function timeBucketFor(ts: string | null | undefined, now: number): { key: numbe
  *  worked on) and `field="posted_at"` for "Not analysed" (how fresh is the
  *  listing). Buckets render newest-first. Jobs missing the timestamp fall
  *  into an "Unknown time" bucket at the bottom. */
-export function groupByTime(
+function groupByTime(
   jobs: BoardJob[],
   field: "last_progress_at" | "posted_at",
 ): JobGroup[] {

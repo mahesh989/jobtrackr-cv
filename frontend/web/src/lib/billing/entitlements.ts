@@ -24,7 +24,7 @@ import {
   type DenyReason,
 } from "./plans";
 
-export type AccessMode = "full" | "read_only";
+type AccessMode = "full" | "read_only";
 
 export interface Entitlement {
   userId: string;
