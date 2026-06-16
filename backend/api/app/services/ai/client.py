@@ -602,14 +602,15 @@ class AIClient:
 
 
 # ---------------------------------------------------------------------------
-# Factory — BYOK
+# Factory
 # ---------------------------------------------------------------------------
 
 
 # Sensible default model per provider when JobTrackr does not specify one.
+# Mirrors frontend/web/src/lib/ai/models.ts DEFAULT_MODELS — keep in sync.
 _DEFAULT_MODELS: Dict[Provider, str] = {
-    "anthropic": "claude-3-5-sonnet-20241022",
-    "openai":    "gpt-4o",
+    "anthropic": "claude-sonnet-4-6",
+    "openai":    "gpt-5.1",
     "deepseek":  "deepseek-chat",
 }
 
@@ -621,12 +622,13 @@ def make_ai_client(
 ) -> AIClient:
     """
     Build an AIClient from values the request carries. No DB lookup, no env keys.
-    JobTrackr decrypted the user's BYOK key and passed it in /internal/analyze.
+    JobTrackr decrypts the platform's admin-configured AI key (platform_ai_settings)
+    and passes it in /internal/analyze.
 
     The key stays only in memory for the lifetime of the pipeline run.
     """
     if not api_key:
-        raise AIClientError(f"BYOK api_key is empty for provider={provider}")
+        raise AIClientError(f"api_key is empty for provider={provider}")
     if provider not in ("anthropic", "openai", "deepseek"):
         raise AIClientError(f"Unsupported AI provider: {provider}")
 

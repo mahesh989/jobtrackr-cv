@@ -23,29 +23,17 @@
 import { NextRequest, NextResponse }                     from "next/server";
 import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
-import { decryptApiKey }                                 from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
 import { extractStories, Story, CvBackendError }         from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s timeout
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 export async function POST(req: NextRequest) {
   // ── 1. Verify session ────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  let preferredProvider: Provider | null = null;
-  try {
-    const body = await req.json();
-    const raw = (body as { provider?: string }).provider ?? null;
-    if (raw && PROVIDER_PRIORITY.includes(raw as Provider)) {
-      preferredProvider = raw as Provider;
-    }
-  } catch {}
 
   const admin = createAdminClient();
 
@@ -72,48 +60,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 3. Resolve AI key (identical to voice-profile/route.ts) ─────────────────
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, status, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{
-    provider:          Provider;
-    encrypted_api_key: string;
-    config:            { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, {
-      encrypted: row.encrypted_api_key,
-      model:     row.config?.model ?? null,
-    });
-  }
-
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-  if (!chosen) {
+  // ── 3. Resolve platform AI provider/key/model ────────────────────────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const entry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch (err) {
-    console.error("[/api/user/stories/extract] decrypt failed:", (err as Error).message);
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings → Integrations." },
-      { status: 500 },
-    );
-  }
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
 
   // ── 4. Call cv-backend ───────────────────────────────────────────────────────
   // cv.cv_text is intentionally not logged below — privacy boundary.
@@ -124,7 +80,7 @@ export async function POST(req: NextRequest) {
       cv_text:     cv.cv_text,   // PRIVACY: never log this variable
       ai_provider: chosen,
       ai_api_key:  aiApiKey,
-      ai_model:    entry.model ?? null,
+      ai_model:    creds.model ?? null,
     });
   } catch (err) {
     if (err instanceof CvBackendError && err.status === 422) {

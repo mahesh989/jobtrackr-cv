@@ -17,15 +17,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 // The downstream steps the gate early-stop marks 'skipped' — reset to pending.
 const DOWNSTREAM_STEPS = [
@@ -135,44 +132,19 @@ export async function POST(
     ? Object.fromEntries(Object.entries(contactDetails).filter(([k]) => k !== "projects"))
     : null;
 
-  // ── 2b. Decrypt an AI key — prefer the provider the run originally used ───
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{ provider: Provider; encrypted_api_key: string; config: { model?: string } | null }>) {
-    keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
-  }
-  const runProvider = run.ai_provider as Provider | null;
-  const chosen = (runProvider && keyByProvider.has(runProvider))
-    ? runProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-  if (!chosen) {
+  // ── 2b. Resolve the platform AI provider/key/model ────────────────────────
+  // Resuming re-uses whatever provider+model is currently active (an admin
+  // may have switched providers since the run originally started).
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → AI keys." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const chosenEntry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(chosenEntry.encrypted);
-  } catch (err) {
-    console.error("[/api/jobs/:id/analyze/:run_id/resume] decrypt failed:", err);
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings → AI keys." },
-      { status: 500 },
-    );
-  }
-  // Keep the run's original model when we're using its provider; otherwise the
-  // newly-chosen provider's configured model.
-  const aiModel = chosen === runProvider ? (run.ai_model as string | null) : chosenEntry.model;
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
+  const aiModel  = creds.model;
 
   // ── 3. Reset the skipped steps + flip the run back to running ─────────────
   const resetSteps = { ...stepStatus };

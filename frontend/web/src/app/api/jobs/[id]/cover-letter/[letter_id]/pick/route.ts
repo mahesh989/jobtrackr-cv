@@ -25,7 +25,7 @@
 import { NextRequest, NextResponse }    from "next/server";
 import { createClient }                  from "@/lib/supabase/server";
 import { createAdminClient }             from "@/lib/supabase/admin";
-import { decryptApiKey }                 from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }        from "@/lib/ai/activeProvider";
 import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cvBackend";
 
 // Local type for the cover_letters columns we read in this route.
@@ -45,9 +45,6 @@ interface PickLetter {
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;  // cv-backend returns 202 immediately
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 export async function POST(
   req: NextRequest,
@@ -114,11 +111,10 @@ export async function POST(
   }
   const discarded = allVariants.filter((v) => v.id !== variantId);
 
-  // ── 5. Resolve prerequisites (CV, voice, AI key) ───────────────────────────
+  // ── 5. Resolve prerequisites (CV, voice) ────────────────────────────────────
   const [
     { data: cvRow },
     { data: voiceRow },
-    { data: keyRows },
   ] = await Promise.all([
     admin
       .from("cv_versions")
@@ -132,14 +128,6 @@ export async function POST(
       .select("fingerprint, voice_sample_raw")
       .eq("user_id", user.id)
       .maybeSingle(),
-
-    admin
-      .from("user_integrations")
-      .select("provider, encrypted_api_key, status, config")
-      .eq("user_id", user.id)
-      .eq("status", "valid")
-      .eq("is_enabled", true)
-      .in("provider", PROVIDER_PRIORITY as unknown as string[]),
   ]);
 
   if (!cvRow?.cv_text) {
@@ -155,35 +143,16 @@ export async function POST(
     );
   }
 
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keyRows ?? []) as Array<{
-    provider: Provider; encrypted_api_key: string; config: { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
-  }
-
-  const aiProvider = (
-    PROVIDER_PRIORITY.includes(letter.ai_provider as Provider) && keyByProvider.has(letter.ai_provider as Provider)
-      ? letter.ai_provider as Provider
-      : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p))
-  );
-  if (!aiProvider) {
+  // ── 5b. Resolve platform AI provider/key/model ──────────────────────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const entry = keyByProvider.get(aiProvider)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch {
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings." },
-      { status: 500 },
-    );
-  }
+  const aiProvider = creds.provider;
+  const aiApiKey   = creds.apiKey;
 
   // ── 6. Resolve story and JD ────────────────────────────────────────────────
   // Read story via story_id FK (may be NULL if stories were re-extracted).
@@ -285,7 +254,7 @@ export async function POST(
       word_count_target: 170,
       ai_provider:       aiProvider,
       ai_api_key:        aiApiKey,
-      ai_model:          entry.model ?? undefined,
+      ai_model:          creds.model ?? undefined,
       chosen_opening:    chosen.text,
     });
   } catch (err) {

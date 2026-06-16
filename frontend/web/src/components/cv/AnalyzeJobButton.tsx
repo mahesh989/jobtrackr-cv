@@ -79,8 +79,6 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
 
   async function runAnalyze(runtimeOverride?: OverrideKey) {
     setErr(null);
-    let preferredProvider: string | null = null;
-    try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
 
     const effective = runtimeOverride ?? override;
     const url = effective ? `/api/jobs/${jobId}/analyze?override=${effective}` : `/api/jobs/${jobId}/analyze`;
@@ -88,7 +86,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
     const res = await fetch(url, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
+      body:    JSON.stringify({}),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -265,12 +263,10 @@ export function FullAnalysisButton({
  * Returns the new run_id on success, throws on failure.
  */
 export async function triggerReanalyze(jobId: string): Promise<string> {
-  let preferredProvider: string | null = null;
-  try { preferredProvider = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
   const res  = await fetch(`/api/jobs/${jobId}/analyze`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(preferredProvider ? { provider: preferredProvider } : {}),
+    body:    JSON.stringify({}),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((json.error as string) ?? `Failed (${res.status})`);

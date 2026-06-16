@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
@@ -30,10 +30,6 @@ import { emitEvent } from "@/lib/admin/events";
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
 export const runtime     = "nodejs";
 export const maxDuration = 30;
-
-// Preferred provider order when the user has connected more than one BYOK key.
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 const JD_FULL_THRESHOLD  = 1400;   // chars — below this we try a fresh scrape (lowered from 2000 on 2026-05-27 — past Adzuna API teaser ceiling)
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
@@ -54,16 +50,6 @@ export async function POST(
   const override = overrideRaw === "thin_jd" || overrideRaw === "initial_gate" || overrideRaw === "all"
     ? overrideRaw
     : null;
-
-  // Optional preferred provider sent by AnalyzeJobButton from localStorage.
-  let preferredProvider: Provider | null = null;
-  try {
-    const body = await req.json().catch(() => ({}));
-    const raw  = (body as { provider?: string }).provider ?? null;
-    if (raw && PROVIDER_PRIORITY.includes(raw as Provider)) {
-      preferredProvider = raw as Provider;
-    }
-  } catch {}
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -160,47 +146,17 @@ export async function POST(
     );
   }
 
-  // ── 1c. User must have at least one AI key ───────────────────────────────
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, status, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{ provider: Provider; encrypted_api_key: string; config: { model?: string } | null }>) {
-    keyByProvider.set(row.provider, {
-      encrypted: row.encrypted_api_key,
-      model:     row.config?.model ?? null,
-    });
-  }
-  // Use the user's preferred provider if it's connected; otherwise fall back
-  // to the priority order so there's always a working fallback.
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  // ── 1c. Platform AI provider must be configured by an admin ──────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → AI keys." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const chosenEntry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(chosenEntry.encrypted);
-  } catch (err) {
-    console.error("[/api/jobs/:id/analyze] decrypt failed:", err);
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings → AI keys." },
-      { status: 500 },
-    );
-  }
-  const aiModel = chosenEntry.model;
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
+  const aiModel  = creds.model;
 
   // ── 1c-bis. Billing gate: reserve a tailored-CV credit ───────────────────
   // A tailored CV is the 2nd-last pipeline step ("analysis"). Reserve here so

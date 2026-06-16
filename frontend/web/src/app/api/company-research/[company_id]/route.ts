@@ -17,15 +17,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { researchCompany, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }    from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 // ── GET — return cached row ────────────────────────────────────────────────────
 
@@ -119,44 +116,16 @@ export async function POST(
     if (loc) jdLocation = loc;
   }
 
-  // ── 3. Resolve AI key ─────────────────────────────────────────────────────────
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, status, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{
-    provider:          Provider;
-    encrypted_api_key: string;
-    config:            { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, {
-      encrypted: row.encrypted_api_key,
-      model:     row.config?.model ?? null,
-    });
-  }
-
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-  if (!chosen) {
+  // ── 3. Resolve platform AI provider/key/model ─────────────────────────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(keyByProvider.get(chosen)!.encrypted);
-  } catch (err) {
-    console.error("[/api/company-research/[company_id]] decrypt failed:", (err as Error).message);
-    return NextResponse.json({ error: "Could not decrypt your AI key." }, { status: 500 });
-  }
-
-  const entry = keyByProvider.get(chosen)!;
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
 
   // ── 4. Research + upsert ──────────────────────────────────────────────────────
   try {
@@ -166,7 +135,7 @@ export async function POST(
       jd_location:    jdLocation,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
-      ai_model:       entry.model ?? null,
+      ai_model:       creds.model ?? null,
     });
 
     if (result.research) {

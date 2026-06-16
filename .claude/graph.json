@@ -35,7 +35,7 @@
   },
   "build_state": {
     "current_phase": "phase-13 — monetization: Stripe subscriptions + usage metering (IN PROGRESS, not yet production)",
-    "billing_high_level": "Adding paid subscriptions (Stripe, AUD) gating the platform — not AI tokens (BYOK). Plans: 3-day card-upfront TRIAL (3 tailored CVs + 3 cover letters, 1 profile, 1 run) → WEEKLY (50 unique / 75 total CVs + letters, 5 profiles, 30 runs) → MONTHLY (250 unique / 375 total, 10 profiles, 120 runs) → UNLIMITED (∞, higher price). Total = unique × 1.5. Tailored CV and cover letter are SEPARATE buckets, equal caps (either/or). Caps reset per Stripe billing period (counted by current_period_start). Auto-renew ON (Stripe default; trial auto-converts after 3 days; subscriptions auto-renew each period). On cancel/expiry → READ-ONLY (existing CVs/letters viewable, no new analyses). Existing role='beta' users grandfathered via a comp subscription with a 14-day grace. Enforcement is at the 4 web-layer choke points only (createProfile, profiles/[id]/run, jobs/[id]/analyze, jobs/[id]/cover-letter); cv-backend + worker untouched. Migration 051_billing.sql. Pricing numbers are placeholders to finalize before go-live.",
+    "billing_high_level": "Adding paid subscriptions (Stripe, AUD) gating the platform. AI cost is now the platform's (BYOK removed 2026-06-16, see D20) — plan caps/pricing below were set when AI cost sat with the user and need revisiting. Plans: 3-day card-upfront TRIAL (3 tailored CVs + 3 cover letters, 1 profile, 1 run) → WEEKLY (50 unique / 75 total CVs + letters, 5 profiles, 30 runs) → MONTHLY (250 unique / 375 total, 10 profiles, 120 runs) → UNLIMITED (∞, higher price). Total = unique × 1.5. Tailored CV and cover letter are SEPARATE buckets, equal caps (either/or). Caps reset per Stripe billing period (counted by current_period_start). Auto-renew ON (Stripe default; trial auto-converts after 3 days; subscriptions auto-renew each period). On cancel/expiry → READ-ONLY (existing CVs/letters viewable, no new analyses). Existing role='beta' users grandfathered via a comp subscription with a 14-day grace. Enforcement is at the 4 web-layer choke points only (createProfile, profiles/[id]/run, jobs/[id]/analyze, jobs/[id]/cover-letter); cv-backend + worker untouched. Migration 051_billing.sql. Pricing numbers are placeholders to finalize before go-live.",
     "previous_phase": "post-12 — CV tailoring quality + polish",
     "production_writer": "w8_verified (W8+) — active via TAILORED_CV_WRITER=w8_verified Fly secret on jobtrackr-cv-api. All /internal/analyze runs use this. Beta /internal/analyze-eval is a separate isolated harness.",
     "production_ats_scorer": "PRODUCTION (main): S1 v1 deterministic 50/35/15. REFACTOR BRANCH (refactor/architecture-review): ATS v2 = 50 keyword / 40 experience / 10 formatting. Experience score REBUILT from three CV<->JD-alignment sub-signals: responsibility coverage (20, JD duties <-> CV bullets), relevant tenure (12, CV months in JD vertical vs experience_years_required), vertical alignment (8, %% CV entries in JD vertical). Removed v1's two defects: required-keyword double-count + role-family freebie. Tailoring invariant: keyword injection moves Cat 1 only (experience reads the narrative, formatting reads structure - neither fabricable from the feasibility plan, so predicted lift == actual lift). New module app/services/cv/experience_parser.py. min_initial_ats lowered 60->50 to match honest scoring. Full design: backend/api/docs/ATS_SCORING_V2.md.",
@@ -144,7 +144,8 @@
         "cv_version_id",
         "cv_text",
         "ai_provider",
-        "ai_api_key"
+        "ai_api_key",
+        "ai_model (optional)"
       ],
       "response": "202 Accepted { run_id }"
     },
@@ -189,7 +190,7 @@
     },
     {
       "id": "D3",
-      "decision": "BYOK Anthropic + OpenAI; no platform AI credits. Zero ongoing cost; user controls spend."
+      "decision": "SUPERSEDED 2026-06-16 by D20. (Historical: BYOK Anthropic + OpenAI; no platform AI credits. Zero ongoing cost; user controls spend.)"
     },
     {
       "id": "D4",
@@ -205,7 +206,7 @@
     },
     {
       "id": "D9",
-      "decision": "Preferred AI provider stored in localStorage (not DB). No migration; preference is per-browser."
+      "decision": "SUPERSEDED 2026-06-16 by D20 — see below. (Historical: preferred AI provider was stored in localStorage, per-browser, no DB.)"
     },
     {
       "id": "D11",
@@ -221,7 +222,7 @@
     },
     {
       "id": "D16",
-      "decision": "BYOK is transitional — planned removal in the future (platform will supply AI keys). Until then D3 holds. When removed, AI cost becomes the platform's and plan caps/pricing must be revisited."
+      "decision": "SUPERSEDED 2026-06-16 by D20. (Historical: BYOK was transitional — planned removal in the future, platform would supply AI keys. When removed, AI cost becomes the platform's and plan caps/pricing must be revisited — that revisit is now live, see D20.)"
     },
     {
       "id": "D17",
@@ -234,6 +235,10 @@
     {
       "id": "D19",
       "decision": "On subscription cancel/expiry → READ-ONLY (existing artifacts viewable, no new work) rather than hard-lock. Grandfather existing beta users with a 14-day comp subscription."
+    },
+    {
+      "id": "D20",
+      "decision": "BYOK removed 2026-06-16. Single platform-wide AI provider/key/model, admin-controlled, replaces per-user user_integrations rows for anthropic/openai/deepseek. New table public.platform_ai_settings (one row per provider, partial unique index enforcing exactly one is_active=true). Every consumer route (analyze, resume, cover-letter, company-research, stories/extract, voice-profile, cv upload/recategorise/extract-references, email-draft) now calls frontend/web/src/lib/ai/activeProvider.ts getActiveAiCredentials() instead of decrypting a per-user key. Admin manages it at /dashboard/admin/ai-settings (component PlatformAiSettings.tsx, API route /api/admin/ai-settings, role gate founder|admin). Default models centralised in frontend/web/src/lib/ai/models.ts (openai default gpt-5.1, anthropic claude-sonnet-4-6, deepseek deepseek-chat) and mirrored in backend/api/app/services/ai/client.py _DEFAULT_MODELS — keep both in sync by hand, no shared codegen. AI cost is now the platform's; plan caps/pricing must reflect this (ties into D15/D18 billing enforcement, still web-layer-only)."
     }
   ],
   "operational_notes": [
@@ -281,6 +286,11 @@
       "id": "OPS-18",
       "title": "Profile Location field uses Google Places via a server-side proxy",
       "detail": "frontend/web/src/app/api/places/autocomplete/route.ts (auth-gated GET ?q=) calls the Places Autocomplete API (New) at places.googleapis.com/v1/places:autocomplete, restricted includedRegionCodes:['au'] + includedPrimaryTypes:['(cities)']. Key is PLACES_API_KEY (server-only, NOT NEXT_PUBLIC_) so it never reaches the browser. UI: frontend/web/src/components/LocationAutocomplete.tsx — controlled input + 300ms-debounced dropdown, still free-typeable (Remote etc.), strips trailing ', Australia' on select to keep the 'Sydney NSW' shape the worker sources expect; replaces the plain input in ProfileForm.tsx. Requires 'Places API (New)' enabled in GCP (distinct from legacy Places API) + billing. Do NOT add an HTTP-referrer key restriction — calls are server→Google from Vercel IPs; an API restriction (limit to Places API New) is fine."
+    },
+    {
+      "id": "OPS-19",
+      "title": "Platform-wide AI provider replaces BYOK — migration 060 not yet applied",
+      "detail": "Migration shared/supabase/migrations/060_platform_ai_settings.sql creates public.platform_ai_settings, best-effort copies any existing founder/admin BYOK key from user_integrations, picks one active row, then DELETEs all anthropic/openai/deepseek rows from user_integrations (irreversible from the app). RISK flagged by migration-checker: if no founder/admin had a previously-valid key, the seeded 'openai' row is left with status=NULL/no key, so NO user's analyses work until an admin opens /dashboard/admin/ai-settings and pastes+validates a key. Required steps before applying: (1) read-only check that a founder/admin user_integrations row has status='valid' and a key for at least one provider; (2) optionally snapshot user_integrations before running, since the DELETE has no soft-delete/audit trail; (3) after applying, verify `select * from platform_ai_settings` shows exactly one is_active=true row with status='valid', and `select count(*) from user_integrations where provider in ('anthropic','openai','deepseek')` returns 0; (4) if the active row isn't valid, immediately set one via the admin UI to close the AI-dark window. See D20 for the full file list."
     }
   ],
   "known_issues": [

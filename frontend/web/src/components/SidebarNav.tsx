@@ -184,6 +184,7 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
           <NavItem href="/dashboard/admin/audit"     icon={ScrollText}>Audit log</NavItem>
 
           <SectionLabel>System</SectionLabel>
+          <NavItem href="/dashboard/admin/ai-settings"  icon={Sparkles}>AI provider</NavItem>
           <NavItem href="/dashboard/integrations"      icon={Plug}>Integrations</NavItem>
           <NavItem href="/dashboard/settings/profile"  icon={UserCircle2}>My details</NavItem>
           <NavItem href="/dashboard/settings/theme"    icon={Palette}>Theme</NavItem>

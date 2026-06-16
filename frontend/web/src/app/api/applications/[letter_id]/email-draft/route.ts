@@ -13,11 +13,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cvBackend";
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 interface ContactDetails {
   name?: string;
@@ -146,36 +143,21 @@ export async function GET(
     voiceRewritten = false;
 
     // Try the voice rewrite.
-    const [{ data: voiceRow }, { data: keyRows }] = await Promise.all([
+    const [{ data: voiceRow }, creds] = await Promise.all([
       admin
         .from("voice_profiles")
         .select("voice_sample_raw")
         .eq("user_id", user.id)
         .maybeSingle(),
-      admin
-        .from("user_integrations")
-        .select("provider, encrypted_api_key, config")
-        .eq("user_id", user.id)
-        .eq("status", "valid")
-        .eq("is_enabled", true)
-        .in("provider", PROVIDER_PRIORITY as unknown as string[]),
+      getActiveAiCredentials(),
     ]);
 
     const voiceSample = (voiceRow?.voice_sample_raw ?? "").trim();
-    const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-    for (const row of (keyRows ?? []) as Array<{
-      provider: Provider;
-      encrypted_api_key: string;
-      config: { model?: string } | null;
-    }>) {
-      keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
-    }
-    const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+    const chosen = creds?.provider;
 
-    if (voiceSample && chosen) {
+    if (voiceSample && chosen && creds) {
       try {
-        const entry  = keyByProvider.get(chosen)!;
-        const apiKey = decryptApiKey(entry.encrypted);
+        const apiKey = creds.apiKey;
         const result = await voiceRewriteEmail({
           user_id:           user.id,
           letter_id:         letter.id,
@@ -189,7 +171,7 @@ export async function GET(
           boilerplate_body:  defaults.body,
           ai_provider:       chosen,
           ai_api_key:        apiKey,
-          ai_model:          entry.model ?? undefined,
+          ai_model:          creds.model ?? undefined,
         });
         const rewritten = (result.body ?? "").trim();
         if (rewritten) {

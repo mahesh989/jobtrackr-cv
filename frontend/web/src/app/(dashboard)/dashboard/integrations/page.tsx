@@ -3,11 +3,8 @@ import { createAdminClient }   from "@/lib/supabase/admin";
 import { redirect }            from "next/navigation";
 import { ApifyIntegrationCard }  from "@/components/ApifyIntegrationCard";
 import { EmailIntegrationCard }  from "@/components/email/EmailIntegrationCard";
-import { ProviderPicker, type ProviderId } from "@/components/ProviderPicker";
 
 export const metadata = { title: "Integrations — JobTrackr" };
-
-const AI_PROVIDERS: ProviderId[] = ["anthropic", "openai", "deepseek"];
 
 const OAUTH_ERROR_LABELS: Record<string, string> = {
   invalid_state:           "Security check failed — please try again.",
@@ -39,10 +36,10 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Founder/admin only — bring-your-own-key (AI providers) + Apify quota
-  // are operator concerns. Paying users get hosted AI and don't manage
-  // Apify. The user-facing email-account connect has moved to My Details
-  // → Email account, so users still have a place to connect Gmail/Outlook.
+  // Founder/admin only — Apify quota is an operator concern (the platform
+  // AI provider now lives at /dashboard/admin/ai-settings). The user-facing
+  // email-account connect has moved to My Details → Email account, so
+  // users still have a place to connect Gmail/Outlook.
   const { data: me } = await supabase
     .from("users").select("role").eq("id", user.id).single();
   if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard/settings/profile");
@@ -78,35 +75,6 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
     is_enabled:          (apify.is_enabled as boolean) ?? true,
   } : null;
 
-  // ── AI provider keys ──────────────────────────────────────────────────────
-  const { data: aiRows } = await admin
-    .from("user_integrations")
-    .select("provider, status, status_reason, last_validated_at, config")
-    .eq("user_id", user.id)
-    .in("provider", AI_PROVIDERS);
-
-  interface IntegrationRow {
-    provider:          ProviderId;
-    status:            string;
-    status_reason:     string | null;
-    last_validated_at: string | null;
-    config:            { model?: string } | null;
-  }
-
-  const byProvider = new Map<ProviderId, {
-    connected: boolean; statusReason: string | null;
-    lastValidated: string | null; model: string | null;
-  }>();
-
-  for (const r of (aiRows ?? []) as IntegrationRow[]) {
-    byProvider.set(r.provider, {
-      connected:     true,
-      statusReason:  r.status_reason,
-      lastValidated: r.last_validated_at,
-      model:         r.config?.model ?? null,
-    });
-  }
-
   // ── Email integration ─────────────────────────────────────────────────────
   const { data: emailRow } = await admin
     .from("email_integrations")
@@ -118,24 +86,17 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
     ? { provider: emailRow.provider as "google" | "microsoft", from_address: emailRow.from_address as string }
     : null;
 
-  const pickerProviders = AI_PROVIDERS.map((id) => {
-    const row = byProvider.get(id);
-    return {
-      id,
-      connected:     row?.connected     ?? false,
-      statusReason:  row?.statusReason  ?? null,
-      lastValidated: row?.lastValidated ?? null,
-      model:         row?.model         ?? null,
-    };
-  });
-
   return (
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-8">
         <div>
           <h1 className="page-title text-text">Integrations</h1>
           <p className="page-subtitle">
-            Connect job sources and AI providers. All credentials are encrypted at rest with AES-256-GCM.
+            Connect job sources and email. All credentials are encrypted at rest with AES-256-GCM.
+            Manage the platform AI provider at{" "}
+            <a href="/dashboard/admin/ai-settings" className="text-[var(--brand)] hover:underline">
+              Admin → AI provider
+            </a>.
           </p>
         </div>
 
@@ -160,16 +121,6 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
             </p>
           </div>
         )}
-
-        {/* AI providers — unified picker */}
-        <section>
-          <h2 className="text-[13px] font-semibold text-text mb-1">AI providers</h2>
-          <p className="text-[12px] text-text-3 mb-4">
-            Bring your own key. Click a provider to expand, paste your key, choose a model,
-            then hit Connect. Click the radio dot to set it as preferred for all analyses.
-          </p>
-          <ProviderPicker providers={pickerProviders} />
-        </section>
 
         {/* Email account */}
         <section>

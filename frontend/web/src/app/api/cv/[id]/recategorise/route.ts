@@ -11,14 +11,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { categoriseCv, CvBackendError } from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 25;
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 export async function POST(
   _req: NextRequest,
@@ -45,34 +42,17 @@ export async function POST(
     return NextResponse.json({ error: "CV has no extractable text — re-upload the file." }, { status: 422 });
   }
 
-  // Find the user's best AI key
-  const { data: keyRows } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
-  const keyByProvider = new Map<Provider, KeyRow>();
-  for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
-
-  const { searchParams } = new URL(_req.url);
-  const preferredProvider = searchParams.get("provider") as Provider | null;
-
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  // Resolve the platform AI provider/key/model
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key connected. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
+  const chosen = creds.provider;
 
-  // Decrypt key + call cv-backend. If the stored model fails (e.g. a
+  // Call cv-backend. If the stored model fails (e.g. a
   // completions-only or unrecognised model name), retry once with the
   // provider's safe default (ai_model: null → cv-backend uses gpt-4o / claude-3-5-sonnet / deepseek-chat).
   function extractDetail(err: unknown): string {
@@ -85,14 +65,8 @@ export async function POST(
   }
 
   let categorised: { technical: string[]; soft_skills: string[]; domain_knowledge: string[] };
-  const k = keyByProvider.get(chosen)!;
-  let apiKey: string;
-  try { apiKey = decryptApiKey(k.encrypted_api_key); }
-  catch (e) {
-    return NextResponse.json({ error: "Could not decrypt your AI key — re-connect it in Integrations." }, { status: 500 });
-  }
-
-  const storedModel = k.config?.model ?? null;
+  const apiKey      = creds.apiKey;
+  const storedModel = creds.model ?? null;
   try {
     categorised = await categoriseCv({ cv_text: cv.cv_text, ai_provider: chosen, ai_api_key: apiKey, ai_model: storedModel });
   } catch (firstErr) {

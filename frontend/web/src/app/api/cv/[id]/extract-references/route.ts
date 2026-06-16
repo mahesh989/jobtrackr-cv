@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import {
   extractCvReferences,
   CvBackendError,
@@ -24,9 +24,6 @@ import {
 
 export const runtime     = "nodejs";
 export const maxDuration = 25;
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 export async function POST(
   req: NextRequest,
@@ -56,32 +53,15 @@ export async function POST(
     );
   }
 
-  // Find the user's best AI key (same priority order as the other CV routes)
-  const { data: keyRows } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
-  const keyByProvider = new Map<Provider, KeyRow>();
-  for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
-
-  const { searchParams } = new URL(req.url);
-  const preferredProvider = searchParams.get("provider") as Provider | null;
-
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  // Resolve the platform AI provider/key/model
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key connected. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
+  const chosen = creds.provider;
 
   function extractDetail(err: unknown): string {
     if (err instanceof CvBackendError) {
@@ -92,17 +72,8 @@ export async function POST(
     return err instanceof Error ? err.message : "AI extraction failed";
   }
 
-  const k = keyByProvider.get(chosen)!;
-  let apiKey: string;
-  try { apiKey = decryptApiKey(k.encrypted_api_key); }
-  catch {
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key — re-connect it in Integrations." },
-      { status: 500 },
-    );
-  }
-
-  const storedModel = k.config?.model ?? null;
+  const apiKey      = creds.apiKey;
+  const storedModel = creds.model ?? null;
   let result: ExtractCvReferencesResponse;
   try {
     result = await extractCvReferences({

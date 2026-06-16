@@ -14,29 +14,26 @@
  *   502  cv-backend research failed
  *   500  DB error
  *
- * The triggering user's BYOK AI key is used for the distillation call only.
+ * The platform's admin-configured AI key is used for the distillation call only.
  * The company_research row is global (no user_id) — written once, reused by all.
  */
 
 import { NextRequest, NextResponse }                   from "next/server";
 import { createClient }                                from "@/lib/supabase/server";
 import { createAdminClient }                           from "@/lib/supabase/admin";
-import { decryptApiKey }                               from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }                      from "@/lib/ai/activeProvider";
 import { researchCompany, CompanyResearch, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }                from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;  // Tavily + scrape + AI distill
 
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
-
 export async function POST(req: NextRequest) {
   // ── 1. Init supabase client ───────────────────────────────────────────────────
   const supabase = await createClient();
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
-  let body: { company_name?: string; company_domain?: string; jd_location?: string; provider?: string };
+  let body: { company_name?: string; company_domain?: string; jd_location?: string };
   try {
     body = await req.json();
   } catch {
@@ -96,53 +93,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 5. Resolve AI key ─────────────────────────────────────────────────────────
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, status, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{
-    provider:          Provider;
-    encrypted_api_key: string;
-    config:            { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, {
-      encrypted: row.encrypted_api_key,
-      model:     row.config?.model ?? null,
-    });
-  }
-
-  const preferredProvider = (body.provider && PROVIDER_PRIORITY.includes(body.provider as Provider))
-    ? (body.provider as Provider)
-    : null;
-
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  // ── 5. Resolve platform AI provider/key/model ─────────────────────────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const entry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch (err) {
-    console.error("[/api/company-research] decrypt failed:", (err as Error).message);
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings → Integrations." },
-      { status: 500 },
-    );
-  }
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
 
   // ── 5a. Auto-lookup jd_location from a matching job when caller didn't supply ─
   // Cover-letter UI flow passes only { company_name }; we recover the JD's
@@ -172,7 +132,7 @@ export async function POST(req: NextRequest) {
       jd_location:    jdLocation,
       ai_provider:    chosen,
       ai_api_key:     aiApiKey,
-      ai_model:       entry.model ?? null,
+      ai_model:       creds.model ?? null,
     });
   } catch (err) {
     console.error(

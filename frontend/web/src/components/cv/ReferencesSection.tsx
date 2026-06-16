@@ -101,15 +101,8 @@ export function ReferencesSection({
     setExtractError(null);
     setExtracting(true);
 
-    let preferred: string | null = null;
-    try { preferred = localStorage.getItem("jobtrackr-preferred-provider"); } catch {}
-
-    const url = preferred
-      ? `/api/cv/${activeCvId}/extract-references?provider=${encodeURIComponent(preferred)}`
-      : `/api/cv/${activeCvId}/extract-references`;
-
     try {
-      const res = await fetch(url, { method: "POST" });
+      const res = await fetch(`/api/cv/${activeCvId}/extract-references`, { method: "POST" });
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
         setExtractError(j.error ?? `Extraction failed (HTTP ${res.status})`);

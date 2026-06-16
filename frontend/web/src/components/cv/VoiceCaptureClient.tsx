@@ -114,16 +114,12 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
     setStatus("submitting");
     setErrorMsg(null);
 
-    let provider: string | null = null;
-    try { provider = localStorage.getItem("jobtrackr-preferred-provider"); } catch { /* SSR */ }
-
     try {
       const res  = await fetch("/api/user/voice-profile", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
           voice_sample_text: text,
-          provider:          provider ?? undefined,
           source:            activeTab,
         }),
       });

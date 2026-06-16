@@ -16,13 +16,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { decryptApiKey }             from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { extractCvText, CvBackendError, type StructuredCv, type CategoriseCvResponse } from "@/lib/cvBackend";
 import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
-
-// Same priority order as /api/jobs/[id]/analyze — Anthropic preferred for quality.
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 export const runtime = "nodejs";
 // Extraction is normally <3s; allow headroom for cold-edge cases.
@@ -56,7 +52,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { cv_id?: string; label?: string; storage_path?: string; provider?: string };
+  let body: { cv_id?: string; label?: string; storage_path?: string };
   try {
     body = await req.json();
   } catch {
@@ -149,31 +145,11 @@ export async function POST(req: NextRequest) {
   let structuredCv: StructuredCv | null = null;
   let normalizedCvText: string | null = null;
   let categorised: CategoriseCvResponse | null = null;
-  const { data: keyRows } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-  type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
-  const keyByProvider = new Map<Provider, KeyRow>();
-  for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
+  const creds = await getActiveAiCredentials();
 
-  const preferredProvider = (body.provider && PROVIDER_PRIORITY.includes(body.provider as Provider))
-    ? (body.provider as Provider)
-    : null;
-
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (chosen) {
-    const k = keyByProvider.get(chosen)!;
+  if (creds) {
     try {
-      const apiKey      = decryptApiKey(k.encrypted_api_key);
-      const storedModel = k.config?.model ?? null;
-      const r = await runStructurizeAndCategorise(cvText, chosen, apiKey, storedModel);
+      const r = await runStructurizeAndCategorise(cvText, creds.provider, creds.apiKey, creds.model);
       structuredCv     = r.structured_cv;
       normalizedCvText = r.normalized_cv_text;
       categorised      = r.categorised;

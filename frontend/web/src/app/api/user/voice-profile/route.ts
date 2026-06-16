@@ -11,7 +11,7 @@
  *         typed or pasted from an existing cover letter.
  *
  * POST body:
- *   { voice_sample_text: string, provider?: string, source?: string }
+ *   { voice_sample_text: string, source?: string }
  *
  * NOTE: voice_sample_text must never appear in server logs here or downstream.
  */
@@ -19,14 +19,11 @@
 import { NextRequest, NextResponse }                          from "next/server";
 import { createClient }                                        from "@/lib/supabase/server";
 import { createAdminClient }                                   from "@/lib/supabase/admin";
-import { decryptApiKey }                                       from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -54,7 +51,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { voice_sample_text?: unknown; provider?: unknown; source?: unknown };
+  let body: { voice_sample_text?: unknown; source?: unknown };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
@@ -72,48 +69,17 @@ export async function POST(req: NextRequest) {
     ? (sourceRaw as SourceTag)
     : "in_app_capture";
 
-  // ── Resolve AI key (same pattern as /api/jobs/[id]/analyze) ──────────────
+  // ── Resolve platform AI provider/key/model ────────────────────────────────
   const admin = createAdminClient();
-  const { data: keys } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, status, config")
-    .eq("user_id", user.id)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
-
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{
-    provider: Provider; encrypted_api_key: string; config: { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
-  }
-
-  const rawProvider = typeof body.provider === "string" ? body.provider : null;
-  const preferred   = rawProvider && PROVIDER_PRIORITY.includes(rawProvider as Provider)
-    ? rawProvider as Provider : null;
-  const chosen      = (preferred && keyByProvider.has(preferred))
-    ? preferred
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → AI keys." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const entry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch (err) {
-    console.error("[/api/user/voice-profile] decrypt failed:", err);
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings → AI keys." },
-      { status: 500 },
-    );
-  }
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
 
   // ── Call cv-backend to extract fingerprint ────────────────────────────────
   let result: Awaited<ReturnType<typeof extractVoiceFingerprint>>;
@@ -122,7 +88,7 @@ export async function POST(req: NextRequest) {
       voice_sample_text: voiceSample,
       ai_provider:       chosen,
       ai_api_key:        aiApiKey,
-      ai_model:          entry.model ?? null,
+      ai_model:          creds.model ?? null,
     });
   } catch (err) {
     if (err instanceof CvBackendError && err.status === 422) {

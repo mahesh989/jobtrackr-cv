@@ -9,7 +9,7 @@
  * returns the existing letter_id unless { regenerate: true } is in the body.
  *
  * Request body (all optional):
- *   { regenerate?: boolean, tone_target?: "professional" | "warm" | "direct", provider?: string }
+ *   { regenerate?: boolean, tone_target?: "professional" | "warm" | "direct" }
  *
  * Prerequisites (422 if missing):
  *   - Active CV with extracted cv_text
@@ -34,7 +34,7 @@
 import { NextRequest, NextResponse }                      from "next/server";
 import { createClient }                                    from "@/lib/supabase/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
-import { decryptApiKey }                                   from "@/lib/integrations/crypto";
+import { getActiveAiCredentials }                          from "@/lib/ai/activeProvider";
 import { MIN_FINAL_ATS }                                   from "@/lib/atsThresholds";
 import {
   generateCoverLetter,
@@ -49,9 +49,6 @@ import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/bil
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
-
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type  Provider          = (typeof PROVIDER_PRIORITY)[number];
 
 const JD_MIN_CHARS = 50;
 
@@ -95,7 +92,7 @@ export async function POST(
   if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
-  let body: { regenerate?: unknown; tone_target?: unknown; provider?: unknown } = {};
+  let body: { regenerate?: unknown; tone_target?: unknown } = {};
   try { body = await req.json(); } catch { /* empty body is fine */ }
 
   const regenerate  = body.regenerate === true;
@@ -194,11 +191,10 @@ export async function POST(
     );
   }
 
-  // ── 5. Parallel: active CV + voice profile + AI keys + idempotency check ──────
+  // ── 5. Parallel: active CV + voice profile + idempotency check ────────────────
   const [
     { data: cvRow },
     { data: voiceRow },
-    { data: keyRows },
     { data: existingLetter },
   ] = await Promise.all([
     admin
@@ -214,14 +210,6 @@ export async function POST(
       .select("fingerprint, voice_sample_raw")
       .eq("user_id", user.id)
       .maybeSingle(),
-
-    admin
-      .from("user_integrations")
-      .select("provider, encrypted_api_key, status, config")
-      .eq("user_id", user.id)
-      .eq("status", "valid")
-      .eq("is_enabled", true)
-      .in("provider", PROVIDER_PRIORITY as unknown as string[]),
 
     admin
       .from("cover_letters")
@@ -278,39 +266,17 @@ export async function POST(
       .eq("id", existingLetter.id);
   }
 
-  // ── 7. Resolve AI key ─────────────────────────────────────────────────────────
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keyRows ?? []) as Array<{
-    provider: Provider; encrypted_api_key: string; config: { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, { encrypted: row.encrypted_api_key, model: row.config?.model ?? null });
-  }
-
-  const rawProvider = typeof body.provider === "string" ? body.provider : null;
-  const preferred   = rawProvider && PROVIDER_PRIORITY.includes(rawProvider as Provider)
-    ? rawProvider as Provider : null;
-  const chosen      = (preferred && keyByProvider.has(preferred))
-    ? preferred : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-
-  if (!chosen) {
+  // ── 7. Resolve platform AI provider/key/model ─────────────────────────────────
+  const creds = await getActiveAiCredentials();
+  if (!creds) {
     await release();
     return NextResponse.json(
-      { error: "No AI key configured. Add one in Settings → Integrations." },
+      { error: "No AI provider configured. Contact your administrator." },
       { status: 422 },
     );
   }
-
-  const entry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch {
-    await release();
-    return NextResponse.json(
-      { error: "Could not decrypt your AI key. Re-connect it in Settings." },
-      { status: 500 },
-    );
-  }
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
 
   // ── 8. Fetch top-ranked story ─────────────────────────────────────────────────
   let topStory: Record<string, unknown> | null = null;
@@ -473,7 +439,7 @@ export async function POST(
     company_hook_text: companyHookText,
     ai_provider:       chosen,
     ai_api_key:        aiApiKey,
-    ai_model:          entry.model ?? undefined,
+    ai_model:          creds.model ?? undefined,
   };
 
   let variants: OpeningVariant[];

@@ -190,11 +190,6 @@ export function CvLibraryClient({ initial }: Props) {
     }
 
     // ── Step 3 — tell the API to finalise (extract text + INSERT row).
-    let preferred: string | null = null;
-    try {
-      preferred = localStorage.getItem("jobtrackr-preferred-provider");
-    } catch {}
-
     try {
       const res = await fetch("/api/cv", {
         method:  "POST",
@@ -203,7 +198,6 @@ export function CvLibraryClient({ initial }: Props) {
           cv_id:        cvId,
           label,
           storage_path: storagePath,
-          provider:     preferred,
         }),
       });
       if (!res.ok) {
@@ -692,17 +686,8 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
   async function handleRecategorise() {
     setReCatLoading(true);
     setReCatError(null);
-    let preferred: string | null = null;
     try {
-      preferred = localStorage.getItem("jobtrackr-preferred-provider");
-    } catch {}
-
-    const url = preferred
-      ? `/api/cv/${cvId}/recategorise?provider=${encodeURIComponent(preferred)}`
-      : `/api/cv/${cvId}/recategorise`;
-
-    try {
-      const res = await fetch(url, { method: "POST" });
+      const res = await fetch(`/api/cv/${cvId}/recategorise`, { method: "POST" });
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
         setReCatError(j.error ?? `Failed (HTTP ${res.status})`);
