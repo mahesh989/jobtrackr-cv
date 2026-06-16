@@ -488,6 +488,7 @@ class AIClient:
                             "unsupported" in msg.lower()
                             or "does not support" in msg.lower()
                             or "unknown parameter" in msg.lower()
+                            or "unrecognized" in msg.lower()
                         ):
                             logger.info(
                                 "Model %s rejected %s; retrying without it.",
