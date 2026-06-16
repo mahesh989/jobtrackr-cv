@@ -1,9 +1,9 @@
 // Stage 4b — Keyword pre-filter.
-// Promoted from the beta source-eval tool — title-only matching is the
-// production default, with optional must-include smart filter and teaser
-// rescue. The orchestrator calls applyKeywordFilter(jobs, profile).
+// Title-only matching is the production default, with optional must-include
+// smart filter and teaser rescue. The orchestrator calls
+// applyKeywordFilter(jobs, profile).
 //
-// Matching rules (same as beta):
+// Matching rules:
 //   • Single word ("SQL")          → \bword\b case-insensitive ("SQL" ≠ "MySQL")
 //   • Multi-word phrase ("Data Analyst")
 //        → exact substring  OR  all words individually present with \b
@@ -17,10 +17,6 @@
 //                          broader semantic acceptance.
 //   3. applyKeywordFilter — picks which phrases to use (must_include if set,
 //                          else profile.keywords) and orchestrates 1 + 2.
-//
-// keywordFilter(jobs, keywords) — legacy title+description matcher, kept
-// exported because the beta source-eval tool still uses it under scope
-// "title+description" for comparison purposes.
 
 import type { SearchProfile } from "../sources/types.js";
 import type { NormalisedJob } from "./types.js";
@@ -134,28 +130,3 @@ export function applyKeywordFilter(
   return [...titlePassed, ...rescued];
 }
 
-// ── Legacy export (kept for the beta source-eval comparison mode) ───────────
-
-/**
- * Original title+description matcher. Kept exported because the beta
- * source-eval tool runs it under filterScope="title+description" for
- * coverage comparison. NOT used by the production orchestrator any more —
- * use applyKeywordFilter(jobs, profile) instead.
- */
-export function keywordFilter(
-  jobs:     NormalisedJob[],
-  keywords: string[],
-): NormalisedJob[] {
-  if (keywords.length === 0) return jobs;
-  const matchers = buildMatchers(keywords);
-  const results: NormalisedJob[] = [];
-  for (const job of jobs) {
-    // Title weighted ×2 in haystack (kept for compatibility with prior counts).
-    const haystack = `${job.title} ${job.title} ${job.description}`.toLowerCase();
-    const matched = matchers.filter(({ match }) => match(haystack)).map((m) => m.kw);
-    if (matched.length > 0) {
-      results.push({ ...job, keywords_matched: matched });
-    }
-  }
-  return results;
-}

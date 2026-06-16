@@ -9,7 +9,6 @@ import type { PipelineJobData } from "./queue/queue.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { syncSchedules, registerGlobalSchedules } from "./queue/scheduler.js";
 import { runWeeklyDigest } from "./notifications/weeklyDigest.js";
-import { startSourceEvalWorker } from "./eval/sourceEvalWorker.js";
 import { db } from "./db/client.js";
 
 const worker = new Worker<PipelineJobData>(
@@ -60,16 +59,6 @@ worker.on("failed", (job, err) => {
 
 console.log(`[worker] started — queue: ${QUEUE_NAME}`);
 
-// Beta source-eval Worker — separate queue (jobtrackr-source-eval), concurrency 3.
-// Dry-run pipeline-per-source comparator for /dashboard/beta/sources. Never
-// touches the jobs table. Booting fails should not bring the main worker down.
-let sourceEvalWorker: ReturnType<typeof startSourceEvalWorker> | null = null;
-try {
-  sourceEvalWorker = startSourceEvalWorker();
-} catch (err) {
-  console.error("[worker] failed to start source-eval worker:", err);
-}
-
 // ── Graceful shutdown — mark any in-flight run_logs as failed ─────────────────
 // Fly.io and Docker send SIGTERM before killing the process (default 10s grace).
 // This ensures a crash/deploy never leaves a run stuck in "running" indefinitely.
@@ -78,7 +67,6 @@ async function shutdown(signal: string) {
   console.log(`[worker] ${signal} received — closing gracefully`);
   try {
     await worker.close();
-    if (sourceEvalWorker) await sourceEvalWorker.close();
     // Mark any "running" run_logs as failed — the stale auto-expire catches these
     // too, but doing it here means the next run sees clean state immediately.
     const { data: stuck } = await db
