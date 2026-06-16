@@ -28,11 +28,13 @@ def test_trim_to_words_does_not_cut_at_semicolon():
     )
 
 
-def test_enforce_career_highlights_default_cap_is_65():
-    """The default cap was raised 50 → 65 so two-employer S2 has headroom."""
+def test_enforce_career_highlights_default_cap_is_50():
+    """50 matches the composer prompt's own "35-50 words total" ceiling
+    (composition.py CAREER-STYLE SUMMARY) — see tailored_structural_validation's
+    profile_word_count gate for the same 35-50 band."""
     import inspect
     sig = inspect.signature(_enforce_career_highlights_words)
-    assert sig.parameters["max_words"].default == 65
+    assert sig.parameters["max_words"].default == 50
 
 
 def test_enforce_career_highlights_words_preserves_semicolon():

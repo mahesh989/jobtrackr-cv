@@ -73,12 +73,21 @@ CONTACT BLOCK
 ## Career Highlights – EXACT TWO SENTENCES
 
 ### CRITICAL RULE #1 (read this before anything else)
-**The very first word of the entire Career Highlights section MUST be a job title** (e.g., "Aged Care Worker", "Personal Care Worker", "Data Analyst").
+**The very first word of the entire Career Highlights section MUST be the JD‑aligned role title** (e.g., "Aged Care Worker", "Personal Care Worker", "Data Analyst").
 
 ❌ **FORBIDDEN** – these are NOT job titles and must NEVER appear as the first word(s):
 - "Certificate", "Diploma", "Bachelor", "Master", "PhD"
-- "International", "Student", "Graduate", "Recent", "Aspiring"
+- "International", "Student", "Graduate", "Recent"
 - "With", "Having", "Experienced", "Background"
+
+✅ **THE ONE EXCEPTION — career‑changer**: if the candidate has ZERO paid
+   experience in the JD's vertical (a true career‑changer who only holds a
+   qualification or certificate in the target field), you MAY lead with
+   **"Aspiring <Role>"** — e.g. *"Aspiring Data Analyst with a recently
+   completed Google Data Analytics certificate…"*. This is the ONLY case where
+   a prefix before the role title is allowed. If the candidate has ANY paid
+   in‑vertical experience — even a short placement — lead with the bare role
+   title (no "Aspiring").
 
 ❌ **Example of a WRONG opening** (this exact pattern is forbidden):
    *"Certificate IV in Ageing Support and placement experience in residential aged care..."*
@@ -103,20 +112,31 @@ Answer these three questions silently:
 
 ### STEP 2 – WRITE EXACTLY TWO SENTENCES
 
-**SENTENCE 1** (≤28 words) – MUST start with the role title from Step 1.  
-- If vertical experience is a short placement (<6 months):  
-  `"<Role> with [X-hour/week] placement experience in <setting>, supporting <clients> with <specialisations>."`  
-- If vertical experience is a full role:  
-  `"<Role> with [X] years' experience in <specialisations>, delivering <outcome> for <audience>."`  
+**SENTENCE 1** (≤28 words) – MUST start with the role title from Step 1.
+- If vertical experience is a short placement (<6 months):
+  `"<Role> with [X-hour/week] placement experience in <setting>, supporting <clients> with <specialisations>."`
+- If vertical experience is a full role (≥12 months total relevant tenure):
+  `"<Role> with [X] years' experience in <specialisations>, delivering <outcome> for <audience>."`
 
-**FORBIDDEN**: leading with any other industry, degree, or background.  
+**YEARS‑HONESTY (HARD)**: State a "[X] years' experience" figure ONLY when the
+candidate has **≥12 months of genuine tenure in the JD's vertical**. If their
+in‑vertical experience is a placement or totals under 12 months, you MUST use
+the placement framing (hours/weeks) or lead with role + specialisations and
+**omit any years number entirely** — never round a few months up to "1+ years"
+or sum unrelated short roles into a "years" claim.
+**FORBIDDEN**: leading with any other industry, degree, or background.
 **FORBIDDEN**: naming tools or echoing the title's own words in specialisations.
 
-**SENTENCE 2** (≤22 words) – an achievement anchored to the **specific employer** (if full role) or **scope phrase** (if placement).  
-- Full role: `"<Action> <method> <result> at <employer>."`  
-- Placement: `"Delivered <care type> and <care type> across <scope> in collaboration with <team>."`  
+**SENTENCE 2** (≤22 words) – an achievement anchored to the **specific employer** (if full role) or **scope phrase** (if placement).
+- Full role: `"<Action> <method> <result> at <employer>."`
+- Placement: `"Delivered <care type> and <care type> across <scope> in collaboration with <team>."`
 
-**FORBIDDEN**: generic claims ("compassionate care") without employer or scope.  
+**CONCRETENESS (HARD)**: Sentence 2 MUST contain at least one of — a named
+employer from the CV, a quantified result (a number/%/metric), or a concrete
+scope phrase. A sentence that names none of these is invalid.
+❌ *"Committed to delivering compassionate, person‑centred care."* (generic — no employer, metric, or scope)
+✅ *"Improved retention forecasting by 25% at Bitrates through cohort modelling."* (names employer + metric)
+**FORBIDDEN**: generic claims ("compassionate care") without employer or scope.
 **FORBIDDEN**: naming tools.
 
 ---

@@ -238,7 +238,10 @@ def _word_count(text: str) -> int:
 def _gate_profile_word_count(sections: Dict[str, str]) -> Dict[str, Any]:
     """
     Career Highlights = 2 sentences of prose (positioning + achievement).
-    Healthy total is 35-60 words. No bullets, no skills line.
+    Healthy total is 35-50 words — matches the composer prompt's own
+    "35-50 words total" ceiling (composition.py CAREER-STYLE SUMMARY) and the
+    deterministic trimmer's max_words=50 (tailored_cv.py
+    _enforce_career_highlights_words). No bullets, no skills line.
     """
     body = _resolve_section(sections, _PROFILE_ALIASES)
     if not body:
@@ -255,17 +258,17 @@ def _gate_profile_word_count(sections: Dict[str, str]) -> Dict[str, Any]:
     if n < 35:
         return _result(
             "profile_word_count", "warn",
-            f"Career Highlights is only {n} words (target 35-60).",
+            f"Career Highlights is only {n} words (target 35-50).",
         )
-    if n > 80:
+    if n > 65:
         return _result(
             "profile_word_count", "fail",
-            f"Career Highlights is {n} words (hard cap 60, absolute max 80).",
+            f"Career Highlights is {n} words (hard cap 50, absolute max 65).",
         )
-    if n > 60:
+    if n > 50:
         return _result(
             "profile_word_count", "warn",
-            f"Career Highlights is {n} words — getting padded (target 35-60).",
+            f"Career Highlights is {n} words — getting padded (target 35-50).",
         )
     return _result(
         "profile_word_count", "pass",

@@ -277,18 +277,18 @@ def _enforce_section_roles(
     return "\n".join(out_lines)
 
 
-def _enforce_career_highlights_words(markdown: str, max_words: int = 65) -> str:
+def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     """
     Trim Career Highlights prose to at most max_words words.
     Ensures exactly two sentences are kept if present, truncating the second
     sentence if the total word count exceeds max_words.
 
-    Cap raised from 50→65 so that a two-employer S2 (which the prompt mandates
-    via a semicolon-joined clause pair) has headroom to fit before the trimmer
-    has to engage. Combined with the semicolon no longer being treated as a
-    cut boundary (see _trim_to_words._ends_clause), this prevents the silent
-    deletion of the second employer clause that used to produce the
-    "single-employer" summary bug.
+    50 matches the composer prompt's own "35-50 words total" ceiling
+    (composition.py CAREER-STYLE SUMMARY) — S1 ≤28 + a two-employer S2
+    (16-22) already fits within 50, so no extra headroom is needed. The
+    semicolon is not a cut boundary (see _trim_to_words._ends_clause), so a
+    two-employer S2 still trims as one clause pair rather than losing the
+    second employer's clause.
     """
     HEADING = "## Career Highlights"
     lines = markdown.split("\n")
@@ -757,7 +757,7 @@ def _enforce_structure(markdown: str) -> str:
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)
-    markdown = _enforce_career_highlights_words(markdown, max_words=65)
+    markdown = _enforce_career_highlights_words(markdown, max_words=50)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"

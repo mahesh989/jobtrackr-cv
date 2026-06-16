@@ -365,9 +365,8 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   a named system/process, a scope phrase (across multiple sites/shifts), an
   observed quality (incident-free record, audit pass). Never fabricate a number.
 - No generic openers ("Results-driven", "Passionate", "Detail-oriented").
-- Do NOT open with a seniority adjective ("Entry-level", "Junior", "Graduate",
-  "Aspiring", "Senior") unless that exact word is in the candidate's CV title.
-  State the role and ACTUAL years instead — never label the candidate's level.
+- Seniority/years framing: see SENIORITY WORDS below — it is the single
+  authoritative rule for both the seniority-adjective ban and the years figure.
 
 TITLE SLOT (summary opener) — choose ONE title, never chain
 The opener uses ONE role title; never write "Title A and Title B" or
@@ -389,11 +388,14 @@ pick by JD relevance using these clauses (in order):
       hybrid): name the JD-aligned role in the summary opener; the other
       appears only in its own Experience entry with its own title.
 
-SENIORITY WORDS
-Use "Senior / Lead / Principal / Manager / Director" only when that exact
-word appears in the candidate's CV job titles. The years figure reflects the
-candidate's ACTUAL relevant experience from the CV (round down); never match
-the JD's minimum.
+SENIORITY WORDS (single authoritative rule — applies to S1's title slot and
+years figure, see CAREER-STYLE SUMMARY above)
+- Do NOT open with a seniority adjective ("Entry-level", "Junior", "Graduate",
+  "Aspiring", "Senior", "Lead", "Principal", "Manager", "Director") unless that
+  exact word appears in the candidate's CV job titles.
+- The years figure reflects the candidate's ACTUAL relevant experience from
+  the CV (round down) — never match the JD's minimum, never inflate. State the
+  role and the actual years instead of labelling the candidate's level.
 
 BEFORE YOU EMIT — final self-audit (run these in order; fix any failure in
 place; do not emit until every item passes):

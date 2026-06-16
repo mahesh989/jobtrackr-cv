@@ -1,12 +1,16 @@
 """Honesty guard tests — anchors the tailored CV to source-CV facts.
 
-Covers the 6 quality issues surfaced by the real-test audit:
+Covers the quality issues surfaced by the real-test audit:
   1. Fabricated/placeholder dates in role italic-headers
-  2. "N+ years' experience" framing for sub-12-month candidates
-  3. Categorical work-history hallucination (e.g. "retirement village")
-  4. Wrong Skills section headline label for the JD vertical
-  5. Pre-composition: irrelevant-role filter with a floor
-  6. Honesty-risk flag for orchestrator decisions
+  2. Categorical work-history hallucination (e.g. "retirement village")
+  3. Wrong Skills section headline label for the JD vertical
+  4. Pre-composition: irrelevant-role filter with a floor
+  5. Honesty-risk flag for orchestrator decisions
+
+Note: the "N+ years' experience" honesty rule and the summary word-floor are
+now enforced at generation time in the composer prompt (ai/prompts/tailored_cv
+.py), not by deterministic post-passes — see decision to fold gate intent into
+the prompt (single source of truth).
 """
 from __future__ import annotations
 
@@ -14,11 +18,9 @@ import pytest
 
 from app.services.eval.writers.honesty_guard import (
     enforce_source_dates,
-    enforce_summary_years_gate,
     enforce_source_settings,
     pin_skills_section_labels,
     enforce_credential_claims,
-    enforce_summary_word_floor,
     filter_irrelevant_roles_pre,
     assess_honesty_risk,
     extract_source_facts,
@@ -154,61 +156,6 @@ class TestEnforceSourceDates:
 # ---------------------------------------------------------------------------
 # 2. Years-gate
 # ---------------------------------------------------------------------------
-
-class TestSummaryYearsGate:
-
-    def test_strips_years_claim_for_3_month_candidate(self):
-        """Shanti has 3 months of nursing tenure. '1+ years' must be stripped."""
-        tailored = """# Shanti Giri
-
-## Career Highlights
-
-Aged Care Support Worker with 1+ years' experience in residential aged care settings.
-"""
-        out, notes = enforce_summary_years_gate(tailored, SHANTI_CV, "nursing")
-        assert "1+ years" not in out
-        assert "years' experience" not in out
-        assert "Aged Care Support Worker" in out  # surrounding prose preserved
-        assert notes
-
-    def test_no_strip_when_summary_has_no_years_claim(self):
-        tailored = """# Shanti Giri
-
-## Career Highlights
-
-Certificate IV–qualified Aged Care Support Worker with a 120-hour clinical placement.
-"""
-        out, notes = enforce_summary_years_gate(tailored, SHANTI_CV, "nursing")
-        assert out == tailored
-        assert notes == []
-
-    def test_passes_through_when_no_vertical(self):
-        tailored = "## Career Highlights\nAged Care Support Worker with 1+ years' experience.\n"
-        out, _ = enforce_summary_years_gate(tailored, SHANTI_CV, None)
-        # No vertical → relevant_tenure_months returns 0 → still under 12 → strip
-        # (but we treat None as "skip" via the floor logic in the guard.)
-        # The current implementation will strip when months < 12. That's OK
-        # behaviour — a 0-month claim is the most over-claimed of all.
-        assert "1+ years" not in out
-
-    def test_keeps_years_claim_when_source_has_real_tenure(self):
-        """Build a CV with 24 months of nursing tenure — guard must pass through."""
-        cv_with_2y = """SHANTI GIRI
-
-WORK EXPERIENCE
-
-RFBI Concord Community Village
-Personal Care Worker
-Jan 2024 – Jan 2026
-Sydney, NSW
-- Provided personal care, dementia support and medication administration.
-- Assisted with activities of daily living, mobility support and infection control.
-"""
-        tailored = "## Career Highlights\n\nAged Care Worker with 2+ years' experience in residential aged care.\n"
-        out, notes = enforce_summary_years_gate(tailored, cv_with_2y, "nursing")
-        assert out == tailored
-        assert notes == []
-
 
 # ---------------------------------------------------------------------------
 # 3. Setting-descriptor guard
@@ -429,46 +376,3 @@ class TestEnforceCredentialClaims:
         out, notes = enforce_credential_claims(md, contact_details=None)
         assert "pre-employment medical" not in out.lower()
         assert notes
-
-
-# ---------------------------------------------------------------------------
-# 8. Summary word-floor flag
-# ---------------------------------------------------------------------------
-
-class TestSummaryWordFloor:
-
-    def test_flag_when_below_35_words(self):
-        # The production sample we saw — ~22 words. Should flag.
-        md = (
-            "## Professional Summary\n\n"
-            "Assistant in Nursing with experience in residential aged care, individual support, "
-            "medication administration and dementia care for elderly residents. "
-            "Recent experience at Uniting.\n\n"
-            "## Experience\n"
-        )
-        _, notes = enforce_summary_word_floor(md)
-        assert notes
-        assert "35-word floor" in notes[0]
-
-    def test_no_flag_when_at_or_above_floor(self):
-        md = (
-            "## Professional Summary\n\n"
-            "Compassionate Aged Care Support Worker with Certificate IV in Ageing Support and "
-            "120 hours of supervised clinical placement in residential aged care settings, "
-            "skilled in personal care, dementia support, medication administration, and "
-            "multidisciplinary care delivery. Recent experience at RFBI Concord and Akala Motors.\n\n"
-            "## Experience\n"
-        )
-        _, notes = enforce_summary_word_floor(md)
-        assert notes == []
-
-    def test_no_flag_when_no_summary_section(self):
-        md = "## Experience\n- Bullet only.\n"
-        _, notes = enforce_summary_word_floor(md)
-        assert notes == []
-
-    def test_does_not_mutate_markdown(self):
-        # Honesty rule: this guard surfaces a note but never pads silently.
-        md = "## Professional Summary\n\nShort summary.\n"
-        out, _ = enforce_summary_word_floor(md)
-        assert out == md

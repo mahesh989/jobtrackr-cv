@@ -14,12 +14,6 @@ Guards implemented (one umbrella concept: source-facts):
       leak and the ``2017 – 2021`` / ``2023 – 2024`` fabrications surfaced
       in the real-test audit.
 
-  enforce_summary_years_gate(md, cv_text, jd_vertical)
-      Rewrites the Career Highlights / Summary opening if it claims
-      ``N+ years' experience`` while the source has <12 months of
-      vertical-aligned tenure. For a 3-month placement candidate, swaps
-      the years framing for a qualification-led framing.
-
   enforce_source_settings(md, cv_text)
       Strips setting descriptors from role headers and bullets when they
       misframe a source role's actual setting type (e.g. residential aged
@@ -223,82 +217,6 @@ def enforce_source_dates(md: str, cv_text: str) -> Tuple[str, List[str]]:
 
     rewritten = _ROLE_LINE_RE.sub(_rewrite, md)
     return rewritten, notes
-
-
-# ---------------------------------------------------------------------------
-# Years-gate for Career Highlights / Summary
-# ---------------------------------------------------------------------------
-
-# Match opening "N+ years' experience" / "N years of experience" / "0–1 years"
-_YEARS_CLAIM_RE = re.compile(
-    r"\b(\d+(?:[\.\-–]\s*\d+)?\s*\+?\s*years?\s*['’]?\s*experience)\b",
-    re.IGNORECASE,
-)
-
-_SUMMARY_HEADING_RE = re.compile(
-    r"^(##\s+(?:Career\s+Highlights|Summary|Professional\s+Summary))\s*$",
-    re.IGNORECASE | re.MULTILINE,
-)
-
-
-def _find_summary_block(md: str) -> Optional[Tuple[int, int]]:
-    """Return (start, end) char offsets of the Career Highlights / Summary
-    section body — between the heading and the next ``##`` heading."""
-    m = _SUMMARY_HEADING_RE.search(md)
-    if not m:
-        return None
-    body_start = m.end()
-    nxt = re.search(r"^##\s", md[body_start:], re.MULTILINE)
-    body_end = body_start + nxt.start() if nxt else len(md)
-    return body_start, body_end
-
-
-def enforce_summary_years_gate(
-    md: str, cv_text: str, jd_vertical: Optional[str],
-) -> Tuple[str, List[str]]:
-    """Strip ``N+ years' experience`` framing from the summary opening when
-    the source CV has <12 months of vertical-aligned tenure.
-
-    Returns (rewritten_md, notes). The rewrite is conservative: only the
-    years claim itself is removed; surrounding prose is preserved.
-    """
-    facts = extract_source_facts(cv_text)
-    months = relevant_tenure_months(list(facts.entries), jd_vertical)
-    if months >= 12:
-        return md, []
-
-    block = _find_summary_block(md)
-    if not block:
-        return md, []
-    start, end = block
-    body = md[start:end]
-    if not _YEARS_CLAIM_RE.search(body):
-        return md, []
-
-    # Strip the years claim. The composer reliably emits "<Role>
-    # with N+ years' experience in <skills>, ..." — remove "with N+ ..."
-    # up to the next comma or period.
-    def _strip(m: re.Match) -> str:
-        return ""
-
-    # Variant A: "with N+ years' experience in X" → drop "with ... experience"
-    new_body = re.sub(
-        r"\s*\bwith\s+\d+(?:[\.\-–]\s*\d+)?\s*\+?\s*years?\s*['’]?\s*experience\b",
-        "",
-        body,
-        flags=re.IGNORECASE,
-    )
-    # Variant B: bare "N+ years' experience" → drop the phrase
-    new_body = _YEARS_CLAIM_RE.sub("", new_body)
-    # Collapse "  " → " " and ",," / " ," artefacts.
-    new_body = re.sub(r"\s{2,}", " ", new_body)
-    new_body = re.sub(r"\s*,\s*,", ",", new_body)
-    new_body = re.sub(r"\s+([,.])", r"\1", new_body)
-    if new_body == body:
-        return md, []
-
-    notes = [f"Summary: 'years experience' framing stripped (source has {months} months in vertical)"]
-    return md[:start] + new_body + md[end:], notes
 
 
 # ---------------------------------------------------------------------------
@@ -708,51 +626,6 @@ def enforce_credential_claims(
             lines[i] = updated
 
     return "".join(lines), notes
-
-
-# ---------------------------------------------------------------------------
-# Summary word-floor enforcer — composer prompt declares 35 a HARD MINIMUM
-# but the LLM doesn't always comply, especially after the years-gate or
-# concreteness rewrites trim the summary. This deterministic detector
-# surfaces a quality flag so the user knows the summary is below floor and
-# can edit. We deliberately do NOT pad — silent fabrication would defeat
-# the purpose of honesty_guard.
-# ---------------------------------------------------------------------------
-
-# Floor mirrors the value declared in the composition prompt
-# (composition.py:286). Bump both together.
-_SUMMARY_WORD_FLOOR = 35
-
-
-def enforce_summary_word_floor(md: str) -> Tuple[str, List[str]]:
-    """Surface a flag when the Professional Summary is below the 35-word
-    floor declared in the composer prompt. Returns the markdown unchanged
-    (no padding) plus a notes list carrying a one-line message for the
-    quality_flags badge.
-
-    Behaviour:
-      • No Summary section found → no flag (caller decides what's normal).
-      • Summary present, < 35 words → flag.
-      • Summary present, >= 35 words → no flag.
-    """
-    if not md:
-        return md, []
-    block = _find_summary_block(md)
-    if not block:
-        return md, []
-    start, end = block
-    body = md[start:end].strip()
-    if not body:
-        return md, []
-    # Strip markdown noise so the word count reflects prose only.
-    prose = re.sub(r"[*_#`>\-]+", " ", body)
-    words = [w for w in re.split(r"\s+", prose) if w]
-    n = len(words)
-    if n >= _SUMMARY_WORD_FLOOR:
-        return md, []
-    return md, [
-        f"Professional Summary below the {_SUMMARY_WORD_FLOOR}-word floor ({n} words) — consider expanding with a CV-supported detail."
-    ]
 
 
 # ---------------------------------------------------------------------------

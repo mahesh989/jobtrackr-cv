@@ -210,72 +210,9 @@ def _build_jd_setting_block(setting: str) -> str:
     return blocks.get(setting, "")
 
 
-# Regex to strip the canned 'Currently delivering care at X using BESTMed'
-# phrase from Career Highlights — it's not JD-tailored and appears verbatim
-# across many summaries. After stripping, enforce_summary_concreteness fills
-# the gap with a concrete achievement derived from the CV.
-_CANNED_SUMMARY_RE = re.compile(
-    r"Currently delivering care at [^.!?]+using (?:BESTMed|MedMobile)[^.!?]*[.!?]?",
-    re.IGNORECASE,
-)
 _HIGHLIGHT_HEADINGS_SET = frozenset([
     "career highlights", "professional summary", "summary", "profile",
 ])
-
-
-def _strip_canned_summary_phrase(md: str) -> str:
-    """Remove the generic 'Currently delivering care at X using BESTMed and
-    MedMobile' sentence — but ONLY when removing it leaves the surrounding
-    Summary section with meaningful content.
-
-    Production regression (Opal Healthcare AIN, 2026-06-12): when the canned
-    phrase is the ENTIRE S2, an unconditional strip leaves S2 empty. The
-    downstream rebuild then fills the void with a 4-word stub ("Recent
-    experience at Uniting."). Net effect: Professional Summary becomes
-    26 words — below the prompt's hard 35-word floor — and reads as a
-    placeholder, not a summary.
-
-    Guard: skip the strip if it would remove ≥ 80% of the Summary section's
-    prose. The prompt's CANNED-SHAPE BAN (added separately) is the authoritative
-    enforcement for new generations — the strip is now a soft cleanup, not a
-    blunt instrument.
-    """
-    if not md:
-        return md
-    matches = list(_CANNED_SUMMARY_RE.finditer(md))
-    if not matches:
-        return md
-
-    from app.services.eval.writers.summary import _find_summary_section, _extract_summary_prose
-
-    # Estimate Summary section prose length so we can guard against gutting it.
-    lines = md.split("\n")
-    bounds = _find_summary_section(lines)
-    if not bounds:
-        return _CANNED_SUMMARY_RE.sub("", md)  # no Summary section bounds; fall back
-
-    start, end = bounds
-    prose, _ = _extract_summary_prose(lines, start, end)
-    prose_chars = len(prose or "")
-    if prose_chars == 0:
-        return md
-
-    # Sum of characters the strip would remove from the Summary section.
-    canned_chars = 0
-    section_text = "\n".join(lines[start:end])
-    for m in _CANNED_SUMMARY_RE.finditer(section_text):
-        canned_chars += len(m.group(0))
-
-    if canned_chars >= 0.8 * prose_chars:
-        logger.info(
-            "_strip_canned_summary_phrase: SKIPPED — stripping would remove "
-            "%d of %d Summary chars (>=80%%); rebuild would gut the summary. "
-            "Leaving canned phrase intact; prompt CANNED-SHAPE BAN handles it.",
-            canned_chars, prose_chars,
-        )
-        return md
-
-    return _CANNED_SUMMARY_RE.sub("", md)
 
 
 # Patterns that match common ways the model writes the residential setting
