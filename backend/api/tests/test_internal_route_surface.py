@@ -20,8 +20,6 @@ client = TestClient(app)
 # route matches; the call still rejects pre-handler on the HMAC dependency.
 EXPECTED = [
     ("POST", "/internal/analyze"),
-    ("POST", "/internal/analyze-eval"),
-    ("GET",  "/internal/eval-run/x"),
     ("POST", "/internal/extract-cv-text"),
     ("POST", "/internal/categorise-cv"),
     ("POST", "/internal/extract-cv-references"),
@@ -40,12 +38,7 @@ EXPECTED = [
 
 def test_all_internal_routes_registered():
     registered = {(m, r.path) for r in app.routes for m in getattr(r, "methods", set()) or set()}
-    # Compare on the templated paths actually registered (eval-run uses a param).
-    paths = {r.path for r in app.routes}
-    assert "/internal/eval-run/{eval_run_id}" in paths
     for method, path in EXPECTED:
-        if "{" in path or path.endswith("/x"):
-            continue  # param route checked above
         assert (method, path) in registered, f"missing route: {method} {path}"
 
 

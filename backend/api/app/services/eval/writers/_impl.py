@@ -29,7 +29,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
 from app.services.ai.prompts.variants.composition import (
@@ -73,12 +73,6 @@ class WriterResult:
     initial_ats_internal: Dict[str, Any]
     feasibility: Dict[str, Any]
     extras: Dict[str, Any] = field(default_factory=dict)
-
-
-# Writers are called as: writer(client, cv_text, jd_text, contact_details, vertical=...)
-# The `vertical` hint (from the beta screen) is used only by W3's router; the
-# other writers accept and ignore it.
-WriterFn = Callable[..., Awaitable[WriterResult]]
 
 
 # ---------------------------------------------------------------------------
@@ -919,22 +913,6 @@ async def _writer_w8_verified(
     result.extras["verify"] = vreport
     return result
 
-
-
-WRITER_VARIANTS: Dict[str, WriterFn] = {
-    "w8_integrated":  _writer_w8_integrated,
-    "w8_verified":    _writer_w8_verified,
-}
-
-
-def get_writer(writer_variant: str) -> WriterFn:
-    fn = WRITER_VARIANTS.get(writer_variant)
-    if fn is None:
-        raise ValueError(
-            f"Unknown writer_variant '{writer_variant}'. "
-            f"Known: {sorted(WRITER_VARIANTS)}"
-        )
-    return fn
 
 
 # ---------------------------------------------------------------------------
