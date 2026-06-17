@@ -201,6 +201,68 @@ from app.services.eval.writers.experience import (  # noqa: E402,F401
 )
 
 # ---------------------------------------------------------------------------
+# Display-heading unification for the summary block.
+#
+# Heading rule (overrides any role-family default):
+#   • YEARS framing in S1 (numeric years figure / "a decade" / "for several
+#     years") → "## Career Highlights"
+#   • BREADTH framing in S1 (scope phrase, recent placement, no years figure)
+#     → "## Professional Summary"
+#
+# Runs as the very last step in the pipeline so every internal helper
+# (validators, enforcers, word-floor retry, restore_and_order) has already
+# completed. Operates on any of the three observed summary heading aliases
+# (Career Highlights / Professional Summary / Summary) so a role family's
+# default name does not block the override.
+# ---------------------------------------------------------------------------
+_SUMMARY_HEADING_ALIASES = (
+    "## Career Highlights",
+    "## Professional Summary",
+    "## Summary",
+)
+_YEARS_FIGURE_RE = re.compile(
+    r"\b("
+    r"\d+\+?\s+years?"            # "5 years", "10+ years"
+    r"|over\s+\d+\s+years?"       # "over 3 years"
+    r"|a\s+decade"                # "a decade"
+    r"|several\s+years?"          # "several years"
+    r"|many\s+years?"             # "many years"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _apply_display_heading(md: str) -> str:
+    """Set the summary heading to `## Career Highlights` (YEARS framing) or
+    `## Professional Summary` (BREADTH framing) based on S1's prose, regardless
+    of the role family's default heading name."""
+    lines = md.split("\n")
+    start = next(
+        (i for i, ln in enumerate(lines) if ln.strip() in _SUMMARY_HEADING_ALIASES),
+        None,
+    )
+    if start is None:
+        return md
+    end = next(
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    prose = " ".join(
+        ln.strip() for ln in lines[start + 1 : end]
+        if ln.strip() and not ln.strip().startswith(("-", "*"))
+    )
+    s1 = prose.split(".", 1)[0].lower() if prose else ""
+    if not s1:
+        return md
+    has_years = bool(_YEARS_FIGURE_RE.search(s1))
+    target = "## Career Highlights" if has_years else "## Professional Summary"
+    if lines[start].strip() == target:
+        return md
+    lines[start] = target
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Career Highlights word-floor enforcement — deterministic retry
 #
 # The composer prompt (composition.py) declares 35 words a HARD MINIMUM for
@@ -622,6 +684,11 @@ async def _writer_w8_integrated(
     # 4i. Sprint C — strip day-of-month from CV dates. "Sept 20, 2024" →
     #     "Sept 2024". Standard CV convention.
     final_md = normalise_date_formats(final_md)
+    # 4j. Final display step — when S1 used BREADTH framing (no years figure,
+    #     scope-anchored), rename `## Career Highlights` → `## Professional
+    #     Summary`. All upstream helpers ran against the canonical name; only
+    #     the displayed PDF heading switches.
+    final_md = _apply_display_heading(final_md)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.

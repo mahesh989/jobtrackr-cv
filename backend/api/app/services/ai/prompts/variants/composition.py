@@ -275,13 +275,18 @@ forklift licence, First Aid). The role pack carries the final say on which
 clause applies; this rule explains the reasoning when both seem to qualify.
 
 """ + EDUCATION_EXACT_RULES + """
-CAREER-STYLE SUMMARY (the summary section named by your role pack)
+CAREER HIGHLIGHTS / PROFESSIONAL SUMMARY (the prose summary block at the top
+of the CV — emitted under heading `## Career Highlights`; downstream code
+renames the heading to `## Professional Summary` when BREADTH framing is used,
+so always emit `## Career Highlights` and let the framing choice drive the
+display name)
 - EXACTLY TWO sentences, 35-50 words total, prose only. NOT one sentence — one
   sentence is a failure. No bullets, no skills line, no third sentence.
 - 35 is a HARD MINIMUM. A summary below 35 words is too thin and must be
-  EXPANDED with specific JD-aligned content (an additional specialisation in
-  S1, a quantified detail or named system/process in S2) until the total is
-  35-50. Never pad with adjectives; expand only with facts the CV supports.
+  EXPANDED with specific JD-aligned content (one more specialisation in S1
+  IF you have fewer than 2, otherwise a quantified detail or named
+  system/process in S2) until the total is 35-50. Never pad with adjectives;
+  expand only with facts the CV supports.
 - Sentence 1 (positioning, ≤28 words): role title + (ACTUAL relevant years OR
   BREADTH framing — see below) + 1-2 JD specialisations + who you deliver for.
   FRAMING CHOICE (pick exactly one):
@@ -313,9 +318,11 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
     the on-axis (JD-aligned) identity; placement framing substitutes for
     years; the off-axis sector is dropped from the summary entirely (it may
     still appear in its own Experience entry).
-- Sentence 2 (achievement, ≤22 words): action verb + method + quantified
-  result + anchor (see COMPANY ANCHOR below — the anchor is an employer name
-  OR, for breadth-framed experience, the scope). When S1 framed 2+ DISTINCT
+- Sentence 2 (achievement, ≤22 words): action verb + method + result-or-
+  concrete-outcome (see METRIC FALLBACK below — a quantified number is
+  preferred but a named system/process or scope/quality outcome is acceptable
+  when the CV has no number) + anchor (see COMPANY ANCHOR below — the anchor
+  is an employer name OR, for breadth-framed experience, the scope). When S1 framed 2+ DISTINCT
   roles with real tenure, use TWO clauses (one per top role) joined by a
   SEMICOLON (not comma + "and"); a single-clause S2 there signals only one
   role matters. This two-clause rule does NOT apply to breadth-framed
@@ -355,6 +362,16 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   medication administration" (not "BESTMed"), "automated reporting" (not
   "Power BI"). The summary describes what you DELIVERED, not what software
   you used to deliver it.
+  WHAT COUNTS AS A "TOOL NAME" (boundary cases): a tool name is a BRANDED
+  product or proprietary system (BESTMed, MedMobile, Leecare, Power BI,
+  Tableau, Snowflake, Python, SQL, AWS, PostgreSQL, Salesforce). GENERIC
+  process names and industry-standard acronyms are NOT tool names and ARE
+  allowed: "electronic medication administration", "electronic health
+  records", "EMR", "MAR" (medication administration record), "incident
+  reporting", "behaviour support planning", "automated dashboards", "data
+  pipelines". Rule of thumb: if Googling the term returns one company's
+  product page, it's a tool — replace it. If it returns a generic process
+  description, it's a method — keep it.
   CANNED-SHAPE BAN (HARD): the sentence template "Currently delivering care
   at <Employer> using <Tool> and <Tool>" is FORBIDDEN — it is the most
   common formulaic shape across nursing summaries and reads identically
@@ -415,7 +432,14 @@ place; do not emit until every item passes):
      named system/process in S2) until the total reaches 35. If >50, trim.
      End at exactly 2 sentences in the 35-50 band.
 (3)  SUMMARY_S1: role title + (years OR breadth framing when <2 yrs across
-     multiple roles/settings) + 1-2 JD-aligned specialisations + audience anchor;
+     multiple roles/settings) + 1-2 JD-aligned specialisations + who you
+     deliver for (clients / residents / patients / users / teams);
+     WORD-COUNT FLOOR: S1 itself must be ≥13 words (single-role) or ≥19
+     words (when S1 frames 2+ distinct roles — the two-clause S2 below
+     consumes 16-22 words on its own, so S1 below 19 cannot reach the 35
+     total). A 5-10 word S1 is failure even if total reaches 35 — the
+     positioning sentence cannot fit role + framing + specialisations +
+     audience in fewer than 13 words. REWRITE if under floor.
      specialisations do NOT echo the title's own words; no tool names; no off-
      axis sector labels. S1 must NOT open with an off-axis sector/career-history
      framing ("A background in X industry...", "Experienced in X and recently...").
