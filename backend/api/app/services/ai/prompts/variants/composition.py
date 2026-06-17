@@ -282,10 +282,18 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   EXPANDED with specific JD-aligned content (an additional specialisation in
   S1, a quantified detail or named system/process in S2) until the total is
   35-50. Never pad with adjectives; expand only with facts the CV supports.
-- Sentence 1 (positioning, ≤28 words): role title + ACTUAL relevant years + 1-2
-  JD specialisations + who you deliver for. (When years are few (<2) but the
-  candidate has several roles or worked across multiple settings, lead with that
-  BREADTH instead of a bare year count — never inflate the number.) NO-ECHO: the
+- Sentence 1 (positioning, ≤28 words): role title + (ACTUAL relevant years OR
+  BREADTH framing — see below) + 1-2 JD specialisations + who you deliver for.
+  FRAMING CHOICE (pick exactly one):
+  • YEARS framing: use when the candidate has ≥2 years in ONE dominant
+    JD-aligned role with real tenure. State the actual years (round down).
+  • BREADTH framing: use when the candidate lacks a single dominant role —
+    whether due to under 2 years total, multiple short/casual/agency
+    placements, or several short permanent roles across different settings.
+    Lead with "across multiple settings / facilities / sites" instead of a
+    bare year count. Never inflate the number to qualify for years framing.
+  The framing choice picked here BINDS Sentence 2's COMPANY ANCHOR rule —
+  see below. NO-ECHO: the
   specialisations slot may
   not repeat the title's own words (title "Data Analyst" → don't say "data
   analysis"). NO tool names here — name methods/outcomes; tools live in Skills.
@@ -323,14 +331,15 @@ CAREER-STYLE SUMMARY (the summary section named by your role pack)
   clause ("delivers", "leads", "provides") — this reads honestly for ongoing
   work. Mix freely when 2 roles span past+current: one clause past, one
   present, joined by semicolon. Never use present tense for a completed role.
-  COMPANY ANCHOR depends on how S1 framed the experience — the two MUST agree:
-  • SINGLE-EMPLOYER FRAMING (S1 leads with one dominant role, OR 2+ distinct
-    roles with real tenure): name the employer BY NAME in each clause
-    (e.g. "…at Jesmond Miranda Nursing Home"; "…at Uniting – The Marion").
-    With 2+ such roles, name BOTH (one per clause). Never cherry-pick ONE
-    employer and ignore the others.
-  • BREADTH FRAMING (S1 says "across multiple settings / facilities / sites"
-    because the candidate worked several short, casual, or agency placements):
+  COMPANY ANCHOR depends on which framing S1 picked — the two MUST agree:
+  • YEARS framing in S1 (one dominant JD-aligned role with real tenure, OR
+    2+ distinct roles with real tenure): name the employer BY NAME in each
+    clause (e.g. "…at Jesmond Miranda Nursing Home"; "…at Uniting – The
+    Marion"). With 2+ such roles, name BOTH (one per clause). Never
+    cherry-pick ONE employer and ignore the others.
+  • BREADTH framing in S1 ("across multiple settings / facilities / sites"
+    — chosen because the candidate lacks a single dominant role, whether due
+    to short/casual/agency placements or several short permanent jobs):
     naming a SINGLE employer is FORBIDDEN here — it contradicts the breadth
     claim and misleads by elevating one of many. Anchor S2 on the SCOPE
     instead ("across multiple residential aged care settings", "spanning
