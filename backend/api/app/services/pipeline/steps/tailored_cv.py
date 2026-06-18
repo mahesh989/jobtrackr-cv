@@ -354,15 +354,26 @@ _TITLE_CASE_STOP = re.compile(
 )
 
 # Vague anchor phrases the COMPANY ANCHOR rule explicitly forbids.
+# Real anchors are: a NAMED employer ("at RFBI Concord Community Village") or
+# a scope phrase ("across multiple residential aged care settings"). Anything
+# vague — "a facility", "this setting", "a multidisciplinary team
+# environment" — fails the rule.
 _VAGUE_ANCHOR_RE = re.compile(
-    r"\bat an?\s+aged care facilit(?:y|ies)\b"
-    r"|\bin aged care facilit(?:y|ies)\b"
-    r"|\bat (?:a|an|the) facilit(?:y|ies)\b"
-    r"|\bin (?:a|an|the) facilit(?:y|ies)\b"
-    r"|\bthrough (?:a|an|the) facilit(?:y|ies)\b"
-    r"|\bin (?:casual|various) roles?\b"
+    # facility variants
+    r"\b(?:at|in|through)\s+(?:a|an|the)\s+(?:aged care\s+)?facilit(?:y|ies)\b"
+    # setting variants — "in a residential aged care setting", "in this setting"
+    r"|\b(?:at|in|for residents in|across)\s+(?:a|an|the|this|that|the same)"
+    r"(?:\s+(?:residential|aged care|nursing|care|clinical))*\s+setting\b"
+    # environment variants — "in a multidisciplinary team environment"
+    r"|\b(?:at|in|within)\s+(?:a|an|the|this|that)"
+    r"(?:\s+[a-z-]+){0,4}\s+environment\b"
+    # generic placement / casual / industry catch-alls
+    r"|\bin\s+(?:casual|various|several|multiple)\s+roles?\b"
     r"|\bduring (?:my )?placement\b"
-    r"|\bacross the industry\b",
+    r"|\bacross the industry\b"
+    # "in aged care" / "for residents" with no specific anchor following
+    r"|\bin aged care\b(?!\s+(?:at|with|across))"
+    r"|\bfor residents\b(?!\s+(?:at|across|of [A-Z]))",
     re.IGNORECASE,
 )
 
