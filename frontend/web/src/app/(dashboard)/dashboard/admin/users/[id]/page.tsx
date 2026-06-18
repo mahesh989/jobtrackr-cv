@@ -13,6 +13,7 @@
  *   - Last login IP / device (from user_events)
  */
 import { requireAdmin, formatCost, timeAgo, fmtDateTime } from "@/lib/admin/guard";
+import { adminGrantUnlimitedAccess } from "@/lib/admin/actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -226,6 +227,23 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             </div>
           ) : (
             <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No subscription record.</p>
+          )}
+          {/* Grant unlimited — fixes expired comp, trialing, or wrong-plan subs */}
+          {user.role !== "founder" && user.role !== "admin" && (
+            <form
+              action={async () => {
+                "use server";
+                await adminGrantUnlimitedAccess(id);
+              }}
+              className="mt-2"
+            >
+              <button
+                type="submit"
+                className="text-[11px] px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-2 transition-colors"
+              >
+                Grant unlimited access (10 yr)
+              </button>
+            </form>
           )}
         </Section>
 
