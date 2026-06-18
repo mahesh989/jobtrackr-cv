@@ -340,6 +340,138 @@ def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     return "\n".join(new_lines)
 
 
+# ---------------------------------------------------------------------------
+# Summary-quality deterministic enforcers
+# ---------------------------------------------------------------------------
+
+# Role-title fragments that appear at the start of the summary S1 opener and
+# must be Title Cased.  We don't try to title-case the whole sentence (that
+# would wreck mid-sentence proper nouns); we only fix the opener token(s)
+# that are the role title — typically 2-4 words before the first "with".
+_TITLE_CASE_STOP = re.compile(
+    r"^([A-Za-z][a-z]*(?: [A-Za-z][a-z]*){0,4})\b(.*)",
+    re.DOTALL,
+)
+
+# Vague anchor phrases the COMPANY ANCHOR rule explicitly forbids.
+_VAGUE_ANCHOR_RE = re.compile(
+    r"\bat an?\s+aged care facilit(?:y|ies)\b"
+    r"|\bin aged care facilit(?:y|ies)\b"
+    r"|\bat (?:a|an|the) facilit(?:y|ies)\b"
+    r"|\bin (?:a|an|the) facilit(?:y|ies)\b"
+    r"|\bthrough (?:a|an|the) facilit(?:y|ies)\b"
+    r"|\bin (?:casual|various) roles?\b"
+    r"|\bduring (?:my )?placement\b"
+    r"|\bacross the industry\b",
+    re.IGNORECASE,
+)
+
+
+def _get_summary_prose(lines: list[str], start: int, end: int) -> tuple[list[int], str]:
+    """Return (prose_line_indices, joined_prose_text) for a summary block."""
+    idx, texts = [], []
+    for i, ln in enumerate(lines[start + 1: end], start=start + 1):
+        s = ln.strip()
+        if s and not s.startswith(("-", "*")):
+            idx.append(i)
+            texts.append(s)
+    return idx, " ".join(texts)
+
+
+_SUMMARY_HEADING_RE = re.compile(r"^## (Career Highlights|Professional Summary|Summary)$")
+
+
+def _find_summary_block(lines: list[str]) -> tuple[int, int] | tuple[None, None]:
+    start = next((i for i, ln in enumerate(lines) if _SUMMARY_HEADING_RE.match(ln.strip())), None)
+    if start is None:
+        return None, None
+    end = next(
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    return start, end
+
+
+def _enforce_summary_s1_title_case(markdown: str) -> str:
+    """Title-case the role-title opener of S1 (words before the first 'with'
+    or comma that form the job title).  Fixes "Personal care worker with …"
+    → "Personal Care Worker with …"."""
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx:
+        return markdown
+    # Split into S1 / rest on first period
+    dot = prose.find(".")
+    if dot == -1:
+        return markdown
+    s1, rest = prose[:dot + 1], prose[dot + 1:]
+    # Find the role-title token: words up to (but not including) "with" / "–" / ","
+    # Capture trailing whitespace separately so we don't lose the space.
+    with_match = re.match(r"^(.*?)(\s+)(with|–|-|,)\b", s1, re.IGNORECASE)
+    if with_match:
+        title_part = with_match.group(1)
+        space = with_match.group(2)
+        remainder = s1[len(title_part) + len(space):]
+        fixed_title = " ".join(w.capitalize() for w in title_part.split())
+        new_s1 = fixed_title + space + remainder
+    else:
+        # Fallback: title-case first 4 words
+        words = s1.split()
+        words[:4] = [w.capitalize() for w in words[:4]]
+        new_s1 = " ".join(words)
+    new_prose = new_s1 + rest
+    # Write back into the first prose line
+    lines[idx[0]] = new_prose
+    for i in idx[1:]:
+        lines[i] = ""
+    return "\n".join(lines)
+
+
+def _enforce_summary_s2_word_cap(markdown: str, cap: int = 22) -> str:
+    """Hard-trim S2 to at most `cap` words (rule: Sentence 2 ≤22 words)."""
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx:
+        return markdown
+    sent_re = re.compile(r"(?<=[.!?])\s+")
+    sentences = [s.strip() for s in sent_re.split(prose) if s.strip()]
+    if len(sentences) < 2:
+        return markdown
+    s2 = sentences[1]
+    if len(s2.split()) <= cap:
+        return markdown
+    s2 = _trim_to_words(s2, cap)
+    new_prose = sentences[0] + " " + s2
+    lines[idx[0]] = new_prose
+    for i in idx[1:]:
+        lines[i] = ""
+    return "\n".join(lines)
+
+
+def _flag_vague_anchor(markdown: str) -> str:
+    """Replace vague COMPANY ANCHOR phrases with a conspicuous placeholder so
+    the issue is visible in the rendered output and triggers a retry in review.
+    Does NOT attempt an AI rewrite — that belongs to the retry loop."""
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx or not _VAGUE_ANCHOR_RE.search(prose):
+        return markdown
+    fixed = _VAGUE_ANCHOR_RE.sub("[ANCHOR NEEDED]", prose)
+    lines[idx[0]] = fixed
+    for i in idx[1:]:
+        lines[i] = ""
+    return "\n".join(lines)
+
+
 def _enforce_other_skills_chars(markdown: str, max_chars: int = 80) -> str:
     """
     Cap the Other Skills line content (after 'Other Skills:') to max_chars characters.
@@ -758,6 +890,9 @@ def _enforce_structure(markdown: str) -> str:
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)
     markdown = _enforce_career_highlights_words(markdown, max_words=50)
+    markdown = _flag_vague_anchor(markdown)
+    markdown = _enforce_summary_s2_word_cap(markdown, cap=22)
+    markdown = _enforce_summary_s1_title_case(markdown)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"

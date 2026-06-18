@@ -480,16 +480,42 @@ place; do not emit until every item passes):
      METHOD + RESULT: every clause names a method and either a quantified
      result or a concrete non-numeric outcome from the CV (never a
      fabricated number).
+     TENSE WORKED EXAMPLES (placement = completed role → past tense):
+       WRONG: "Personal Care Worker with recent placement experience …
+              Provides safe, person-centred support … at RFBI Concord."
+              — "Provides" (present) for a completed placement. FORBIDDEN.
+       RIGHT: "Personal Care Worker with recent placement experience …
+              Delivered safe, person-centred support … at RFBI Concord."
+              — "Delivered" (past). Correct.
      S1<->S2 NON-DUPLICATION (HARD): S2 must introduce competencies/outcomes
      NOT already stated in S1. Do not restate an S1 concept with a synonym or a
-     reworded form: S1 "medication support" -> S2 must NOT say "medication
-     administration"; S1 "person-centred care" -> S2 must NOT say "personal
-     care"; S1 "elderly residents" -> S2 must NOT say "residents". The summary
+     reworded form: S1 "medication support" → S2 must NOT say "medication
+     administration"; S1 "person-centred care" → S2 must NOT say "personal
+     care"; S1 "elderly residents" → S2 must NOT say "residents". The summary
      is NOT a prose re-list of the Skills section. If S2 would only echo S1,
      REWRITE it around something distinct the CV supports — a named
      system/process, a scope or quality outcome (incident-free record, audit
      pass), or a different JD-aligned specialisation. Each S2 clause must add at
      least one genuinely new idea.
+     S1<->S2 NON-DUPLICATION WORKED EXAMPLE:
+       S1: "…supporting older people with personal care, dementia care,
+           activities of daily living, and social engagement."
+       WRONG S2: "Provides safe, person-centred support and timely care,
+           drawing on strong communication skills…" — "person-centred
+           support" and "care" restate S1's personal/dementia care with a
+           synonym. "Drawing on communication skills" is an adjective, not
+           an outcome. FORBIDDEN.
+       RIGHT S2: "Maintained an incident-free record across all shift
+           rotations and assisted with medication administration under
+           supervision at RFBI Concord Community Village." — introduces
+           TWO new ideas (safety record, medication task) not in S1.
+     VAGUE ANCHOR WORKED EXAMPLE:
+       WRONG S2 anchor: "…delivered safe, person-centred care at an aged
+           care facility." — "at an aged care facility" is forbidden; names
+           no real employer, no real scope.
+       RIGHT (single placement): "…at RFBI Concord Community Village."
+       RIGHT (breadth framing): "…across multiple residential aged care
+           settings."
 (5)  GHOST_REF: summary names nothing dropped from the body (no role, project,
      client, tool, or achievement absent from kept sections).
 (6)  SECTION_ORDER: ## headings match the role pack's prescribed sequence
