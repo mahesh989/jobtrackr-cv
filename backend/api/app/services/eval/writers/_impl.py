@@ -551,7 +551,7 @@ async def _writer_w8_integrated(
     )
     # 2. Run the VERBATIM production post-processors (structural caps, bullet
     #    method, summary clamp, education rules, skills safety-net injector).
-    md = _enforce_structure(md)
+    md = _enforce_structure(md, jd_job_title=str(up["jd_analysis"].get("job_title") or ""))
     # Pass the family-aware label map so inject_directly domain keywords land on
     # the correct category line. For nursing: domain_knowledge → "**Care Skills:**"
     # not "**Other Skills:**". Without this, wound care / continence care injected

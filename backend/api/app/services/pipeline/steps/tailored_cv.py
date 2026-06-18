@@ -65,7 +65,7 @@ async def run_tailored_cv(
     if not markdown or len(markdown.strip()) < 200:
         raise ValueError("Tailored CV: response too short")
 
-    enforced_md = _enforce_structure(markdown.strip())
+    enforced_md = _enforce_structure(markdown.strip(), jd_job_title=str(jd_analysis.get("job_title") or ""))
 
     role_family_id = jd_analysis.get("role_family")
     family_label_map = None
@@ -483,6 +483,85 @@ def _flag_vague_anchor(markdown: str) -> str:
     return "\n".join(lines)
 
 
+# Status / education / identity labels the S1 opener must NEVER lead with — the
+# opener slot is for the JD-aligned PROFESSIONAL identity only (composition.py
+# CAREER HIGHLIGHTS + tailored_cv.py CRITICAL RULE #1). "Aspiring" is
+# deliberately NOT here: W1 permits "Aspiring <Role>" for true career-changers
+# with zero in-vertical experience, so the enforcer leaves it alone.
+_FORBIDDEN_OPENER_RE = re.compile(
+    r"^\s*(?:an?\s+)?(?:"
+    r"international\s+student|international|"
+    r"recent\s+graduate|recent|graduate|"
+    r"visa\s+holder|career\s+changer|student|"
+    r"certificate|diploma|bachelor|masters?|phd|doctorate"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Leading seniority adjectives stripped from the JD title before it is used as
+# the opener — the SENIORITY WORDS rule forbids a seniority label unless it
+# appears in the candidate's own CV titles, and the enforcer cannot verify that.
+_SENIORITY_PREFIX_RE = re.compile(
+    r"^(?:senior|junior|lead|principal|staff|entry[-\s]level|trainee)\s+",
+    re.IGNORECASE,
+)
+
+
+def _clean_job_title(jd_job_title: str) -> str:
+    """Sanitise a JD job title for use as the summary opener: drop parenthetical
+    abbreviations, a leading seniority adjective, and surplus whitespace. Returns
+    "" when nothing usable remains (caller then flags instead of inserting)."""
+    if not jd_job_title:
+        return ""
+    title = re.sub(r"\s*\([^)]*\)", "", jd_job_title)        # drop "(AIN)" etc.
+    title = re.sub(r"\s+", " ", title).strip(" -–|,")
+    title = _SENIORITY_PREFIX_RE.sub("", title).strip()
+    # Guard against junk titles (empty, or an implausibly long phrase that is
+    # clearly not a clean role label).
+    if not title or len(title.split()) > 6:
+        return ""
+    return title
+
+
+def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
+    """If S1 opens with a forbidden status / education / identity label instead
+    of a JD-aligned role title, replace the opener with the JD job title. When
+    no usable JD title is available, flag with [ROLE TITLE NEEDED] so the failure
+    is conspicuous rather than silently shipped.
+
+    Runs AFTER _enforce_summary_s1_title_case so the inserted title keeps the
+    JD's own casing (e.g. "Assistant in Nursing", not "Assistant In Nursing")."""
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx:
+        return markdown
+    dot = prose.find(".")
+    s1 = prose if dot == -1 else prose[: dot + 1]
+    rest = "" if dot == -1 else prose[dot + 1:]
+    # Split the opener (role-title slot) from the rest of S1 at the first
+    # "with"/"having"/dash/comma boundary — matching the "<Role> with …" shape.
+    split = re.match(
+        r"^(.*?)(\s+(?:with|having|–|-|,)\b.*)$", s1, re.IGNORECASE | re.DOTALL
+    )
+    opener = split.group(1) if split else s1
+    if not _FORBIDDEN_OPENER_RE.match(opener.strip()):
+        return markdown
+    title = _clean_job_title(jd_job_title)
+    replacement = title if title else "[ROLE TITLE NEEDED]"
+    if split:
+        new_s1 = replacement + split.group(2)
+    else:
+        # No "with"-style tail: swap only the leading forbidden phrase.
+        new_s1 = _FORBIDDEN_OPENER_RE.sub(replacement, s1, count=1)
+    lines[idx[0]] = new_s1 + rest
+    for i in idx[1:]:
+        lines[i] = ""
+    return "\n".join(lines)
+
+
 def _enforce_other_skills_chars(markdown: str, max_chars: int = 80) -> str:
     """
     Cap the Other Skills line content (after 'Other Skills:') to max_chars characters.
@@ -888,12 +967,15 @@ def _inject_missing_skills(
     return "\n".join(lines)
 
 
-def _enforce_structure(markdown: str) -> str:
+def _enforce_structure(markdown: str, jd_job_title: str = "") -> str:
     """
     Deterministic post-processing:
       - Deduplicate Career Highlights (keep prose, drop bullet repeat)
       - Professional Experience: max 3 roles; bullets 1+2 ≤32 words, bullet 3 ≤12 words
       - Projects: max 2 entries; bullet 1 ≤32 words, bullet 2 ≤14 words
+
+    `jd_job_title` (when supplied) lets the S1-opener enforcer replace a
+    forbidden status/education opener with the real JD-aligned role title.
     """
     markdown = _dedup_project_bullets(markdown)
     markdown = _strip_certs_when_projects_exist(markdown)
@@ -904,6 +986,7 @@ def _enforce_structure(markdown: str) -> str:
     markdown = _flag_vague_anchor(markdown)
     markdown = _enforce_summary_s2_word_cap(markdown, cap=22)
     markdown = _enforce_summary_s1_title_case(markdown)
+    markdown = _enforce_summary_opener(markdown, jd_job_title)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"

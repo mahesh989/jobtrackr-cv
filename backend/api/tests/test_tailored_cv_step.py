@@ -1,9 +1,78 @@
 from __future__ import annotations
 
 from app.services.pipeline.steps.tailored_cv import (
+    _clean_job_title,
     _enforce_career_highlights_words,
+    _enforce_summary_opener,
     _trim_to_words,
 )
+
+
+def _summary(prose: str) -> str:
+    return f"## Career Highlights\n\n{prose}\n\n## Professional Experience\n"
+
+
+def test_opener_replaces_status_label_with_jd_title():
+    """The headline bug: S1 opening with 'International student' must be
+    replaced by the JD-aligned role title."""
+    md = _summary(
+        "International student with recent hands-on experience from a 120-hour "
+        "residential aged care placement, supporting older people with personal "
+        "care. Maintained resident safety through observation."
+    )
+    out = _enforce_summary_opener(md, jd_job_title="Aged Care Worker")
+    assert "Aged Care Worker with recent hands-on experience" in out
+    assert "International student" not in out
+
+
+def test_opener_strips_parenthetical_and_seniority_from_title():
+    md = _summary(
+        "Recent graduate with placement experience in aged care, supporting "
+        "residents. Delivered care at the facility."
+    )
+    out = _enforce_summary_opener(md, jd_job_title="Senior Assistant in Nursing (AIN)")
+    # Leading seniority word + parenthetical dropped; role casing preserved.
+    assert "Assistant in Nursing with placement experience" in out
+    assert "Senior" not in out.split("##")[1]
+    assert "(AIN)" not in out
+
+
+def test_opener_flags_when_no_usable_title():
+    md = _summary(
+        "International student with placement experience in aged care, supporting "
+        "residents. Delivered care."
+    )
+    out = _enforce_summary_opener(md, jd_job_title="")
+    assert "[ROLE TITLE NEEDED]" in out
+    assert "International student" not in out
+
+
+def test_opener_leaves_valid_role_title_untouched():
+    prose = (
+        "Aged Care Worker with recent placement experience supporting older "
+        "people. Maintained an incident-free record at RFBI Concord."
+    )
+    md = _summary(prose)
+    out = _enforce_summary_opener(md, jd_job_title="Assistant in Nursing")
+    assert out == md  # no forbidden opener → no change
+
+
+def test_opener_leaves_aspiring_untouched():
+    """W1 deliberately permits 'Aspiring <Role>' for true career-changers."""
+    prose = (
+        "Aspiring Data Analyst with a recently completed Google Data Analytics "
+        "certificate. Delivered insights through a capstone project."
+    )
+    md = _summary(prose)
+    out = _enforce_summary_opener(md, jd_job_title="Data Analyst")
+    assert out == md
+
+
+def test_clean_job_title_drops_paren_and_seniority():
+    assert _clean_job_title("Senior Data Analyst (Marketing)") == "Data Analyst"
+    assert _clean_job_title("Assistant in Nursing") == "Assistant in Nursing"
+    assert _clean_job_title("") == ""
+    assert _clean_job_title("a b c d e f g h") == ""  # too long → junk guard
 
 
 def test_trim_to_words_does_not_cut_at_semicolon():
