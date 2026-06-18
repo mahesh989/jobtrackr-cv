@@ -41,13 +41,14 @@ class Settings(BaseSettings):
 
     # -------------------------------------------------------------------------
     # Tailored-CV writer selection (beta→production migration).
-    #   "legacy"      — the original single-call run_tailored_cv (default).
     #   "w8_verified" — the role-family composition + deterministic enforce +
-    #                   entailment-verify path (the validated beta writer).
-    # Reversible at runtime by setting/unsetting the env var; flag-off keeps the
-    # exact legacy behaviour, so deploys are safe before the flip.
+    #                   entailment-verify path (the validated writer; default).
+    #   "legacy"      — the original single-call run_tailored_cv, kept as a
+    #                   reversible escape hatch via the env var.
+    # Default is "w8_verified" so output is consistent regardless of whether a
+    # Fly secret is set; set TAILORED_CV_WRITER=legacy to fall back.
     # -------------------------------------------------------------------------
-    TAILORED_CV_WRITER: str = "legacy"
+    TAILORED_CV_WRITER: str = "w8_verified"
 
     # -------------------------------------------------------------------------
     # HMAC shared secret with JobTrackr (set in commit 2c, deployed in 2f).
