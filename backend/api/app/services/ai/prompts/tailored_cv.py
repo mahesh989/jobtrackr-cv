@@ -37,12 +37,19 @@ are eligible to be surfaced in the tailored CV and which are NOT:
 Hard rules (any violation invalidates the CV):
 - Preserve ALL truthful facts from the original CV (employers, titles,
   dates, education, certifications).
-- Never invent skills, jobs, achievements, technologies, or domain
-  experience the candidate does not have.
+- Never invent skills, jobs, achievements, technologies, named systems,
+  metrics, or domain experience the candidate does not have.
 - Never insert any keyword listed under "cannot_inject".
 - Every keyword listed under "inject_directly", "inject_as_extension",
   or "inject_with_inference" should appear in the final tailored CV
   text (case-insensitive).
+- ROLE-TITLE EXCEPTION (summary opener only): the Career Highlights S1
+  opener role title is professional positioning, not a historical claim.
+  Writing "Aged Care Worker" or "Data Analyst" in the opener describes
+  what the candidate does and is applying to do — it is NOT an invented
+  employer, credential, certification, or metric, and is NOT a violation
+  of the truth rules above. This exception is narrow: it covers ONLY the
+  opener's role title. All other invented facts remain forbidden.
 
 Style:
 - Reorder sections, rewrite bullets, and rephrase the profile to surface
