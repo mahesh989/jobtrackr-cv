@@ -302,22 +302,33 @@ display name)
   specialisations slot may
   not repeat the title's own words (title "Data Analyst" → don't say "data
   analysis"). NO tool names here — name methods/outcomes; tools live in Skills.
-  NO off-axis sector/identity labels: do not cite an industry or specialism the
-  JD does not care about (e.g. don't list "AI" as a sector for a non-AI JD) —
-  name only JD-aligned domains.
+  NO off-axis sector/identity labels: do not cite an industry, specialism, OR
+  PERSONAL/VISA/EDUCATION STATUS the JD does not care about. The title slot is
+  for the JD-aligned PROFESSIONAL identity only — never a status. FORBIDDEN
+  openers include "AI" as a sector for a non-AI JD, and status labels such as
+  "International student", "Recent graduate", "Visa holder", "Career changer",
+  "Aspiring …". A JD hiring an Assistant in Nursing does not care that you are
+  a student — it cares what care work you can do. Name only JD-aligned
+  professional identities and domains.
   WORKED EXAMPLE — off-vertical background + short placement: candidate's CV
-  is dominated by Finance/Accounting roles, with one 120-hour residential aged
-  care placement. JD = Assistant in Nursing.
+  is dominated by Finance/Accounting roles (and the candidate is an
+  international student), with one 120-hour residential aged care placement.
+  JD = Assistant in Nursing.
     WRONG: "A strong background in finance and accounting and recent 120-hour
     residential aged care placement experience supporting older people with
     personal care, dementia care, and activities of daily living..." — leads
     with the off-axis sector. FORBIDDEN.
+    WRONG: "International student with recent 120-hour residential aged care
+    placement experience, supporting older people with personal care, dementia
+    care, and activities of daily living..." — leads with VISA/EDUCATION STATUS
+    instead of the JD-aligned title. Equally FORBIDDEN.
     RIGHT: "Aged Care Worker with recent hands-on experience from a 120-hour
     residential aged care placement, supporting older people with personal
     care, dementia care, and activities of daily living." — title slot uses
     the on-axis (JD-aligned) identity; placement framing substitutes for
-    years; the off-axis sector is dropped from the summary entirely (it may
-    still appear in its own Experience entry).
+    years; the off-axis sector AND the student status are dropped from the
+    summary entirely (they may still appear in their own Experience/Education
+    entries).
 - Sentence 2 (achievement, ≤22 words): action verb + method + result-or-
   concrete-outcome (see METRIC FALLBACK below — a quantified number is
   preferred but a named system/process or scope/quality outcome is acceptable
