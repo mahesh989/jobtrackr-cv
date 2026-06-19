@@ -6,6 +6,15 @@
 
 ---
 
+## Decisions locked (2026-06-19)
+
+1. **Sector phrases (C1):** **Option 1 — strip everywhere.** "aged care" and similar are the job's *industry label*, not skills. Not extracted, not scored, not shown. The three sector lists collapse to one and are applied at extraction so the JD denominator never counts them.
+2. **Caps (D1):** **Raise render to extraction (15/10/10).** ⚠️ *Higher summary-risk choice:* more skills survive to render, which enlarges the `jd_analysis_json` the summary prompt sees — D1's golden diff is expected to touch the Professional Summary and must be reviewed pair-by-pair. (The lower-risk alternative was lowering extraction to 14/6/6; user chose to surface more skills.)
+3. **Grounding (E1/E2):** **Drop ungrounded.** The prompt's HARD "no evidence → do not extract" is enforced literally — ungrounded skills are removed, not quarantined.
+4. **Fixtures (A1):** **Claude picks from existing repo fixtures** (aged-care, 15+ technical, soft-heavy, credentials/unit-codes, bare-string case); user reviews the selection before baseline is trusted.
+
+---
+
 ## 0. The regression risk, stated precisely
 
 The professional summary, the skills section, and the experience bullets are **all written by a single LLM call** in `tailored_cv.py` that receives the **entire `jd_analysis` object** (`tailored_cv.py:47`, `jd_analysis_json=...`) plus the feasibility plan.
@@ -23,26 +32,36 @@ We separate **"move code" (behaviour-preserving)** from **"change behaviour"** a
 
 Nothing below this line is touched until Phase A exists. This is the single most important phase for your "another feature broke" pain.
 
-### A1. Capture a golden baseline
-- Pick **5–8 representative JD+CV pairs** (include at least: one residential aged-care JD, one with 15+ technical skills, one soft-skill-heavy JD, one with credentials/unit codes, one where the LLM historically returns bare strings).
-- Run the **current** pipeline end-to-end on each and snapshot, per pair:
-  - `jd_analysis` object (skills per bucket + evidence map)
-  - feasibility plan
-  - matched / missed skill sets + scores
-  - **the full rendered CV markdown**, section by section: **Professional Summary**, Skills, Experience, Registration & Licences, Education, Awards.
-- Store under `backend/api/tests/golden/jd_analysis/<pair-id>/baseline.json`.
+### What already exists (verified in repo)
+`backend/api/tests/golden/` is a **working deterministic harness**:
+- 4 JD corpus files (`jds/*.md`) across verticals: `nursing-residential-ain`, `nursing-home-care-pcw`, `tech-backend-engineer`, `cleaning-commercial` — each with hand-labelled expected skills in YAML frontmatter.
+- **Frozen raw-LLM fixtures** (`fixtures/*.json`) → fully deterministic, no live AI.
+- `harness.py` runs `verify_skill_evidence → enrich_required_skills_from_jd_body → post_process_jd_analysis` and scores precision/recall.
+- `test_golden_jd_mock.py` gates at **precision 1.00 / recall 1.00 / zero hallucinations**.
+- CLI `scripts/golden_jd_eval.py` (`--mock` / `--live`) re-records fixtures.
 
-### A2. A diff runner
-- A script/test that re-runs the pipeline and **diffs each section against the baseline**, reporting per-section: unchanged / changed (with the diff).
-- This is the gate for every later phase. "Summary section: unchanged" is the assertion you care about most.
+This already covers Phases B/C/D/E at the **skill-set level** — any change that drops/adds a canonical breaks these tests. Good.
 
-### A3. Decide the diff policy
-- For each phase we declare **expected** changes (e.g. "Skills section: 'aged care' now appears" ) and **forbidden** changes (e.g. "Professional Summary: any change").
-- A phase passes only if forbidden sections are byte-identical (modulo whitespace) and changed sections match the declared intent.
+### The gap that IS your problem
+**The harness stops at the `jd_analysis` object. It never renders the tailored CV, so the Professional Summary is covered by NO regression test today.** That is exactly why summary regressions slip through when skills change: the summary is produced by a *second* LLM call in `tailored_cv.py` that the golden harness doesn't exercise.
 
-**Phase A gate:** baseline captured for all pairs; diff runner green against itself (re-running with no code change shows zero diffs). *This proves the harness is deterministic before we trust it.*
+### A1. Extend the harness to snapshot the rendered CV
+- Add a frozen fixture of the **tailored_cv LLM output** per corpus JD (record once via `--live`, then replay) so the *render* stage becomes deterministic too.
+- Snapshot, per JD, the rendered markdown **section by section**: **Professional Summary**, Skills, Experience, Registration & Licences, Education, Awards.
+- Store under `tests/golden/rendered/<id>.json`. Reuse the existing corpus + fixture loaders.
 
-> If the pipeline is **not** deterministic (LLM temperature > 0), A2 must pin the LLM responses — record the raw LLM outputs in the baseline and replay them, so we test *our deterministic code* (normaliser, gate, caps, filters) not the model's randomness. This is essential; otherwise every diff is noise.
+### A2. A section-level diff gate
+- Test re-renders from frozen fixtures and **diffs each section against its snapshot**, reporting per-section unchanged / changed.
+- "Professional Summary: unchanged" becomes a hard assertion, byte-identical (modulo whitespace).
+
+### A3. Diff policy per phase
+- Each phase declares **expected** changes (e.g. "Skills: 'aged care' removed") and **forbidden** ones (e.g. "Summary: no change").
+- Phase passes only if forbidden sections are identical and changed sections match intent.
+
+> **Determinism note (already solved for skills, must replicate for render):** the skills harness is deterministic because the LLM output is frozen. The render snapshot needs the same treatment — freeze the `tailored_cv` LLM response — otherwise summary diffs are model noise, not regressions. This is the one piece of new test infra Phase A must build.
+
+### A4. Pick the goldens (decision 4 = "Claude picks")
+- The existing 4 corpus JDs already hit aged-care (residential + home-care), tech (15+ technical), and cleaning. **Add 1–2** to cover the diagnosis's edge cases not yet represented: a **bare-string LLM-output** fixture (for E1) and a **credentials/unit-code-heavy** JD (for C2). User reviews the final corpus before baseline is trusted.
 
 ---
 
