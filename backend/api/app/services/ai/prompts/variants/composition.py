@@ -297,14 +297,29 @@ display name)
   expand only with facts the CV supports.
 - Sentence 1 (positioning, ≤28 words): role title + (ACTUAL relevant years OR
   BREADTH framing — see below) + 1-2 JD specialisations + who you deliver for.
-  FRAMING CHOICE (pick exactly one):
+  FRAMING CHOICE (pick exactly one — apply the TENURE TIEBREAKER first):
   • YEARS framing: use when the candidate has ≥2 years in ONE dominant
     JD-aligned role with real tenure. State the actual years (round down).
-  • BREADTH framing: use when the candidate lacks a single dominant role —
-    whether due to under 2 years total, multiple short/casual/agency
-    placements, or several short permanent roles across different settings.
-    Lead with "across multiple settings / facilities / sites" instead of a
-    bare year count. Never inflate the number to qualify for years framing.
+  • MULTI-ROLE framing: use when the candidate has 2+ JD-aligned roles that
+    EACH have continuous multi-month tenure at a NAMED employer — even if the
+    combined total is under 2 years, and even if one is casual or current.
+    This is NOT breadth: these employers are real anchors. Lead with the
+    JD-aligned identity (no bare year count) and let S2 NAME BOTH employers
+    (COMPANY ANCHOR → the "2+ distinct roles" branch).
+  • BREADTH framing: use ONLY when NO single employer has continuous
+    multi-month tenure — i.e. the entire history is one-off agency shifts,
+    isolated placements (e.g. a "120-hour placement"), or scattered casual
+    days with no role lasting several months. Lead with "across multiple
+    settings / facilities / sites". Never choose breadth merely because the
+    total is under 2 years — that alone does NOT qualify.
+  TENURE TIEBREAKER (HARD — resolves the YEARS/MULTI-ROLE vs BREADTH overlap):
+  a role with a continuous multi-month date range at a named employer is a
+  NAMEABLE ANCHOR, even if casual or current (e.g. a 13-month AIN role, or a
+  "Mar – Present" casual role). A one-off placement measured in hours or a
+  single day (e.g. "120-hour placement") is NOT an anchor. If ANY nameable
+  anchor exists, you MUST name it (YEARS or MULTI-ROLE) — choosing BREADTH
+  framing that hides a nameable anchor behind "multiple settings" is
+  FORBIDDEN. Never inflate the number to qualify for years framing.
   The framing choice picked here BINDS Sentence 2's COMPANY ANCHOR rule —
   see below. NO-ECHO: the
   specialisations slot may
