@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional
 
 from app.services.ai.client import AIClient
 from app.services.ai.prompts import (
-    JD_ANALYSIS_SYSTEM,
     JD_ANALYSIS_USER_TEMPLATE,
+    build_jd_analysis_system_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,13 +37,19 @@ _TOP_LEVEL_KEYS = {
 _CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
 
 
-async def run_jd_analysis(client: AIClient, jd_text: str) -> Dict[str, Any]:
+async def run_jd_analysis(
+    client: AIClient, jd_text: str, *, vertical: Optional[str] = None
+) -> Dict[str, Any]:
     if not jd_text or not jd_text.strip():
         raise ValueError("Job description text is empty")
 
+    # Phase 2 — inject vertical-specific bucketing guidance when the role's
+    # vertical is known (nursing / tech / cleaning). Unknown / None → base
+    # prompt unchanged. The lexicon post-process remains the final authority.
+    system_prompt = build_jd_analysis_system_prompt(vertical)
     user_prompt = JD_ANALYSIS_USER_TEMPLATE.format(jd_text=jd_text)
     result = await client.complete_json(
-        system=JD_ANALYSIS_SYSTEM, user=user_prompt, max_tokens=2048, temperature=0.1
+        system=system_prompt, user=user_prompt, max_tokens=2048, temperature=0.1
     )
 
     missing = _TOP_LEVEL_KEYS - set(result.keys())

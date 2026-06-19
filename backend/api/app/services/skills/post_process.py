@@ -1032,6 +1032,7 @@ def enrich_required_skills_from_jd_body(
     jd_text: str,
     *,
     role_family_id: str,
+    skill_text: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Deterministic recall floor — surface canonical skills the LLM missed
     by scanning the JD body against the per-vertical lexicon.
@@ -1045,13 +1046,22 @@ def enrich_required_skills_from_jd_body(
     Per-bucket cap matches the prompt schema (`_BUCKET_CAPS`). No-op when
     the role family has no curated vertical lexicon, when there is no text
     to scan, or when no new canonical matches.
+
+    ``skill_text`` (optional): when supplied, the lexicon scan runs over this
+    text instead of the full ``jd_text``. The orchestrator passes the
+    pre-filtered JD (boilerplate sections stripped) so the recall floor no
+    longer matches lexicon canonicals that appear only in About-Us / benefits
+    / reporting-structure prose — the classic source of false positives like
+    "reporting to registered nurse" or a provider's cross-service portfolio
+    leaking into required skills. ``jd_text`` is retained for the no-op /
+    presence guards and as the fallback when ``skill_text`` is empty.
     """
     vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
     if vertical is None:
         return jd_analysis
 
     text = _scan_text(
-        jd_text,
+        skill_text if (skill_text and skill_text.strip()) else jd_text,
         jd_analysis.get("summary"),
         jd_analysis.get("responsibilities"),
     )

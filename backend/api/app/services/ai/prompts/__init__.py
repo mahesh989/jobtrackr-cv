@@ -14,7 +14,11 @@ Internal layout:
 """
 from __future__ import annotations
 
-from .jd_analysis import JD_ANALYSIS_SYSTEM, JD_ANALYSIS_USER_TEMPLATE
+from .jd_analysis import (
+    JD_ANALYSIS_SYSTEM,
+    JD_ANALYSIS_USER_TEMPLATE,
+    build_jd_analysis_system_prompt,
+)
 from .cv_jd_matching import CV_JD_MATCHING_SYSTEM, CV_JD_MATCHING_USER_TEMPLATE
 from .keyword_feasibility import (
     KEYWORD_FEASIBILITY_SYSTEM,
@@ -53,6 +57,7 @@ from .cover_letter.opening_variants import (
 __all__ = [
     "JD_ANALYSIS_SYSTEM",
     "JD_ANALYSIS_USER_TEMPLATE",
+    "build_jd_analysis_system_prompt",
     "CV_JD_MATCHING_SYSTEM",
     "CV_JD_MATCHING_USER_TEMPLATE",
     "KEYWORD_FEASIBILITY_SYSTEM",
