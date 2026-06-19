@@ -436,8 +436,13 @@ pick by JD relevance using these clauses (in order):
       "Care Worker" / "Personal Care Assistant" — same job, different
       employers; or "Data Analyst" / "BI Analyst" / "Reporting Analyst";
       or "Registered Nurse" / "Division 1 Nurse"): use the variant that
-      matches the JD's job title. The other variants do NOT appear in the
-      summary opener at all (they remain in their own Experience entries).
+      matches the JD's job title EXACTLY. The other variants do NOT appear
+      in the summary opener at all (they remain in their own Experience entries).
+      HARD EXAMPLE: JD title is "Assistant in Nursing"; candidate's CV has
+      "AIN" at one employer and "Personal Care Worker" at another. The
+      opener MUST be "Assistant in Nursing" — not "Personal Care Worker",
+      not "AIN", not "Care Worker", not "Aged Care Worker". Use the JD's
+      exact wording. This rule overrides any CV title preference.
   (b) HYBRID "X & Y" titles where the CV lists both halves explicitly (e.g.
       "Data Analyst & AI Engineer", "Software Engineer & ML Researcher"):
       drop the half the JD does NOT prioritise. Keep the JD-aligned half
