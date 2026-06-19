@@ -465,6 +465,73 @@ def _enforce_summary_s2_word_cap(markdown: str, cap: int = 22) -> str:
     return "\n".join(lines)
 
 
+# Generic clinical / care competencies that the LLM sometimes Title-Cases in
+# the summary (e.g. "Activities of Daily Living", "Dementia Care"). None are
+# proper nouns, so mid-sentence they read wrong in Title Case. We force the
+# canonical lowercase form, then re-capitalise only if the phrase happens to
+# open a sentence. Curated allowlist keeps this safe — we never touch real
+# proper nouns (employer names, branded systems, place names).
+_GENERIC_CARE_PHRASES = [
+    "activities of daily living",
+    "electronic medication administration",
+    "medication administration",
+    "medication assistance",
+    "person-centred care",
+    "person-centered care",
+    "personal care",
+    "dementia care",
+    "palliative care",
+    "behavioural management techniques",
+    "behavioral management techniques",
+    "behavioural management",
+    "behavioral management",
+    "behaviour support planning",
+    "manual handling",
+    "infection control",
+    "incident reporting",
+    "multidisciplinary teams",
+    "multidisciplinary team",
+    "electronic health records",
+    "clinical documentation",
+    "accurate documentation",
+]
+_GENERIC_CARE_RE = re.compile(
+    r"(?<![A-Za-z])(" + "|".join(re.escape(p) for p in _GENERIC_CARE_PHRASES) + r")(?![A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def _lowercase_generic_care_phrases(markdown: str) -> str:
+    """Force curated generic care phrases to lowercase inside the summary block,
+    re-capitalising only when a phrase opens a sentence. Fixes the LLM's habit
+    of writing "specialising in Activities of Daily Living" mid-sentence."""
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx:
+        return markdown
+
+    def _repl(m: re.Match) -> str:
+        phrase = m.group(1).lower()
+        # Re-capitalise if this phrase opens a sentence (start of prose, or
+        # preceded by sentence-ending punctuation + space).
+        i = m.start()
+        preceding = prose[:i].rstrip()
+        if not preceding or preceding[-1] in ".!?":
+            return phrase[:1].upper() + phrase[1:]
+        return phrase
+
+    fixed = _GENERIC_CARE_RE.sub(_repl, prose)
+    if fixed == prose:
+        return markdown
+    lines[idx[0]] = fixed
+    for i in idx[1:]:
+        lines[i] = ""
+    return "\n".join(lines)
+
+
 def _flag_vague_anchor(markdown: str) -> str:
     """Replace vague COMPANY ANCHOR phrases with a conspicuous placeholder so
     the issue is visible in the rendered output and triggers a retry in review.
@@ -987,6 +1054,7 @@ def _enforce_structure(markdown: str, jd_job_title: str = "") -> str:
     markdown = _enforce_summary_s2_word_cap(markdown, cap=22)
     markdown = _enforce_summary_s1_title_case(markdown)
     markdown = _enforce_summary_opener(markdown, jd_job_title)
+    markdown = _lowercase_generic_care_phrases(markdown)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"

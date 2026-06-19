@@ -4,8 +4,41 @@ from app.services.pipeline.steps.tailored_cv import (
     _clean_job_title,
     _enforce_career_highlights_words,
     _enforce_summary_opener,
+    _lowercase_generic_care_phrases,
     _trim_to_words,
 )
+
+
+def test_lowercases_generic_care_phrases_midsentence():
+    md = (
+        "## Career Highlights\n\n"
+        "Assistant in Nursing with experience in residential aged care, "
+        "specialising in Activities of Daily Living, Dementia Care, and "
+        "Behavioural Management Techniques. Delivered safe Electronic "
+        "Medication Administration and accurate documentation for elderly "
+        "residents.\n\n"
+        "## Professional Experience\n"
+    )
+    out = _lowercase_generic_care_phrases(md)
+    assert "activities of daily living" in out
+    assert "Activities of Daily Living" not in out
+    assert "dementia care" in out
+    assert "electronic medication administration" in out
+    # The opener role title must stay capitalised.
+    assert "Assistant in Nursing" in out
+
+
+def test_generic_care_phrase_kept_capitalised_at_sentence_start():
+    md = (
+        "## Career Highlights\n\n"
+        "Aged Care Worker with hands-on placement experience. Activities of "
+        "daily living and dementia care were delivered for elderly residents "
+        "across multiple settings.\n\n"
+        "## Professional Experience\n"
+    )
+    out = _lowercase_generic_care_phrases(md)
+    # Sentence-initial phrase keeps its leading capital.
+    assert "Activities of daily living" in out
 
 
 def _summary(prose: str) -> str:
