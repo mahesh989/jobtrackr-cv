@@ -403,6 +403,21 @@ def _find_summary_block(lines: list[str]) -> tuple[int, int] | tuple[None, None]
     return start, end
 
 
+def _title_case_role(title_part: str) -> str:
+    """Title-case a role title, leaving small connector words lowercase
+    (e.g. "Assistant in Nursing", not "Assistant In Nursing"). The first word
+    is always capitalised."""
+    small = {"in", "of", "the", "and", "for", "to", "a", "an", "on", "at", "with", "&"}
+    words = title_part.split()
+    out: list[str] = []
+    for i, w in enumerate(words):
+        if i != 0 and w.lower() in small:
+            out.append(w.lower())
+        else:
+            out.append(w[:1].upper() + w[1:] if w else w)
+    return " ".join(out)
+
+
 def _enforce_summary_s1_title_case(markdown: str) -> str:
     """Title-case the role-title opener of S1 (words before the first 'with'
     or comma that form the job title).  Fixes "Personal care worker with …"
@@ -426,12 +441,12 @@ def _enforce_summary_s1_title_case(markdown: str) -> str:
         title_part = with_match.group(1)
         space = with_match.group(2)
         remainder = s1[len(title_part) + len(space):]
-        fixed_title = " ".join(w.capitalize() for w in title_part.split())
+        fixed_title = _title_case_role(title_part)
         new_s1 = fixed_title + space + remainder
     else:
         # Fallback: title-case first 4 words
         words = s1.split()
-        words[:4] = [w.capitalize() for w in words[:4]]
+        words[:4] = _title_case_role(" ".join(words[:4])).split()
         new_s1 = " ".join(words)
     new_prose = new_s1 + rest
     # Write back into the first prose line

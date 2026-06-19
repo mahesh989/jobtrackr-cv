@@ -6,8 +6,18 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_company_anchor,
     _enforce_summary_opener,
     _lowercase_generic_care_phrases,
+    _title_case_role,
     _trim_to_words,
 )
+
+
+def test_title_case_role_keeps_connectors_lowercase():
+    assert _title_case_role("assistant in nursing") == "Assistant in Nursing"
+    assert _title_case_role("Assistant In Nursing") == "Assistant in Nursing"
+    assert _title_case_role("personal care worker") == "Personal Care Worker"
+    assert _title_case_role("director of nursing") == "Director of Nursing"
+    # First word always capitalised, even if it's a small word.
+    assert _title_case_role("in home support worker") == "In Home Support Worker"
 
 
 def test_lowercases_generic_care_phrases_midsentence():
