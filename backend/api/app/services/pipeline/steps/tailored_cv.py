@@ -65,7 +65,7 @@ async def run_tailored_cv(
     if not markdown or len(markdown.strip()) < 200:
         raise ValueError("Tailored CV: response too short")
 
-    enforced_md = _enforce_structure(markdown.strip(), jd_job_title=str(jd_analysis.get("job_title") or ""))
+    enforced_md = _enforce_structure(markdown.strip(), jd_job_title=str(jd_analysis.get("job_title") or ""), cv_text=cv_text)
 
     role_family_id = jd_analysis.get("role_family")
     family_label_map = None
@@ -629,6 +629,79 @@ def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
     return "\n".join(lines)
 
 
+# Heading pattern that starts an Experience entry ("### Employer | Location").
+_EXP_ENTRY_RE = re.compile(r"^###\s+(.+?)\s*(?:\|.*)?$")
+
+
+def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
+    """Return employer names from the CV's Experience section that have
+    continuous multi-month tenure (i.e. a date range like 'May 2025 – Jun 2026'
+    or 'Mar 2026 – Present'). Placement-only entries (single dates / '120-hour')
+    are excluded. Returns names in order of appearance (most recent first)."""
+    employers: list[str] = []
+    # Match lines like "### The Jesmond Group | Miranda, NSW, Australia"
+    # or role-title lines below them; focus on the H3 heading as employer.
+    current_employer: str | None = None
+    for line in cv_text.split("\n"):
+        m = _EXP_ENTRY_RE.match(line.strip())
+        if m:
+            current_employer = m.group(1).strip()
+            continue
+        if current_employer and re.search(
+            # date range with a span (not a single date/placement)
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present)"
+            r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
+            line, re.IGNORECASE,
+        ) and not re.search(r"\bhour(?:s)?\b|\bplacement\b|\bday\b", line, re.IGNORECASE):
+            if current_employer not in employers:
+                employers.append(current_employer)
+            current_employer = None  # don't count this employer twice
+    return employers
+
+
+def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
+    """When the summary S2 contains no employer name from the CV's multi-month
+    roles, append an 'at <Employer1> and <Employer2>' anchor. This fires only
+    when (a) the CV has 2+ multi-month employers AND (b) none of them appear
+    anywhere in the full summary prose. Safe to no-op when cv_text is empty."""
+    if not cv_text:
+        return markdown
+    employers = _extract_employers_from_cv(cv_text)
+    if len(employers) < 2:
+        return markdown  # single employer or none — don't auto-inject
+
+    lines = markdown.split("\n")
+    start, end = _find_summary_block(lines)
+    if start is None:
+        return markdown
+    idx, prose = _get_summary_prose(lines, start, end)
+    if not prose or not idx:
+        return markdown
+
+    # Check whether any top-2 employer name already appears in the summary.
+    top2 = employers[:2]
+    prose_lower = prose.lower()
+    if any(emp.lower() in prose_lower for emp in top2):
+        return markdown  # already anchored — no change needed
+
+    # Find S2 (second sentence) and append anchor.
+    sent_re = re.compile(r"(?<=[.!?])\s+")
+    sentences = [s.strip() for s in sent_re.split(prose) if s.strip()]
+    if len(sentences) < 2:
+        return markdown
+    s1, s2 = sentences[0], sentences[1]
+    # Strip trailing period from S2 and append anchor.
+    s2_body = s2.rstrip(".")
+    anchor = f"at {top2[0]} and {top2[1]}"
+    new_s2 = f"{s2_body} {anchor}."
+    new_prose = s1 + " " + new_s2
+    lines[idx[0]] = new_prose
+    for i in idx[1:]:
+        lines[i] = ""
+    logger.info("_enforce_company_anchor: injected anchor '%s'", anchor)
+    return "\n".join(lines)
+
+
 def _enforce_other_skills_chars(markdown: str, max_chars: int = 80) -> str:
     """
     Cap the Other Skills line content (after 'Other Skills:') to max_chars characters.
@@ -1034,7 +1107,7 @@ def _inject_missing_skills(
     return "\n".join(lines)
 
 
-def _enforce_structure(markdown: str, jd_job_title: str = "") -> str:
+def _enforce_structure(markdown: str, jd_job_title: str = "", cv_text: str = "") -> str:
     """
     Deterministic post-processing:
       - Deduplicate Career Highlights (keep prose, drop bullet repeat)
@@ -1043,6 +1116,8 @@ def _enforce_structure(markdown: str, jd_job_title: str = "") -> str:
 
     `jd_job_title` (when supplied) lets the S1-opener enforcer replace a
     forbidden status/education opener with the real JD-aligned role title.
+    `cv_text` (when supplied) lets the company-anchor enforcer inject employer
+    names into S2 when the LLM omitted them despite having multi-month roles.
     """
     markdown = _dedup_project_bullets(markdown)
     markdown = _strip_certs_when_projects_exist(markdown)
@@ -1055,6 +1130,7 @@ def _enforce_structure(markdown: str, jd_job_title: str = "") -> str:
     markdown = _enforce_summary_s1_title_case(markdown)
     markdown = _enforce_summary_opener(markdown, jd_job_title)
     markdown = _lowercase_generic_care_phrases(markdown)
+    markdown = _enforce_company_anchor(markdown, cv_text)
     markdown = _enforce_other_skills_chars(markdown, max_chars=80)
 
     EXP_HEADING = "## Professional Experience"

@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.services.pipeline.steps.tailored_cv import (
     _clean_job_title,
     _enforce_career_highlights_words,
+    _enforce_company_anchor,
     _enforce_summary_opener,
     _lowercase_generic_care_phrases,
     _trim_to_words,
@@ -232,4 +233,66 @@ def test_inject_missing_skills_fallback():
     # 4. "communication" WAS already in the CV (under Soft Skills), so it should NOT be fallback-injected again
     # (should not see "Communication, Communication")
     assert "Communication, Communication" not in out
+
+
+def test_enforce_company_anchor_injects_when_absent():
+    """When S2 names no employer and the CV has 2+ multi-month roles, the
+    enforcer appends 'at Employer1 and Employer2'."""
+    md = (
+        "## Career Highlights\n\n"
+        "Assistant in Nursing with experience in residential aged care, "
+        "specialising in person-centred care and dementia care. "
+        "Experienced in electronic medication administration and documentation.\n\n"
+        "## Professional Experience\n"
+    )
+    cv_text = (
+        "### The Jesmond Group | Miranda, NSW\n"
+        "AIN | May 2025 – June 2026\n"
+        "- Delivered medication administration.\n\n"
+        "### Uniting | Leichhardt, NSW\n"
+        "AIN (Casual) | Mar 2026 – Present\n"
+        "- Provided person-centred care.\n\n"
+        "### Anglicare Mildred Symons House | Jannali, NSW\n"
+        "Aged Care Placement (120 hours) | Sept 2024\n"
+        "- Delivered dementia care.\n"
+    )
+    out = _enforce_company_anchor(md, cv_text)
+    assert "The Jesmond Group" in out
+    assert "Uniting" in out
+
+
+def test_enforce_company_anchor_no_op_when_already_present():
+    """When S2 already names an employer, the enforcer leaves it unchanged."""
+    md = (
+        "## Career Highlights\n\n"
+        "Assistant in Nursing with experience in residential aged care. "
+        "Delivered medication administration at The Jesmond Group; "
+        "provided person-centred care at Uniting.\n\n"
+        "## Professional Experience\n"
+    )
+    cv_text = (
+        "### The Jesmond Group | Miranda, NSW\n"
+        "AIN | May 2025 – June 2026\n\n"
+        "### Uniting | Leichhardt, NSW\n"
+        "AIN (Casual) | Mar 2026 – Present\n"
+    )
+    out = _enforce_company_anchor(md, cv_text)
+    assert out == md
+
+
+def test_enforce_company_anchor_no_op_for_placement_only_cv():
+    """A CV with only a placement (no multi-month role) is left untouched."""
+    md = (
+        "## Career Highlights\n\n"
+        "Aged Care Worker with hands-on placement experience. "
+        "Delivered person-centred dementia care across residential settings.\n\n"
+        "## Professional Experience\n"
+    )
+    cv_text = (
+        "### Anglicare Mildred Symons House | Jannali, NSW\n"
+        "Aged Care Placement (120 hours) | Sept 2024\n"
+        "- Delivered dementia care.\n"
+    )
+    out = _enforce_company_anchor(md, cv_text)
+    assert out == md
 
