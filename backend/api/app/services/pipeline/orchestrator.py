@@ -37,6 +37,7 @@ from app.services.pipeline.steps.ats_scoring import run_ats_scoring
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
 from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
+from app.services.preprocessing.jd_cleaner import clean_jd_text
 from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
 from app.services.pipeline.steps.tailored_cv import run_tailored_cv
 from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
@@ -158,7 +159,12 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             await mark_step(run_id, step_status, "jd_analysis", "completed")
         else:
             await mark_step(run_id, step_status, "jd_analysis", "running")
-            jd_analysis = await run_jd_analysis(ai_client, payload.jd_text)
+            # Strip boilerplate sections (About Us, Benefits, How to Apply)
+            # before the LLM call. The raw payload.jd_text is preserved for
+            # all subsequent steps (evidence gate, recall floor, section clamp,
+            # setting demotion) which need the full unmodified JD text.
+            _jd_for_llm, _ = clean_jd_text(payload.jd_text)
+            jd_analysis = await run_jd_analysis(ai_client, _jd_for_llm)
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
             await mark_step(run_id, step_status, "jd_analysis", "completed")
 
