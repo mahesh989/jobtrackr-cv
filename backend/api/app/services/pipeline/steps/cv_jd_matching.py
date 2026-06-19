@@ -323,30 +323,34 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
 # the keyword score — only carry actual skills.
 # ---------------------------------------------------------------------------
 
-# Regex pattern for credential-shaped phrases. Each branch is a distinct
-# credential family the lexicon noise list (_universal_noise.json credential
-# section) also covers as exact strings; this regex is the belt-and-braces
-# net for variants we haven't enumerated yet.
-_CREDENTIAL_PHRASE_RE = _re.compile(
-    r"(?ix)\b("
-    # Compliance / clearance / check phrases.
-    r"(?:police|national\s+police|ndis(?:\s+worker(?:\s+screening)?)?|"
-    r"pre[-\s]?employment\s+medical|criminal\s+history|"
-    r"vaccine|vaccination|immuni[sz]ation|infection\s+control|"
-    r"working\s+with\s+children|working\s+rights?|work\s+rights?|"
-    r"first\s+aid|cpr)\s+"
-    r"(?:clearance|check|requirements?|compliance|screening|endorsement)"
-    r"|"
-    # Australian unit codes (CHC… / HLT… / BSB… / FSK… / SIT… / CPP… / AHC…).
-    r"(?:chc|hlt(?:aid|hps)?|bsb|fsk|sit|cpp|ahc)\d{3,}"
-    r"|"
-    # "Cert III/IV in X" or "X cert III/IV" — qualification names.
-    r"cert(?:ificate)?\s*(?:iii|iv|3|4)"
-    r"|"
-    # Medication endorsement is a credential, not a skill.
-    r"medication\s+endorsement(?:\s*\([^)]+\))?"
-    r")\b"
-)
+# Australian unit code prefix alternation — built from the canonical registry
+# list (longest-first so longer sub-codes match before their parent codes).
+def _build_au_unit_re() -> _re.Pattern:
+    from app.services.skills.registry import AU_UNIT_PREFIXES
+    alt = "|".join(sorted(AU_UNIT_PREFIXES, key=len, reverse=True))
+    return _re.compile(
+        r"(?ix)\b("
+        # Compliance / clearance / check phrases.
+        r"(?:police|national\s+police|ndis(?:\s+worker(?:\s+screening)?)?|"
+        r"pre[-\s]?employment\s+medical|criminal\s+history|"
+        r"vaccine|vaccination|immuni[sz]ation|infection\s+control|"
+        r"working\s+with\s+children|working\s+rights?|work\s+rights?|"
+        r"first\s+aid|cpr)\s+"
+        r"(?:clearance|check|requirements?|compliance|screening|endorsement)"
+        r"|"
+        # Australian unit codes — from skills.registry.AU_UNIT_PREFIXES.
+        rf"(?:{alt})\d{{3,}}"
+        r"|"
+        # "Cert III/IV in X" or "X cert III/IV" — qualification names.
+        r"cert(?:ificate)?\s*(?:iii|iv|3|4)"
+        r"|"
+        # Medication endorsement is a credential, not a skill.
+        r"medication\s+endorsement(?:\s*\([^)]+\))?"
+        r")\b"
+    )
+
+
+_CREDENTIAL_PHRASE_RE = _build_au_unit_re()
 
 
 def _looks_like_credential(keyword: str) -> bool:

@@ -76,9 +76,9 @@ class TestSectorLabelStrip:
         skills_after = set(out["required_skills"]["domain_knowledge"])
         for leak in leaks:
             assert leak not in skills_after, f"{leak} still in Care Skills"
-        # Real skills survive.
+        # Real skills survive; domestic assistance is now a sector label (Phase C).
         assert "personal care" in skills_after
-        assert "domestic assistance" in skills_after
+        assert "domestic assistance" not in skills_after
 
     def test_post_canonicalisation_strip(self):
         """Real Sanctuary NDIS JD: LLM emits 'home care support' (lexicon
@@ -122,10 +122,9 @@ class TestSectorLabelStrip:
     def test_setting_labels_set_matches_design(self):
         """Sanity check on the curated set itself — guards against silent
         deletions that would re-open the leak path."""
-        # Conservatively NOT included (treated as primary vertical):
-        assert "aged care" not in _SECTOR_SETTING_LABELS
-        # Conservatively NOT included (treated as a duty, not a setting):
-        assert "domestic assistance" not in _SECTOR_SETTING_LABELS
+        # Phase C: both now included — strip everywhere policy.
+        assert "aged care" in _SECTOR_SETTING_LABELS
+        assert "domestic assistance" in _SECTOR_SETTING_LABELS
         # MUST be included (the user-confirmed leaks):
         for must in ("home care", "community care", "disability support",
                      "retirement living"):

@@ -146,8 +146,8 @@ class TestVaccinationRemovedFromJdAnalysis:
             + result["preferred_skills"]["domain_knowledge"]
         )
         assert "vaccination requirements" not in all_skills
-        # real care skills stay
-        assert "aged care" in result["required_skills"]["domain_knowledge"]
+        # real care skills stay; aged care is now stripped as a sector label (Phase C)
+        assert "aged care" not in result["required_skills"]["domain_knowledge"]
         assert "personal care" in result["required_skills"]["domain_knowledge"]
 
 
@@ -192,7 +192,8 @@ class TestNursingFundamentalsRemovedFromJdAnalysis:
         result = post_process_jd_analysis(jd, role_family_id="nursing")
         domain = result["required_skills"]["domain_knowledge"]
         assert "nursing fundamentals" not in domain
-        assert "aged care" in domain
+        # aged care is now a sector label stripped everywhere (Phase C)
+        assert "aged care" not in domain
         assert "personal care" in domain
 
 

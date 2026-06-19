@@ -1,0 +1,13 @@
+{
+  "feasibility_plan": {
+    "inject_directly": [
+      {
+        "keyword": "cloud computing",
+        "category": "domain_knowledge",
+        "injection_target": "skills_section"
+      }
+    ],
+    "inject_as_extension": [],
+    "inject_with_inference": []
+  }
+}

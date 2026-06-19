@@ -9,7 +9,7 @@ expected:
     # component — fragment of "Cert III in Individual Support") are now
     # stripped at the JD-extraction layer. See post_process._SECTOR_SETTING_LABELS
     # and _CREDENTIAL_COMPONENT_LABELS.
-    domain_knowledge: [domestic assistance, dressing and grooming, showering and bathing, toileting assistance, transport assistance]
+    domain_knowledge: [dressing and grooming, showering and bathing, toileting assistance, transport assistance]
     # Recall floor disabled for soft_skills (policy: preserve LLM's verbatim
     # phrasing; do not cross word-families via lexicon canonicalisation).
     # Expected = LLM extraction only.

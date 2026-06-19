@@ -1,0 +1,18 @@
+{
+  "feasibility_plan": {
+    "inject_directly": [
+      {
+        "keyword": "deep cleaning",
+        "category": "domain_knowledge",
+        "injection_target": "skills_section"
+      },
+      {
+        "keyword": "ppe use",
+        "category": "domain_knowledge",
+        "injection_target": "skills_section"
+      }
+    ],
+    "inject_as_extension": [],
+    "inject_with_inference": []
+  }
+}

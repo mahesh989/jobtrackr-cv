@@ -159,7 +159,9 @@ class TestInjectDirectlyGroundednessGate:
         "& Workplace Safety. Continence care for residents."
     )
 
-    def test_cross_skill_inference_downgraded(self):
+    def test_cross_skill_inference_dropped(self):
+        """M4 (Phase F): ungrounded inject_directly entries are now dropped
+        (not downgraded) to preserve the hard no-fabrication contract."""
         from app.services.pipeline.steps.keyword_feasibility import (
             _enforce_inject_directly_groundedness,
         )
@@ -177,15 +179,9 @@ class TestInjectDirectlyGroundednessGate:
             "cannot_inject": [],
         }
         out = _enforce_inject_directly_groundedness(plan, self._CV)
-        # Gone from direct
+        # Gone from direct — and NOT promoted to inference (M4 drop policy)
         assert out["inject_directly"] == []
-        # In inference, with the rationale preserved
-        infs = out["inject_with_inference"]
-        assert len(infs) == 1
-        assert infs[0]["keyword"] == "risk management"
-        assert "infection control" in infs[0]["inference_chain"].lower()
-        assert infs[0]["inferred_from"] == ["Infection Control & Workplace Safety"]
-        assert infs[0]["confidence"] == "medium"
+        assert out["inject_with_inference"] == []
 
     def test_verbatim_keyword_kept_in_direct(self):
         """When the evidence quote contains the keyword's word family,
@@ -208,9 +204,9 @@ class TestInjectDirectlyGroundednessGate:
         assert len(out["inject_directly"]) == 1
         assert out["inject_with_inference"] == []
 
-    def test_evidence_not_in_cv_downgraded(self):
-        """Even if the LLM cites text that looks plausible, if it's not in
-        the actual CV the entry must be downgraded."""
+    def test_evidence_not_in_cv_dropped(self):
+        """M4 (Phase F): if the LLM cites text not in the CV, the entry
+        is dropped (not downgraded to inject_with_inference)."""
         from app.services.pipeline.steps.keyword_feasibility import (
             _enforce_inject_directly_groundedness,
         )
@@ -227,7 +223,7 @@ class TestInjectDirectlyGroundednessGate:
         }
         out = _enforce_inject_directly_groundedness(plan, self._CV)
         assert out["inject_directly"] == []
-        assert len(out["inject_with_inference"]) == 1
+        assert out["inject_with_inference"] == []
 
     def test_empty_evidence_downgraded(self):
         from app.services.pipeline.steps.keyword_feasibility import (

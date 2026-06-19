@@ -203,12 +203,13 @@ class TestSubsumptionIntegration:
         assert "showering and bathing" in dom
         assert "feeding assistance" in dom
 
-    def test_post_process_aged_care_does_not_drop_when_no_child(self):
-        """`aged care` parent alone — must survive even though it has children
-        defined in the lexicon (none are in the bucket)."""
+    def test_post_process_aged_care_stripped_as_sector_label(self):
+        """`aged care` is now a sector/setting label (Phase C strip-everywhere
+        policy) — it must be routed to the setting_label sidecar, not kept in
+        domain_knowledge, even when no child skills are present."""
         jd = _jd(required={
             "domain_knowledge": ["aged care"],
         })
         out = post_process_jd_analysis(jd, role_family_id="nursing")
         dom = [s.lower() for s in out["required_skills"]["domain_knowledge"]]
-        assert "aged care" in dom
+        assert "aged care" not in dom

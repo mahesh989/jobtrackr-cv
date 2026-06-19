@@ -84,7 +84,7 @@ _FILLER_KEYWORD_RE = re.compile(
     r"knowledge\s+of\b"
     r"|^(?:an?\s+)?understanding\s+of\b"
     r"|^ability\s+to\b"
-    r"|^experience\s+(?:in|with|of|as|working)\b"
+    r"|^experience\s+(?:in|with|of|as|working|across|supporting)\b"
     r"|^previous\s+experience\b"
     r"|^familiarity\s+with\b"
     r"|^(?:willingness|commitment|passion|aptitude|interest|dedication)\s+(?:to|for|in)\b"
@@ -644,16 +644,22 @@ def _evidence_grounds_keyword_verbatim(
 def _enforce_inject_directly_groundedness(
     plan: Dict[str, List[Dict[str, Any]]], cv_text: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Move `inject_directly` entries whose evidence doesn't literally
-    contain the keyword's word family to `inject_with_inference`.
-    Mutates a shallow copy. Idempotent."""
+    """Drop `inject_directly` entries whose evidence doesn't literally
+    contain the keyword's word family (M4 — Phase F).
+
+    Previously these were downgraded to inject_with_inference, which
+    silently softened the honesty contract ("must be verbatim → may be
+    inferred"). Now ungrounded entries are dropped entirely, consistent
+    with the prompt's HARD "no fabrication" rule.
+    Mutates a shallow copy. Idempotent.
+    """
     if not plan or not cv_text:
         return plan
     direct = list(plan.get("inject_directly") or [])
     if not direct:
         return plan
     kept_direct: List[Dict[str, Any]] = []
-    downgraded: List[Dict[str, Any]] = []
+    dropped: List[str] = []
     for entry in direct:
         if not isinstance(entry, dict):
             continue
@@ -662,32 +668,15 @@ def _enforce_inject_directly_groundedness(
         if _evidence_grounds_keyword_verbatim(kw, ev, cv_text):
             kept_direct.append(entry)
         else:
-            # Downgrade — re-shape as inject_with_inference. Map rationale
-            # → inference_chain (the existing rationale describes the
-            # inference jump anyway); inferred_from carries the evidence
-            # phrase; confidence stays medium.
-            inferred_entry = {
-                "keyword":          entry.get("keyword"),
-                "category":         entry.get("category"),
-                "bucket":           entry.get("bucket"),
-                "injection_target": entry.get("injection_target") or "skills_section",
-                "evidence":         ev,
-                "rationale":        entry.get("rationale") or "",
-                "suggested_rewrite": "",
-                "inference_chain":  entry.get("rationale") or "",
-                "inferred_from":    [ev] if ev else [],
-                "confidence":       "medium",
-            }
-            downgraded.append(inferred_entry)
-    if not downgraded:
+            dropped.append(kw)
+    if not dropped:
         return plan
     out = dict(plan)
     out["inject_directly"] = kept_direct
-    out["inject_with_inference"] = list(out.get("inject_with_inference") or []) + downgraded
     logger.info(
-        "feasibility groundedness gate: downgraded %d inject_directly → "
-        "inject_with_inference (evidence quote did not contain keyword): %s",
-        len(downgraded), [d["keyword"] for d in downgraded],
+        "feasibility groundedness gate: dropped %d inject_directly "
+        "(evidence quote did not contain keyword): %s",
+        len(dropped), dropped,
     )
     return out
 

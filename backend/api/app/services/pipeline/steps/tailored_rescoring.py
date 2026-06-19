@@ -55,9 +55,24 @@ from app.services.pipeline.steps.cv_jd_matching import (
 
 logger = logging.getLogger(__name__)
 
-
+# Imported from registry so this is not another definition — same constant.
+from app.services.skills.registry import CATEGORIES as _CATEGORIES_TUPLE
 _BUCKETS = ("required", "preferred")
-_CATEGORIES = ("technical", "soft_skills", "domain_knowledge")
+_CATEGORIES = _CATEGORIES_TUPLE
+
+
+# ---------------------------------------------------------------------------
+# Module-level non-skill predicate (extracted from the closure in
+# run_tailored_rescoring — now importable and unit-testable).
+# Mirrors the writer's filter chain: _is_non_skill_phrase (exact/prefix/
+# pattern) + _ROLE_CATEGORY_LABELS. See registry.is_non_skill_phrase.
+# ---------------------------------------------------------------------------
+
+def is_sector_only_phrase(kw: str) -> bool:
+    """Return True if kw is a sector/setting descriptor or non-skill phrase
+    that the writer deliberately suppresses from the Skills section."""
+    from app.services.skills.registry import is_non_skill_phrase
+    return is_non_skill_phrase(kw)
 
 
 def run_tailored_rescoring(
@@ -137,46 +152,9 @@ def run_tailored_rescoring(
     # match (synonym mismatch CV-vs-JD wording), report it as genuinely missed
     # so the user knows the writer/verifier needs improvement. Phase 2 synonym
     # work will close that gap.
-    # Mirror the writer's filter chain exactly so the "Filtered as non-skill"
-    # chip on the UI reflects what was DELIBERATELY suppressed by the writer.
-    # Previously only checked _NON_SKILL_EXACT + _NON_SKILL_PREFIXES, which
-    # missed two big classes:
-    #   • _ROLE_CATEGORY_LABELS — sector/setting descriptors that get
-    #     injected into bullets, not Skills (e.g. 'domestic assistance',
-    #     'aged care', 'community care'). The writer's _approved_skill_entries
-    #     skips these explicitly.
-    #   • _NON_SKILL_PATTERN — broad regex catching compliance, certification,
-    #     "experience in X", "supporting <audience>", environment/setting
-    #     trailers (e.g. 'health and safety compliance' matches \bcompliance\b).
-    #     The writer's _is_non_skill_phrase consults this regex.
-    # Without mirroring both, deliberately filtered items show as "Approved
-    # but missed" — telling users the writer failed when the writer correctly
-    # skipped them by design.
-    from app.services.eval.writers import (
-        _NON_SKILL_EXACT,
-        _NON_SKILL_PREFIXES,
-        _NON_SKILL_PATTERN,
-    )
-    from app.services.eval.enforce import _ROLE_CATEGORY_LABELS
-
-    def _is_sector_only_phrase(kw: str) -> bool:
-        t = (kw or "").strip().lower()
-        if not t:
-            return False
-        if t in _NON_SKILL_EXACT:
-            return True
-        if t in _ROLE_CATEGORY_LABELS:
-            return True
-        for prefix in _NON_SKILL_PREFIXES:
-            if t.startswith(prefix):
-                return True
-        if _NON_SKILL_PATTERN.search(t):
-            return True
-        return False
-
     injected = sorted(credited)
     _failed_raw = {kw for kw in approved if kw not in credited}
-    filtered_non_skill = sorted({kw for kw in _failed_raw if _is_sector_only_phrase(kw)})
+    filtered_non_skill = sorted({kw for kw in _failed_raw if is_sector_only_phrase(kw)})
     failed = sorted(_failed_raw - set(filtered_non_skill))
 
     # Build a tailored matching by promoting the credited keywords.

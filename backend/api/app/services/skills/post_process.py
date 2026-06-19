@@ -422,6 +422,12 @@ _ROLE_FAMILY_TO_VERTICAL: Dict[str, Optional[str]] = {
 #   • 'domestic assistance' describes a duty (washing/ironing/vacuuming),
 #     not a setting — the JD genuinely demands it as a skill.
 _SECTOR_SETTING_LABELS: frozenset = frozenset({
+    # Job-type / vertical descriptors — align with enforce._ROLE_CATEGORY_LABELS
+    "aged care",
+    "domestic assistance",
+    "independent living support",
+    "independent living assistance",
+    # Setting / service-type descriptors
     "home care",
     "in-home care",
     "in home care",
@@ -841,6 +847,9 @@ def _skill_derivable_from_evidence(
     # ("team" is a 4-char prefix of "teamwork" with a word boundary in
     # evidence). Width-4 is a deliberate floor: anything shorter (e.g. 3-char
     # prefix "tea") would over-accept.
+    # NOTE: Finding M8 (E3 in fix-plan) identified over-broad single-token
+    # matches for multi-word skills. A tighter fix requires multi-token
+    # coverage logic and is deferred pending concrete false-positive cases.
     skill_tokens = [t for t in re.findall(r"[a-z][a-z\-]*", skill_norm) if len(t) > 3]
     if not skill_tokens:
         # very short skill (e.g. "sql") — fall back to ANY token
@@ -891,19 +900,27 @@ def verify_skill_evidence(
     jd_text: str,
     *,
     role_family_id: str,
+    require_evidence: bool = False,
 ) -> Dict[str, Any]:
     """Drop skills whose evidence quote is not in the JD body or whose
     skill cannot be derived from the quote.
 
-    No-op when ``jd_analysis["skill_evidence"]`` is missing or empty
-    (back-compat with older AI runs that didn't emit evidence).
+    When ``require_evidence=False`` (default): no-op if
+    ``jd_analysis["skill_evidence"]`` is missing or empty — back-compat
+    with AI runs that didn't emit evidence.
+
+    When ``require_evidence=True``: treats missing evidence as
+    "ungrounded" and drops all skills not covered by the evidence map.
+    Use this once the prompt has been updated to always emit evidence.
 
     Mutates a shallow copy. Drops are recorded under
     ``lexicon_meta.ungrounded`` as a list of
     ``{"skill", "bucket", "evidence", "reason"}`` dicts.
     """
     evidence_map = jd_analysis.get("skill_evidence") or {}
-    if not isinstance(evidence_map, dict) or not evidence_map:
+    if not isinstance(evidence_map, dict):
+        evidence_map = {}
+    if not evidence_map and not require_evidence:
         return jd_analysis
 
     jd_norm = _normalise_for_match(jd_text)
@@ -1103,6 +1120,23 @@ def enrich_required_skills_from_jd_body(
 
     out = dict(jd_analysis)
     out["required_skills"] = new_req
+
+    # E2: write skill_evidence entries for injected canonicals so that
+    # verify_skill_evidence (when require_evidence=True) doesn't drop them.
+    # The matching phrase from the JD text is the evidence.
+    existing_evidence: Dict[str, str] = dict(jd_analysis.get("skill_evidence") or {})
+    for cat, additions in all_additions.items():
+        for canon in additions:
+            key = canon.strip().lower()
+            if key not in existing_evidence:
+                phrases = by_bucket_canonical[cat].get(key, [])
+                matched_phrase = next(
+                    (p for p in phrases if re.search(r"\b" + re.escape(p) + r"\b", text)),
+                    phrases[0] if phrases else canon,
+                )
+                existing_evidence[key] = matched_phrase
+    if existing_evidence != (jd_analysis.get("skill_evidence") or {}):
+        out["skill_evidence"] = existing_evidence
 
     logger.info(
         "JD-body lexicon scan (vertical=%s, recall-floor): added %s",

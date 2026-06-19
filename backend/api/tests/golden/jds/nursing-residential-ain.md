@@ -8,7 +8,7 @@ expected:
     # 'individual support' (Cert III in Individual Support fragment) is
     # stripped to the credential sidecar at the JD-extraction layer. See
     # post_process._CREDENTIAL_COMPONENT_LABELS.
-    domain_knowledge: [aged care, clinical documentation, dressing and grooming, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
+    domain_knowledge: [clinical documentation, dressing and grooming, manual handling, medication administration, mobility support, person-centred care, showering and bathing]
     # Recall floor disabled for soft_skills (policy: preserve LLM verbatim).
     soft_skills: [empathy, teamwork, verbal communication, written communication]
     technical: []
