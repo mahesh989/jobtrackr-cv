@@ -81,6 +81,11 @@ def _configure_logging() -> None:
 _configure_logging()
 logger = logging.getLogger(__name__)
 
+# Announce the active tailored-CV writer at boot so the Fly logs make the
+# W1(legacy) vs W3(w8_verified) selection unambiguous — the difference between
+# named-employer summaries (W3) and anchorless ones (W1).
+logger.info("tailored-CV writer (boot): %s", settings.TAILORED_CV_WRITER)
+
 # ---------------------------------------------------------------------------
 # Sentry (no-op when DSN is not set)
 # ---------------------------------------------------------------------------
