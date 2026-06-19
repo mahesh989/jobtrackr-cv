@@ -663,7 +663,8 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     """When the summary S2 contains no employer name from the CV's multi-month
     roles, append an 'at <Employer1> and <Employer2>' anchor. This fires only
     when (a) the CV has 2+ multi-month employers AND (b) none of them appear
-    anywhere in the full summary prose. Safe to no-op when cv_text is empty."""
+    anywhere in the full summary prose AND (c) S2 ends cleanly (not mid-clause).
+    Safe to no-op when cv_text is empty."""
     if not cv_text:
         return markdown
     employers = _extract_employers_from_cv(cv_text)
@@ -690,7 +691,16 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     if len(sentences) < 2:
         return markdown
     s1, s2 = sentences[0], sentences[1]
-    # Strip trailing period from S2 and append anchor.
+    # Only append when S2 looks like a clean, complete sentence — it ends with
+    # a period and its last non-stop word is not a preposition/conjunction that
+    # signals a broken mid-clause cut (e.g. "…administration while" or "…care and").
+    _DANGLING_END_RE = re.compile(
+        r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so)\s*\.?\s*$",
+        re.IGNORECASE,
+    )
+    if not s2.rstrip().endswith(".") or _DANGLING_END_RE.search(s2):
+        logger.info("_enforce_company_anchor: S2 looks incomplete, skipping injection")
+        return markdown
     s2_body = s2.rstrip(".")
     anchor = f"at {top2[0]} and {top2[1]}"
     new_s2 = f"{s2_body} {anchor}."
