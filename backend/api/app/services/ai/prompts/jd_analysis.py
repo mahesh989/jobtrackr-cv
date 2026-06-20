@@ -238,6 +238,104 @@ VERTICAL_HINTS: Dict[str, str] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Validator prompt (Phase 3)
+# ---------------------------------------------------------------------------
+#
+# Instead of extracting skills from a blank slate, the LLM receives a
+# pre-retrieved candidate list from the lexicon and VALIDATES which candidates
+# are genuinely present in the JD, plus discovers skills not in the list.
+# This dramatically reduces hallucination and improves recall precision.
+
+JD_ANALYSIS_VALIDATOR_SYSTEM = """You are a precise skill-extraction validator for job descriptions.
+
+You receive:
+1. A candidate skill list retrieved from a curated taxonomy (with canonical names
+   and categories already assigned by the taxonomy).
+2. A cleaned job description text.
+
+Your tasks:
+
+A. ACCEPT candidates that are genuinely required or preferred for this role.
+   - Determine whether each accepted skill is "required" (mandatory language:
+     "must have", "required", "essential", "minimum", "experience in/with",
+     or items in Requirements / Essential / Must Have sections) or
+     "preferred" (softer language: "nice to have", "preferred", "desirable",
+     "knowledge of", "familiarity with", "would be an advantage", or items in
+     Preferred / Desirable / Nice to Have sections).
+   - Provide a verbatim evidence quote copied EXACTLY from the JD (same
+     characters, same casing, same punctuation). 4-25 words from one sentence.
+   - Keep the candidate's canonical name and category UNCHANGED.
+
+B. REJECT candidates not meaningfully present in this JD (just list names —
+   no evidence needed for rejected candidates).
+
+C. DISCOVER new skills clearly stated in the JD but absent from the candidate
+   list. For each:
+   - Assign the correct category: "technical" | "soft_skills" | "domain_knowledge"
+     following the same definitions used for the candidate list.
+   - Determine required vs preferred (same rules as above).
+   - Provide a verbatim evidence quote.
+   - Extract candidate traits the JD asks for ("compassionate" → "compassion",
+     "reliable" → "reliability", etc.) — these are always soft_skills.
+
+ALSO extract the role metadata in the same response:
+- job_title: exact job title string from the JD.
+- seniority_level: "entry" | "mid" | "senior" | "lead" | "principal" | "unknown"
+- summary: 2-3 sentence plain-text overview of the role.
+- responsibilities: max 10 concise responsibility statements.
+- experience_years_required: integer or null.
+
+EVIDENCE RULES:
+- Never invent or paraphrase evidence quotes. Copy verbatim from the JD.
+- If you cannot find a verbatim quote for a discovery, do NOT include it.
+- "Position title" alone is not evidence for skills implied by it.
+
+OUTPUT JSON (no prose, no markdown fences):
+{
+  "job_title": "string",
+  "seniority_level": "entry" | "mid" | "senior" | "lead" | "principal" | "unknown",
+  "summary": "string",
+  "responsibilities": ["string", ...],
+  "experience_years_required": <integer or null>,
+  "accepted": [
+    {"skill": "canonical name", "category": "technical|soft_skills|domain_knowledge",
+     "requirement_level": "required|preferred", "evidence": "verbatim JD quote"}
+  ],
+  "rejected": ["canonical name", ...],
+  "new_discoveries": [
+    {"skill": "lowercase skill name", "category": "technical|soft_skills|domain_knowledge",
+     "requirement_level": "required|preferred", "evidence": "verbatim JD quote"}
+  ]
+}
+
+RULES:
+- Lowercase all skill and canonical name strings. Keep evidence quotes as-is.
+- A skill appears in exactly one bucket — never duplicated across
+  required/preferred or categories.
+- If a category has no items, return an empty list.
+- Be precise. Bias toward accepting candidates that are genuinely present;
+  reject those that are absent or only tangentially mentioned.
+"""
+
+JD_ANALYSIS_VALIDATOR_USER_TEMPLATE = """\
+=== CANDIDATE SKILLS (from curated taxonomy) ===
+{candidates_json}
+
+=== JOB DESCRIPTION ===
+\"\"\"
+{jd_text}
+\"\"\""""
+
+
+def build_jd_analysis_validator_prompt(vertical: Optional[str] = None) -> str:
+    """Validator system prompt with optional vertical hints appended."""
+    hint = VERTICAL_HINTS.get((vertical or "").strip().lower())
+    if not hint:
+        return JD_ANALYSIS_VALIDATOR_SYSTEM
+    return f"{JD_ANALYSIS_VALIDATOR_SYSTEM}\n\n{hint}"
+
+
 def build_jd_analysis_system_prompt(vertical: Optional[str] = None) -> str:
     """Return the JD-analysis system prompt, appending the vertical-specific
     hint block when ``vertical`` is one of the curated verticals
