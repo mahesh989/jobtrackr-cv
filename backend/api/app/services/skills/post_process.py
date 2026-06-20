@@ -493,6 +493,27 @@ def _is_setting_descriptor(phrase_lower: str) -> bool:
     return False
 
 
+# Values/motivational fluff the LLM sometimes emits as a "soft skill". These are
+# aspirational statements, not competencies, and carry no ATS or matching value.
+# Matched as substrings (lowercased) so minor wording variants are covered.
+# Kept deliberately narrow to avoid swallowing real soft skills.
+_FLUFF_SUBSTRINGS: tuple = (
+    "making a positive difference",
+    "make a positive difference",
+    "positive difference",
+    "make a difference",
+    "making a difference",
+    "go the extra mile",
+    "give back to the community",
+    "passion for making",
+)
+
+
+def _is_fluff_phrase(phrase_lower: str) -> bool:
+    """True for aspirational/values fluff that should not surface as a skill."""
+    return any(f in phrase_lower for f in _FLUFF_SUBSTRINGS)
+
+
 def _share_content_token(phrase_a: str, phrase_b: str, *, min_len: int = 4) -> bool:
     """True when any content token (alpha-only, >= ``min_len`` chars) of
     one phrase is a prefix of any content token of the other. This catches
@@ -559,6 +580,28 @@ _PREFERRED_MARKERS: frozenset = frozenset({
     "ideally", "would be an advantage", "an advantage",
 })
 
+# Leading filler words trimmed from a captured credential phrase so the surfaced
+# value reads as the credential itself ("Minimum Certificate III" → "Certificate III").
+_LEADING_CRED_QUALIFIERS: frozenset = frozenset({"minimum", "a", "an", "the"})
+
+
+def _strip_leading_cred_qualifiers(phrase_display: str) -> str:
+    """Drop leading filler words ('minimum', articles) from a credential phrase."""
+    words = phrase_display.split()
+    while words and words[0].lower().strip(".,;:()") in _LEADING_CRED_QUALIFIERS:
+        words = words[1:]
+    return " ".join(words)
+
+
+def _is_vaccination_phrase(phrase_lower: str) -> bool:
+    """True for vaccination/immunisation phrases — these are compliance/eligibility
+    items, not credentials, so they route to the eligibility list."""
+    return (
+        "vaccin" in phrase_lower
+        or "immunis" in phrase_lower
+        or "immuniz" in phrase_lower
+    )
+
 
 def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
     """Deterministic scan of JD text for credential and eligibility phrases.
@@ -584,65 +627,100 @@ def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
             continue
         line_lower = line_stripped.lower()
 
-        # Detect preferred-signal in the line
-        is_preferred_line = any(m in line_lower for m in _PREFERRED_MARKERS)
+        # A leading "Desirable:"/"Preferred:" heading applies its preferred-signal
+        # to every clause on the line; detect it once per line.
+        prefix = line_lower.split(":", 1)[0] if ":" in line_lower else ""
+        line_prefix_preferred = any(m in prefix for m in _PREFERRED_MARKERS)
 
-        # Collect all candidate phrases from the line using a sliding ngram window
-        # (1–8 words) to cover multi-word credentials like "certificate iii in
-        # individual support (ageing)".
-        words = line_stripped.split()
-        found_phrases: List[str] = []
-        for start in range(len(words)):
-            for end in range(start + 1, min(start + 9, len(words) + 1)):
-                phrase = " ".join(words[start:end])
-                phrase_lower = phrase.lower().strip(".,;:()")
-                if not phrase_lower:
-                    continue
-
-                # Route via recognisers — same logic as post_process_skills
-                is_cred = (
-                    _is_qualification_phrase(phrase_lower)
-                    or _is_au_unit_code(phrase_lower)
-                    or _has_credential_marker(phrase_lower)
-                )
-                if is_cred:
-                    found_phrases.append((phrase_lower, "credential"))
-                    continue
-
-                if _is_vehicle_eligibility(phrase_lower):
-                    found_phrases.append((phrase_lower, "eligibility"))
-                    continue
-
-                # is_noise covers the static credential/eligibility lists
-                noise_type = is_noise(phrase_lower)
-                if noise_type in ("credential", "eligibility"):
-                    found_phrases.append((phrase_lower, noise_type))
-
-        # Deduplicate within this line — keep longest match only (greedy)
-        # to avoid "police check" AND "national police check" both appearing.
-        if not found_phrases:
-            continue
-
-        # Sort by phrase length descending, greedily pick non-overlapping
-        found_phrases_sorted = sorted(found_phrases, key=lambda x: len(x[0]), reverse=True)
-        used_chars: set = set()
-        for phrase_lower, noise_type in found_phrases_sorted:
-            # Find the position of this phrase in the line
-            idx = line_lower.find(phrase_lower)
-            if idx == -1:
+        # Split the line into clauses so distinct credentials on one line
+        # ("Certificate III, Certificate IV desirable") are classified
+        # independently rather than merged into a single greedy phrase.
+        for clause in re.split(r"[,;]", line_stripped):
+            clause_stripped = clause.strip()
+            if not clause_stripped:
                 continue
-            span = set(range(idx, idx + len(phrase_lower)))
-            if span & used_chars:
-                continue  # overlaps a longer match already accepted
-            used_chars |= span
+            clause_lower = clause_stripped.lower()
 
-            phrase_display = line_stripped[idx: idx + len(phrase_lower)]
-            if noise_type == "eligibility":
-                eligibility.append(phrase_display)
-            elif is_preferred_line:
-                preferred.append(phrase_display)
-            else:
-                required.append(phrase_display)
+            # Preferred if the line carries a heading marker OR this clause itself
+            # contains a preferred marker ("Certificate IV highly desirable").
+            is_preferred = line_prefix_preferred or any(
+                m in clause_lower for m in _PREFERRED_MARKERS
+            )
+
+            # Trim the credential portion at the first preferred marker so marker
+            # words ("highly desirable") never bleed into the captured phrase.
+            cut = len(clause_stripped)
+            for m in _PREFERRED_MARKERS:
+                pos = clause_lower.find(m)
+                if pos != -1:
+                    cut = min(cut, pos)
+            scan_text = clause_stripped[:cut].strip()
+            if not scan_text:
+                continue
+            scan_lower = scan_text.lower()
+
+            # Collect candidate phrases via a sliding ngram window (1–8 words) to
+            # cover multi-word credentials like "certificate iii in individual
+            # support (ageing)".
+            words = scan_text.split()
+            found_phrases: List[str] = []
+            for start in range(len(words)):
+                for end in range(start + 1, min(start + 9, len(words) + 1)):
+                    phrase = " ".join(words[start:end])
+                    phrase_lower = phrase.lower().strip(".,;:()")
+                    if not phrase_lower:
+                        continue
+
+                    # Route via recognisers — same logic as post_process_skills
+                    is_cred = (
+                        _is_qualification_phrase(phrase_lower)
+                        or _is_au_unit_code(phrase_lower)
+                        or _has_credential_marker(phrase_lower)
+                    )
+                    if is_cred:
+                        found_phrases.append((phrase_lower, "credential"))
+                        continue
+
+                    if _is_vehicle_eligibility(phrase_lower):
+                        found_phrases.append((phrase_lower, "eligibility"))
+                        continue
+
+                    # is_noise covers the static credential/eligibility lists
+                    noise_type = is_noise(phrase_lower)
+                    if noise_type in ("credential", "eligibility"):
+                        found_phrases.append((phrase_lower, noise_type))
+
+            if not found_phrases:
+                continue
+
+            # Greedy longest-first, non-overlapping pick within the clause to avoid
+            # "police check" AND "national police check" both appearing.
+            found_phrases_sorted = sorted(
+                found_phrases, key=lambda x: len(x[0]), reverse=True
+            )
+            used_chars: set = set()
+            for phrase_lower, noise_type in found_phrases_sorted:
+                idx = scan_lower.find(phrase_lower)
+                if idx == -1:
+                    continue
+                span = set(range(idx, idx + len(phrase_lower)))
+                if span & used_chars:
+                    continue  # overlaps a longer match already accepted
+                used_chars |= span
+
+                phrase_display = scan_text[idx: idx + len(phrase_lower)]
+                phrase_display = _strip_leading_cred_qualifiers(phrase_display)
+                if not phrase_display:
+                    continue
+
+                # Vaccination/immunisation is a compliance item → eligibility,
+                # even though the static list tags it as a credential.
+                if noise_type == "eligibility" or _is_vaccination_phrase(phrase_lower):
+                    eligibility.append(phrase_display)
+                elif is_preferred:
+                    preferred.append(phrase_display)
+                else:
+                    required.append(phrase_display)
 
     return {
         "required":    _dedup_keep_order(required),
@@ -751,6 +829,12 @@ def post_process_skills(
             #       experience" which has trailing words beyond the bare label.
             if _is_setting_descriptor(phrase_lower):
                 sidecar["setting_label"].append(phrase)
+                continue
+
+            # 1a'''-fluff. Values/motivational fluff ("making a positive
+            #       difference") — drop from Skills, route to the noise sidecar.
+            if _is_fluff_phrase(phrase_lower):
+                sidecar["noise"].append(phrase)
                 continue
 
             # 1a''''. Bare credential-component labels (fragments of Cert III
