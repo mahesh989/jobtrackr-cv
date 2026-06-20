@@ -483,6 +483,43 @@ def _share_content_token(phrase_a: str, phrase_b: str, *, min_len: int = 4) -> b
     return False
 
 
+def _dedup_keep_order(items: List[str]) -> List[str]:
+    seen: set = set()
+    out: List[str] = []
+    for item in items:
+        key = item.strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def _build_credentials_block(
+    req_side: Dict[str, list], pref_side: Dict[str, list]
+) -> Dict[str, List[str]]:
+    """Assemble the top-level credentials field from post_process sidecars."""
+    return {
+        "required":    _dedup_keep_order(req_side.get("credential", [])),
+        "preferred":   _dedup_keep_order(pref_side.get("credential", [])),
+        "eligibility": _dedup_keep_order(
+            req_side.get("eligibility", []) + pref_side.get("eligibility", [])
+        ),
+    }
+
+
+def _build_job_context(
+    req_side: Dict[str, list], pref_side: Dict[str, list]
+) -> Dict[str, Any]:
+    """Assemble the top-level job_context field from setting labels in sidecars."""
+    settings = _dedup_keep_order(
+        req_side.get("setting_label", []) + pref_side.get("setting_label", [])
+    )
+    return {
+        "setting":  settings[0] if settings else None,
+        "settings": settings,
+    }
+
+
 def _empty_sidecar() -> Dict[str, list]:
     # Keys are kept SINGULAR to match the source-of-truth NoiseT literals
     # ("credential", "eligibility", "noise") returned by `is_noise()` so the
@@ -1079,17 +1116,13 @@ def enrich_required_skills_from_jd_body(
     for norm_phrase, (canonical, cat) in lookup.items():
         if cat not in _CATEGORIES:
             continue
-        # Soft skills are extracted VERBATIM by the LLM per the JD-analysis
-        # prompt's candidate-traits rule. The lexicon canonicalisation
-        # crosses word families (e.g. "compassionate" → canonical "empathy",
-        # "flexible" → canonical "adaptability"), which violates the
-        # verbatim-preservation goal and contradicts the prompt's own rule
-        # ("do NOT silently substitute 'empathy'"). The groundedness gate
-        # already drops LLM hallucinations; we don't need recall augmentation
-        # on soft skills — and adding it actively re-introduces hallucinated
-        # canonicals after the gate cleaned them.
-        if cat == "soft_skills":
-            continue
+        # Soft-skill recall is allowed ONLY when the canonical tokens are
+        # literally present in the matched surface phrase (same word family).
+        # Cross-family canonicalisation ("compassionate" → "empathy",
+        # "flexible" → "adaptability") is still blocked by the token-subset
+        # check applied in the injection loop below — so "written
+        # communication" and "verbal communication" can be recalled while
+        # "caring nature" → "empathy" cannot.
         canon_lower = canonical.lower()
         if canon_lower in already:
             continue
@@ -1115,12 +1148,22 @@ def enrich_required_skills_from_jd_body(
             continue
         additions: List[str] = []
         for canon_lower, phrases in by_bucket_canonical[cat].items():
-            if any(
-                re.search(r"\b" + re.escape(p) + r"\b", text) for p in phrases
+            matched = next(
+                (p for p in phrases if re.search(r"\b" + re.escape(p) + r"\b", text)),
+                None,
+            )
+            if matched is None:
+                continue
+            # Soft-skill guard: only inject when canonical tokens are a subset
+            # of the matched-phrase tokens (same word family). Blocks
+            # cross-family canonicalisation ("compassionate" → "empathy").
+            if cat == "soft_skills" and not set(canon_lower.split()).issubset(
+                set(matched.split())
             ):
-                additions.append(lookup[phrases[0]][0])
-                if len(additions) >= slots:
-                    break
+                continue
+            additions.append(lookup[phrases[0]][0])
+            if len(additions) >= slots:
+                break
         if additions:
             new_req[cat] = (existing + additions)[: _BUCKET_CAPS[cat]]
             all_additions[cat] = additions
@@ -1641,6 +1684,12 @@ def post_process_jd_analysis(
         "subsumed": subsumed,
     })
     out["lexicon_meta"] = prior_meta
+
+    # Surface credentials and job-context as first-class output fields so
+    # the UI and future ATS scorer can consume them without digging into
+    # lexicon_meta internals.
+    out["credentials"] = _build_credentials_block(req_side, pref_side)
+    out["job_context"] = _build_job_context(req_side, pref_side)
 
     # Single concise log line summarising what changed. Useful when
     # something looks off in a production run — quick to spot whether
