@@ -324,6 +324,22 @@ def test_extract_employers_includes_role_with_weekly_hours():
     assert "Uniting" in employers
 
 
+def test_extract_employers_handles_inline_date_on_heading():
+    """The date span may sit on the '### Employer | Location | dates' heading line
+    itself rather than the line below it."""
+    cv_text = (
+        "### The Jesmond Group | Miranda, NSW | May 2025 – Present\n"
+        "AIN (Casual)\n"
+        "- Delivered person-centred care.\n\n"
+        "### Uniting | Leichhardt, NSW | Mar 2024 – Apr 2025\n"
+        "AIN (Casual)\n"
+        "- Provided dementia care.\n"
+    )
+    employers = _extract_employers_from_cv(cv_text)
+    assert "The Jesmond Group" in employers
+    assert "Uniting" in employers
+
+
 def test_extract_employers_still_excludes_placements():
     """Lines containing 'placement' are still excluded even with a date range."""
     cv_text = (

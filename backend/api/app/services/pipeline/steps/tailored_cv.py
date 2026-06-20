@@ -662,21 +662,33 @@ def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
         r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
         re.IGNORECASE,
     )
-    for line in cv_text.split("\n"):
-        m = _EXP_ENTRY_RE.match(line.strip())
+
+    def _register(name: str, line: str) -> bool:
+        """Register `name` as an employer if `line` carries a genuine multi-month
+        date span. True placements (line contains 'placement') are skipped.
+        Weekly-hours mentions ('38 hrs/week') are fine. Returns True if the line
+        carried a date span (whether or not it registered), so the caller knows
+        the entry has been resolved."""
+        if not _DATE_SPAN_RE.search(line):
+            return False
+        if not re.search(r"\bplacement\b", line, re.IGNORECASE):
+            if name not in employers:
+                employers.append(name)
+        return True
+
+    for raw_line in cv_text.split("\n"):
+        line = raw_line.strip()
+        m = _EXP_ENTRY_RE.match(line)
         if m:
             current_employer = m.group(1).strip()
-            continue
-        if current_employer and _DATE_SPAN_RE.search(line):
-            # Exclude genuine placements (no date range implied — single-date context).
-            # "hours" and "day" are intentionally NOT excluded here: a real job entry
-            # commonly lists weekly hours ("38 hrs/week") alongside a date range.
-            if re.search(r"\bplacement\b", line, re.IGNORECASE):
+            # The date span may sit inline on the heading line itself
+            # ("### Employer | Location | May 2025 – Present"). Resolve it here
+            # so we don't depend solely on the following line.
+            if _register(current_employer, line):
                 current_employer = None
-                continue
-            if current_employer not in employers:
-                employers.append(current_employer)
-            current_employer = None  # don't count this employer twice
+            continue
+        if current_employer and _register(current_employer, line):
+            current_employer = None  # entry resolved — don't count twice
     return employers
 
 
