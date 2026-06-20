@@ -27,6 +27,13 @@ Output schema (nested, mirrors jd_analysis):
         "required_pct": float,
         "preferred_pct": float,
         "overall_pct": float
+      },
+      "credentials_required": {          # credential gap report (no LLM)
+        "required":    [str, ...],       # from jd_analysis["credentials"] (+regex fallback)
+        "preferred":   [str, ...],
+        "eligibility": [str, ...],
+        "present":     [str, ...],       # satisfied by CV text or user profile
+        "missing":     [str, ...]        # required/preferred/eligibility not satisfied
       }
     }
 """
@@ -94,12 +101,23 @@ async def run_cv_jd_matching(
     # most of them as exact strings, but this regex is the safety net.
     # See _extract_credential_sidecar.
     credentials_sidecar = _extract_credential_sidecar(result["matched"], result["missed"])
-    if any(credentials_sidecar[b][c] for b in _BUCKETS for c in _CATEGORIES):
-        result["credentials_required"] = credentials_sidecar
+
+    # Build the credential gap report. Primary source is the deterministic
+    # jd_analysis["credentials"] block (Phase 6/8 JD-text scan); the regex
+    # sidecar above is folded in as a fallback for LLM-mis-bucketed credentials.
+    # Each credential is marked present (literal CV match or profile credential)
+    # or missing — so required credentials stripped from the skill buckets (e.g.
+    # "Cert III in Ageing Support") are still checked against the CV.
+    credentials_required = _build_credentials_gap(
+        jd_analysis, credentials_sidecar, cv_text, contact_details,
+    )
+    if any(credentials_required[k] for k in ("required", "preferred", "eligibility")):
+        result["credentials_required"] = credentials_required
         logger.info(
-            "CV-JD matching: extracted credential-shaped JD requirements to sidecar — %s",
-            {b: {c: credentials_sidecar[b][c] for c in _CATEGORIES if credentials_sidecar[b][c]}
-             for b in _BUCKETS},
+            "CV-JD matching: credential gap — %d present, %d missing (required=%s)",
+            len(credentials_required["present"]),
+            len(credentials_required["missing"]),
+            credentials_required["required"],
         )
 
     # Verify the AI's match_evidence: if it quoted a CV phrase that doesn't
@@ -385,6 +403,76 @@ def _extract_credential_sidecar(
                 source[bucket][cat] = kept
         del label  # quiet linter
     return sidecar
+
+
+def _dedup_keep_order(items: List[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for raw in items:
+        s = str(raw).strip()
+        key = s.lower()
+        if s and key not in seen:
+            seen.add(key)
+            out.append(s)
+    return out
+
+
+def _build_credentials_gap(
+    jd_analysis: Dict[str, Any],
+    sidecar: Dict[str, Dict[str, List[str]]],
+    cv_text: str,
+    contact_details: Dict[str, Any] | None,
+) -> Dict[str, List[str]]:
+    """Build the credential gap report for the matching panel.
+
+    Source of truth is the deterministic ``jd_analysis['credentials']`` block
+    (Phase 6/8 scan over the JD text); the regex-extracted ``sidecar`` (pulled
+    from LLM-mis-bucketed skills) is merged in as a fallback so nothing is lost.
+
+    Each credential's status is decided WITHOUT an LLM: it is ``present`` when it
+    literally appears in the CV text OR is satisfied by the user's profile
+    (same ``user_has_credential`` check the feasibility planner uses), otherwise
+    it is ``missing``. Required + preferred credentials feed present/missing;
+    eligibility is reported but only counted as missing when the profile/CV
+    cannot satisfy it.
+    """
+    block = jd_analysis.get("credentials") or {}
+    required = list(block.get("required") or [])
+    preferred = list(block.get("preferred") or [])
+    eligibility = list(block.get("eligibility") or [])
+
+    # Fallback: fold in any credential-shaped phrases the LLM mis-bucketed as
+    # skills (the regex sidecar), so a JD whose deterministic scan missed one
+    # still surfaces it. Required-bucket sidecar → required, preferred → preferred.
+    for cat in _CATEGORIES:
+        required.extend(sidecar.get("required", {}).get(cat, []))
+        preferred.extend(sidecar.get("preferred", {}).get(cat, []))
+
+    required = _dedup_keep_order(required)
+    preferred = _dedup_keep_order([p for p in preferred if p.lower() not in {r.lower() for r in required}])
+    eligibility = _dedup_keep_order(eligibility)
+
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    def _satisfied(phrase: str) -> bool:
+        if _literal_match_in_text(phrase, cv_text):
+            return True
+        if contact_details and user_has_credential(phrase, contact_details):
+            return True
+        return False
+
+    present: List[str] = []
+    missing: List[str] = []
+    for phrase in required + preferred + eligibility:
+        (present if _satisfied(phrase) else missing).append(phrase)
+
+    return {
+        "required": required,
+        "preferred": preferred,
+        "eligibility": eligibility,
+        "present": _dedup_keep_order(present),
+        "missing": _dedup_keep_order(missing),
+    }
 
 
 def _promote_profile_credentials(

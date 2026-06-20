@@ -223,3 +223,56 @@ def test_aged_care_police_check_variants_are_noise(phrase):
     assert result == "credential", (
         f"Expected 'credential' classification, got {result!r} for {phrase!r}."
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. Credential gap report (_build_credentials_gap) — sources the deterministic
+#    jd_analysis["credentials"] block, marks present/missing against CV+profile.
+# ---------------------------------------------------------------------------
+
+from app.services.pipeline.steps.cv_jd_matching import _build_credentials_gap
+
+
+class TestBuildCredentialsGap:
+    def _jd(self):
+        return {
+            "credentials": {
+                "required": ["Cert III in Ageing Support", "police check for working in aged care"],
+                "preferred": ["Cert IV in Ageing Support"],
+                "eligibility": ["working rights in australia"],
+            }
+        }
+
+    def test_missing_required_credential_surfaces(self):
+        # CV has neither cert nor police check, no profile.
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text="Experienced aged care worker.", contact_details=None,
+        )
+        assert "Cert III in Ageing Support" in gap["missing"]
+        assert "Cert III in Ageing Support" in gap["required"]
+        assert gap["present"] == []
+
+    def test_present_credential_from_cv(self):
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text="I hold a Cert III in Ageing Support and 5 years experience.",
+            contact_details=None,
+        )
+        assert "Cert III in Ageing Support" in gap["present"]
+        assert "Cert III in Ageing Support" not in gap["missing"]
+
+    def test_fallback_folds_in_regex_sidecar(self):
+        # No deterministic block; a credential mis-bucketed by the LLM arrives
+        # via the regex sidecar and must still surface as required.
+        sidecar = {
+            "required": {"technical": [], "soft_skills": [], "domain_knowledge": ["cert iv aged care"]},
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+        gap = _build_credentials_gap({}, sidecar, cv_text="", contact_details=None)
+        assert "cert iv aged care" in gap["required"]
+        assert "cert iv aged care" in gap["missing"]
+
+    def test_no_credentials_yields_empty(self):
+        gap = _build_credentials_gap({}, {"required": {}, "preferred": {}}, cv_text="", contact_details=None)
+        assert gap["required"] == [] and gap["preferred"] == [] and gap["eligibility"] == []
