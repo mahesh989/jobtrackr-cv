@@ -552,7 +552,10 @@ def ensure_awards(markdown: str, original_cv_text: str) -> str:
     awards_text = _awards_section_text(markdown)
     missing: list[str] = []
     for e in entries:
-        core = re.split(r"\s[–—-]\s|\(|,", e)[0].strip().lower()
+        # Split at any common award-name separator: spaced dash/en-dash, (date),
+        # comma, OR the middle-dot (·) style — "Award · Org · Date". Extract the
+        # part before the first separator as the canonical core to match against.
+        core = re.split(r"\s[–—·-]\s|\(|,", e)[0].strip().lower()
         if (core and core in awards_text) or e.lower() in awards_text:
             continue
         missing.append(e)

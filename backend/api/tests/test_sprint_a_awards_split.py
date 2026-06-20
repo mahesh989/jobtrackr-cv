@@ -432,3 +432,34 @@ class TestAwardDescriptionFuzzyDedupe:
         lines = _format_award_entry(name, org, date, desc)
         assembled = "\n".join(lines)
         assert assembled.count("Recognised for hard work") == 1
+
+
+# ---------------------------------------------------------------------------
+# ensure_awards: dot-separator (·) in original CV must not cause duplication
+# ---------------------------------------------------------------------------
+
+from app.services.eval.writers.awards import ensure_awards
+
+
+def test_ensure_awards_no_duplicate_when_dot_separator_in_source():
+    """Original CV uses '·' separator in Awards section; tailored CV uses the
+    normalised comma format. The '·' was NOT in the split pattern, so 'core'
+    became the whole entry and the "already present" check failed → the award
+    was re-added as a second entry. Fixed by including '·' in the split."""
+    original_cv = (
+        "## Awards\n"
+        "Staff Excellence Award · The Jesmond Group Miranda, NSW, Australia · August 2025\n"
+        "Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    tailored_md = (
+        "# Rashmi Poudel\n"
+        "NSW | 0403760681 | r@example.com\n\n"
+        "## Professional Summary\n"
+        "AIN with experience in aged care.\n\n"
+        "## Awards\n"
+        "* Staff Excellence Award, The Jesmond Group (Aug 2025)  \n"
+        "  Recognised for hard work, caring nature, positive attitude and respectful support.\n"
+    )
+    result = ensure_awards(tailored_md, original_cv)
+    # Should appear exactly once — no duplicate entry.
+    assert result.lower().count("staff excellence award") == 1
