@@ -354,6 +354,21 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "work rights" in kw or "visa" in kw or "citizenship" in kw or "right to work" in kw or "australian citizen" in kw:
         return has("work_rights")
 
+    # 17. AHPRA / nursing registration — satisfied by a saved AHPRA number.
+    #     Covers "AHPRA registration", "registered nurse", "current registration",
+    #     "NMW..." style references. Guarded so generic "registration" inside an
+    #     unrelated phrase still requires an ahpra cue.
+    if (
+        "ahpra" in kw
+        or "nmw" in kw
+        or "registered nurse" in kw
+        or "enrolled nurse" in kw
+        or "nursing registration" in kw
+        or "nmba" in kw
+        or ("registration" in kw and ("nurse" in kw or "nursing" in kw or "midwife" in kw or "ahpra" in kw))
+    ):
+        return has("ahpra_number")
+
     return False
 
 
