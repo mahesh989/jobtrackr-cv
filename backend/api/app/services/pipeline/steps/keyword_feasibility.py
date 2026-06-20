@@ -106,15 +106,11 @@ def _is_filler_keyword(kw: str) -> bool:
     """True if `kw` is a JD-phrasing requirement fragment, not a real keyword."""
     return bool(_FILLER_KEYWORD_RE.search((kw or "").strip().lower()))
 
-# Mirrors `_KEYWORD_WEIGHTS` in ats_scoring.py — kept local so the
-# expected-lift estimate stays self-contained. If those weights change,
-# update both places.
-_KEYWORD_WEIGHTS = {
-    "technical_required":        25,
-    "soft_skills_required":      10,
-    "domain_knowledge_required":  5,
-    "preferred_overall":         10,
-}
+# Single source of truth for ATS keyword weights — imported from _scoring_weights.
+from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
+    DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
+    resolve_keyword_weights as _resolve_kw_weights_shared,
+)
 
 
 async def run_keyword_feasibility(
@@ -470,18 +466,8 @@ def _reconcile_with_missing(
 
 
 def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
-    """Pick per-family keyword weights (mirrors ats_scoring._resolve_keyword_weights).
-    Falls back to the tech defaults when no role family is attached."""
-    family_id = (jd_analysis or {}).get("role_family")
-    if family_id:
-        try:
-            from app.services.eval.role_families import resolve_role_family
-            rf = resolve_role_family(family_id, jd_analysis)
-            if rf and rf.keyword_weights:
-                return dict(rf.keyword_weights)
-        except Exception:  # noqa: BLE001
-            logger.warning("feasibility: failed to resolve family %s weights; using defaults", family_id)
-    return dict(_KEYWORD_WEIGHTS)
+    """Pick per-family keyword weights, falling back to tech defaults."""
+    return _resolve_kw_weights_shared(jd_analysis)
 
 
 def _expected_lift_pts(

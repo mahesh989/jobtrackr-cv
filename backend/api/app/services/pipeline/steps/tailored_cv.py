@@ -651,23 +651,29 @@ _EXP_ENTRY_RE = re.compile(r"^###\s+(.+?)\s*(?:\|.*)?$")
 def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
     """Return employer names from the CV's Experience section that have
     continuous multi-month tenure (i.e. a date range like 'May 2025 – Jun 2026'
-    or 'Mar 2026 – Present'). Placement-only entries (single dates / '120-hour')
-    are excluded. Returns names in order of appearance (most recent first)."""
+    or 'Mar 2026 – Present'). True placement entries (lines containing 'placement'
+    with no genuine date span) are excluded; lines that merely mention weekly hours
+    ('38 hrs/week') alongside a real date range are legitimate and included.
+    Returns names in order of appearance (most recent first)."""
     employers: list[str] = []
-    # Match lines like "### The Jesmond Group | Miranda, NSW, Australia"
-    # or role-title lines below them; focus on the H3 heading as employer.
     current_employer: str | None = None
+    _DATE_SPAN_RE = re.compile(
+        r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present)"
+        r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
+        re.IGNORECASE,
+    )
     for line in cv_text.split("\n"):
         m = _EXP_ENTRY_RE.match(line.strip())
         if m:
             current_employer = m.group(1).strip()
             continue
-        if current_employer and re.search(
-            # date range with a span (not a single date/placement)
-            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present)"
-            r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
-            line, re.IGNORECASE,
-        ) and not re.search(r"\bhour(?:s)?\b|\bplacement\b|\bday\b", line, re.IGNORECASE):
+        if current_employer and _DATE_SPAN_RE.search(line):
+            # Exclude genuine placements (no date range implied — single-date context).
+            # "hours" and "day" are intentionally NOT excluded here: a real job entry
+            # commonly lists weekly hours ("38 hrs/week") alongside a date range.
+            if re.search(r"\bplacement\b", line, re.IGNORECASE):
+                current_employer = None
+                continue
             if current_employer not in employers:
                 employers.append(current_employer)
             current_employer = None  # don't count this employer twice
@@ -706,17 +712,19 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     if len(sentences) < 2:
         return markdown
     s1, s2 = sentences[0], sentences[1]
-    # Only append when S2 looks like a clean, complete sentence — it ends with
-    # a period and its last non-stop word is not a preposition/conjunction that
-    # signals a broken mid-clause cut (e.g. "…administration while" or "…care and").
+    # Block injection only when S2 ends with a dangling preposition/conjunction
+    # (signals a mid-clause truncation like "…administration while" or "…care and").
+    # A missing trailing period is fine — the AI often truncates at word count
+    # without punctuating; we treat that as an eligible, complete thought.
     _DANGLING_END_RE = re.compile(
         r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so)\s*\.?\s*$",
         re.IGNORECASE,
     )
-    if not s2.rstrip().endswith(".") or _DANGLING_END_RE.search(s2):
-        logger.info("_enforce_company_anchor: S2 looks incomplete, skipping injection")
+    if _DANGLING_END_RE.search(s2):
+        logger.info("_enforce_company_anchor: S2 ends mid-clause, skipping injection")
         return markdown
-    s2_body = s2.rstrip(".")
+    # Strip trailing period (if any) for the body; the anchor construction re-adds one.
+    s2_body = s2.rstrip().rstrip(".")
     anchor = f"at {top2[0]} and {top2[1]}"
     new_s2 = f"{s2_body} {anchor}."
     new_prose = s1 + " " + new_s2
