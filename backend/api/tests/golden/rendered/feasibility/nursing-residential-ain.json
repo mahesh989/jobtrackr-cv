@@ -1,0 +1,13 @@
+{
+  "feasibility_plan": {
+    "inject_directly": [
+      {
+        "keyword": "mobility support",
+        "category": "domain_knowledge",
+        "injection_target": "skills_section"
+      }
+    ],
+    "inject_as_extension": [],
+    "inject_with_inference": []
+  }
+}

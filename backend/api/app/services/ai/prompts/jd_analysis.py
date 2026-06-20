@@ -1,6 +1,8 @@
 """Step 1 — JD Analysis prompt templates."""
 from __future__ import annotations
 
+from typing import Dict, Optional
+
 JD_ANALYSIS_SYSTEM = """You are an expert recruiter and job description analyst.
 
 Extract a structured analysis of the job description as JSON.
@@ -168,3 +170,179 @@ JD_ANALYSIS_USER_TEMPLATE = """Job description:
 \"\"\"
 {jd_text}
 \"\"\""""
+
+
+# ---------------------------------------------------------------------------
+# Vertical-aware hints (Phase 2)
+# ---------------------------------------------------------------------------
+#
+# The base prompt is vertical-agnostic, so the LLM has no idea whether it is
+# reading a nursing, tech, or cleaning JD — and therefore mis-buckets phrases
+# whose correct category depends on the field (the classic miss: "working with
+# culturally and linguistically diverse people" → the model files it under
+# care/domain knowledge when it is a SOFT skill). The orchestrator pre-resolves
+# the role's vertical from the JD text and injects the matching hint block so
+# the LLM's bucketing lines up with the downstream lexicon. These hints are
+# guidance, not hard rules: the deterministic lexicon post-process remains the
+# authority on the final category. When the vertical is unknown (master / other)
+# no block is injected and the base prompt is used verbatim.
+
+_NURSING_HINTS = """\
+VERTICAL CONTEXT — this is a NURSING / AGED-CARE / DISABILITY-CARE role.
+Bucket with this field in mind:
+- domain_knowledge: care settings and clinical/care knowledge — aged care,
+  residential aged care, home care, community care, disability support, dementia
+  care, palliative care, person-centred care, medication administration, wound
+  care, infection control, manual handling, activities of daily living, personal
+  care, pressure area care, continence care, mobility support.
+- soft_skills: interpersonal qualities, INCLUDING cultural ones — compassion,
+  empathy, teamwork, communication, patience, "working with culturally and
+  linguistically diverse people" / "CALD" → cultural sensitivity (this is a SOFT
+  skill, NOT domain knowledge — it describes how the worker relates to people,
+  not a clinical procedure).
+- technical: named care SOFTWARE / equipment only — Leecare, Manad, eMMS,
+  electronic medication management system, hoists. The ACT of using them
+  (medication administration, manual handling) is domain_knowledge, not technical.
+"""
+
+_TECH_HINTS = """\
+VERTICAL CONTEXT — this is a TECH / SOFTWARE / DATA role.
+Bucket with this field in mind:
+- technical: named languages, tools, platforms, frameworks — Python, SQL, Java,
+  React, AWS, Docker, Kubernetes, PostgreSQL, Snowflake, Tableau, REST API.
+- domain_knowledge: methodologies, architectures, and business/regulatory
+  knowledge — agile, scrum, CI/CD, microservices, cloud computing, SaaS, data
+  warehousing, GDPR, machine learning, distributed systems.
+- soft_skills: cross-role behaviours — communication, collaboration, problem
+  solving, ownership, stakeholder management, analytical thinking, leadership.
+"""
+
+_CLEANING_HINTS = """\
+VERTICAL CONTEXT — this is a CLEANING / MANUAL / TRADES role.
+Bucket with this field in mind:
+- domain_knowledge: cleaning knowledge and compliance — commercial cleaning,
+  deep cleaning, bathroom cleaning, vacuuming, mopping, dusting, waste
+  management, chemical handling, PPE use, infection control, WHS / work health
+  and safety, food safety.
+- technical: named EQUIPMENT only — floor scrubber, polisher, industrial
+  cleaning machine, pressure washer, forklift, EWP. The ACT of cleaning is
+  domain_knowledge, not technical.
+- soft_skills: cross-role behaviours — reliability, attention to detail,
+  working autonomously, following instructions, time management, teamwork.
+"""
+
+VERTICAL_HINTS: Dict[str, str] = {
+    "nursing": _NURSING_HINTS,
+    "tech": _TECH_HINTS,
+    "cleaning": _CLEANING_HINTS,
+}
+
+
+# ---------------------------------------------------------------------------
+# Validator prompt (Phase 3)
+# ---------------------------------------------------------------------------
+#
+# Instead of extracting skills from a blank slate, the LLM receives a
+# pre-retrieved candidate list from the lexicon and VALIDATES which candidates
+# are genuinely present in the JD, plus discovers skills not in the list.
+# This dramatically reduces hallucination and improves recall precision.
+
+JD_ANALYSIS_VALIDATOR_SYSTEM = """You are a precise skill-extraction validator for job descriptions.
+
+You receive:
+1. A candidate skill list retrieved from a curated taxonomy (with canonical names
+   and categories already assigned by the taxonomy).
+2. A cleaned job description text.
+
+Your tasks:
+
+A. ACCEPT candidates that are genuinely required or preferred for this role.
+   - Determine whether each accepted skill is "required" (mandatory language:
+     "must have", "required", "essential", "minimum", "experience in/with",
+     or items in Requirements / Essential / Must Have sections) or
+     "preferred" (softer language: "nice to have", "preferred", "desirable",
+     "knowledge of", "familiarity with", "would be an advantage", or items in
+     Preferred / Desirable / Nice to Have sections).
+   - Provide a verbatim evidence quote copied EXACTLY from the JD (same
+     characters, same casing, same punctuation). 4-25 words from one sentence.
+   - Keep the candidate's canonical name and category UNCHANGED.
+
+B. REJECT candidates not meaningfully present in this JD (just list names —
+   no evidence needed for rejected candidates).
+
+C. DISCOVER new skills clearly stated in the JD but absent from the candidate
+   list. For each:
+   - Assign the correct category: "technical" | "soft_skills" | "domain_knowledge"
+     following the same definitions used for the candidate list.
+   - Determine required vs preferred (same rules as above).
+   - Provide a verbatim evidence quote.
+   - Extract candidate traits the JD asks for ("compassionate" → "compassion",
+     "reliable" → "reliability", etc.) — these are always soft_skills.
+
+ALSO extract the role metadata in the same response:
+- job_title: exact job title string from the JD.
+- seniority_level: "entry" | "mid" | "senior" | "lead" | "principal" | "unknown"
+- summary: 2-3 sentence plain-text overview of the role.
+- responsibilities: max 10 concise responsibility statements.
+- experience_years_required: integer or null.
+
+EVIDENCE RULES:
+- Never invent or paraphrase evidence quotes. Copy verbatim from the JD.
+- If you cannot find a verbatim quote for a discovery, do NOT include it.
+- "Position title" alone is not evidence for skills implied by it.
+
+OUTPUT JSON (no prose, no markdown fences):
+{
+  "job_title": "string",
+  "seniority_level": "entry" | "mid" | "senior" | "lead" | "principal" | "unknown",
+  "summary": "string",
+  "responsibilities": ["string", ...],
+  "experience_years_required": <integer or null>,
+  "accepted": [
+    {"skill": "canonical name", "category": "technical|soft_skills|domain_knowledge",
+     "requirement_level": "required|preferred", "evidence": "verbatim JD quote"}
+  ],
+  "rejected": ["canonical name", ...],
+  "new_discoveries": [
+    {"skill": "lowercase skill name", "category": "technical|soft_skills|domain_knowledge",
+     "requirement_level": "required|preferred", "evidence": "verbatim JD quote"}
+  ]
+}
+
+RULES:
+- Lowercase all skill and canonical name strings. Keep evidence quotes as-is.
+- A skill appears in exactly one bucket — never duplicated across
+  required/preferred or categories.
+- If a category has no items, return an empty list.
+- Be precise. Bias toward accepting candidates that are genuinely present;
+  reject those that are absent or only tangentially mentioned.
+"""
+
+JD_ANALYSIS_VALIDATOR_USER_TEMPLATE = """\
+=== CANDIDATE SKILLS (from curated taxonomy) ===
+{candidates_json}
+
+=== JOB DESCRIPTION ===
+\"\"\"
+{jd_text}
+\"\"\""""
+
+
+def build_jd_analysis_validator_prompt(vertical: Optional[str] = None) -> str:
+    """Validator system prompt with optional vertical hints appended."""
+    hint = VERTICAL_HINTS.get((vertical or "").strip().lower())
+    if not hint:
+        return JD_ANALYSIS_VALIDATOR_SYSTEM
+    return f"{JD_ANALYSIS_VALIDATOR_SYSTEM}\n\n{hint}"
+
+
+def build_jd_analysis_system_prompt(vertical: Optional[str] = None) -> str:
+    """Return the JD-analysis system prompt, appending the vertical-specific
+    hint block when ``vertical`` is one of the curated verticals
+    (``nursing`` / ``tech`` / ``cleaning``). Unknown or ``None`` verticals
+    return the base prompt unchanged — behaviour identical to pre-Phase-2.
+    """
+    hint = VERTICAL_HINTS.get((vertical or "").strip().lower())
+    if not hint:
+        return JD_ANALYSIS_SYSTEM
+    return f"{JD_ANALYSIS_SYSTEM}\n\n{hint}"

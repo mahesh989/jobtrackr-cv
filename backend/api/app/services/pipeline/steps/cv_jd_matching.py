@@ -27,6 +27,13 @@ Output schema (nested, mirrors jd_analysis):
         "required_pct": float,
         "preferred_pct": float,
         "overall_pct": float
+      },
+      "credentials_required": {          # credential gap report (no LLM)
+        "required":    [str, ...],       # from jd_analysis["credentials"] (+regex fallback)
+        "preferred":   [str, ...],
+        "eligibility": [str, ...],
+        "present":     [str, ...],       # satisfied by CV text or user profile
+        "missing":     [str, ...]        # required/preferred/eligibility not satisfied
       }
     }
 """
@@ -94,12 +101,23 @@ async def run_cv_jd_matching(
     # most of them as exact strings, but this regex is the safety net.
     # See _extract_credential_sidecar.
     credentials_sidecar = _extract_credential_sidecar(result["matched"], result["missed"])
-    if any(credentials_sidecar[b][c] for b in _BUCKETS for c in _CATEGORIES):
-        result["credentials_required"] = credentials_sidecar
+
+    # Build the credential gap report. Primary source is the deterministic
+    # jd_analysis["credentials"] block (Phase 6/8 JD-text scan); the regex
+    # sidecar above is folded in as a fallback for LLM-mis-bucketed credentials.
+    # Each credential is marked present (literal CV match or profile credential)
+    # or missing — so required credentials stripped from the skill buckets (e.g.
+    # "Cert III in Ageing Support") are still checked against the CV.
+    credentials_required = _build_credentials_gap(
+        jd_analysis, credentials_sidecar, cv_text, contact_details,
+    )
+    if any(credentials_required[k] for k in ("required", "preferred", "eligibility")):
+        result["credentials_required"] = credentials_required
         logger.info(
-            "CV-JD matching: extracted credential-shaped JD requirements to sidecar — %s",
-            {b: {c: credentials_sidecar[b][c] for c in _CATEGORIES if credentials_sidecar[b][c]}
-             for b in _BUCKETS},
+            "CV-JD matching: credential gap — %d present, %d missing (required=%s)",
+            len(credentials_required["present"]),
+            len(credentials_required["missing"]),
+            credentials_required["required"],
         )
 
     # Verify the AI's match_evidence: if it quoted a CV phrase that doesn't
@@ -303,6 +321,57 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
     return _re.search(pattern, cv_text.lower()) is not None
 
 
+# Australian VET qualification ladder. A higher AQF level in the same vocational
+# family subsumes a lower one — completing a Certificate IV in Ageing Support
+# embeds the Certificate III in Individual Support, so a JD asking for the Cert
+# III is satisfied by a CV holding the Cert IV (or a Diploma / Bachelor).
+_QUAL_LEVEL_PATTERNS: List[Tuple[Any, int]] = [
+    (_re.compile(r"\bbachelor\b"), 7),
+    (_re.compile(r"\badvanced\s+diploma\b"), 6),
+    (_re.compile(r"\bdiploma\b"), 5),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:iv|4)\b"), 4),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:iii|3)\b"), 3),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:ii|2)\b"), 2),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:i|1)\b"), 1),
+]
+
+# Vocational family the ladder applies to (aged / community / disability care).
+# A Cert IV in *Cleaning* must NOT subsume a Cert III in Individual Support, so
+# both the requirement and the CV qualification must sit in this family.
+_CARE_QUAL_FAMILY: Tuple[str, ...] = (
+    "individual support", "ageing", "aged care", "aged-care",
+    "community service", "disability", "home and community", "personal care",
+)
+
+
+def _qual_level(text: str) -> int:
+    """Highest AQF qualification level named in *text* (0 if none)."""
+    for pat, level in _QUAL_LEVEL_PATTERNS:
+        if pat.search(text):
+            return level
+    return 0
+
+
+def _in_care_qual_family(text: str) -> bool:
+    return any(fam in text for fam in _CARE_QUAL_FAMILY)
+
+
+def _qualification_subsumed_by_cv(phrase: str, cv_text: str) -> bool:
+    """True when a required care qualification is met by an equal-or-higher CV
+    qualification in the same family (Cert IV in Ageing Support ⊇ Cert III in
+    Individual Support)."""
+    pl = (phrase or "").lower()
+    req_level = _qual_level(pl)
+    if req_level == 0 or not _in_care_qual_family(pl):
+        return False
+    # Scan the CV line-by-line so the level is tied to a care-family line, not a
+    # stray higher qualification elsewhere (e.g. a Bachelor of Science).
+    for line in (cv_text or "").lower().splitlines():
+        if _in_care_qual_family(line) and _qual_level(line) >= req_level:
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Profile credential promotion
 # ---------------------------------------------------------------------------
@@ -323,30 +392,34 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
 # the keyword score — only carry actual skills.
 # ---------------------------------------------------------------------------
 
-# Regex pattern for credential-shaped phrases. Each branch is a distinct
-# credential family the lexicon noise list (_universal_noise.json credential
-# section) also covers as exact strings; this regex is the belt-and-braces
-# net for variants we haven't enumerated yet.
-_CREDENTIAL_PHRASE_RE = _re.compile(
-    r"(?ix)\b("
-    # Compliance / clearance / check phrases.
-    r"(?:police|national\s+police|ndis(?:\s+worker(?:\s+screening)?)?|"
-    r"pre[-\s]?employment\s+medical|criminal\s+history|"
-    r"vaccine|vaccination|immuni[sz]ation|infection\s+control|"
-    r"working\s+with\s+children|working\s+rights?|work\s+rights?|"
-    r"first\s+aid|cpr)\s+"
-    r"(?:clearance|check|requirements?|compliance|screening|endorsement)"
-    r"|"
-    # Australian unit codes (CHC… / HLT… / BSB… / FSK… / SIT… / CPP… / AHC…).
-    r"(?:chc|hlt(?:aid|hps)?|bsb|fsk|sit|cpp|ahc)\d{3,}"
-    r"|"
-    # "Cert III/IV in X" or "X cert III/IV" — qualification names.
-    r"cert(?:ificate)?\s*(?:iii|iv|3|4)"
-    r"|"
-    # Medication endorsement is a credential, not a skill.
-    r"medication\s+endorsement(?:\s*\([^)]+\))?"
-    r")\b"
-)
+# Australian unit code prefix alternation — built from the canonical registry
+# list (longest-first so longer sub-codes match before their parent codes).
+def _build_au_unit_re() -> _re.Pattern:
+    from app.services.skills.registry import AU_UNIT_PREFIXES
+    alt = "|".join(sorted(AU_UNIT_PREFIXES, key=len, reverse=True))
+    return _re.compile(
+        r"(?ix)\b("
+        # Compliance / clearance / check phrases.
+        r"(?:police|national\s+police|ndis(?:\s+worker(?:\s+screening)?)?|"
+        r"pre[-\s]?employment\s+medical|criminal\s+history|"
+        r"vaccine|vaccination|immuni[sz]ation|infection\s+control|"
+        r"working\s+with\s+children|working\s+rights?|work\s+rights?|"
+        r"first\s+aid|cpr)\s+"
+        r"(?:clearance|check|requirements?|compliance|screening|endorsement)"
+        r"|"
+        # Australian unit codes — from skills.registry.AU_UNIT_PREFIXES.
+        rf"(?:{alt})\d{{3,}}"
+        r"|"
+        # "Cert III/IV in X" or "X cert III/IV" — qualification names.
+        r"cert(?:ificate)?\s*(?:iii|iv|3|4)"
+        r"|"
+        # Medication endorsement is a credential, not a skill.
+        r"medication\s+endorsement(?:\s*\([^)]+\))?"
+        r")\b"
+    )
+
+
+_CREDENTIAL_PHRASE_RE = _build_au_unit_re()
 
 
 def _looks_like_credential(keyword: str) -> bool:
@@ -381,6 +454,78 @@ def _extract_credential_sidecar(
                 source[bucket][cat] = kept
         del label  # quiet linter
     return sidecar
+
+
+def _dedup_keep_order(items: List[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for raw in items:
+        s = str(raw).strip()
+        key = s.lower()
+        if s and key not in seen:
+            seen.add(key)
+            out.append(s)
+    return out
+
+
+def _build_credentials_gap(
+    jd_analysis: Dict[str, Any],
+    sidecar: Dict[str, Dict[str, List[str]]],
+    cv_text: str,
+    contact_details: Dict[str, Any] | None,
+) -> Dict[str, List[str]]:
+    """Build the credential gap report for the matching panel.
+
+    Source of truth is the deterministic ``jd_analysis['credentials']`` block
+    (Phase 6/8 scan over the JD text); the regex-extracted ``sidecar`` (pulled
+    from LLM-mis-bucketed skills) is merged in as a fallback so nothing is lost.
+
+    Each credential's status is decided WITHOUT an LLM: it is ``present`` when it
+    literally appears in the CV text OR is satisfied by the user's profile
+    (same ``user_has_credential`` check the feasibility planner uses), otherwise
+    it is ``missing``. Required + preferred credentials feed present/missing;
+    eligibility is reported but only counted as missing when the profile/CV
+    cannot satisfy it.
+    """
+    block = jd_analysis.get("credentials") or {}
+    required = list(block.get("required") or [])
+    preferred = list(block.get("preferred") or [])
+    eligibility = list(block.get("eligibility") or [])
+
+    # Fallback: fold in any credential-shaped phrases the LLM mis-bucketed as
+    # skills (the regex sidecar), so a JD whose deterministic scan missed one
+    # still surfaces it. Required-bucket sidecar → required, preferred → preferred.
+    for cat in _CATEGORIES:
+        required.extend(sidecar.get("required", {}).get(cat, []))
+        preferred.extend(sidecar.get("preferred", {}).get(cat, []))
+
+    required = _dedup_keep_order(required)
+    preferred = _dedup_keep_order([p for p in preferred if p.lower() not in {r.lower() for r in required}])
+    eligibility = _dedup_keep_order(eligibility)
+
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    def _satisfied(phrase: str) -> bool:
+        if _literal_match_in_text(phrase, cv_text):
+            return True
+        if _qualification_subsumed_by_cv(phrase, cv_text):
+            return True
+        if contact_details and user_has_credential(phrase, contact_details):
+            return True
+        return False
+
+    present: List[str] = []
+    missing: List[str] = []
+    for phrase in required + preferred + eligibility:
+        (present if _satisfied(phrase) else missing).append(phrase)
+
+    return {
+        "required": required,
+        "preferred": preferred,
+        "eligibility": eligibility,
+        "present": _dedup_keep_order(present),
+        "missing": _dedup_keep_order(missing),
+    }
 
 
 def _promote_profile_credentials(

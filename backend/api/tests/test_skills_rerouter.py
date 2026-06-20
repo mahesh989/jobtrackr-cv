@@ -124,7 +124,7 @@ class TestRerouteEdgeCases:
 
     def test_reroute_then_enforce_stays_within_cap(self):
         # If reroute pushes a line over cap, the following enforce_skills_section
-        # should trim it back to DEFAULT_SKILL_CAPS (14, 6, 6).
+        # should trim it back to DEFAULT_SKILL_CAPS (15, 10, 10).
         many_items = ", ".join(f"Item{i}" for i in range(20))
         md = (
             "## Skills\n\n"
@@ -136,7 +136,7 @@ class TestRerouteEdgeCases:
         final = enforce_skills_section(rerouted)
         care_line = next(l for l in final.splitlines() if "Care Skills" in l)
         items = [x.strip() for x in care_line.split(":**")[1].split(",") if x.strip()]
-        assert len(items) <= 14
+        assert len(items) <= 15
 
 
 # ---------------------------------------------------------------------------

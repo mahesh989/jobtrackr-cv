@@ -121,3 +121,37 @@ class TestPromoteProfileCredentials:
         assert "national police check" not in promoted
         # matched still has it exactly once
         assert matched["required"]["technical"].count("national police check") == 1
+
+
+class TestAhpraRegistration:
+    """AHPRA registration is satisfied by a saved ahpra_number on the profile."""
+
+    _WITH_AHPRA = {"credentials": {"ahpra_number": "NMW0001234567"}}
+    _NO_AHPRA = {"credentials": {}}
+
+    def test_ahpra_registration_satisfied(self):
+        assert user_has_credential("AHPRA registration", self._WITH_AHPRA) is True
+
+    def test_registered_nurse_registration_satisfied(self):
+        assert user_has_credential(
+            "current registration as a registered nurse", self._WITH_AHPRA
+        ) is True
+
+    def test_not_satisfied_without_ahpra_number(self):
+        assert user_has_credential("AHPRA registration", self._NO_AHPRA) is False
+
+    def test_generic_registration_does_not_match(self):
+        # Unrelated "registration" must not be satisfied by an AHPRA number.
+        assert user_has_credential("software registration", self._WITH_AHPRA) is False
+
+    def test_registration_with_nurse_substring_does_not_misfire(self):
+        # Word-boundary guard: "nurse" as a substring of another token must not
+        # satisfy AHPRA (e.g. a contrived "nursery vehicle registration").
+        assert user_has_credential(
+            "nursery vehicle registration", self._WITH_AHPRA
+        ) is False
+
+    def test_midwifery_registration_satisfied(self):
+        assert user_has_credential(
+            "current midwifery registration", self._WITH_AHPRA
+        ) is True

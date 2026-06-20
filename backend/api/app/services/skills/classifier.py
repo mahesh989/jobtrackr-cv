@@ -237,6 +237,12 @@ def is_noise(phrase: str) -> Optional[NoiseT]:
     return _NOISE_LOOKUP.get(normalise(phrase))
 
 
+# Minimum string length for fuzzy matching to apply. Below this, difflib's
+# ratio is unreliable (a single-char edit on a short word clears the cutoff),
+# so short tokens require an exact/normalised match. See the fuzzy guard below.
+_MIN_FUZZY_LEN = 5
+
+
 def classify(
     phrase: str,
     vertical: VerticalT,
@@ -291,9 +297,17 @@ def classify(
         )
 
     # 3. Fuzzy fallback.
-    if allow_fuzzy:
+    #
+    # Length guard: difflib's ratio over-scores short strings — a single-char
+    # insertion turns a common word into a product name ("care" → "vcare" scores
+    # 0.889, over the 0.88 cutoff), which would wrongly snap every "care" in a JD
+    # to the VCare software canonical. Require both the input and the matched key
+    # to be at least _MIN_FUZZY_LEN characters so short tokens fall through to
+    # "unknown" instead of fuzzy-matching. Real typos (e.g. "wound managment")
+    # are comfortably longer than this floor.
+    if allow_fuzzy and len(norm) >= _MIN_FUZZY_LEN:
         matches = difflib.get_close_matches(norm, lookup.keys(), n=1, cutoff=fuzzy_cutoff)
-        if matches:
+        if matches and len(matches[0]) >= _MIN_FUZZY_LEN:
             canon, cat = lookup[matches[0]]
             return Classification(
                 canonical=canon,
@@ -319,6 +333,24 @@ def classify_many(
         p: classify(p, vertical, fuzzy_cutoff=fuzzy_cutoff)
         for p in phrases
     }
+
+
+def variants_for_canonical(canonical: str, vertical: VerticalT) -> set:
+    """Return all normalised lookup keys (the canonical plus every variant)
+    that resolve to ``canonical`` in the given vertical lexicon.
+
+    Used by the soft-skill grounding gate to test whether any surface form of
+    a canonical appears verbatim in the JD text. Returns ``{normalise(canonical)}``
+    for canonicals that aren't in the lexicon (e.g. LLM-only soft skills), so
+    the caller can still test the bare phrase.
+    """
+    lookup = _VERTICAL_LOOKUPS.get(vertical) or {}
+    target = canonical.strip().lower()
+    keys = {k for k, (c, _cat) in lookup.items() if c.strip().lower() == target}
+    cn = normalise(canonical)
+    if cn:
+        keys.add(cn)
+    return keys
 
 
 def lexicon_stats() -> Dict[str, int]:

@@ -146,8 +146,8 @@ class TestVaccinationRemovedFromJdAnalysis:
             + result["preferred_skills"]["domain_knowledge"]
         )
         assert "vaccination requirements" not in all_skills
-        # real care skills stay
-        assert "aged care" in result["required_skills"]["domain_knowledge"]
+        # real care skills stay; aged care is now stripped as a sector label (Phase C)
+        assert "aged care" not in result["required_skills"]["domain_knowledge"]
         assert "personal care" in result["required_skills"]["domain_knowledge"]
 
 
@@ -192,7 +192,8 @@ class TestNursingFundamentalsRemovedFromJdAnalysis:
         result = post_process_jd_analysis(jd, role_family_id="nursing")
         domain = result["required_skills"]["domain_knowledge"]
         assert "nursing fundamentals" not in domain
-        assert "aged care" in domain
+        # aged care is now a sector label stripped everywhere (Phase C)
+        assert "aged care" not in domain
         assert "personal care" in domain
 
 
@@ -222,3 +223,91 @@ def test_aged_care_police_check_variants_are_noise(phrase):
     assert result == "credential", (
         f"Expected 'credential' classification, got {result!r} for {phrase!r}."
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. Credential gap report (_build_credentials_gap) — sources the deterministic
+#    jd_analysis["credentials"] block, marks present/missing against CV+profile.
+# ---------------------------------------------------------------------------
+
+from app.services.pipeline.steps.cv_jd_matching import _build_credentials_gap
+
+
+class TestBuildCredentialsGap:
+    def _jd(self):
+        return {
+            "credentials": {
+                "required": ["Cert III in Ageing Support", "police check for working in aged care"],
+                "preferred": ["Cert IV in Ageing Support"],
+                "eligibility": ["working rights in australia"],
+            }
+        }
+
+    def test_missing_required_credential_surfaces(self):
+        # CV has neither cert nor police check, no profile.
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text="Experienced aged care worker.", contact_details=None,
+        )
+        assert "Cert III in Ageing Support" in gap["missing"]
+        assert "Cert III in Ageing Support" in gap["required"]
+        assert gap["present"] == []
+
+    def test_present_credential_from_cv(self):
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text="I hold a Cert III in Ageing Support and 5 years experience.",
+            contact_details=None,
+        )
+        assert "Cert III in Ageing Support" in gap["present"]
+        assert "Cert III in Ageing Support" not in gap["missing"]
+
+    def test_fallback_folds_in_regex_sidecar(self):
+        # No deterministic block; a credential mis-bucketed by the LLM arrives
+        # via the regex sidecar and must still surface as required.
+        sidecar = {
+            "required": {"technical": [], "soft_skills": [], "domain_knowledge": ["cert iv aged care"]},
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+        gap = _build_credentials_gap({}, sidecar, cv_text="", contact_details=None)
+        assert "cert iv aged care" in gap["required"]
+        assert "cert iv aged care" in gap["missing"]
+
+    def test_no_credentials_yields_empty(self):
+        gap = _build_credentials_gap({}, {"required": {}, "preferred": {}}, cv_text="", contact_details=None)
+        assert gap["required"] == [] and gap["preferred"] == [] and gap["eligibility"] == []
+
+    def test_cert_iv_subsumes_required_cert_iii(self):
+        # JD wants Cert III in Individual Support; CV holds the higher Cert IV in
+        # Ageing Support (same family) → satisfied, not missing.
+        jd = {"credentials": {
+            "required": ["Certificate III in Individual Support"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Education\nCertificate IV in Ageing Support\nBachelor of Science"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Certificate III in Individual Support" in gap["present"]
+        assert "Certificate III in Individual Support" not in gap["missing"]
+
+    def test_subsumption_does_not_cross_family(self):
+        # A Cert IV in Cleaning must NOT satisfy a Cert III in Individual Support.
+        jd = {"credentials": {
+            "required": ["Certificate III in Individual Support"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Certificate IV in Cleaning Operations"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Certificate III in Individual Support" in gap["missing"]
+
+    def test_subsumption_respects_level(self):
+        # CV Cert III cannot satisfy a required Diploma in the same family.
+        jd = {"credentials": {
+            "required": ["Diploma of Community Services"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Certificate III in Individual Support"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Diploma of Community Services" in gap["missing"]

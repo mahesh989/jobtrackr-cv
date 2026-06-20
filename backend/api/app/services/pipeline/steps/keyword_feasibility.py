@@ -84,7 +84,7 @@ _FILLER_KEYWORD_RE = re.compile(
     r"knowledge\s+of\b"
     r"|^(?:an?\s+)?understanding\s+of\b"
     r"|^ability\s+to\b"
-    r"|^experience\s+(?:in|with|of|as|working)\b"
+    r"|^experience\s+(?:in|with|of|as|working|across|supporting)\b"
     r"|^previous\s+experience\b"
     r"|^familiarity\s+with\b"
     r"|^(?:willingness|commitment|passion|aptitude|interest|dedication)\s+(?:to|for|in)\b"
@@ -106,15 +106,11 @@ def _is_filler_keyword(kw: str) -> bool:
     """True if `kw` is a JD-phrasing requirement fragment, not a real keyword."""
     return bool(_FILLER_KEYWORD_RE.search((kw or "").strip().lower()))
 
-# Mirrors `_KEYWORD_WEIGHTS` in ats_scoring.py — kept local so the
-# expected-lift estimate stays self-contained. If those weights change,
-# update both places.
-_KEYWORD_WEIGHTS = {
-    "technical_required":        25,
-    "soft_skills_required":      10,
-    "domain_knowledge_required":  5,
-    "preferred_overall":         10,
-}
+# Single source of truth for ATS keyword weights — imported from _scoring_weights.
+from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
+    DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
+    resolve_keyword_weights as _resolve_kw_weights_shared,
+)
 
 
 async def run_keyword_feasibility(
@@ -354,6 +350,24 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "work rights" in kw or "visa" in kw or "citizenship" in kw or "right to work" in kw or "australian citizen" in kw:
         return has("work_rights")
 
+    # 17. AHPRA / nursing registration — satisfied by a saved AHPRA number.
+    #     Covers "AHPRA registration", "registered nurse", "current registration",
+    #     "NMW..." style references. Guarded so generic "registration" inside an
+    #     unrelated phrase still requires an ahpra cue.
+    if (
+        "ahpra" in kw
+        or "nmw" in kw
+        or "registered nurse" in kw
+        or "enrolled nurse" in kw
+        or "nursing registration" in kw
+        or "nmba" in kw
+        or (
+            "registration" in kw
+            and re.search(r"\b(nurse|nursing|midwife|midwifery|ahpra)\b", kw)
+        )
+    ):
+        return has("ahpra_number")
+
     return False
 
 
@@ -455,18 +469,8 @@ def _reconcile_with_missing(
 
 
 def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
-    """Pick per-family keyword weights (mirrors ats_scoring._resolve_keyword_weights).
-    Falls back to the tech defaults when no role family is attached."""
-    family_id = (jd_analysis or {}).get("role_family")
-    if family_id:
-        try:
-            from app.services.eval.role_families import resolve_role_family
-            rf = resolve_role_family(family_id, jd_analysis)
-            if rf and rf.keyword_weights:
-                return dict(rf.keyword_weights)
-        except Exception:  # noqa: BLE001
-            logger.warning("feasibility: failed to resolve family %s weights; using defaults", family_id)
-    return dict(_KEYWORD_WEIGHTS)
+    """Pick per-family keyword weights, falling back to tech defaults."""
+    return _resolve_kw_weights_shared(jd_analysis)
 
 
 def _expected_lift_pts(
@@ -644,16 +648,22 @@ def _evidence_grounds_keyword_verbatim(
 def _enforce_inject_directly_groundedness(
     plan: Dict[str, List[Dict[str, Any]]], cv_text: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Move `inject_directly` entries whose evidence doesn't literally
-    contain the keyword's word family to `inject_with_inference`.
-    Mutates a shallow copy. Idempotent."""
+    """Drop `inject_directly` entries whose evidence doesn't literally
+    contain the keyword's word family (M4 — Phase F).
+
+    Previously these were downgraded to inject_with_inference, which
+    silently softened the honesty contract ("must be verbatim → may be
+    inferred"). Now ungrounded entries are dropped entirely, consistent
+    with the prompt's HARD "no fabrication" rule.
+    Mutates a shallow copy. Idempotent.
+    """
     if not plan or not cv_text:
         return plan
     direct = list(plan.get("inject_directly") or [])
     if not direct:
         return plan
     kept_direct: List[Dict[str, Any]] = []
-    downgraded: List[Dict[str, Any]] = []
+    dropped: List[str] = []
     for entry in direct:
         if not isinstance(entry, dict):
             continue
@@ -662,32 +672,15 @@ def _enforce_inject_directly_groundedness(
         if _evidence_grounds_keyword_verbatim(kw, ev, cv_text):
             kept_direct.append(entry)
         else:
-            # Downgrade — re-shape as inject_with_inference. Map rationale
-            # → inference_chain (the existing rationale describes the
-            # inference jump anyway); inferred_from carries the evidence
-            # phrase; confidence stays medium.
-            inferred_entry = {
-                "keyword":          entry.get("keyword"),
-                "category":         entry.get("category"),
-                "bucket":           entry.get("bucket"),
-                "injection_target": entry.get("injection_target") or "skills_section",
-                "evidence":         ev,
-                "rationale":        entry.get("rationale") or "",
-                "suggested_rewrite": "",
-                "inference_chain":  entry.get("rationale") or "",
-                "inferred_from":    [ev] if ev else [],
-                "confidence":       "medium",
-            }
-            downgraded.append(inferred_entry)
-    if not downgraded:
+            dropped.append(kw)
+    if not dropped:
         return plan
     out = dict(plan)
     out["inject_directly"] = kept_direct
-    out["inject_with_inference"] = list(out.get("inject_with_inference") or []) + downgraded
     logger.info(
-        "feasibility groundedness gate: downgraded %d inject_directly → "
-        "inject_with_inference (evidence quote did not contain keyword): %s",
-        len(downgraded), [d["keyword"] for d in downgraded],
+        "feasibility groundedness gate: dropped %d inject_directly "
+        "(evidence quote did not contain keyword): %s",
+        len(dropped), dropped,
     )
     return out
 

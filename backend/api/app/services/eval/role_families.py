@@ -487,6 +487,37 @@ def _resolve_base_family(
 _CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
 
 
+# Role-family id → curated lexicon vertical. Kept in sync with
+# skills.post_process._ROLE_FAMILY_TO_VERTICAL (manual roles share the
+# "cleaning" lexicon; master has no curated lexicon).
+_FAMILY_TO_VERTICAL: Dict[str, str | None] = {
+    "tech": "tech",
+    "nursing": "nursing",
+    "manual": "cleaning",
+    "master": None,
+}
+
+
+def resolve_vertical(
+    vertical_hint: str | None,
+    jd_analysis: Dict[str, Any] | None,
+) -> str | None:
+    """Resolve the curated lexicon vertical (``nursing`` / ``tech`` /
+    ``cleaning``) for a JD, or ``None`` when the role maps to ``master``
+    (no curated lexicon).
+
+    Thin wrapper over :func:`resolve_role_family` that maps the resolved
+    family id to its lexicon vertical. Used by the orchestrator to pick the
+    JD-analysis prompt's vertical hints BEFORE the LLM call — passing a
+    minimal ``{"summary": jd_text}`` is enough for the alias scan. The
+    authoritative role family is still resolved from the LLM output after
+    the call, so a wrong guess here only affects prompt hints, never the
+    final classification.
+    """
+    rf = resolve_role_family(vertical_hint, jd_analysis)
+    return _FAMILY_TO_VERTICAL.get(rf.id)
+
+
 def category_labels(rf: RoleFamilyProfile) -> Dict[str, str]:
     """
     Map the internal skill-category keys to the family's display labels. The

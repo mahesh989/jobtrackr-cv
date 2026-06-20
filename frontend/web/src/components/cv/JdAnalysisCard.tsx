@@ -13,6 +13,17 @@ interface CategorisedSkills {
   domain_knowledge?:  string[];
 }
 
+interface Credentials {
+  required?:    string[];
+  preferred?:   string[];
+  eligibility?: string[];
+}
+
+interface JobContext {
+  setting?:  string | null;
+  settings?: string[];
+}
+
 interface JDAnalysisData {
   job_title?:                 string;
   seniority_level?:           string;
@@ -21,6 +32,10 @@ interface JDAnalysisData {
   preferred_skills?:          CategorisedSkills | string[];
   responsibilities?:          string[];
   experience_years_required?: number | null;
+  category_labels?:           Record<string, string>;
+  category_order?:            string[];
+  credentials?:               Credentials;
+  job_context?:               JobContext;
 }
 
 const CAT_LABEL: Record<string, string> = {
@@ -31,17 +46,12 @@ const CAT_LABEL: Record<string, string> = {
 type Cat = "technical" | "soft_skills" | "domain_knowledge";
 const DEFAULT_CAT_ORDER: Cat[] = ["technical", "soft_skills", "domain_knowledge"];
 
-// Role-family-aware display labels persisted on the JD analysis
-// (jd_analysis_result.category_labels). Falls back to the generic labels for
-// runs analysed before the role-family enrichment landed.
 function resolveCatLabels(data: Record<string, unknown>): Record<string, string> {
   const raw = (data as { category_labels?: Record<string, string> }).category_labels;
   if (!raw || typeof raw !== "object") return CAT_LABEL;
   return { ...CAT_LABEL, ...raw };
 }
 
-// Role-family-aware display order (jd_analysis_result.category_order): headline
-// bucket first (Clinical/Technical/Core), then soft, then the other bucket.
 function resolveCatOrder(data: Record<string, unknown>): Cat[] {
   const raw = (data as { category_order?: string[] }).category_order;
   if (!Array.isArray(raw)) return DEFAULT_CAT_ORDER;
@@ -51,11 +61,6 @@ function resolveCatOrder(data: Record<string, unknown>): Cat[] {
   return valid.length === 3 ? valid : DEFAULT_CAT_ORDER;
 }
 
-// Decide whether the JD analysis came back "weak" — i.e. the AI couldn't
-// extract a real role description because the source text was a stub /
-// company-benefits page / paywall. When that happens we render `summary`
-// in bold red so the user understands why the downstream pipeline is
-// pointless without a real JD pasted.
 function hasAnySkills(s: CategorisedSkills | string[] | undefined | null): boolean {
   if (!s) return false;
   if (Array.isArray(s)) return s.length > 0;
@@ -63,26 +68,34 @@ function hasAnySkills(s: CategorisedSkills | string[] | undefined | null): boole
 }
 
 function isWeakAnalysis(d: JDAnalysisData): boolean {
-  const noResp     = !d.responsibilities  || d.responsibilities.length === 0;
-  const noReq      = !hasAnySkills(d.required_skills);
-  const noPref     = !hasAnySkills(d.preferred_skills);
-  const noTitle    = !d.job_title;
-  const unknownSr  = !d.seniority_level || d.seniority_level === "unknown";
-  // Be conservative: only treat as weak if the AI returned essentially
-  // nothing of substance. Real roles always have at least responsibilities
-  // OR required skills.
+  const noResp    = !d.responsibilities  || d.responsibilities.length === 0;
+  const noReq     = !hasAnySkills(d.required_skills);
+  const noPref    = !hasAnySkills(d.preferred_skills);
+  const noTitle   = !d.job_title;
+  const unknownSr = !d.seniority_level || d.seniority_level === "unknown";
   return noResp && noReq && noPref && (noTitle || unknownSr);
 }
 
+function hasAnyCredentials(c: Credentials | undefined | null): boolean {
+  if (!c) return false;
+  return (
+    (c.required?.length ?? 0) > 0 ||
+    (c.preferred?.length ?? 0) > 0 ||
+    (c.eligibility?.length ?? 0) > 0
+  );
+}
+
 export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
-  const d = data as JDAnalysisData;
-  const req  = d.required_skills;
-  const pref = d.preferred_skills;
+  const d         = data as JDAnalysisData;
+  const req       = d.required_skills;
+  const pref      = d.preferred_skills;
+  const creds     = d.credentials;
+  const ctx       = d.job_context;
   const reqIsCategorised  = req  != null && !Array.isArray(req)  && typeof req  === "object";
   const prefIsCategorised = pref != null && !Array.isArray(pref) && typeof pref === "object";
-  const weak = isWeakAnalysis(d);
+  const weak      = isWeakAnalysis(d);
   const catLabels = resolveCatLabels(data);
-  const catOrder = resolveCatOrder(data);
+  const catOrder  = resolveCatOrder(data);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -94,8 +107,8 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Title + seniority + experience */}
-        {(d.job_title || d.seniority_level || d.experience_years_required != null) && (
+        {/* Title + seniority + experience + setting badge */}
+        {(d.job_title || d.seniority_level || d.experience_years_required != null || ctx?.setting) && (
           <div className="flex flex-wrap items-center gap-2">
             {d.job_title && (
               <span className="text-[14px] font-semibold text-text">{d.job_title}</span>
@@ -108,6 +121,11 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
             {typeof d.experience_years_required === "number" && d.experience_years_required > 0 && (
               <span className="text-[11px] text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
                 {d.experience_years_required}+ yrs
+              </span>
+            )}
+            {ctx?.setting && (
+              <span className="text-[11px] text-text-2 bg-surface-2 border border-border px-1.5 py-0.5 rounded capitalize">
+                {ctx.setting}
               </span>
             )}
           </div>
@@ -132,6 +150,11 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
         {/* Preferred skills */}
         {pref && (
           <SkillBlock label="Preferred skills" skills={pref} categorised={prefIsCategorised} variant="preferred" catLabels={catLabels} catOrder={catOrder} />
+        )}
+
+        {/* Credentials & Eligibility */}
+        {hasAnyCredentials(creds) && (
+          <CredentialBlock credentials={creds!} />
         )}
 
         {/* Responsibilities */}
@@ -206,6 +229,34 @@ function CategorisedSkillGrid({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function CredentialBlock({ credentials }: { credentials: Credentials }) {
+  const rows: { label: string; items: string[]; variant: "required" | "preferred" | "neutral" }[] = [];
+  if (credentials.required?.length)    rows.push({ label: "Required",    items: credentials.required,    variant: "required"  });
+  if (credentials.preferred?.length)   rows.push({ label: "Preferred",   items: credentials.preferred,   variant: "preferred" });
+  if (credentials.eligibility?.length) rows.push({ label: "Eligibility", items: credentials.eligibility, variant: "neutral"   });
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+        Credentials &amp; Eligibility
+      </h3>
+      <div className="space-y-2">
+        {rows.map(({ label, items, variant }) => (
+          <div key={label} className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
+            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
+              {label}
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {items.map((s) => <Chip key={s} label={s} variant={variant === "required" ? "required" : "preferred"} />)}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

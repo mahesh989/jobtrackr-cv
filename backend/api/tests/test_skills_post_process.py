@@ -427,8 +427,8 @@ class TestJdBodyLexiconScan:
         dk_lower = [s.lower() for s in dk]
         # Personal care literal in responsibilities
         assert "personal care" in dk_lower
-        # Aged care literal in summary
-        assert "aged care" in dk_lower
+        # aged care is now a sector label stripped everywhere (Phase C)
+        assert "aged care" not in dk_lower
 
     def test_no_double_add_when_llm_already_extracted_canonical(self):
         """When the LLM already pulled `personal care` into domain_knowledge,

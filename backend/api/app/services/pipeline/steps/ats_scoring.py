@@ -114,12 +114,11 @@ _URL_RE = re.compile(r"https?://[^\s)]+")
 _PHONE_DIGITS_RE = re.compile(r"\d")
 
 # Per-component max points (must sum to 50 for Category 1).
-_KEYWORD_WEIGHTS = {
-    "technical_required":        25,
-    "soft_skills_required":      10,
-    "domain_knowledge_required":  5,
-    "preferred_overall":         10,
-}
+# Single source of truth lives in _scoring_weights.py.
+from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
+    DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
+    resolve_keyword_weights as _resolve_kw_weights_shared,
+)
 # v2: 50 / 40 / 10
 _EXPERIENCE_MAX = 40
 _FORMATTING_MAX = 10
@@ -204,23 +203,8 @@ def run_ats_scoring(
 
 
 def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
-    """Pick the per-family keyword weights, falling back to tech defaults.
-
-    The orchestrator stores the resolved role family on `jd_analysis["role_family"]`
-    before ATS scoring (orchestrator.py:131-139). When the family ships with a
-    `keyword_weights` dict (nursing/manual flip technical↔domain), use it;
-    otherwise the tech-shaped defaults below apply — same behaviour as before.
-    """
-    family_id = (jd_analysis or {}).get("role_family")
-    if family_id:
-        try:
-            from app.services.eval.role_families import resolve_role_family
-            rf = resolve_role_family(family_id, jd_analysis)
-            if rf and rf.keyword_weights:
-                return dict(rf.keyword_weights)
-        except Exception:  # noqa: BLE001 — never block scoring on a config lookup
-            logger.warning("ATS: failed to resolve family %s weights; using defaults", family_id)
-    return dict(_KEYWORD_WEIGHTS)
+    """Pick the per-family keyword weights, falling back to tech defaults."""
+    return _resolve_kw_weights_shared(jd_analysis)
 
 
 def _keyword_score(

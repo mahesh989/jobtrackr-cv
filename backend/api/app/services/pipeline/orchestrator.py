@@ -37,6 +37,7 @@ from app.services.pipeline.steps.ats_scoring import run_ats_scoring
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
 from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
+from app.services.preprocessing.jd_cleaner import clean_jd_text
 from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
 from app.services.pipeline.steps.tailored_cv import run_tailored_cv
 from app.services.pipeline.steps.tailored_rescoring import run_tailored_rescoring
@@ -151,6 +152,16 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # calls. Missing values fall through to a recompute (defensive).
         cached = await _load_cached_results(run_id) if payload.resume else {}
 
+        # Pre-filter the JD once. Strips boilerplate (About Us, Benefits,
+        # How to Apply, EEO, salary, reporting structure) so the model sees
+        # only skill-relevant content. The same cleaned text scopes the
+        # deterministic recall floor below, keeping its lexicon scan out of
+        # company prose. The raw payload.jd_text is preserved for every other
+        # step (evidence gate, section clamp, setting demotion) which need the
+        # full unmodified JD. Deterministic + cheap → safe to recompute on
+        # resume. Falls back to the raw text when no skill sections are found.
+        jd_text_for_llm, _ = clean_jd_text(payload.jd_text)
+
         # ── Step 1 — JD analysis ───────────────────────────────────────────────
         jd_analysis = cached.get("jd_analysis_result")
         if jd_analysis is not None:
@@ -158,7 +169,19 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             await mark_step(run_id, step_status, "jd_analysis", "completed")
         else:
             await mark_step(run_id, step_status, "jd_analysis", "running")
-            jd_analysis = await run_jd_analysis(ai_client, payload.jd_text)
+            # Phase 2 — pre-resolve the role's vertical from the cleaned JD
+            # text so the LLM gets vertical-specific bucketing hints (e.g.
+            # "CALD → soft skill, not domain"). This is a best-effort hint
+            # only; the authoritative role family is resolved from the LLM
+            # output below, and the lexicon post-process is the final word on
+            # categories. A wrong guess degrades to the base prompt's
+            # behaviour. Built from the cleaned text (boilerplate stripped)
+            # to avoid alias matches in company prose.
+            from app.services.eval.role_families import resolve_vertical
+            _vertical_hint = resolve_vertical(None, {"summary": jd_text_for_llm})
+            jd_analysis = await run_jd_analysis(
+                ai_client, jd_text_for_llm, vertical=_vertical_hint
+            )
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
             await mark_step(run_id, step_status, "jd_analysis", "completed")
 
@@ -196,9 +219,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # Runs BEFORE post_process_jd_analysis so injected canonicals flow
             # through the same dedup / sidecar path as LLM-extracted ones.
             from app.services.skills import (
+                drop_ungrounded_soft_skills,
                 enrich_required_skills_from_jd_body,
                 post_process_jd_analysis,
                 verify_skill_evidence,
+            )
+            from app.services.skills.post_process import (
+                _dedup_keep_order,
+                extract_credentials_from_jd,
             )
             # Phase-1 groundedness gate — drop LLM-extracted skills whose
             # evidence quote isn't in the JD (hallucinations) BEFORE the
@@ -210,15 +238,49 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 payload.jd_text,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
+            # Soft-skill grounding gate — drop LLM soft skills with no verbatim
+            # canonical/variant in the JD (e.g. "reliability"/"flexibility"
+            # inferred from employer-preference prose). Runs before the floor,
+            # which re-adds any genuinely grounded soft skill.
+            jd_analysis = drop_ungrounded_soft_skills(
+                jd_analysis,
+                payload.jd_text,
+                role_family_id=str(jd_analysis.get("role_family") or "master"),
+            )
             jd_analysis = enrich_required_skills_from_jd_body(
                 jd_analysis,
                 payload.jd_text,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
+                skill_text=jd_text_for_llm,
             )
             jd_analysis = post_process_jd_analysis(
                 jd_analysis,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
+
+            # Deterministic credential scan over the cleaned JD text — catches
+            # credentials the LLM correctly excluded from skills (so the sidecar
+            # is empty) but that are explicitly listed in the JD. Merges with
+            # any sidecar-derived credentials already in jd_analysis["credentials"].
+            try:
+                scanned = extract_credentials_from_jd(jd_text_for_llm)
+                existing_creds = jd_analysis.get("credentials") or {}
+                jd_analysis["credentials"] = {
+                    "required":    _dedup_keep_order(
+                        list(existing_creds.get("required") or [])
+                        + scanned["required"]
+                    ),
+                    "preferred":   _dedup_keep_order(
+                        list(existing_creds.get("preferred") or [])
+                        + scanned["preferred"]
+                    ),
+                    "eligibility": _dedup_keep_order(
+                        list(existing_creds.get("eligibility") or [])
+                        + scanned["eligibility"]
+                    ),
+                }
+            except Exception:  # noqa: BLE001
+                logger.debug("credential scan: failed", exc_info=True)
 
             # Essential vs Desirable deterministic clamp — move skills between
             # required ↔ preferred where the JD's section headers contradict

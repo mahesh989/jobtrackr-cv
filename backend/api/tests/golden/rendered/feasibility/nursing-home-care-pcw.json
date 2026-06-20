@@ -1,0 +1,13 @@
+{
+  "feasibility_plan": {
+    "inject_directly": [
+      {
+        "keyword": "medication prompting",
+        "category": "domain_knowledge",
+        "injection_target": "skills_section"
+      }
+    ],
+    "inject_as_extension": [],
+    "inject_with_inference": []
+  }
+}

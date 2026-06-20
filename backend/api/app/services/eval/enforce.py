@@ -27,7 +27,7 @@ from typing import List, Optional, Tuple
 # with 8+ soft skills reads padded. Other Skills line is dropped entirely
 # when empty (see enforce_skills_section's `kept` check), so a candidate
 # with no tools/credentials worth surfacing won't get a dangling label.
-DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (14, 6, 6)
+DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (15, 10, 10)
 
 # Role-category labels — sector/setting/job-type descriptors that should NOT
 # appear in the Skills section even when lexicon-classified as domain_knowledge.
