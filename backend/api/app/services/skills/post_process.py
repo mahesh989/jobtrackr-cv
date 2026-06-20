@@ -472,6 +472,49 @@ _SETTING_CONTEXT_WORDS: frozenset = frozenset({
 })
 
 
+# Words that signal a prose sentence tail rather than credential content.
+# When _QUAL_PATTERN matches a prefix of an ngram phrase, the tail after the
+# match is walked word-by-word; the first hit in this set terminates the
+# captured credential.  e.g. "cert iii and or iv TO join our" → stops at "to".
+_CRED_PROSE_TAIL_STOP: frozenset = frozenset({
+    "to", "you", "we", "our", "their", "will", "provide",
+    "join", "team", "staff", "passionate", "motivated",
+    "who", "where", "when", "while", "which", "as",
+    "are", "is", "has", "have", "was", "were",
+    "currently", "supportive", "friendly",
+})
+
+
+def _trim_qual_phrase(phrase_lower: str) -> str:
+    """Trim a qualification phrase to remove trailing prose words.
+
+    ``_QUAL_PATTERN.match`` is anchored at the start but does NOT require a
+    full match, so "cert iii and or iv to join our" also matches.  This helper
+    walks the tail after the matched portion and stops at the first stop word,
+    yielding "cert iii and or iv" instead.
+
+    The pattern's alternation (``i{1,4}`` before ``iv``) can stop mid-word
+    (matching "i" from "iv"), so we first advance to the nearest word boundary
+    before inspecting the tail.
+    """
+    m = _QUAL_PATTERN.match(phrase_lower)
+    if not m:
+        return phrase_lower
+    # Advance to the end of the current token (handles regex stopping mid-word,
+    # e.g. matching "certificate i" from "certificate iv").
+    end = m.end()
+    while end < len(phrase_lower) and phrase_lower[end] not in " \t":
+        end += 1
+    base = phrase_lower[:end]
+    tail_words = phrase_lower[end:].strip().split()
+    allowed: list = []
+    for w in tail_words:
+        if w.strip(".,;:()") in _CRED_PROSE_TAIL_STOP:
+            break
+        allowed.append(w)
+    return (base + (" " + " ".join(allowed) if allowed else "")).strip()
+
+
 def _is_setting_descriptor(phrase_lower: str) -> bool:
     """True when *phrase_lower* is a sector/setting label OR a setting label
     followed by a context qualifier (experience/facility/environment/…).
@@ -671,13 +714,14 @@ def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
                     if not phrase_lower:
                         continue
 
-                    # Route via recognisers — same logic as post_process_skills
-                    is_cred = (
-                        _is_qualification_phrase(phrase_lower)
-                        or _is_au_unit_code(phrase_lower)
-                        or _has_credential_marker(phrase_lower)
-                    )
-                    if is_cred:
+                    # Route via recognisers — same logic as post_process_skills.
+                    # For qualification phrases, trim any trailing prose words
+                    # (_QUAL_PATTERN is prefix-only so "cert iii to join our"
+                    # also matches; _trim_qual_phrase stops at prose stop words).
+                    if _is_qualification_phrase(phrase_lower):
+                        found_phrases.append((_trim_qual_phrase(phrase_lower), "credential"))
+                        continue
+                    if _is_au_unit_code(phrase_lower):
                         found_phrases.append((phrase_lower, "credential"))
                         continue
 
