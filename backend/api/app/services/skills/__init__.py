@@ -20,6 +20,7 @@ from app.services.skills.classifier import (
 )
 from app.services.skills.post_process import (
     clamp_by_jd_sections,
+    drop_ungrounded_soft_skills,
     enrich_required_skills_from_jd_body,
     post_process_cv_skills,
     post_process_jd_analysis,
@@ -32,6 +33,7 @@ __all__ = [
     "clamp_by_jd_sections",
     "classify",
     "classify_many",
+    "drop_ungrounded_soft_skills",
     "enrich_required_skills_from_jd_body",
     "is_noise",
     "lexicon_stats",

@@ -219,6 +219,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # Runs BEFORE post_process_jd_analysis so injected canonicals flow
             # through the same dedup / sidecar path as LLM-extracted ones.
             from app.services.skills import (
+                drop_ungrounded_soft_skills,
                 enrich_required_skills_from_jd_body,
                 post_process_jd_analysis,
                 verify_skill_evidence,
@@ -233,6 +234,15 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # Gate only sees the LLM's output; the floor is trusted by
             # construction (it's a curated regex against the JD body).
             jd_analysis = verify_skill_evidence(
+                jd_analysis,
+                payload.jd_text,
+                role_family_id=str(jd_analysis.get("role_family") or "master"),
+            )
+            # Soft-skill grounding gate — drop LLM soft skills with no verbatim
+            # canonical/variant in the JD (e.g. "reliability"/"flexibility"
+            # inferred from employer-preference prose). Runs before the floor,
+            # which re-adds any genuinely grounded soft skill.
+            jd_analysis = drop_ungrounded_soft_skills(
                 jd_analysis,
                 payload.jd_text,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),

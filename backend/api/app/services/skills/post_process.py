@@ -28,6 +28,7 @@ from app.services.skills.classifier import (
     classify,
     is_noise,
     normalise,
+    variants_for_canonical,
 )
 
 # ---------------------------------------------------------------------------
@@ -1272,6 +1273,91 @@ def verify_skill_evidence(
         )
         meta = dict(out.get("lexicon_meta") or {})
         meta["ungrounded"] = ungrounded
+        out["lexicon_meta"] = meta
+
+    return out
+
+
+_GROUND_TOKEN_RE = re.compile(r"[^a-z0-9\- ]+")
+
+
+def _ground_norm(s: str) -> str:
+    """Lowercase, convert unicode dashes, drop all punctuation except internal
+    hyphens, collapse whitespace. Applied IDENTICALLY to the JD blob and to each
+    lexicon variant key so word-boundary substring tests are consistent."""
+    s = (s or "").lower()
+    for ch in "‐‑‒–—−":
+        s = s.replace(ch, "-")
+    s = _GROUND_TOKEN_RE.sub(" ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _ground_blob(jd_text: str) -> str:
+    """Space-padded normalised JD blob for word-boundary substring tests."""
+    return f" {_ground_norm(jd_text)} "
+
+
+def drop_ungrounded_soft_skills(
+    jd_analysis: Dict[str, Any],
+    jd_text: str,
+    *,
+    role_family_id: str,
+) -> Dict[str, Any]:
+    """Drop LLM-emitted soft skills with no verbatim support in the JD.
+
+    A soft skill is GROUNDED when its canonical — or any of its lexicon
+    variants — appears verbatim (word-boundary) in the JD text. Ungrounded
+    soft skills are LLM inferences from employer-preference / scheduling prose
+    (e.g. "reliability", "flexibility" with no matching word in the JD) and are
+    removed. Mirrors the recall floor's verbatim rule, applied as a filter.
+
+    Runs BEFORE the recall floor, which re-adds any genuinely grounded soft
+    skill, so this can only remove fabrications. Drops are recorded under
+    ``lexicon_meta.ungrounded`` with reason ``soft_skill_not_in_jd``.
+
+    No-op for the ``master`` family (no vertical lexicon to ground against).
+    """
+    vertical = _ROLE_FAMILY_TO_VERTICAL.get(role_family_id)
+    if vertical is None:
+        return jd_analysis
+
+    blob = _ground_blob(jd_text)
+    if not blob.strip():
+        return jd_analysis
+
+    out = dict(jd_analysis)
+    dropped: List[Dict[str, str]] = []
+
+    for block_key in ("required_skills", "preferred_skills"):
+        block = dict(out.get(block_key) or {})
+        kept: List[str] = []
+        for skill in (block.get("soft_skills") or []):
+            if not isinstance(skill, str) or not skill.strip():
+                continue
+            keys = variants_for_canonical(skill, vertical)
+            grounded = any(
+                nk and f" {nk} " in blob
+                for nk in (_ground_norm(k) for k in keys)
+            )
+            if grounded:
+                kept.append(skill)
+            else:
+                dropped.append({
+                    "skill": skill,
+                    "bucket": f"{block_key}.soft_skills",
+                    "evidence": "",
+                    "reason": "soft_skill_not_in_jd",
+                })
+        block["soft_skills"] = kept
+        out[block_key] = block
+
+    if dropped:
+        logger.info(
+            "soft-skill grounding gate (family=%s): dropped %d ungrounded — %s",
+            role_family_id, len(dropped), [d["skill"] for d in dropped],
+        )
+        meta = dict(out.get("lexicon_meta") or {})
+        meta["ungrounded"] = list(meta.get("ungrounded") or []) + dropped
         out["lexicon_meta"] = meta
 
     return out
