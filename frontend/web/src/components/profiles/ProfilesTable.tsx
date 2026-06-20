@@ -10,11 +10,9 @@
  */
 
 import Link from "next/link";
-import { Bookmark } from "lucide-react";
 import { RunNowButton }       from "@/components/RunNowButton";
 import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { CopyProfileButton }   from "@/components/CopyProfileButton";
-import { AddJobButton }        from "@/components/jobs/AddJobButton";
 
 export interface ProfileRow {
   id:             string;

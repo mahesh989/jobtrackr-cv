@@ -136,7 +136,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
   // Applied jobs by source (query only profiles we have)
   const profileIds = profiles.map((p) => p.id);
-  let appliedBySource: Record<string, number> = {};
+  const appliedBySource: Record<string, number> = {};
   if (profileIds.length > 0) {
     const { data: appliedJobs } = await admin
       .from("jobs")
