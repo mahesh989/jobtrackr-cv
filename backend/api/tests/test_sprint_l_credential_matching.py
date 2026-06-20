@@ -143,3 +143,15 @@ class TestAhpraRegistration:
     def test_generic_registration_does_not_match(self):
         # Unrelated "registration" must not be satisfied by an AHPRA number.
         assert user_has_credential("software registration", self._WITH_AHPRA) is False
+
+    def test_registration_with_nurse_substring_does_not_misfire(self):
+        # Word-boundary guard: "nurse" as a substring of another token must not
+        # satisfy AHPRA (e.g. a contrived "nursery vehicle registration").
+        assert user_has_credential(
+            "nursery vehicle registration", self._WITH_AHPRA
+        ) is False
+
+    def test_midwifery_registration_satisfied(self):
+        assert user_has_credential(
+            "current midwifery registration", self._WITH_AHPRA
+        ) is True

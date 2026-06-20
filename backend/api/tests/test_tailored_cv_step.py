@@ -392,3 +392,24 @@ def test_enforce_company_anchor_no_op_when_s2_ends_with_dangling_preposition():
     out = _enforce_company_anchor(md, cv_text)
     assert "The Jesmond Group" not in out
 
+
+def test_enforce_company_anchor_no_op_when_s2_ends_with_dangling_subordinator():
+    """S2 truncated mid-clause on a subordinator/participle ('that', 'including',
+    'across') is blocked — appending an anchor there would be ungrammatical."""
+    cv_text = (
+        "### The Jesmond Group | Miranda, NSW\n"
+        "AIN | May 2025 – Present\n\n"
+        "### Uniting | Leichhardt, NSW\n"
+        "AIN | Mar 2024 – Apr 2025\n"
+    )
+    for tail in ("multidisciplinary teams that", "many duties including",
+                 "delivered care across"):
+        md = (
+            "## Career Highlights\n\n"
+            "Compassionate AIN with strong clinical skills. "
+            f"Experienced in {tail}\n\n"
+            "## Professional Experience\n"
+        )
+        out = _enforce_company_anchor(md, cv_text)
+        assert "The Jesmond Group" not in out, f"anchor wrongly injected after '{tail}'"
+

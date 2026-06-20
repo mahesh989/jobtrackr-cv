@@ -729,7 +729,9 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     # A missing trailing period is fine — the AI often truncates at word count
     # without punctuating; we treat that as an eligible, complete thought.
     _DANGLING_END_RE = re.compile(
-        r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so)\s*\.?\s*$",
+        r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so"
+        r"|that|which|where|who|whom|whose|including|across|through|within"
+        r"|into|onto|from|than|nor)\s*\.?\s*$",
         re.IGNORECASE,
     )
     if _DANGLING_END_RE.search(s2):

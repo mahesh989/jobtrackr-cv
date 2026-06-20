@@ -361,7 +361,10 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         or "enrolled nurse" in kw
         or "nursing registration" in kw
         or "nmba" in kw
-        or ("registration" in kw and ("nurse" in kw or "nursing" in kw or "midwife" in kw or "ahpra" in kw))
+        or (
+            "registration" in kw
+            and re.search(r"\b(nurse|nursing|midwife|midwifery|ahpra)\b", kw)
+        )
     ):
         return has("ahpra_number")
 
