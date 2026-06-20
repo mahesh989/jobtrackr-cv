@@ -462,6 +462,36 @@ _CREDENTIAL_COMPONENT_LABELS: frozenset = frozenset({
 
 _WORD_FAMILY_TOKEN_RE = re.compile(r"[a-z][a-z]+")
 
+# Context words that indicate a setting-label phrase is being used as a JD
+# requirement qualifier (e.g. "residential aged care facility experience")
+# rather than as a standalone skill. Containment of any _SECTOR_SETTING_LABELS
+# member PLUS one of these trailing words → treat as setting descriptor.
+_SETTING_CONTEXT_WORDS: frozenset = frozenset({
+    "experience", "facility", "environment", "setting",
+    "background", "exposure", "knowledge",
+})
+
+
+def _is_setting_descriptor(phrase_lower: str) -> bool:
+    """True when *phrase_lower* is a sector/setting label OR a setting label
+    followed by a context qualifier (experience/facility/environment/…).
+
+    Examples:
+      "aged care"                              → True  (exact)
+      "residential aged care"                  → True  (exact)
+      "residential aged care facility experience" → True  (containment)
+      "personal care"                          → False (not a setting label)
+    """
+    if phrase_lower in _SECTOR_SETTING_LABELS:
+        return True
+    tokens = phrase_lower.split()
+    if tokens and tokens[-1] in _SETTING_CONTEXT_WORDS:
+        # Check whether any setting label is a prefix of this phrase
+        for label in _SECTOR_SETTING_LABELS:
+            if phrase_lower.startswith(label):
+                return True
+    return False
+
 
 def _share_content_token(phrase_a: str, phrase_b: str, *, min_len: int = 4) -> bool:
     """True when any content token (alpha-only, >= ``min_len`` chars) of
@@ -517,6 +547,107 @@ def _build_job_context(
     return {
         "setting":  settings[0] if settings else None,
         "settings": settings,
+    }
+
+
+# Preferred-signal markers in a JD line — when a line containing a credential
+# phrase also has one of these words, treat the credential as preferred/desirable
+# rather than required.
+_PREFERRED_MARKERS: frozenset = frozenset({
+    "desirable", "highly desirable", "advantageous", "preferred",
+    "highly regarded", "well regarded", "nice to have", "bonus",
+    "ideally", "would be an advantage", "an advantage",
+})
+
+
+def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
+    """Deterministic scan of JD text for credential and eligibility phrases.
+
+    Returns ``{"required": [...], "preferred": [...], "eligibility": [...]}``.
+    Reuses the existing recogniser functions and ``is_noise`` (which covers the
+    251 credential + 106 eligibility entries in ``_universal_noise.json``).
+
+    Lines containing preferred-signal markers (``desirable``, ``preferred``,
+    etc.) route matching phrases to ``preferred``; otherwise to ``required``.
+    Eligibility phrases (working rights, police/NDIS checks, vaccination) route
+    to the flat ``eligibility`` list regardless of preferred markers.
+
+    Order-preserving dedup via ``_dedup_keep_order``.
+    """
+    required: List[str] = []
+    preferred: List[str] = []
+    eligibility: List[str] = []
+
+    for line in jd_text.splitlines():
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        line_lower = line_stripped.lower()
+
+        # Detect preferred-signal in the line
+        is_preferred_line = any(m in line_lower for m in _PREFERRED_MARKERS)
+
+        # Collect all candidate phrases from the line using a sliding ngram window
+        # (1–8 words) to cover multi-word credentials like "certificate iii in
+        # individual support (ageing)".
+        words = line_stripped.split()
+        found_phrases: List[str] = []
+        for start in range(len(words)):
+            for end in range(start + 1, min(start + 9, len(words) + 1)):
+                phrase = " ".join(words[start:end])
+                phrase_lower = phrase.lower().strip(".,;:()")
+                if not phrase_lower:
+                    continue
+
+                # Route via recognisers — same logic as post_process_skills
+                is_cred = (
+                    _is_qualification_phrase(phrase_lower)
+                    or _is_au_unit_code(phrase_lower)
+                    or _has_credential_marker(phrase_lower)
+                )
+                if is_cred:
+                    found_phrases.append((phrase_lower, "credential"))
+                    continue
+
+                if _is_vehicle_eligibility(phrase_lower):
+                    found_phrases.append((phrase_lower, "eligibility"))
+                    continue
+
+                # is_noise covers the static credential/eligibility lists
+                noise_type = is_noise(phrase_lower)
+                if noise_type in ("credential", "eligibility"):
+                    found_phrases.append((phrase_lower, noise_type))
+
+        # Deduplicate within this line — keep longest match only (greedy)
+        # to avoid "police check" AND "national police check" both appearing.
+        if not found_phrases:
+            continue
+
+        # Sort by phrase length descending, greedily pick non-overlapping
+        found_phrases_sorted = sorted(found_phrases, key=lambda x: len(x[0]), reverse=True)
+        used_chars: set = set()
+        for phrase_lower, noise_type in found_phrases_sorted:
+            # Find the position of this phrase in the line
+            idx = line_lower.find(phrase_lower)
+            if idx == -1:
+                continue
+            span = set(range(idx, idx + len(phrase_lower)))
+            if span & used_chars:
+                continue  # overlaps a longer match already accepted
+            used_chars |= span
+
+            phrase_display = line_stripped[idx: idx + len(phrase_lower)]
+            if noise_type == "eligibility":
+                eligibility.append(phrase_display)
+            elif is_preferred_line:
+                preferred.append(phrase_display)
+            else:
+                required.append(phrase_display)
+
+    return {
+        "required":    _dedup_keep_order(required),
+        "preferred":   _dedup_keep_order(preferred),
+        "eligibility": _dedup_keep_order(eligibility),
     }
 
 
@@ -616,7 +747,9 @@ def post_process_skills(
             # 1a'''. Sector / setting descriptors — strip from Skills, route
             #       to setting_label sidecar. Symmetric to the CV-side
             #       _ROLE_CATEGORY_LABELS filter in eval/enforce.py.
-            if phrase_lower in _SECTOR_SETTING_LABELS:
+            #       Containment check catches "residential aged care facility
+            #       experience" which has trailing words beyond the bare label.
+            if _is_setting_descriptor(phrase_lower):
                 sidecar["setting_label"].append(phrase)
                 continue
 
@@ -700,7 +833,7 @@ def post_process_skills(
             # exactly the labels we need to strip, but step 1a' could only
             # see the LLM's surface phrase. Catch them now.
             canon_lower = display.lower()
-            if canon_lower in _SECTOR_SETTING_LABELS:
+            if _is_setting_descriptor(canon_lower):
                 sidecar["setting_label"].append(phrase)
                 continue
             if canon_lower in _CREDENTIAL_COMPONENT_LABELS:
@@ -1016,6 +1149,35 @@ def verify_skill_evidence(
     return out
 
 
+# Coordination-expansion — "written and verbal communication" → expands to
+# also include "written communication" and "verbal communication" as separate
+# scannable phrases so the lexicon recall floor can match each modifier.
+# Narrowly scoped to the communication modifier family to avoid false positives
+# (e.g. "manual handling and infection control" must NOT expand).
+_COORD_COMM_RE = re.compile(
+    r"\b(written|verbal|oral|interpersonal)\s+and\s+(written|verbal|oral|interpersonal)"
+    r"\s+(communication)\b",
+    re.IGNORECASE,
+)
+
+
+def _expand_coordinated_modifiers(text: str) -> str:
+    """Append expanded forms for coordinated communication modifiers.
+
+    "written and verbal communication skills" → appends
+    " written communication verbal communication" so both variants are
+    reachable by a `\b…\b` regex search.
+    """
+    extras: List[str] = []
+    for m in _COORD_COMM_RE.finditer(text):
+        mod1, mod2, head = m.group(1), m.group(2), m.group(3)
+        extras.append(f"{mod1.lower()} {head.lower()}")
+        extras.append(f"{mod2.lower()} {head.lower()}")
+    if extras:
+        return text + " " + " ".join(extras)
+    return text
+
+
 def _scan_text(jd_text: str, summary: Optional[str], responsibilities: Any) -> str:
     """Combine jd_text + structured summary + responsibilities into one
     lowercase scannable blob. Unicode dash-likes are normalised to '-' so
@@ -1031,6 +1193,9 @@ def _scan_text(jd_text: str, summary: Optional[str], responsibilities: Any) -> s
     # Normalise unicode dash variants (matches classifier.normalise)
     for ch in "‐‑‒–—−":
         text = text.replace(ch, "-")
+    # Expand coordinated communication modifiers so "written and verbal
+    # communication" also matches "written communication" in the lexicon scan.
+    text = _expand_coordinated_modifiers(text)
     return text
 
 
@@ -1129,7 +1294,7 @@ def enrich_required_skills_from_jd_body(
         # Skip sector / setting labels and credential components — the
         # post-process layer strips them from LLM extractions, so the
         # recall floor must not re-inject them via the vertical lexicon.
-        if canon_lower in _SECTOR_SETTING_LABELS:
+        if _is_setting_descriptor(canon_lower):
             continue
         if canon_lower in _CREDENTIAL_COMPONENT_LABELS:
             continue

@@ -223,6 +223,10 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 post_process_jd_analysis,
                 verify_skill_evidence,
             )
+            from app.services.skills.post_process import (
+                _dedup_keep_order,
+                extract_credentials_from_jd,
+            )
             # Phase-1 groundedness gate — drop LLM-extracted skills whose
             # evidence quote isn't in the JD (hallucinations) BEFORE the
             # deterministic floor below adds any lexicon-verified extras.
@@ -243,6 +247,30 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 jd_analysis,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
             )
+
+            # Deterministic credential scan over the cleaned JD text — catches
+            # credentials the LLM correctly excluded from skills (so the sidecar
+            # is empty) but that are explicitly listed in the JD. Merges with
+            # any sidecar-derived credentials already in jd_analysis["credentials"].
+            try:
+                scanned = extract_credentials_from_jd(jd_text_for_llm)
+                existing_creds = jd_analysis.get("credentials") or {}
+                jd_analysis["credentials"] = {
+                    "required":    _dedup_keep_order(
+                        list(existing_creds.get("required") or [])
+                        + scanned["required"]
+                    ),
+                    "preferred":   _dedup_keep_order(
+                        list(existing_creds.get("preferred") or [])
+                        + scanned["preferred"]
+                    ),
+                    "eligibility": _dedup_keep_order(
+                        list(existing_creds.get("eligibility") or [])
+                        + scanned["eligibility"]
+                    ),
+                }
+            except Exception:  # noqa: BLE001
+                logger.debug("credential scan: failed", exc_info=True)
 
             # Essential vs Desirable deterministic clamp — move skills between
             # required ↔ preferred where the JD's section headers contradict
