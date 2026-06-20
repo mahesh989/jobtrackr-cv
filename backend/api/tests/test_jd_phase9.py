@@ -82,6 +82,27 @@ def test_master_family_noop():
     assert out["required_skills"]["soft_skills"] == ["reliability", "flexibility"]
 
 
+def test_leadership_not_grounded_by_boilerplate_leading():
+    """A casual care role should not gain 'leadership' just because the company
+    blurb says 'leading aged care provider'. The weak variants 'lead'/'leading'
+    must not ground the requirement on their own."""
+    jd = "Bolton Clarke is a leading aged care provider. Provide personal care."
+    out = drop_ungrounded_soft_skills(
+        _analysis(["leadership"]), jd, role_family_id="nursing",
+    )
+    assert "leadership" not in out["required_skills"]["soft_skills"]
+
+
+def test_leadership_grounded_by_real_phrasing():
+    """Genuine leadership language ('providing leadership', 'team leadership')
+    still grounds the canonical."""
+    jd = "You will be providing leadership and team leadership to junior staff."
+    out = drop_ungrounded_soft_skills(
+        _analysis(["leadership"]), jd, role_family_id="nursing",
+    )
+    assert "leadership" in out["required_skills"]["soft_skills"]
+
+
 def test_only_touches_soft_skills():
     """Technical and domain_knowledge buckets are never filtered by this gate."""
     analysis = {

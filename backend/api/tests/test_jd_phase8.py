@@ -56,6 +56,26 @@ def test_trim_cert_prose_you_will():
     assert "cert iii" in result
 
 
+def test_trim_stops_at_parenthetical_alternative():
+    """'(or equivalent)' / '(or Certificate IV …)' is an alternative, not part of
+    the credential name — must not leak a dangling '(or'."""
+    assert _trim_qual_phrase(
+        "certificate iii in individual support & ageing (or equivalent)"
+    ) == "certificate iii in individual support & ageing"
+    assert _trim_qual_phrase(
+        "certificate iii in ageing (or certificate iv in ageing support)"
+    ) == "certificate iii in ageing"
+
+
+def test_scan_no_dangling_paren_in_credentials():
+    out = extract_credentials_from_jd(
+        "Certificate III in Individual Support & Ageing (or equivalent) is desirable.\n"
+    )
+    all_creds = out["required"] + out["preferred"]
+    assert not any(c.rstrip().endswith("(or") for c in all_creds)
+    assert any("certificate iii in individual support" in c.lower() for c in all_creds)
+
+
 # ---------------------------------------------------------------------------
 # Prose lines must NOT appear as credentials
 # ---------------------------------------------------------------------------

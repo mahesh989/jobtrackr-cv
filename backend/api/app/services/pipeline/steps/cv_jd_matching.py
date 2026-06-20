@@ -321,6 +321,57 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
     return _re.search(pattern, cv_text.lower()) is not None
 
 
+# Australian VET qualification ladder. A higher AQF level in the same vocational
+# family subsumes a lower one — completing a Certificate IV in Ageing Support
+# embeds the Certificate III in Individual Support, so a JD asking for the Cert
+# III is satisfied by a CV holding the Cert IV (or a Diploma / Bachelor).
+_QUAL_LEVEL_PATTERNS: List[Tuple[Any, int]] = [
+    (_re.compile(r"\bbachelor\b"), 7),
+    (_re.compile(r"\badvanced\s+diploma\b"), 6),
+    (_re.compile(r"\bdiploma\b"), 5),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:iv|4)\b"), 4),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:iii|3)\b"), 3),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:ii|2)\b"), 2),
+    (_re.compile(r"\b(?:certificate|cert\.?)\s*(?:i|1)\b"), 1),
+]
+
+# Vocational family the ladder applies to (aged / community / disability care).
+# A Cert IV in *Cleaning* must NOT subsume a Cert III in Individual Support, so
+# both the requirement and the CV qualification must sit in this family.
+_CARE_QUAL_FAMILY: Tuple[str, ...] = (
+    "individual support", "ageing", "aged care", "aged-care",
+    "community service", "disability", "home and community", "personal care",
+)
+
+
+def _qual_level(text: str) -> int:
+    """Highest AQF qualification level named in *text* (0 if none)."""
+    for pat, level in _QUAL_LEVEL_PATTERNS:
+        if pat.search(text):
+            return level
+    return 0
+
+
+def _in_care_qual_family(text: str) -> bool:
+    return any(fam in text for fam in _CARE_QUAL_FAMILY)
+
+
+def _qualification_subsumed_by_cv(phrase: str, cv_text: str) -> bool:
+    """True when a required care qualification is met by an equal-or-higher CV
+    qualification in the same family (Cert IV in Ageing Support ⊇ Cert III in
+    Individual Support)."""
+    pl = (phrase or "").lower()
+    req_level = _qual_level(pl)
+    if req_level == 0 or not _in_care_qual_family(pl):
+        return False
+    # Scan the CV line-by-line so the level is tied to a care-family line, not a
+    # stray higher qualification elsewhere (e.g. a Bachelor of Science).
+    for line in (cv_text or "").lower().splitlines():
+        if _in_care_qual_family(line) and _qual_level(line) >= req_level:
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Profile credential promotion
 # ---------------------------------------------------------------------------
@@ -456,6 +507,8 @@ def _build_credentials_gap(
 
     def _satisfied(phrase: str) -> bool:
         if _literal_match_in_text(phrase, cv_text):
+            return True
+        if _qualification_subsumed_by_cv(phrase, cv_text):
             return True
         if contact_details and user_has_credential(phrase, contact_details):
             return True

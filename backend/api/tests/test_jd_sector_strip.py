@@ -101,7 +101,8 @@ class TestSectorLabelStrip:
 
     def test_post_canonicalisation_credential_component(self):
         """LLM emits a variant of 'individual support' canonical →
-        route to credential sidecar post-classify."""
+        stripped from Skills and dropped to noise (NOT surfaced as a phantom
+        standalone credential)."""
         jd = {
             "required_skills": {
                 "technical": [], "soft_skills": [], "domain_knowledge": [],
@@ -116,8 +117,12 @@ class TestSectorLabelStrip:
         # canonical → strip post-classify.
         assert "individual support" not in out["preferred_skills"]["domain_knowledge"]
         assert "individualised support" not in out["preferred_skills"]["domain_knowledge"]
+        # Must NOT appear as a standalone credential (it is a Cert-III fragment).
         creds = out["lexicon_meta"]["preferred"]["credential"]
-        assert any("individual" in c.lower() for c in creds)
+        assert not any("individual" in c.lower() for c in creds)
+        # Routed to noise instead.
+        noise = out["lexicon_meta"]["preferred"]["noise"]
+        assert any("individual" in n.lower() for n in noise)
 
     def test_setting_labels_set_matches_design(self):
         """Sanity check on the curated set itself — guards against silent
@@ -137,8 +142,13 @@ class TestSectorLabelStrip:
 
 
 class TestCredentialComponents:
-    def test_bare_individual_support_routes_to_credential(self):
-        """Comes from 'Cert III in Individual Support (Ageing, Home, …)'."""
+    def test_bare_individual_support_routes_to_noise(self):
+        """Comes from 'Cert III in Individual Support (Ageing, Home, …)'.
+
+        These are qualification fragments, not standalone credentials — they are
+        stripped from Skills and dropped to noise so they never surface as a
+        phantom 'missing credential' in the gap report.
+        """
         jd = {
             "required_skills": {
                 "technical": [], "soft_skills": [], "domain_knowledge": [],
@@ -155,10 +165,14 @@ class TestCredentialComponents:
         assert "ageing support" not in skills_after
         # Real skill stays.
         assert "personal care" in skills_after
-        # Routed to credential sidecar.
+        # NOT surfaced as credentials.
         creds = out["lexicon_meta"]["preferred"]["credential"]
-        assert any("individual support" in c.lower() for c in creds)
-        assert any("ageing support" in c.lower() for c in creds)
+        assert not any("individual support" in c.lower() for c in creds)
+        assert not any("ageing support" in c.lower() for c in creds)
+        # Routed to noise instead.
+        noise = out["lexicon_meta"]["preferred"]["noise"]
+        assert any("individual support" in n.lower() for n in noise)
+        assert any("ageing support" in n.lower() for n in noise)
 
     def test_credential_component_set_matches_design(self):
         # Components of Cert III in Individual Support (Ageing, Home, …)

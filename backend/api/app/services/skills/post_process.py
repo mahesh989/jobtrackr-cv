@@ -510,6 +510,11 @@ def _trim_qual_phrase(phrase_lower: str) -> str:
     tail_words = phrase_lower[end:].strip().split()
     allowed: list = []
     for w in tail_words:
+        # A parenthetical opens an alternative/clarification ("(or equivalent)",
+        # "(or Certificate IV …)") that is not part of the core credential name —
+        # stop before it so we never leave a dangling "(or".
+        if w.startswith("("):
+            break
         if w.strip(".,;:()") in _CRED_PROSE_TAIL_STOP:
             break
         allowed.append(w)
@@ -883,9 +888,12 @@ def post_process_skills(
                 continue
 
             # 1a''''. Bare credential-component labels (fragments of Cert III
-            #        in Individual Support / Ageing). Route to credentials.
+            #        in Individual Support / Ageing). These are NOT standalone
+            #        credentials — surfacing "individual support" in the
+            #        credential block produces a phantom "missing credential".
+            #        Drop them to noise: out of Skills AND out of credentials.
             if phrase_lower in _CREDENTIAL_COMPONENT_LABELS:
-                sidecar["credential"].append(phrase)
+                sidecar["noise"].append(phrase)
                 continue
 
             # 1b. Universal noise — runs for ALL families. A phrase here
@@ -966,7 +974,7 @@ def post_process_skills(
                 sidecar["setting_label"].append(phrase)
                 continue
             if canon_lower in _CREDENTIAL_COMPONENT_LABELS:
-                sidecar["credential"].append(phrase)
+                sidecar["noise"].append(phrase)
                 continue
 
             key = (display.lower(), target_cat)
@@ -1297,6 +1305,14 @@ def _ground_blob(jd_text: str) -> str:
     return f" {_ground_norm(jd_text)} "
 
 
+# Single-word lexicon variants too generic to ground a soft-skill *requirement*
+# on their own. "leading"/"lead" appear constantly in company boilerplate
+# ("leading aged care provider") and would otherwise ground the canonical
+# "leadership" as a phantom requirement. Multi-word variants ("team leadership",
+# "providing leadership") still ground normally.
+_WEAK_GROUNDING_TOKENS: frozenset = frozenset({"lead", "leading"})
+
+
 def drop_ungrounded_soft_skills(
     jd_analysis: Dict[str, Any],
     jd_text: str,
@@ -1336,7 +1352,7 @@ def drop_ungrounded_soft_skills(
                 continue
             keys = variants_for_canonical(skill, vertical)
             grounded = any(
-                nk and f" {nk} " in blob
+                nk and nk not in _WEAK_GROUNDING_TOKENS and f" {nk} " in blob
                 for nk in (_ground_norm(k) for k in keys)
             )
             if grounded:

@@ -276,3 +276,38 @@ class TestBuildCredentialsGap:
     def test_no_credentials_yields_empty(self):
         gap = _build_credentials_gap({}, {"required": {}, "preferred": {}}, cv_text="", contact_details=None)
         assert gap["required"] == [] and gap["preferred"] == [] and gap["eligibility"] == []
+
+    def test_cert_iv_subsumes_required_cert_iii(self):
+        # JD wants Cert III in Individual Support; CV holds the higher Cert IV in
+        # Ageing Support (same family) → satisfied, not missing.
+        jd = {"credentials": {
+            "required": ["Certificate III in Individual Support"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Education\nCertificate IV in Ageing Support\nBachelor of Science"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Certificate III in Individual Support" in gap["present"]
+        assert "Certificate III in Individual Support" not in gap["missing"]
+
+    def test_subsumption_does_not_cross_family(self):
+        # A Cert IV in Cleaning must NOT satisfy a Cert III in Individual Support.
+        jd = {"credentials": {
+            "required": ["Certificate III in Individual Support"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Certificate IV in Cleaning Operations"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Certificate III in Individual Support" in gap["missing"]
+
+    def test_subsumption_respects_level(self):
+        # CV Cert III cannot satisfy a required Diploma in the same family.
+        jd = {"credentials": {
+            "required": ["Diploma of Community Services"],
+            "preferred": [], "eligibility": [],
+        }}
+        cv = "Certificate III in Individual Support"
+        gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
+                                     cv_text=cv, contact_details=None)
+        assert "Diploma of Community Services" in gap["missing"]
