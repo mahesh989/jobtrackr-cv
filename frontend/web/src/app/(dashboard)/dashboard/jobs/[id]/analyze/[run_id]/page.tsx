@@ -152,7 +152,6 @@ export default async function AnalyzeRunPage({ params }: Props) {
             to refresh with the current JD.
           </div>
         )}
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <AnalysisRunClient
           runId={runId}
           initial={run as any}
@@ -160,7 +159,6 @@ export default async function AnalyzeRunPage({ params }: Props) {
           cvCharLen={cvCharLen}
           cvCategorisedSkills={cvSkills}
         />
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <CoverLetterPanel
           jobId={jobId}
           initial={existingLetter as any}

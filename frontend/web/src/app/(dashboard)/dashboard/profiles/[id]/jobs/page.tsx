@@ -25,7 +25,6 @@ import { DeleteProfileButton } from "@/components/DeleteProfileButton";
 import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
 import { LiveRunStatus } from "@/components/LiveRunStatus";
 import { LiveLogConsole } from "@/components/LiveLogConsole";
-import { type Job } from "@/components/jobs/JobTable";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
 import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";

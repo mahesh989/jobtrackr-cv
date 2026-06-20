@@ -76,7 +76,6 @@ export function LiveRunStatus({
       clearInterval(poll);
       clearInterval(tick);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId, banner, router, run?.started_at]);
 
   async function handleStop() {
