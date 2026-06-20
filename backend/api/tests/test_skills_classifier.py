@@ -277,6 +277,16 @@ class TestFuzzyMatch:
         c = classify("wound managment", "nursing", allow_fuzzy=False)
         assert c is None  # without fuzzy, the typo has no exact match
 
+    def test_short_word_does_not_fuzzy_match_product_name(self):
+        """The bare word 'care' must NOT fuzzy-snap to the VCare software
+        canonical. difflib scores 'care'→'vcare' at ~0.889 (over the 0.88
+        cutoff), but the length guard rejects fuzzy on such short tokens so a
+        JD full of 'care' never injects the VCare product as a skill."""
+        assert classify("care", "nursing") is None
+        # The real product name still resolves via exact match.
+        assert classify("vcare", "nursing").canonical == "VCare"
+        assert classify("v care", "nursing").canonical == "VCare"
+
 
 # ---------------------------------------------------------------------------
 # Universal noise dominates verticals

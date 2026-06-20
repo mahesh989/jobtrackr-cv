@@ -19,11 +19,19 @@ interface MatchRates {
   technical_pct?:        number; soft_skills_pct?:     number; domain_knowledge_pct?: number;
   required_pct?:         number; preferred_pct?:       number; overall_pct?:          number;
 }
+interface CredentialsGap {
+  required?:    string[];
+  preferred?:   string[];
+  eligibility?: string[];
+  present?:     string[];
+  missing?:     string[];
+}
 interface MatchingData {
   matched?:        BucketKeywords;
   missed?:         BucketKeywords;
   counts?:         MatchingCounts;
   match_rates?:    MatchRates;
+  credentials_required?: CredentialsGap;
   // Legacy flat fields
   matched_skills?: string[];
   missing_skills?: string[];
@@ -104,7 +112,60 @@ function CategorisedView({ d, catLabels, catOrder }: { d: MatchingData; catLabel
       <BreakdownTable counts={counts} rates={rates} catLabels={catLabels} catOrder={catOrder} />
 
       <KeywordChipGrid matched={d.matched} missed={d.missed} catLabels={catLabels} catOrder={catOrder} />
+
+      <CredentialGapBlock creds={d.credentials_required} />
     </>
+  );
+}
+
+// ── Credential gap (present / missing against CV + profile) ─────────────────
+
+function CredentialGapBlock({ creds }: { creds?: CredentialsGap }) {
+  if (!creds) return null;
+  const present = Array.from(new Set(creds.present ?? []));
+  const missing = Array.from(new Set(creds.missing ?? []));
+  if (present.length === 0 && missing.length === 0) return null;
+
+  const chip = (kw: string, color: "green" | "red") => (
+    <span
+      key={kw}
+      className={`text-[11px] px-1.5 py-0.5 rounded border font-mono ${
+        color === "green"
+          ? "bg-green-light text-green border-green/30"
+          : "bg-red-light text-red border-red/30"
+      }`}
+    >
+      {kw}
+    </span>
+  );
+
+  return (
+    <div>
+      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+        Credentials &amp; eligibility
+      </h3>
+      <p className="text-[11px] text-text-3 mb-2">
+        Matched against your CV and saved profile credentials.
+      </p>
+      <div className="space-y-2">
+        {present.length > 0 && (
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-green bg-green-light border border-green/30 rounded px-1.5 py-0.5">
+              Present
+            </span>
+            <div className="flex flex-wrap gap-1">{present.map((kw) => chip(kw, "green"))}</div>
+          </div>
+        )}
+        {missing.length > 0 && (
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-red bg-red-light border border-red/30 rounded px-1.5 py-0.5">
+              Missing
+            </span>
+            <div className="flex flex-wrap gap-1">{missing.map((kw) => chip(kw, "red"))}</div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
