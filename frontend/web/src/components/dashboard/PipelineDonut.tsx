@@ -113,9 +113,9 @@ function resolveLensMeta(lens: LensKey, t: { initial: number; final: number }): 
   return {
     ...LENS_META.ats,
     slices: [
-      { label: `Above final (≥ ${t.final})`, color: "#34d399" },
-      { label: `Below final (${t.initial}–${t.final - 1})`, color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
-      { label: `Below initial (< ${t.initial})`, color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
+      { label: `Above final (≥ ${t.final})`, color: "var(--chart-pos)" },
+      { label: `Below final (${t.initial}–${t.final - 1})`, color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
+      { label: `Below initial (< ${t.initial})`, color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
     ],
   };
 }
@@ -142,27 +142,27 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "Sourcing",
     centerLabel: "fetched",
     slices: [
-      { label: "Saved",         color: "#34d399" },
-      { label: "Duplicates",    color: "#94a3b8" },
-      { label: "Filtered out",  color: "#fb923c" },
+      { label: "Saved",         color: "var(--chart-pos)" },
+      { label: "Duplicates",    color: "var(--chart-neutral)" },
+      { label: "Filtered out",  color: "var(--chart-warn)" },
     ],
   },
   jd: {
     label: "JD readiness",
     centerLabel: "jobs",
     slices: [
-      { label: "Full JD",      color: "#34d399", href: "/dashboard?triage=richJd" },
-      { label: "Thin JD",      color: "#fb923c", href: "/dashboard?triage=thinJd" },
-      { label: "Unclassified", color: "#94a3b8" },
+      { label: "Full JD",      color: "var(--chart-pos)", href: "/dashboard?triage=richJd" },
+      { label: "Thin JD",      color: "var(--chart-warn)", href: "/dashboard?triage=thinJd" },
+      { label: "Unclassified", color: "var(--chart-neutral)" },
     ],
   },
   analysis: {
     label: "Analysis",
     centerLabel: "saved",
     slices: [
-      { label: "Complete",     color: "#34d399", href: "/dashboard?stage=letterReady" },
-      { label: "CV only",      color: "#60a5fa", href: "/dashboard?stage=cvReady" },
-      { label: "Not tailored", color: "#94a3b8" },
+      { label: "Complete",     color: "var(--chart-pos)", href: "/dashboard?stage=letterReady" },
+      { label: "CV only",      color: "var(--chart-info)", href: "/dashboard?stage=cvReady" },
+      { label: "Not tailored", color: "var(--chart-neutral)" },
     ],
   },
   ats: {
@@ -171,9 +171,9 @@ const LENS_META: Record<LensKey, LensMeta> = {
     // Placeholder labels — resolveLensMeta() overrides these with the user's
     // actual thresholds at render time.
     slices: [
-      { label: "Above final",  color: "#34d399" },
-      { label: "Below final",  color: "#f59e0b", href: "/dashboard?triage=belowThreshold" },
-      { label: "Below initial", color: "#ef4444", href: "/dashboard?triage=belowThreshold" },
+      { label: "Above final",  color: "var(--chart-pos)" },
+      { label: "Below final",  color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
+      { label: "Below initial", color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
     ],
   },
   applied: {
@@ -181,9 +181,9 @@ const LENS_META: Record<LensKey, LensMeta> = {
     centerLabel: "applied",
     visibleSlices: 2,
     slices: [
-      { label: "Applied",        color: "#ec4899", href: "/dashboard/applications?status=sent" },
-      { label: "Ready to apply", color: "#60a5fa", href: "/dashboard/applications" },
-      { label: "Not yet",        color: "#94a3b8" },
+      { label: "Applied",        color: "var(--chart-applied)", href: "/dashboard/applications?status=sent" },
+      { label: "Ready to apply", color: "var(--chart-info)", href: "/dashboard/applications" },
+      { label: "Not yet",        color: "var(--chart-neutral)" },
     ],
   },
 };
@@ -237,6 +237,19 @@ function toFracsN(c: [number, number, number], n: number): [number, number, numb
 function cssVar(name: string, fb: string) {
   if (typeof window === "undefined") return fb;
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
+}
+
+/**
+ * Slice colours are stored as CSS-var references (e.g. "var(--chart-pos)") so
+ * each theme can recolour the donut. Canvas fillStyle can't read var(), so we
+ * resolve to a computed hex here; DOM (legend dots) can use the var() directly.
+ */
+function resolveColor(c: string): string {
+  if (c.startsWith("var(")) {
+    const name = c.slice(4, -1).split(",")[0].trim();
+    return cssVar(name, "#94a3b8");
+  }
+  return c;
 }
 
 function getTotals(data: PipelineLensData, lens: LensKey): [number, number, number] {
@@ -386,8 +399,8 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
       ? getTotals(data, lensRef.current)[hi]
       : Math.round(dCenter.current);
     const lbl  = hi !== null ? meta.slices[hi].label : meta.centerLabel;
-    const col  = hi !== null ? meta.slices[hi].color : cssVar("--text", "#1e293b");
-    paint(canvas, dFracs.current, meta.slices.map(s => s.color) as [string, string, string], hi, val, lbl, col);
+    const col  = hi !== null ? resolveColor(meta.slices[hi].color) : cssVar("--text", "#1e293b");
+    paint(canvas, dFracs.current, meta.slices.map(s => resolveColor(s.color)) as [string, string, string], hi, val, lbl, col);
   }
 
   // Mount — init canvas DPR + draw initial state
@@ -538,7 +551,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           {activeLens === "analysis" && (data.analysis.avgAtsLift ?? 0) > 0 && (
             <div className="mt-3 px-3 py-2 rounded-md bg-[var(--surface-2)] border border-[var(--border)]">
               <p className="text-[10px] text-text-3 uppercase tracking-wide mb-0.5">Avg ATS lift from tailoring</p>
-              <p className="text-[22px] font-bold leading-none" style={{ color: "#34d399" }}>
+              <p className="text-[22px] font-bold leading-none" style={{ color: "var(--chart-pos)" }}>
                 +{data.analysis.avgAtsLift}
                 <span className="text-[12px] font-normal text-text-2 ml-1">pts</span>
               </p>
@@ -772,7 +785,7 @@ function SourceBar({ src, n, max }: { src: string; n: number; max: number }) {
         <span className="text-[12px] font-semibold text-text">{n}</span>
       </div>
       <div className="h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-500 ease-out bg-[#34d399]" style={{ width: `${w}%` }} />
+        <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${w}%`, background: "var(--chart-pos)" }} />
       </div>
     </div>
   );

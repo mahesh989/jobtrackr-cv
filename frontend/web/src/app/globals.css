@@ -1027,3 +1027,136 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 :root.theme-aurora-light .glow-gold, :root.theme-aurora-light .hover\:glow-gold:hover {
   box-shadow: var(--glow);
 }
+
+/* ============================================================
+   AURORA — consistency pass (borders · buttons · inputs · charts)
+   Fixes raised in review: card borders were inconsistent (Voice/Stories
+   used undefined --card-border tokens → fell back to currentColor), primary
+   buttons weren't the gradient, native checkboxes weren't themed, and the
+   donut/funnel slice colours were hardcoded hex (didn't follow the accent).
+   ============================================================ */
+
+/* 1) Card tokens — these were never defined anywhere, so every
+      `border-[var(--card-border)]` element (Voice, Stories) fell back to
+      currentColor (a bright border on dark). Map them to the standard
+      surface/border tokens so ALL boxes share one border treatment. */
+:root {
+  --card-border: var(--border);
+  --card-bg:     var(--surface);
+
+  /* Chart palette — defaults preserve the current donut/funnel colours.
+     Aurora overrides below harmonise them with the teal/violet accent. */
+  --chart-pos:     #34d399;
+  --chart-info:    #60a5fa;
+  --chart-applied: #ec4899;
+  --chart-warn:    #fb923c;
+  --chart-amber:   #f59e0b;
+  --chart-danger:  #ef4444;
+  --chart-neutral: #94a3b8;
+}
+
+/* 2) Consistent, slightly brand-tinted hairline for EVERY bordered box +
+      input under Aurora (matches the "nice" hover border, applied
+      statically everywhere so cards/forms/inputs all agree). */
+:root.theme-aurora-dark {
+  --border:       color-mix(in srgb, var(--brand) 16%, #1B232E);
+  --border-muted: color-mix(in srgb, var(--brand) 9%,  #161D26);
+}
+:root.theme-aurora-light {
+  --border:       color-mix(in srgb, var(--brand) 16%, #E0E7EE);
+  --border-muted: color-mix(in srgb, var(--brand) 8%,  #EAEFF4);
+}
+
+/* 3) Chart palette → aurora accent family (teal / violet / cyan), still
+      semantically distinct. Other themes keep the defaults above. */
+:root.theme-aurora-dark {
+  --chart-pos:     var(--brand);  /* teal  */
+  --chart-info:    var(--violet); /* violet */
+  --chart-applied: #22D3EE;       /* cyan  */
+  --chart-warn:    #FB923C;
+  --chart-amber:   #FBBF24;
+  --chart-danger:  var(--red);
+  --chart-neutral: #64748B;
+}
+:root.theme-aurora-light {
+  --chart-pos:     var(--brand);
+  --chart-info:    var(--violet);
+  --chart-applied: #0EA5E9;
+  --chart-warn:    #EA580C;
+  --chart-amber:   #B45309;
+  --chart-danger:  var(--red);
+  --chart-neutral: #94A3B8;
+}
+
+/* 4) Primary buttons → the signature aurora gradient, app-wide.
+      Targets square brand-filled buttons/links (the `bg-[var(--brand)]`
+      pattern) and excludes pills (rounded-full keep their solid fill). */
+:root.theme-aurora-dark  button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
+:root.theme-aurora-light button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
+:root.theme-aurora-dark  a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
+:root.theme-aurora-light a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]) {
+  background-image: var(--aurora-grad);
+  background-color: transparent;
+  color: var(--brand-fg) !important;
+  border-color: transparent;
+  transition: transform .12s, box-shadow .15s, opacity .15s;
+}
+:root.theme-aurora-dark  button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
+:root.theme-aurora-light button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
+:root.theme-aurora-dark  a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
+:root.theme-aurora-light a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glow);
+  opacity: 1;
+}
+
+/* 5) Checkboxes → custom gradient box + check (matches the preview),
+      applied to EVERY checkbox so they're consistent app-wide. Radios keep
+      the native control tinted with the brand accent. */
+:root.theme-aurora-dark  input[type="radio"],
+:root.theme-aurora-light input[type="radio"] {
+  accent-color: var(--brand);
+}
+:root.theme-aurora-dark  input[type="checkbox"],
+:root.theme-aurora-light input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background-color: var(--surface-2);
+  display: inline-block;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
+}
+:root.theme-aurora-dark  input[type="checkbox"]:hover,
+:root.theme-aurora-light input[type="checkbox"]:hover {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+}
+:root.theme-aurora-dark  input[type="checkbox"]:focus-visible,
+:root.theme-aurora-light input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+:root.theme-aurora-dark  input[type="checkbox"]:checked,
+:root.theme-aurora-light input[type="checkbox"]:checked {
+  border-color: transparent;
+  background-position: center, center;
+  background-size: 64%, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+/* check glyph colour tracks --brand-fg (dark on the bright dark gradient,
+   white on the light gradient) for guaranteed contrast. */
+:root.theme-aurora-dark input[type="checkbox"]:checked {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2304231F' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-11'/%3E%3C/svg%3E"),
+    var(--aurora-grad);
+}
+:root.theme-aurora-light input[type="checkbox"]:checked {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFFFFF' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-11'/%3E%3C/svg%3E"),
+    var(--aurora-grad);
+}
