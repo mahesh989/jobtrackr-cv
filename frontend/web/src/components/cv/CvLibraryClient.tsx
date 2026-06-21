@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
 import { CvReviewClient } from "@/components/cv/CvReviewClient";
 import type { StructuredCv } from "@/lib/cvBackend";
+import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 
 interface CategorisedSkills {
   technical?:        string[];
@@ -30,6 +31,8 @@ interface CvRow {
 
 interface Props {
   initial: CvRow[];
+  /** Vertical-aware skill-bucket labels (from the user's role_families). */
+  skillLabels?: SkillLabels;
 }
 
 // 5 MB — matches the bucket limit set in migration 013. We're no longer
@@ -58,11 +61,12 @@ async function readError(res: Response): Promise<string> {
   return text.slice(0, 200) || `Upload failed (HTTP ${res.status})`;
 }
 
-export function CvLibraryClient({ initial }: Props) {
+export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cvs, setCvs]             = useState<CvRow[]>(initial);
   const [uploading, setUploading] = useState(false);
+  const [creating, setCreating]   = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -90,6 +94,27 @@ export function CvLibraryClient({ initial }: Props) {
    */
   function openFilePicker() {
     fileInputRef.current?.click();
+  }
+
+  /**
+   * Create a blank "built in app" CV and jump straight into the builder
+   * (CvReviewClient create mode). No file, no AI — just an empty structured CV
+   * the user fills in by hand.
+   */
+  async function handleCreate() {
+    if (creating) return;
+    setError(null);
+    setCreating(true);
+    try {
+      const res = await fetch("/api/cv/create", { method: "POST" });
+      if (!res.ok) { setError(await readError(res)); return; }
+      const json = await res.json() as { id: string; redirect_to: string };
+      router.push(json.redirect_to);
+    } catch (err) {
+      setError(err instanceof Error ? `Network error: ${err.message}` : "Could not create CV.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   /**
@@ -291,7 +316,7 @@ export function CvLibraryClient({ initial }: Props) {
             PDF or DOCX. Max 5 MB. The first CV you upload becomes active automatically.
           </p>
         </div>
-        <div>
+        <div className="flex items-center gap-2 shrink-0">
           <input
             ref={fileInputRef}
             type="file"
@@ -299,6 +324,14 @@ export function CvLibraryClient({ initial }: Props) {
             className="hidden"
             onChange={handleFileChange}
           />
+          <button
+            onClick={handleCreate}
+            disabled={creating || uploading}
+            className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-2 text-sm font-medium text-text transition-colors hover:border-[var(--brand)]/50 hover:text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+          >
+            <FilePlus className="h-4 w-4" />
+            {creating ? "Creating…" : "Build from scratch"}
+          </button>
           <button
             onClick={openFilePicker}
             disabled={uploading}
@@ -320,15 +353,37 @@ export function CvLibraryClient({ initial }: Props) {
       {cvs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
           <FileText className="mx-auto mb-3 h-8 w-8 text-text-3" />
-          <p className="text-text-3">No CV uploaded yet.</p>
+          <p className="text-text-3">No CV yet.</p>
           <p className="mt-1 text-sm text-text-3">
-            Upload a PDF or DOCX to get started.
+            Upload a PDF or DOCX, or build one from scratch to get started.
           </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <button
+              onClick={handleCreate}
+              disabled={creating || uploading}
+              className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-2 text-sm font-medium text-text transition-colors hover:border-[var(--brand)]/50 hover:text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+            >
+              <FilePlus className="h-4 w-4" />
+              {creating ? "Creating…" : "Build from scratch"}
+            </button>
+            <button
+              onClick={openFilePicker}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90 hover:glow-gold disabled:opacity-50"
+            >
+              <Upload className="h-4 w-4" />
+              {uploading ? "Uploading…" : "Upload CV"}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
           {orderedCvs.map((cv) => {
-            const ext = cv.pdf_storage_path?.endsWith(".docx") ? "DOCX" : "PDF";
+            const isBuilt = cv.pdf_storage_path?.startsWith("built://") ?? false;
+            const isDraft = isBuilt && cv.structured_cv_status !== "verified";
+            const ext = isBuilt
+              ? (isDraft ? "Draft" : "Built")
+              : (cv.pdf_storage_path?.endsWith(".docx") ? "DOCX" : "PDF");
             const created = new Date(cv.created_at).toLocaleDateString("en-AU", {
               day: "numeric", month: "short", year: "numeric",
             });
@@ -337,10 +392,14 @@ export function CvLibraryClient({ initial }: Props) {
                 key={cv.id}
                 cv={cv}
                 ext={ext}
+                isBuilt={isBuilt}
+                isDraft={isDraft}
                 created={created}
+                skillLabels={skillLabels}
                 pending={pendingId === cv.id}
                 expanded={expandedId === cv.id}
                 onToggleExpand={() => setExpandedId(prev => prev === cv.id ? null : cv.id)}
+                onEdit={() => router.push(`/dashboard/cv/${cv.id}/review`)}
                 onActivate={() => handleSetActive(cv.id)}
                 onDelete={() => setDeleteTarget(cv)}
                 onStatusChange={(newStatus) =>
@@ -406,10 +465,14 @@ export function CvLibraryClient({ initial }: Props) {
 function CvRowCard({
   cv,
   ext,
+  isBuilt,
+  isDraft,
   created,
+  skillLabels,
   pending,
   expanded,
   onToggleExpand,
+  onEdit,
   onActivate,
   onDelete,
   onStatusChange,
@@ -418,28 +481,36 @@ function CvRowCard({
 }: {
   cv:                  CvRow;
   ext:                 string;
+  isBuilt:             boolean;
+  isDraft:             boolean;
   created:             string;
+  skillLabels:         SkillLabels;
   pending:             boolean;
   expanded:            boolean;
   onToggleExpand:      () => void;
+  onEdit:              () => void;
   onActivate:          () => void;
   onDelete:            () => void;
   onStatusChange:      (status: string) => void;
   onStructuredUpdated: (structured: StructuredCv) => void;
   onSkillsUpdated:     (skills: CategorisedSkills) => void;
 }) {
+  // A still-unfinished built CV opens the full-page builder rather than the
+  // inline review (create mode lives on the review route).
+  const primaryAction = isDraft ? onEdit : onToggleExpand;
+
   // When collapsed, the WHOLE card is the click target — header, meta, and
-  // skills block all toggle expand. Once expanded, the click is removed so
-  // nested form interactions don't accidentally collapse the card.
+  // skills block trigger the primary action. Once expanded, the click is removed
+  // so nested form interactions don't accidentally collapse the card.
   const collapsedProps = expanded ? {} : {
     role:      "button" as const,
     tabIndex:  0,
     "aria-expanded": false,
-    onClick:   onToggleExpand,
+    onClick:   primaryAction,
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        onToggleExpand();
+        primaryAction();
       }
     },
   };
@@ -478,7 +549,7 @@ function CvRowCard({
             )}
           </div>
           <div className="mt-1 flex items-center gap-3 text-[12px] text-text-3" suppressHydrationWarning>
-            <span>Uploaded {created}</span>
+            <span>{isBuilt ? "Created" : "Uploaded"} {created}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -491,15 +562,25 @@ function CvRowCard({
               onClick={onActivate}
             />
           )}
-          <InlineAction
-            label={expanded ? "Collapse" : "Expand"}
-            icon={expanded
-              ? <ChevronDown className="h-3.5 w-3.5" />
-              : <ChevronRight className="h-3.5 w-3.5" />}
-            primary
-            disabled={pending}
-            onClick={onToggleExpand}
-          />
+          {isDraft ? (
+            <InlineAction
+              label="Continue editing"
+              icon={<Pencil className="h-3.5 w-3.5" />}
+              primary
+              disabled={pending}
+              onClick={onEdit}
+            />
+          ) : (
+            <InlineAction
+              label={expanded ? "Collapse" : "Expand"}
+              icon={expanded
+                ? <ChevronDown className="h-3.5 w-3.5" />
+                : <ChevronRight className="h-3.5 w-3.5" />}
+              primary
+              disabled={pending}
+              onClick={onToggleExpand}
+            />
+          )}
           <InlineAction
             label="Delete CV"
             iconOnly
@@ -528,6 +609,7 @@ function CvRowCard({
             initialLabel={cv.label}
             initialStatus={cv.structured_cv_status}
             initialStructuredCv={cv.structured_cv ?? null}
+            skillLabels={skillLabels}
             onStatusChange={onStatusChange}
             onStructuredLoaded={onStructuredUpdated}
           />
@@ -586,13 +668,14 @@ function InlineAction({
  * structurized yet, runs POST /structurize + GET /structured first.
  */
 function InlineCvReview({
-  cvId, initialLabel, initialStatus, initialStructuredCv,
+  cvId, initialLabel, initialStatus, initialStructuredCv, skillLabels,
   onStatusChange, onStructuredLoaded,
 }: {
   cvId:                 string;
   initialLabel:         string;
   initialStatus:        string | null | undefined;
   initialStructuredCv:  StructuredCv | null;
+  skillLabels:          SkillLabels;
   onStatusChange:       (status: string) => void;
   onStructuredLoaded:   (structured: StructuredCv) => void;
 }) {
@@ -668,6 +751,7 @@ function InlineCvReview({
       label={initialLabel}
       initialStructuredCv={data.structured_cv}
       initialStatus={data.status}
+      skillLabels={skillLabels}
     />
   );
 }

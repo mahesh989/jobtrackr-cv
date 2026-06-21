@@ -186,7 +186,7 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
           <SectionLabel>System</SectionLabel>
           <NavItem href="/dashboard/admin/ai-settings"  icon={Sparkles}>AI provider</NavItem>
           <NavItem href="/dashboard/integrations"      icon={Plug}>Integrations</NavItem>
-          <NavItem href="/dashboard/settings/profile"  icon={UserCircle2}>My details</NavItem>
+          <NavItem href="/dashboard/cv"                icon={UserCircle2}>My CV</NavItem>
           <NavItem href="/dashboard/settings/theme"    icon={Palette}>Theme</NavItem>
           <NavItem href="/privacy"                     icon={Lock}>Privacy policy</NavItem>
 
@@ -212,8 +212,7 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
         <NavItem href="/dashboard/analyses" icon={History}>Analyses</NavItem>
 
         <SectionLabel>Tools</SectionLabel>
-        <NavItem href="/dashboard/settings/profile" icon={UserCircle2}>My Details</NavItem>
-        <NavItem href="/dashboard/cv" icon={FileText}>CV library</NavItem>
+        <NavItem href="/dashboard/cv" icon={FileText}>My CV</NavItem>
         <NavItem href="/dashboard/voice" icon={PenLine}>Writing voice</NavItem>
         <NavItem href="/dashboard/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/dashboard/settings/theme" icon={Palette}>Theme</NavItem>

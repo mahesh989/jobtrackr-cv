@@ -141,8 +141,9 @@ export async function DELETE(
   if (!row) return NextResponse.json({ error: "CV not found" }, { status: 404 });
 
   // Best-effort Storage cleanup — if it fails we still delete the row so the
-  // user can recover, but log it for visibility.
-  if (row.pdf_storage_path && row.pdf_storage_path !== "pending") {
+  // user can recover, but log it for visibility. "Built in app" CVs (built://…)
+  // have no Storage object, so skip the remove entirely.
+  if (row.pdf_storage_path && row.pdf_storage_path !== "pending" && !row.pdf_storage_path.startsWith("built://")) {
     const { error: storageErr } = await admin.storage.from("cvs").remove([row.pdf_storage_path]);
     if (storageErr) {
       console.warn("[/api/cv/:id DELETE] storage remove failed:", storageErr.message);

@@ -14,8 +14,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
+// A real Storage object path. Excludes the "pending" placeholder and the
+// `built://…` sentinel used by from-scratch CVs (which have no Storage object).
 const isPath = (p: unknown): p is string =>
-  typeof p === "string" && p.length > 0 && p !== "pending";
+  typeof p === "string" && p.length > 0 && p !== "pending" && !p.startsWith("built://");
 
 export async function DELETE() {
   const supabase = await createClient();

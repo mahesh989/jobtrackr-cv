@@ -26,13 +26,13 @@ export interface SetupStep {
 
 export const SETUP_STEPS: SetupStep[] = [
   {
-    key: "profile", icon: UserCircle2, title: "Set up your profile", tag: "required",
-    blurb: "Your contact details are stamped onto every tailored CV. Name, address and contact number are required; LinkedIn, GitHub, portfolio and projects are optional but recommended.",
-    href: "/dashboard/settings/profile",
+    key: "profile", icon: UserCircle2, title: "Set up your details", tag: "required",
+    blurb: "Your contact details are stamped onto every tailored CV. Name, address and contact number are required; LinkedIn, GitHub, portfolio and projects are optional but recommended. Set them at the top of My CV.",
+    href: "/dashboard/cv",
   },
   {
-    key: "cv", icon: FileText, title: "Upload your CV", tag: "required",
-    blurb: "The AI tailors this to each job and scores how well you match. Upload a PDF or DOCX, then set one version as active.",
+    key: "cv", icon: FileText, title: "Add your CV", tag: "required",
+    blurb: "The AI tailors this to each job and scores how well you match. Upload a PDF/DOCX or build one from scratch, then set one version as active.",
     href: "/dashboard/cv",
   },
   {
@@ -42,8 +42,8 @@ export const SETUP_STEPS: SetupStep[] = [
   },
   {
     key: "email", icon: Mail, title: "Connect your email", tag: "optional",
-    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under My Details → Email account.",
-    href: "/dashboard/settings/profile",
+    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under My CV → Email account.",
+    href: "/dashboard/cv",
   },
   {
     key: "searchProfile", icon: Briefcase, title: "Create a search profile & run it", tag: "required",

@@ -26,6 +26,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X,
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
@@ -41,6 +42,7 @@ import type {
   StructuredCvCertification,
   StructuredCvReferee,
 } from "@/lib/cvBackend";
+import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 
 const AUTOSAVE_MS = 10_000;
 
@@ -49,18 +51,61 @@ type SectionKey =
   | "skills" | "summary" | "experience" | "education"
   | "languages" | "awards" | "certifications" | "references";
 
+/** Sections that are opt-in when building a CV from scratch. References are
+ *  intentionally excluded — referees live in My Details (profile-level
+ *  ReferencesSection), the single source of truth, so the builder never adds a
+ *  second referee editor. */
+type OptionalKey = "skills" | "certifications" | "awards" | "languages";
+const OPTIONAL_SECTIONS: { key: OptionalKey; label: string; icon: LucideIcon }[] = [
+  { key: "skills",         label: "Skills",         icon: Sparkles },
+  { key: "certifications", label: "Certifications", icon: BadgeCheck },
+  { key: "awards",         label: "Awards",         icon: Trophy },
+  { key: "languages",      label: "Languages",      icon: LanguagesIcon },
+];
+
 interface Props {
   cvId:                 string;
   label:                string;
   initialStructuredCv:  StructuredCv;
   initialStatus:        string;
+  /** "create" = building from scratch (no summary, opt-in sections, activates
+   *  the CV on save). Defaults to "review" — the post-upload tidy form. */
+  mode?:                "review" | "create";
+  /** Vertical-aware labels for the three skill buckets (from the user's
+   *  role_families). Defaults to generic labels. */
+  skillLabels?:         SkillLabels;
 }
 
-export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus }: Props) {
-  const [doc, setDoc]       = useState<StructuredCv>(initialStructuredCv);
+export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus, mode = "review", skillLabels = DEFAULT_SKILL_LABELS }: Props) {
+  const router = useRouter();
+  const isCreate = mode === "create";
+
+  // In create mode the row arrives with empty arrays — seed one Experience and
+  // one Education entry so the user lands on fields to fill, not empty states.
+  const [doc, setDoc] = useState<StructuredCv>(() => {
+    if (!isCreate) return initialStructuredCv;
+    return {
+      ...initialStructuredCv,
+      experience: initialStructuredCv.experience.length > 0 ? initialStructuredCv.experience : [emptyExperience()],
+      education:  initialStructuredCv.education.length  > 0 ? initialStructuredCv.education  : [emptyEducation()],
+    };
+  });
   const [status, setStatus] = useState<string>(initialStatus);
   const [save, setSave]     = useState<SaveStatus>("idle");
   const [err, setErr]       = useState<string | null>(null);
+
+  // Create mode only: which opt-in sections the user has surfaced. Seed from
+  // any that already carry content (re-opening a partially-built CV).
+  const [enabledOptional, setEnabledOptional] = useState<Set<OptionalKey>>(() => {
+    const s = new Set<OptionalKey>();
+    const d = initialStructuredCv;
+    if (d.skills.technical.length + d.skills.soft_skills.length + d.skills.domain_knowledge.length > 0) s.add("skills");
+    if ((d.certifications ?? []).length > 0) s.add("certifications");
+    if ((d.awards ?? []).length > 0) s.add("awards");
+    if ((d.languages ?? []).length > 0) s.add("languages");
+    return s;
+  });
+  const optionalShown = (k: OptionalKey) => enabledOptional.has(k);
 
   // Section open/closed state. Save & continue collapses everything; the
   // user can re-expand by clicking any header. References starts collapsed
@@ -136,7 +181,24 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     }
   }
 
-  const liveGaps = useMemo(() => clientGaps(doc), [doc]);
+  // Create mode: verified-save, then make this the active CV and return to the
+  // library so the user sees it ready to use. Activation failure is non-fatal —
+  // the CV is saved and they can "Set active" from the library.
+  async function saveAndUse() {
+    if (timer.current) clearTimeout(timer.current);
+    const ok = await persist(doc, true);
+    if (!ok) return;
+    try {
+      await fetch(`/api/cv/${cvId}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ is_active: true }),
+      });
+    } catch { /* non-fatal */ }
+    router.push("/dashboard/cv");
+  }
+
+  const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
 
   // — patching helpers (immutable) —
   const patchExperience = (i: number, next: Partial<StructuredCvExperience>) =>
@@ -194,6 +256,33 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       skills: { ...d.skills, [bucket]: d.skills[bucket].filter(s => s !== value) },
     }));
 
+  // — add/remove whole entries (used by create mode) —
+  const addExperience = () =>
+    setDoc(d => ({ ...d, experience: [...d.experience, emptyExperience()] }));
+  const removeExperience = (i: number) =>
+    setDoc(d => ({ ...d, experience: d.experience.filter((_, idx) => idx !== i) }));
+  const addEducation = () =>
+    setDoc(d => ({ ...d, education: [...d.education, emptyEducation()] }));
+  const removeEducation = (i: number) =>
+    setDoc(d => ({ ...d, education: d.education.filter((_, idx) => idx !== i) }));
+  const addCertification = () =>
+    setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
+  const removeCertification = (i: number) =>
+    setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
+  const addReferee = () =>
+    setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
+  const removeReferee = (i: number) =>
+    setDoc(d => ({ ...d, references: d.references.filter((_, idx) => idx !== i) }));
+
+  // Create mode: surface an opt-in section, seed one empty entry, open it.
+  const enableSection = (k: OptionalKey) => {
+    setEnabledOptional(prev => new Set(prev).add(k));
+    setOpen(o => ({ ...o, [k]: true }));
+    if (k === "certifications" && doc.certifications.length === 0) addCertification();
+    if (k === "awards"         && (doc.awards ?? []).length === 0) addAward();
+    if (k === "languages"      && (doc.languages ?? []).length === 0) addLanguage();
+  };
+
   return (
     <div className="pb-28">
       {/* HEADER — visual identity for the page */}
@@ -202,11 +291,23 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">Step 1 of 2 · before analysis</p>
-          <h1 className="text-[20px] sm:text-[22px] font-semibold text-text mt-0.5 leading-tight">Review &amp; tidy your CV</h1>
-          <p className="mt-1.5 text-[13px] text-text-2 leading-relaxed max-w-2xl">
-            We rearranged <strong className="text-text font-medium">{label}</strong> into a consistent format using only your own words. Edit anything that&apos;s off — nothing was paraphrased or shortened.
-          </p>
+          {isCreate ? (
+            <>
+              <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
+              <h1 className="text-[20px] sm:text-[22px] font-semibold text-text mt-0.5 leading-tight">Build your CV</h1>
+              <p className="mt-1.5 text-[13px] text-text-2 leading-relaxed max-w-2xl">
+                Add your experience and education, then add any other sections you need. We&apos;ll write the professional summary automatically when you tailor this CV to a job.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">Step 1 of 2 · before analysis</p>
+              <h1 className="text-[20px] sm:text-[22px] font-semibold text-text mt-0.5 leading-tight">Review &amp; tidy your CV</h1>
+              <p className="mt-1.5 text-[13px] text-text-2 leading-relaxed max-w-2xl">
+                We rearranged <strong className="text-text font-medium">{label}</strong> into a consistent format using only your own words. Edit anything that&apos;s off — nothing was paraphrased or shortened.
+              </p>
+            </>
+          )}
         </div>
         <div className="hidden sm:block shrink-0">
           <SaveBadge status={save} verified={status === "verified"} err={err} />
@@ -222,6 +323,13 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             </span>
             <span><strong className="font-semibold">{liveGaps.length} item{liveGaps.length === 1 ? "" : "s"} need attention</strong> — review highlighted fields below</span>
           </div>
+        ) : isCreate ? (
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)]/40 pl-2 pr-3.5 py-1 text-[12.5px] text-text-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand)]/10">
+              <Sparkles className="h-3 w-3 text-[var(--brand)]" aria-hidden="true" />
+            </span>
+            <span>Fill in your details, then <strong className="font-semibold text-text">Save &amp; use this CV</strong>.</span>
+          </div>
         ) : (
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-text">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15">
@@ -233,20 +341,25 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       </div>
 
       <div className="space-y-3">
-        {/* SKILLS — above summary per product call */}
+        {/* SKILLS — above summary per product call. Opt-in when building. */}
+        {(!isCreate || optionalShown("skills")) && (
         <Section
           icon={Sparkles}
           title="Skills"
-          meta={`${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length} from your CV`}
+          meta={isCreate
+            ? `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length}`
+            : `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length} from your CV`}
           open={open.skills}
           onToggle={() => toggle("skills")}
         >
-          <SkillsBucket label="Care skills"      tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
-          <SkillsBucket label="Soft skills"      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
-          <SkillsBucket label="Tools & software" tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
+          <SkillsBucket label={skillLabels.domain_knowledge} tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
+          <SkillsBucket label={skillLabels.soft_skills}      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
+          <SkillsBucket label={skillLabels.technical}        tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
         </Section>
+        )}
 
-        {/* SUMMARY */}
+        {/* SUMMARY — hidden when building; generated automatically at tailoring time. */}
+        {!isCreate && (
         <Section
           icon={AlignLeft}
           title="Profile summary"
@@ -261,6 +374,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             placeholder={doc.summary ? "" : "Optional — leave blank if your CV doesn't have one."}
           />
         </Section>
+        )}
 
         {/* EXPERIENCE — timeline */}
         <Section
@@ -281,7 +395,14 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                   isFirst={i === 0}
                   isLast={i === doc.experience.length - 1}
                 >
-                  <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" />
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" />
+                    </div>
+                    {isCreate && doc.experience.length > 1 && (
+                      <RemoveBtn label="Remove role" onClick={() => removeExperience(i)} />
+                    )}
+                  </div>
                   <Grid cols={3} mt>
                     <GhostField label="Role"     value={e.role}     onChange={v => patchExperience(i, { role: v })} />
                     <GhostField label="Location" value={e.location} onChange={v => patchExperience(i, { location: v })} />
@@ -315,6 +436,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
               ))}
             </ol>
           )}
+          {isCreate && <AddBtn label="Add role" onClick={addExperience} />}
         </Section>
 
         {/* EDUCATION */}
@@ -335,7 +457,14 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                   Moved here from certifications
                 </span>
               )}
-              <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" />
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" />
+                </div>
+                {isCreate && doc.education.length > 1 && (
+                  <RemoveBtn label="Remove education" onClick={() => removeEducation(i)} />
+                )}
+              </div>
               <Grid cols={3} mt>
                 <GhostField label="Qualification" value={e.qualification} onChange={v => patchEducation(i, { qualification: v })} />
                 <GhostField label="Location"      value={e.location}      onChange={v => patchEducation(i, { location: v })} />
@@ -356,9 +485,11 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
               </label>
             </div>
           ))}
+          {isCreate && <AddBtn label="Add education" onClick={addEducation} />}
         </Section>
 
-        {/* LANGUAGES */}
+        {/* LANGUAGES — opt-in when building */}
+        {(!isCreate || optionalShown("languages")) && (
         <Section
           icon={LanguagesIcon}
           title="Languages"
@@ -386,8 +517,10 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             <AddBtn label="Add language" onClick={addLanguage} />
           )}
         </Section>
+        )}
 
-        {/* AWARDS */}
+        {/* AWARDS — opt-in when building */}
+        {(!isCreate || optionalShown("awards")) && (
         <Section
           icon={Trophy}
           title="Awards"
@@ -419,9 +552,11 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           ))}
           {(doc.awards ?? []).length > 0 && <AddBtn label="Add award" onClick={addAward} />}
         </Section>
+        )}
 
-        {/* CERTIFICATIONS — only shown if anything remained */}
-        {doc.certifications.length > 0 && (
+        {/* CERTIFICATIONS — review: only shown if anything remained.
+            create: opt-in, with add/remove. */}
+        {(isCreate ? (optionalShown("certifications") || doc.certifications.length > 0) : doc.certifications.length > 0) && (
           <Section
             icon={BadgeCheck}
             title="Certifications & licences"
@@ -432,7 +567,14 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           >
             {doc.certifications.map((c, i) => (
               <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-                <GhostField label="Name" value={c.name} onChange={v => patchCert(i, { name: v })} size="lg" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <GhostField label="Name" value={c.name} onChange={v => patchCert(i, { name: v })} size="lg" />
+                  </div>
+                  {isCreate && (
+                    <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />
+                  )}
+                </div>
                 <Grid cols={3} mt>
                   <GhostField label="Issuer" value={c.issuer}      onChange={v => patchCert(i, { issuer: v })} />
                   <GhostField label="Code"   value={c.code}        onChange={v => patchCert(i, { code: v })} />
@@ -440,10 +582,13 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                 </Grid>
               </div>
             ))}
+            {isCreate && <AddBtn label="Add certification" onClick={addCertification} />}
           </Section>
         )}
 
-        {/* REFERENCES — collapsed by default */}
+        {/* REFERENCES — review mode only. When building, referees live in My
+            Details (profile-level ReferencesSection), so the builder omits them. */}
+        {!isCreate && (
         <Section
           icon={Users}
           title="References"
@@ -455,15 +600,45 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             <EmptyState icon={Users} text="No referees on the CV — referees can stay on a separate sheet." />
           ) : doc.references.map((r, i) => (
             <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-              <Grid cols={2}>
-                <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
-                <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
-                <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
-                <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
-              </Grid>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <Grid cols={2}>
+                    <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
+                    <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
+                    <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
+                    <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
+                  </Grid>
+                </div>
+                {isCreate && (
+                  <RemoveBtn label="Remove referee" onClick={() => removeReferee(i)} />
+                )}
+              </div>
             </div>
           ))}
+          {isCreate && <AddBtn label="Add referee" onClick={addReferee} />}
         </Section>
+        )}
+
+        {/* ADD-A-SECTION — create mode only: surface opt-in sections on demand. */}
+        {isCreate && OPTIONAL_SECTIONS.some(s => !optionalShown(s.key)) && (
+          <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-2">Add a section</div>
+            <div className="flex flex-wrap gap-2">
+              {OPTIONAL_SECTIONS.filter(s => !optionalShown(s.key)).map(s => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => enableSection(s.key)}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-text hover:border-[var(--brand)]/50 hover:text-[var(--brand)] hover:bg-[var(--brand)]/5 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <s.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SLIM SAVE TOAST — sticky bottom, centred, doesn't span full width */}
@@ -472,8 +647,9 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           <SaveBadge status={save} verified={status === "verified"} err={err} compact />
           <button
             type="button"
-            onClick={saveAndCollapse}
-            className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0"
+            onClick={isCreate ? saveAndUse : saveAndCollapse}
+            disabled={save === "saving"}
+            className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
           >
             Save &amp; use this CV
           </button>
@@ -779,4 +955,31 @@ function clientGaps(d: StructuredCv): string[] {
     if (!e.start_date && !e.end_date) g.push(`education ${i + 1} year missing`);
   });
   return g;
+}
+
+// Create-mode gaps: no summary requirement (it's generated at tailoring time),
+// and entirely-empty seeded rows don't count as gaps until the user fills them.
+function createGaps(d: StructuredCv): string[] {
+  const g: string[] = [];
+  (d.experience || []).forEach((e, i) => {
+    const empty = !e.employer && !e.role && !e.start_date && !e.end_date
+      && (e.bullets ?? []).every(b => !b.trim());
+    if (empty) return;
+    if (!e.start_date && !e.end_date) g.push(`role ${i + 1} dates missing`);
+    if ((e.bullets ?? []).filter(b => b.trim()).length === 0) g.push(`role ${i + 1} bullets missing`);
+  });
+  (d.education || []).forEach((e, i) => {
+    const empty = !e.institution && !e.qualification && !e.start_date && !e.end_date;
+    if (empty) return;
+    if (!e.start_date && !e.end_date) g.push(`education ${i + 1} year missing`);
+  });
+  return g;
+}
+
+function emptyExperience(): StructuredCvExperience {
+  return { employer: "", role: "", location: "", start_date: "", end_date: "", is_current: false, bullets: [""] };
+}
+
+function emptyEducation(): StructuredCvEducation {
+  return { institution: "", qualification: "", location: "", start_date: "", end_date: "", completed: false };
 }

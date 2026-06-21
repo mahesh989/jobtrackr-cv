@@ -2,103 +2,145 @@ import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
 import { CvLibraryClient }    from "@/components/cv/CvLibraryClient";
-import { ReferencesSection, type ReferencesData, type Referee } from "@/components/cv/ReferencesSection";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
+import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
+import {
+  ProfileDetailsProvider, ContactSection, VerticalsSection,
+  ProjectsSection, CredentialsSection, ReferencesSubSection, ProfileSaveBar,
+} from "@/components/cv/ProfileDetailsClient";
+import { EmailIntegrationCard } from "@/components/email/EmailIntegrationCard";
+import type { ContactDetails } from "@/components/cv/ProfileSettingsClient";
 
-export const metadata = { title: "CV library — JobTrackr" };
+export const metadata = { title: "My CV — JobTrackr" };
 
-export default async function CvPage() {
+interface PageProps {
+  searchParams: Promise<{
+    email_connected?: "google" | "outlook";
+    email_error?:     string;
+  }>;
+}
+
+const OAUTH_ERROR_LABELS: Record<string, string> = {
+  invalid_state:         "Security check failed — please try again.",
+  no_code:               "Google didn't return an authorization code.",
+  token_exchange_failed: "Couldn't exchange the code for a token.",
+  missing_tokens:        "OAuth completed but no refresh token was returned. Try again from the Connect button.",
+  access_denied:         "You declined the consent screen.",
+};
+function describeError(key: string): string {
+  if (key.startsWith("save_failed:")) return `Token save failed — ${key.slice("save_failed:".length)}`;
+  return OAUTH_ERROR_LABELS[key] ?? `Error: ${key}`;
+}
+
+export default async function CvPage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const connected = sp.email_connected ?? null;
+  const errorKey  = sp.email_error     ?? null;
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
   const admin = createAdminClient();
 
-  // Heal the "no active CV" state before reading the list so the page never
-  // renders a library where every row has 'Set active' visible. Cheap, idempotent.
+  // Heal the "no active CV" state before reading the list.
   await ensureSomeoneActive(admin, user.id);
 
-  // Try the full select first; fall back to legacy (without structured_cv_status
-  // / structured_cv) when migration 058 hasn't been applied yet so the page
-  // still renders. Eager-loading structured_cv lets the inline review form
-  // open instantly without a round-trip — typical CV JSON is small.
-  const cvsExt = await admin
-    .from("cv_versions")
-    .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at, structured_cv_status, structured_cv")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  // CVs + profile overlay + email integration, all in parallel.
+  const [cvsExt, prefsRes, emailRes] = await Promise.all([
+    admin
+      .from("cv_versions")
+      .select("id, label, pdf_storage_path, is_active, categorised_skills, created_at, structured_cv_status, structured_cv")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    admin.from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
+    admin.from("email_integrations").select("provider, from_address").eq("user_id", user.id).maybeSingle(),
+  ]);
+
+  // Legacy fallback when migrations 058/059 aren't applied yet.
   let cvs = cvsExt.data as Array<Record<string, unknown>> | null;
   if (cvsExt.error && /structured_cv_status|structured_cv|column/i.test(cvsExt.error.message)) {
     const fallback = await admin
       .from("cv_versions")
-      .select("id, label, pdf_storage_path, is_active, categorised_skills, extracted_references, created_at")
+      .select("id, label, pdf_storage_path, is_active, categorised_skills, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     cvs = fallback.data as Array<Record<string, unknown>> | null;
   }
-  const { data: prefs } = await admin
-    .from("user_preferences")
-    .select("contact_details")
-    .eq("user_id", user.id)
-    .maybeSingle();
 
-  const contactDetails = (prefs?.contact_details ?? {}) as Record<string, unknown>;
-  const referencesData = (contactDetails.references ?? null) as ReferencesData | null;
+  const contactDetails = (prefsRes.data?.contact_details ?? {}) as ContactDetails;
+  const roleFamilies   = ((contactDetails as { role_families?: RoleFamily[] }).role_families) ?? [];
+  const skillLabels    = resolveSkillLabels(roleFamilies);
 
-  // Find the active CV — that's the one the extract button works against.
-  // Falls back to the most recent CV if no active flag is set.
-  type CvWithRefs = {
-    id:                   string;
-    is_active:            boolean;
-    extracted_references: Referee[] | null;
-  };
-  const cvList = (cvs ?? []) as Array<CvWithRefs & Record<string, unknown>>;
+  const cvList   = (cvs ?? []) as Array<{ id: string; is_active: boolean }>;
   const activeCv = cvList.find((c) => c.is_active) ?? cvList[0] ?? null;
+
+  const emailConnected = emailRes.data?.from_address
+    ? { provider: emailRes.data.provider as "google" | "microsoft", from_address: emailRes.data.from_address as string }
+    : null;
 
   return (
     <div className="min-h-full px-6 pt-6 pb-24">
-      <div className="max-w-3xl mx-auto space-y-10">
+      <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="page-title text-text">My CVs</h1>
+          <h1 className="page-title text-text">My CV</h1>
           <p className="page-subtitle">
-            Upload and manage your CV versions. Set one as active for analyses.
+            Your CVs plus the contact details, credentials, projects and references used to tailor them.
           </p>
         </div>
 
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <CvLibraryClient initial={(cvs ?? []) as any} />
-
-        <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:shadow-sm hover:border-[var(--border)] transition-all overflow-hidden">
-          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-4 hover:bg-[var(--surface-2)]/30 transition-colors">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-text">References</span>
-                <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
-                  Profile setting
-                </span>
-              </div>
-              <p className="mt-1 text-[12px] text-text-3">
-                Manage who employers can contact and how they appear on your CV.
-              </p>
-            </div>
-            <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--brand)]/40 bg-[var(--brand)]/10 px-3 py-1.5 text-[12px] font-medium text-[var(--brand)]"
-              aria-hidden="true"
-            >
-              <svg className="h-3.5 w-3.5 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-              <span className="group-open:hidden">Expand</span>
-              <span className="hidden group-open:inline">Collapse</span>
-            </span>
-          </summary>
-          <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-5 sm:px-6">
-            <ReferencesSection
-              initial={referencesData}
-              contactDetails={contactDetails}
-              activeCvId={activeCv?.id ?? null}
-              extractedReferences={activeCv?.extracted_references ?? null}
-            />
+        {/* Email OAuth result banner — shown once after the callback redirects here. */}
+        {connected && (
+          <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
+            <p className="text-[13px] font-medium text-black dark:text-white">
+              ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
+            </p>
           </div>
-        </details>
+        )}
+        {errorKey && (
+          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
+            <p className="text-[13px] font-medium text-red-800 dark:text-red-300">✗ Email connection failed</p>
+            <p className="text-[12px] text-red-700 dark:text-red-400 mt-0.5">{describeError(errorKey)}</p>
+          </div>
+        )}
+
+        <ProfileDetailsProvider initial={contactDetails} activeCvId={activeCv?.id ?? null}>
+          <ContactSection />
+          <VerticalsSection />
+
+          {/* The CV library sits between the profile overlay sections (per the
+              chosen layout). It does not consume the profile context. */}
+          <div className="pt-2">
+            <h2 className="text-[14.5px] font-semibold text-text">Your CVs</h2>
+            <p className="text-[12px] text-text-3 mt-0.5 mb-3">
+              Upload or build a CV from scratch, then set one active. The active CV is what the
+              AI tailors for each job.
+            </p>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            <CvLibraryClient initial={(cvs ?? []) as any} skillLabels={skillLabels} />
+          </div>
+
+          <ProjectsSection />
+          <CredentialsSection />
+          <ReferencesSubSection />
+          <ProfileSaveBar />
+        </ProfileDetailsProvider>
+
+        {/* Email account — per-user OAuth, separate from the profile overlay. */}
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
+          <div>
+            <h2 className="text-[14.5px] font-semibold text-text">Email account</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">
+              Connect Gmail or Outlook to send application emails with your cover letter and
+              tailored CV directly from the Applications page.
+            </p>
+          </div>
+          <EmailIntegrationCard
+            connected={emailConnected}
+            googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
+            microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}
+          />
+        </section>
       </div>
     </div>
   );

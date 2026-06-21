@@ -71,7 +71,7 @@ export async function PATCH(
   // Ownership check (cheap — single row by id).
   const { data: owned } = await admin
     .from("cv_versions")
-    .select("id, structured_cv_status")
+    .select("id, structured_cv_status, pdf_storage_path")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -103,14 +103,22 @@ export async function PATCH(
   // — the form is the editor of record for both.
   const skills = structuredCv.skills ?? { technical: [], soft_skills: [], domain_knowledge: [] };
 
+  // For a "built in app" CV there is no original extraction — cv_text is just a
+  // mirror of the rendered canonical text. Keep them in lockstep so the analyze
+  // fallback (cv_text) is always valid. Uploaded CVs keep their original cv_text
+  // untouched.
+  const isBuilt = String((owned as { pdf_storage_path?: string | null }).pdf_storage_path ?? "").startsWith("built://");
+  const updatePayload: Record<string, unknown> = {
+    structured_cv:        structuredCv,
+    structured_cv_status: newStatus,
+    normalized_cv_text:   normalizedCvText,
+    categorised_skills:   skills,
+  };
+  if (isBuilt && normalizedCvText.trim()) updatePayload.cv_text = normalizedCvText;
+
   const { error: updateErr } = await admin
     .from("cv_versions")
-    .update({
-      structured_cv:        structuredCv,
-      structured_cv_status: newStatus,
-      normalized_cv_text:   normalizedCvText,
-      categorised_skills:   skills,
-    })
+    .update(updatePayload)
     .eq("id", id);
 
   if (updateErr) {
