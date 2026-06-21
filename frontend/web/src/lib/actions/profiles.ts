@@ -93,7 +93,8 @@ export async function createProfile(formData: FormData) {
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath("/dashboard/profiles");
+  redirect("/dashboard/profiles");
 }
 
 export async function updateProfile(profileId: string, formData: FormData) {
@@ -149,7 +150,8 @@ export async function updateProfile(profileId: string, formData: FormData) {
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath("/dashboard/profiles");
+  redirect("/dashboard/profiles");
 }
 
 export async function copyProfile(profileId: string) {
