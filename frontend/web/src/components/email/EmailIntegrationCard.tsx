@@ -45,10 +45,10 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
             <div className="flex items-center gap-2 min-w-0">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-black dark:text-white">
+                <p className="text-[12px] font-medium text-text">
                   {connected.provider === "google" ? "Gmail" : "Outlook"} connected
                 </p>
-                <p className="text-[11px] text-black dark:text-white truncate">
+                <p className="text-[11px] text-text-2 truncate">
                   {connected.from_address}
                 </p>
               </div>
@@ -56,7 +56,7 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
             <button
               onClick={handleDisconnect}
               disabled={disconnecting}
-              className="inline-flex items-center gap-1 text-[11px] text-black dark:text-white hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
+              className="inline-flex items-center gap-1 text-[11px] text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
             >
               {disconnecting
                 ? <Loader2 className="w-3 h-3 animate-spin" />

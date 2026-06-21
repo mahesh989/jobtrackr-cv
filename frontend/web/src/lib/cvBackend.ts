@@ -250,16 +250,23 @@ interface StructuredCvGap {
   message:     string;
 }
 
+export interface CustomCvSection {
+  id:     string;
+  title:  string;
+  fields: Array<{ label: string; value: string }>;
+}
+
 export interface StructuredCv {
-  summary:        string;
-  experience:     StructuredCvExperience[];
-  education:      StructuredCvEducation[];
-  awards:         StructuredCvAward[];
-  languages:      StructuredCvLanguage[];
-  certifications: StructuredCvCertification[];
-  skills:         StructuredCvSkills;
-  references:     StructuredCvReferee[];
-  gaps:           StructuredCvGap[];
+  summary:         string;
+  experience:      StructuredCvExperience[];
+  education:       StructuredCvEducation[];
+  awards:          StructuredCvAward[];
+  languages:       StructuredCvLanguage[];
+  certifications:  StructuredCvCertification[];
+  skills:          StructuredCvSkills;
+  references:      StructuredCvReferee[];
+  gaps:            StructuredCvGap[];
+  custom_sections?: CustomCvSection[];
   /** Parser-logic version. Server component on the review page silently
    *  re-runs structurize when the stored value is below this constant. Mirror
    *  of backend/api/app/services/cv/cv_structurizer.STRUCTURED_CV_VERSION. */

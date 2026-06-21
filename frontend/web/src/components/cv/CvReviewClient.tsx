@@ -1,28 +1,12 @@
 "use client";
 
 /**
- * CvReviewClient — post-upload review form.
+ * CvReviewClient — post-upload review form + create-from-scratch editor.
  *
- * Forced step: every freshly-structurized CV is sent through here. Each
- * section is a collapsible card with an accent stripe + icon, themed to
- * the rest of the dashboard. Sections start expanded EXCEPT References,
- * which starts collapsed.
- *
- * On any edit, a 10-second debounced autosave PATCHes the structured CV
- * back to /api/cv/:id/structured. That endpoint re-renders the canonical
- * markdown via cv-backend and persists both `structured_cv` and
- * `normalized_cv_text` — the latter is what the analysis pipeline reads
- * next time the user runs an analysis (see /api/jobs/[id]/analyze).
- *
- * "Save & use this CV" forces an immediate save with verified=true and
- * collapses every section to a summary header. Smooth-scrolls to the
- * page top so the user lands on the header instead of stranded at the
- * (now near-empty) save bar.
- *
- * NOT an analysis step. The form purely rearranges the candidate's own
- * words into a consistent skeleton — no paraphrasing, no relevance
- * filtering. (The prompt enforces verbatim content; bullets and summary
- * sentences are copied character-for-character from the source CV.)
+ * Review mode  ("review"): post-upload tidy form; autosave on edit; Save
+ *   button collapses all sections and marks the CV verified.
+ * Create mode ("create"): blank CV builder; no autosave; Save button persists
+ *   + redirects to My CV page where the user can set it as active.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,7 +14,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X,
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
-  Trophy, BadgeCheck, Users, AlignLeft, FileText,
+  Trophy, BadgeCheck, Users, AlignLeft, FileText, ArrowLeft,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -41,6 +25,7 @@ import type {
   StructuredCvEducation,
   StructuredCvCertification,
   StructuredCvReferee,
+  CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 
@@ -51,10 +36,8 @@ type SectionKey =
   | "skills" | "summary" | "experience" | "education"
   | "languages" | "awards" | "certifications" | "references";
 
-/** Sections that are opt-in when building a CV from scratch. References are
- *  intentionally excluded — referees live in My Details (profile-level
- *  ReferencesSection), the single source of truth, so the builder never adds a
- *  second referee editor. */
+/** Sections that are opt-in when building from scratch. References excluded —
+ *  they live at profile level (My CV → References). */
 type OptionalKey = "skills" | "certifications" | "awards" | "languages";
 const OPTIONAL_SECTIONS: { key: OptionalKey; label: string; icon: LucideIcon }[] = [
   { key: "skills",         label: "Skills",         icon: Sparkles },
@@ -64,24 +47,21 @@ const OPTIONAL_SECTIONS: { key: OptionalKey; label: string; icon: LucideIcon }[]
 ];
 
 interface Props {
-  cvId:                 string;
-  label:                string;
-  initialStructuredCv:  StructuredCv;
-  initialStatus:        string;
-  /** "create" = building from scratch (no summary, opt-in sections, activates
-   *  the CV on save). Defaults to "review" — the post-upload tidy form. */
-  mode?:                "review" | "create";
-  /** Vertical-aware labels for the three skill buckets (from the user's
-   *  role_families). Defaults to generic labels. */
-  skillLabels?:         SkillLabels;
+  cvId:                string;
+  label:               string;
+  initialStructuredCv: StructuredCv;
+  initialStatus:       string;
+  mode?:               "review" | "create";
+  skillLabels?:        SkillLabels;
 }
 
-export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus, mode = "review", skillLabels = DEFAULT_SKILL_LABELS }: Props) {
-  const router = useRouter();
+export function CvReviewClient({
+  cvId, label, initialStructuredCv, initialStatus,
+  mode = "review", skillLabels = DEFAULT_SKILL_LABELS,
+}: Props) {
+  const router   = useRouter();
   const isCreate = mode === "create";
 
-  // In create mode the row arrives with empty arrays — seed one Experience and
-  // one Education entry so the user lands on fields to fill, not empty states.
   const [doc, setDoc] = useState<StructuredCv>(() => {
     if (!isCreate) return initialStructuredCv;
     return {
@@ -91,11 +71,10 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     };
   });
   const [status, setStatus] = useState<string>(initialStatus);
-  const [save, setSave]     = useState<SaveStatus>("idle");
-  const [err, setErr]       = useState<string | null>(null);
+  const [save,   setSave]   = useState<SaveStatus>("idle");
+  const [err,    setErr]    = useState<string | null>(null);
 
-  // Create mode only: which opt-in sections the user has surfaced. Seed from
-  // any that already carry content (re-opening a partially-built CV).
+  // Create mode: which opt-in sections are currently shown.
   const [enabledOptional, setEnabledOptional] = useState<Set<OptionalKey>>(() => {
     const s = new Set<OptionalKey>();
     const d = initialStructuredCv;
@@ -105,41 +84,39 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     if ((d.languages ?? []).length > 0) s.add("languages");
     return s;
   });
+
+  // Custom sections — stored in structured_cv.custom_sections (jsonb extra field).
+  const [customSects, setCustomSects] = useState<CustomCvSection[]>(
+    () => (initialStructuredCv as { custom_sections?: CustomCvSection[] }).custom_sections ?? []
+  );
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [newSectName,  setNewSectName]  = useState("");
+
   const optionalShown = (k: OptionalKey) => enabledOptional.has(k);
 
-  // Section open/closed state. Save & continue collapses everything; the
-  // user can re-expand by clicking any header. References starts collapsed
-  // by default (it's a secondary signal); everything else expanded.
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
-    skills:         true,
-    summary:        true,
-    experience:     true,
-    education:      true,
-    languages:      true,
-    awards:         true,
-    certifications: true,
-    references:     false,
+    skills: true, summary: true, experience: true, education: true,
+    languages: true, awards: true, certifications: true, references: false,
+  });
+  const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({});
+
+  const toggle     = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
+  const collapseAll = () => setOpen({
+    skills: false, summary: false, experience: false, education: false,
+    languages: false, awards: false, certifications: false, references: false,
   });
 
-  const toggle = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
-  const collapseAll = () =>
-    setOpen({
-      skills: false, summary: false, experience: false,
-      education: false, languages: false, awards: false,
-      certifications: false, references: false,
-    });
-
-  // Debounced autosave — pauses-then-saves so we don't spam the backend.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = useCallback(async (next: StructuredCv, verified: boolean) => {
+  const persist = useCallback(async (next: StructuredCv, cs: CustomCvSection[], verified: boolean) => {
     setSave("saving");
     setErr(null);
     try {
+      const payload = { ...next, custom_sections: cs };
       const res = await fetch(`/api/cv/${cvId}/structured`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ structured_cv: next, verified }),
+        body:    JSON.stringify({ structured_cv: payload, verified }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
@@ -161,46 +138,35 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   const mounted = useRef(false);
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
+    // Create mode: no autosave — user saves explicitly via the Save button.
+    if (isCreate) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSave("dirty");
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { persist(doc, false); }, AUTOSAVE_MS);
+    timer.current = setTimeout(() => { persist(doc, customSects, false); }, AUTOSAVE_MS);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [doc, persist]);
+  }, [doc, customSects, persist, isCreate]);
 
+  // Review mode: verify + collapse, stay on page.
   async function saveAndCollapse() {
     if (timer.current) clearTimeout(timer.current);
-    const ok = await persist(doc, true);
+    const ok = await persist(doc, customSects, true);
     if (ok) {
       collapseAll();
-      // After collapsing, the page is much shorter — scroll to the top so
-      // the user lands on the header instead of being stuck looking at the
-      // (now near-empty) save bar.
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
 
-  // Create mode: verified-save, then make this the active CV and return to the
-  // library so the user sees it ready to use. Activation failure is non-fatal —
-  // the CV is saved and they can "Set active" from the library.
-  async function saveAndUse() {
+  // Create mode: save then return to library — user sets active from there.
+  async function saveAndBack() {
     if (timer.current) clearTimeout(timer.current);
-    const ok = await persist(doc, true);
-    if (!ok) return;
-    try {
-      await fetch(`/api/cv/${cvId}`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ is_active: true }),
-      });
-    } catch { /* non-fatal */ }
-    router.push("/dashboard/cv");
+    const ok = await persist(doc, customSects, true);
+    if (ok) router.push("/dashboard/cv");
   }
 
   const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
 
-  // — patching helpers (immutable) —
+  // — patching helpers —
   const patchExperience = (i: number, next: Partial<StructuredCvExperience>) =>
     setDoc(d => ({ ...d, experience: d.experience.map((e, idx) => idx === i ? { ...e, ...next } : e) }));
   const patchEducation = (i: number, next: Partial<StructuredCvEducation>) =>
@@ -223,58 +189,31 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     setDoc(d => ({ ...d, references: d.references.map((r, idx) => idx === i ? { ...r, ...next } : r) }));
 
   const setBullet = (roleIdx: number, bulletIdx: number, value: string) =>
-    setDoc(d => ({
-      ...d,
-      experience: d.experience.map((e, i) =>
-        i !== roleIdx ? e : { ...e, bullets: e.bullets.map((b, bi) => bi === bulletIdx ? value : b) },
-      ),
-    }));
+    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
+      i !== roleIdx ? e : { ...e, bullets: e.bullets.map((b, bi) => bi === bulletIdx ? value : b) }) }));
   const addBullet = (roleIdx: number) =>
-    setDoc(d => ({
-      ...d,
-      experience: d.experience.map((e, i) =>
-        i !== roleIdx ? e : { ...e, bullets: [...e.bullets, ""] }),
-    }));
+    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
+      i !== roleIdx ? e : { ...e, bullets: [...e.bullets, ""] }) }));
   const removeBullet = (roleIdx: number, bulletIdx: number) =>
-    setDoc(d => ({
-      ...d,
-      experience: d.experience.map((e, i) =>
-        i !== roleIdx ? e : { ...e, bullets: e.bullets.filter((_, bi) => bi !== bulletIdx) }),
-    }));
+    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
+      i !== roleIdx ? e : { ...e, bullets: e.bullets.filter((_, bi) => bi !== bulletIdx) }) }));
 
   const addSkill = (bucket: "domain_knowledge" | "soft_skills" | "technical", value: string) => {
     const v = value.trim().toLowerCase();
     if (!v) return;
-    setDoc(d => ({
-      ...d,
-      skills: { ...d.skills, [bucket]: Array.from(new Set([...d.skills[bucket], v])) },
-    }));
+    setDoc(d => ({ ...d, skills: { ...d.skills, [bucket]: Array.from(new Set([...d.skills[bucket], v])) } }));
   };
   const removeSkill = (bucket: "domain_knowledge" | "soft_skills" | "technical", value: string) =>
-    setDoc(d => ({
-      ...d,
-      skills: { ...d.skills, [bucket]: d.skills[bucket].filter(s => s !== value) },
-    }));
+    setDoc(d => ({ ...d, skills: { ...d.skills, [bucket]: d.skills[bucket].filter(s => s !== value) } }));
 
-  // — add/remove whole entries (used by create mode) —
-  const addExperience = () =>
-    setDoc(d => ({ ...d, experience: [...d.experience, emptyExperience()] }));
-  const removeExperience = (i: number) =>
-    setDoc(d => ({ ...d, experience: d.experience.filter((_, idx) => idx !== i) }));
-  const addEducation = () =>
-    setDoc(d => ({ ...d, education: [...d.education, emptyEducation()] }));
-  const removeEducation = (i: number) =>
-    setDoc(d => ({ ...d, education: d.education.filter((_, idx) => idx !== i) }));
-  const addCertification = () =>
-    setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
-  const removeCertification = (i: number) =>
-    setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
-  const addReferee = () =>
-    setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
-  const removeReferee = (i: number) =>
-    setDoc(d => ({ ...d, references: d.references.filter((_, idx) => idx !== i) }));
+  const addExperience    = () => setDoc(d => ({ ...d, experience:     [...d.experience, emptyExperience()] }));
+  const removeExperience = (i: number) => setDoc(d => ({ ...d, experience: d.experience.filter((_, idx) => idx !== i) }));
+  const addEducation     = () => setDoc(d => ({ ...d, education:      [...d.education, emptyEducation()] }));
+  const removeEducation  = (i: number) => setDoc(d => ({ ...d, education: d.education.filter((_, idx) => idx !== i) }));
+  const addCertification = () => setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
+  const removeCertification = (i: number) => setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
+  const addReferee = () => setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
 
-  // Create mode: surface an opt-in section, seed one empty entry, open it.
   const enableSection = (k: OptionalKey) => {
     setEnabledOptional(prev => new Set(prev).add(k));
     setOpen(o => ({ ...o, [k]: true }));
@@ -283,14 +222,52 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
     if (k === "languages"      && (doc.languages ?? []).length === 0) addLanguage();
   };
 
+  const disableSection = (k: OptionalKey) => {
+    setEnabledOptional(prev => { const n = new Set(prev); n.delete(k); return n; });
+    if (k === "skills")         setDoc(d => ({ ...d, skills: { domain_knowledge: [], soft_skills: [], technical: [] } }));
+    if (k === "certifications") setDoc(d => ({ ...d, certifications: [] }));
+    if (k === "awards")         setDoc(d => ({ ...d, awards: [] }));
+    if (k === "languages")      setDoc(d => ({ ...d, languages: [] }));
+  };
+
+  // Custom section helpers
+  const addCustomSection = () => {
+    const title = newSectName.trim();
+    if (!title) return;
+    const id = `cs_${cvId}_${customSects.length}_${title.replace(/\s+/g, "_").slice(0, 20)}`;
+    setCustomSects(cs => [...cs, { id, title, fields: [{ label: "", value: "" }] }]);
+    setCustomOpen(o => ({ ...o, [id]: true }));
+    setNewSectName("");
+    setAddingCustom(false);
+  };
+  const removeCustomSection = (id: string) =>
+    setCustomSects(cs => cs.filter(s => s.id !== id));
+  const patchCustomField = (sectId: string, fi: number, next: Partial<{ label: string; value: string }>) =>
+    setCustomSects(cs => cs.map(s => s.id !== sectId ? s : {
+      ...s, fields: s.fields.map((f, idx) => idx === fi ? { ...f, ...next } : f),
+    }));
+  const addCustomField = (sectId: string) =>
+    setCustomSects(cs => cs.map(s => s.id !== sectId ? s : { ...s, fields: [...s.fields, { label: "", value: "" }] }));
+  const removeCustomField = (sectId: string, fi: number) =>
+    setCustomSects(cs => cs.map(s => s.id !== sectId ? s : { ...s, fields: s.fields.filter((_, idx) => idx !== fi) }));
+
+  const hasMoreOptional = OPTIONAL_SECTIONS.some(s => !optionalShown(s.key));
+
   return (
     <div className="pb-28">
-      {/* HEADER — visual identity for the page */}
+      {/* HEADER */}
       <header className="mb-6 flex items-start gap-4">
         <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand)] ring-1 ring-[var(--brand)]/20">
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/cv")}
+            className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to My CV
+          </button>
           {isCreate ? (
             <>
               <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
@@ -314,7 +291,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
         </div>
       </header>
 
-      {/* STATUS BANNER — pill style */}
+      {/* STATUS BANNER */}
       <div className="mb-6">
         {liveGaps.length > 0 ? (
           <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-red-700 dark:text-red-300">
@@ -328,7 +305,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand)]/10">
               <Sparkles className="h-3 w-3 text-[var(--brand)]" aria-hidden="true" />
             </span>
-            <span>Fill in your details, then <strong className="font-semibold text-text">Save &amp; use this CV</strong>.</span>
+            <span>Fill in your details, then <strong className="font-semibold text-text">Save</strong>. You can set it as active from My CV.</span>
           </div>
         ) : (
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-text">
@@ -341,42 +318,44 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
       </div>
 
       <div className="space-y-3">
-        {/* SKILLS — above summary per product call. Opt-in when building. */}
+
+        {/* SKILLS — opt-in when building */}
         {(!isCreate || optionalShown("skills")) && (
-        <Section
-          icon={Sparkles}
-          title="Skills"
-          meta={isCreate
-            ? `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length}`
-            : `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length} from your CV`}
-          open={open.skills}
-          onToggle={() => toggle("skills")}
-        >
-          <SkillsBucket label={skillLabels.domain_knowledge} tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
-          <SkillsBucket label={skillLabels.soft_skills}      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
-          <SkillsBucket label={skillLabels.technical}        tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
-        </Section>
+          <Section
+            icon={Sparkles}
+            title="Skills"
+            meta={isCreate
+              ? `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length}`
+              : `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length} from your CV`}
+            open={open.skills}
+            onToggle={() => toggle("skills")}
+            onClose={isCreate ? () => disableSection("skills") : undefined}
+          >
+            <SkillsBucket label={skillLabels.domain_knowledge} tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
+            <SkillsBucket label={skillLabels.soft_skills}      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
+            <SkillsBucket label={skillLabels.technical}        tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
+          </Section>
         )}
 
-        {/* SUMMARY — hidden when building; generated automatically at tailoring time. */}
+        {/* SUMMARY — review mode only; auto-generated in create mode */}
         {!isCreate && (
-        <Section
-          icon={AlignLeft}
-          title="Profile summary"
-          meta={doc.summary ? `${doc.summary.split(/\s+/).filter(Boolean).length} words` : "empty"}
-          open={open.summary}
-          onToggle={() => toggle("summary")}
-        >
-          <GhostTextarea
-            rows={4}
-            value={doc.summary}
-            onChange={v => setDoc(d => ({ ...d, summary: v }))}
-            placeholder={doc.summary ? "" : "Optional — leave blank if your CV doesn't have one."}
-          />
-        </Section>
+          <Section
+            icon={AlignLeft}
+            title="Profile summary"
+            meta={doc.summary ? `${doc.summary.split(/\s+/).filter(Boolean).length} words` : "empty"}
+            open={open.summary}
+            onToggle={() => toggle("summary")}
+          >
+            <GhostTextarea
+              rows={4}
+              value={doc.summary}
+              onChange={v => setDoc(d => ({ ...d, summary: v }))}
+              placeholder={doc.summary ? "" : "Optional — leave blank if your CV doesn't have one."}
+            />
+          </Section>
         )}
 
-        {/* EXPERIENCE — timeline */}
+        {/* EXPERIENCE */}
         <Section
           icon={Briefcase}
           title="Experience"
@@ -414,7 +393,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                   </Grid>
                   <div className="mt-4">
                     <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-2">Bullets</div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 ml-1">
                       {e.bullets.map((b, bi) => (
                         <BulletRow
                           key={bi}
@@ -427,7 +406,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                     <button
                       type="button"
                       onClick={() => addBullet(i)}
-                      className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-2.5 rounded px-1.5 py-1 -ml-1.5 hover:bg-[var(--surface-2)]/60 transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-2.5 rounded px-1.5 py-1 hover:bg-[var(--surface-2)]/60 transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" /> Add bullet
                     </button>
@@ -490,72 +469,73 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
 
         {/* LANGUAGES — opt-in when building */}
         {(!isCreate || optionalShown("languages")) && (
-        <Section
-          icon={LanguagesIcon}
-          title="Languages"
-          meta={(doc.languages?.length ?? 0) === 0 ? "empty" : `${doc.languages.length}`}
-          subtitle="Kept as record — not used in tailored CV"
-          open={open.languages}
-          onToggle={() => toggle("languages")}
-        >
-          {(doc.languages ?? []).length === 0 ? (
-            <EmptyState icon={LanguagesIcon} text="No languages on your CV — optional." actionLabel="Add language" onAction={addLanguage} />
-          ) : (
-            <div className="space-y-2.5">
-              {(doc.languages ?? []).map((l, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <GhostField label="Language"    value={l.language}    onChange={v => patchLanguage(i, { language: v })} />
-                    <GhostField label="Proficiency" value={l.proficiency} onChange={v => patchLanguage(i, { proficiency: v })} />
+          <Section
+            icon={LanguagesIcon}
+            title="Languages"
+            meta={(doc.languages?.length ?? 0) === 0 ? "empty" : `${doc.languages.length}`}
+            subtitle="Kept as record — not used in tailored CV"
+            open={open.languages}
+            onToggle={() => toggle("languages")}
+            onClose={isCreate ? () => disableSection("languages") : undefined}
+          >
+            {(doc.languages ?? []).length === 0 ? (
+              <EmptyState icon={LanguagesIcon} text="No languages on your CV — optional." actionLabel="Add language" onAction={addLanguage} />
+            ) : (
+              <div className="space-y-2.5">
+                {(doc.languages ?? []).map((l, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <GhostField label="Language"    value={l.language}    onChange={v => patchLanguage(i, { language: v })} />
+                      <GhostField label="Proficiency" value={l.proficiency} onChange={v => patchLanguage(i, { proficiency: v })} />
+                    </div>
+                    <RemoveBtn label="Remove language" onClick={() => removeLanguage(i)} />
                   </div>
-                  <RemoveBtn label="Remove language" onClick={() => removeLanguage(i)} />
-                </div>
-              ))}
-            </div>
-          )}
-          {(doc.languages ?? []).length > 0 && (
-            <AddBtn label="Add language" onClick={addLanguage} />
-          )}
-        </Section>
+                ))}
+              </div>
+            )}
+            {(doc.languages ?? []).length > 0 && <AddBtn label="Add language" onClick={addLanguage} />}
+          </Section>
         )}
 
         {/* AWARDS — opt-in when building */}
         {(!isCreate || optionalShown("awards")) && (
-        <Section
-          icon={Trophy}
-          title="Awards"
-          meta={(doc.awards?.length ?? 0) === 0 ? "empty" : `${doc.awards.length}`}
-          subtitle="Recognitions, scholarships, honours"
-          open={open.awards}
-          onToggle={() => toggle("awards")}
-        >
-          {(doc.awards ?? []).length === 0 ? (
-            <EmptyState icon={Trophy} text="No awards on your CV — optional." actionLabel="Add award" onAction={addAward} />
-          ) : (doc.awards ?? []).map((a, i) => (
-            <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <GhostField label="Name" value={a.name} onChange={v => patchAward(i, { name: v })} size="lg" />
+          <Section
+            icon={Trophy}
+            title="Awards"
+            meta={(doc.awards?.length ?? 0) === 0 ? "empty" : `${doc.awards.length}`}
+            subtitle="Recognitions, scholarships, honours"
+            open={open.awards}
+            onToggle={() => toggle("awards")}
+            onClose={isCreate ? () => disableSection("awards") : undefined}
+          >
+            {(doc.awards ?? []).length === 0 ? (
+              <EmptyState icon={Trophy} text="No awards on your CV — optional." actionLabel="Add award" onAction={addAward} />
+            ) : (doc.awards ?? []).map((a, i) => (
+              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <GhostField label="Name" value={a.name} onChange={v => patchAward(i, { name: v })} size="lg" />
+                  </div>
+                  <RemoveBtn label="Remove award" onClick={() => removeAward(i)} />
                 </div>
-                <RemoveBtn label="Remove award" onClick={() => removeAward(i)} />
+                <Grid cols={3} mt>
+                  <GhostField label="Issuer"   value={a.issuer}   onChange={v => patchAward(i, { issuer: v })} />
+                  <GhostField label="Location" value={a.location} onChange={v => patchAward(i, { location: v })} />
+                  <GhostField label="Date"     value={a.date}     onChange={v => patchAward(i, { date: v })} />
+                </Grid>
+                <div className="mt-3">
+                  <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
+                    Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
+                  </div>
+                  <GhostTextarea rows={2} value={a.description} onChange={v => patchAward(i, { description: v })} />
+                </div>
               </div>
-              <Grid cols={3} mt>
-                <GhostField label="Issuer"   value={a.issuer}   onChange={v => patchAward(i, { issuer: v })} />
-                <GhostField label="Location" value={a.location} onChange={v => patchAward(i, { location: v })} />
-                <GhostField label="Date"     value={a.date}     onChange={v => patchAward(i, { date: v })} />
-              </Grid>
-              <div className="mt-3">
-                <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-1.5">Description <span className="normal-case tracking-normal text-text-3">(optional)</span></div>
-                <GhostTextarea rows={2} value={a.description} onChange={v => patchAward(i, { description: v })} />
-              </div>
-            </div>
-          ))}
-          {(doc.awards ?? []).length > 0 && <AddBtn label="Add award" onClick={addAward} />}
-        </Section>
+            ))}
+            {(doc.awards ?? []).length > 0 && <AddBtn label="Add award" onClick={addAward} />}
+          </Section>
         )}
 
-        {/* CERTIFICATIONS — review: only shown if anything remained.
-            create: opt-in, with add/remove. */}
+        {/* CERTIFICATIONS */}
         {(isCreate ? (optionalShown("certifications") || doc.certifications.length > 0) : doc.certifications.length > 0) && (
           <Section
             icon={BadgeCheck}
@@ -564,6 +544,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
             subtitle="Care VET qualifications moved to Education automatically"
             open={open.certifications}
             onToggle={() => toggle("certifications")}
+            onClose={isCreate ? () => disableSection("certifications") : undefined}
           >
             {doc.certifications.map((c, i) => (
               <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
@@ -571,9 +552,7 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                   <div className="flex-1 min-w-0">
                     <GhostField label="Name" value={c.name} onChange={v => patchCert(i, { name: v })} size="lg" />
                   </div>
-                  {isCreate && (
-                    <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />
-                  )}
+                  {isCreate && <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />}
                 </div>
                 <Grid cols={3} mt>
                   <GhostField label="Issuer" value={c.issuer}      onChange={v => patchCert(i, { issuer: v })} />
@@ -586,44 +565,62 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
           </Section>
         )}
 
-        {/* REFERENCES — review mode only. When building, referees live in My
-            Details (profile-level ReferencesSection), so the builder omits them. */}
+        {/* REFERENCES — review mode only */}
         {!isCreate && (
-        <Section
-          icon={Users}
-          title="References"
-          meta={doc.references.length === 0 ? "none" : `${doc.references.length} referee${doc.references.length === 1 ? "" : "s"}`}
-          open={open.references}
-          onToggle={() => toggle("references")}
-        >
-          {doc.references.length === 0 ? (
-            <EmptyState icon={Users} text="No referees on the CV — referees can stay on a separate sheet." />
-          ) : doc.references.map((r, i) => (
-            <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <Grid cols={2}>
-                    <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
-                    <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
-                    <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
-                    <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
-                  </Grid>
-                </div>
-                {isCreate && (
-                  <RemoveBtn label="Remove referee" onClick={() => removeReferee(i)} />
-                )}
+          <Section
+            icon={Users}
+            title="References"
+            meta={doc.references.length === 0 ? "none" : `${doc.references.length} referee${doc.references.length === 1 ? "" : "s"}`}
+            open={open.references}
+            onToggle={() => toggle("references")}
+          >
+            {doc.references.length === 0 ? (
+              <EmptyState icon={Users} text="No referees on the CV — referees can stay on a separate sheet." />
+            ) : doc.references.map((r, i) => (
+              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
+                <Grid cols={2}>
+                  <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
+                  <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
+                  <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
+                  <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
+                </Grid>
               </div>
-            </div>
-          ))}
-          {isCreate && <AddBtn label="Add referee" onClick={addReferee} />}
-        </Section>
+            ))}
+            {isCreate && <AddBtn label="Add referee" onClick={addReferee} />}
+          </Section>
         )}
 
-        {/* ADD-A-SECTION — create mode only: surface opt-in sections on demand. */}
-        {isCreate && OPTIONAL_SECTIONS.some(s => !optionalShown(s.key)) && (
+        {/* CUSTOM SECTIONS — create mode only */}
+        {isCreate && customSects.map(sect => (
+          <Section
+            key={sect.id}
+            icon={AlignLeft}
+            title={sect.title}
+            meta={`${sect.fields.filter(f => f.value.trim() || f.label.trim()).length} field${sect.fields.filter(f => f.value.trim() || f.label.trim()).length === 1 ? "" : "s"}`}
+            open={customOpen[sect.id] ?? true}
+            onToggle={() => setCustomOpen(o => ({ ...o, [sect.id]: !(o[sect.id] ?? true) }))}
+            onClose={() => removeCustomSection(sect.id)}
+          >
+            <div className="space-y-3">
+              {sect.fields.map((f, fi) => (
+                <div key={fi} className="flex items-end gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <GhostField label="Field label" value={f.label} onChange={v => patchCustomField(sect.id, fi, { label: v })} />
+                    <GhostField label="Value"       value={f.value} onChange={v => patchCustomField(sect.id, fi, { value: v })} />
+                  </div>
+                  <RemoveBtn label="Remove field" onClick={() => removeCustomField(sect.id, fi)} />
+                </div>
+              ))}
+            </div>
+            <AddBtn label="Add field" onClick={() => addCustomField(sect.id)} />
+          </Section>
+        ))}
+
+        {/* ADD-A-SECTION — create mode only */}
+        {isCreate && (hasMoreOptional || !addingCustom) && (
           <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-3">
             <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-2">Add a section</div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {OPTIONAL_SECTIONS.filter(s => !optionalShown(s.key)).map(s => (
                 <button
                   key={s.key}
@@ -636,22 +633,62 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
                   {s.label}
                 </button>
               ))}
+
+              {/* Custom section — inline name input */}
+              {addingCustom ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Section name…"
+                    value={newSectName}
+                    onChange={e => setNewSectName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter")  { e.preventDefault(); addCustomSection(); }
+                      if (e.key === "Escape") { setAddingCustom(false); setNewSectName(""); }
+                    }}
+                    className="text-[12.5px] h-7 rounded-full border border-[var(--brand)]/60 bg-[var(--surface)] px-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 w-44 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomSection}
+                    className="inline-flex items-center gap-1 text-[12px] rounded-full border border-[var(--brand)]/40 bg-[var(--brand)]/5 text-[var(--brand)] px-3 py-1 hover:bg-[var(--brand)]/10 transition-colors"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAddingCustom(false); setNewSectName(""); }}
+                    className="text-text-3 hover:text-text p-1 rounded-full transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingCustom(true)}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] rounded-full border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-text-3 hover:border-[var(--brand)]/50 hover:text-[var(--brand)] hover:bg-[var(--brand)]/5 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Custom section
+                </button>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* SLIM SAVE TOAST — sticky bottom, centred, doesn't span full width */}
+      {/* SAVE TOAST — sticky bottom */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shadow-lg pl-4 pr-1 py-1">
           <SaveBadge status={save} verified={status === "verified"} err={err} compact />
           <button
             type="button"
-            onClick={isCreate ? saveAndUse : saveAndCollapse}
+            onClick={isCreate ? saveAndBack : saveAndCollapse}
             disabled={save === "saving"}
             className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
           >
-            Save &amp; use this CV
+            Save
           </button>
         </div>
       </div>
@@ -659,49 +696,59 @@ export function CvReviewClient({ cvId, label, initialStructuredCv, initialStatus
   );
 }
 
-// ─── sub-components ─────────────────────────────────────────────────────────
+// ─── sub-components ──────────────────────────────────────────────────────────
 
 function Section({
-  icon: Icon, title, subtitle, meta, open, onToggle, children,
+  icon: Icon, title, subtitle, meta, open, onToggle, onClose, children,
 }: {
-  icon: LucideIcon;
-  title: string;
+  icon:      LucideIcon;
+  title:     string;
   subtitle?: string;
-  meta?: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
+  meta?:     string;
+  open:      boolean;
+  onToggle:  () => void;
+  onClose?:  () => void;
+  children:  React.ReactNode;
 }) {
   return (
     <section className={`group relative rounded-xl border bg-[var(--surface)] transition-all ${open ? "border-[var(--border)] shadow-sm" : "border-[var(--border)]/70 hover:border-[var(--border)] hover:shadow-sm"}`}>
-      {/* Left accent stripe — only when open */}
-      {open && (
-        <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--brand)]/70" />
-      )}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
-        aria-expanded={open}
-      >
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${open ? "bg-[var(--brand)]/10 text-[var(--brand)]" : "bg-[var(--surface-2)]/60 text-text-3 group-hover:bg-[var(--brand)]/10 group-hover:text-[var(--brand)]"}`}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[14.5px] font-semibold text-text">{title}</span>
-            {meta && (
-              <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
-                {meta}
-              </span>
-            )}
+      {open && <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--brand)]/70" />}
+      <div className="flex w-full items-center gap-3 px-4 py-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex flex-1 items-center gap-3 text-left min-w-0"
+          aria-expanded={open}
+        >
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${open ? "bg-[var(--brand)]/10 text-[var(--brand)]" : "bg-[var(--surface-2)]/60 text-text-3 group-hover:bg-[var(--brand)]/10 group-hover:text-[var(--brand)]"}`}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[14.5px] font-semibold text-text">{title}</span>
+              {meta && (
+                <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
+                  {meta}
+                </span>
+              )}
+            </div>
+            {subtitle && <p className="text-[12px] text-text-3 mt-0.5 truncate">{subtitle}</p>}
           </div>
-          {subtitle && <p className="text-[12px] text-text-3 mt-0.5 truncate">{subtitle}</p>}
-        </div>
-        {open
-          ? <ChevronDown className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />
-          : <ChevronRight className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />}
-      </button>
+          {open
+            ? <ChevronDown  className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />
+            : <ChevronRight className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />}
+        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={`Remove ${title} section`}
+            className="shrink-0 p-1.5 rounded-lg text-text-3 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
       {open && <div className="px-4 pb-4 pt-1 space-y-3">{children}</div>}
     </section>
   );
@@ -712,22 +759,18 @@ function Grid({ cols = 2, mt, children }: { cols?: number; mt?: boolean; childre
   return <div className={`grid gap-3 ${mt ? "mt-3" : ""} grid-cols-1 ${colClass}`}>{children}</div>;
 }
 
-/**
- * GhostField — ghost-style input that reads as text until hovered/focused.
- * Removes form chrome from the page; the CV reads like a document.
- */
 function GhostField({
   label, value, onChange, size = "md",
 }: { label: string; value: string; onChange: (v: string) => void; size?: "md" | "lg" }) {
-  const sized = size === "lg" ? "text-[14.5px] font-semibold py-1" : "text-[13px] py-1";
+  const sized = size === "lg" ? "text-[14.5px] font-semibold py-1.5" : "text-[13px] py-1.5";
   return (
-    <label className="block group/field">
-      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-0.5">{label}</span>
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">{label}</span>
       <input
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
-        className={`block w-full ${sized} text-text bg-transparent border-b border-transparent rounded-none px-1 -mx-1 hover:border-[var(--border)] hover:bg-[var(--surface-2)]/40 focus:bg-[var(--surface-2)]/50 focus:border-[var(--brand)]/70 focus:outline-none transition-colors`}
+        className={`block w-full ${sized} text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors`}
       />
     </label>
   );
@@ -740,18 +783,20 @@ function GhostTextarea({
     <textarea
       rows={rows}
       placeholder={placeholder}
-      className="block w-full text-[13px] text-text bg-[var(--surface-2)]/30 border border-transparent rounded-lg px-3 py-2 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
+      className="block w-full text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-lg px-3 py-2 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
       value={value}
       onChange={e => onChange(e.target.value)}
     />
   );
 }
 
-function DatesField({ start, end, onStart, onEnd }: { start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void }) {
+function DatesField({ start, end, onStart, onEnd }: {
+  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void;
+}) {
   const blank = !start && !end;
   return (
     <div>
-      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-0.5">
+      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">
         Dates {blank && <span className="normal-case tracking-normal text-red-600 font-semibold">· missing</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
@@ -760,27 +805,29 @@ function DatesField({ start, end, onStart, onEnd }: { start: string; end: string
           value={start}
           onChange={e => onStart(e.target.value)}
           placeholder="Start"
-          className="text-[13px] text-text bg-transparent border-b border-transparent rounded-none px-1 py-1 -mx-1 hover:border-[var(--border)] hover:bg-[var(--surface-2)]/40 focus:bg-[var(--surface-2)]/50 focus:border-[var(--brand)]/70 focus:outline-none transition-colors"
+          className="text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors"
         />
         <input
           type="text"
           value={end}
           onChange={e => onEnd(e.target.value)}
           placeholder="End or Present"
-          className="text-[13px] text-text bg-transparent border-b border-transparent rounded-none px-1 py-1 -mx-1 hover:border-[var(--border)] hover:bg-[var(--surface-2)]/40 focus:bg-[var(--surface-2)]/50 focus:border-[var(--brand)]/70 focus:outline-none transition-colors"
+          className="text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors"
         />
       </div>
     </div>
   );
 }
 
-function BulletRow({ value, onChange, onRemove }: { value: string; onChange: (v: string) => void; onRemove: () => void }) {
+function BulletRow({ value, onChange, onRemove }: {
+  value: string; onChange: (v: string) => void; onRemove: () => void;
+}) {
   return (
-    <div className="group/bullet flex items-start gap-2 -mx-1.5 px-1.5 py-1 rounded-md hover:bg-[var(--surface-2)]/30 transition-colors">
-      <span className="mt-2 select-none text-[var(--brand)]/60 leading-none text-[10px]" aria-hidden="true">●</span>
+    <div className="group/bullet flex items-start gap-2 py-1 rounded-md hover:bg-[var(--surface-2)]/30 transition-colors">
+      <span className="mt-[6px] select-none text-[var(--brand)]/60 leading-none text-[10px] shrink-0" aria-hidden="true">●</span>
       <textarea
         rows={1}
-        className="flex-1 min-h-[28px] text-[13px] text-text bg-transparent border border-transparent rounded-md px-2 py-1 -mx-2 hover:bg-[var(--surface-2)]/40 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
+        className="flex-1 min-h-[28px] text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2 py-1 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
         value={value}
         onChange={e => onChange(e.target.value)}
       />
@@ -801,18 +848,18 @@ type SkillTone = "care" | "soft" | "neutral";
 function SkillsBucket({
   label, tone, bucket, items, onAdd, onRemove,
 }: {
-  label: string;
-  tone: SkillTone;
-  bucket: "domain_knowledge" | "soft_skills" | "technical";
-  items: string[];
-  onAdd: (b: "domain_knowledge" | "soft_skills" | "technical", v: string) => void;
+  label:    string;
+  tone:     SkillTone;
+  bucket:   "domain_knowledge" | "soft_skills" | "technical";
+  items:    string[];
+  onAdd:    (b: "domain_knowledge" | "soft_skills" | "technical", v: string) => void;
   onRemove: (b: "domain_knowledge" | "soft_skills" | "technical", v: string) => void;
 }) {
   const [input, setInput] = useState("");
   const dotClass =
-    tone === "care"    ? "bg-emerald-500" :
-    tone === "soft"    ? "bg-amber-500"   :
-                         "bg-text-3/60";
+    tone === "care"  ? "bg-emerald-500" :
+    tone === "soft"  ? "bg-amber-500"   :
+                       "bg-text-3/60";
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -829,7 +876,9 @@ function SkillsBucket({
               onClick={() => onRemove(bucket, s)}
               aria-label={`Remove ${s}`}
               className="text-text-3 hover:text-text rounded-full p-0.5"
-            ><X className="h-3 w-3" /></button>
+            >
+              <X className="h-3 w-3" />
+            </button>
           </span>
         ))}
         <input
@@ -851,19 +900,16 @@ function TimelineEntry({
   dateLabel, isFirst, isLast, children,
 }: {
   dateLabel: string;
-  isFirst: boolean;
-  isLast:  boolean;
-  children: React.ReactNode;
+  isFirst:   boolean;
+  isLast:    boolean;
+  children:  React.ReactNode;
 }) {
   return (
-    <li className={`relative pl-6 sm:pl-8 ${isLast ? "" : "pb-6"}`}>
-      {/* Vertical line connecting entries */}
+    <li className={`relative pl-7 sm:pl-9 ${isLast ? "" : "pb-6"}`}>
       {!isLast && (
-        <span aria-hidden="true" className="absolute left-[7px] sm:left-[9px] top-3 bottom-0 w-px bg-[var(--border)]" />
+        <span aria-hidden="true" className="absolute left-[9px] sm:left-[11px] top-3 bottom-0 w-px bg-[var(--border)]" />
       )}
-      {/* Dot — filled for first/current, hollow otherwise */}
-      <span aria-hidden="true" className={`absolute left-[3px] sm:left-[5px] top-2.5 h-2 w-2 rounded-full ring-2 ring-[var(--surface)] ${isFirst ? "bg-[var(--brand)]" : "bg-[var(--border)]"}`} />
-      {/* Date pill */}
+      <span aria-hidden="true" className={`absolute left-[5px] sm:left-[7px] top-2.5 h-2 w-2 rounded-full ring-2 ring-[var(--surface)] ${isFirst ? "bg-[var(--brand)]" : "bg-[var(--border)]"}`} />
       <div className="text-[11px] text-text-2 font-medium mb-2 -mt-0.5">{dateLabel || <span className="text-text-3 italic">no dates</span>}</div>
       <div>{children}</div>
     </li>
@@ -880,11 +926,7 @@ function EmptyState({ icon: Icon, text, actionLabel, onAction }: {
       </span>
       <p className="text-[13px] text-text-3 max-w-xs">{text}</p>
       {actionLabel && onAction && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--brand)] hover:underline"
-        >
+        <button type="button" onClick={onAction} className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--brand)] hover:underline">
           <Plus className="h-3.5 w-3.5" /> {actionLabel}
         </button>
       )}
@@ -910,20 +952,22 @@ function RemoveBtn({ label, onClick }: { label: string; onClick: () => void }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="mt-5 text-text-3 hover:text-red rounded-md p-1 hover:bg-[var(--surface-2)]/60 transition-colors shrink-0"
+      className="mt-5 text-text-3 hover:text-red-500 rounded-md p-1 hover:bg-[var(--surface-2)]/60 transition-colors shrink-0"
     >
       <X className="h-3.5 w-3.5" />
     </button>
   );
 }
 
-function SaveBadge({ status, verified, err, compact }: { status: SaveStatus; verified: boolean; err: string | null; compact?: boolean }) {
+function SaveBadge({ status, verified, err, compact }: {
+  status: SaveStatus; verified: boolean; err: string | null; compact?: boolean;
+}) {
   const map: Record<SaveStatus, { text: string; tone: string; dot: string }> = {
-    idle:   { text: verified ? "Verified" : "Saved",         tone: "text-text-2",  dot: "bg-emerald-500" },
-    dirty:  { text: "Unsaved — autosaves in 10s",            tone: "text-text-2",  dot: "bg-text-3" },
-    saving: { text: "Saving…",                               tone: "text-text-2",  dot: "bg-[var(--brand)] animate-pulse" },
-    saved:  { text: verified ? "Verified" : "Saved",         tone: "text-text",    dot: "bg-emerald-500" },
-    error:  { text: err ?? "Save failed",                    tone: "text-red",     dot: "bg-red-500" },
+    idle:   { text: verified ? "Verified" : "Saved",        tone: "text-text-2", dot: "bg-emerald-500" },
+    dirty:  { text: "Unsaved — autosaves in 10s",           tone: "text-text-2", dot: "bg-text-3" },
+    saving: { text: "Saving…",                              tone: "text-text-2", dot: "bg-[var(--brand)] animate-pulse" },
+    saved:  { text: verified ? "Verified" : "Saved",        tone: "text-text",   dot: "bg-emerald-500" },
+    error:  { text: err ?? "Save failed",                   tone: "text-red-500",dot: "bg-red-500" },
   };
   const m = map[status];
   return (
@@ -942,11 +986,9 @@ function joinDatesLabel(start: string, end: string, isCurrent: boolean): string 
   return s || e;
 }
 
-// Lightweight client-side mirror of gap detection (the authoritative list is
-// recomputed server-side on save).
 function clientGaps(d: StructuredCv): string[] {
   const g: string[] = [];
-  if (!d.summary)        g.push("no profile summary");
+  if (!d.summary) g.push("no profile summary");
   (d.experience || []).forEach((e, i) => {
     if (!e.start_date && !e.end_date) g.push(`role ${i + 1} dates missing`);
     if (!e.bullets || e.bullets.length === 0) g.push(`role ${i + 1} bullets missing`);
@@ -957,8 +999,6 @@ function clientGaps(d: StructuredCv): string[] {
   return g;
 }
 
-// Create-mode gaps: no summary requirement (it's generated at tailoring time),
-// and entirely-empty seeded rows don't count as gaps until the user fills them.
 function createGaps(d: StructuredCv): string[] {
   const g: string[] = [];
   (d.experience || []).forEach((e, i) => {
