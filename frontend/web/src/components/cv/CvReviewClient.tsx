@@ -15,6 +15,7 @@ import {
   ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X,
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
   Trophy, BadgeCheck, Users, AlignLeft, FileText, ArrowLeft, Loader2,
+  FolderGit2, ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -25,6 +26,7 @@ import type {
   StructuredCvEducation,
   StructuredCvCertification,
   StructuredCvReferee,
+  StructuredCvProject,
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
@@ -34,13 +36,14 @@ const AUTOSAVE_MS = 10_000;
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 type SectionKey =
   | "skills" | "summary" | "experience" | "education"
-  | "languages" | "awards" | "certifications" | "references";
+  | "projects" | "languages" | "awards" | "certifications" | "references";
 
 /** Sections that are opt-in when building from scratch. References excluded —
  *  they live at profile level (My CV → References). */
-type OptionalKey = "skills" | "certifications" | "awards" | "languages";
+type OptionalKey = "skills" | "projects" | "certifications" | "awards" | "languages";
 const OPTIONAL_SECTIONS: { key: OptionalKey; label: string; icon: LucideIcon }[] = [
   { key: "skills",         label: "Skills",         icon: Sparkles },
+  { key: "projects",       label: "Projects",       icon: FolderGit2 },
   { key: "certifications", label: "Certifications", icon: BadgeCheck },
   { key: "awards",         label: "Awards",         icon: Trophy },
   { key: "languages",      label: "Languages",      icon: LanguagesIcon },
@@ -79,6 +82,7 @@ export function CvReviewClient({
     const s = new Set<OptionalKey>();
     const d = initialStructuredCv;
     if (d.skills.technical.length + d.skills.soft_skills.length + d.skills.domain_knowledge.length > 0) s.add("skills");
+    if ((d.projects ?? []).length > 0) s.add("projects");
     if ((d.certifications ?? []).length > 0) s.add("certifications");
     if ((d.awards ?? []).length > 0) s.add("awards");
     if ((d.languages ?? []).length > 0) s.add("languages");
@@ -96,14 +100,14 @@ export function CvReviewClient({
 
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
     skills: true, summary: true, experience: true, education: true,
-    languages: true, awards: true, certifications: true, references: false,
+    projects: true, languages: true, awards: true, certifications: true, references: false,
   });
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({});
 
   const toggle     = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
   const collapseAll = () => setOpen({
     skills: false, summary: false, experience: false, education: false,
-    languages: false, awards: false, certifications: false, references: false,
+    projects: false, languages: false, awards: false, certifications: false, references: false,
   });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,6 +151,11 @@ export function CvReviewClient({
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [doc, customSects, persist, isCreate]);
 
+  // Create-mode validation — Experience and Education are mandatory before a
+  // CV can be marked "Reviewed". Drafts skip this entirely.
+  const [showErrors, setShowErrors] = useState(false);
+  const validationErrors = useMemo(() => validateCreate(doc), [doc]);
+
   // Review mode: verify + collapse, stay on page.
   async function saveAndCollapse() {
     if (timer.current) clearTimeout(timer.current);
@@ -157,14 +166,51 @@ export function CvReviewClient({
     }
   }
 
-  // Create mode: save then return to library — user sets active from there.
-  async function saveAndBack() {
+  // Create mode: save as draft — no validation, stays unverified. User can
+  // come back and finish later.
+  async function saveDraft() {
+    if (timer.current) clearTimeout(timer.current);
+    const ok = await persist(doc, customSects, false);
+    if (ok) router.push("/dashboard/cv");
+  }
+
+  // Create mode: finish — validate mandatory sections, mark verified, return.
+  async function saveFinish() {
+    if (validationErrors.length > 0) {
+      setShowErrors(true);
+      // Open the sections that have problems and scroll to the top.
+      setOpen(o => ({ ...o, experience: true, education: true }));
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (timer.current) clearTimeout(timer.current);
     const ok = await persist(doc, customSects, true);
     if (ok) router.push("/dashboard/cv");
   }
 
   const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
+
+  // Field-level red-border flags (create mode, after a failed "Save" attempt).
+  const noCompleteExp = isCreate && !doc.experience.some(expComplete);
+  const noCompleteEdu = isCreate && !doc.education.some(eduComplete);
+  const expFieldErr = (i: number, field: "employer" | "role" | "dates" | "bullets"): boolean => {
+    if (!isCreate || !showErrors) return false;
+    const e = doc.experience[i];
+    const flagged = expHasContent(e) || (i === 0 && noCompleteExp);
+    if (!flagged) return false;
+    if (field === "employer") return !e.employer.trim();
+    if (field === "role")     return !e.role.trim();
+    if (field === "dates")    return !(e.start_date.trim() || e.end_date.trim());
+    return !(e.bullets ?? []).some(b => b.trim());
+  };
+  const eduFieldErr = (i: number, field: "institution" | "qualification"): boolean => {
+    if (!isCreate || !showErrors) return false;
+    const e = doc.education[i];
+    const flagged = eduHasContent(e) || (i === 0 && noCompleteEdu);
+    if (!flagged) return false;
+    if (field === "institution") return !e.institution.trim();
+    return !e.qualification.trim();
+  };
 
   // — patching helpers —
   const patchExperience = (i: number, next: Partial<StructuredCvExperience>) =>
@@ -213,10 +259,17 @@ export function CvReviewClient({
   const addCertification = () => setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
   const removeCertification = (i: number) => setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
   const addReferee = () => setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
+  const patchProject = (i: number, next: Partial<StructuredCvProject>) =>
+    setDoc(d => ({ ...d, projects: (d.projects ?? []).map((p, idx) => idx === i ? { ...p, ...next } : p) }));
+  const addProject = () =>
+    setDoc(d => ({ ...d, projects: [...(d.projects ?? []), { name: "", url: "", description: "" }] }));
+  const removeProject = (i: number) =>
+    setDoc(d => ({ ...d, projects: (d.projects ?? []).filter((_, idx) => idx !== i) }));
 
   const enableSection = (k: OptionalKey) => {
     setEnabledOptional(prev => new Set(prev).add(k));
     setOpen(o => ({ ...o, [k]: true }));
+    if (k === "projects"       && (doc.projects ?? []).length === 0) addProject();
     if (k === "certifications" && doc.certifications.length === 0) addCertification();
     if (k === "awards"         && (doc.awards ?? []).length === 0) addAward();
     if (k === "languages"      && (doc.languages ?? []).length === 0) addLanguage();
@@ -225,6 +278,7 @@ export function CvReviewClient({
   const disableSection = (k: OptionalKey) => {
     setEnabledOptional(prev => { const n = new Set(prev); n.delete(k); return n; });
     if (k === "skills")         setDoc(d => ({ ...d, skills: { domain_knowledge: [], soft_skills: [], technical: [] } }));
+    if (k === "projects")       setDoc(d => ({ ...d, projects: [] }));
     if (k === "certifications") setDoc(d => ({ ...d, certifications: [] }));
     if (k === "awards")         setDoc(d => ({ ...d, awards: [] }));
     if (k === "languages")      setDoc(d => ({ ...d, languages: [] }));
@@ -333,7 +387,17 @@ export function CvReviewClient({
 
       {/* STATUS BANNER */}
       <div className="mb-6">
-        {liveGaps.length > 0 ? (
+        {isCreate && showErrors && validationErrors.length > 0 ? (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/5 px-3.5 py-2.5 text-[12.5px] text-red-700 dark:text-red-300 space-y-1">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+              Before you can finish, please fix:
+            </div>
+            <ul className="list-disc pl-7 space-y-0.5">
+              {validationErrors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+          </div>
+        ) : liveGaps.length > 0 && !isCreate ? (
           <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-red-700 dark:text-red-300">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15">
               <AlertTriangle className="h-3 w-3 text-red-600" aria-hidden="true" />
@@ -345,7 +409,7 @@ export function CvReviewClient({
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand)]/10">
               <Sparkles className="h-3 w-3 text-[var(--brand)]" aria-hidden="true" />
             </span>
-            <span>Fill in your details, then <strong className="font-semibold text-text">Save</strong>. You can set it as active from My CV.</span>
+            <span><strong className="font-semibold text-text">Experience</strong> and <strong className="font-semibold text-text">Education</strong> are required to finish. Not done yet? <strong className="font-semibold text-text">Save as draft</strong> and come back later.</span>
           </div>
         ) : (
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 pl-2 pr-3.5 py-1 text-[12.5px] text-text">
@@ -436,23 +500,29 @@ export function CvReviewClient({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" />
+                      <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" required={isCreate} invalid={expFieldErr(i, "employer")} />
                     </div>
                     {isCreate && doc.experience.length > 1 && (
                       <RemoveBtn label="Remove role" onClick={() => removeExperience(i)} />
                     )}
                   </div>
                   <Grid cols={3} mt>
-                    <GhostField label="Role"     value={e.role}     onChange={v => patchExperience(i, { role: v })} />
+                    <GhostField label="Role"     value={e.role}     onChange={v => patchExperience(i, { role: v })} required={isCreate} invalid={expFieldErr(i, "role")} />
                     <GhostField label="Location" value={e.location} onChange={v => patchExperience(i, { location: v })} />
                     <DatesField
                       start={e.start_date} end={e.end_date}
                       onStart={v => patchExperience(i, { start_date: v })}
                       onEnd={v => patchExperience(i, { end_date: v })}
+                      invalid={expFieldErr(i, "dates")}
                     />
                   </Grid>
                   <div className="mt-4">
-                    <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-2">Bullets</div>
+                    <div className="text-[11px] uppercase tracking-wider font-medium mb-2">
+                      <span className={expFieldErr(i, "bullets") ? "text-red-600" : "text-text-3"}>
+                        Bullets{isCreate && <span className="text-red-500 ml-0.5">*</span>}
+                        {expFieldErr(i, "bullets") && <span className="normal-case tracking-normal ml-1.5">· add at least one</span>}
+                      </span>
+                    </div>
                     <div className="space-y-2 ml-1">
                       {e.bullets.map((b, bi) => (
                         <BulletRow
@@ -498,14 +568,14 @@ export function CvReviewClient({
               )}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" />
+                  <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" required={isCreate} invalid={eduFieldErr(i, "institution")} />
                 </div>
                 {isCreate && doc.education.length > 1 && (
                   <RemoveBtn label="Remove education" onClick={() => removeEducation(i)} />
                 )}
               </div>
               <Grid cols={3} mt>
-                <GhostField label="Qualification" value={e.qualification} onChange={v => patchEducation(i, { qualification: v })} />
+                <GhostField label="Qualification" value={e.qualification} onChange={v => patchEducation(i, { qualification: v })} required={isCreate} invalid={eduFieldErr(i, "qualification")} />
                 <GhostField label="Location"      value={e.location}      onChange={v => patchEducation(i, { location: v })} />
                 <DatesField
                   start={e.start_date} end={e.end_date}
@@ -526,6 +596,51 @@ export function CvReviewClient({
           ))}
           {isCreate && <AddBtn label="Add education" onClick={addEducation} />}
         </Section>
+
+        {/* PROJECTS — opt-in when building */}
+        {(isCreate ? optionalShown("projects") : (doc.projects ?? []).length > 0) && (
+          <Section
+            icon={FolderGit2}
+            title="Projects"
+            meta={(doc.projects?.length ?? 0) === 0 ? "empty" : `${doc.projects!.length}`}
+            subtitle="Portfolio / side projects — the AI references relevant ones per role"
+            open={open.projects}
+            onToggle={() => toggle("projects")}
+            onClose={isCreate ? () => disableSection("projects") : undefined}
+          >
+            {(doc.projects ?? []).length === 0 ? (
+              <EmptyState icon={FolderGit2} text="No projects yet — optional." actionLabel="Add project" onAction={addProject} />
+            ) : (doc.projects ?? []).map((p, i) => (
+              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <GhostField label="Name" value={p.name} onChange={v => patchProject(i, { name: v })} size="lg" />
+                  </div>
+                  <RemoveBtn label="Remove project" onClick={() => removeProject(i)} />
+                </div>
+                <Grid cols={1} mt>
+                  <div className="flex items-end gap-1.5">
+                    <div className="flex-1 min-w-0">
+                      <GhostField label="URL" value={p.url} onChange={v => patchProject(i, { url: v })} />
+                    </div>
+                    {p.url && (
+                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="mb-1.5 shrink-0 text-text-3 hover:text-[var(--brand)]" aria-label="Open project URL">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </Grid>
+                <div className="mt-3">
+                  <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
+                    Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
+                  </div>
+                  <GhostTextarea rows={2} value={p.description} onChange={v => patchProject(i, { description: v })} />
+                </div>
+              </div>
+            ))}
+            {(doc.projects ?? []).length > 0 && <AddBtn label="Add project" onClick={addProject} />}
+          </Section>
+        )}
 
         {/* LANGUAGES — opt-in when building */}
         {(!isCreate || optionalShown("languages")) && (
@@ -740,16 +855,37 @@ export function CvReviewClient({
 
       {/* SAVE TOAST — sticky bottom */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shadow-lg pl-4 pr-1 py-1">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shadow-lg pl-4 pr-1 py-1">
           <SaveBadge status={save} verified={status === "verified"} err={err} compact />
-          <button
-            type="button"
-            onClick={isCreate ? saveAndBack : saveAndCollapse}
-            disabled={save === "saving"}
-            className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
-          >
-            Save
-          </button>
+          {isCreate ? (
+            <>
+              <button
+                type="button"
+                onClick={saveDraft}
+                disabled={save === "saving"}
+                className="rounded-full border border-[var(--border)] px-3.5 py-1.5 text-[13px] font-medium text-text-2 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors shrink-0 disabled:opacity-50"
+              >
+                Save as draft
+              </button>
+              <button
+                type="button"
+                onClick={saveFinish}
+                disabled={save === "saving"}
+                className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
+              >
+                Save
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={saveAndCollapse}
+              disabled={save === "saving"}
+              className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
+            >
+              Save
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -820,17 +956,24 @@ function Grid({ cols = 2, mt, children }: { cols?: number; mt?: boolean; childre
 }
 
 function GhostField({
-  label, value, onChange, size = "md",
-}: { label: string; value: string; onChange: (v: string) => void; size?: "md" | "lg" }) {
+  label, value, onChange, size = "md", invalid = false, required = false,
+}: { label: string; value: string; onChange: (v: string) => void; size?: "md" | "lg"; invalid?: boolean; required?: boolean }) {
   const sized = size === "lg" ? "text-[14.5px] font-semibold py-1.5" : "text-[13px] py-1.5";
+  const border = invalid
+    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+    : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
   return (
     <label className="block">
-      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">{label}</span>
+      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {invalid && <span className="normal-case tracking-normal text-red-600 font-semibold ml-1.5">· required</span>}
+      </span>
       <input
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
-        className={`block w-full ${sized} text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors`}
+        className={`block w-full ${sized} text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
       />
     </label>
   );
@@ -850,14 +993,17 @@ function GhostTextarea({
   );
 }
 
-function DatesField({ start, end, onStart, onEnd }: {
-  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void;
+function DatesField({ start, end, onStart, onEnd, invalid = false }: {
+  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void; invalid?: boolean;
 }) {
   const blank = !start && !end;
+  const border = invalid
+    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+    : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
   return (
     <div>
       <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">
-        Dates {blank && <span className="normal-case tracking-normal text-red-600 font-semibold">· missing</span>}
+        Dates {(blank || invalid) && <span className="normal-case tracking-normal text-red-600 font-semibold">· {invalid ? "required" : "missing"}</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
         <input
@@ -865,14 +1011,14 @@ function DatesField({ start, end, onStart, onEnd }: {
           value={start}
           onChange={e => onStart(e.target.value)}
           placeholder="Start"
-          className="text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors"
+          className={`text-[13px] text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
         />
         <input
           type="text"
           value={end}
           onChange={e => onEnd(e.target.value)}
           placeholder="End or Present"
-          className="text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors"
+          className={`text-[13px] text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
         />
       </div>
     </div>
@@ -1074,6 +1220,44 @@ function createGaps(d: StructuredCv): string[] {
     if (!e.start_date && !e.end_date) g.push(`education ${i + 1} year missing`);
   });
   return g;
+}
+
+// ── Create-mode required-field helpers ───────────────────────────────────────
+function expHasContent(e: StructuredCvExperience): boolean {
+  return !!(e.employer.trim() || e.role.trim() || e.location.trim()
+    || e.start_date.trim() || e.end_date.trim() || (e.bullets ?? []).some(b => b.trim()));
+}
+function expComplete(e: StructuredCvExperience): boolean {
+  return !!(e.employer.trim() && e.role.trim() && (e.start_date.trim() || e.end_date.trim())
+    && (e.bullets ?? []).some(b => b.trim()));
+}
+function eduHasContent(e: StructuredCvEducation): boolean {
+  return !!(e.institution.trim() || e.qualification.trim() || e.location.trim()
+    || e.start_date.trim() || e.end_date.trim());
+}
+function eduComplete(e: StructuredCvEducation): boolean {
+  return !!(e.institution.trim() && e.qualification.trim());
+}
+
+/** Mandatory-section validation for marking a built CV "Reviewed". Returns a
+ *  list of human-readable problems (empty = valid). */
+function validateCreate(d: StructuredCv): string[] {
+  const errs: string[] = [];
+  const exps = d.experience ?? [];
+  if (!exps.some(expComplete)) {
+    errs.push("Add at least one role with an employer, dates and a bullet point.");
+  }
+  if (exps.some(e => expHasContent(e) && !expComplete(e))) {
+    errs.push("Complete every role you've started (employer, role, dates and a bullet).");
+  }
+  const edus = d.education ?? [];
+  if (!edus.some(eduComplete)) {
+    errs.push("Add at least one education entry with an institution and qualification.");
+  }
+  if (edus.some(e => eduHasContent(e) && !eduComplete(e))) {
+    errs.push("Complete every education entry you've started (institution and qualification).");
+  }
+  return errs;
 }
 
 function emptyExperience(): StructuredCvExperience {

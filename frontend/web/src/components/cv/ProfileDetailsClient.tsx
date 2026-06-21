@@ -3,21 +3,24 @@
 /**
  * ProfileDetailsClient — the per-USER tailoring overlay, unified into ONE state
  * + ONE save so it can be laid out as separate sections on the "My CV" page
- * (with the CV library sitting between Verticals and Projects) without the
+ * (with the CV library sitting between Verticals and the rest) without the
  * sections clobbering each other.
  *
  * Why a context + single save: PATCH /api/user/preferences REPLACES
  * contact_details wholesale (it does not merge — see preferences/route.ts). If
  * each section saved independently they'd overwrite each other's unsaved edits.
- * So all profile fields (contact + verticals + projects + credentials +
- * references) live in one provider and commit together via the sticky save bar.
+ * So all profile fields (contact + verticals + credentials + references) live
+ * in one provider and commit together via the save bar.
+ *
+ * Portfolio projects are NOT here — they live per-CV in the builder
+ * (structured_cv.projects), rendered into normalized_cv_text.
  *
  * Sections are exported individually so the page can interleave the CV library
  * between them:
  *   <ProfileDetailsProvider initial activeCvId>
  *     <ContactSection /> <VerticalsSection />
  *     <CvLibraryClient />                         ← not part of this overlay
- *     <ProjectsSection /> <CredentialsSection /> <ReferencesSubSection />
+ *     <CredentialsSection /> <ReferencesSubSection />
  *     <ProfileSaveBar />
  *   </ProfileDetailsProvider>
  *
@@ -29,13 +32,11 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Plus, Trash2, ExternalLink, Sparkles, UserCircle2, Layers,
-  FolderGit2, ShieldCheck, UserCheck,
+  Plus, Trash2, Sparkles, UserCircle2, Layers,
+  ShieldCheck, UserCheck,
 } from "lucide-react";
 import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/components/cv/ProfileSettingsClient";
 import type { Referee, ReferencesMode, ReferencesData } from "@/components/cv/ReferencesSection";
-
-interface Project { name?: string; url?: string; description?: string }
 
 const MAX_REFEREES = 3;
 const CONTACT_KEYS = [
@@ -56,10 +57,6 @@ interface Ctx {
   setField:  <K extends typeof CONTACT_KEYS[number]>(k: K, v: string) => void;
   families:  RoleFamily[];
   toggleFamily: (f: RoleFamily) => void;
-  projects:  Project[];
-  addProject: () => void;
-  removeProject: (i: number) => void;
-  patchProject: (i: number, field: keyof Project, value: string) => void;
   creds:     ProfileCredentials;
   setCred:   <K extends keyof ProfileCredentials>(k: K, v: ProfileCredentials[K]) => void;
   refMode:   ReferencesMode;
@@ -74,8 +71,12 @@ interface Ctx {
   saving:    boolean;
   saved:     boolean;
   error:     string | null;
+  showErrors: boolean;
   save:      () => Promise<void>;
 }
+
+/** Contact fields that must be filled before the profile can be saved. */
+const REQUIRED_CONTACT_KEYS = ["name", "phone", "email", "suburb", "address", "postcode"] as const;
 
 const ProfileCtx = createContext<Ctx | null>(null);
 function useProfile(): Ctx {
@@ -106,7 +107,6 @@ export function ProfileDetailsProvider({
   const initRefs = (init as { references?: ReferencesData }).references;
   const [cd, setCd]             = useState<ContactDetails>(initialContact);
   const [families, setFamilies] = useState<RoleFamily[]>(init.role_families ?? []);
-  const [projects, setProjects] = useState<Project[]>(init.projects ?? []);
   const [creds, setCreds]       = useState<ProfileCredentials>(init.credentials ?? {});
   const [refMode, setRefMode]   = useState<ReferencesMode>(resolveInitialMode(initRefs));
   const [referees, setReferees] = useState<Referee[]>(initRefs?.referees ?? []);
@@ -115,6 +115,7 @@ export function ProfileDetailsProvider({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
   const touch = () => { setDirty(true); setSaved(false); };
 
   const ctx: Ctx = {
@@ -122,10 +123,6 @@ export function ProfileDetailsProvider({
     setField: (k, v) => { setCd((p) => ({ ...p, [k]: v })); touch(); },
     families,
     toggleFamily: (f) => { setFamilies((p) => p.includes(f) ? p.filter((x) => x !== f) : [...p, f]); touch(); },
-    projects,
-    addProject: () => { setProjects((p) => [...p, { name: "", url: "", description: "" }]); touch(); },
-    removeProject: (i) => { setProjects((p) => p.filter((_, idx) => idx !== i)); touch(); },
-    patchProject: (i, field, value) => { setProjects((p) => p.map((pr, idx) => idx === i ? { ...pr, [field]: value } : pr)); touch(); },
     creds,
     setCred: (k, v) => { setCreds((p) => ({ ...p, [k]: v })); touch(); },
     refMode,
@@ -136,14 +133,31 @@ export function ProfileDetailsProvider({
     patchReferee: (i, field, value) => { setReferees((p) => p.map((r, idx) => idx === i ? { ...r, [field]: value } : r)); touch(); },
     setReferees: (r) => { setReferees(r); touch(); },
     activeCvId,
-    dirty, saving, saved, error,
+    dirty, saving, saved, error, showErrors,
     save: async () => {
+      // Validate mandatory fields before hitting the API.
+      const missingContact = REQUIRED_CONTACT_KEYS.filter(
+        (k) => !((cd as Record<string, string>)[k] ?? "").trim()
+      );
+      const noVertical = families.length === 0;
+      if (missingContact.length > 0 || noVertical) {
+        setShowErrors(true);
+        setError(
+          noVertical && missingContact.length > 0
+            ? "Fill the required contact fields and pick at least one role."
+            : noVertical
+              ? "Pick at least one role you're applying for."
+              : "Fill the required contact fields highlighted in red."
+        );
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      setShowErrors(false);
       setSaving(true); setError(null); setSaved(false);
       const cleanedRefs = referees.filter((r) => r.name?.trim() || r.job_title?.trim() || r.company?.trim() || r.email?.trim());
       const payload = {
         ...cd,
         role_families: families,
-        projects,
         credentials:   creds,
         references:    { mode: refMode, referees: cleanedRefs.slice(0, MAX_REFEREES) },
       };
@@ -195,17 +209,18 @@ function SectionCard({
 // ── Contact ──────────────────────────────────────────────────────────────────
 
 export function ContactSection() {
-  const { cd, setField, families } = useProfile();
+  const { cd, setField, families, showErrors } = useProfile();
   const showTech = families.includes("tech") || families.includes("general");
+  const invalid = (k: string) => showErrors && !((cd as Record<string, string>)[k] ?? "").trim();
   return (
-    <SectionCard icon={UserCircle2} title="Contact details" subtitle="Stamped onto every tailored CV. Applies to all CVs. Leave fields blank to omit them.">
+    <SectionCard icon={UserCircle2} title="Contact details" subtitle="Stamped onto every tailored CV. Applies to all CVs. Fields marked * are required.">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Full Name"    value={cd.name        ?? ""} onChange={(v) => setField("name",        v)} placeholder="Jane Doe" />
-        <Field label="Phone"        value={cd.phone       ?? ""} onChange={(v) => setField("phone",       v)} placeholder="+61 414 032 507" type="tel" />
-        <Field label="Email"        value={cd.email       ?? ""} onChange={(v) => setField("email",       v)} placeholder="you@example.com" type="email" />
-        <Field label="Suburb"       value={cd.suburb      ?? ""} onChange={(v) => setField("suburb",      v)} placeholder="Hurstville" />
-        <Field label="State"        value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="NSW" />
-        <Field label="Postcode"     value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220" />
+        <Field label="Full Name"    value={cd.name        ?? ""} onChange={(v) => setField("name",        v)} placeholder="Jane Doe"          required invalid={invalid("name")} />
+        <Field label="Phone"        value={cd.phone       ?? ""} onChange={(v) => setField("phone",       v)} placeholder="+61 414 032 507"   type="tel"   required invalid={invalid("phone")} />
+        <Field label="Email"        value={cd.email       ?? ""} onChange={(v) => setField("email",       v)} placeholder="you@example.com"   type="email" required invalid={invalid("email")} />
+        <Field label="Suburb"       value={cd.suburb      ?? ""} onChange={(v) => setField("suburb",      v)} placeholder="Hurstville"        required invalid={invalid("suburb")} />
+        <Field label="State"        value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="NSW"               required invalid={invalid("address")} />
+        <Field label="Postcode"     value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220"              required invalid={invalid("postcode")} />
         <Field label="LinkedIn URL" value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="https://linkedin.com/in/yourname" />
         <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
           <Field label="Other (label)" value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
@@ -225,68 +240,22 @@ export function ContactSection() {
 const FAMILY_LABELS: Record<RoleFamily, string> = { tech: "Tech", nursing: "Healthcare", manual: "Manual", general: "General" };
 
 export function VerticalsSection() {
-  const { families, toggleFamily } = useProfile();
+  const { families, toggleFamily, showErrors } = useProfile();
+  const invalid = showErrors && families.length === 0;
   return (
-    <SectionCard icon={Layers} title="What roles are you applying for?" subtitle="Applies to all CVs. Drives your skill-section labels and which credential/project fields show.">
-      <div className="flex flex-wrap gap-2">
+    <SectionCard icon={Layers} title="What roles are you applying for?" subtitle="Applies to all CVs. Drives your skill-section labels and which credential fields show. Pick at least one.">
+      <div className={`flex flex-wrap gap-2 ${invalid ? "rounded-lg ring-1 ring-red-500/60 p-2 -m-2" : ""}`}>
         <Pill label="Tech / Data / Engineering"   selected={families.includes("tech")}    onClick={() => toggleFamily("tech")} />
         <Pill label="Healthcare / Nursing / Care" selected={families.includes("nursing")} onClick={() => toggleFamily("nursing")} />
         <Pill label="Manual / Service / Trades"   selected={families.includes("manual")}  onClick={() => toggleFamily("manual")} />
         <Pill label="Other / General"             selected={families.includes("general")} onClick={() => toggleFamily("general")} />
       </div>
+      {invalid && <p className="text-xs text-red-600 font-medium">Select at least one role to continue.</p>}
       {families.length > 0 && (
         <p className="text-xs text-text-3">
           Showing fields for: <span className="font-medium text-text-2">{families.map((f) => FAMILY_LABELS[f] ?? f).join(", ")}</span>
         </p>
       )}
-    </SectionCard>
-  );
-}
-
-// ── Projects (tech only) ─────────────────────────────────────────────────────
-
-export function ProjectsSection() {
-  const { families, projects, addProject, removeProject, patchProject } = useProfile();
-  const showTech = families.includes("tech") || families.includes("general");
-  if (!showTech) return null;
-  return (
-    <SectionCard icon={FolderGit2} title="Portfolio projects" subtitle="Tech CVs only. Passed to the AI at tailoring time — it references relevant projects per role.">
-      <div className="space-y-3">
-        {projects.map((proj, i) => (
-          <div key={i} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-text-2">Project {i + 1}</span>
-              <button onClick={() => removeProject(i)} className="rounded p-1 hover:bg-red-light hover:text-red transition-colors" aria-label="Remove project">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Field label="Name" value={proj.name ?? ""} onChange={(v) => patchProject(i, "name", v)} placeholder="e.g. CV Magic" />
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-text-2">URL</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="url"
-                    value={proj.url ?? ""}
-                    onChange={(e) => patchProject(i, "url", e.target.value)}
-                    placeholder="https://github.com/you/project"
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
-                  />
-                  {proj.url && (
-                    <a href={proj.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-text-3 hover:text-[var(--brand)]" aria-label="Open project URL">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-            <Field label="One-line description (optional)" value={proj.description ?? ""} onChange={(v) => patchProject(i, "description", v)} placeholder="e.g. AI-powered CV tailoring tool built with Next.js and FastAPI" />
-          </div>
-        ))}
-      </div>
-      <button onClick={addProject} className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--border)] px-3 py-2 text-sm font-medium text-text-2 hover:border-[var(--brand)]/40 hover:text-[var(--brand)] transition-colors">
-        <Plus className="h-4 w-4" /> Add project
-      </button>
     </SectionCard>
   );
 }
@@ -480,7 +449,7 @@ export function ProfileSaveBar() {
       <span className="text-[12px] text-text-2">
         {error ? <span className="text-red">{error}</span>
           : saved ? <span className="text-green-600 font-medium">✓ Saved</span>
-          : dirty ? "Unsaved changes — contact, verticals, projects, credentials & references."
+          : dirty ? "Unsaved changes — contact, verticals, credentials & references."
           : "Applies to every CV."}
       </span>
     </div>
@@ -489,12 +458,19 @@ export function ProfileSaveBar() {
 
 // ── Small inputs (ported) ────────────────────────────────────────────────────
 
-function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", placeholder, required = false, invalid = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; required?: boolean; invalid?: boolean }) {
+  const border = invalid
+    ? "border-red-500 focus:ring-red-500/20"
+    : "border-[var(--border)] focus:ring-[var(--brand)]/30";
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-text-2">{label}</label>
+      <label className="text-xs font-medium text-text-2">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {invalid && <span className="text-red-600 font-semibold ml-1.5">· required</span>}
+      </label>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30" />
+        className={`w-full rounded-md border ${border} bg-[var(--surface)] px-3 py-2 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2`} />
     </div>
   );
 }

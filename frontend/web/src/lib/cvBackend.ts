@@ -256,6 +256,12 @@ export interface CustomCvSection {
   fields: Array<{ label: string; value: string }>;
 }
 
+export interface StructuredCvProject {
+  name:        string;
+  url:         string;
+  description: string;
+}
+
 export interface StructuredCv {
   summary:         string;
   experience:      StructuredCvExperience[];
@@ -266,6 +272,7 @@ export interface StructuredCv {
   skills:          StructuredCvSkills;
   references:      StructuredCvReferee[];
   gaps:            StructuredCvGap[];
+  projects?:       StructuredCvProject[];
   custom_sections?: CustomCvSection[];
   /** Parser-logic version. Server component on the review page silently
    *  re-runs structurize when the stored value is below this constant. Mirror

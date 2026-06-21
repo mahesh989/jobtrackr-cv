@@ -174,22 +174,22 @@ export async function POST(
   const usageEventId = cvGate.eventId ?? null;
   const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
 
-  // ── 1d. Load saved contact details + portfolio projects (optional) ──────
+  // ── 1d. Load saved contact details (optional) ───────────────────────────
+  // Portfolio projects now live per-CV in structured_cv.projects (rendered
+  // into normalized_cv_text by cv-backend), so they're already part of the CV
+  // text below — no separate merge needed.
   const { data: prefRow } = await admin
     .from("user_preferences")
     .select("contact_details")
     .eq("user_id", user.id)
     .maybeSingle();
-  interface Project { name?: string; url?: string; description?: string }
   interface ContactDetails {
     name?: string; phone?: string; email?: string; address?: string;
     linkedin?: string; github?: string; website?: string; portfolio?: string;
     other_label?: string; other_url?: string;
-    projects?: Project[];
   }
   const contactDetails =
     (prefRow?.contact_details as ContactDetails | null) ?? null;
-  const portfolioProjects = contactDetails?.projects ?? [];
 
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
   // Priority order:
@@ -260,27 +260,12 @@ export async function POST(
   // on 'completed' or void it on 'failed'.
   if (usageEventId) await linkUsageEvent(usageEventId, newRun.id);
 
-  // Augment the CV text with the user's saved portfolio projects so the
-  // tailoring AI considers them even if they're not already in the CV PDF.
-  // Appended as a markdown section the AI naturally recognises.
-  let cvTextForAnalysis = cvTextSource;
-  if (portfolioProjects.length > 0) {
-    const lines = ["", "## Projects"];
-    for (const p of portfolioProjects) {
-      const titleParts: string[] = [];
-      if (p.name) titleParts.push(`**${p.name}**`);
-      if (p.url)  titleParts.push(`[${p.url}](${p.url})`);
-      if (titleParts.length > 0) lines.push(`- ${titleParts.join(" · ")}`);
-      if (p.description) lines.push(`  ${p.description}`);
-    }
-    cvTextForAnalysis = `${cvTextSource.trimEnd()}\n${lines.join("\n")}\n`;
-  }
+  // Projects are already in the CV text (rendered from structured_cv), so no
+  // separate merge is needed.
+  const cvTextForAnalysis = cvTextSource;
 
-  // Drop the bulky 'projects' sub-array before sending — cv-backend only
-  // uses contact_details for the contact-line stamp.
-  const contactForBackend = contactDetails
-    ? Object.fromEntries(Object.entries(contactDetails).filter(([k]) => k !== "projects"))
-    : null;
+  // cv-backend only uses contact_details for the contact-line stamp.
+  const contactForBackend = (contactDetails as Record<string, unknown> | null) ?? null;
 
   // ── 5–6. Hand off to cv-backend (HMAC-signed) ────────────────────────────
   try {

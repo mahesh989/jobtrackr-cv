@@ -15,10 +15,12 @@ Order is fixed (Skills above Summary per product call):
   2. Professional Summary
   3. Experience
   4. Education
-  5. Languages            (omitted if empty)
-  6. Awards               (omitted if empty)
-  7. Certifications & licences  (omitted if empty)
-  8. References
+  5. Projects             (omitted if empty)
+  6. Languages            (omitted if empty)
+  7. Awards               (omitted if empty)
+  8. Certifications & licences  (omitted if empty)
+  9. References
+ 10. Custom sections      (built-from-scratch CVs only; omitted if empty)
 
 Contact details are NOT rendered here — the analysis orchestrator stamps
 the contact line from the user's profile via stamp_contact_line(). The
@@ -77,6 +79,20 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
             out.extend(_render_education_entry(entry))
             out.append("")
 
+    # Projects (omitted when empty). Built-from-scratch CVs carry projects in
+    # the structured doc; the tailoring composer recognises the ## Projects
+    # heading and references 1-2 relevant projects per the prompt rules.
+    projects = structured.get("projects") or []
+    if projects:
+        project_lines: List[str] = []
+        for p in projects:
+            project_lines.extend(_render_project_lines(p))
+        if project_lines:
+            out.append("## Projects")
+            out.append("")
+            out.extend(project_lines)
+            out.append("")
+
     # Languages (omitted when empty). Not used by the tailored-CV composer
     # — preserved so the original verbatim view stays complete.
     languages = structured.get("languages") or []
@@ -120,6 +136,31 @@ def render_canonical_cv(structured: Dict[str, Any]) -> str:
                 out.append(f"- {line}")
         out.append("")
 
+    # Custom sections (built-from-scratch CVs only) — user-defined heading +
+    # label/value field pairs. Rendered last so they never displace canonical
+    # sections. Empty sections (no field with a value) are omitted.
+    custom_sections = structured.get("custom_sections") or []
+    for sect in custom_sections:
+        title = _str(sect.get("title"))
+        fields = sect.get("fields") or []
+        rendered_fields: List[str] = []
+        for f in fields:
+            label = _str(f.get("label"))
+            value = _str(f.get("value"))
+            if not value and not label:
+                continue
+            if label and value:
+                rendered_fields.append(f"- **{label}:** {value}")
+            elif value:
+                rendered_fields.append(f"- {value}")
+            elif label:
+                rendered_fields.append(f"- {label}")
+        if title and rendered_fields:
+            out.append(f"## {title}")
+            out.append("")
+            out.extend(rendered_fields)
+            out.append("")
+
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -135,6 +176,23 @@ def _render_language_line(l: Dict[str, Any]) -> str:
     if lang and prof:
         return f"{lang} ({prof})"
     return lang or prof
+
+
+def _render_project_lines(p: Dict[str, Any]) -> List[str]:
+    name = _str(p.get("name"))
+    url = _str(p.get("url"))
+    description = _str(p.get("description"))
+    title_parts: List[str] = []
+    if name:
+        title_parts.append(f"**{name}**")
+    if url:
+        title_parts.append(f"[{url}]({url})")
+    lines: List[str] = []
+    if title_parts:
+        lines.append(f"- {' · '.join(title_parts)}")
+    if description:
+        lines.append(f"  {description}")
+    return lines
 
 
 def _render_award_lines(a: Dict[str, Any]) -> List[str]:

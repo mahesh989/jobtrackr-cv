@@ -88,7 +88,8 @@ export async function POST(
   }
 
   // ── 2a. Load the CV text the run used (not the currently-active CV, so the
-  //        cached matching stays consistent) + augment with portfolio. ──────
+  //        cached matching stays consistent). Projects now live per-CV in the
+  //        CV text itself, so no portfolio merge is needed. ─────────────────
   const { data: cv } = await admin
     .from("cv_versions")
     .select("id, cv_text")
@@ -106,31 +107,14 @@ export async function POST(
     .select("contact_details")
     .eq("user_id", user.id)
     .maybeSingle();
-  interface Project { name?: string; url?: string; description?: string }
   interface ContactDetails {
     name?: string; phone?: string; email?: string; address?: string;
     linkedin?: string; github?: string; website?: string; portfolio?: string;
     other_label?: string; other_url?: string;
-    projects?: Project[];
   }
   const contactDetails    = (prefRow?.contact_details as ContactDetails | null) ?? null;
-  const portfolioProjects = contactDetails?.projects ?? [];
-
-  let cvTextForAnalysis = cv.cv_text;
-  if (portfolioProjects.length > 0) {
-    const lines = ["", "## Projects"];
-    for (const p of portfolioProjects) {
-      const titleParts: string[] = [];
-      if (p.name) titleParts.push(`**${p.name}**`);
-      if (p.url)  titleParts.push(`[${p.url}](${p.url})`);
-      if (titleParts.length > 0) lines.push(`- ${titleParts.join(" · ")}`);
-      if (p.description) lines.push(`  ${p.description}`);
-    }
-    cvTextForAnalysis = `${cv.cv_text.trimEnd()}\n${lines.join("\n")}\n`;
-  }
-  const contactForBackend = contactDetails
-    ? Object.fromEntries(Object.entries(contactDetails).filter(([k]) => k !== "projects"))
-    : null;
+  const cvTextForAnalysis = cv.cv_text;
+  const contactForBackend = (contactDetails as Record<string, unknown> | null) ?? null;
 
   // ── 2b. Resolve the platform AI provider/key/model ────────────────────────
   // Resuming re-uses whatever provider+model is currently active (an admin

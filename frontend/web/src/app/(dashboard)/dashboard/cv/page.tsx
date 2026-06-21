@@ -6,7 +6,7 @@ import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
 import {
   ProfileDetailsProvider, ContactSection, VerticalsSection,
-  ProjectsSection, CredentialsSection, ReferencesSubSection, ProfileSaveBar,
+  CredentialsSection, ReferencesSubSection, ProfileSaveBar,
 } from "@/components/cv/ProfileDetailsClient";
 import { EmailIntegrationCard } from "@/components/email/EmailIntegrationCard";
 import type { ContactDetails } from "@/components/cv/ProfileSettingsClient";
@@ -120,7 +120,6 @@ export default async function CvPage({ searchParams }: PageProps) {
             <CvLibraryClient initial={(cvs ?? []) as any} skillLabels={skillLabels} />
           </div>
 
-          <ProjectsSection />
           <CredentialsSection />
           <ReferencesSubSection />
           <ProfileSaveBar />

@@ -543,7 +543,7 @@ function CvRowCard({
               </span>
             )}
             {cv.structured_cv_status === "verified" && (
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+              <span className="rounded-full border border-green-700/40 bg-green-700/10 px-2 py-0.5 text-[11px] font-semibold text-green-800 dark:text-green-300">
                 Reviewed
               </span>
             )}
