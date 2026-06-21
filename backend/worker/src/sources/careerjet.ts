@@ -15,6 +15,7 @@ import * as cheerio from "cheerio";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
 import { curlFetch } from "../lib/curlfetch.js";
+import { getApifyProxyUrl } from "../lib/proxy.js";
 
 const MAX_PAGES = 4;
 const FIRST_RUN_MAX_PAGES = 6;
@@ -25,6 +26,22 @@ const JD_FETCH_CAP = 20;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Pick a fresh AU residential proxy URL for each Careerjet call.
+ *
+ * Careerjet is behind Cloudflare. curl_cffi's Chrome JA3/ALPN fingerprint
+ * passes the TLS check, but Cloudflare's IP-reputation check still blocks
+ * Fly.io's datacenter IPs and serves a challenge page with no `article.job`
+ * elements (which previously caused a silent 0-jobs result). Routing through
+ * an Apify residential AU IP clears that block — same approach as seekDirect.
+ *
+ * Returns undefined when APIFY_PROXY_PASSWORD is not configured, so local dev
+ * (laptop on a residential ISP) still works direct.
+ */
+function careerjetProxyUrl(): string | undefined {
+  return getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
 }
 
 function parseSalary(text: string | undefined | null): { salary_min?: number; salary_max?: number } {
@@ -57,7 +74,8 @@ export const careerjetAdapter: SourceAdapter = {
     const maxPages = profile.is_first_run ? FIRST_RUN_MAX_PAGES : MAX_PAGES;
     const location = profile.location.trim().toLowerCase() === "all australia" ? "" : profile.location;
 
-    console.log(`[careerjet] keywords: ${profile.keywords.join(", ")} · location: ${location || "(AU-wide)"} · HTML Scrape`);
+    const proxyUrl = careerjetProxyUrl();
+    console.log(`[careerjet] keywords: ${profile.keywords.join(", ")} · location: ${location || "(AU-wide)"} · HTML Scrape${proxyUrl ? " + Apify residential proxy" : " direct (no proxy)"}`);
 
     for (let i = 0; i < profile.keywords.length; i++) {
       const keyword = profile.keywords[i].trim();
@@ -76,8 +94,9 @@ export const careerjetAdapter: SourceAdapter = {
         let body = "";
         let status = 0;
         try {
-          // No proxy needed, curl_cffi handles Turnstile naturally
-          const res = await curlFetch(url);
+          // Route through an Apify residential AU IP when configured — Careerjet's
+          // Cloudflare blocks Fly.io datacenter IPs even with curl_cffi's Chrome TLS.
+          const res = await curlFetch(url, proxyUrl);
           status = res.status;
           body = res.body;
         } catch (err) {
@@ -93,6 +112,18 @@ export const careerjetAdapter: SourceAdapter = {
         const $ = cheerio.load(body);
         const articles = $("article.job");
         if (articles.length === 0) {
+          // HTTP 200 but no job cards. On page 1 this usually means a Cloudflare
+          // challenge/block page (datacenter IP without a working residential
+          // proxy) rather than a genuine empty result — log it instead of
+          // breaking silently so the run log shows the real cause.
+          if (page === 1) {
+            const looksBlocked = /captcha|turnstile|just a moment|attention required|cf-challenge/i.test(body);
+            console.warn(
+              `[careerjet] "${keyword}" page 1: HTTP 200 but 0 article.job ` +
+              `(body ${body.length} chars${looksBlocked ? ", Cloudflare challenge markers present" : ""}` +
+              `${proxyUrl ? "" : ", no residential proxy — likely datacenter-IP block"}) — treating as no results`,
+            );
+          }
           break;
         }
 
@@ -158,8 +189,8 @@ export const careerjetAdapter: SourceAdapter = {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const res = await curlFetch("https://www.careerjet.com.au/search/jobs?s=analyst&l=Sydney");
-      return res.status === 200 && res.body.includes("article class=\"job");
+      const res = await curlFetch("https://www.careerjet.com.au/search/jobs?s=analyst&l=Sydney", careerjetProxyUrl());
+      return res.status === 200 && res.body.includes("class=\"job");
     } catch {
       return false;
     }
@@ -220,11 +251,12 @@ export async function enrichWithCareerjetJDs(
 
   const descByUrl = new Map<string, string>();
   let attempted = 0;
+  const proxyUrl = careerjetProxyUrl();
 
   for (const job of careerjetTargets) {
     attempted++;
     try {
-      const result = await curlFetch(job.url);
+      const result = await curlFetch(job.url, proxyUrl);
       if (result.status === 200) {
         const desc = extractJobadDescription(result.body);
         if (desc.length > 200) {
