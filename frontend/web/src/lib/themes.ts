@@ -14,7 +14,14 @@
  * --sidebar-*, --radius, --font-sans-active, etc.) via a class on <html>.
  * The choice persists to localStorage under 'jobtrackr-theme'.
  */
-export type Theme = "default" | "classic" | "gilded-noir" | "notion" | "clay";
+export type Theme =
+  | "aurora-dark"
+  | "aurora-light"
+  | "default"
+  | "classic"
+  | "gilded-noir"
+  | "notion"
+  | "clay";
 
 export const THEMES: ReadonlyArray<{
   id: Theme;
@@ -22,6 +29,30 @@ export const THEMES: ReadonlyArray<{
   description: string;
   preview: { bg: string; surface: string; primary: string; text: string; muted: string };
 }> = [
+  {
+    id: "aurora-dark",
+    name: "Aurora Dark",
+    description: "Signature ink canvas, teal–violet aurora accent",
+    preview: {
+      bg: "#0A0D12",
+      surface: "#11151C",
+      primary: "#19E3C8",
+      text: "#EAEEF6",
+      muted: "#828DA1",
+    },
+  },
+  {
+    id: "aurora-light",
+    name: "Aurora Light",
+    description: "Luminous twin of Aurora, deep-teal accent",
+    preview: {
+      bg: "#F6F8FB",
+      surface: "#FFFFFF",
+      primary: "#0B7D74",
+      text: "#0E141B",
+      muted: "#667085",
+    },
+  },
   {
     id: "default",
     name: "Default",
@@ -85,18 +116,18 @@ export const THEMES: ReadonlyArray<{
 ];
 
 const STORAGE_KEY = "jobtrackr-theme";
-const VALID_IDS = new Set<Theme>(["default", "classic", "gilded-noir", "notion", "clay"]);
-const THEMED_CLASSES = ["theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
+const VALID_IDS = new Set<Theme>(["aurora-dark", "aurora-light", "default", "classic", "gilded-noir", "notion", "clay"]);
+const THEMED_CLASSES = ["theme-aurora-dark", "theme-aurora-light", "theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "notion";
+  if (typeof window === "undefined") return "aurora-dark";
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-  if (stored === "classic" || stored === "gilded-noir" || stored === "notion" || stored === "clay" || stored === "default") {
+  if (stored && VALID_IDS.has(stored)) {
     return stored;
   }
-  // No saved preference → Notion is the project default. An explicit 'default'
-  // choice is still honoured above; only unset/unrecognised values land here.
-  return "notion";
+  // No saved preference → Aurora Dark is the project default. An explicit
+  // 'default'/other choice is honoured above; only unset/unrecognised land here.
+  return "aurora-dark";
 }
 
 export function applyTheme(theme: Theme) {

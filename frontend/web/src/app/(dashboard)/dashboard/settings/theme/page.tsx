@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ThemePickerClient } from "@/components/ThemePickerClient";
+import { DensityPickerClient } from "@/components/DensityPickerClient";
 
 export const metadata = { title: "Theme — JobTrackr" };
 
@@ -21,6 +22,14 @@ export default async function ThemeSettingsPage() {
         </div>
         <p className="label-luxury text-text-3">Appearance</p>
         <ThemePickerClient />
+
+        <div className="pt-2">
+          <p className="label-luxury text-text-3">Text size</p>
+          <p className="page-subtitle mb-3">
+            Adjust the overall type scale. Saved to this browser.
+          </p>
+          <DensityPickerClient />
+        </div>
       </div>
     </div>
   );

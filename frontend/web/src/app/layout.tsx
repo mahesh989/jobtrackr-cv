@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif } from "next/font/google";
+import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif, Plus_Jakarta_Sans, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
@@ -27,12 +27,13 @@ const dmSerif = DM_Serif_Display({
 });
 
 // ── cv-magic theme fonts (Classic / Gilded Noir / Notion / Clay) ──────────
-// The 'notion' default theme uses these, so they keep the default preload.
+// No longer the default (Aurora is), so these load lazily on theme switch.
 const manrope = Manrope({
   variable: "--font-cv-sans",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
   display: "swap",
+  preload: false,
 });
 
 const notoSerif = Noto_Serif({
@@ -40,6 +41,33 @@ const notoSerif = Noto_Serif({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   display: "swap",
+  preload: false,
+});
+
+// ── Aurora theme fonts (Aurora Dark / Aurora Light — the new default) ──────
+// Body: Plus Jakarta Sans · Display headings: Space Grotesk · Numerals: JetBrains
+// Mono. Jakarta + Grotesk carry the default preload (Aurora is the default
+// theme); the mono is used less, so it loads lazily.
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-grotesk",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jbmono",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -67,7 +95,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sofiaSans.variable} ${dmSerif.variable} ${manrope.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${sofiaSans.variable} ${dmSerif.variable} ${manrope.variable} ${notoSerif.variable} ${jakarta.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <head>
         {/* Resource hints — warm connections to third parties we always hit.
@@ -90,9 +118,14 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var t = localStorage.getItem('jobtrackr-theme') || 'notion';
-                if (t !== 'default' && /^(classic|gilded-noir|notion|clay)$/.test(t)) {
-                  document.documentElement.classList.add('theme-' + t);
+                var d = document.documentElement;
+                var t = localStorage.getItem('jobtrackr-theme') || 'aurora-dark';
+                if (t !== 'default' && /^(aurora-dark|aurora-light|classic|gilded-noir|notion|clay)$/.test(t)) {
+                  d.classList.add('theme-' + t);
+                }
+                var den = localStorage.getItem('jobtrackr-density');
+                if (den === 'compact' || den === 'spacious') {
+                  d.setAttribute('data-density', den);
                 }
               } catch (e) {}
             `,
