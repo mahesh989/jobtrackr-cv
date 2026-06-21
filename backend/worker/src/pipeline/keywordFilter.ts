@@ -123,8 +123,13 @@ export function applyKeywordFilter(
   if (!usingSmartFilter) return titlePassed; // no rescue without explicit must-include
 
   // Teaser rescue on the title rejects.
-  const passedHashes = new Set(titlePassed.map((j) => j.url_hash));
-  const titleRejected = jobs.filter((j) => !passedHashes.has(j.url_hash));
+  // NOTE: url_hash is NOT set yet at this stage (it's computed later in the
+  // dedup stage), so it is "" for every job here. Keying the passed-set on
+  // url_hash would make `passedHashes` = {""}, turning `titleRejected` into an
+  // empty list whenever ANY title matched — silently disabling rescue. Key on
+  // job.url instead, which normalise() has already populated (canonical URL).
+  const passedUrls = new Set(titlePassed.map((j) => j.url));
+  const titleRejected = jobs.filter((j) => !passedUrls.has(j.url));
   const rescued = teaserRescueFilter(titleRejected, mustInclude);
 
   return [...titlePassed, ...rescued];
