@@ -163,6 +163,10 @@ _CREDENTIALS_HEADING = "## Registration & Licences"
 # the unified credentials JSON via build_credentials_line(family_id=...).
 _CREDENTIAL_FAMILIES = frozenset({"nursing", "manual"})
 
+# Canonical display order for the opt-in availability chip. Values match the
+# checkbox labels stored by the profile UI.
+_AVAILABILITY_ORDER = ["Full Time", "Part Time", "Casual"]
+
 
 def build_credentials_line(
     contact_details: Optional[Dict[str, Any]],
@@ -257,6 +261,24 @@ def build_credentials_line(
             parts.append("Influenza Vaccination")
         if creds.get("covid_vaccination"):
             parts.append("COVID-19 Vaccination")
+
+    # 6. Availability — shared, OPT-IN. Trails the line as a single chip, but
+    # only when the user has flipped ``show_availability`` AND ticked at least
+    # one shift type. Surfaced as "Available: Full Time, Casual". Stays off by
+    # default so existing CVs are unchanged until the user opts in.
+    if creds.get("show_availability"):
+        avail = creds.get("availability")
+        if isinstance(avail, list):
+            picked = {_clean(a) for a in avail if _clean(a)}
+            ordered = [a for a in _AVAILABILITY_ORDER if a in picked]
+            # Preserve any non-standard values the UI didn't constrain to,
+            # in input order, after the canonical ones.
+            ordered += [
+                _clean(a) for a in avail
+                if _clean(a) and _clean(a) not in _AVAILABILITY_ORDER
+            ]
+            if ordered:
+                parts.append("Available: " + ", ".join(ordered))
 
     return " · ".join(parts)
 

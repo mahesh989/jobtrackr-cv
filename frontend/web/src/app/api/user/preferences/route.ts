@@ -47,6 +47,8 @@ interface ProfileCredentials {
   flu_vaccination?:      boolean;
   covid_vaccination?:    boolean;
   white_card?:           boolean;
+  availability?:         string[];  // subset of ["Full Time","Part Time","Casual"]
+  show_availability?:    boolean;   // opt-in: surface availability on the CV
 }
 
 type RoleFamily = "tech" | "nursing" | "manual" | "general";
@@ -140,10 +142,19 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     const credBool = [
       "wwcc", "police_check", "ndis_screening", "first_aid", "cpr",
       "medication_competency", "own_car", "car_insurance", "flu_vaccination",
-      "covid_vaccination", "white_card",
+      "covid_vaccination", "white_card", "show_availability",
     ] as const;
     for (const k of credBool) {
       if (c[k] === true) creds[k] = true;
+    }
+    // Availability — constrain to the known shift types; drop anything else.
+    if (Array.isArray(c.availability)) {
+      const AVAIL = ["Full Time", "Part Time", "Casual"];
+      const picked = c.availability
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim())
+        .filter((v) => AVAIL.includes(v));
+      if (picked.length > 0) creds.availability = [...new Set(picked)];
     }
     // Only attach when at least one credential was supplied — keeps the
     // stored JSON minimal and the no-credentials path identical to today.

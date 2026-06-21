@@ -56,6 +56,35 @@ def test_only_truthy_credentials_surface():
     )
 
 
+def test_availability_is_opt_in_and_trails_the_line():
+    # show_availability off → no chip even when types are ticked
+    cd_off = {"credentials": {
+        "police_check": True,
+        "availability": ["Casual", "Part Time"],
+        "show_availability": False,
+    }}
+    assert build_credentials_line(cd_off) == "National Police Check"
+
+    # opted in → trailing "Available:" chip, canonical order regardless of
+    # tick order (Full Time → Part Time → Casual)
+    cd_on = {"credentials": {
+        "police_check": True,
+        "availability": ["Casual", "Full Time", "Part Time"],
+        "show_availability": True,
+    }}
+    assert build_credentials_line(cd_on) == (
+        "National Police Check · Available: Full Time, Part Time, Casual"
+    )
+
+    # opted in but nothing ticked → no chip
+    cd_empty = {"credentials": {
+        "police_check": True,
+        "availability": [],
+        "show_availability": True,
+    }}
+    assert build_credentials_line(cd_empty) == "National Police Check"
+
+
 def test_ahpra_number_leads_when_present():
     line = build_credentials_line({"credentials": {
         "ahpra_number": "NMW0001234567",

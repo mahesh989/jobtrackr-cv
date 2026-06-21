@@ -37,7 +37,14 @@ export interface ProfileCredentials {
   wwcc_state?:            string;      // "" | "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "ACT" | "NT"
   work_rights?:           string;      // "" | "Citizen" | "PR" | "Visa with work rights"
   work_rights_hours?:     string;      // "" | "Full Time" | "Part Time"
+  // Availability — opt-in shift preferences. Distinct from work_rights_hours
+  // (what the visa allows) — this is which shifts the candidate WANTS. Only
+  // surfaces on the CV when show_availability is true.
+  availability?:          string[];    // subset of ["Full Time","Part Time","Casual"]
+  show_availability?:     boolean;
 }
+
+const AVAILABILITY_OPTIONS = ["Full Time", "Part Time", "Casual"] as const;
 
 /** Self-declared role-family selections that decide which add-on cards
  *  appear on the profile form. Multi-select — a candidate may apply for
@@ -99,6 +106,13 @@ export function ProfileSettingsClient({ initial }: Props) {
   }
   function toggleFamily(f: RoleFamily) {
     setFamilies((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]);
+  }
+  function toggleAvailability(v: string) {
+    setCreds((prev) => {
+      const cur = prev.availability ?? [];
+      const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
+      return { ...prev, availability: next };
+    });
   }
 
   // Conditional rendering rules (user-requested):
@@ -455,6 +469,44 @@ export function ProfileSettingsClient({ initial }: Props) {
           <p className="text-xs text-text-3">
             On manual / service CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only.
           </p>
+        </div>
+      )}
+
+      {/* ── Availability card (shown for nursing/manual — folds into the
+            Registration & Licences line, no separate CV section) ── */}
+      {(showNursing || showManual) && (
+        <div className="glass rounded-lg shadow-gold p-6 space-y-4">
+          <div>
+            <h2 className="label-luxury text-text-2">Availability</h2>
+            <p className="mt-1 text-xs text-text-3">
+              Which shifts you want to work. When shown, this appends to your
+              <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 mx-1">Registration &amp; Licences</code>
+              line (e.g. <span className="text-text-2">Available: Casual, Part Time</span>) —
+              no separate CV section. Off by default; flip the toggle below to include it.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {AVAILABILITY_OPTIONS.map((opt) => (
+              <Pill
+                key={opt}
+                label={opt}
+                selected={(creds.availability ?? []).includes(opt)}
+                onClick={() => toggleAvailability(opt)}
+              />
+            ))}
+          </div>
+
+          <CheckBox
+            label="Show availability on my CV"
+            checked={!!creds.show_availability}
+            onChange={(v) => setCred("show_availability", v)}
+          />
+          {creds.show_availability && (creds.availability ?? []).length === 0 && (
+            <p className="text-xs text-amber-600">
+              Pick at least one shift type above for this to appear on your CV.
+            </p>
+          )}
         </div>
       )}
 
