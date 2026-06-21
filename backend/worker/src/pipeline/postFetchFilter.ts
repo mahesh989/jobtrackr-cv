@@ -31,6 +31,9 @@ export interface PostFetchFilterResult {
   droppedTitleMissing: number;   // didn't contain required phrase
   droppedTitleExcluded: number;  // matched an exclusion
   droppedDescExcluded: number;   // description contained excluded word
+  /** Per-phrase attribution of the description exclusions — which excluded
+   *  term knocked out how many jobs. Makes "desc excluded: 11" actionable. */
+  descExcludedByPhrase: Record<string, number>;
 }
 
 export function postFetchFilter(
@@ -40,7 +43,6 @@ export function postFetchFilter(
   let kept = jobs;
   let droppedTitleMissing = 0;
   let droppedTitleExcluded = 0;
-  let droppedDescExcluded = 0;
 
   // ── 1. Title must contain ────────────────────────────────────────────────
   // User specifies a word/phrase that MUST appear in the job title.
@@ -71,9 +73,14 @@ export function postFetchFilter(
   // ── 3. Exclude from description ──────────────────────────────────────────
   const descResult = excludeByDescription(kept, profile);
   kept = descResult.kept;
-  droppedDescExcluded = descResult.dropped;
 
-  return { kept, droppedTitleMissing, droppedTitleExcluded, droppedDescExcluded };
+  return {
+    kept,
+    droppedTitleMissing,
+    droppedTitleExcluded,
+    droppedDescExcluded: descResult.dropped,
+    descExcludedByPhrase: descResult.byPhrase,
+  };
 }
 
 /**
@@ -81,26 +88,40 @@ export function postFetchFilter(
  * second pass after SEEK JD enrichment, so excluded phrases hiding in the
  * full JD (not the teaser) are still caught.
  *
- * Returns the surviving jobs and a count of how many were dropped.
+ * Returns the surviving jobs, how many were dropped, and a per-phrase
+ * attribution (which excluded term matched how many jobs — first match wins).
  */
 export function excludeByDescription(
   jobs: NormalisedJob[],
   profile: SearchProfile
-): { kept: NormalisedJob[]; dropped: number } {
+): { kept: NormalisedJob[]; dropped: number; byPhrase: Record<string, number> } {
   if (!profile.adzuna_exclude_keywords?.trim()) {
-    return { kept: jobs, dropped: 0 };
+    return { kept: jobs, dropped: 0, byPhrase: {} };
   }
-  const words = profile.adzuna_exclude_keywords
+  const matchers = profile.adzuna_exclude_keywords
     .trim()
     .split(/,/)
     .map((w) => w.trim())
     .filter(Boolean)
-    .map(buildMatcher);
+    .map((phrase) => ({ phrase, match: buildMatcher(phrase) }));
 
-  const before = jobs.length;
+  const byPhrase: Record<string, number> = {};
   const kept = jobs.filter((j) => {
     const desc = j.description ?? "";
-    return !words.some((matches) => matches(desc));
+    const hit = matchers.find((m) => m.match(desc));
+    if (hit) {
+      byPhrase[hit.phrase] = (byPhrase[hit.phrase] ?? 0) + 1;
+      return false;
+    }
+    return true;
   });
-  return { kept, dropped: before - kept.length };
+  return { kept, dropped: jobs.length - kept.length, byPhrase };
+}
+
+/** Render a per-phrase breakdown for logs, e.g. "[home care: 8, acute care: 3]".
+ *  Returns "" when nothing was dropped so callers can append unconditionally. */
+export function formatExcludeBreakdown(byPhrase: Record<string, number>): string {
+  const entries = Object.entries(byPhrase).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return "";
+  return " [" + entries.map(([p, n]) => `${p}: ${n}`).join(", ") + "]";
 }

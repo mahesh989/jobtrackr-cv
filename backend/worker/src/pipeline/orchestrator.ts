@@ -24,7 +24,7 @@ import { normalise, canonicalUrl } from "./normalise.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
-import { postFetchFilter, excludeByDescription } from "./postFetchFilter.js";
+import { postFetchFilter, excludeByDescription, formatExcludeBreakdown } from "./postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
@@ -483,19 +483,32 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       `${filtered.length} kept, ${normalised.length - filtered.length} dropped` +
       `${usingSmartFilter ? ` (smart filter: ${(profile.must_include_phrases ?? []).join(", ")})` : ""}`,
     );
+    if (normalised.length > 0 && filtered.length === 0) {
+      console.warn(
+        `[pipeline] ⚠ stage 4b dropped ALL ${normalised.length} jobs — your "Title must include any of" ` +
+        `(${(usingSmartFilter ? profile.must_include_phrases : profile.keywords ?? []).join(", ")}) ` +
+        `matched no title or teaser. Loosen it or add more phrases.`,
+      );
+    }
 
     // Stage 4c: post-fetch smart filter — applies user's title/description rules
     // universally across ALL sources (not just Adzuna).
     // This is where "title must contain", "exclude from title",
     // and "exclude from description" rules are enforced.
-    const { kept: smartFiltered, droppedTitleMissing, droppedTitleExcluded, droppedDescExcluded } =
+    const { kept: smartFiltered, droppedTitleMissing, droppedTitleExcluded, droppedDescExcluded, descExcludedByPhrase } =
       postFetchFilter(filtered, profile);
     console.log(
       `[pipeline] stage 4c — smart filter: ${smartFiltered.length} kept` +
       ` (title missing required: ${droppedTitleMissing}` +
       `, title excluded: ${droppedTitleExcluded}` +
-      `, desc excluded: ${droppedDescExcluded})`
+      `, desc excluded: ${droppedDescExcluded}${formatExcludeBreakdown(descExcludedByPhrase)})`
     );
+    if (filtered.length > 0 && smartFiltered.length === 0) {
+      console.warn(
+        `[pipeline] ⚠ stage 4c dropped ALL ${filtered.length} jobs — check your filter rules` +
+        `${droppedDescExcluded > 0 ? ` ("Description must NOT contain"${formatExcludeBreakdown(descExcludedByPhrase)})` : ""}.`,
+      );
+    }
 
     // Stages 5+6: dedup L1 + L2 (strong drop + weak flag)
     const { kept: dedupKept, l1Dropped, l2Dropped, l2WeakMarked } = await dedup(smartFiltered, profileId);
@@ -608,9 +621,15 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       // The first pass at stage 4c could only see teasers for SEEK. Now that we
       // have full JDs, dropped phrases that lived deep in the description are
       // catchable.
-      const { kept: afterDesc, dropped: droppedNow } = excludeByDescription(kept, profile);
+      const { kept: afterDesc, dropped: droppedNow, byPhrase: descByPhrase } = excludeByDescription(kept, profile);
       if (droppedNow > 0) {
-        console.log(`[pipeline] stage 7b — desc-exclusion against full JD: ${droppedNow} dropped, ${afterDesc.length} remain`);
+        console.log(`[pipeline] stage 7b — desc-exclusion against full JD: ${droppedNow} dropped, ${afterDesc.length} remain${formatExcludeBreakdown(descByPhrase)}`);
+        if (afterDesc.length === 0) {
+          console.warn(
+            `[pipeline] ⚠ stage 7b dropped ALL remaining jobs against the full JD — ` +
+            `your "Description must NOT contain"${formatExcludeBreakdown(descByPhrase)} is matching every survivor.`,
+          );
+        }
         kept = afterDesc;
         jobsAfterDedup = kept.length;
       }
