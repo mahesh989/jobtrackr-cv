@@ -239,6 +239,8 @@ export function ContactSection() {
 
 const FAMILY_LABELS: Record<RoleFamily, string> = { tech: "Tech", nursing: "Healthcare", manual: "Manual", general: "General" };
 
+const AVAILABILITY_OPTIONS = ["Full Time", "Part Time", "Casual"] as const;
+
 export function VerticalsSection() {
   const { families, toggleFamily, showErrors } = useProfile();
   const invalid = showErrors && families.length === 0;
@@ -311,6 +313,36 @@ export function CredentialsSection() {
       <p className="text-xs text-text-3">
         On care / manual CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only.
       </p>
+
+      {/* Availability — opt-in. Renders as its own italic line under the
+          Registration & Licences heading when "Show on my CV" is ticked. */}
+      <div className="space-y-2 border-t border-border pt-4">
+        <div>
+          <p className="text-[13px] font-medium text-text">Availability</p>
+          <p className="text-xs text-text-3">
+            Which shifts you want. When shown, appears as an italic line under
+            <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 mx-1">Registration &amp; Licences</code>
+            (e.g. <span className="italic">Available: Casual, Part Time</span>). Off by default.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {AVAILABILITY_OPTIONS.map((opt) => (
+            <Pill
+              key={opt}
+              label={opt}
+              selected={(creds.availability ?? []).includes(opt)}
+              onClick={() => {
+                const cur = creds.availability ?? [];
+                setCred("availability", cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt]);
+              }}
+            />
+          ))}
+        </div>
+        <CheckBox label="Show availability on my CV" checked={!!creds.show_availability} onChange={(v) => setCred("show_availability", v)} />
+        {creds.show_availability && (creds.availability ?? []).length === 0 && (
+          <p className="text-xs text-amber-600">Pick at least one shift type above for this to appear on your CV.</p>
+        )}
+      </div>
     </SectionCard>
   );
 }
