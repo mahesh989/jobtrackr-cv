@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="aurora-dark" data-density="comfortable">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aurora — theme preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AURORA — signature dual theme preview (standalone, no build)
+   In the real app: body=Geist, display=Space Grotesk, mono=Geist Mono.
+   Here we approximate body with Inter (Geist is near-identical grotesk).
+   ============================================================ */
+
+/* ---------- AURORA DARK (hero) ---------- */
+html[data-theme="aurora-dark"]{
+  --bg:#0A0D12; --surface:#11151C; --surface-2:#171C26; --surface-3:#1E2532;
+  --border:#232A36; --border-muted:#1B212B;
+  --text:#EAEEF6;     /* 14:1 on surface */
+  --text-2:#AEB7C7;   /* 7.5:1 */
+  --text-3:#828DA1;   /* 5:1 */
+  --brand:#19E3C8; --brand-fg:#04231F; --brand-strong:#3FF0D8;
+  --violet:#8B7BFF; --cyan:#22D3EE;
+  --green:#34D399; --green-soft:#0E2B24;
+  --red:#FB7185;   --red-soft:#2C1620;
+  --amber:#FBBF24; --amber-soft:#2C2310;
+  --purple:#A78BFA;--purple-soft:#1F1A36;
+  --aurora: linear-gradient(135deg,#19E3C8 0%,#8B7BFF 55%,#22D3EE 100%);
+  --elev-1: 0 1px 2px rgba(0,0,0,.4);
+  --elev-2: 0 8px 24px -8px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4);
+  --elev-3: 0 24px 60px -16px rgba(0,0,0,.6);
+  --glow: 0 0 0 1px color-mix(in srgb,var(--brand) 30%,transparent), 0 0 28px -6px color-mix(in srgb,var(--brand) 55%,transparent);
+  --card-border: linear-gradient(160deg,color-mix(in srgb,var(--brand) 28%,transparent),transparent 40%);
+  color-scheme: dark;
+}
+/* ---------- AURORA LIGHT (twin) ---------- */
+html[data-theme="aurora-light"]{
+  --bg:#F6F8FB; --surface:#FFFFFF; --surface-2:#EEF2F7; --surface-3:#E6ECF3;
+  --border:#E2E8F0; --border-muted:#EDF1F6;
+  --text:#0E141B;     /* 16:1 */
+  --text-2:#475467;   /* 8:1 */
+  --text-3:#667085;   /* 5:1 */
+  --brand:#0B7D74; --brand-fg:#FFFFFF; --brand-strong:#0A6E66;
+  --violet:#6D5BE6; --cyan:#0EA5E9;
+  --green:#047857; --green-soft:#D9F5EC;
+  --red:#DC2626;   --red-soft:#FCE7E7;
+  --amber:#B45309; --amber-soft:#FCEFD6;
+  --purple:#7C3AED;--purple-soft:#EFE7FE;
+  --aurora: linear-gradient(135deg,#0D9488 0%,#7C6CFF 55%,#0EA5E9 100%);
+  --elev-1: 0 1px 2px rgba(16,24,40,.06);
+  --elev-2: 0 12px 28px -12px rgba(16,24,40,.18), 0 2px 6px rgba(16,24,40,.06);
+  --elev-3: 0 28px 64px -20px rgba(16,24,40,.22);
+  --glow: 0 0 0 1px color-mix(in srgb,var(--brand) 22%,transparent), 0 8px 24px -10px color-mix(in srgb,var(--brand) 40%,transparent);
+  --card-border: linear-gradient(160deg,color-mix(in srgb,var(--brand) 18%,transparent),transparent 45%);
+  color-scheme: light;
+}
+
+/* density / "font size selection" — scales the whole UI */
+html[data-density="compact"]     { --ui:0.92; }
+html[data-density="comfortable"] { --ui:1;    }
+html[data-density="spacious"]    { --ui:1.10; }
+
+*{box-sizing:border-box;margin:0}
+html{font-size:calc(16px * var(--ui,1));}
+body{
+  background:
+    radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb,var(--violet) 12%,transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, color-mix(in srgb,var(--brand) 10%,transparent), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Inter',-apple-system,system-ui,sans-serif;
+  line-height:1.55; -webkit-font-smoothing:antialiased;
+  padding:0 0 80px;
+  min-height:100vh;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;letter-spacing:-.02em;line-height:1.15}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-feature-settings:"tnum"}
+.muted{color:var(--text-2)} .dim{color:var(--text-3)}
+
+/* sticky control bar */
+.topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+  background:color-mix(in srgb,var(--bg) 78%,transparent);
+  border-bottom:1px solid var(--border);padding:14px 0;margin-bottom:28px}
+.topbar .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brandmark{width:30px;height:30px;border-radius:9px;background:var(--aurora);box-shadow:var(--glow)}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:3px}
+.seg button{font:inherit;font-size:.8rem;font-weight:600;color:var(--text-2);background:transparent;border:0;
+  padding:6px 12px;border-radius:8px;cursor:pointer;transition:.15s}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--elev-1)}
+html[data-theme="aurora-dark"] .seg button[aria-pressed="true"]{background:var(--surface-3);color:var(--brand)}
+
+section{margin:40px 0}
+.eyebrow{font-family:'Space Grotesk';font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand)}
+.sec-title{font-size:1.5rem;font-weight:700;margin:6px 0 18px}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:880px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}}
+
+/* card */
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--elev-2)}
+.card.grad::before{content:"";position:absolute;inset:0;border-radius:16px;padding:1px;background:var(--card-border);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+
+/* KPI */
+.kpi .label{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.kpi .val{font-size:2.1rem;font-weight:700;letter-spacing:-.03em;margin-top:6px}
+.kpi .delta{font-size:.78rem;font-weight:600;color:var(--green);display:inline-flex;gap:4px;align-items:center;margin-top:4px}
+.kpi .accent{position:absolute;top:0;left:18px;right:18px;height:3px;border-radius:0 0 3px 3px;background:var(--aurora);opacity:.9}
+
+/* buttons */
+.btn{font:inherit;font-weight:600;font-size:.9rem;border-radius:11px;padding:10px 18px;cursor:pointer;border:1px solid transparent;
+  display:inline-flex;align-items:center;gap:8px;transition:transform .12s, box-shadow .15s, background .15s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--aurora);color:#04231F;box-shadow:var(--elev-2)}
+html[data-theme="aurora-light"] .btn-primary{color:#fff}
+.btn-primary:hover{box-shadow:var(--glow);transform:translateY(-1px)}
+.btn-brand{background:var(--brand);color:var(--brand-fg)}
+.btn-brand:hover{background:var(--brand-strong)}
+.btn-ghost{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+.btn-ghost:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--border))}
+.btn-danger{background:var(--red);color:#fff}
+
+/* fields */
+.field{width:100%;font:inherit;font-size:.9rem;color:var(--text);background:var(--surface-2);border:1px solid var(--border);
+  border-radius:11px;padding:11px 14px;transition:.15s;margin-top:6px}
+.field::placeholder{color:var(--text-3)}
+.field:focus{outline:none;border-color:var(--brand);background:var(--surface);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 22%,transparent)}
+label.flabel{font-size:.78rem;font-weight:600;color:var(--text-2)}
+.pill{font:inherit;font-size:.82rem;font-weight:600;color:var(--text-2);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;transition:.15s}
+.pill.on{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
+.check{display:inline-flex;align-items:center;gap:9px;font-size:.9rem;color:var(--text);cursor:pointer}
+.box{width:19px;height:19px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface-2);display:grid;place-items:center}
+.box.on{background:var(--aurora);border-color:transparent}
+.box.on svg{stroke:#04231F}
+html[data-theme="aurora-light"] .box.on svg{stroke:#fff}
+.toggle{width:42px;height:24px;border-radius:999px;background:var(--surface-3);position:relative;cursor:pointer;border:1px solid var(--border)}
+.toggle.on{background:var(--aurora);border-color:transparent}
+.toggle i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.18s;box-shadow:var(--elev-1)}
+.toggle.on i{left:20px}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid}
+.b-brand{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);border-color:color-mix(in srgb,var(--brand) 35%,transparent)}
+.b-green{background:var(--green-soft);color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent)}
+.b-red{background:var(--red-soft);color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent)}
+.b-amber{background:var(--amber-soft);color:var(--amber);border-color:color-mix(in srgb,var(--amber) 35%,transparent)}
+.b-purple{background:var(--purple-soft);color:var(--purple);border-color:color-mix(in srgb,var(--purple) 35%,transparent)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:.86rem;overflow:hidden;border-radius:14px}
+thead th{text-align:left;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);
+  background:var(--surface-2);padding:11px 14px;border-bottom:1px solid var(--border)}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--border-muted);color:var(--text)}
+tbody tr:hover{background:color-mix(in srgb,var(--brand) 6%,transparent)}
+
+/* palette swatches */
+.sw{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+.sw .chip{height:62px} .sw .meta{padding:9px 11px;font-size:.74rem}
+.sw .meta b{font-family:'JetBrains Mono';font-size:.76rem;display:block;color:var(--text)}
+.sw .meta span{color:var(--text-3)}
+
+/* type scale */
+.ts > div{padding:10px 0;border-bottom:1px dashed var(--border-muted)}
+.ts small{color:var(--text-3);font-family:'JetBrains Mono';font-size:.72rem}
+
+/* funnel */
+.funnel{display:flex;flex-direction:column;gap:10px}
+.frow{display:flex;align-items:center;gap:12px}
+.frow .name{width:120px;font-size:.8rem;color:var(--text-2);text-align:right}
+.fbar{height:30px;border-radius:8px;background:var(--aurora);display:flex;align-items:center;justify-content:flex-end;
+  padding-right:10px;color:#04231F;font-weight:700;font-size:.82rem;font-family:'JetBrains Mono';box-shadow:var(--elev-1)}
+html[data-theme="aurora-light"] .fbar{color:#fff}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:.8rem;color:var(--text-2)}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle}
+
+.foot{margin-top:50px;padding-top:20px;border-top:1px solid var(--border);color:var(--text-3);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <div class="brandmark"></div>
+  <strong class="display" style="font-size:1.1rem">Aurora</strong>
+  <span class="dim" style="font-size:.8rem">signature theme preview</span>
+  <div style="flex:1"></div>
+  <div class="seg" id="themeSeg">
+    <button data-t="aurora-dark"  aria-pressed="true">Dark</button>
+    <button data-t="aurora-light" aria-pressed="false">Light</button>
+  </div>
+  <div class="seg" id="densSeg">
+    <button data-d="compact"     aria-pressed="false">Compact</button>
+    <button data-d="comfortable" aria-pressed="true">Comfortable</button>
+    <button data-d="spacious"    aria-pressed="false">Spacious</button>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+  <section>
+    <div class="eyebrow">Overview</div>
+    <h1 class="sec-title" style="font-size:2rem">Industrial-grade, end to end.</h1>
+    <p class="muted" style="max-width:640px">A teal→violet aurora accent, mono numerals for data, layered depth, and a tight grotesk type system. Toggle Dark/Light and the density control above — every text/background pair is tuned for WCAG-AA contrast.</p>
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+      <button class="btn btn-primary">Run analysis →</button>
+      <button class="btn btn-brand">Save profile</button>
+      <button class="btn btn-ghost">Secondary</button>
+      <button class="btn btn-danger">Delete</button>
+    </div>
+  </section>
+
+  <!-- KPIs -->
+  <section>
+    <div class="eyebrow">Metrics</div>
+    <h2 class="sec-title">KPI cards</h2>
+    <div class="grid g4">
+      <div class="card grad kpi"><div class="accent"></div><div class="label">Jobs saved</div><div class="val mono">1,284</div><div class="delta">▲ 12.4% <span class="dim">wk</span></div></div>
+      <div class="card grad kpi"><div class="accent"></div><div class="label">Tailored CVs</div><div class="val mono">372</div><div class="delta">▲ 8.1% <span class="dim">wk</span></div></div>
+      <div class="card grad kpi"><div class="accent"></div><div class="label">Avg ATS</div><div class="val mono">74.6</div><div class="delta">▲ 3.2 <span class="dim">pts</span></div></div>
+      <div class="card grad kpi"><div class="accent"></div><div class="label">Applications</div><div class="val mono">96</div><div class="delta" style="color:var(--text-3)">— flat</div></div>
+    </div>
+  </section>
+
+  <!-- charts -->
+  <section>
+    <div class="eyebrow">Data viz</div>
+    <h2 class="sec-title">Charts</h2>
+    <div class="grid g2">
+      <div class="card grad">
+        <div class="label" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)">Pipeline donut</div>
+        <div style="display:flex;align-items:center;gap:24px;margin-top:14px">
+          <svg width="170" height="170" viewBox="0 0 42 42" style="filter:drop-shadow(0 0 10px color-mix(in srgb,var(--brand) 45%,transparent))">
+            <defs>
+              <linearGradient id="ag" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#19E3C8"/><stop offset="55%" stop-color="#8B7BFF"/><stop offset="100%" stop-color="#22D3EE"/>
+              </linearGradient>
+            </defs>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--surface-3)" stroke-width="4"/>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="url(#ag)" stroke-width="4" stroke-linecap="round"
+                    stroke-dasharray="68 32" stroke-dashoffset="25" transform="rotate(-90 21 21)"/>
+            <text x="21" y="20" text-anchor="middle" font-size="7" font-weight="700" fill="var(--text)" font-family="JetBrains Mono">68%</text>
+            <text x="21" y="26" text-anchor="middle" font-size="2.6" fill="var(--text-3)" font-family="Inter">match rate</text>
+          </svg>
+          <div class="legend" style="flex-direction:column;gap:8px;margin:0">
+            <span><i style="background:#19E3C8"></i>Discovered</span>
+            <span><i style="background:#8B7BFF"></i>Tailored</span>
+            <span><i style="background:#22D3EE"></i>Applied</span>
+            <span class="dim"><i style="background:var(--surface-3)"></i>Remaining</span>
+          </div>
+        </div>
+      </div>
+      <div class="card grad">
+        <div class="label" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)">Pipeline funnel</div>
+        <div class="funnel" style="margin-top:16px">
+          <div class="frow"><span class="name">Discovered</span><div class="fbar" style="width:100%">232</div></div>
+          <div class="frow"><span class="name">JD check</span><div class="fbar" style="width:82%">190</div></div>
+          <div class="frow"><span class="name">ATS gate</span><div class="fbar" style="width:55%">128</div></div>
+          <div class="frow"><span class="name">Tailored</span><div class="fbar" style="width:34%">79</div></div>
+          <div class="frow"><span class="name">Applied</span><div class="fbar" style="width:18%">42</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- forms -->
+  <section>
+    <div class="eyebrow">Inputs</div>
+    <h2 class="sec-title">Forms</h2>
+    <div class="grid g2">
+      <div class="card grad">
+        <label class="flabel">Keywords</label>
+        <input class="field" placeholder="Assistant in Nursing, aged care…" />
+        <div style="height:14px"></div>
+        <label class="flabel">Location</label>
+        <input class="field" value="Sydney NSW" />
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button class="pill on">Full Time</button><button class="pill">Part Time</button><button class="pill on">Casual</button>
+        </div>
+      </div>
+      <div class="card grad">
+        <label class="flabel">Availability</label>
+        <div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">
+          <span class="check"><span class="box on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="3"><path d="M5 12l5 5 9-11"/></svg></span> Show availability on my CV</span>
+          <span class="check"><span class="box"></span> Working with Children Check</span>
+          <span class="check"><span class="box on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="3"><path d="M5 12l5 5 9-11"/></svg></span> National Police Check</span>
+          <span style="display:flex;align-items:center;gap:10px;font-size:.9rem"><span class="toggle on"><i></i></span> Auto-run every 3 days</span>
+          <span style="display:flex;align-items:center;gap:10px;font-size:.9rem"><span class="toggle"><i></i></span> Auto-send without review</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- badges + table -->
+  <section>
+    <div class="eyebrow">Components</div>
+    <h2 class="sec-title">Badges &amp; tables</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <span class="badge b-brand"><span class="dot"></span>Sponsorship</span>
+      <span class="badge b-green"><span class="dot"></span>Done</span>
+      <span class="badge b-amber"><span class="dot"></span>Running</span>
+      <span class="badge b-red"><span class="dot"></span>Failed</span>
+      <span class="badge b-purple"><span class="dot"></span>Tailored</span>
+    </div>
+    <div class="card grad" style="padding:0;overflow:hidden">
+      <table>
+        <thead><tr><th>Started</th><th>Status</th><th>Fetched</th><th>Saved</th><th>ATS</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">19 Jun, 9:00pm</td><td><span class="badge b-green"><span class="dot"></span>Done</span></td><td class="mono">76</td><td class="mono" style="color:var(--green)">+18</td><td class="mono">74</td></tr>
+          <tr><td class="mono">16 Jun, 9:00pm</td><td><span class="badge b-green"><span class="dot"></span>Done</span></td><td class="mono">75</td><td class="mono" style="color:var(--green)">+22</td><td class="mono">71</td></tr>
+          <tr><td class="mono">13 Jun, 9:00pm</td><td><span class="badge b-amber"><span class="dot"></span>Running</span></td><td class="mono">49</td><td class="mono dim">—</td><td class="mono dim">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- palette -->
+  <section>
+    <div class="eyebrow">Foundation</div>
+    <h2 class="sec-title">Palette &amp; contrast</h2>
+    <div class="grid g4" id="palette"></div>
+  </section>
+
+  <!-- type -->
+  <section>
+    <div class="eyebrow">Foundation</div>
+    <h2 class="sec-title">Type scale</h2>
+    <div class="card grad ts">
+      <div><span class="display" style="font-size:2.4rem;font-weight:700">Display 38</span> <small>Space Grotesk / 700</small></div>
+      <div><span class="display" style="font-size:1.6rem;font-weight:600">Heading 26</span> <small>Space Grotesk / 600</small></div>
+      <div><span style="font-size:1.05rem;font-weight:600">Subhead 17</span> <small>Inter→Geist / 600</small></div>
+      <div><span style="font-size:.95rem">Body 15 — the quick brown fox jumps over the lazy dog.</span> <small>Inter→Geist / 400</small></div>
+      <div><span class="mono" style="font-size:1.05rem">1,284 · 74.6% · $0.42</span> <small>JetBrains→Geist Mono / numerals</small></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Aurora preview · toggle Dark/Light + density above. Final app uses <b>Geist</b> (body) via next/font; everything is token-driven and scoped to <span class="mono">.theme-aurora-*</span> so the other 5 themes and the whole pipeline stay untouched.
+  </div>
+
+</div>
+
+<script>
+const root = document.documentElement;
+document.getElementById('themeSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  root.dataset.theme=b.dataset.t;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b));
+  buildPalette();
+});
+document.getElementById('densSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  root.dataset.density=b.dataset.d;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b));
+});
+
+// contrast helper
+function lum(hex){const c=hex.replace('#','');const r=parseInt(c.substr(0,2),16)/255,g=parseInt(c.substr(2,2),16)/255,b=parseInt(c.substr(4,2),16)/255;
+  const f=v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);return .2126*f(r)+.7152*f(g)+.0722*f(b);}
+function ratio(a,b){const L1=lum(a),L2=lum(b);return ((Math.max(L1,L2)+.05)/(Math.min(L1,L2)+.05));}
+function val(n){return getComputedStyle(root).getPropertyValue(n).trim();}
+function buildPalette(){
+  const surface=val('--surface');
+  const items=[['--text','Text'],['--text-2','Text 2'],['--text-3','Text 3'],['--brand','Brand'],
+    ['--violet','Violet'],['--green','Green'],['--red','Red'],['--amber','Amber']];
+  const el=document.getElementById('palette'); el.innerHTML='';
+  items.forEach(([tok,name])=>{
+    const hex=val(tok);
+    let r='';try{r=ratio(hex,surface).toFixed(1)+':1';}catch(e){r='';}
+    const pass = parseFloat(r)>=4.5?'AA':parseFloat(r)>=3?'AA·lg':'';
+    el.insertAdjacentHTML('beforeend',
+     `<div class="sw"><div class="chip" style="background:${hex}"></div>
+       <div class="meta"><b>${hex}</b><span>${name} · ${r} ${pass?('· '+pass):''}</span></div></div>`);
+  });
+}
+buildPalette();
+</script>
+</body>
+</html>
