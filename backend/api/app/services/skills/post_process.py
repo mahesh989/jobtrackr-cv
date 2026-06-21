@@ -486,6 +486,12 @@ _CRED_PROSE_TAIL_STOP: frozenset = frozenset({
 })
 
 
+# Terminators that end a credential clause when they appear INSIDE a tail token
+# (the matching open-paren may be absent in malformed JD text). Comma is
+# deliberately excluded — it occurs within real credential names.
+_CRED_TAIL_TERMINATOR_RE = re.compile(r"[).;:]")
+
+
 def _trim_qual_phrase(phrase_lower: str) -> str:
     """Trim a qualification phrase to remove trailing prose words.
 
@@ -516,6 +522,18 @@ def _trim_qual_phrase(phrase_lower: str) -> str:
         if w.startswith("("):
             break
         if w.strip(".,;:()") in _CRED_PROSE_TAIL_STOP:
+            break
+        # A closing paren, sentence period, semicolon or colon inside the token
+        # marks the end of the credential clause — even when the matching "("
+        # is absent (malformed JD text like "...Individual Support). Strong …").
+        # Keep the clean prefix before the terminator, drop everything after,
+        # and stop. Commas are NOT terminators (e.g. "ageing, home and community"
+        # is part of the credential name).
+        mterm = _CRED_TAIL_TERMINATOR_RE.search(w)
+        if mterm:
+            prefix = w[: mterm.start()].strip(".,;:()")
+            if prefix:
+                allowed.append(prefix)
             break
         allowed.append(w)
     return (base + (" " + " ".join(allowed) if allowed else "")).strip()

@@ -14,6 +14,7 @@ from app.services.skills.post_process import (
     _is_au_unit_code,
     _looks_like_language,
     _split_conditional_phrase,
+    _trim_qual_phrase,
     enrich_required_skills_from_jd_body,
     post_process_cv_skills,
     post_process_jd_analysis,
@@ -841,6 +842,30 @@ class TestEmbeddedCredentialMarkers:
         assert _has_credential_marker("infection prevention (vaccination awareness)")
         # AHPRA registration
         assert _has_credential_marker("registered nurse registration (ahpra)")
+
+    def test_trim_qual_phrase_stops_at_orphan_closing_paren_and_prose(self):
+        """Regression: a malformed JD ('...Individual Support). Strong …') has an
+        orphan ')' with no opening '(', so the '(or' break never fires. The trim
+        must still stop at the closing paren / sentence period and drop the
+        trailing prose ('). strong') instead of leaking it into the credential."""
+        assert (
+            _trim_qual_phrase("cert iii in disability or individual support). strong")
+            == "cert iii in disability or individual support"
+        )
+
+    def test_trim_qual_phrase_existing_behaviour_unchanged(self):
+        # "(or ...)" alternative → stop before it (matching open-paren present)
+        assert (
+            _trim_qual_phrase("cert iii in disability (or individual support). strong communication")
+            == "cert iii in disability"
+        )
+        # prose tail stop-words
+        assert _trim_qual_phrase("cert iii and or iv to join our team") == "cert iii and or iv"
+        # comma is part of the credential name — NOT a terminator
+        assert (
+            _trim_qual_phrase("certificate iv in ageing, home and community care")
+            == "certificate iv in ageing, home and community care"
+        )
 
     def test_paren_tail_does_NOT_fire_on_clarifying_parens(self):
         """Clarifying parentheticals (tool synonyms, abbreviations) must
