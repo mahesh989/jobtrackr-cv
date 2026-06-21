@@ -1077,6 +1077,11 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   --chart-amber:   #FBBF24;
   --chart-danger:  var(--red);
   --chart-neutral: #64748B;
+  /* Donut "gradient ring" stops (presence of --donut-grad-1 switches the
+     PipelineDonut into single teal→violet→cyan gradient-ring mode). */
+  --donut-grad-1: #19E3C8;
+  --donut-grad-2: #8B7BFF;
+  --donut-grad-3: #22D3EE;
 }
 :root.theme-aurora-light {
   --chart-pos:     var(--brand);
@@ -1086,6 +1091,9 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   --chart-amber:   #B45309;
   --chart-danger:  var(--red);
   --chart-neutral: #94A3B8;
+  --donut-grad-1: #0D9488;
+  --donut-grad-2: #7C6CFF;
+  --donut-grad-3: #0EA5E9;
 }
 
 /* 4) Primary buttons → the signature aurora gradient, app-wide.

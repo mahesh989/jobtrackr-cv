@@ -291,6 +291,19 @@ function paint(
 
   const hasData = fracs[0] + fracs[1] + fracs[2] > 0.01;
 
+  // Gradient-ring mode (Aurora): when --donut-grad-1 is set, fill every slice
+  // with ONE shared linear gradient so the ring reads as a single
+  // teal→violet→cyan sweep (matching the design preview). Other themes leave
+  // these vars unset and fall back to per-slice solid colours.
+  const g1 = cssVar("--donut-grad-1", "");
+  let ringGrad: CanvasGradient | null = null;
+  if (g1) {
+    ringGrad = ctx.createLinearGradient(CX - OR, CY - OR, CX + OR, CY + OR);
+    ringGrad.addColorStop(0, g1);
+    ringGrad.addColorStop(0.55, cssVar("--donut-grad-2", g1));
+    ringGrad.addColorStop(1, cssVar("--donut-grad-3", g1));
+  }
+
   if (!hasData) {
     ctx.beginPath();
     ctx.arc(CX, CY, OR, 0, Math.PI * 2);
@@ -313,7 +326,7 @@ function paint(
       ctx.arc(CX + ox, CY + oy, OR, angle + GAP / 2, angle + GAP / 2 + sweep);
       ctx.arc(CX + ox, CY + oy, IR, angle + GAP / 2 + sweep, angle + GAP / 2, true);
       ctx.closePath();
-      ctx.fillStyle = colors[i];
+      ctx.fillStyle = ringGrad ?? colors[i];
       ctx.fill();
       ctx.restore();
       angle += frac * Math.PI * 2;
@@ -377,6 +390,13 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
   const [activeLens, setActiveLens] = useState<LensKey>("sourcing");
   const [hovered,    setHovered]    = useState<number | null>(null);
   const [popup,      setPopup]      = useState<"center" | number | null>(null);
+  // Gradient-ring legend stops (Aurora). When set, the breakdown dots use the
+  // teal→violet→cyan gradient stops in order so they match the ring.
+  const [gradStops,  setGradStops]  = useState<string[] | null>(null);
+  useEffect(() => {
+    const g1 = cssVar("--donut-grad-1", "");
+    setGradStops(g1 ? [g1, cssVar("--donut-grad-2", g1), cssVar("--donut-grad-3", g1)] : null);
+  }, []);
 
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const dFracs       = useRef<[number, number, number]>([1 / 3, 1 / 3, 1 / 3]);
@@ -522,7 +542,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
             const cls = "flex items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors";
             const inner = (
               <>
-                <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: gradStops ? gradStops[Math.min(i, 2)] : s.color }} />
                 <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
                 <span className="text-[13px] font-semibold text-text w-12 text-right shrink-0 tabular-nums">{n.toLocaleString()}</span>
                 <span className="text-[10px] text-text-3 w-9 text-right shrink-0 tabular-nums">{pct}%</span>
