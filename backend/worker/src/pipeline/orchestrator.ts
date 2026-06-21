@@ -486,7 +486,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     if (normalised.length > 0 && filtered.length === 0) {
       console.warn(
         `[pipeline] ⚠ stage 4b dropped ALL ${normalised.length} jobs — your "Title must include any of" ` +
-        `(${(usingSmartFilter ? profile.must_include_phrases : profile.keywords ?? []).join(", ")}) ` +
+        `(${(usingSmartFilter ? (profile.must_include_phrases ?? []) : (profile.keywords ?? [])).join(", ")}) ` +
         `matched no title or teaser. Loosen it or add more phrases.`,
       );
     }
