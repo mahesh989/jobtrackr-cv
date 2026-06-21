@@ -479,9 +479,10 @@ export function ProfileSettingsClient({ initial }: Props) {
           <div>
             <h2 className="label-luxury text-text-2">Availability</h2>
             <p className="mt-1 text-xs text-text-3">
-              Which shifts you want to work. When shown, this appends to your
+              Which shifts you want to work. When shown, this appears on its own
+              italic line under
               <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 mx-1">Registration &amp; Licences</code>
-              line (e.g. <span className="text-text-2">Available: Casual, Part Time</span>) —
+              (e.g. <span className="italic text-text-2">Available: Casual, Part Time</span>) —
               no separate CV section. Off by default; flip the toggle below to include it.
             </p>
           </div>

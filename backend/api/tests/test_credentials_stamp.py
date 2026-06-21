@@ -8,6 +8,7 @@ general CVs. The rendered line never includes negative content
 ("No licence held"), so a profile with zero held credentials is a no-op.
 """
 from app.services.cv.contact_line import (
+    build_availability_line,
     build_credentials_line,
     stamp_credentials,
 )
@@ -56,33 +57,45 @@ def test_only_truthy_credentials_surface():
     )
 
 
-def test_availability_is_opt_in_and_trails_the_line():
-    # show_availability off → no chip even when types are ticked
-    cd_off = {"credentials": {
-        "police_check": True,
-        "availability": ["Casual", "Part Time"],
-        "show_availability": False,
-    }}
-    assert build_credentials_line(cd_off) == "National Police Check"
-
-    # opted in → trailing "Available:" chip, canonical order regardless of
-    # tick order (Full Time → Part Time → Casual)
+def test_availability_is_opt_in_and_separate_from_credentials_line():
+    # Availability NEVER appears on the credentials line itself — it is a
+    # separate italic line rendered by stamp_credentials.
     cd_on = {"credentials": {
         "police_check": True,
         "availability": ["Casual", "Full Time", "Part Time"],
         "show_availability": True,
     }}
-    assert build_credentials_line(cd_on) == (
-        "National Police Check · Available: Full Time, Part Time, Casual"
-    )
+    assert build_credentials_line(cd_on) == "National Police Check"
 
-    # opted in but nothing ticked → no chip
-    cd_empty = {"credentials": {
+    # build_availability_line — opt-in gating + canonical order (Full Time →
+    # Part Time → Casual) regardless of tick order.
+    assert build_availability_line(cd_on) == "Available: Full Time, Part Time, Casual"
+
+    # show_availability off → empty even when types are ticked
+    assert build_availability_line({"credentials": {
+        "availability": ["Casual", "Part Time"], "show_availability": False,
+    }}) == ""
+
+    # opted in but nothing ticked → empty
+    assert build_availability_line({"credentials": {
+        "availability": [], "show_availability": True,
+    }}) == ""
+
+
+def test_availability_renders_on_its_own_italic_line():
+    md = "# Jane\n\nNSW | 0400\n\n## Experience\n- x\n"
+    cd = {"credentials": {
         "police_check": True,
-        "availability": [],
+        "availability": ["Casual", "Part Time"],
         "show_availability": True,
     }}
-    assert build_credentials_line(cd_empty) == "National Police Check"
+    out = stamp_credentials(md, cd, "nursing")
+    # licences line and the italic availability line are SEPARATE lines
+    assert "## Registration & Licences" in out
+    assert "National Police Check" in out
+    assert "*Available: Part Time, Casual*" in out
+    # the availability note is NOT glued onto the licences line
+    assert "National Police Check · Available" not in out
 
 
 def test_ahpra_number_leads_when_present():

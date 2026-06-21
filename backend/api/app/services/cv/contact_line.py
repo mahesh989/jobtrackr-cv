@@ -262,25 +262,39 @@ def build_credentials_line(
         if creds.get("covid_vaccination"):
             parts.append("COVID-19 Vaccination")
 
-    # 6. Availability — shared, OPT-IN. Trails the line as a single chip, but
-    # only when the user has flipped ``show_availability`` AND ticked at least
-    # one shift type. Surfaced as "Available: Full Time, Casual". Stays off by
-    # default so existing CVs are unchanged until the user opts in.
-    if creds.get("show_availability"):
-        avail = creds.get("availability")
-        if isinstance(avail, list):
-            picked = {_clean(a) for a in avail if _clean(a)}
-            ordered = [a for a in _AVAILABILITY_ORDER if a in picked]
-            # Preserve any non-standard values the UI didn't constrain to,
-            # in input order, after the canonical ones.
-            ordered += [
-                _clean(a) for a in avail
-                if _clean(a) and _clean(a) not in _AVAILABILITY_ORDER
-            ]
-            if ordered:
-                parts.append("Available: " + ", ".join(ordered))
-
     return " · ".join(parts)
+
+
+def build_availability_line(contact_details: Optional[Dict[str, Any]]) -> str:
+    """Compose the opt-in availability text (without italic markers), e.g.
+    ``Available: Full Time, Part Time, Casual``.
+
+    Returns "" unless the user flipped ``show_availability`` AND ticked at
+    least one shift type. Family-agnostic — the caller (stamp_credentials)
+    applies the role-family gate. Rendered on its OWN line, in italics, by
+    stamp_credentials so it reads as a soft note rather than a hard licence.
+    """
+    if not contact_details:
+        return ""
+    creds = contact_details.get("credentials") or {}
+    if not isinstance(creds, dict) or not creds:
+        return ""
+    if not creds.get("show_availability"):
+        return ""
+    avail = creds.get("availability")
+    if not isinstance(avail, list):
+        return ""
+    picked = {_clean(a) for a in avail if _clean(a)}
+    ordered = [a for a in _AVAILABILITY_ORDER if a in picked]
+    # Preserve any non-standard values the UI didn't constrain to, in input
+    # order, after the canonical ones.
+    ordered += [
+        _clean(a) for a in avail
+        if _clean(a) and _clean(a) not in _AVAILABILITY_ORDER
+    ]
+    if not ordered:
+        return ""
+    return "Available: " + ", ".join(ordered)
 
 
 def stamp_credentials(
@@ -305,8 +319,21 @@ def stamp_credentials(
     if role_family_id not in _CREDENTIAL_FAMILIES:
         return markdown
     line = build_credentials_line(contact_details, family_id=role_family_id)
-    if not line:
+    avail = build_availability_line(contact_details)
+    if not line and not avail:
         return markdown
+
+    # Body of the section: the licences line first, then (if present) the
+    # availability note on its OWN line, in italics. A blank line between
+    # them makes them separate paragraphs so availability renders on a new
+    # line rather than wrapping onto the licences line.
+    body: List[str] = []
+    if line:
+        body.append(line)
+    if avail:
+        if body:
+            body.append("")
+        body.append(f"*{avail}*")
 
     lines = markdown.split("\n")
 
@@ -323,12 +350,12 @@ def stamp_credentials(
             (j for j in range(start_idx + 1, len(lines)) if lines[j].startswith("## ")),
             len(lines),
         )
-        new_block = [_CREDENTIALS_HEADING, "", line, ""]
+        new_block = [_CREDENTIALS_HEADING, "", *body, ""]
         lines = lines[:start_idx] + new_block + lines[end_idx:]
         return "\n".join(lines)
 
     # Section absent — append at end of the markdown document
-    return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n{line}\n"
+    return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n" + "\n".join(body) + "\n"
 
 
 # ---------------------------------------------------------------------------
