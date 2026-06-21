@@ -41,7 +41,7 @@ import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
-import { SelectModeButton } from "./SelectModeButton";
+import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { shallowSetParams } from "./shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
@@ -251,6 +251,8 @@ interface JobSelectionCtx {
   selectMode: boolean;
   isSelected: (id: string) => boolean;
   toggle:     (id: string) => void;
+  /** Bulk add/remove a set of ids — backs the per-group "Select all" toggle. */
+  setMany:    (ids: string[], selected: boolean) => void;
 }
 const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
 
@@ -303,9 +305,19 @@ export function SmartFeed({
     });
   }, []);
 
+  const setMany = useCallback((ids: string[], select: boolean) => {
+    setConfirmAnalyse(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (select) ids.forEach((id) => next.add(id));
+      else        ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+
   const selectionValue = useMemo<JobSelectionCtx>(
-    () => ({ selectMode: false, isSelected: (id) => selected.has(id), toggle }),
-    [selected, toggle],
+    () => ({ selectMode: false, isSelected: (id) => selected.has(id), toggle, setMany }),
+    [selected, toggle, setMany],
   );
 
   const toggleSelectMode = useCallback((sectionId: string, sectionJobs?: BoardJob[]) => {
@@ -610,6 +622,7 @@ function SmartFeedBody({
 }) {
   const sp       = useSearchParams();
   const pathname = usePathname();
+  const parentSelection = useJobSelection()!;
 
   // Three rendering modes, in priority order:
   //   1. groups   → explicit time/distance bucketing (the parent decided)
@@ -678,11 +691,20 @@ function SmartFeedBody({
       ) : (
         <div className="space-y-2.5">
           {onToggleSelectMode && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {activeSelectModes.has("flat") && jobs.length > 0 && (
+                <SelectAllButton
+                  allSelected={jobs.every((j) => parentSelection.isSelected(j.id))}
+                  onToggle={() => {
+                    const allSelected = jobs.every((j) => parentSelection.isSelected(j.id));
+                    parentSelection.setMany(jobs.map((j) => j.id), !allSelected);
+                  }}
+                />
+              )}
               <SelectModeButton selectMode={activeSelectModes.has("flat")} onToggle={() => onToggleSelectMode("flat", jobs)} />
             </div>
           )}
-          <JobSelectionContext.Provider value={{ ...useJobSelection()!, selectMode: activeSelectModes.has("flat") }}>
+          <JobSelectionContext.Provider value={{ ...parentSelection, selectMode: activeSelectModes.has("flat") }}>
             <div className="grid gap-2.5">
               {jobs.map((job) => (
                 <JobCard
@@ -735,9 +757,20 @@ function FeedSectionView({
             <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
           ) : null}
         </div>
-        {onToggleSelectMode && (
-          <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {selectMode && section.jobs.length > 0 && (
+            <SelectAllButton
+              allSelected={section.jobs.every((j) => selectionValue.isSelected(j.id))}
+              onToggle={() => {
+                const allSelected = section.jobs.every((j) => selectionValue.isSelected(j.id));
+                selectionValue.setMany(section.jobs.map((j) => j.id), !allSelected);
+              }}
+            />
+          )}
+          {onToggleSelectMode && (
+            <SelectModeButton selectMode={selectMode} onToggle={onToggleSelectMode} />
+          )}
+        </div>
       </div>
 
       {section.hero ? (
