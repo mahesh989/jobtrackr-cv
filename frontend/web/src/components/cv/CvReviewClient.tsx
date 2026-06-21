@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, Plus, X,
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
-  Trophy, BadgeCheck, Users, AlignLeft, FileText, ArrowLeft,
+  Trophy, BadgeCheck, Users, AlignLeft, FileText, ArrowLeft, Loader2,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -253,6 +253,46 @@ export function CvReviewClient({
 
   const hasMoreOptional = OPTIONAL_SECTIONS.some(s => !optionalShown(s.key));
 
+  // Create mode — AI skill extraction from experience/education text.
+  const [extractingSkills, setExtractingSkills] = useState(false);
+  const [extractSkillsErr, setExtractSkillsErr] = useState<string | null>(null);
+
+  async function handleExtractSkills() {
+    setExtractingSkills(true);
+    setExtractSkillsErr(null);
+    // Build text from the current doc without requiring a prior save.
+    const expLines = doc.experience.flatMap(e => [
+      `${e.role} at ${e.employer}`,
+      ...e.bullets.filter(b => b.trim()).map(b => `- ${b}`),
+    ]);
+    const eduLines = doc.education.map(e =>
+      [e.qualification, e.institution].filter(Boolean).join(" at ")
+    );
+    const builtText = [...expLines, ...eduLines].join("\n").trim();
+    try {
+      const res = await fetch(`/api/cv/${cvId}/extract-skills`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ cv_text: builtText.length >= 50 ? builtText : undefined }),
+      });
+      const j = await res.json() as { domain_knowledge?: string[]; soft_skills?: string[]; technical?: string[]; error?: string };
+      if (!res.ok) { setExtractSkillsErr(j.error ?? "Extraction failed"); return; }
+      // Merge suggestions into existing buckets (deduplicate).
+      setDoc(d => ({
+        ...d,
+        skills: {
+          domain_knowledge: Array.from(new Set([...d.skills.domain_knowledge, ...(j.domain_knowledge ?? [])])),
+          soft_skills:      Array.from(new Set([...d.skills.soft_skills,      ...(j.soft_skills      ?? [])])),
+          technical:        Array.from(new Set([...d.skills.technical,         ...(j.technical         ?? [])])),
+        },
+      }));
+    } catch (e) {
+      setExtractSkillsErr(e instanceof Error ? e.message : "Extraction failed");
+    } finally {
+      setExtractingSkills(false);
+    }
+  }
+
   return (
     <div className="pb-28">
       {/* HEADER */}
@@ -334,6 +374,26 @@ export function CvReviewClient({
             <SkillsBucket label={skillLabels.domain_knowledge} tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
             <SkillsBucket label={skillLabels.soft_skills}      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
             <SkillsBucket label={skillLabels.technical}        tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
+            {/* Create mode: AI extraction from experience bullets */}
+            {isCreate && (
+              <div className="pt-2 border-t border-[var(--border)]/50 flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleExtractSkills}
+                  disabled={extractingSkills}
+                  className="inline-flex items-center gap-1.5 text-[12px] text-[var(--brand)] hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  {extractingSkills
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Extracting…</>
+                    : <><Sparkles className="h-3.5 w-3.5" /> Suggest from experience</>
+                  }
+                </button>
+                <span className="text-[11px] text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
+                {extractSkillsErr && (
+                  <p className="w-full text-[11px] text-red-600">{extractSkillsErr}</p>
+                )}
+              </div>
+            )}
           </Section>
         )}
 
