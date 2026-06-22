@@ -1,0 +1,23 @@
+{
+  "title": "Adzuna JD Fetcher Input",
+  "description": "Input schema for adzuna-jd-fetcher.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Job URLs",
+      "type": "array",
+      "description": "adzuna.com.au job URLs (/details/<id> or /land/ad/<id>) to fetch full descriptions for.",
+      "editor": "stringList",
+      "example": ["https://www.adzuna.com.au/details/5743941401"]
+    },
+    "maxUrls": {
+      "title": "Max URLs",
+      "type": "integer",
+      "description": "Hard cap on URLs fetched per run.",
+      "editor": "number",
+      "default": 50
+    }
+  },
+  "required": ["urls"]
+}

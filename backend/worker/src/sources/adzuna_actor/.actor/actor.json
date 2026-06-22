@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "adzuna-jd-fetcher",
+  "title": "Adzuna JD Fetcher (Cheerio) — JobTrackr",
+  "description": "Fetches full job descriptions from adzuna.com.au /details URLs via Cheerio over Apify residential AU proxy. Dodges Adzuna's per-IP rate limit that 429s datacenter IPs for an hour at a time. Enriches post-filter survivors; listings come from the Adzuna API.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}

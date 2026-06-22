@@ -1,0 +1,21 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Job Descriptions",
+      "description": "Full JD text fetched from Adzuna detail pages",
+      "transformation": {
+        "fields": ["url", "description", "fetchedAt"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "url":         { "label": "URL",         "format": "link" },
+          "description": { "label": "Description", "format": "text" },
+          "fetchedAt":   { "label": "Fetched At",  "format": "text" }
+        }
+      }
+    }
+  }
+}

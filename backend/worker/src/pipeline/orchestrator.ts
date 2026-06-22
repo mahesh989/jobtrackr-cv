@@ -34,6 +34,7 @@ import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichCareerjetJDsViaActor } from "../sources/careerjetActor.js";
 import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
+import { enrichAdzunaJDsViaActor } from "../sources/adzunaActor.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 import { geocode, distanceFor, type LatLng } from "../lib/distance.js";
@@ -619,20 +620,50 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
 
     // ── Stage 7d: Adzuna full-JD enrichment (opt-in via adzuna_method) ─────────
-    // 'api' (default) → skip entirely; teasers carry forward (~600 char each).
-    // 'direct'        → scrape /details/<id> HTML for full JD, cap 50.
-    //                   Adds ~2.5–5 min to the run (BullMQ background, UI unaffected).
+    // 'api' (default) → skip; teasers carry forward (~600 char each).
+    // 'direct' + ADZUNA_ACTOR_ID + Apify token → fetch full JDs via the
+    //   adzuna-jd-fetcher actor on residential proxy (dodges Adzuna's per-IP
+    //   429 ban on the Fly worker IP). Survivors only, cap 50.
+    // 'direct' without an actor token → legacy curl-from-Fly path (rate-limited
+    //   in practice, kept for local-dev / fallback only).
     const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
     const useAdzunaDirect = profile.adzuna_method === "direct";
-    if (adzunaSurvivors && useAdzunaDirect) {
+    if (adzunaSurvivors && useAdzunaDirect && process.env.ADZUNA_ACTOR_ID && seekToken && seekIntegration) {
+      await setStage(runLogId, "Fetching full Adzuna descriptions");
+      try {
+        const { jobs: enriched, merged, fetched, costUsd } =
+          await enrichAdzunaJDsViaActor(kept, seekToken);
+        kept = enriched;
+        console.log(`[pipeline] stage 7d — Adzuna JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
+        if (costUsd > 0) {
+          try {
+            const { data: fresh } = await db.from("user_integrations")
+              .select("quota_used_usd").eq("id", seekIntegration.id).single();
+            const baseSpend = fresh?.quota_used_usd ?? seekIntegration.quota_used_usd;
+            const newSpend  = baseSpend + costUsd;
+            await db.from("user_integrations").update({
+              quota_used_usd: newSpend,
+              last_used_at:   new Date().toISOString(),
+              status:         newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid",
+              status_reason:  newSpend >= SEEK_MONTHLY_BUDGET_USD ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached` : null,
+              updated_at:     new Date().toISOString(),
+            }).eq("id", seekIntegration.id);
+          } catch (e) {
+            console.warn(`[pipeline] adzuna spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[pipeline] stage 7d — Adzuna JD actor threw: ${err instanceof Error ? err.message : err}`);
+      }
+    } else if (adzunaSurvivors && useAdzunaDirect) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
       const jdCap = 50;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
         kept = enriched;
-        console.log(`[pipeline] stage 7d — Adzuna JD (direct): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+        console.log(`[pipeline] stage 7d — Adzuna JD (direct curl): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
-        console.warn(`[pipeline] stage 7d — Adzuna JD threw: ${err instanceof Error ? err.message : err}`);
+        console.warn(`[pipeline] stage 7d — Adzuna JD direct threw: ${err instanceof Error ? err.message : err}`);
       }
     } else if (adzunaSurvivors) {
       console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='${profile.adzuna_method ?? 'api'}', using API teasers only)`);
