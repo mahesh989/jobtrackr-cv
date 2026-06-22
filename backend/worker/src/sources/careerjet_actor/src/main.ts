@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     requestHandlerTimeoutSecs: 45,
     useSessionPool: true,
     sessionPoolOptions: { maxPoolSize: 10, sessionOptions: { maxUsageCount: 20 } },
-    async requestHandler({ $, request }) {
+    async requestHandler({ $, request, body }) {
       // CheerioCrawler follows redirects, so a /clk or /jobad URL both land on
       // the canonical job-ad page. The full description lives in section.content.
       const desc = cleanText($("section.content").text());
@@ -90,7 +90,15 @@ async function main(): Promise<void> {
         log.info(`[careerjet-jd] ${request.url}: ${desc.length} chars ✓`);
       } else {
         thin++;
-        log.warning(`[careerjet-jd] ${request.url}: only ${desc.length} chars`);
+        // Diagnostics: what did this IP actually receive? (challenge vs real page)
+        const raw = (typeof body === "string" ? body : body?.toString("utf-8")) ?? "";
+        const title = cleanText($("title").text());
+        const blocked = /turnstile|just a moment|cf-challenge|verify you are human|attention required|enable javascript/i.test(raw);
+        log.warning(
+          `[careerjet-jd] ${request.url}: only ${desc.length} chars ` +
+          `| title="${title}" | bodyLen=${raw.length} | sectionContentNodes=${$("section.content").length} ` +
+          `| challengeMarkers=${blocked} | snippet="${cleanText($("body").text()).slice(0, 160)}"`,
+        );
       }
     },
     failedRequestHandler({ request }, err) {
