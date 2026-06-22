@@ -1185,73 +1185,131 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 }
 
 /* 7) Hardcoded LIGHT-PALETTE tints used across the app — re-map to
-      theme tokens under Aurora so they're readable on dark. Targets
-      Tailwind utilities baked into many components (Voice/Stories
-      guidance boxes, automation funnel chip, email-connected card,
-      thin-JD callouts, etc.). */
-:root.theme-aurora-dark  .bg-emerald-50, :root.theme-aurora-dark  .bg-emerald-50\/60,
-:root.theme-aurora-dark  .bg-green-50,   :root.theme-aurora-dark  .bg-green-100,
-:root.theme-aurora-light .bg-emerald-50, :root.theme-aurora-light .bg-emerald-50\/60 {
-  background-color: color-mix(in srgb, var(--green) 12%, var(--surface)) !important;
+      theme tokens under Aurora so they're readable on dark + light.
+      Covers Tailwind's bg-*-50/100 + border-*-200/300/400 + text-*-600/
+      700/800/900 utilities baked into many components. The remap is
+      applied to BOTH Aurora themes so the look is identical across them. */
+/* Greens / Emeralds → --green */
+:root.theme-aurora-dark  .bg-emerald-50,  :root.theme-aurora-dark  .bg-emerald-100,
+:root.theme-aurora-dark  .bg-green-50,    :root.theme-aurora-dark  .bg-green-100,
+:root.theme-aurora-dark  .bg-emerald-50\/60,
+:root.theme-aurora-light .bg-emerald-50,  :root.theme-aurora-light .bg-emerald-100,
+:root.theme-aurora-light .bg-green-50,    :root.theme-aurora-light .bg-green-100,
+:root.theme-aurora-light .bg-emerald-50\/60 {
+  background-color: color-mix(in srgb, var(--green) 14%, var(--surface)) !important;
 }
-:root.theme-aurora-dark  .border-emerald-200, :root.theme-aurora-dark  .border-green-200,
-:root.theme-aurora-light .border-emerald-200, :root.theme-aurora-light .border-green-200 {
+:root.theme-aurora-dark  .border-emerald-200, :root.theme-aurora-dark  .border-emerald-300,
+:root.theme-aurora-dark  .border-green-200,   :root.theme-aurora-dark  .border-green-300,
+:root.theme-aurora-light .border-emerald-200, :root.theme-aurora-light .border-emerald-300,
+:root.theme-aurora-light .border-green-200,   :root.theme-aurora-light .border-green-300 {
   border-color: color-mix(in srgb, var(--green) 40%, var(--border)) !important;
 }
-:root.theme-aurora-dark .text-emerald-800, :root.theme-aurora-dark .text-emerald-700,
-:root.theme-aurora-dark .text-emerald-600, :root.theme-aurora-dark .text-green-800,
-:root.theme-aurora-dark .text-green-700,   :root.theme-aurora-dark .text-green-600 {
+:root.theme-aurora-dark .text-emerald-600, :root.theme-aurora-dark .text-emerald-700,
+:root.theme-aurora-dark .text-emerald-800, :root.theme-aurora-dark .text-emerald-900,
+:root.theme-aurora-dark .text-green-600,   :root.theme-aurora-dark .text-green-700,
+:root.theme-aurora-dark .text-green-800,   :root.theme-aurora-dark .text-green-900 {
   color: var(--green) !important;
 }
+/* Ambers / Yellows → --amber */
 :root.theme-aurora-dark  .bg-amber-50,  :root.theme-aurora-dark  .bg-amber-100,
-:root.theme-aurora-dark  .bg-yellow-50, :root.theme-aurora-light .bg-amber-50,
-:root.theme-aurora-light .bg-amber-100 {
-  background-color: color-mix(in srgb, var(--amber) 12%, var(--surface)) !important;
+:root.theme-aurora-dark  .bg-amber-200, :root.theme-aurora-dark  .bg-yellow-50,
+:root.theme-aurora-dark  .bg-yellow-100,
+:root.theme-aurora-light .bg-amber-50,  :root.theme-aurora-light .bg-amber-100,
+:root.theme-aurora-light .bg-amber-200, :root.theme-aurora-light .bg-yellow-50,
+:root.theme-aurora-light .bg-yellow-100 {
+  background-color: color-mix(in srgb, var(--amber) 14%, var(--surface)) !important;
 }
 :root.theme-aurora-dark  .border-amber-200, :root.theme-aurora-dark  .border-amber-300,
-:root.theme-aurora-light .border-amber-200, :root.theme-aurora-light .border-amber-300 {
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--border)) !important;
+:root.theme-aurora-dark  .border-amber-400,
+:root.theme-aurora-light .border-amber-200, :root.theme-aurora-light .border-amber-300,
+:root.theme-aurora-light .border-amber-400 {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--border)) !important;
 }
-:root.theme-aurora-dark .text-amber-700, :root.theme-aurora-dark .text-amber-800,
-:root.theme-aurora-dark .text-amber-900 { color: var(--amber) !important; }
-:root.theme-aurora-dark  .bg-red-50, :root.theme-aurora-light .bg-red-50 {
-  background-color: color-mix(in srgb, var(--red) 12%, var(--surface)) !important;
+:root.theme-aurora-dark .text-amber-600, :root.theme-aurora-dark .text-amber-700,
+:root.theme-aurora-dark .text-amber-800, :root.theme-aurora-dark .text-amber-900 {
+  color: var(--amber) !important;
 }
-:root.theme-aurora-dark  .border-red-200, :root.theme-aurora-light .border-red-200 {
+/* Reds → --red */
+:root.theme-aurora-dark  .bg-red-50,  :root.theme-aurora-dark  .bg-red-100,
+:root.theme-aurora-light .bg-red-50,  :root.theme-aurora-light .bg-red-100 {
+  background-color: color-mix(in srgb, var(--red) 14%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-red-200, :root.theme-aurora-dark  .border-red-300,
+:root.theme-aurora-light .border-red-200, :root.theme-aurora-light .border-red-300 {
   border-color: color-mix(in srgb, var(--red) 40%, var(--border)) !important;
 }
-:root.theme-aurora-dark .text-red-700, :root.theme-aurora-dark .text-red-800 {
+:root.theme-aurora-dark .text-red-600, :root.theme-aurora-dark .text-red-700,
+:root.theme-aurora-dark .text-red-800, :root.theme-aurora-dark .text-red-900 {
   color: var(--red) !important;
 }
-:root.theme-aurora-dark  .bg-blue-50, :root.theme-aurora-light .bg-blue-50 {
-  background-color: color-mix(in srgb, var(--brand) 12%, var(--surface)) !important;
+/* Blues → --brand (Aurora teal — covers source-pill bg-blue-100 leftovers) */
+:root.theme-aurora-dark  .bg-blue-50,  :root.theme-aurora-dark  .bg-blue-100,
+:root.theme-aurora-dark  .bg-sky-50,   :root.theme-aurora-dark  .bg-sky-100,
+:root.theme-aurora-light .bg-blue-50,  :root.theme-aurora-light .bg-blue-100,
+:root.theme-aurora-light .bg-sky-50,   :root.theme-aurora-light .bg-sky-100 {
+  background-color: color-mix(in srgb, var(--brand) 14%, var(--surface)) !important;
 }
-:root.theme-aurora-dark  .border-blue-200, :root.theme-aurora-light .border-blue-200 {
+:root.theme-aurora-dark  .border-blue-200, :root.theme-aurora-dark  .border-blue-300,
+:root.theme-aurora-light .border-blue-200, :root.theme-aurora-light .border-blue-300 {
   border-color: color-mix(in srgb, var(--brand) 40%, var(--border)) !important;
 }
-:root.theme-aurora-dark .text-blue-700 { color: var(--brand) !important; }
-:root.theme-aurora-dark  .bg-pink-50, :root.theme-aurora-light .bg-pink-50 {
-  background-color: color-mix(in srgb, var(--violet) 12%, var(--surface)) !important;
+:root.theme-aurora-dark .text-blue-600, :root.theme-aurora-dark .text-blue-700,
+:root.theme-aurora-dark .text-blue-800, :root.theme-aurora-dark .text-sky-600,
+:root.theme-aurora-dark .text-sky-700 {
+  color: var(--brand) !important;
 }
-:root.theme-aurora-dark  .border-pink-200, :root.theme-aurora-light .border-pink-200 {
+/* Teals → --teal (preserve Careerjet/Workday source pill identity) */
+:root.theme-aurora-dark  .bg-teal-50,  :root.theme-aurora-dark  .bg-teal-100,
+:root.theme-aurora-light .bg-teal-50,  :root.theme-aurora-light .bg-teal-100 {
+  background-color: color-mix(in srgb, var(--teal) 14%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-teal-200, :root.theme-aurora-dark  .border-teal-300,
+:root.theme-aurora-light .border-teal-200, :root.theme-aurora-light .border-teal-300 {
+  border-color: color-mix(in srgb, var(--teal) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-teal-600, :root.theme-aurora-dark .text-teal-700,
+:root.theme-aurora-dark .text-teal-800 {
+  color: var(--teal) !important;
+}
+/* Purples / Violets / Indigo / Fuchsia / Pink → --violet (single family) */
+:root.theme-aurora-dark  .bg-purple-50, :root.theme-aurora-dark  .bg-purple-100,
+:root.theme-aurora-dark  .bg-violet-50, :root.theme-aurora-dark  .bg-violet-100,
+:root.theme-aurora-dark  .bg-indigo-50, :root.theme-aurora-dark  .bg-indigo-100,
+:root.theme-aurora-dark  .bg-fuchsia-50,:root.theme-aurora-dark  .bg-fuchsia-100,
+:root.theme-aurora-dark  .bg-pink-50,   :root.theme-aurora-dark  .bg-pink-100,
+:root.theme-aurora-dark  .bg-rose-50,   :root.theme-aurora-dark  .bg-rose-100,
+:root.theme-aurora-light .bg-purple-50, :root.theme-aurora-light .bg-purple-100,
+:root.theme-aurora-light .bg-violet-50, :root.theme-aurora-light .bg-violet-100,
+:root.theme-aurora-light .bg-indigo-50, :root.theme-aurora-light .bg-indigo-100,
+:root.theme-aurora-light .bg-fuchsia-50,:root.theme-aurora-light .bg-fuchsia-100,
+:root.theme-aurora-light .bg-pink-50,   :root.theme-aurora-light .bg-pink-100,
+:root.theme-aurora-light .bg-rose-50,   :root.theme-aurora-light .bg-rose-100 {
+  background-color: color-mix(in srgb, var(--violet) 14%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-purple-200, :root.theme-aurora-dark  .border-purple-300,
+:root.theme-aurora-dark  .border-violet-200, :root.theme-aurora-dark  .border-violet-300,
+:root.theme-aurora-dark  .border-indigo-200, :root.theme-aurora-dark  .border-indigo-300,
+:root.theme-aurora-dark  .border-pink-200,   :root.theme-aurora-dark  .border-pink-300,
+:root.theme-aurora-light .border-purple-200, :root.theme-aurora-light .border-purple-300,
+:root.theme-aurora-light .border-violet-200, :root.theme-aurora-light .border-violet-300,
+:root.theme-aurora-light .border-indigo-200, :root.theme-aurora-light .border-indigo-300,
+:root.theme-aurora-light .border-pink-200,   :root.theme-aurora-light .border-pink-300 {
   border-color: color-mix(in srgb, var(--violet) 40%, var(--border)) !important;
 }
-:root.theme-aurora-dark .text-pink-700 { color: var(--violet) !important; }
+:root.theme-aurora-dark .text-purple-600, :root.theme-aurora-dark .text-purple-700,
+:root.theme-aurora-dark .text-purple-800, :root.theme-aurora-dark .text-violet-600,
+:root.theme-aurora-dark .text-violet-700, :root.theme-aurora-dark .text-indigo-600,
+:root.theme-aurora-dark .text-indigo-700, :root.theme-aurora-dark .text-pink-600,
+:root.theme-aurora-dark .text-pink-700,   :root.theme-aurora-dark .text-rose-600,
+:root.theme-aurora-dark .text-rose-700 {
+  color: var(--violet) !important;
+}
 /* Automation pipeline FunnelChip — hardcoded #DDF4FF (light blue) */
 :root.theme-aurora-dark  .bg-\[\#DDF4FF\],
 :root.theme-aurora-light .bg-\[\#DDF4FF\] {
   background-color: color-mix(in srgb, var(--brand) 14%, var(--surface)) !important;
   color: var(--text) !important;
 }
-
-/* 8) Brighten the small ProgressDots icons next to the Analyze button.
-      Tailwind's *-600 hues sit too dark on the deep canvas; map them to
-      the theme palette so off-state is dim but visible, on-state pops. */
-:root.theme-aurora-dark .text-blue-600   { color: var(--brand)  !important; }
-:root.theme-aurora-dark .text-purple-600 { color: var(--violet) !important; }
-:root.theme-aurora-dark .text-amber-600  { color: var(--amber)  !important; }
-:root.theme-aurora-dark .text-green-600  { color: var(--green)  !important; }
-:root.theme-aurora-dark .text-emerald-600 { color: var(--green) !important; }
 
 /* 9) "Select all / Deselect all" — was a faint outline button; promote to
       a brand-filled chip so it matches the Select-mode toggle next to it. */

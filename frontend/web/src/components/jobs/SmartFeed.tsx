@@ -157,15 +157,19 @@ function visaKey(j: BoardJob): keyof typeof VISA_COLOR {
 }
 
 function sourcePillTone(source: string): string {
+  // Token-based so every theme stays consistent and readable (under Aurora
+  // these resolve to brand-tinted pills; under the other themes to the
+  // matching --blue/--purple/--amber/--teal tints). All sources now share
+  // the same shape — only the hue changes.
   const m: Record<string, string> = {
-    adzuna:    "bg-blue-100 text-blue-700",
-    seek:      "bg-blue-100 text-blue-700",
-    careerjet: "bg-teal-100 text-teal-700",
-    greenhouse:"bg-purple-100 text-purple-700",
-    lever:     "bg-purple-100 text-purple-700",
-    indeed:    "bg-amber-100 text-amber-700",
+    adzuna:    "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
+    seek:      "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
+    careerjet: "bg-[var(--teal)]/14 text-[var(--teal)] border border-[var(--teal)]/25",
+    greenhouse:"bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
+    lever:     "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
+    indeed:    "bg-[var(--amber)]/12 text-[var(--amber)] border border-[var(--amber)]/25",
   };
-  return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2";
+  return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2 border border-border";
 }
 
 // ── smart-section bucketing ─────────────────────────────────────────────
