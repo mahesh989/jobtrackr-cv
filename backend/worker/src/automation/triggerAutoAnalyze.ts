@@ -28,7 +28,7 @@ import { callCvBackend, CvBackendError } from "../lib/cvBackendHmac.js";
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type Provider = (typeof PROVIDER_PRIORITY)[number];
 
-const JD_MIN_USABLE = 1400;  // chars — below this, JD is too thin for reliable AI analysis (lowered from 2000 on 2026-05-27 — past Adzuna API teaser ceiling)
+const JD_MIN_USABLE = 1000;  // chars — below this, JD is too thin for reliable AI analysis. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
 
 interface ProfileThresholds {

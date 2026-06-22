@@ -5,7 +5,7 @@
  *
  *   1. Verify the user owns the job and has an active CV + at least one AI key.
  *   2. Resolve the JD text:
- *        - If job.description >= 1400 chars   → use as-is
+ *        - If job.description >= 1000 chars   → use as-is
  *        - Otherwise                          → call cv-backend /internal/scrape-jd
  *      If both attempts yield < 200 chars     → 422 with a clear error.
  *   3. Mark any prior non-stale analysis_runs for (user, job) as stale.
@@ -31,7 +31,7 @@ import { emitEvent } from "@/lib/admin/events";
 export const runtime     = "nodejs";
 export const maxDuration = 30;
 
-const JD_FULL_THRESHOLD  = 1400;   // chars — below this we try a fresh scrape (lowered from 2000 on 2026-05-27 — past Adzuna API teaser ceiling)
+const JD_FULL_THRESHOLD  = 1000;   // chars — below this we try a fresh scrape. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
 
 export async function POST(

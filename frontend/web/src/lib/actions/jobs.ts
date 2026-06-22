@@ -49,8 +49,9 @@ export async function addManualJob(input: {
       company:       input.company?.trim() ?? "",
       location:      input.location?.trim() ?? "",
       description:   input.description.trim(),
-      // Classify JD quality at insert time — same thresholds as the worker.
-      jd_quality:    jdLen >= 1400 ? "rich" : jdLen >= 200 ? "thin" : "unknown",
+      // Classify JD quality at insert time — same threshold as the DB trigger
+      // (migration 062) + the worker. The trigger re-stamps this on insert too.
+      jd_quality:    jdLen >= 1000 ? "rich" : jdLen >= 200 ? "thin" : "unknown",
       source:        "manual",
       source_tier:   4,
     })
