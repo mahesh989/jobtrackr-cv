@@ -319,21 +319,13 @@ def stamp_credentials(
     if role_family_id not in _CREDENTIAL_FAMILIES:
         return markdown
     line = build_credentials_line(contact_details, family_id=role_family_id)
-    avail = build_availability_line(contact_details)
-    if not line and not avail:
+    if not line:
         return markdown
 
-    # Body of the section: the licences line first, then (if present) the
-    # availability note on its OWN line, in italics. A blank line between
-    # them makes them separate paragraphs so availability renders on a new
-    # line rather than wrapping onto the licences line.
-    body: List[str] = []
-    if line:
-        body.append(line)
-    if avail:
-        if body:
-            body.append("")
-        body.append(f"*{avail}*")
+    # Body of the section: the deterministic licences line. (Availability now
+    # lives in the Professional Summary via stamp_availability_in_summary, not
+    # here — see that function.)
+    body: List[str] = [line]
 
     lines = markdown.split("\n")
 
@@ -356,6 +348,58 @@ def stamp_credentials(
 
     # Section absent — append at end of the markdown document
     return markdown.rstrip("\n") + f"\n\n{_CREDENTIALS_HEADING}\n\n" + "\n".join(body) + "\n"
+
+
+# Summary headings the availability note may be appended under. The composer
+# emits "Career Highlights"; a downstream relabel renames it to "Professional
+# Summary" — match either, case-insensitively.
+_SUMMARY_HEADINGS = frozenset({"professional summary", "career highlights", "summary"})
+
+
+def stamp_availability_in_summary(
+    markdown: str,
+    contact_details: Optional[Dict[str, Any]],
+    role_family_id: Optional[str],
+) -> str:
+    """Append the opt-in availability note as an italic line at the END of the
+    Professional Summary section — i.e. directly after the summary paragraph
+    and just above the next section. No-op when:
+      • the role family is not credentialed (nursing / manual),
+      • availability is off or empty,
+      • no summary section is found.
+    """
+    if not markdown:
+        return markdown
+    if role_family_id not in _CREDENTIAL_FAMILIES:
+        return markdown
+    avail = build_availability_line(contact_details)
+    if not avail:
+        return markdown
+
+    lines = markdown.split("\n")
+    start_idx = next(
+        (i for i, l in enumerate(lines)
+         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") in _SUMMARY_HEADINGS),
+        -1,
+    )
+    if start_idx < 0:
+        return markdown  # no summary section — leave the CV unchanged
+
+    # End of the summary section = next "## " heading (or EOF).
+    end_idx = next(
+        (j for j in range(start_idx + 1, len(lines)) if lines[j].startswith("## ")),
+        len(lines),
+    )
+    # Find the last non-empty content line within the section so we insert
+    # right after the paragraph (not after trailing blank lines).
+    last_content = start_idx
+    for j in range(start_idx + 1, end_idx):
+        if lines[j].strip():
+            last_content = j
+
+    note = ["", f"*{avail}*"]
+    lines = lines[: last_content + 1] + note + lines[last_content + 1 : end_idx] + lines[end_idx:]
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

@@ -142,18 +142,22 @@ export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
 
 type Tone = "green" | "blue" | "violet" | "amber" | "gray";
 
+// Token-based so they read correctly on every theme (dark + light). On dark
+// the /12 tint is a subtle wash and the bright token text pops; on light the
+// tint is pale and the darker token text reads — same as the matched/missing
+// keyword chips.
 const TONE_CHIP: Record<Tone, string> = {
-  green:  "bg-green-light text-green border-green/30",
-  blue:   "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/30",
-  violet: "bg-[#FBEFFF] text-[#8250DF] border-[#8250DF]/30",
-  amber:  "bg-[#FFF8C5] text-[#9A6700] border-[#D4A72C]/40",
+  green:  "bg-[var(--green)]/12 text-green border-[var(--green)]/30",
+  blue:   "bg-[var(--brand)]/12 text-[var(--brand)] border-[var(--brand)]/30",
+  violet: "bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/30",
+  amber:  "bg-[var(--amber)]/12 text-[var(--amber)] border-[var(--amber)]/40",
   gray:   "bg-surface-2 text-text-2 border-border",
 };
 const TONE_REWRITE: Record<Tone, string> = {
-  green:  "bg-green-light text-green",
-  blue:   "bg-[#DDF4FF] text-[var(--brand)]",
-  violet: "bg-[#FBEFFF] text-[#8250DF]",
-  amber:  "bg-[#FFF8C5] text-[#9A6700]",
+  green:  "bg-[var(--green)]/8 text-text",
+  blue:   "bg-[var(--brand)]/8 text-text",
+  violet: "bg-[var(--purple)]/8 text-text",
+  amber:  "bg-[var(--amber)]/8 text-text",
   gray:   "bg-surface-2 text-text-2",
 };
 
@@ -281,8 +285,8 @@ function InferenceEntry({ e }: { e: InjectInferenceEntry }) {
           e.confidence && (
             <span className={`text-[10px] uppercase tracking-wide font-semibold rounded px-1.5 py-0.5 border ${
               e.confidence === "high"
-                ? "bg-[#FBEFFF] text-[#8250DF] border-[#8250DF]/30"
-                : "bg-[#FBEFFF]/60 text-[#8250DF]/80 border-[#8250DF]/20"
+                ? "bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/30"
+                : "bg-[var(--purple)]/8 text-[var(--purple)]/80 border-[var(--purple)]/20"
             }`}>
               {e.confidence} confidence
             </span>
@@ -299,7 +303,7 @@ function InferenceEntry({ e }: { e: InjectInferenceEntry }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <span className="text-[11px] font-medium text-text">Inferred from:</span>
           {e.inferred_from.map((src, i) => (
-            <span key={`${src}-${i}`} className="text-[10px] px-1.5 py-0.5 rounded border bg-[#FBEFFF] text-[#8250DF] border-[#8250DF]/20">
+            <span key={`${src}-${i}`} className="text-[10px] px-1.5 py-0.5 rounded border bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/25">
               {src}
             </span>
           ))}

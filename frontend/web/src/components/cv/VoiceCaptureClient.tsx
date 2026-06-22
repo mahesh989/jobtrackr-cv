@@ -364,10 +364,10 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
           {/* Tab guidance — different copy per tab */}
           {activeTab === "in_app_capture" ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
-              <p className="text-[12px] font-semibold text-emerald-800 mb-0.5">
+              <p className="text-[12px] font-semibold text-text mb-0.5">
                 Recommended — writing fresh in your own voice gives the cleanest signal.
               </p>
-              <p className="text-[11px] text-emerald-700 leading-relaxed">
+              <p className="text-[11px] text-text-2 leading-relaxed">
                 Type {WORD_MIN}+ words about a project, a problem you've solved, or anything you'd naturally
                 talk about. Don't polish, don't proof, don't paraphrase — typos and casual phrasing are
                 what give us your real voice. Pasting is disabled on this tab on purpose.

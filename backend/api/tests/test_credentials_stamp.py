@@ -82,7 +82,9 @@ def test_availability_is_opt_in_and_separate_from_credentials_line():
     }}) == ""
 
 
-def test_availability_renders_on_its_own_italic_line():
+def test_availability_not_in_credentials_section():
+    """Availability moved to the Professional Summary — it must NOT appear in
+    the Registration & Licences block any more."""
     md = "# Jane\n\nNSW | 0400\n\n## Experience\n- x\n"
     cd = {"credentials": {
         "police_check": True,
@@ -90,12 +92,32 @@ def test_availability_renders_on_its_own_italic_line():
         "show_availability": True,
     }}
     out = stamp_credentials(md, cd, "nursing")
-    # licences line and the italic availability line are SEPARATE lines
     assert "## Registration & Licences" in out
     assert "National Police Check" in out
-    assert "*Available: Part Time, Casual*" in out
-    # the availability note is NOT glued onto the licences line
-    assert "National Police Check · Available" not in out
+    assert "Available" not in out  # availability is stamped into the summary now
+
+
+def test_availability_appended_to_professional_summary():
+    from app.services.cv.contact_line import stamp_availability_in_summary
+    md = (
+        "# Jane\n\nNSW | 0400\n\n"
+        "## Professional Summary\n\nAssistant in Nursing with aged-care experience.\n\n"
+        "## Experience\n- x\n"
+    )
+    cd = {"credentials": {
+        "availability": ["Casual", "Full Time", "Part Time"],
+        "show_availability": True,
+    }}
+    out = stamp_availability_in_summary(md, cd, "nursing")
+    # italic line, canonical order, sits inside the summary section
+    assert "*Available: Full Time, Part Time, Casual*" in out
+    summary_part = out.split("## Experience")[0]
+    assert "*Available: Full Time, Part Time, Casual*" in summary_part
+    # off → no-op
+    cd_off = {"credentials": {"availability": ["Casual"], "show_availability": False}}
+    assert stamp_availability_in_summary(md, cd_off, "nursing") == md
+    # non-credentialed family → no-op
+    assert stamp_availability_in_summary(md, cd, "tech") == md
 
 
 def test_ahpra_number_leads_when_present():

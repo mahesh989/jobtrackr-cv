@@ -118,7 +118,7 @@ function StepRow({
       <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
         <span className={`text-[13px] ${color}`}>{label}</span>
         {typeof scoreBadge === "number" && state === "completed" && (
-          <span className="text-[11px] font-semibold text-[var(--brand)] bg-[#DDF4FF] border border-[var(--brand)]/20 rounded px-1.5 py-0.5 tabular-nums">
+          <span className="text-[11px] font-semibold text-[var(--brand)] bg-[var(--brand)]/10 border border-[var(--brand)]/25 rounded px-1.5 py-0.5 tabular-nums">
             {Math.round(scoreBadge)}%
           </span>
         )}
@@ -639,7 +639,7 @@ function CvSkillsSummary({
                 </h3>
                 <div className="flex flex-wrap gap-1">
                   {items.map((s) => (
-                    <span key={s} className="text-[11px] font-mono px-1.5 py-0.5 rounded border bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/20">
+                    <span key={s} className="text-[11px] font-mono px-1.5 py-0.5 rounded border bg-[var(--brand)]/10 text-[var(--brand)] border-[var(--brand)]/25">
                       {s}
                     </span>
                   ))}

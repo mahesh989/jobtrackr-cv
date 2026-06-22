@@ -49,7 +49,12 @@ from app.services.eval.role_families import (
     resolve_seniority,
     apply_equivalences,
 )
-from app.services.cv.contact_line import stamp_contact_line, stamp_credentials, stamp_references
+from app.services.cv.contact_line import (
+    stamp_availability_in_summary,
+    stamp_contact_line,
+    stamp_credentials,
+    stamp_references,
+)
 from app.services.pipeline.steps.jd_analysis import run_jd_analysis
 from app.services.pipeline.steps.cv_jd_matching import run_cv_jd_matching
 from app.services.pipeline.steps.ats_scoring import run_ats_scoring
@@ -737,6 +742,9 @@ async def _writer_w8_integrated(
     #     is authoritative for what they actually hold. Run BEFORE the
     #     awards-split pass so it can dedupe against Registration content.
     final_md = stamp_credentials(final_md, contact_details, role_family.id)
+    # 4c-bis. Availability note (opt-in) — italic line at the end of the
+    #         Professional Summary, just above the next section.
+    final_md = stamp_availability_in_summary(final_md, contact_details, role_family.id)
     # 4c-tris. Stamp the user-saved References block (role-family agnostic).
     #          mode=details renders a 2-col table; mode=on_request renders
     #          a single line; mode=none omits the section entirely.

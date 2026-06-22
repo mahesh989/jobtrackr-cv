@@ -925,18 +925,17 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 :root.theme-aurora-dark  .gh-btn:active,
 :root.theme-aurora-light .gh-btn:active { background: var(--surface-3); }
 
+/* SOLID teal (consistent with the Analyze / Save buttons which use
+   bg-[var(--brand)]). No gradient — per user preference. */
 :root.theme-aurora-dark  .gh-btn-primary,
 :root.theme-aurora-light .gh-btn-primary {
-  background: var(--aurora-grad);
+  background: var(--brand);
   border-color: transparent;
   color: var(--brand-fg);
-  box-shadow: var(--elev-2);
 }
 :root.theme-aurora-dark  .gh-btn-primary:hover,
 :root.theme-aurora-light .gh-btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--glow);
-  background: var(--aurora-grad);
+  background: var(--brand-strong);
 }
 :root.theme-aurora-dark  .gh-btn-blue,
 :root.theme-aurora-light .gh-btn-blue {
@@ -1155,6 +1154,12 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
       colours (the blue/white "Yes" highlight you saw on the AHPRA Driver
       Licence selector). Restyle the trigger and options so they match
       every other field, and tint selected/checked options with the brand. */
+:root.theme-aurora-dark  select {
+  /* Force the native option popup to render in dark mode (kills the
+     bright blue browser-default highlight on the open list). */
+  color-scheme: dark;
+}
+:root.theme-aurora-light select { color-scheme: light; }
 :root.theme-aurora-dark  select,
 :root.theme-aurora-light select {
   -webkit-appearance: none;
