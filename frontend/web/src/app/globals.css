@@ -1036,13 +1036,16 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
    donut/funnel slice colours were hardcoded hex (didn't follow the accent).
    ============================================================ */
 
-/* 1) Card tokens — these were never defined anywhere, so every
-      `border-[var(--card-border)]` element (Voice, Stories) fell back to
-      currentColor (a bright border on dark). Map them to the standard
-      surface/border tokens so ALL boxes share one border treatment. */
+/* 1) Card / input tokens — these were referenced (Voice/Stories,
+      voice textarea) but NEVER defined anywhere, so every consumer fell
+      back to currentColor (a bright border) or transparent (invisible box).
+      Map them to the standard surface/border tokens so every box AND
+      every input share one treatment. */
 :root {
-  --card-border: var(--border);
-  --card-bg:     var(--surface);
+  --card-border:  var(--border);
+  --card-bg:      var(--surface);
+  --input-border: var(--border);
+  --input-bg:     var(--surface);
 
   /* Chart palette — defaults preserve the current donut/funnel colours.
      Aurora overrides below harmonise them with the teal/violet accent. */
@@ -1070,53 +1073,32 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 /* 3) Chart palette → aurora accent family (teal / violet / cyan), still
       semantically distinct. Other themes keep the defaults above. */
 :root.theme-aurora-dark {
-  --chart-pos:     var(--brand);  /* teal  */
-  --chart-info:    var(--violet); /* violet */
-  --chart-applied: #22D3EE;       /* cyan  */
-  --chart-warn:    #FB923C;
-  --chart-amber:   #FBBF24;
-  --chart-danger:  var(--red);
+  /* Solid per-slice palette in the Aurora family so legend dots MATCH
+     the donut slice they describe. Sourcing reads as
+     teal(Saved) · violet(Duplicates) · cyan(Filtered) — all from one
+     accent family, none semantically misleading. ATS keeps amber/red
+     for above/below-threshold meaning. */
+  --chart-pos:     var(--brand);   /* teal — kept slice + Save/positive */
+  --chart-info:    var(--violet);  /* violet — duplicates/CV-only/ready */
+  --chart-applied: #22D3EE;        /* cyan — Applied / filtered-out      */
+  --chart-warn:    #22D3EE;        /* cyan — replaces hot orange         */
+  --chart-amber:   #FBBF24;        /* ATS amber band                     */
+  --chart-danger:  var(--red);     /* ATS below-initial                  */
   --chart-neutral: #64748B;
-  /* Donut "gradient ring" stops (presence of --donut-grad-1 switches the
-     PipelineDonut into single teal→violet→cyan gradient-ring mode). */
-  --donut-grad-1: #19E3C8;
-  --donut-grad-2: #8B7BFF;
-  --donut-grad-3: #22D3EE;
 }
 :root.theme-aurora-light {
   --chart-pos:     var(--brand);
   --chart-info:    var(--violet);
   --chart-applied: #0EA5E9;
-  --chart-warn:    #EA580C;
+  --chart-warn:    #0EA5E9;
   --chart-amber:   #B45309;
   --chart-danger:  var(--red);
   --chart-neutral: #94A3B8;
-  --donut-grad-1: #0D9488;
-  --donut-grad-2: #7C6CFF;
-  --donut-grad-3: #0EA5E9;
 }
 
-/* 4) Primary buttons → the signature aurora gradient, app-wide.
-      Targets square brand-filled buttons/links (the `bg-[var(--brand)]`
-      pattern) and excludes pills (rounded-full keep their solid fill). */
-:root.theme-aurora-dark  button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
-:root.theme-aurora-light button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
-:root.theme-aurora-dark  a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]),
-:root.theme-aurora-light a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]) {
-  background-image: var(--aurora-grad);
-  background-color: transparent;
-  color: var(--brand-fg) !important;
-  border-color: transparent;
-  transition: transform .12s, box-shadow .15s, opacity .15s;
-}
-:root.theme-aurora-dark  button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
-:root.theme-aurora-light button[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
-:root.theme-aurora-dark  a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover,
-:root.theme-aurora-light a[class*="bg-[var(--brand)]"]:not([class*="rounded-full"]):hover {
-  transform: translateY(-1px);
-  box-shadow: var(--glow);
-  opacity: 1;
-}
+/* 4) Brand buttons stay SOLID teal (per user feedback). No gradient sweep
+      on Save/Analyze/etc. — keeps the calm, premium look. The signature
+      gradient is reserved for the donut + KPI accent line only. */
 
 /* 5) Checkboxes → custom gradient box + check (matches the preview),
       applied to EVERY checkbox so they're consistent app-wide. Radios keep
@@ -1167,4 +1149,114 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFFFFF' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-11'/%3E%3C/svg%3E"),
     var(--aurora-grad);
+}
+
+/* 6) Native <select> dropdowns — were inheriting browser default popup
+      colours (the blue/white "Yes" highlight you saw on the AHPRA Driver
+      Licence selector). Restyle the trigger and options so they match
+      every other field, and tint selected/checked options with the brand. */
+:root.theme-aurora-dark  select,
+:root.theme-aurora-light select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: var(--surface-2);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  padding-right: 34px;
+  color: var(--text);
+}
+:root.theme-aurora-dark  select option,
+:root.theme-aurora-light select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
+:root.theme-aurora-dark  select option:checked,
+:root.theme-aurora-light select option:checked {
+  background: color-mix(in srgb, var(--brand) 22%, var(--surface));
+  color: var(--text);
+}
+
+/* 7) Hardcoded LIGHT-PALETTE tints used across the app — re-map to
+      theme tokens under Aurora so they're readable on dark. Targets
+      Tailwind utilities baked into many components (Voice/Stories
+      guidance boxes, automation funnel chip, email-connected card,
+      thin-JD callouts, etc.). */
+:root.theme-aurora-dark  .bg-emerald-50, :root.theme-aurora-dark  .bg-emerald-50\/60,
+:root.theme-aurora-dark  .bg-green-50,   :root.theme-aurora-dark  .bg-green-100,
+:root.theme-aurora-light .bg-emerald-50, :root.theme-aurora-light .bg-emerald-50\/60 {
+  background-color: color-mix(in srgb, var(--green) 12%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-emerald-200, :root.theme-aurora-dark  .border-green-200,
+:root.theme-aurora-light .border-emerald-200, :root.theme-aurora-light .border-green-200 {
+  border-color: color-mix(in srgb, var(--green) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-emerald-800, :root.theme-aurora-dark .text-emerald-700,
+:root.theme-aurora-dark .text-emerald-600, :root.theme-aurora-dark .text-green-800,
+:root.theme-aurora-dark .text-green-700,   :root.theme-aurora-dark .text-green-600 {
+  color: var(--green) !important;
+}
+:root.theme-aurora-dark  .bg-amber-50,  :root.theme-aurora-dark  .bg-amber-100,
+:root.theme-aurora-dark  .bg-yellow-50, :root.theme-aurora-light .bg-amber-50,
+:root.theme-aurora-light .bg-amber-100 {
+  background-color: color-mix(in srgb, var(--amber) 12%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-amber-200, :root.theme-aurora-dark  .border-amber-300,
+:root.theme-aurora-light .border-amber-200, :root.theme-aurora-light .border-amber-300 {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-amber-700, :root.theme-aurora-dark .text-amber-800,
+:root.theme-aurora-dark .text-amber-900 { color: var(--amber) !important; }
+:root.theme-aurora-dark  .bg-red-50, :root.theme-aurora-light .bg-red-50 {
+  background-color: color-mix(in srgb, var(--red) 12%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-red-200, :root.theme-aurora-light .border-red-200 {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-red-700, :root.theme-aurora-dark .text-red-800 {
+  color: var(--red) !important;
+}
+:root.theme-aurora-dark  .bg-blue-50, :root.theme-aurora-light .bg-blue-50 {
+  background-color: color-mix(in srgb, var(--brand) 12%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-blue-200, :root.theme-aurora-light .border-blue-200 {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-blue-700 { color: var(--brand) !important; }
+:root.theme-aurora-dark  .bg-pink-50, :root.theme-aurora-light .bg-pink-50 {
+  background-color: color-mix(in srgb, var(--violet) 12%, var(--surface)) !important;
+}
+:root.theme-aurora-dark  .border-pink-200, :root.theme-aurora-light .border-pink-200 {
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--border)) !important;
+}
+:root.theme-aurora-dark .text-pink-700 { color: var(--violet) !important; }
+/* Automation pipeline FunnelChip — hardcoded #DDF4FF (light blue) */
+:root.theme-aurora-dark  .bg-\[\#DDF4FF\],
+:root.theme-aurora-light .bg-\[\#DDF4FF\] {
+  background-color: color-mix(in srgb, var(--brand) 14%, var(--surface)) !important;
+  color: var(--text) !important;
+}
+
+/* 8) Brighten the small ProgressDots icons next to the Analyze button.
+      Tailwind's *-600 hues sit too dark on the deep canvas; map them to
+      the theme palette so off-state is dim but visible, on-state pops. */
+:root.theme-aurora-dark .text-blue-600   { color: var(--brand)  !important; }
+:root.theme-aurora-dark .text-purple-600 { color: var(--violet) !important; }
+:root.theme-aurora-dark .text-amber-600  { color: var(--amber)  !important; }
+:root.theme-aurora-dark .text-green-600  { color: var(--green)  !important; }
+:root.theme-aurora-dark .text-emerald-600 { color: var(--green) !important; }
+
+/* 9) "Select all / Deselect all" — was a faint outline button; promote to
+      a brand-filled chip so it matches the Select-mode toggle next to it. */
+:root.theme-aurora-dark  .data-select-all,
+:root.theme-aurora-light .data-select-all {
+  background: var(--brand) !important;
+  color: var(--brand-fg) !important;
+  border-color: transparent !important;
+}
+:root.theme-aurora-dark  .data-select-all:hover,
+:root.theme-aurora-light .data-select-all:hover {
+  background: var(--brand-strong) !important;
 }

@@ -15,7 +15,7 @@ export function SelectAllButton({
     <button
       type="button"
       onClick={onToggle}
-      className="inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1 rounded-md border border-border bg-surface text-text-2 hover:bg-[var(--surface-2)] hover:text-text transition-colors shrink-0"
+      className="data-select-all inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1 rounded-md border border-border bg-surface text-text-2 hover:bg-[var(--surface-2)] hover:text-text transition-colors shrink-0"
     >
       <CheckCheck className="w-3.5 h-3.5" />
       {allSelected ? "Deselect all" : "Select all"}

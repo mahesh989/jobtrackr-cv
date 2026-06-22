@@ -397,7 +397,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
               ? "Start typing here…"
               : "Paste your cover letter here…"}
             rows={10}
-            className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2.5 text-sm text-black placeholder:text-[var(--sidebar-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)] resize-y"
+            className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2.5 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] resize-y"
           />
 
           <div className="flex items-center justify-between">
