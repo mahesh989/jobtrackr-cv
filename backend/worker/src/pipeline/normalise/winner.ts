@@ -17,8 +17,13 @@ const SOURCE_BONUS: Record<string, number> = {
   seek:       2000,
   greenhouse: 1500,
   lever:      1500,
-  careerjet:  1800,   // Long full-JD descriptions (5-14k chars) via /jobad/<hash>
   adzuna:      400,
+  careerjet:   300,   // Ranked BELOW adzuna: careerjet's full /jobad scrape is
+                      // Cloudflare-blocked (verified 2026-06-22, even Apify
+                      // residential gets tarpitted), so we only have its v4 API
+                      // ~251-char snippet. Adzuna's ~600-char teaser is richer —
+                      // let it win duplicates so the better description survives.
+                      // Restore to ~1800 if a managed CF-bypass enriches /jobad.
   jora:        100,
 };
 
