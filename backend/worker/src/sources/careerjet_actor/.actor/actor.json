@@ -1,8 +1,8 @@
 {
   "actorSpecification": 1,
   "name": "careerjet-jd-fetcher",
-  "title": "Careerjet JD Fetcher (Cheerio) — JobTrackr",
-  "description": "Fetches full job descriptions from careerjet.com.au URLs via Cheerio over Apify residential AU proxy (bypasses Cloudflare Turnstile). Enriches post-filter survivors; listings come from the Careerjet v4 API.",
+  "title": "Careerjet JD Fetcher (Playwright) — JobTrackr",
+  "description": "Fetches full job descriptions from careerjet.com.au URLs via Playwright over Apify residential AU proxy (lets Cloudflare's managed challenge auto-resolve). Enriches post-filter survivors; listings come from the Careerjet v4 API.",
   "version": "0.1",
   "buildTag": "latest",
   "storages": {

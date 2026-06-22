@@ -1,35 +1,39 @@
 /**
- * Careerjet JD Fetcher — Cheerio actor for JobTrackr
+ * Careerjet JD Fetcher — Playwright actor for JobTrackr
  *
  * Takes a list of careerjet.com.au job URLs (post-filter survivors from the
- * worker) and returns the full job description for each, scraped over an
- * Apify RESIDENTIAL AU proxy.
+ * worker) and returns the full job description for each, rendered with a real
+ * Chromium browser over an Apify RESIDENTIAL AU proxy.
  *
- * Why this exists: careerjet.com.au is behind Cloudflare Turnstile, which
- * hard-blocks datacenter IPs even for a real browser (verified — Apify
- * datacenter Playwright runs time out on every navigation). A RESIDENTIAL IP
- * gets the page with no challenge at all, so a plain Cheerio fetch works —
- * no browser needed, minimal compute.
+ * Why Playwright + residential (verified 2026-06-22):
+ *   - Datacenter IP: Cloudflare Turnstile hard-blocks every navigation (timeout).
+ *   - Residential IP + Cheerio: Cloudflare serves an interstitial ("unusual
+ *     traffic… verification required") because Cheerio executes no JS, so the
+ *     challenge can't resolve → 0-char extraction.
+ *   - Residential IP + real browser: Cloudflare's "managed challenge" auto-
+ *     resolves silently (residential reputation + real-browser integrity
+ *     together pass the check), and we get the full page.
  *
- * This is the "narrow + expensive" half of the funnel (mirrors seek-jd-fetcher):
- *   - listings come FREE from the Careerjet v4 API (in the worker)
- *   - the worker filters/dedups to ~20 survivors
- *   - this actor fetches full JDs for only those survivors → residential cost
- *     is paid for the handful that matter, not all listings.
- *
- * Input:  { urls: string[], maxUrls? }
- * Output: { url, description, fetchedAt }
+ * Input/output contract is identical to the Cheerio version:
+ *   Input:  { urls: string[], maxUrls? }
+ *   Output: { url, description, fetchedAt }
  */
 
 import { Actor, log, Dataset } from "apify";
-import { CheerioCrawler } from "crawlee";
+import { PlaywrightCrawler } from "crawlee";
 
 interface Input {
   urls?:    string[];
   maxUrls?: number;
 }
 
-const DEFAULT_MAX_URLS = 25;
+const DEFAULT_MAX_URLS    = 25;
+const PAGE_TIMEOUT_MS     = 45_000;
+const SELECTOR_TIMEOUT_MS = 25_000;
+
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 function cleanText(s: string | undefined | null): string {
   return (s ?? "").replace(/\s+/g, " ").trim();
@@ -58,9 +62,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  log.info(`[careerjet-jd] start — ${targets.length} URLs over residential proxy`);
+  log.info(`[careerjet-jd] start — ${targets.length} URLs (Playwright + residential AU)`);
 
-  // Internal RESIDENTIAL AU proxy — clears Turnstile (datacenter-only block).
+  // RESIDENTIAL AU proxy — datacenter is Turnstile-blocked, plain residential
+  // gets an interstitial Cheerio can't solve. A real browser on residential
+  // lets Cloudflare's managed challenge auto-resolve.
   const proxyConfiguration = await Actor.createProxyConfiguration({
     groups: ["RESIDENTIAL"],
     countryCode: "AU",
@@ -73,40 +79,93 @@ async function main(): Promise<void> {
 
   let ok = 0;
   let thin = 0;
-  const crawler = new CheerioCrawler({
+  const crawler = new PlaywrightCrawler({
     proxyConfiguration,
-    maxConcurrency: 4,
+    maxConcurrency: 2,
     maxRequestRetries: 3,
-    requestHandlerTimeoutSecs: 45,
+    requestHandlerTimeoutSecs: 90,
     useSessionPool: true,
     sessionPoolOptions: { maxPoolSize: 10, sessionOptions: { maxUsageCount: 20 } },
-    async requestHandler({ $, request, body }) {
-      // CheerioCrawler follows redirects, so a /clk or /jobad URL both land on
-      // the canonical job-ad page. The full description lives in section.content.
-      const desc = cleanText($("section.content").text());
-      if (desc.length > 200) {
-        await Dataset.pushData({ url: request.url, description: desc, fetchedAt: new Date().toISOString() });
-        ok++;
-        log.info(`[careerjet-jd] ${request.url}: ${desc.length} chars ✓`);
-      } else {
+    headless: true,
+    launchContext: {
+      launchOptions: {
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+        ],
+      },
+    },
+    browserPoolOptions: {
+      useFingerprints: true,
+    },
+    preNavigationHooks: [
+      async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 768 });
+        await page.addInitScript(() => {
+          Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+        });
+      },
+    ],
+    async requestHandler({ page, request }) {
+      // Land on the page. Cloudflare's managed challenge usually auto-resolves
+      // within a couple of seconds when a real residential-IP browser is used.
+      try {
+        await page.goto(request.url, { waitUntil: "domcontentloaded", timeout: PAGE_TIMEOUT_MS });
+      } catch (err) {
         thin++;
-        // Diagnostics: what did this IP actually receive? (challenge vs real page)
-        const raw = (typeof body === "string" ? body : body?.toString("utf-8")) ?? "";
-        const title = cleanText($("title").text());
-        const blocked = /turnstile|just a moment|cf-challenge|verify you are human|attention required|enable javascript/i.test(raw);
-        log.warning(
-          `[careerjet-jd] ${request.url}: only ${desc.length} chars ` +
-          `| title="${title}" | bodyLen=${raw.length} | sectionContentNodes=${$("section.content").length} ` +
-          `| challengeMarkers=${blocked} | snippet="${cleanText($("body").text()).slice(0, 160)}"`,
-        );
+        log.warning(`[careerjet-jd] ${request.url} goto failed: ${err instanceof Error ? err.message : err}`);
+        return;
       }
+
+      // Wait for the description container. If a challenge interstitial is up,
+      // the wait window gives it time to auto-resolve and render the real page.
+      let descAppeared = false;
+      try {
+        await page.waitForSelector("section.content", { timeout: SELECTOR_TIMEOUT_MS });
+        descAppeared = true;
+      } catch { /* fall through to diagnostics */ }
+
+      if (descAppeared) {
+        const text = await page.evaluate(() => {
+          const el = document.querySelector("section.content");
+          return el ? (el as HTMLElement).innerText : "";
+        });
+        const desc = cleanText(text);
+        if (desc.length > 200) {
+          await Dataset.pushData({ url: request.url, description: desc, fetchedAt: new Date().toISOString() });
+          ok++;
+          log.info(`[careerjet-jd] ${request.url}: ${desc.length} chars ✓`);
+          return;
+        }
+        // Selector matched but content thin — fall through to diagnostics.
+      }
+
+      // Diagnostics on failure: what did the residential browser actually see?
+      thin++;
+      const diag = await page.evaluate(() => {
+        const html = document.documentElement.outerHTML;
+        const body = document.body ? (document.body as HTMLElement).innerText : "";
+        return {
+          title:       document.title,
+          bodyLen:     html.length,
+          contentNodes: document.querySelectorAll("section.content").length,
+          blocked: /turnstile|just a moment|cf-challenge|verify you are human|attention required|unusual traffic|verification required/i.test(html),
+          snippet: body.replace(/\s+/g, " ").trim().slice(0, 200),
+        };
+      });
+      log.warning(
+        `[careerjet-jd] ${request.url}: thin extraction ` +
+        `| title="${diag.title}" | bodyLen=${diag.bodyLen} | sectionContentNodes=${diag.contentNodes} ` +
+        `| challengeMarkers=${diag.blocked} | snippet="${diag.snippet}"`,
+      );
     },
     failedRequestHandler({ request }, err) {
       log.warning(`[careerjet-jd] ${request.url} failed: ${err instanceof Error ? err.message : err}`);
     },
   });
 
-  await crawler.run(targets.map((u) => ({ url: u })));
+  await crawler.run(targets.map((u) => ({ url: u, headers: { "User-Agent": USER_AGENT } })));
 
   log.info(`[careerjet-jd] done — ${ok} full descriptions, ${thin} thin/failed of ${targets.length}`);
   await Actor.exit();

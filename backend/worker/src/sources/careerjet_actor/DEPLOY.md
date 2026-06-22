@@ -1,16 +1,21 @@
 # Deployment — careerjet-jd-fetcher
 
 A custom Apify actor that fetches **full job descriptions** for a list of
-careerjet.com.au job URLs over an internal **residential AU** proxy. Cheerio —
-no browser, cheap compute.
+careerjet.com.au job URLs using **Playwright** (real Chromium) over an
+internal **residential AU** proxy.
 
-## Why residential (not datacenter, unlike SEEK)
+## Why Playwright + residential
 
-Verified 2026-06-22: careerjet.com.au's Cloudflare Turnstile **hard-blocks
-datacenter IPs** — even a real Playwright browser on Apify's datacenter proxy
-times out on every navigation. A residential IP gets the page with no challenge
-at all, so a plain Cheerio fetch works. Residential proxy needs a **paid Apify
-plan** (not the free tier).
+Verified 2026-06-22 on the live `/jobad` pages:
+- **Datacenter + Playwright** → hard timeout on every navigation (Turnstile).
+- **Residential + Cheerio** → 200 OK but returns an interstitial page
+  ("Verification required — unusual traffic from your network"); Cheerio
+  executes no JS so the challenge never resolves → 0 chars extracted.
+- **Residential + Playwright** → Cloudflare's "managed challenge" auto-resolves
+  silently (residential IP reputation + real-browser integrity together pass
+  the check) → full JD extracted from `section.content`.
+
+Residential proxy needs a **paid Apify plan** (not the free $5 tier).
 
 ## The funnel (mirrors SEEK's two-actor pattern)
 
