@@ -376,7 +376,20 @@ def stamp_availability_in_summary(
     if not avail:
         return markdown
 
-    lines = markdown.split("\n")
+    raw_lines = markdown.split("\n")
+    # IDEMPOTENT: drop any pre-existing availability line first (the verifier or
+    # a re-pass may have left a stale/mangled copy, and this function is called
+    # twice — once mid-pipeline, once after verify_claims). Also drop the blank
+    # line we previously inserted just before it, so re-stamping reproduces the
+    # exact same output (no blank-line drift).
+    lines: List[str] = []
+    for l in raw_lines:
+        if re.match(r"^\s*\*?\s*available:", l.strip(), re.IGNORECASE):
+            if lines and lines[-1].strip() == "":
+                lines.pop()
+            continue
+        lines.append(l)
+
     start_idx = next(
         (i for i, l in enumerate(lines)
          if l.startswith("## ") and l[3:].strip().lower().rstrip(":") in _SUMMARY_HEADINGS),

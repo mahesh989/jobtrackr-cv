@@ -120,6 +120,21 @@ def test_availability_appended_to_professional_summary():
     assert stamp_availability_in_summary(md, cd, "tech") == md
 
 
+def test_availability_stamp_is_idempotent():
+    """Called twice (mid-pipeline + after verify_claims) it must NOT duplicate
+    the line, and it must clear any stale/leftover availability line first."""
+    from app.services.cv.contact_line import stamp_availability_in_summary
+    md = (
+        "## Professional Summary\n\nAssistant in Nursing with aged-care experience.\n\n"
+        "## Experience\n- x\n"
+    )
+    cd = {"credentials": {"availability": ["Casual", "Full Time"], "show_availability": True}}
+    once = stamp_availability_in_summary(md, cd, "nursing")
+    twice = stamp_availability_in_summary(once, cd, "nursing")
+    assert once == twice                       # idempotent
+    assert once.count("*Available:") == 1      # exactly one note
+
+
 def test_ahpra_number_leads_when_present():
     line = build_credentials_line({"credentials": {
         "ahpra_number": "NMW0001234567",

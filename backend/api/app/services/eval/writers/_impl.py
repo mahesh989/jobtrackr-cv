@@ -1169,6 +1169,12 @@ async def _writer_w8_verified(
         # path (which doesn't have that local).
         prior = result.extras.get("honesty_guard_notes") or []
         result.extras["honesty_guard_notes"] = list(prior) + list(_force_notes)
+    # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
+    # inside _writer_w8_integrated, but verify_claims (+ the summary repair
+    # pass) can bundle the italic "*Available: …*" line into the summary prose
+    # and delete it. stamp_availability_in_summary is idempotent, so applying
+    # it here guarantees the line survives to storage / PDF. See OPS-31.
+    verified_md = stamp_availability_in_summary(verified_md, contact_details, role_family.id)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result

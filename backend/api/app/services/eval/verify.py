@@ -129,6 +129,13 @@ def _collect_summary(markdown: str) -> Tuple[List[int], str] | None:
         s = ln.strip()
         if not s or s[:2] in ("- ", "* ") or s.startswith("•"):
             continue
+        # Skip the opt-in availability note ("*Available: Full Time, …*").
+        # It's stamped deterministically from the user's profile, is NOT a
+        # claim to fact-check, and (because it starts with "*A", not "* ")
+        # would otherwise be bundled into the summary prose and deleted when
+        # the summary is repaired. See stamp_availability_in_summary.
+        if re.match(r"^\*?\s*available:", s, re.IGNORECASE):
+            continue
         idxs.append(i)
     if not idxs:
         return None
