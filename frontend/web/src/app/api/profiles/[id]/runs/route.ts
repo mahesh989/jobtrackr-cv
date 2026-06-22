@@ -26,6 +26,9 @@ export async function GET(
 
   let query = supabase.from("run_logs").select("id, status, current_stage, started_at").eq("profile_id", id);
   if (status) query = query.eq("status", status);
+  // Most-recent first so callers can take runs[0] as "the latest run" (the
+  // LiveLogConsole relies on this to keep showing the last completed run's log).
+  query = query.order("started_at", { ascending: false }).limit(20);
 
   const { data, error } = await query;
   if (error) {

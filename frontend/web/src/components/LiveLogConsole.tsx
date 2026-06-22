@@ -1,11 +1,11 @@
 "use client";
 
-// Live tail of run_logs.log_lines for a single profile's currently-running run.
+// Tail of run_logs.log_lines for a single profile's LATEST run.
 // Black terminal-style scrollback so the user can watch the pipeline tick
-// through every adapter, every page, every dedup decision in near-real-time.
-//
-// Mounts under the LiveRunStatus banner. Hidden when no run is active.
-// Open/closed state persists via a collapsible <details>.
+// through every adapter, every page, every dedup decision in near-real-time —
+// and, once the run finishes, the full log STAYS visible (frozen, no "live"
+// dot) until the next run starts or the page is left. Open/closed state
+// persists via a collapsible <details>.
 
 import { useEffect, useRef, useState } from "react";
 
@@ -29,32 +29,34 @@ export function LiveLogConsole({ profileId }: { profileId: string }) {
   const [active,  setActive]  = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // ── 1. Find the active running run for this profile ─────────────────────────
+  // ── 1. Track the LATEST run for this profile (running OR completed) ──────────
+  // We no longer filter on status=running, so when a run finishes we keep the
+  // same runId and its log stays on screen instead of vanishing.
   useEffect(() => {
     let cancelled = false;
-    async function findActive() {
+    async function findLatest() {
       try {
-        const res = await fetch(`/api/profiles/${profileId}/runs?status=running`, { cache: "no-store" });
+        const res = await fetch(`/api/profiles/${profileId}/runs`, { cache: "no-store" });
         if (!res.ok) return;
         const { runs }: RunsResponse = await res.json();
         if (cancelled) return;
-        const next = runs?.[0]?.id ?? null;
+        const latest = runs?.[0] ?? null;       // route returns most-recent first
+        const next = latest?.id ?? null;
         setRunId((cur) => (cur === next ? cur : next));
-        setActive(!!next);
+        setActive(latest?.status === "running");
       } catch { /* silent */ }
     }
-    findActive();
-    const id = setInterval(findActive, 4000);
+    findLatest();
+    const id = setInterval(findLatest, 5000);
     return () => { cancelled = true; clearInterval(id); };
   }, [profileId]);
 
-  // ── 2. Poll log_lines while we have a runId ─────────────────────────────────
+  // ── 2. Poll log_lines for the current runId; stop polling once it ends but
+  //       KEEP the lines on screen. ────────────────────────────────────────────
   useEffect(() => {
-    if (!runId) {
-      setLines([]);
-      return;
-    }
+    if (!runId) return;       // no run history yet — don't wipe anything
     let cancelled = false;
+    let id: ReturnType<typeof setInterval> | null = null;
     async function poll() {
       try {
         const res = await fetch(`/api/profiles/${profileId}/runs/${runId}/logs`, { cache: "no-store" });
@@ -62,12 +64,15 @@ export function LiveLogConsole({ profileId }: { profileId: string }) {
         const { lines: newLines, status }: LogsResponse = await res.json();
         if (cancelled) return;
         setLines(newLines);
-        if (status !== "running") setActive(false);
+        if (status !== "running") {
+          setActive(false);
+          if (id) { clearInterval(id); id = null; }   // freeze: keep lines, stop polling
+        }
       } catch { /* silent */ }
     }
     poll();
-    const id = setInterval(poll, POLL_MS);
-    return () => { cancelled = true; clearInterval(id); };
+    id = setInterval(poll, POLL_MS);
+    return () => { cancelled = true; if (id) clearInterval(id); };
   }, [profileId, runId]);
 
   // Auto-scroll to bottom when new lines arrive (only while open)
