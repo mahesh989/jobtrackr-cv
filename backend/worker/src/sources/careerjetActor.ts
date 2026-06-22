@@ -1,145 +1,92 @@
-// Careerjet AU adapter — via custom Apify actor (careerjet-au-scraper).
+// Careerjet JD enrichment — via custom Apify actor (careerjet-jd-fetcher).
 //
-// careerjet.com.au Turnstile-challenges datacenter IPs, so the Fly worker can't
-// scrape it directly (curl_cffi gets a challenge page → 0 jobs). This adapter
-// runs our custom actor on Apify, which scrapes over an internal RESIDENTIAL AU
-// proxy (no challenge for residential IPs) and returns listings + full JDs.
+// The "narrow + expensive" half of the funnel. Listings come FREE from the
+// Careerjet v4 API (careerjet.ts); the worker filters/dedups to survivors;
+// then this runs the JD-fetcher actor on only the careerjet.com.au survivors
+// to get full descriptions over a residential proxy (datacenter is Turnstile-
+// blocked — verified 2026-06-22). Mirrors seek.ts enrichWithFullJDs.
 //
-// Architecture mirrors seek.ts: a factory bound to a per-user Apify token. The
-// orchestrator creates it at runtime from the user's Apify integration (the
-// same one SEEK uses) and discards it after the run. When no token is present,
-// the orchestrator falls back to the free v4 API adapter (careerjet.ts).
-//
-// Actor output fields: title, company, location, salary, url, description, keyword
-// `description` is the full JD when the actor enriched it, else the listing teaser.
+// Bound to the user's per-user Apify token (same integration as SEEK).
 
-import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import type { NormalisedJob } from "../pipeline/types.js";
 
-// Actor id: set via env after deploying. Format "<apify-username>~careerjet-au-scraper".
-const ACTOR_ID      = process.env.CAREERJET_ACTOR_ID ?? "prospect_fuzz~careerjet-au-scraper";
-const APIFY_RUN_URL = `https://api.apify.com/v2/acts/${ACTOR_ID}/run-sync-get-dataset-items`;
+const ACTOR_ID      = process.env.CAREERJET_ACTOR_ID ?? "";
+const APIFY_RUN_URL = (id: string) => `https://api.apify.com/v2/acts/${id}/run-sync-get-dataset-items`;
 
-// Cost estimate — residential proxy + cheerio compute. Cheaper than Playwright
-// actors but pricier than SEEK's datacenter path because residential is required.
-const COST_PER_RUN_USD    = 0.03;
-const COST_PER_RESULT_USD = 0.0006;
+// Cap on URLs sent per run — orchestrator calls this AFTER filter+dedup, so
+// survivors are typically well below this.
+export const CAREERJET_JD_FETCH_CAP = 20;
 
-interface CareerjetItem {
-  title?:       string;
-  company?:     string;
-  location?:    string;
-  salary?:      string;
-  url?:         string;
-  description?: string;
-  keyword?:     string;
-}
+// Residential proxy + cheerio compute. A JD page is ~10-50KB; ~20/run ≈ cents.
+const COST_PER_RUN_USD = 0.02;
+const COST_PER_JD_USD  = 0.0015;
 
-function parseSalary(text: string | undefined): { salary_min?: number; salary_max?: number } {
-  if (!text) return {};
-  const nums = text.replace(/,/g, "").match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
-  if (nums.length === 0) return {};
-  const isHourly  = /per hour|hourly|\/hr/i.test(text);
-  const isDaily   = /per day|daily/i.test(text);
-  const isWeekly  = /per week|weekly/i.test(text);
-  const isMonthly = /per month|monthly/i.test(text);
-  const [lo, hi] = nums;
-  const scale = isHourly ? 2080 : isDaily ? 260 : isWeekly ? 52 : isMonthly ? 12 : 1;
-  return {
-    salary_min: lo ? Math.round(lo * scale) : undefined,
-    salary_max: Math.round((hi ?? lo) * scale),
-  };
-}
+const CAREERJET_HOST = "careerjet.com.au";
 
-export interface CareerjetActorResult {
-  jobs:    RawJob[];
+interface JdItem { url?: string; description?: string; fetchedAt?: string }
+
+export interface CareerjetEnrichResult {
+  jobs:    NormalisedJob[];
   costUsd: number;
+  merged:  number;
+  fetched: number;
 }
 
 /**
- * Create a Careerjet actor adapter bound to a specific user's Apify token.
- * Mirrors createSeekAdapter — never store globally.
+ * Enrich Careerjet survivors with full JDs via the careerjet-jd-fetcher actor.
+ * No-ops (returns jobs unchanged) when CAREERJET_ACTOR_ID is unset or there are
+ * no careerjet.com.au survivors. Never throws — failures degrade to the snippet.
  */
-export function createCareerjetActorAdapter(apifyToken: string): {
-  fetchJobs(profile: SearchProfile): Promise<CareerjetActorResult>;
-  isHealthy(): Promise<boolean>;
-  name: string;
-  tier: SourceAdapter["tier"];
-} {
-  return {
-    name: "careerjet",
-    tier: 1,
+export async function enrichCareerjetJDsViaActor(
+  jobs:       NormalisedJob[],
+  apifyToken: string,
+  cap:        number = CAREERJET_JD_FETCH_CAP,
+): Promise<CareerjetEnrichResult> {
+  if (!ACTOR_ID) return { jobs, costUsd: 0, merged: 0, fetched: 0 };
 
-    async fetchJobs(profile: SearchProfile): Promise<CareerjetActorResult> {
-      const maxPages = profile.is_first_run ? 6 : 4;
-      console.log(`[careerjet] actor: ${ACTOR_ID}`);
-      console.log(`[careerjet] keywords: ${profile.keywords.join(", ")} · location: ${profile.location || "(AU-wide)"}`);
+  // Only careerjet.com.au pages are scrapeable here (employer-redirect listings
+  // have unknown page structure — they keep the snippet).
+  const targets = jobs
+    .filter((j) => j.source === "careerjet" && j.url)
+    .filter((j) => { try { return new URL(j.url).hostname.endsWith(CAREERJET_HOST); } catch { return false; } })
+    .slice(0, cap);
 
-      let items: CareerjetItem[] = [];
-      try {
-        const res = await fetch(`${APIFY_RUN_URL}?timeout=300`, {
-          method:  "POST",
-          headers: { Authorization: `Bearer ${apifyToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            keywords:   profile.keywords,
-            location:   profile.location || "All Australia",
-            maxResults: 200,
-            maxPages,
-            fetchJDs:   true,
-            jdCap:      40,
-          }),
-          signal: AbortSignal.timeout(310_000),
-        });
-        if (!res.ok) {
-          const body = await res.text().catch(() => "");
-          console.error(`[careerjet] Apify ${res.status}: ${body.slice(0, 300)}`);
-          return { jobs: [], costUsd: COST_PER_RUN_USD };
-        }
-        items = (await res.json()) as CareerjetItem[];
-        console.log(`[careerjet] actor returned ${items.length} raw items`);
-      } catch (err) {
-        console.error(`[careerjet] actor call failed: ${err instanceof Error ? err.message : err}`);
-        return { jobs: [], costUsd: COST_PER_RUN_USD };
-      }
+  if (targets.length === 0) return { jobs, costUsd: 0, merged: 0, fetched: 0 };
 
-      const allJobs: RawJob[] = [];
-      const seen = new Set<string>();
-      for (const item of items) {
-        const url = (item.url ?? "").split("?")[0];
-        if (!url || !item.title) continue;
-        if (seen.has(url)) continue;
-        seen.add(url);
-        const { salary_min, salary_max } = parseSalary(item.salary);
-        allJobs.push({
-          url,
-          title:       item.title,
-          company:     item.company ?? "",
-          location:    item.location || profile.location,
-          description: item.description ?? "",
-          source:      "careerjet",
-          source_tier: 1,
-          posted_at:   null,
-          expires_at:  null,
-          ...(salary_min !== undefined && { salary_min }),
-          ...(salary_max !== undefined && { salary_max }),
-          raw:         { ...item, _keyword: item.keyword },
-        });
-      }
+  console.log(`[careerjet-jd] actor: ${ACTOR_ID} — enriching ${targets.length} careerjet survivors`);
 
-      const costUsd = COST_PER_RUN_USD + allJobs.length * COST_PER_RESULT_USD;
-      console.log(`[careerjet] done — ${allJobs.length} jobs, estimated cost $${costUsd.toFixed(4)}`);
-      return { jobs: allJobs, costUsd };
-    },
+  let items: JdItem[] = [];
+  try {
+    const res = await fetch(`${APIFY_RUN_URL(ACTOR_ID)}?timeout=300`, {
+      method:  "POST",
+      headers: { Authorization: `Bearer ${apifyToken}`, "Content-Type": "application/json" },
+      body:    JSON.stringify({ urls: targets.map((j) => j.url), maxUrls: cap }),
+      signal:  AbortSignal.timeout(310_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[careerjet-jd] Apify ${res.status}: ${body.slice(0, 300)}`);
+      return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+    }
+    items = (await res.json()) as JdItem[];
+  } catch (err) {
+    console.error(`[careerjet-jd] actor call failed: ${err instanceof Error ? err.message : err}`);
+    return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+  }
 
-    async isHealthy(): Promise<boolean> {
-      try {
-        const res = await fetch("https://api.apify.com/v2/users/me", {
-          headers: { Authorization: `Bearer ${apifyToken}` },
-          signal:  AbortSignal.timeout(8_000),
-        });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    },
-  };
+  const descByUrl = new Map<string, string>();
+  for (const it of items) {
+    if (it.url && it.description && it.description.length > 200) descByUrl.set(it.url, it.description);
+  }
+
+  let merged = 0;
+  const out = jobs.map((j) => {
+    const full = descByUrl.get(j.url);
+    if (full) { merged++; return { ...j, description: full }; }
+    return j;
+  });
+
+  const costUsd = COST_PER_RUN_USD + merged * COST_PER_JD_USD;
+  console.log(`[careerjet-jd] merged ${merged}/${targets.length} full descriptions (cost $${costUsd.toFixed(4)})`);
+  return { jobs: out, costUsd, merged, fetched: targets.length };
 }

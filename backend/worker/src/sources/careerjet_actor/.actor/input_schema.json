@@ -1,51 +1,23 @@
 {
-  "title": "Careerjet AU Scraper Input",
-  "description": "Input schema for careerjet-au-scraper.",
+  "title": "Careerjet JD Fetcher Input",
+  "description": "Input schema for careerjet-jd-fetcher.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "keywords": {
-      "title": "Keywords",
+    "urls": {
+      "title": "Job URLs",
       "type": "array",
-      "description": "List of search keywords. Each is searched separately and results are merged.",
+      "description": "careerjet.com.au job URLs (post-filter survivors) to fetch full descriptions for.",
       "editor": "stringList",
-      "example": ["assistant in nursing", "aged care"]
+      "example": ["https://www.careerjet.com.au/jobad/au4f774a0504ed1a561daa9486708f3005"]
     },
-    "location": {
-      "title": "Location",
-      "type": "string",
-      "description": "Careerjet location filter. Empty / 'All Australia' searches AU-wide.",
-      "editor": "textfield",
-      "default": "All Australia"
-    },
-    "maxResults": {
-      "title": "Max Results",
+    "maxUrls": {
+      "title": "Max URLs",
       "type": "integer",
-      "description": "Maximum total listings across all keywords.",
+      "description": "Hard cap on URLs fetched per run.",
       "editor": "number",
-      "default": 200
-    },
-    "maxPages": {
-      "title": "Max Pages per keyword",
-      "type": "integer",
-      "description": "Hard cap on listing pages fetched per keyword.",
-      "editor": "number",
-      "default": 6
-    },
-    "fetchJDs": {
-      "title": "Fetch full job descriptions",
-      "type": "boolean",
-      "description": "When true, also fetch each /jobad/<hash> page for the full description (slower, more proxy traffic).",
-      "editor": "checkbox",
-      "default": true
-    },
-    "jdCap": {
-      "title": "Full-JD fetch cap",
-      "type": "integer",
-      "description": "Maximum number of full-JD pages to fetch per run (only used when fetchJDs is true).",
-      "editor": "number",
-      "default": 40
+      "default": 25
     }
   },
-  "required": ["keywords"]
+  "required": ["urls"]
 }

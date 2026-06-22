@@ -32,8 +32,7 @@ import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
-import { careerjetAdapter, enrichWithCareerjetJDs } from "../sources/careerjet.js";
-import { createCareerjetActorAdapter } from "../sources/careerjetActor.js";
+import { enrichCareerjetJDsViaActor } from "../sources/careerjetActor.js";
 import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
@@ -383,76 +382,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
-    // ── Careerjet ──────────────────────────────────────────────────────────────
-    // Custom Apify actor (careerjet-au-scraper) over a residential AU proxy when
-    // the user's Apify token is present → full JDs. Otherwise the free v4 API
-    // adapter (listings + ~251-char snippet). careerjet.com.au Turnstile-blocks
-    // datacenter IPs, so there is no direct-scrape path from Fly. Handled here
-    // (not in adapters[]) so it can use the per-user Apify token like SEEK.
-    let careerjetViaActor = false;
-    const careerjetEnabled = sourceEnabled("careerjet");
-    if (!careerjetEnabled) {
-      console.log(`[pipeline] stage 2 — careerjet: skipped (not in enabled_sources)`);
-    } else if (process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
-      // The actor path requires an *explicitly deployed* actor (CAREERJET_ACTOR_ID).
-      // careerjet.com.au Turnstile hard-blocks datacenter IPs even for a real
-      // browser (verified 2026-06-22), so the actor only works over a residential
-      // proxy (paid Apify plan). Until CAREERJET_ACTOR_ID is set we use the free
-      // v4 API below — no wasted failed actor calls.
-      // seekToken is set only when the Apify integration is valid AND within
-      // budget — so this also gates careerjet on the shared Apify budget.
-      await checkCancellation(runLogId);
-      await setStage(runLogId, "Fetching from Careerjet (Apify)");
-      try {
-        const adapter = createCareerjetActorAdapter(seekToken);
-        const { jobs, costUsd } = await adapter.fetchJobs(profile);
-        rawJobs.push(...jobs);
-        if (!sourcesRun.includes("careerjet")) sourcesRun.push("careerjet");
-        careerjetViaActor = true;
-        console.log(`[pipeline]   careerjet (apify actor): ${jobs.length} raw (cost $${costUsd.toFixed(4)})`);
-        // Persist spend on the shared Apify integration. Re-read first so we
-        // don't clobber the SEEK block's earlier increment in the same run.
-        try {
-          const { data: fresh } = await db.from("user_integrations")
-            .select("quota_used_usd, quota_used_requests").eq("id", seekIntegration.id).single();
-          const baseSpend = fresh?.quota_used_usd ?? seekIntegration.quota_used_usd;
-          const baseReqs  = fresh?.quota_used_requests ?? seekIntegration.quota_used_requests;
-          const newSpend  = baseSpend + costUsd;
-          await db.from("user_integrations").update({
-            quota_used_usd:      newSpend,
-            quota_used_requests: baseReqs + jobs.length,
-            last_used_at:        new Date().toISOString(),
-            status:              newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid",
-            status_reason:       newSpend >= SEEK_MONTHLY_BUDGET_USD ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached` : null,
-            updated_at:          new Date().toISOString(),
-          }).eq("id", seekIntegration.id);
-        } catch (e) {
-          console.warn(`[pipeline] careerjet spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
-        }
-      } catch (err) {
-        console.warn(`[pipeline] careerjet actor failed — falling back to v4 API: ${err instanceof Error ? err.message : err}`);
-        try {
-          const jobs = await careerjetAdapter.fetchJobs(profile);
-          rawJobs.push(...jobs);
-          if (!sourcesRun.includes("careerjet")) sourcesRun.push("careerjet");
-          console.log(`[pipeline]   careerjet (v4 api fallback): ${jobs.length} raw`);
-        } catch (err2) {
-          console.error(`[pipeline] careerjet API fallback failed: ${err2 instanceof Error ? err2.message : err2}`);
-        }
-      }
-    } else {
-      // No Apify token → free v4 API (snippet JDs).
-      await checkCancellation(runLogId);
-      await setStage(runLogId, "Fetching from Careerjet");
-      try {
-        const jobs = await careerjetAdapter.fetchJobs(profile);
-        rawJobs.push(...jobs);
-        if (!sourcesRun.includes("careerjet")) sourcesRun.push("careerjet");
-        console.log(`[pipeline]   careerjet (v4 api): ${jobs.length} raw`);
-      } catch (err) {
-        console.error(`[pipeline] careerjet API failed: ${err instanceof Error ? err.message : err}`);
-      }
-    }
+    // Careerjet listings run in the adapters[] loop above via the free v4 API
+    // (snippet). Full JDs are enriched later at stage 7c via the JD-fetcher
+    // actor (residential) on survivors only — the funnel's narrow+expensive half.
 
     jobsFetched = rawJobs.length;
     console.log(`[pipeline] stage 2 done — total raw: ${jobsFetched}`);
@@ -648,22 +580,42 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
 
     // ── Stage 7c: Careerjet full-JD enrichment ─────────────────────────────────
-    // Mirrors SEEK's pattern — Careerjet survivors only, free (got-scraping +
-    // Apify residential proxy on Fly). Runs independently of SEEK so a
-    // Careerjet-only profile still gets full JDs.
+    // The funnel's narrow+expensive half: listings came free from the v4 API;
+    // now fetch full JDs for the Careerjet *survivors* via the careerjet-jd-fetcher
+    // actor (residential — datacenter is Turnstile-blocked). No-ops when
+    // CAREERJET_ACTOR_ID is unset or no Apify token → survivors keep the snippet.
     const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
-    if (careerjetSurvivors && careerjetViaActor) {
-      console.log(`[pipeline] stage 7c — Careerjet JD: skipped (actor already returned full descriptions)`);
-    } else if (careerjetSurvivors) {
+    if (careerjetSurvivors && process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
       await setStage(runLogId, "Fetching full Careerjet descriptions");
-      const jdCap = 20;
       try {
-        const { jobs: enriched, merged, fetched } = await enrichWithCareerjetJDs(kept, jdCap);
+        const { jobs: enriched, merged, fetched, costUsd } =
+          await enrichCareerjetJDsViaActor(kept, seekToken);
         kept = enriched;
-        console.log(`[pipeline] stage 7c — Careerjet JD: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+        console.log(`[pipeline] stage 7c — Careerjet JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
+        // Persist spend on the shared Apify integration (re-read to avoid
+        // clobbering the SEEK block's earlier increment in the same run).
+        if (costUsd > 0) {
+          try {
+            const { data: fresh } = await db.from("user_integrations")
+              .select("quota_used_usd").eq("id", seekIntegration.id).single();
+            const baseSpend = fresh?.quota_used_usd ?? seekIntegration.quota_used_usd;
+            const newSpend  = baseSpend + costUsd;
+            await db.from("user_integrations").update({
+              quota_used_usd: newSpend,
+              last_used_at:   new Date().toISOString(),
+              status:         newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid",
+              status_reason:  newSpend >= SEEK_MONTHLY_BUDGET_USD ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached` : null,
+              updated_at:     new Date().toISOString(),
+            }).eq("id", seekIntegration.id);
+          } catch (e) {
+            console.warn(`[pipeline] careerjet spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+          }
+        }
       } catch (err) {
         console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
       }
+    } else if (careerjetSurvivors) {
+      console.log(`[pipeline] stage 7c — Careerjet JD: skipped (CAREERJET_ACTOR_ID unset or no Apify token) — keeping v4 API snippet`);
     }
 
     // ── Stage 7d: Adzuna full-JD enrichment (opt-in via adzuna_method) ─────────

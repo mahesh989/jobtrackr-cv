@@ -1,8 +1,8 @@
 {
   "actorSpecification": 1,
-  "name": "careerjet-au-scraper",
-  "title": "Careerjet AU Scraper (Cheerio) — JobTrackr",
-  "description": "Scrapes careerjet.com.au listings + full job descriptions via Cheerio over an Apify residential AU proxy (bypasses the Cloudflare Turnstile that blocks datacenter IPs). Built for JobTrackr.",
+  "name": "careerjet-jd-fetcher",
+  "title": "Careerjet JD Fetcher (Cheerio) — JobTrackr",
+  "description": "Fetches full job descriptions for a list of careerjet.com.au job URLs over an Apify residential AU proxy (bypasses the Cloudflare Turnstile that blocks datacenter IPs). The 'narrow + expensive' half of the funnel — listings come free from the Careerjet v4 API; this enriches only post-filter survivors.",
   "version": "0.1",
   "buildTag": "latest",
   "storages": {

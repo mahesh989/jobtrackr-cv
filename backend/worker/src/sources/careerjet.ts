@@ -32,7 +32,7 @@ import { gotScraping } from "got-scraping";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
 import { getApifyProxyUrl, hasApifyProxy } from "../lib/proxy.js";
-import { curlFetch, curlRedirect } from "../lib/curlfetch.js";
+import { curlFetch } from "../lib/curlfetch.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_BASE        = "https://search.api.careerjet.net/v4/query";
@@ -41,8 +41,8 @@ const USER_AGENT      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWe
 const FRAGMENT_SIZE   = 1000;           // API excerpt — the primary JD text now that
                                         // /jobad full-JD scraping is Turnstile-blocked from Fly.
 const PAGE_SIZE       = 50;             // Careerjet supports up to 100
-const MAX_PAGES       = 4;              // → up to 200 jobs per keyword (incremental)
-const FIRST_RUN_MAX_PAGES = 6;          // → up to 300 jobs per keyword (cold start)
+const MAX_PAGES       = 6;              // → up to 300 jobs per keyword (incremental)
+const FIRST_RUN_MAX_PAGES = 10;         // → up to 500 jobs per keyword (cold start)
 const REQUEST_TIMEOUT = 15_000;
 const KEYWORD_DELAY   = 800;            // gentle pacing between keywords
 const JD_DELAY        = 600;            // pacing between /jobad/ fetches
@@ -202,13 +202,15 @@ function sleep(ms: number): Promise<void> {
 async function resolveTrackingUrl(trackingUrl: string): Promise<string> {
   if (!trackingUrl.includes("jobviewtrack.com")) return trackingUrl;
   try {
-    // redirect: "manual" gets us the 302 Location without following the chain
-    const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
-    const res = await curlRedirect(trackingUrl, proxyUrl, 8_000);
-    if (res.status >= 300 && res.status < 400 && res.location) {
-      return res.location;
-    }
-    // 404 / other — tracking URL already expired or IP-blocked
+    // Follow the FULL redirect chain to the canonical, token-free page URL
+    // (jobviewtrack → /clk?psk=… → /jobad/<hash>, or an employer site). We keep
+    // the FINAL url and discard the body: from Fly's datacenter IP that body is
+    // the Turnstile page, but the resolved URL is correct. We must resolve here,
+    // at fetch time, because the jobviewtrack token expires in ~1-2 min — long
+    // before the JD-fetcher actor runs at stage 7c. /jobad has no token, so it
+    // stays valid for the actor (which fetches it over a residential proxy).
+    const res = await curlFetch(trackingUrl);
+    if (res.url && res.url !== trackingUrl) return res.url;
   } catch {
     // timeout or network error — return original
   }
