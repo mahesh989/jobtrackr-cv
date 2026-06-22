@@ -1,0 +1,25 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Jobs",
+      "description": "All scraped Careerjet job listings",
+      "transformation": {
+        "fields": ["title", "company", "location", "salary", "url", "description", "keyword"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title":       { "label": "Title",       "format": "text" },
+          "company":     { "label": "Company",     "format": "text" },
+          "location":    { "label": "Location",    "format": "text" },
+          "salary":      { "label": "Salary",      "format": "text" },
+          "url":         { "label": "URL",         "format": "link" },
+          "description": { "label": "Description", "format": "text" },
+          "keyword":     { "label": "Keyword",     "format": "text" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "careerjet-au-scraper",
+  "title": "Careerjet AU Scraper (Cheerio) — JobTrackr",
+  "description": "Scrapes careerjet.com.au listings + full job descriptions via Cheerio over an Apify residential AU proxy (bypasses the Cloudflare Turnstile that blocks datacenter IPs). Built for JobTrackr.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
+}

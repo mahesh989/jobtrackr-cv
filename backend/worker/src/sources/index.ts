@@ -30,7 +30,9 @@ export const adapters: SourceAdapter[] = [
   // Note: apsJobsRssAdapter, nswGovRssAdapter, vicGovRssAdapter, qldGovRssAdapter removed —
   // none of these gov sites expose working RSS feeds (Salesforce/403/HTML-only).
   adzunaAdapter,
-  careerjetAdapter,    // Tier 1 — free API (500 reqs/day), full JD via /jobad/<hash>
+  // careerjet handled in the orchestrator (custom Apify actor when the user's
+  // Apify token is present → full JDs; else the free v4 API fallback). Kept out
+  // of this static loop so it can use the per-user token like SEEK.
 
   // Tier 2 — AU tech/enterprise ATS (public JSON, no auth)
   greenhouseAdapter,

@@ -8,15 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "declaration": false,
-    "sourceMap": true,
-    "forceConsistentCasingInFileNames": true
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "src/sources/seek_jd",
-    "src/sources/seek_ts",
-    "src/sources/careerjet_actor"
-  ]
+  "exclude": ["node_modules", "dist"]
 }

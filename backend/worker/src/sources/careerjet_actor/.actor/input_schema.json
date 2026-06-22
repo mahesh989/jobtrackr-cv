@@ -1,0 +1,51 @@
+{
+  "title": "Careerjet AU Scraper Input",
+  "description": "Input schema for careerjet-au-scraper.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "keywords": {
+      "title": "Keywords",
+      "type": "array",
+      "description": "List of search keywords. Each is searched separately and results are merged.",
+      "editor": "stringList",
+      "example": ["assistant in nursing", "aged care"]
+    },
+    "location": {
+      "title": "Location",
+      "type": "string",
+      "description": "Careerjet location filter. Empty / 'All Australia' searches AU-wide.",
+      "editor": "textfield",
+      "default": "All Australia"
+    },
+    "maxResults": {
+      "title": "Max Results",
+      "type": "integer",
+      "description": "Maximum total listings across all keywords.",
+      "editor": "number",
+      "default": 200
+    },
+    "maxPages": {
+      "title": "Max Pages per keyword",
+      "type": "integer",
+      "description": "Hard cap on listing pages fetched per keyword.",
+      "editor": "number",
+      "default": 6
+    },
+    "fetchJDs": {
+      "title": "Fetch full job descriptions",
+      "type": "boolean",
+      "description": "When true, also fetch each /jobad/<hash> page for the full description (slower, more proxy traffic).",
+      "editor": "checkbox",
+      "default": true
+    },
+    "jdCap": {
+      "title": "Full-JD fetch cap",
+      "type": "integer",
+      "description": "Maximum number of full-JD pages to fetch per run (only used when fetchJDs is true).",
+      "editor": "number",
+      "default": 40
+    }
+  },
+  "required": ["keywords"]
+}
