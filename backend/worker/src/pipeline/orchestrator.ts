@@ -67,15 +67,48 @@ interface UserIntegration {
 
 const SEEK_MONTHLY_BUDGET_USD = 5.0;   // Apify free tier
 
-/** Load the user's Apify integration row. Returns null if not connected. */
+/**
+ * Load an Apify integration row for the running profile.
+ *
+ * Resolution order:
+ *   1. The profile owner's own integration (legacy BYO-Apify support).
+ *   2. Fallback: an admin/founder's integration (the platform/admin model —
+ *      one paid Apify token serves every user). Picked deterministically
+ *      (first valid, enabled, lowest created_at).
+ *
+ * Returns null only if BOTH lookups fail. The shared spend is accumulated
+ * on whichever row we used (admin row when on the fallback), so the admin's
+ * existing budget UI shows total platform Apify usage.
+ */
 async function loadApifyIntegration(userId: string): Promise<UserIntegration | null> {
-  const { data } = await db
+  const COLS = "id, encrypted_api_key, status, quota_used_usd, quota_used_requests, quota_period_start, is_enabled, config";
+  const own = await db
     .from("user_integrations")
-    .select("id, encrypted_api_key, status, quota_used_usd, quota_used_requests, quota_period_start, is_enabled, config")
+    .select(COLS)
     .eq("user_id", userId)
     .eq("provider", "apify")
     .maybeSingle();
-  return data as UserIntegration | null;
+  if (own.data) return own.data as UserIntegration;
+
+  // Fallback: any founder/admin's Apify integration (platform model).
+  const { data: admins } = await db
+    .from("users")
+    .select("id")
+    .in("role", ["founder", "admin"]);
+  const adminIds = (admins ?? []).map((u: { id: string }) => u.id);
+  if (adminIds.length === 0) return null;
+
+  const { data: row } = await db
+    .from("user_integrations")
+    .select(COLS)
+    .in("user_id", adminIds)
+    .eq("provider", "apify")
+    .eq("is_enabled", true)
+    .eq("status", "valid")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return row as UserIntegration | null;
 }
 
 /** Reset quota counters when we've rolled into a new calendar month. */
