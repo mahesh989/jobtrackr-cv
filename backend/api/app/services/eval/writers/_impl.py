@@ -61,6 +61,7 @@ from app.services.pipeline.steps.ats_scoring import run_ats_scoring
 from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
 from app.services.pipeline.steps.tailored_cv import (
+    _enforce_company_anchor,   # summary employer-anchor net (re-run post-verify)
     _enforce_structure,        # production-stable post-processor — reused for fairness
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
@@ -1169,6 +1170,13 @@ async def _writer_w8_verified(
         # path (which doesn't have that local).
         prior = result.extras.get("honesty_guard_notes") or []
         result.extras["honesty_guard_notes"] = list(prior) + list(_force_notes)
+    # RE-RUN the summary employer-anchor net. Like availability, the anchor is
+    # enforced mid-pipeline (inside _enforce_structure, pre-verify), but
+    # verify_claims rewrites the summary and can drop the employer name(s),
+    # leaving a generic, anchor-less S2. Re-applying here (idempotent: no-op
+    # when both top-2 employers are already named) guarantees the final S2
+    # names them. See OPS-32.
+    verified_md = _enforce_company_anchor(verified_md, cv_text)
     # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
     # inside _writer_w8_integrated, but verify_claims (+ the summary repair
     # pass) can bundle the italic "*Available: …*" line into the summary prose
