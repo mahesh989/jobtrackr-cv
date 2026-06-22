@@ -393,7 +393,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const careerjetEnabled = sourceEnabled("careerjet");
     if (!careerjetEnabled) {
       console.log(`[pipeline] stage 2 — careerjet: skipped (not in enabled_sources)`);
-    } else if (seekToken && seekIntegration) {
+    } else if (process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
+      // The actor path requires an *explicitly deployed* actor (CAREERJET_ACTOR_ID).
+      // careerjet.com.au Turnstile hard-blocks datacenter IPs even for a real
+      // browser (verified 2026-06-22), so the actor only works over a residential
+      // proxy (paid Apify plan). Until CAREERJET_ACTOR_ID is set we use the free
+      // v4 API below — no wasted failed actor calls.
       // seekToken is set only when the Apify integration is valid AND within
       // budget — so this also gates careerjet on the shared Apify budget.
       await checkCancellation(runLogId);
