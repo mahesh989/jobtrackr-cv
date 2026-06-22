@@ -314,14 +314,14 @@ export function CredentialsSection() {
         On care / manual CVs: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">## Registration &amp; Licences</code> — held items only.
       </p>
 
-      {/* Availability — opt-in. Renders as its own italic line under the
-          Registration & Licences heading when "Show on my CV" is ticked. */}
+      {/* Availability — opt-in. Renders as an italic line at the end of the
+          Professional Summary section when "Show on my CV" is ticked. */}
       <div className="space-y-2 border-t border-border pt-4">
         <div>
           <p className="text-[13px] font-medium text-text">Availability</p>
           <p className="text-xs text-text-3">
-            Which shifts you want. When shown, appears as an italic line under
-            <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 mx-1">Registration &amp; Licences</code>
+            Which shifts you want. When shown, appears as an italic line at the end of your
+            <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 mx-1">Professional Summary</code>
             (e.g. <span className="italic">Available: Casual, Part Time</span>). Off by default.
           </p>
         </div>

@@ -291,6 +291,59 @@ def test_enforce_company_anchor_no_op_when_already_present():
     assert out == md
 
 
+def test_enforce_company_anchor_partial_cherry_pick_splices_missing_employer():
+    """Reproduces Rashmi's deployed CV: S2 names Uniting but drops Jesmond as
+    ', and have served as a primary Medication Assistant'. The enforcer must
+    splice the missing employer into the tail and convert 'have served'
+    (present-perfect) → 'served' (simple past) for the completed role.
+    """
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing with residential aged care experience, "
+        "specialising in person-centred care, activities of daily living, "
+        "mobility assistance, and dementia care. "
+        "Provide person-centred care, monitoring and reporting changes "
+        "in wellbeing at Uniting, and have served as a primary "
+        "Medication Assistant.\n\n"
+        "## Experience\n"
+    )
+    cv_text = (
+        "### Uniting | Leichhardt, NSW\n"
+        "AIN (Casual) | Mar 2026 – Present\n\n"
+        "### The Jesmond Group | Miranda, NSW\n"
+        "AIN | May 2025 – June 2026\n"
+    )
+    out = _enforce_company_anchor(md, cv_text)
+    # Both employers now named.
+    assert "Uniting" in out and "The Jesmond Group" in out
+    # Cherry-picked tail spliced with missing employer, past-tense.
+    assert "served as a primary Medication Assistant at The Jesmond Group" in out
+    # No more 'have served' present-perfect for the completed role.
+    assert "have served" not in out
+    # Two-clause semicolon join in S2.
+    assert "; served as a primary Medication Assistant at The Jesmond Group." in out
+
+
+def test_enforce_company_anchor_partial_appends_when_no_tail():
+    """Partial cherry-pick with no ', and verb-ed' tail → append a fresh
+    '; at <missing>.' clause so BOTH employers appear."""
+    md = (
+        "## Professional Summary\n\n"
+        "Assistant in Nursing supporting older residents with care. "
+        "Delivered person-centred care at Uniting.\n\n"
+        "## Experience\n"
+    )
+    cv_text = (
+        "### Uniting | Leichhardt, NSW\n"
+        "AIN (Casual) | Mar 2026 – Present\n\n"
+        "### The Jesmond Group | Miranda, NSW\n"
+        "AIN | May 2025 – June 2026\n"
+    )
+    out = _enforce_company_anchor(md, cv_text)
+    assert "at Uniting" in out
+    assert "; at The Jesmond Group." in out
+
+
 def test_enforce_company_anchor_no_op_for_placement_only_cv():
     """A CV with only a placement (no multi-month role) is left untouched."""
     md = (

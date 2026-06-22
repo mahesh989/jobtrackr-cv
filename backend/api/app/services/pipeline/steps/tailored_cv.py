@@ -692,17 +692,36 @@ def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
     return employers
 
 
+_DANGLING_END_RE = re.compile(
+    r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so"
+    r"|that|which|where|who|whom|whose|including|across|through|within"
+    r"|into|onto|from|than|nor)\s*\.?\s*$",
+    re.IGNORECASE,
+)
+
+
 def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
-    """When the summary S2 contains no employer name from the CV's multi-month
-    roles, append an 'at <Employer1> and <Employer2>' anchor. This fires only
-    when (a) the CV has 2+ multi-month employers AND (b) none of them appear
-    anywhere in the full summary prose AND (c) S2 ends cleanly (not mid-clause).
-    Safe to no-op when cv_text is empty."""
+    """Two-mode anchor enforcer for the summary S2. Relies on the CV having
+    2+ multi-month employers; no-op otherwise.
+
+      • ZERO named — neither top-2 employer appears in the prose: append
+                     "at <E1> and <E2>." to S2 (legacy behaviour).
+      • PARTIAL    — exactly one of top-2 is named (the cherry-pick case
+                     that produced the recent "...have served as a primary
+                     Medication Assistant" Rashmi example): append a
+                     semicolon-joined clause naming the missing employer
+                     so BOTH appear, and convert a trailing "..., and have
+                     <verb>" present-perfect tail into simple past (rule:
+                     completed roles use past tense).
+
+      Skipped when S2 ends mid-clause (dangling preposition/conjunction).
+      Safe to no-op when cv_text is empty.
+    """
     if not cv_text:
         return markdown
     employers = _extract_employers_from_cv(cv_text)
     if len(employers) < 2:
-        return markdown  # single employer or none — don't auto-inject
+        return markdown
 
     lines = markdown.split("\n")
     start, end = _find_summary_block(lines)
@@ -712,40 +731,61 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     if not prose or not idx:
         return markdown
 
-    # Check whether any top-2 employer name already appears in the summary.
     top2 = employers[:2]
     prose_lower = prose.lower()
-    if any(emp.lower() in prose_lower for emp in top2):
-        return markdown  # already anchored — no change needed
+    named = [e for e in top2 if e.lower() in prose_lower]
+    if len(named) >= 2:
+        return markdown  # both named — compliant
 
-    # Find S2 (second sentence) and append anchor.
     sent_re = re.compile(r"(?<=[.!?])\s+")
     sentences = [s.strip() for s in sent_re.split(prose) if s.strip()]
     if len(sentences) < 2:
         return markdown
     s1, s2 = sentences[0], sentences[1]
-    # Block injection only when S2 ends with a dangling preposition/conjunction
-    # (signals a mid-clause truncation like "…administration while" or "…care and").
-    # A missing trailing period is fine — the AI often truncates at word count
-    # without punctuating; we treat that as an eligible, complete thought.
-    _DANGLING_END_RE = re.compile(
-        r"\b(?:and|or|while|with|for|to|at|in|of|the|a|an|by|as|but|yet|so"
-        r"|that|which|where|who|whom|whose|including|across|through|within"
-        r"|into|onto|from|than|nor)\s*\.?\s*$",
-        re.IGNORECASE,
-    )
     if _DANGLING_END_RE.search(s2):
         logger.info("_enforce_company_anchor: S2 ends mid-clause, skipping injection")
         return markdown
-    # Strip trailing period (if any) for the body; the anchor construction re-adds one.
     s2_body = s2.rstrip().rstrip(".")
-    anchor = f"at {top2[0]} and {top2[1]}"
-    new_s2 = f"{s2_body} {anchor}."
+
+    if len(named) == 0:
+        anchor = f"at {top2[0]} and {top2[1]}"
+        new_s2 = f"{s2_body} {anchor}."
+        log_msg = f"injected anchor '{anchor}' (zero named)"
+    else:
+        missing = next(e for e in top2 if e.lower() not in prose_lower)
+        # If S2 carries a trailing ", and (have) <verb>ed/-ing ..." tail
+        # describing the unnamed role, splice the missing employer into IT
+        # and flip present-perfect (have served / have led) → simple past
+        # (served / led). Otherwise append a fresh semicolon-joined clause.
+        m_tail = re.search(
+            r",\s+and\s+(?:have\s+been\s+|have\s+)?\w+(?:ed|ing)\b",
+            s2_body,
+            re.IGNORECASE,
+        )
+        if m_tail:
+            head = s2_body[: m_tail.start()].rstrip(",")
+            tail = s2_body[m_tail.start() :]
+            # Drop the leading ", and "
+            tail = re.sub(r"^,\s+and\s+", "", tail, count=1, flags=re.IGNORECASE)
+            # Present-perfect → simple past ("have served" → "served").
+            tail = re.sub(
+                r"^have\s+(been\s+)?(\w+ed|\w+en)\b",
+                lambda mm: mm.group(2),
+                tail,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            new_s2 = f"{head}; {tail} at {missing}."
+            log_msg = f"partial cherry-pick: spliced missing '{missing}' into tail (past-tense)"
+        else:
+            new_s2 = f"{s2_body}; at {missing}."
+            log_msg = f"partial cherry-pick: appended '; at {missing}'"
+
     new_prose = s1 + " " + new_s2
     lines[idx[0]] = new_prose
     for i in idx[1:]:
         lines[i] = ""
-    logger.info("_enforce_company_anchor: injected anchor '%s'", anchor)
+    logger.info("_enforce_company_anchor: %s", log_msg)
     return "\n".join(lines)
 
 
