@@ -867,6 +867,25 @@ class TestEmbeddedCredentialMarkers:
             == "certificate iv in ageing, home and community care"
         )
 
+    def test_trim_qual_phrase_drops_trailing_prose_adjectives_and_connectors(self):
+        """Regression (recurring): degree credentials leaked a prose tail like
+        'Bachelor of Nursing and ready [to start]'. The trim must stop at the
+        prose adjective and drop the dangling connector ('and'), while keeping
+        legitimate '...and Community' continuations intact."""
+        assert _trim_qual_phrase("bachelor of nursing and ready") == "bachelor of nursing"
+        assert _trim_qual_phrase("bachelor of nursing and ready to start") == "bachelor of nursing"
+        assert (
+            _trim_qual_phrase("diploma of nursing or equivalent and keen to learn")
+            == "diploma of nursing"
+        )
+        # legitimate multi-word degree field is preserved
+        assert _trim_qual_phrase("bachelor of science") == "bachelor of science"
+        # the '...and Community' continuation must NOT be trimmed
+        assert (
+            _trim_qual_phrase("certificate iv in ageing, home and community care")
+            == "certificate iv in ageing, home and community care"
+        )
+
     def test_paren_tail_does_NOT_fire_on_clarifying_parens(self):
         """Clarifying parentheticals (tool synonyms, abbreviations) must
         stay; only credential-flavoured tails are stripped."""

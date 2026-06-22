@@ -483,6 +483,22 @@ _CRED_PROSE_TAIL_STOP: frozenset = frozenset({
     "who", "where", "when", "while", "which", "as",
     "are", "is", "has", "have", "was", "were",
     "currently", "supportive", "friendly",
+    # Prose adjectives/verbs that signal the credential NAME has ended and a
+    # sentence tail has begun ("Bachelor of Nursing and ready to start",
+    # "Diploma of Nursing or equivalent and keen to learn").
+    "ready", "able", "available", "eager", "keen", "enthusiastic",
+    "willing", "interested", "ideally", "preferred", "desirable",
+    "essential", "plus", "advantageous", "looking", "seeking",
+    "wanting", "equivalent", "must", "should", "able-bodied",
+})
+
+
+# Connector / filler words that must never be the LAST token of a captured
+# credential. After trimming the prose tail we strip these so we never leave a
+# dangling "...Bachelor of Nursing and" / "...or" / "...with".
+_CRED_TAIL_CONNECTORS: frozenset = frozenset({
+    "and", "or", "with", "for", "to", "in", "of", "a", "an", "the",
+    "at", "on", "by", "&", "plus",
 })
 
 
@@ -536,6 +552,10 @@ def _trim_qual_phrase(phrase_lower: str) -> str:
                 allowed.append(prefix)
             break
         allowed.append(w)
+    # Drop any trailing connector/filler tokens so we never leave a dangling
+    # "...Nursing and" / "...or" once the prose tail was trimmed.
+    while allowed and allowed[-1].strip(".,;:()&").lower() in _CRED_TAIL_CONNECTORS:
+        allowed.pop()
     return (base + (" " + " ".join(allowed) if allowed else "")).strip()
 
 
