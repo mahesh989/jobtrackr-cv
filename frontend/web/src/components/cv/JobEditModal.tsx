@@ -142,10 +142,10 @@ export function JobEditModal({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-text/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={() => !busy && onClose()}
       />
-      <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="px-5 py-4 border-b border-[var(--border)]">
           <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
           <p className="text-[12px] text-text-2 mt-0.5 leading-snug">
@@ -187,7 +187,7 @@ export function JobEditModal({
               onChange={(e) => setText(e.target.value)}
               rows={16}
               spellCheck={false}
-              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[12px] text-text leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[12px] text-text placeholder:text-text-3 leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
             <div className="flex items-center gap-3 mt-1.5">
               <button
@@ -200,7 +200,7 @@ export function JobEditModal({
                 Reset to original scrape
               </button>
               {wasOriginallyEdited && (
-                <span className="text-[11px] text-[#9A6700] bg-[#FFF8C5] border border-[#D4A72C]/40 px-1.5 py-0.5 rounded">
+                <span className="text-[11px] text-[var(--amber)] bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-1.5 py-0.5 rounded">
                   Edited JD active
                 </span>
               )}
@@ -220,7 +220,7 @@ export function JobEditModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jane.recruiter@company.com"
-              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Used later for sending your tailored CV via email — kept private on your account.
@@ -240,7 +240,7 @@ export function JobEditModal({
               value={hiringMgr}
               onChange={(e) => setHiringMgr(e.target.value)}
               placeholder="John Smith"
-              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Used in the cover letter salutation (e.g., &ldquo;Dear John Smith,&rdquo;).
@@ -267,7 +267,7 @@ export function JobEditModal({
           </div>
 
           {error && (
-            <div className="rounded-md bg-[#FFEBE9] border border-[#CF222E]/30 px-3 py-2 text-[12px] text-[#CF222E]">
+            <div className="rounded-md bg-[var(--red)]/12 border border-[var(--red)]/30 px-3 py-2 text-[12px] text-[var(--red)]">
               {error}
             </div>
           )}
