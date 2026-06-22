@@ -22,7 +22,7 @@ const worker = new Worker<PipelineJobData>(
     }
 
     if (type === "run_profile") {
-      await runPipeline(job.data.profileId, job.data.trigger ?? "auto");
+      await runPipeline(job.data.profileId, job.data.trigger ?? "auto", job.data.fullRefresh ?? false);
       return { ok: true };
     }
 

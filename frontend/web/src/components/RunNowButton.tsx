@@ -46,10 +46,14 @@ export function RunNowButton({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [state, profileId, router]);
 
-  async function handleRun() {
+  async function handleRun(fullRefresh = false) {
     setState("running");
     startedAtRef.current = Date.now();
-    const res = await fetch(`/api/profiles/${profileId}/run`, { method: "POST" });
+    const res = await fetch(`/api/profiles/${profileId}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullRefresh }),
+    });
     if (res.status === 402) {
       // Run cap / read-only — send the user to billing with the reason.
       const reason = await res.json().then((d) => d.reason as string | undefined).catch(() => undefined);
@@ -122,7 +126,7 @@ export function RunNowButton({
   if (state === "error") {
     return (
       <button
-        onClick={handleRun}
+        onClick={() => handleRun(false)}
         className={`gh-btn text-[#CF222E] border-[#CF222E]/30 bg-[#FFEBE9] ${
           compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
         }`}
@@ -133,10 +137,10 @@ export function RunNowButton({
   }
 
   // ── Idle (play button) ────────────────────────────────────────────────────────
-  return (
+  const runBtn = (
     <button
-      onClick={handleRun}
-      title="Run pipeline now"
+      onClick={() => handleRun(false)}
+      title="Run now — fetch jobs posted since the last run (incremental)"
       className={`gh-btn ${compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"}`}
     >
       <svg
@@ -150,5 +154,25 @@ export function RunNowButton({
       </svg>
       {!compact && "Run now"}
     </button>
+  );
+
+  if (compact) return runBtn;
+
+  // Non-compact (profile page): also offer a deep "Full refresh" that re-scans
+  // the whole 28-day window instead of just what's new since the last run.
+  return (
+    <div className="flex items-center gap-2">
+      {runBtn}
+      <button
+        onClick={() => handleRun(true)}
+        title="Full refresh — re-scan the past 28 days (ignores incremental window). Slower; use when you want the whole backlog again."
+        className="gh-btn text-[13px] text-text-2"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Full refresh
+      </button>
+    </div>
   );
 }

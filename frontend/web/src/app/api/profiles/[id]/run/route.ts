@@ -26,6 +26,14 @@ export async function POST(
 ) {
   const { id: profileId } = await params;
 
+  // Optional { fullRefresh: true } body → re-run the deep 28-day window even on
+  // an established profile (the UI "Full refresh" action). Default false.
+  let fullRefresh = false;
+  try {
+    const body = await request.json();
+    fullRefresh = body?.fullRefresh === true;
+  } catch { /* no body → incremental */ }
+
   // Auth check
   const cookieStore = await cookies();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,7 +92,7 @@ export async function POST(
     const job = await Promise.race([
       queue.add(
         "run_profile",
-        { type: "run_profile", profileId, trigger: "manual" },
+        { type: "run_profile", profileId, trigger: "manual", fullRefresh },
         { attempts: 3, backoff: { type: "exponential", delay: 5000 } }
       ),
       timeoutPromise

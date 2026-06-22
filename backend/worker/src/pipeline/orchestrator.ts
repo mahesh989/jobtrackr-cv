@@ -150,8 +150,8 @@ async function checkCancellation(runLogId: string): Promise<void> {
 }
 
 
-export async function runPipeline(profileId: string, trigger: "manual" | "auto" = "auto"): Promise<void> {
-  console.log(`\n[pipeline] ─── starting run for profile ${profileId} (trigger=${trigger}) ───`);
+export async function runPipeline(profileId: string, trigger: "manual" | "auto" = "auto", fullRefresh = false): Promise<void> {
+  console.log(`\n[pipeline] ─── starting run for profile ${profileId} (trigger=${trigger}${fullRefresh ? ", full refresh" : ""}) ───`);
 
   // Stage 0: load profile
   const profile = await loadProfile(profileId);
@@ -222,24 +222,29 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     .maybeSingle();
 
   const isFirstRun = !lastRun;
+  // A user-requested "full refresh" re-runs the deep cold-start window even
+  // when prior runs exist — for when the incremental 2-3 day window is too
+  // narrow and the user wants the whole backlog again.
+  const deepRun = isFirstRun || fullRefresh;
   let lookbackDays: number;
-  if (lastRun) {
+  if (deepRun) {
+    lookbackDays = FIRST_RUN_LOOKBACK_DAYS;
+    const why = isFirstRun ? "first run — deep cold-start backfill" : "full refresh requested";
+    console.log(`[pipeline] lookback: ${lookbackDays}d (${why})`);
+  } else {
     // Incremental: fetch only what's new since last success + 1 day buffer
     const daysSince = Math.ceil(
-      (Date.now() - new Date(lastRun.started_at).getTime()) / 86_400_000
+      (Date.now() - new Date(lastRun!.started_at).getTime()) / 86_400_000
     );
     lookbackDays = Math.min(daysSince + 1, 30);
     console.log(`[pipeline] lookback: ${lookbackDays}d (incremental — last run ${daysSince}d ago)`);
-  } else {
-    // First run: deep cold-start backfill
-    lookbackDays = FIRST_RUN_LOOKBACK_DAYS;
-    console.log(`[pipeline] lookback: ${lookbackDays}d (first run — deep cold-start backfill)`);
   }
   // Adzuna reads adzuna_max_days_old; SEEK + Careerjet read lookback_days /
   // is_first_run. Set all three so every date-aware adapter follows suit.
+  // A full refresh also runs sources at first-run depth (more pages).
   profile.adzuna_max_days_old = lookbackDays;
   profile.lookback_days       = lookbackDays;
-  profile.is_first_run        = isFirstRun;
+  profile.is_first_run        = deepRun;
 
   // ── Load SEEK integration (per-user Apify token) ──────────────────────────
   // Each user brings their own $5/month Apify free tier — costs nothing to the app.
