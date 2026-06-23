@@ -1,13 +1,12 @@
 /**
  * POST /api/billing/upgrade
  *
- * Upgrades the user's active subscription to a higher plan immediately.
- * The old billing cycle ends now; the new plan's full price is charged today.
- * Uses proration_behavior:'none' + billing_cycle_anchor:'now' so the user
- * gets no credit for unused time and their new cycle starts fresh.
+ * Immediately upgrades the user's active subscription to a higher plan.
+ * The old billing cycle ends now and a new one starts immediately — no
+ * proration credit is applied for unused time on the previous plan.
  *
  * Body: { targetPlan: "monthly" | "unlimited" }
- * Response: { success: true }
+ * Returns: { success: true }
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,7 +18,11 @@ import type { PlanId }               from "@/lib/billing/plans";
 
 export const runtime = "nodejs";
 
-const PLAN_RANK: Record<string, number> = { weekly: 1, monthly: 2, unlimited: 3 };
+const PLAN_RANK: Partial<Record<PlanId, number>> = {
+  weekly:    1,
+  monthly:   2,
+  unlimited: 3,
+};
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const targetPlan = body?.targetPlan as string | undefined;
+  const targetPlan = body?.targetPlan as PlanId | undefined;
 
   if (!targetPlan || !(targetPlan in PLAN_RANK)) {
     return NextResponse.json({ error: "Invalid target plan." }, { status: 400 });
@@ -35,36 +38,26 @@ export async function POST(req: NextRequest) {
 
   const ent = await getEntitlement(user.id);
 
-  if (ent.access !== "full" && ent.status !== "past_due") {
+  if (ent.access !== "full" || (ent.status !== "active" && ent.status !== "past_due")) {
     return NextResponse.json(
-      { error: "Only active subscribers can upgrade. Please start a subscription first." },
+      { error: "Upgrades are only available on an active subscription." },
       { status: 422 },
     );
   }
 
-  if (ent.status === "trialing") {
-    return NextResponse.json(
-      { error: "You are on a free trial. Complete checkout to subscribe, then upgrade from there." },
-      { status: 422 },
-    );
-  }
-
-  const currentRank = PLAN_RANK[ent.planId] ?? 0;
-  const targetRank  = PLAN_RANK[targetPlan];
+  const currentRank = PLAN_RANK[ent.planId as PlanId] ?? 0;
+  const targetRank  = PLAN_RANK[targetPlan] ?? 0;
 
   if (targetRank <= currentRank) {
     return NextResponse.json(
-      { error: `You are already on ${ent.planId}. Choose a higher-tier plan to upgrade.` },
+      { error: "Target plan must be higher than your current plan." },
       { status: 422 },
     );
   }
 
-  const newPriceId = priceIdForPlan(targetPlan as PlanId);
+  const newPriceId = priceIdForPlan(targetPlan);
   if (!newPriceId) {
-    return NextResponse.json(
-      { error: "This plan is not configured for purchase. Contact support." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Plan price not configured." }, { status: 500 });
   }
 
   const admin = createAdminClient();
@@ -74,24 +67,22 @@ export async function POST(req: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const stripeSubId = (sub as { stripe_subscription_id?: string } | null)?.stripe_subscription_id;
-  if (!stripeSubId) {
-    return NextResponse.json(
-      { error: "No active Stripe subscription found. Please contact support." },
-      { status: 422 },
-    );
+  const subscriptionId = (sub as { stripe_subscription_id?: string } | null)?.stripe_subscription_id;
+  if (!subscriptionId) {
+    return NextResponse.json({ error: "No active Stripe subscription found." }, { status: 422 });
   }
 
-  const stripeSub = await getStripe().subscriptions.retrieve(stripeSubId);
-  const itemId = stripeSub.items.data[0]?.id;
+  const stripe = getStripe();
+  const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ["items"],
+  });
+
+  const itemId = stripeSub.items?.data?.[0]?.id;
   if (!itemId) {
-    return NextResponse.json(
-      { error: "Could not locate the subscription item. Please contact support." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Could not locate subscription item." }, { status: 500 });
   }
 
-  await getStripe().subscriptions.update(stripeSubId, {
+  await stripe.subscriptions.update(subscriptionId, {
     items: [{ id: itemId, price: newPriceId }],
     proration_behavior: "none",
     billing_cycle_anchor: "now",
