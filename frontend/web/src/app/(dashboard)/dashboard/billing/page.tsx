@@ -6,6 +6,7 @@ import { DENY_COPY, type DenyReason } from "@/lib/billing/plans";
 import { UsageMeter } from "@/components/billing/UsageMeter";
 import { PlanCards } from "@/components/billing/PlanCards";
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
+import { UpgradeOptions } from "@/components/billing/UpgradeOptions";
 
 export const metadata = { title: "Billing — JobTrackr" };
 
@@ -29,13 +30,13 @@ function fmtDate(iso: string | null): string {
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ denied?: string; checkout?: string }>;
+  searchParams: Promise<{ denied?: string; checkout?: string; upgraded?: string }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { denied, checkout } = await searchParams;
+  const { denied, checkout, upgraded } = await searchParams;
   const ent = await getEntitlement(user.id);
   const usage = await getUsageSummary(user.id, ent.periodStart);
 
@@ -57,6 +58,12 @@ export default async function BillingPage({
           <div className="flex items-start gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <span>You&apos;re all set — your subscription is active. It may take a moment to reflect below.</span>
+          </div>
+        )}
+        {upgraded === "1" && (
+          <div className="flex items-start gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Plan upgraded — your new plan is now active. It may take a moment to reflect below.</span>
           </div>
         )}
         {deny && (
@@ -104,6 +111,11 @@ export default async function BillingPage({
             {!isComp && ent.status !== "none" && <ManageSubscriptionButton />}
           </div>
         </div>
+
+        {/* Upgrade options — active/past_due subscribers not on highest tier */}
+        {(ent.status === "active" || ent.status === "past_due") && ent.planId !== "unlimited" && (
+          <UpgradeOptions currentPlanId={ent.planId} />
+        )}
 
         {/* Usage meters */}
         {!ent.unlimited && (
