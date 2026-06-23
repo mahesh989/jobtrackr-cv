@@ -30,7 +30,7 @@ import { runLogContext } from "./logContext.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
-import { createSeekAdapter, enrichWithFullJDs } from "../sources/seek.js";
+import { createSeekAdapter } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichCareerjetJDsViaActor } from "../sources/careerjetActor.js";
 import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
@@ -111,13 +111,14 @@ async function loadApifyIntegration(userId: string): Promise<UserIntegration | n
   return row as UserIntegration | null;
 }
 
+type SubscriptionTier = "weekly" | "monthly" | "unlimited";
+
 interface PlatformSources {
+  tier:            SubscriptionTier;
   enabled_sources: string[];
   adzuna_method:   "api" | "direct";
   seek_method:     "direct" | "actor";
 }
-
-type SubscriptionTier = "weekly" | "monthly" | "unlimited";
 
 function planToTier(planId: string | null | undefined, status: string | null | undefined): SubscriptionTier {
   if (status === "comp") return "unlimited";
@@ -134,6 +135,7 @@ function planToTier(planId: string | null | undefined, status: string | null | u
  */
 async function loadPlatformSources(userId: string): Promise<PlatformSources> {
   const freeFallback: PlatformSources = {
+    tier:            "weekly",
     enabled_sources: ["adzuna", "seek", "careerjet"],
     adzuna_method:   "api",
     seek_method:     "direct",
@@ -170,6 +172,7 @@ async function loadPlatformSources(userId: string): Promise<PlatformSources> {
     }
     console.log(`[pipeline] sources tier=${tier} (plan lookup for user ${userId})`);
     return {
+      tier,
       enabled_sources: (data.enabled_sources as string[] | null) ?? freeFallback.enabled_sources,
       adzuna_method:   (data.adzuna_method as "api" | "direct" | null) ?? freeFallback.adzuna_method,
       seek_method:     (data.seek_method as "direct" | "actor" | null) ?? freeFallback.seek_method,
@@ -236,10 +239,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   // the profile's (vestigial) columns so all downstream stage-2 logic reads the
   // tier-appropriate choices.
   const platformSources = await loadPlatformSources(profile.user_id);
+  const tier = platformSources.tier;
   profile.enabled_sources = platformSources.enabled_sources;
   profile.adzuna_method   = platformSources.adzuna_method;
   profile.seek_method     = platformSources.seek_method;
-  console.log(`[pipeline] sources (tier-gated): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method}`);
+  console.log(`[pipeline] sources (tier-gated): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method} · tier=${tier}`);
 
   // Concurrency guard — two SQL operations, both done by Postgres so timezone
   // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")
@@ -380,6 +384,15 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   let jobsDeduped = 0;
   let sourcesSaved: Record<string, number> = {};
 
+  // Per-run source method tracking — persisted to run_logs.source_methods so
+  // admins can diagnose paid-tier source failures without grepping log_lines.
+  const sourceMethods: {
+    tier: string;
+    seek?:      { enabled: boolean; listings?: string; jd?: string; merged?: number; fetched?: number; count?: number };
+    adzuna?:    { enabled: boolean; method?: string; enrichment?: string; merged?: number; fetched?: number };
+    careerjet?: { enabled: boolean; method?: string };
+  } = { tier };
+
   try {
     // Per-profile source selection (Migration 041): null/empty = all sources.
     const enabledSources = profile.enabled_sources ?? null;
@@ -430,13 +443,15 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
     // ── SEEK ──────────────────────────────────────────────────────────────────
     // Direct (got-scraping → seek.com.au HTML, free) vs Apify actor (paid),
-    // chosen per profile via seek_method (Migration 041). 'direct' still falls
-    // back to the actor if it throws. SEEK runs only if it's an enabled source.
+    // SEEK listings: 'direct' (free, all tiers) → Apify actor fallback (Unlimited
+    // only). Weekly/Monthly never spend paid Apify credits on listings.
     const seekEnabled = sourceEnabled("seek");
     const useActor = profile.seek_method === "actor";
     let seekDirectFailed = false;
+    sourceMethods.seek = { enabled: seekEnabled };
     if (!seekEnabled) {
       console.log(`[pipeline] stage 2 — seek: skipped (not in enabled_sources)`);
+      sourceMethods.seek.listings = "skipped";
     } else {
       await checkCancellation(runLogId);
       await setStage(runLogId, "Fetching from SEEK");
@@ -446,34 +461,43 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           console.log(`[pipeline] seek: method=actor — using Apify actor`);
         } else {
           console.warn(`[pipeline] seek: method=actor but no working Apify integration — SEEK will be skipped`);
+          sourceMethods.seek.listings = "skipped";
         }
       } else {
         try {
           const seekJobs = await seekDirectAdapter.fetchJobs(profile);
           rawJobs.push(...seekJobs);
           sourcesRun.push("seek");
+          sourceMethods.seek.listings = "direct";
+          sourceMethods.seek.count    = seekJobs.length;
           console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
         } catch (err) {
           seekDirectFailed = true;
           console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
-          if (seekAdapter && seekIntegration) {
-            console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor`);
+          if (tier === "unlimited" && seekAdapter && seekIntegration) {
+            console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor (unlimited tier)`);
+          } else if (seekAdapter && seekIntegration) {
+            console.warn(`[pipeline] seek-direct unavailable — Apify fallback skipped (${tier} tier); SEEK skipped this run`);
+            sourceMethods.seek.listings = "skipped";
           } else {
             console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
+            sourceMethods.seek.listings = "skipped";
           }
         }
       }
     }
 
-    // Actor: runs when method=actor or direct threw, and the user has a working
-    // Apify integration.
-    if (seekEnabled && seekDirectFailed && seekAdapter && seekIntegration) {
+    // Apify listings actor: Unlimited-only. Runs when method=actor or direct threw,
+    // the user is on the unlimited tier, and a working Apify integration exists.
+    if (seekEnabled && seekDirectFailed && tier === "unlimited" && seekAdapter && seekIntegration) {
       await checkCancellation(runLogId);
       await setStage(runLogId, useActor ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
       try {
         const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
         rawJobs.push(...seekJobs);
         if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
+        sourceMethods.seek!.listings = useActor ? "apify" : "apify_fallback";
+        sourceMethods.seek!.count    = seekJobs.length;
         console.log(`[pipeline]   seek (apify ${useActor ? "active" : "fallback"}): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
 
         // Persist updated spend immediately — even if rest of pipeline fails
@@ -492,7 +516,8 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           })
           .eq("id", seekIntegration.id);
       } catch (err) {
-        console.error(`[pipeline] seek (apify fallback) failed: ${err instanceof Error ? err.message : err}`);
+        sourceMethods.seek!.listings = "apify_failed";
+        console.error(`[pipeline] seek (apify ${useActor ? "active" : "fallback"}) failed: ${err instanceof Error ? err.message : err}`);
         // Mark as invalid so next run doesn't retry a broken token
         await db.from("user_integrations")
           .update({ status: "invalid", status_reason: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
@@ -641,59 +666,28 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       `(L1 ${l1Dropped} + L2-strong ${l2Dropped} dropped, ${l2WeakMarked} marked possible_duplicate)`
     );
 
-    // ── Stage 7: SEEK JD enrichment ────────────────────────────────────────────
+    // ── Stage 7: SEEK JD enrichment (free direct only, all tiers) ───────────────
     // Fetch full job descriptions for SEEK survivors only — i.e. jobs that have
-    // already passed keyword + smart + dedup filters. Every JD we pay for goes
-    // on to be saved (modulo the desc-exclusion re-check below). Non-SEEK
-    // sources pass through unchanged.
+    // already passed keyword + smart + dedup filters. Free direct path only;
+    // the Apify JD-fetcher fallback has been removed (two paid actors max:
+    // SEEK listings actor + Adzuna JD actor, both Unlimited-only).
     let kept = dedupKept;
     const seekSurvivors = dedupKept.some((j) => j.source === "seek");
     if (seekSurvivors) {
       await setStage(runLogId, "Fetching full SEEK descriptions");
-
-      // Primary: direct fetch via got-scraping (free, fast).
-      let directMerged = 0;
-      let directFetched = 0;
-      let directThrew = false;
       const jdCap = 20;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
         kept = enriched;
-        directMerged = merged;
-        directFetched = fetched;
+        sourceMethods.seek ??= { enabled: true };
+        sourceMethods.seek.jd      = merged > 0 ? "direct" : "teaser";
+        sourceMethods.seek.merged  = merged;
+        sourceMethods.seek.fetched = fetched;
         console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
-        directThrew = true;
-        console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}`);
-      }
-
-      // Fallback: Apify enrichment only if direct couldn't merge ANY descriptions
-      // AND the user has a working Apify integration with budget left.
-      const directProducedNothing = directThrew || (directFetched > 0 && directMerged === 0);
-      if (directProducedNothing && seekAdapter && seekToken && seekIntegration) {
-        console.warn(`[pipeline] stage 7 — falling back to Apify JD fetcher`);
-        const { jobs: enriched, costUsd: jdCost, merged, fetched } =
-          await enrichWithFullJDs(kept, seekToken);
-        kept = enriched;
-        console.log(`[pipeline] stage 7 — SEEK JD apify fallback: ${merged}/${fetched} full descriptions merged (cost $${jdCost.toFixed(4)})`);
-
-        if (jdCost > 0) {
-          const newSpend  = seekIntegration.quota_used_usd + jdCost;
-          const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
-          await db.from("user_integrations")
-            .update({
-              quota_used_usd: newSpend,
-              last_used_at:   new Date().toISOString(),
-              status:         newStatus,
-              status_reason:  newStatus === "quota_exceeded"
-                ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
-                : null,
-              updated_at:     new Date().toISOString(),
-            })
-            .eq("id", seekIntegration.id);
-          // Keep local copy fresh so any later updates stack correctly
-          seekIntegration.quota_used_usd = newSpend;
-        }
+        sourceMethods.seek ??= { enabled: true };
+        sourceMethods.seek.jd = "teaser";
+        console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}; survivors keep teasers`);
       }
     }
 
@@ -703,6 +697,8 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // actor (residential — datacenter is Turnstile-blocked). No-ops when
     // CAREERJET_ACTOR_ID is unset or no Apify token → survivors keep the snippet.
     const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
+    const careerjetEnabled = sourceEnabled("careerjet");
+    sourceMethods.careerjet = { enabled: careerjetEnabled, method: "api" };
     if (careerjetSurvivors && process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
       await setStage(runLogId, "Fetching full Careerjet descriptions");
       try {
@@ -736,21 +732,25 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 7c — Careerjet JD: skipped (CAREERJET_ACTOR_ID unset or no Apify token) — keeping v4 API snippet`);
     }
 
-    // ── Stage 7d: Adzuna full-JD enrichment (opt-in via adzuna_method) ─────────
-    // 'api' (default) → skip; teasers carry forward (~600 char each).
+    // ── Stage 7d: Adzuna full-JD enrichment (Unlimited only, via adzuna_method) ──
+    // 'api' → skip; teasers (~600 chars) carry forward.
     // 'direct' + ADZUNA_ACTOR_ID + Apify token → fetch full JDs via the
-    //   adzuna-jd-fetcher actor on residential proxy (dodges Adzuna's per-IP
-    //   429 ban on the Fly worker IP). Survivors only, cap 50.
-    // 'direct' without an actor token → legacy curl-from-Fly path (rate-limited
-    //   in practice, kept for local-dev / fallback only).
+    //   adzuna-jd-fetcher actor on residential proxy (Unlimited tier only).
+    // 'direct' without actor → legacy curl-from-Fly path (rate-limited in prod;
+    //   kept for local-dev only).
     const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
     const useAdzunaDirect = profile.adzuna_method === "direct";
+    const adzunaEnabled = sourceEnabled("adzuna");
+    sourceMethods.adzuna = { enabled: adzunaEnabled, method: profile.adzuna_method ?? "api" };
     if (adzunaSurvivors && useAdzunaDirect && process.env.ADZUNA_ACTOR_ID && seekToken && seekIntegration) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
       try {
         const { jobs: enriched, merged, fetched, costUsd } =
           await enrichAdzunaJDsViaActor(kept, seekToken);
         kept = enriched;
+        sourceMethods.adzuna.enrichment = "actor";
+        sourceMethods.adzuna.merged     = merged;
+        sourceMethods.adzuna.fetched    = fetched;
         console.log(`[pipeline] stage 7d — Adzuna JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
         if (costUsd > 0) {
           try {
@@ -770,7 +770,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           }
         }
       } catch (err) {
-        console.warn(`[pipeline] stage 7d — Adzuna JD actor threw: ${err instanceof Error ? err.message : err}`);
+        sourceMethods.adzuna.enrichment = "actor_failed_teaser";
+        console.warn(
+          `[pipeline] stage 7d — Adzuna JD actor failed (${err instanceof Error ? err.message : err}); ` +
+          `falling back to API teasers (no full-JD enrichment this run)`,
+        );
       }
     } else if (adzunaSurvivors && useAdzunaDirect) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
@@ -778,12 +782,17 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
         kept = enriched;
+        sourceMethods.adzuna.enrichment = "direct_curl";
+        sourceMethods.adzuna.merged     = merged;
+        sourceMethods.adzuna.fetched    = fetched;
         console.log(`[pipeline] stage 7d — Adzuna JD (direct curl): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
       } catch (err) {
+        sourceMethods.adzuna.enrichment = "direct_curl_failed_teaser";
         console.warn(`[pipeline] stage 7d — Adzuna JD direct threw: ${err instanceof Error ? err.message : err}`);
       }
     } else if (adzunaSurvivors) {
-      console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='${profile.adzuna_method ?? 'api'}', using API teasers only)`);
+      sourceMethods.adzuna.enrichment = "none";
+      console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='api', using API teasers only)`);
     }
 
     // Adzuna only contributes new desc text to re-scan when 'direct' mode
@@ -956,6 +965,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       jobs_deduped: jobsDeduped,
       sources_run: sourcesRun,
       sources_saved: sourcesSaved,
+      source_methods: sourceMethods,
     });
 
     console.log(`[pipeline] ─── run complete ───\n`);
@@ -974,6 +984,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         jobs_deduped: jobsDeduped,
         sources_run: sourcesRun,
         sources_saved: sourcesSaved,
+        source_methods: sourceMethods,
         error_message: msg,
       });
       await sendPipelineFailureAlert(profileId, msg);

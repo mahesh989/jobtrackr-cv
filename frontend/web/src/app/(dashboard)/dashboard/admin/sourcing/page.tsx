@@ -64,7 +64,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
     { data: appliedJobsRaw },
   ] = await Promise.all([
     admin.from("run_logs")
-      .select("id, profile_id, status, started_at, jobs_fetched, jobs_saved, jobs_deduped, sources_run, sources_saved")
+      .select("id, profile_id, status, started_at, jobs_fetched, jobs_saved, jobs_deduped, sources_run, sources_saved, source_methods")
       .gte("started_at", cutoff.toISOString())
       .order("started_at", { ascending: false }),
     admin.from("jobs")
@@ -76,11 +76,18 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
       .not("applied_at", "is", null),
   ]);
 
+  type SourceMethods = {
+    tier?: string;
+    seek?:      { enabled?: boolean; listings?: string; jd?: string; merged?: number; fetched?: number; count?: number };
+    adzuna?:    { enabled?: boolean; method?: string; enrichment?: string; merged?: number; fetched?: number };
+    careerjet?: { enabled?: boolean; method?: string };
+  };
   type RunLog = {
     id: string; profile_id: string; status: string; started_at: string;
     jobs_fetched: number; jobs_saved: number; jobs_deduped: number;
     sources_run: string[] | null;
     sources_saved: Record<string, number> | null;
+    source_methods: SourceMethods | null;
   };
   type JobRow     = { id: string; jd_quality: string | null; dedup_status: string | null; source: string | null; location: string | null; created_at: string };
   type AppliedRow = { source: string | null; applied_at: string | null };
@@ -184,6 +191,13 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12);
   const maxLocationCount = topLocations[0]?.[1] ?? 1;
+
+  // ── Source method aggregates (from source_methods JSONB) ────────────────
+  const runsWithMethods = completedRuns.filter((r) => r.source_methods != null);
+  const seekDirectFails   = runsWithMethods.filter((r) => r.source_methods?.seek?.listings === "skipped"   || r.source_methods?.seek?.listings === "apify_failed").length;
+  const seekApifyFallback = runsWithMethods.filter((r) => r.source_methods?.seek?.listings === "apify_fallback").length;
+  const adzunaActorFails  = runsWithMethods.filter((r) => r.source_methods?.adzuna?.enrichment === "actor_failed_teaser").length;
+  const adzunaEnriched    = runsWithMethods.filter((r) => r.source_methods?.adzuna?.enrichment === "actor").length;
 
   // ── Recent run log ───────────────────────────────────────────────────────
   const recentRunsLog = runLogs.slice(0, 15);
@@ -400,31 +414,61 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
           </section>
         )}
 
+        {/* Source method health (from source_methods JSONB — populated after migration 065) */}
+        {runsWithMethods.length > 0 && (
+          <section>
+            <h2 className="text-[12px] font-semibold text-text mb-3">Source method health ({RANGE_LABELS[range]})</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Kpi label="Runs tracked"           value={String(runsWithMethods.length)} sub="with source_methods" />
+              <Kpi label="SEEK direct failures"   value={String(seekDirectFails)}   sub="listings skipped / actor failed" color={seekDirectFails > 0 ? "text-red-600" : "text-text"} />
+              <Kpi label="SEEK Apify fallbacks"   value={String(seekApifyFallback)} sub="unlimited only"                  color={seekApifyFallback > 0 ? "text-amber-700" : "text-text"} />
+              <Kpi label="Adzuna actor failures"  value={String(adzunaActorFails)}  sub={`${adzunaEnriched} enriched ok`} color={adzunaActorFails > 0 ? "text-amber-700" : "text-text"} />
+            </div>
+          </section>
+        )}
+
         {/* Recent run log */}
         <section>
           <h2 className="text-[12px] font-semibold text-text mb-3">Recent worker runs</h2>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
-              <thead><tr><th>Run</th><th>Status</th><th>Sources</th><th>Fetched</th><th>Saved</th><th>Deduped</th><th>Started</th></tr></thead>
+              <thead><tr><th>Run</th><th>Status</th><th>Tier</th><th>Source methods</th><th>Fetched</th><th>Saved</th><th>Started</th></tr></thead>
               <tbody>
                 {recentRunsLog.length === 0 && (
                   <tr><td colSpan={7} className="text-center text-text-3 py-6">No runs yet.</td></tr>
                 )}
-                {recentRunsLog.map((r) => (
-                  <tr key={r.id}>
-                    <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
-                    <td>
-                      <span className={`badge text-[10px] ${r.status === "completed" ? "badge-green" : r.status === "failed" ? "badge-red" : r.status === "running" ? "badge-blue" : "badge-gray"}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="text-text-2 text-[11px]">{(r.sources_run ?? []).join(", ") || "—"}</td>
-                    <td className="tabular-nums text-text-2">{r.jobs_fetched ?? 0}</td>
-                    <td className={`tabular-nums font-semibold ${(r.jobs_saved ?? 0) > 0 ? "text-emerald-700" : "text-text-3"}`}>{r.jobs_saved ?? 0}</td>
-                    <td className="tabular-nums text-text-3">{r.jobs_deduped ?? 0}</td>
-                    <td className="text-text-3">{timeAgo(r.started_at)}</td>
-                  </tr>
-                ))}
+                {recentRunsLog.map((r) => {
+                  const sm = r.source_methods;
+                  const seekChip = sm?.seek?.listings === "direct"          ? { label: "SEEK direct",    cls: "text-emerald-700" }
+                                 : sm?.seek?.listings === "apify_fallback"  ? { label: "SEEK→Apify",     cls: "text-amber-700" }
+                                 : sm?.seek?.listings === "apify"           ? { label: "SEEK Apify",     cls: "text-blue-700" }
+                                 : sm?.seek?.listings === "skipped"         ? { label: "SEEK skipped",   cls: "text-red-600" }
+                                 : sm?.seek?.listings === "apify_failed"    ? { label: "SEEK apify fail",cls: "text-red-600" }
+                                 : null;
+                  const adzunaChip = sm?.adzuna?.enrichment === "actor"                    ? { label: "Adzuna full JD", cls: "text-emerald-700" }
+                                   : sm?.adzuna?.enrichment === "actor_failed_teaser"      ? { label: "Adzuna↓teaser",  cls: "text-amber-700" }
+                                   : sm?.adzuna?.enrichment === "none" || sm?.adzuna?.method === "api" ? { label: "Adzuna teaser", cls: "text-text-3" }
+                                   : null;
+                  return (
+                    <tr key={r.id}>
+                      <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
+                      <td>
+                        <span className={`badge text-[10px] ${r.status === "completed" ? "badge-green" : r.status === "failed" ? "badge-red" : r.status === "running" ? "badge-blue" : "badge-gray"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="text-[11px] text-text-3 tabular-nums">{sm?.tier ?? "—"}</td>
+                      <td className="text-[10px] space-x-1">
+                        {seekChip   && <span className={`font-medium ${seekChip.cls}`}>{seekChip.label}</span>}
+                        {adzunaChip && <span className={`font-medium ${adzunaChip.cls}`}>{adzunaChip.label}</span>}
+                        {!sm && <span className="text-text-3">—</span>}
+                      </td>
+                      <td className="tabular-nums text-text-2">{r.jobs_fetched ?? 0}</td>
+                      <td className={`tabular-nums font-semibold ${(r.jobs_saved ?? 0) > 0 ? "text-emerald-700" : "text-text-3"}`}>{r.jobs_saved ?? 0}</td>
+                      <td className="text-text-3">{timeAgo(r.started_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

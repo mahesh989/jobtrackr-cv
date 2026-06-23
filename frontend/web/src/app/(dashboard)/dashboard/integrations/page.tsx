@@ -86,13 +86,18 @@ export default async function IntegrationsPage() {
           </p>
         </div>
 
-        {/* Job sources — global selection (applies to all users) */}
+        {/* Job sources — read-only tier reference */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
           <p className="text-[12px] text-text-3 mb-3">
-            Which job boards to scan, and the method per source — configured per
-            subscription tier. Weekly and Monthly share the same free-tier sources;
-            Unlimited can enable full-JD actors.
+            Source methods per subscription tier. Behavior is fixed by code —
+            Weekly and Monthly use free sources only; Unlimited adds paid Apify actors
+            (SEEK listings fallback + Adzuna full-JD enrichment). Per-run method
+            and fallback tracking is on the{" "}
+            <a href="/dashboard/admin/sourcing" className="text-[var(--brand)] hover:underline">
+              Sourcing health
+            </a>{" "}
+            page.
           </p>
           <PlatformSourcesCard initial={sources} />
         </section>

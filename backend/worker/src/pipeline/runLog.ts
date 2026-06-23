@@ -33,6 +33,7 @@ export async function finishRunLog(
     jobs_deduped?: number;
     sources_run: string[];
     sources_saved?: Record<string, number>;
+    source_methods?: Record<string, unknown>;
     error_message?: string;
   }
 ): Promise<void> {
@@ -47,6 +48,7 @@ export async function finishRunLog(
       jobs_deduped: outcome.jobs_deduped ?? 0,
       sources_run: outcome.sources_run,
       sources_saved: outcome.sources_saved ?? null,
+      source_methods: outcome.source_methods ?? null,
       error_message: outcome.error_message ?? null,
       current_stage: null,
     })
