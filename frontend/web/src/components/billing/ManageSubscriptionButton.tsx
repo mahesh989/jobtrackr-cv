@@ -24,7 +24,7 @@ export function ManageSubscriptionButton({
       const res = await fetch("/api/billing/portal", { method: "POST" });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Could not open billing portal.");
-      window.location.assign(data.url as string);
+      window.open(data.url as string, "_blank", "noopener,noreferrer");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(false);
