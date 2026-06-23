@@ -150,7 +150,8 @@ function UserFooter({ email }: { email: string }) {
 function Logo() {
   return (
     <div className="sidebar-logo flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
-      <Sparkles className="h-5 w-5 text-[var(--brand)] shrink-0" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="" className="h-6 w-6 shrink-0 object-contain" />
       <span
         className="sidebar-logo-text font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
         style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}

@@ -21,12 +21,8 @@ const BRAND_PANEL_FEATURES = [
   "Duplicates collapsed across all boards",
 ];
 
-const LOGO_SVG = (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="9" cy="9" r="3" />
-    <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.2 3.2l1.4 1.4M13.4 13.4l1.4 1.4M3.2 14.8l1.4-1.4M13.4 4.6l1.4-1.4" />
-  </svg>
-);
+// eslint-disable-next-line @next/next/no-img-element
+const LOGO_SVG = <img src="/logo.png" alt="" width={20} height={20} style={{ objectFit: "contain" }} />;
 
 export default function LoginPage() {
   const router = useRouter();
