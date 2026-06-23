@@ -148,6 +148,30 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   return out;
 }
 
+/** 0–100 opinionated match score. Combines distance, ATS band, JD quality,
+ *  freshness, and visa hints. Shared by sortJobs ("match" sort) and SmartFeed
+ *  (smart-section ranking). */
+export function matchScore(j: BoardJob): number {
+  let s = 50;
+  if (j.distance_km != null) s += Math.max(0, 30 - j.distance_km * 0.7);
+  if (j.atsBand === "above_final")        s += 28;
+  else if (j.atsBand === "below_final")   s += 8;
+  else if (j.atsBand === "below_initial") s -= 14;
+  if (j.jd_quality === "thin") s -= 8;
+  const posted = j.posted_at ? new Date(j.posted_at).getTime() : 0;
+  if (posted) {
+    const days = (Date.now() - posted) / 86400000;
+    if (days < 1)       s += 8;
+    else if (days > 21) s -= 6;
+  }
+  if (j.sponsorship_status === "yes")     s += 6;
+  else if (j.sponsorship_status === "no") s -= 10;
+  if (j.citizen_pr_only)                  s -= 8;
+  if (j.applied_at)   s = Math.min(s, 5);
+  if (j.dismissed_at) s = Math.min(s, 5);
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
 /** Sort in-memory. Mirrors the server's sort handling; `asc` = ascending. */
 export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): BoardJob[] {
   const arr = [...jobs];
@@ -187,6 +211,10 @@ export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): Board
       const bT = b.progress.last_progress_at ?? "";
       return asc ? aT.localeCompare(bT) : bT.localeCompare(aT);
     });
+  }
+
+  if (sortCol === "match") {
+    return arr.sort((a, b) => matchScore(b) - matchScore(a));
   }
 
   // Standard column sorts (title / company / location / posted_at / created_at /

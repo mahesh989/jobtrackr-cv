@@ -38,38 +38,12 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
-import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
+import { jobNeedsJd, matchScore, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { shallowSetParams } from "./shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
-
-// ── scoring ─────────────────────────────────────────────────────────────
-
-/** 0–100 opinionated match score. Combines distance, ATS band, JD quality,
- *  freshness, visa hints. Shown as a bar on every card so the user can see
- *  *why* one job ranks above another. */
-function matchScore(j: BoardJob): number {
-  let s = 50;
-  if (j.distance_km != null) s += Math.max(0, 30 - j.distance_km * 0.7);
-  if (j.atsBand === "above_final")        s += 28;
-  else if (j.atsBand === "below_final")   s += 8;
-  else if (j.atsBand === "below_initial") s -= 14;
-  if (j.jd_quality === "thin") s -= 8;
-  const posted = j.posted_at ? new Date(j.posted_at).getTime() : 0;
-  if (posted) {
-    const days = (Date.now() - posted) / 86400000;
-    if (days < 1)       s += 8;
-    else if (days > 21) s -= 6;
-  }
-  if (j.sponsorship_status === "yes")        s += 6;
-  else if (j.sponsorship_status === "no")    s -= 10;
-  if (j.citizen_pr_only)                     s -= 8;
-  if (j.applied_at)   s = Math.min(s, 5);
-  if (j.dismissed_at) s = Math.min(s, 5);
-  return Math.max(0, Math.min(100, Math.round(s)));
-}
 
 // ── time helpers (mirror JobTable) ──────────────────────────────────────
 

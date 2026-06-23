@@ -49,6 +49,7 @@ const STAGE_ICON: Record<string, typeof BarChart3> = {
 
 // Human label for the current sort column — mirrors SmartFilterBar's options.
 const SORT_LABEL_FOR_COL: Record<string, string> = {
+  match:               "Match score",
   posted_at:           "Date posted",
   created_at:          "Date added",
   rich_jd_first:       "Rich JD first",
