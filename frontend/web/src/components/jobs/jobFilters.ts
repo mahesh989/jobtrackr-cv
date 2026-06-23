@@ -207,7 +207,7 @@ export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): Board
       return (a.distance_km as number) - (b.distance_km as number);
     });
   }
-  if (sortCol === "ats_score") {
+  if (sortCol === "match" || sortCol === "ats_score") {
     // Ascending = lowest score within band first (the "find the borderline
     // ones" use case driving the ATS chips). Nulls sort to the bottom.
     return arr.sort((a, b) => {
