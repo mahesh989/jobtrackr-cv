@@ -15,7 +15,6 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
   const currentRank = PLAN_RANK[currentPlanId] ?? 0;
   const upgradeable = PUBLIC_PLANS.filter((p) => (PLAN_RANK[p.id] ?? 0) > currentRank);
 
-  const [armed, setArmed]   = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError]   = useState<string | null>(null);
 
@@ -34,7 +33,6 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(null);
-      setArmed(null);
     }
   }
 
@@ -47,7 +45,7 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
         <h2 className="text-sm font-semibold text-text">Upgrade your plan</h2>
       </div>
       <p className="text-xs text-text-2">
-        Your current plan ends immediately and the new plan&apos;s full price is charged today.
+        Charged to your card on file. Switches immediately.
       </p>
 
       {error && (
@@ -58,7 +56,6 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {upgradeable.map((plan) => {
-          const isArmed   = armed === plan.id;
           const isLoading = loading === plan.id;
           const featured  = plan.id === "unlimited";
 
@@ -89,43 +86,19 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
                 ))}
               </ul>
 
-              <div className="mt-5 space-y-2">
-                {isArmed && !isLoading && (
-                  <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                    You&apos;ll be charged <strong>{formatAud(plan.priceCents)}</strong> now. Your current plan ends immediately.
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  {isArmed && !isLoading && (
-                    <button
-                      onClick={() => setArmed(null)}
-                      className="gh-btn flex-1 text-sm"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      if (!isArmed) { setArmed(plan.id); return; }
-                      doUpgrade(plan.id);
-                    }}
-                    disabled={loading !== null}
-                    className={
-                      "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                      (featured || isArmed
-                        ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                        : "gh-btn")
-                    }
-                  >
-                    {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {isLoading
-                      ? "Upgrading…"
-                      : isArmed
-                      ? "Confirm upgrade"
-                      : `Upgrade to ${plan.displayName}`}
-                  </button>
-                </div>
-              </div>
+              <button
+                onClick={() => doUpgrade(plan.id)}
+                disabled={loading !== null}
+                className={
+                  "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
+                  (featured
+                    ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
+                    : "gh-btn")
+                }
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isLoading ? "Upgrading…" : `Upgrade to ${plan.displayName}`}
+              </button>
             </div>
           );
         })}
