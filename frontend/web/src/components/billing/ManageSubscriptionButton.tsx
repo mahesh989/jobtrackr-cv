@@ -25,6 +25,7 @@ export function ManageSubscriptionButton({
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Could not open billing portal.");
       window.open(data.url as string, "_blank", "noopener,noreferrer");
+      setLoading(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(false);
