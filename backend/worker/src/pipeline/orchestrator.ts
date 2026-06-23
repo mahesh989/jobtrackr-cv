@@ -117,33 +117,66 @@ interface PlatformSources {
   seek_method:     "direct" | "actor";
 }
 
+type SubscriptionTier = "weekly" | "monthly" | "unlimited";
+
+function planToTier(planId: string | null | undefined, status: string | null | undefined): SubscriptionTier {
+  if (status === "comp") return "unlimited";
+  if (planId === "monthly")   return "monthly";
+  if (planId === "unlimited") return "unlimited";
+  return "weekly";  // trial, null, unknown → free tier
+}
+
 /**
- * Load the admin-controlled global source config (migration 063). Source
- * selection + per-source method moved off the per-profile form onto this
- * single row, so every user's run uses the admin's choices. Falls back to
- * sensible defaults if the row is missing.
+ * Load the per-subscription-tier source config (migration 064). Resolves the
+ * user's current plan → tier row in platform_source_tiers → source settings.
+ * Founders/admins always receive the unlimited tier. Falls back to weekly (free)
+ * defaults if the DB is unavailable or the row is missing.
  */
-async function loadPlatformSources(): Promise<PlatformSources> {
-  const fallback: PlatformSources = {
+async function loadPlatformSources(userId: string): Promise<PlatformSources> {
+  const freeFallback: PlatformSources = {
     enabled_sources: ["adzuna", "seek", "careerjet"],
-    adzuna_method:   "direct",
+    adzuna_method:   "api",
     seek_method:     "direct",
   };
   try {
-    const { data } = await db
-      .from("platform_sources")
-      .select("enabled_sources, adzuna_method, seek_method")
-      .eq("id", 1)
+    let tier: SubscriptionTier = "weekly";
+
+    // Founders/admins always get the unlimited tier (no Stripe sub needed).
+    const { data: userRow } = await db
+      .from("users")
+      .select("role")
+      .eq("id", userId)
       .maybeSingle();
-    if (!data) return fallback;
+    if (userRow?.role === "founder" || userRow?.role === "admin") {
+      tier = "unlimited";
+    } else {
+      const { data: sub } = await db
+        .from("subscriptions")
+        .select("plan_id, status")
+        .eq("user_id", userId)
+        .maybeSingle();
+      tier = planToTier(sub?.plan_id as string | null, sub?.status as string | null);
+    }
+
+    const { data } = await db
+      .from("platform_source_tiers")
+      .select("enabled_sources, adzuna_method, seek_method")
+      .eq("tier", tier)
+      .maybeSingle();
+
+    if (!data) {
+      console.warn(`[pipeline] platform_source_tiers row missing for tier=${tier}, using free defaults`);
+      return freeFallback;
+    }
+    console.log(`[pipeline] sources tier=${tier} (plan lookup for user ${userId})`);
     return {
-      enabled_sources: (data.enabled_sources as string[] | null) ?? fallback.enabled_sources,
-      adzuna_method:   (data.adzuna_method as "api" | "direct" | null) ?? fallback.adzuna_method,
-      seek_method:     (data.seek_method as "direct" | "actor" | null) ?? fallback.seek_method,
+      enabled_sources: (data.enabled_sources as string[] | null) ?? freeFallback.enabled_sources,
+      adzuna_method:   (data.adzuna_method as "api" | "direct" | null) ?? freeFallback.adzuna_method,
+      seek_method:     (data.seek_method as "direct" | "actor" | null) ?? freeFallback.seek_method,
     };
   } catch (err) {
-    console.warn(`[pipeline] platform_sources load failed, using defaults: ${err instanceof Error ? err.message : err}`);
-    return fallback;
+    console.warn(`[pipeline] platform_source_tiers load failed, using free defaults: ${err instanceof Error ? err.message : err}`);
+    return freeFallback;
   }
 }
 
@@ -198,14 +231,15 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
   profile.is_manual_run = trigger === "manual";
 
-  // Source selection + per-source method are now a global admin setting
-  // (platform_sources, migration 063) — NOT per-profile. Override the profile's
-  // (vestigial) columns so all downstream stage-2 logic reads the admin choices.
-  const platformSources = await loadPlatformSources();
+  // Source selection + per-source method are tier-gated (platform_source_tiers,
+  // migration 064). The user's subscription plan determines the tier row. Override
+  // the profile's (vestigial) columns so all downstream stage-2 logic reads the
+  // tier-appropriate choices.
+  const platformSources = await loadPlatformSources(profile.user_id);
   profile.enabled_sources = platformSources.enabled_sources;
   profile.adzuna_method   = platformSources.adzuna_method;
   profile.seek_method     = platformSources.seek_method;
-  console.log(`[pipeline] sources (admin global): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method}`);
+  console.log(`[pipeline] sources (tier-gated): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method}`);
 
   // Concurrency guard — two SQL operations, both done by Postgres so timezone
   // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")

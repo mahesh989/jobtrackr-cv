@@ -239,7 +239,7 @@ export function JobBoard({
       <SmartFeed
         jobs={filtered}
         groups={groups ?? undefined}
-        hasActiveFilter={hasActiveFilter || sortCol !== "posted_at"}
+        hasActiveFilter={hasActiveFilter || !!sp.get("sort")}
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
