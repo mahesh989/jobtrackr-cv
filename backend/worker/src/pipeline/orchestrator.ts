@@ -111,6 +111,42 @@ async function loadApifyIntegration(userId: string): Promise<UserIntegration | n
   return row as UserIntegration | null;
 }
 
+interface PlatformSources {
+  enabled_sources: string[];
+  adzuna_method:   "api" | "direct";
+  seek_method:     "direct" | "actor";
+}
+
+/**
+ * Load the admin-controlled global source config (migration 063). Source
+ * selection + per-source method moved off the per-profile form onto this
+ * single row, so every user's run uses the admin's choices. Falls back to
+ * sensible defaults if the row is missing.
+ */
+async function loadPlatformSources(): Promise<PlatformSources> {
+  const fallback: PlatformSources = {
+    enabled_sources: ["adzuna", "seek", "careerjet"],
+    adzuna_method:   "direct",
+    seek_method:     "direct",
+  };
+  try {
+    const { data } = await db
+      .from("platform_sources")
+      .select("enabled_sources, adzuna_method, seek_method")
+      .eq("id", 1)
+      .maybeSingle();
+    if (!data) return fallback;
+    return {
+      enabled_sources: (data.enabled_sources as string[] | null) ?? fallback.enabled_sources,
+      adzuna_method:   (data.adzuna_method as "api" | "direct" | null) ?? fallback.adzuna_method,
+      seek_method:     (data.seek_method as "direct" | "actor" | null) ?? fallback.seek_method,
+    };
+  } catch (err) {
+    console.warn(`[pipeline] platform_sources load failed, using defaults: ${err instanceof Error ? err.message : err}`);
+    return fallback;
+  }
+}
+
 /** Reset quota counters when we've rolled into a new calendar month. */
 async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegration> {
   const currentPeriod = new Date().toISOString().slice(0, 7);      // "YYYY-MM"
@@ -161,6 +197,15 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   }
 
   profile.is_manual_run = trigger === "manual";
+
+  // Source selection + per-source method are now a global admin setting
+  // (platform_sources, migration 063) — NOT per-profile. Override the profile's
+  // (vestigial) columns so all downstream stage-2 logic reads the admin choices.
+  const platformSources = await loadPlatformSources();
+  profile.enabled_sources = platformSources.enabled_sources;
+  profile.adzuna_method   = platformSources.adzuna_method;
+  profile.seek_method     = platformSources.seek_method;
+  console.log(`[pipeline] sources (admin global): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method}`);
 
   // Concurrency guard — two SQL operations, both done by Postgres so timezone
   // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")

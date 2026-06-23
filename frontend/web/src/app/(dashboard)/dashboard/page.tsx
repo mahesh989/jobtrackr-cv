@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/getUser";
 import { getCachedProfiles } from "@/lib/queryCache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -87,11 +88,14 @@ export default async function DashboardPage({
   if (!user) redirect("/auth/login");
 
   // Admins/founders have no use for the user-facing job board dashboard.
-  // Send them straight to the admin overview instead.
+  // Send them straight to the admin overview instead — UNLESS they've opted
+  // into "View as user" (jt_user_view cookie), in which case let them see the
+  // user dashboard with their own data.
   const { data: userRoleRow } = await supabase
     .from("users").select("role").eq("id", user.id).single();
   const userRole = (userRoleRow as { role?: string } | null)?.role ?? "";
-  if (userRole === "founder" || userRole === "admin") redirect("/dashboard/admin");
+  const inUserView = (await cookies()).get("jt_user_view")?.value === "1";
+  if ((userRole === "founder" || userRole === "admin") && !inUserView) redirect("/dashboard/admin");
 
   // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
   // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)

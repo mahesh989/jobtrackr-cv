@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/getUser";
 import { SidebarNav } from "@/components/SidebarNav";
@@ -26,13 +27,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const isAdmin = ent.role === "founder" || ent.role === "admin";
 
+  // "View as user" — an admin previewing the user-facing UI as themselves.
+  // Set via /api/admin/view-as?mode=user (jt_user_view cookie). In this mode we
+  // render the user nav + fetch the user sidebar data, and the dashboard page
+  // skips its admin redirect.
+  const userView = isAdmin && (await cookies()).get("jt_user_view")?.value === "1";
+
   // Admin users don't need profile badges, unseen counts, or pool counts —
   // they never interact with the user-facing job board from the admin nav.
   // Skip those queries entirely to keep layout load fast for admin pages.
+  // In user-view we DO fetch them so the previewed user nav is populated.
   let sidebarProfiles: { id: string; name: string; newCount: number; isRunning: boolean }[] = [];
   let poolCount = 0;
 
-  if (!isAdmin) {
+  if (!isAdmin || userView) {
     const [{ data: profileRows }, { data: userRow }] = await Promise.all([
       supabase
         .from("search_profiles")
@@ -126,6 +134,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           profiles={sidebarProfiles}
           poolCount={poolCount ?? 0}
           role={ent.role}
+          userView={userView}
         />
       </div>
 

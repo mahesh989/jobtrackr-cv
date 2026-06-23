@@ -2,51 +2,36 @@ import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { redirect }            from "next/navigation";
 import { ApifyIntegrationCard }  from "@/components/ApifyIntegrationCard";
-import { EmailIntegrationCard }  from "@/components/email/EmailIntegrationCard";
+import { PlatformSourcesCard }   from "@/components/admin/PlatformSourcesCard";
 
 export const metadata = { title: "Integrations — JobTrackr" };
 
-const OAUTH_ERROR_LABELS: Record<string, string> = {
-  invalid_state:           "Security check failed — please try again.",
-  no_code:                 "Google didn't return an authorization code.",
-  token_exchange_failed:   "Couldn't exchange the code for a token. Check your GOOGLE_CLIENT_SECRET / MICROSOFT_CLIENT_SECRET.",
-  missing_tokens:          "OAuth completed but no refresh token was returned. Re-run consent (refresh tokens require offline_access + prompt=consent).",
-  access_denied:           "You declined the consent screen.",
-};
-
-function describeError(key: string): string {
-  // save_failed:<reason> — surface the underlying message verbatim
-  if (key.startsWith("save_failed:")) return `Token save failed — ${key.slice("save_failed:".length)}`;
-  return OAUTH_ERROR_LABELS[key] ?? `Error: ${key}`;
-}
-
-interface PageProps {
-  searchParams: Promise<{
-    email_connected?: "google" | "outlook";
-    email_error?:     string;
-  }>;
-}
-
-export default async function IntegrationsPage({ searchParams }: PageProps) {
-  const sp        = await searchParams;
-  const connected = sp.email_connected ?? null;
-  const errorKey  = sp.email_error     ?? null;
-
+export default async function IntegrationsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Founder/admin only — Apify quota is an operator concern (the platform
-  // AI provider now lives at /dashboard/admin/ai-settings). The user-facing
-  // email-account connect has moved to My Details → Email account, so
-  // users still have a place to connect Gmail/Outlook.
+  // Founder/admin only — source selection + Apify quota are operator concerns.
+  // The user-facing email-account connect lives at My CV → Email account.
   const { data: me } = await supabase
     .from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard/settings/profile");
+  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard/cv");
 
   const admin = createAdminClient();
 
-  // ── Apify integration ─────────────────────────────────────────────────────
+  // ── Platform job-source config (admin-controlled, applies to all users) ─────
+  const { data: srcRow } = await admin
+    .from("platform_sources")
+    .select("enabled_sources, adzuna_method, seek_method")
+    .eq("id", 1)
+    .maybeSingle();
+  const sources = {
+    enabled_sources: (srcRow?.enabled_sources as string[] | null) ?? ["adzuna", "seek", "careerjet"],
+    adzuna_method:   (srcRow?.adzuna_method as "api" | "direct" | null) ?? "direct",
+    seek_method:     (srcRow?.seek_method as "direct" | "actor" | null) ?? "direct",
+  };
+
+  // ── Apify integration (quota) ──────────────────────────────────────────────
   const { data: apify } = await admin
     .from("user_integrations")
     .select("status, status_reason, quota_used_usd, quota_used_requests, quota_period_start, last_used_at, is_enabled")
@@ -75,72 +60,37 @@ export default async function IntegrationsPage({ searchParams }: PageProps) {
     is_enabled:          (apify.is_enabled as boolean) ?? true,
   } : null;
 
-  // ── Email integration ─────────────────────────────────────────────────────
-  const { data: emailRow } = await admin
-    .from("email_integrations")
-    .select("provider, from_address")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const emailConnected = emailRow?.from_address
-    ? { provider: emailRow.provider as "google" | "microsoft", from_address: emailRow.from_address as string }
-    : null;
-
   return (
     <div className="min-h-full px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-8">
         <div>
           <h1 className="page-title text-text">Integrations</h1>
           <p className="page-subtitle">
-            Connect job sources and email. All credentials are encrypted at rest with AES-256-GCM.
-            Manage the platform AI provider at{" "}
+            Choose which job sources every user&apos;s pipeline scans, and manage the
+            Apify quota. Credentials are encrypted at rest (AES-256-GCM). Manage the
+            platform AI provider at{" "}
             <a href="/dashboard/admin/ai-settings" className="text-[var(--brand)] hover:underline">
               Admin → AI provider
             </a>.
           </p>
         </div>
 
-        {/* OAuth result banner ── shown for one page-load after callback */}
-        {connected && (
-          <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
-            <p className="text-[13px] font-medium text-black dark:text-white">
-              ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
-            </p>
-            <p className="text-[12px] text-black dark:text-white mt-0.5">
-              You can now send application emails from the Applications page.
-            </p>
-          </div>
-        )}
-        {errorKey && (
-          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
-            <p className="text-[13px] font-medium text-red-800 dark:text-red-300">
-              ✗ Email connection failed
-            </p>
-            <p className="text-[12px] text-red-700 dark:text-red-400 mt-0.5">
-              {describeError(errorKey)}
-            </p>
-          </div>
-        )}
-
-        {/* Email account */}
-        <section>
-          <h2 className="text-[13px] font-semibold text-text mb-1">Email account</h2>
-          <p className="text-[12px] text-text-3 mb-3">
-            Connect Gmail or Outlook to send application emails with your cover letter
-            and tailored CV directly from the Applications page.
-          </p>
-          <EmailIntegrationCard
-            connected={emailConnected}
-            googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
-            microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}
-          />
-        </section>
-
-        {/* Job sources */}
+        {/* Job sources — global selection (applies to all users) */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
           <p className="text-[12px] text-text-3 mb-3">
-            Third-party services that unlock additional job sources for discovery.
+            Which job boards to scan, and the method per source. This applies to
+            <strong className="text-text-2"> every user&apos;s</strong> runs — users no longer
+            choose sources per search profile.
+          </p>
+          <PlatformSourcesCard initial={sources} />
+        </section>
+
+        {/* Apify quota */}
+        <section>
+          <h2 className="text-[13px] font-semibold text-text mb-1">Apify quota</h2>
+          <p className="text-[12px] text-text-3 mb-3">
+            Residential-proxy + actor usage for SEEK / Adzuna / Careerjet full-JD enrichment.
           </p>
           <ApifyIntegrationCard initialData={apifyInitial} />
         </section>

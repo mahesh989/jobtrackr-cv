@@ -28,6 +28,8 @@ import {
   UserCheck,
   Database,
   ScrollText,
+  Eye,
+  ArrowLeft,
 } from "lucide-react";
 
 interface Profile {
@@ -46,6 +48,10 @@ interface Props {
    *  full nav (Analytics, Integrations); paid users see the product-only
    *  subset. Mirrors the role gate used by getEntitlement(). */
   role?: string;
+  /** When true, an admin is previewing the user-facing UI ("View as user").
+   *  Render the regular user nav + a "Back to admin" link instead of the
+   *  admin nav. */
+  userView?: boolean;
 }
 
 // Founder/admin-only items live behind this check. Mirrors ADMIN_ROLES in
@@ -155,13 +161,15 @@ function Logo() {
   );
 }
 
-export function SidebarNav({ email, poolCount = 0, role }: Props) {
+export function SidebarNav({ email, poolCount = 0, role, userView = false }: Props) {
   const isAdmin = ADMIN_ROLES.has(role ?? "");
 
   // ── Admin nav ─────────────────────────────────────────────────────────────
   // Founders/admins only see operational and business pages — no user-product
   // features (job board, applications, CV library, billing, etc.).
-  if (isAdmin) {
+  // When userView is set, an admin is previewing the user UI → fall through to
+  // the regular user nav below (with a "Back to admin" link).
+  if (isAdmin && !userView) {
     return (
       <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
         <Logo />
@@ -190,6 +198,17 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
           <NavItem href="/dashboard/settings/theme"    icon={Palette}>Theme</NavItem>
           <NavItem href="/privacy"                     icon={Lock}>Privacy policy</NavItem>
 
+          <SectionLabel>Preview</SectionLabel>
+          {/* Plain anchor — hits a route handler that sets the cookie + redirects. */}
+          <a
+            href="/api/admin/view-as?mode=user"
+            className="sidebar-item flex items-center gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] text-[13px] font-semibold text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)] transition-colors"
+            style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
+          >
+            <Eye className="h-4 w-4 shrink-0" />
+            <span className="truncate">View as user</span>
+          </a>
+
         </nav>
         <UserFooter email={email} />
       </aside>
@@ -203,6 +222,17 @@ export function SidebarNav({ email, poolCount = 0, role }: Props) {
 
       {/* Nav body */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+
+        {/* Admin previewing the user UI — banner + exit link. */}
+        {userView && (
+          <a
+            href="/api/admin/view-as?mode=admin"
+            className="mb-2 flex items-center gap-2 rounded-md border border-[var(--brand)]/40 bg-[var(--brand)]/10 px-3 py-2 text-[12px] font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/20 transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+            <span>Viewing as user · Back to admin</span>
+          </a>
+        )}
 
         <SectionLabel>Overview</SectionLabel>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>

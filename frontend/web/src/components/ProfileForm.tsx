@@ -54,7 +54,6 @@ interface Props {
   };
 }
 
-type SourceId = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever";
 
 function Hint({ text }: { text: string }) {
   return (
@@ -93,30 +92,13 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
   const [automationOn, setAutomationOn] = useState<boolean>(defaults?.automation_enabled ?? false);
   const tailorMode: "off" | "auto" = automationOn ? "auto" : "off";
 
-  // Source toggles drive both the source checkboxes and the per-source
-  // method blocks (nested under each row when on).
-  const initialEnabled: Record<SourceId, boolean> = (() => {
-    if (!defaults?.enabled_sources) {
-      return { adzuna: true, seek: true, careerjet: true, greenhouse: true, lever: true };
-    }
-    const set = new Set(defaults.enabled_sources);
-    return {
-      adzuna:     set.has("adzuna"),
-      seek:       set.has("seek"),
-      careerjet:  set.has("careerjet"),
-      greenhouse: set.has("greenhouse"),
-      lever:      set.has("lever"),
-    };
-  })();
-  const [sourcesOn, setSourcesOn] = useState<Record<SourceId, boolean>>(initialEnabled);
+  // Job-source selection + per-source method moved to Admin → Integrations
+  // (platform_sources, migration 063). It's now a global admin setting applied
+  // to every user's runs, so the profile form no longer carries it.
 
   const [sendMode, setSendMode] = useState<"never" | "after_review" | "auto">(
     (defaults?.auto_send_emails as "never" | "after_review" | "auto") ?? "never",
   );
-
-  function toggleSource(id: SourceId) {
-    setSourcesOn((s) => ({ ...s, [id]: !s[id] }));
-  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -294,67 +276,11 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         </div>
       </section>
 
-      {/* ───── 4. Sources ───────────────────────────────────────────── */}
+      {/* Sources moved to Admin → Integrations (global, all users). See migration 063. */}
+
+      {/* ───── 4. Schedule ──────────────────────────────────────────── */}
       <section>
-        <SectionHeader
-          step={4}
-          title="Sources"
-          subtitle="Which job boards to scan. Method settings live with each source."
-        />
-        <div className="rounded-md border border-border bg-[var(--surface-2)] divide-y divide-border">
-
-          <SourceRow
-            id="adzuna"
-            label="Adzuna"
-            tag="Aggregator"
-            enabled={sourcesOn.adzuna}
-            onToggle={() => toggleSource("adzuna")}
-          >
-            <RadioRow
-              name="adzuna_method"
-              defaultValue={defaults?.adzuna_method ?? "api"}
-              options={[
-                { value: "api",    label: "API",    desc: "Fast. JD truncated to ~600 chars." },
-                { value: "direct", label: "Direct", desc: "Slower (+2–5 min). Full ~8k char JDs, better visa & smart-filter signal." },
-              ]}
-            />
-          </SourceRow>
-
-          <SourceRow
-            id="seek"
-            label="SEEK"
-            tag="Aggregator"
-            enabled={sourcesOn.seek}
-            onToggle={() => toggleSource("seek")}
-          >
-            <RadioRow
-              name="seek_method"
-              defaultValue={defaults?.seek_method ?? "direct"}
-              options={[
-                { value: "direct", label: "Direct",      desc: "Free. Scrapes SEEK directly." },
-                { value: "actor",  label: "Apify actor", desc: "~$0.42/run. More reliable depth via your Apify integration." },
-              ]}
-            />
-          </SourceRow>
-
-          <SourceRow id="careerjet"  label="Careerjet"  tag="Aggregator" enabled={sourcesOn.careerjet}  onToggle={() => toggleSource("careerjet")}  />
-          <SourceRow id="greenhouse" label="Greenhouse" tag="ATS board"  enabled={sourcesOn.greenhouse} onToggle={() => toggleSource("greenhouse")} />
-          <SourceRow id="lever"      label="Lever"      tag="ATS board"  enabled={sourcesOn.lever}      onToggle={() => toggleSource("lever")}      />
-        </div>
-
-        {/* Submit one enabled_sources entry per on-source. extractSourceFields
-            reads formData.getAll("enabled_sources") and the on-set is exactly
-            the contract createProfile/updateProfile expect. */}
-        {(Object.keys(sourcesOn) as SourceId[]).map((id) =>
-          sourcesOn[id] ? (
-            <input key={`hs-${id}`} type="hidden" name="enabled_sources" value={id} />
-          ) : null,
-        )}
-      </section>
-
-      {/* ───── 5. Schedule ──────────────────────────────────────────── */}
-      <section>
-        <SectionHeader step={5} title="Schedule" />
+        <SectionHeader step={4} title="Schedule" />
         <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
 
           <div>
@@ -418,7 +344,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
       {/* ───── 6. Automation pipeline ───────────────────────────────── */}
       <section>
         <SectionHeader
-          step={6}
+          step={5}
           title="Automation pipeline"
           subtitle="What happens after a scrape: tailor a CV → send the application."
         />
@@ -514,67 +440,6 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────
-
-function SourceRow({
-  id, label, tag, enabled, onToggle, children,
-}: {
-  id: string;
-  label: string;
-  tag: string;
-  enabled: boolean;
-  onToggle: () => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="p-3">
-      <label className="flex items-center gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={onToggle}
-          className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
-          aria-label={`Toggle ${label}`}
-          data-source={id}
-        />
-        <span className="text-[13px] font-medium text-text">{label}</span>
-        <span className="text-[10px] uppercase tracking-wide text-text-3 font-semibold">{tag}</span>
-      </label>
-      {enabled && children && (
-        <div className="mt-2 ml-7">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RadioRow({
-  name, defaultValue, options,
-}: {
-  name: string;
-  defaultValue: string;
-  options: { value: string; label: string; desc: string }[];
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      {options.map((opt) => (
-        <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="radio"
-            name={name}
-            value={opt.value}
-            defaultChecked={defaultValue === opt.value}
-            className="mt-0.5 w-3.5 h-3.5 accent-[var(--brand)] cursor-pointer shrink-0"
-          />
-          <span>
-            <span className="text-[12px] font-medium text-text">{opt.label}</span>
-            <span className="text-[11px] text-text-2"> — {opt.desc}</span>
-          </span>
-        </label>
-      ))}
-    </div>
-  );
-}
 
 function FunnelChip({ label, status, detail }: { label: string; status: "always" | "on" | "off"; detail: string }) {
   const isOff = status === "off";
