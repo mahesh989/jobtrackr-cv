@@ -19,28 +19,26 @@ export default async function IntegrationsPage() {
 
   const admin = createAdminClient();
 
-  // ── Per-tier job-source config (migration 064) ────────────────────────────
-  type TierConfig = { tier: "weekly" | "monthly" | "unlimited"; enabled_sources: string[]; adzuna_method: "api" | "direct"; seek_method: "direct" | "actor" };
-  const TIER_DEFAULTS: TierConfig[] = [
-    { tier: "weekly",    enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-    { tier: "monthly",   enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-    { tier: "unlimited", enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
-  ];
+  // ── Platform job-source config (per subscription tier, migration 064) ────────
   const { data: tierRows } = await admin
     .from("platform_source_tiers")
-    .select("tier, enabled_sources, adzuna_method, seek_method")
-    .in("tier", ["weekly", "monthly", "unlimited"])
-    .order("tier");
-  const sources: TierConfig[] = TIER_DEFAULTS.map((def) => {
-    const row = (tierRows ?? []).find((r) => (r as { tier: string }).tier === def.tier);
-    if (!row) return def;
-    return {
-      tier:            def.tier,
-      enabled_sources: (row as { enabled_sources: string[] }).enabled_sources ?? def.enabled_sources,
-      adzuna_method:   ((row as { adzuna_method: string }).adzuna_method as "api" | "direct") ?? def.adzuna_method,
-      seek_method:     ((row as { seek_method: string }).seek_method as "direct" | "actor") ?? def.seek_method,
+    .select("tier, enabled_sources, adzuna_method, seek_method");
+
+  type TierConfig = { enabled_sources: string[]; adzuna_method: "api" | "direct"; seek_method: "direct" | "actor" };
+  const tierDefaults: Record<string, TierConfig> = {
+    weekly:    { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+    monthly:   { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+    unlimited: { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
+  };
+  const sources = { ...tierDefaults } as Record<string, TierConfig>;
+  for (const row of (tierRows ?? []) as Array<{ tier: string; enabled_sources: string[] | null; adzuna_method: string | null; seek_method: string | null }>) {
+    const def = tierDefaults[row.tier] ?? tierDefaults.weekly;
+    sources[row.tier] = {
+      enabled_sources: (row.enabled_sources as string[] | null) ?? def.enabled_sources,
+      adzuna_method:   (row.adzuna_method as "api" | "direct" | null)   ?? def.adzuna_method,
+      seek_method:     (row.seek_method   as "direct" | "actor" | null) ?? def.seek_method,
     };
-  });
+  }
 
   // ── Apify integration (quota) ──────────────────────────────────────────────
   const { data: apify } = await admin
@@ -86,20 +84,15 @@ export default async function IntegrationsPage() {
           </p>
         </div>
 
-        {/* Job sources — read-only tier reference */}
+        {/* Job sources — per-tier editable config */}
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
           <p className="text-[12px] text-text-3 mb-3">
-            Source methods per subscription tier. Behavior is fixed by code —
-            Weekly and Monthly use free sources only; Unlimited adds paid Apify actors
-            (SEEK listings fallback + Adzuna full-JD enrichment). Per-run method
-            and fallback tracking is on the{" "}
-            <a href="/dashboard/admin/sourcing" className="text-[var(--brand)] hover:underline">
-              Sourcing health
-            </a>{" "}
-            page.
+            Which job boards to scan, and the fetch method per source — configured
+            separately for each <strong className="text-text-2">subscription tier</strong>.
+            Users on higher tiers get richer JDs (Adzuna direct via actor).
           </p>
-          <PlatformSourcesCard initial={sources} />
+          <PlatformSourcesCard initial={sources as Parameters<typeof PlatformSourcesCard>[0]["initial"]} />
         </section>
 
         {/* Apify quota */}
