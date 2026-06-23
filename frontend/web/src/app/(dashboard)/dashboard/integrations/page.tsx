@@ -19,17 +19,28 @@ export default async function IntegrationsPage() {
 
   const admin = createAdminClient();
 
-  // ── Platform job-source config (admin-controlled, applies to all users) ─────
-  const { data: srcRow } = await admin
-    .from("platform_sources")
-    .select("enabled_sources, adzuna_method, seek_method")
-    .eq("id", 1)
-    .maybeSingle();
-  const sources = {
-    enabled_sources: (srcRow?.enabled_sources as string[] | null) ?? ["adzuna", "seek", "careerjet"],
-    adzuna_method:   (srcRow?.adzuna_method as "api" | "direct" | null) ?? "direct",
-    seek_method:     (srcRow?.seek_method as "direct" | "actor" | null) ?? "direct",
-  };
+  // ── Per-tier job-source config (migration 064) ────────────────────────────
+  type TierConfig = { tier: "weekly" | "monthly" | "unlimited"; enabled_sources: string[]; adzuna_method: "api" | "direct"; seek_method: "direct" | "actor" };
+  const TIER_DEFAULTS: TierConfig[] = [
+    { tier: "weekly",    enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+    { tier: "monthly",   enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+    { tier: "unlimited", enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
+  ];
+  const { data: tierRows } = await admin
+    .from("platform_source_tiers")
+    .select("tier, enabled_sources, adzuna_method, seek_method")
+    .in("tier", ["weekly", "monthly", "unlimited"])
+    .order("tier");
+  const sources: TierConfig[] = TIER_DEFAULTS.map((def) => {
+    const row = (tierRows ?? []).find((r) => (r as { tier: string }).tier === def.tier);
+    if (!row) return def;
+    return {
+      tier:            def.tier,
+      enabled_sources: (row as { enabled_sources: string[] }).enabled_sources ?? def.enabled_sources,
+      adzuna_method:   ((row as { adzuna_method: string }).adzuna_method as "api" | "direct") ?? def.adzuna_method,
+      seek_method:     ((row as { seek_method: string }).seek_method as "direct" | "actor") ?? def.seek_method,
+    };
+  });
 
   // ── Apify integration (quota) ──────────────────────────────────────────────
   const { data: apify } = await admin
@@ -79,9 +90,9 @@ export default async function IntegrationsPage() {
         <section>
           <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
           <p className="text-[12px] text-text-3 mb-3">
-            Which job boards to scan, and the method per source. This applies to
-            <strong className="text-text-2"> every user&apos;s</strong> runs — users no longer
-            choose sources per search profile.
+            Which job boards to scan, and the method per source — configured per
+            subscription tier. Weekly and Monthly share the same free-tier sources;
+            Unlimited can enable full-JD actors.
           </p>
           <PlatformSourcesCard initial={sources} />
         </section>
