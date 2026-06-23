@@ -10,7 +10,8 @@
  *
  * Metering decided 2026-06-02: tailored_cv and cover_letter are SEPARATE
  * buckets with equal caps (either/or). total = unique * 1.5. Caps reset per
- * Stripe billing period. Pricing is a PLACEHOLDER — finalize before go-live.
+ * Stripe billing period. Pricing (AUD): Weekly A$9.99/wk, Monthly A$19.99/mo,
+ * Unlimited A$29.99/mo — finalized 2026-06-23.
  */
 
 export type PlanId = "trial" | "weekly" | "monthly" | "unlimited" | "comp";
