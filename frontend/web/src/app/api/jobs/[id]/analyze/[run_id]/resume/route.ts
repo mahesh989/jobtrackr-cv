@@ -71,12 +71,13 @@ export async function POST(
 
   const { data: profile } = await admin
     .from("search_profiles")
-    .select("user_id")
+    .select("user_id, target_verticals")
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
+  const resumeTargetVertical = ((profile as { target_verticals?: string[] | null }).target_verticals ?? [])[0] ?? null;
 
   // Only gate-stopped runs are resumable: completed + tailored_cv skipped.
   const stepStatus = (run.step_status ?? {}) as Record<string, string>;
@@ -159,6 +160,7 @@ export async function POST(
       contact_details: contactForBackend,
       resume:            true,
       skip_initial_gate: true,
+      target_vertical:   resumeTargetVertical,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze/:run_id/resume] cv-backend rejected:", err);

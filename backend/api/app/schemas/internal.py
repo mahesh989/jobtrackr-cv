@@ -89,6 +89,12 @@ class AnalyzeRequest(BaseModel):
     # distinguishable in analytics. Stored on the analysis_runs row.
     automation: bool = False
 
+    # Explicit vertical from the user's job search profile ("tech", "nursing",
+    # "manual", "general"). When present the orchestrator skips alias-based
+    # auto-detection and routes directly to this vertical. None = auto-detect
+    # (legacy behaviour for callers that haven't been updated yet).
+    target_vertical: Optional[str] = None
+
 
 class AnalyzeResponse(BaseModel):
     run_id: uuid.UUID

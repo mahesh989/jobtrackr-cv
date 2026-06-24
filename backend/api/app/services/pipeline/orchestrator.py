@@ -178,7 +178,14 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # behaviour. Built from the cleaned text (boilerplate stripped)
             # to avoid alias matches in company prose.
             from app.services.eval.role_families import resolve_vertical
-            _vertical_hint = resolve_vertical(None, {"summary": jd_text_for_llm})
+            # Use the explicit vertical from the job search profile when set
+            # (avoids alias-based misclassification). Fall back to auto-detect
+            # only for legacy callers that don't send target_vertical.
+            _explicit_vertical = getattr(payload, "target_vertical", None)
+            if _explicit_vertical:
+                _vertical_hint = _explicit_vertical
+            else:
+                _vertical_hint = resolve_vertical(None, {"summary": jd_text_for_llm})
             jd_analysis = await run_jd_analysis(
                 ai_client, jd_text_for_llm, vertical=_vertical_hint
             )
@@ -197,7 +204,8 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             from app.services.eval.role_families import (
                 category_labels, category_order, resolve_role_family,
             )
-            _rf = resolve_role_family(None, jd_analysis)
+            _explicit = getattr(payload, "target_vertical", None)
+            _rf = resolve_role_family(_explicit, jd_analysis)
             jd_analysis["role_family"] = _rf.id
             jd_analysis["category_labels"] = category_labels(_rf)
             jd_analysis["category_order"] = category_order(_rf)

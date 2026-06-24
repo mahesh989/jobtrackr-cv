@@ -101,9 +101,14 @@ export async function POST(
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
-  const thresholds = resolveThresholds(
-    (profile as { target_verticals?: string[] | null }).target_verticals,
-  );
+  const targetVerticals = (profile as { target_verticals?: string[] | null }).target_verticals;
+  if (!targetVerticals || targetVerticals.length === 0) {
+    return NextResponse.json(
+      { error: "No role vertical selected. Edit this job search profile and choose a role type (e.g. Tech, Healthcare) before running analysis." },
+      { status: 422 },
+    );
+  }
+  const thresholds = resolveThresholds(targetVerticals);
 
   // ── 1b. User must have an active CV ──────────────────────────────────────
   // Prefer the user-verified `normalized_cv_text` (rendered from the review
@@ -292,6 +297,8 @@ export async function POST(
       min_final_ats:   thresholds.final,
       // Phase C-3 — override forces tailoring even if initial gate fails.
       skip_initial_gate: override === "initial_gate" || override === "all",
+      // Pass the explicit vertical so cv-backend skips auto-detection.
+      target_vertical: targetVerticals[0] ?? null,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);

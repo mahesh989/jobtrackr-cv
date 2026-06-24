@@ -354,6 +354,10 @@ export interface AnalyzePayload {
   // request. The /api/jobs/[id]/analyze route always sends false (or
   // omits) so manual runs stay distinguishable.
   automation?: boolean;
+  // Explicit vertical from the job search profile (e.g. "tech", "nursing",
+  // "manual", "general"). When present the orchestrator skips auto-detection
+  // and routes directly to the specified vertical pipeline.
+  target_vertical?: string | null;
 }
 
 export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string; status: string }> {
