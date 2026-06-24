@@ -27,11 +27,11 @@ const GOOGLE_SVG = (
 );
 
 const inputStyle = {
-  background: "#F4EEFB",
-  border: "1px solid rgba(10, 21, 48, 0.12)",
+  background: "#171C26",
+  border: "1px solid #232A36",
   fontSize: 14,
   fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-  color: "#0A1530",
+  color: "#EAEEF6",
 } as React.CSSProperties;
 
 export default function SignupPage() {
@@ -91,12 +91,12 @@ export default function SignupPage() {
   return (
     <div
       className="min-h-screen flex"
-      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#0A1530" }}
+      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#EAEEF6" }}
     >
       {/* ── Brand panel (desktop only) ── */}
       <aside
         className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10"
-        style={{ background: "#241A5C", color: "#F4EEFB" }}
+        style={{ background: "#0C1016", color: "#EAEEF6" }}
       >
         <Link href="/" className="flex items-center gap-2.5">
           <span
@@ -109,49 +109,49 @@ export default function SignupPage() {
         </Link>
 
         <div>
-          <h2 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)", lineHeight: 1.15, letterSpacing: "-0.6px", color: "#F4EEFB", marginBottom: 12, fontWeight: 400 }}>
+          <h2 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)", lineHeight: 1.15, letterSpacing: "-0.6px", color: "#EAEEF6", marginBottom: 12, fontWeight: 400 }}>
             Stop hunting.<br />
-            <em style={{ fontStyle: "italic", color: "#8250DF" }}>Start tracking.</em>
+            <em style={{ fontStyle: "italic", color: "#19E3C8" }}>Start tracking.</em>
           </h2>
-          <p style={{ color: "rgba(244,238,251,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+          <p style={{ color: "rgba(234,238,246,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
             Set up in 60 seconds. Your ranked feed will be ready before you wake up tomorrow.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {BRAND_PANEL_FEATURES.map((f) => (
-              <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(244,238,251,0.7)", fontSize: 13, lineHeight: 1.5 }}>
-                <span style={{ width: 5, height: 5, background: "#8250DF", borderRadius: "50%", flexShrink: 0, marginTop: 5 }} />
+              <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(234,238,246,0.7)", fontSize: 13, lineHeight: 1.5 }}>
+                <span style={{ width: 5, height: 5, background: "#19E3C8", borderRadius: "50%", flexShrink: 0, marginTop: 5 }} />
                 {f}
               </li>
             ))}
           </ul>
         </div>
 
-        <p style={{ fontSize: 11, color: "rgba(244,238,251,0.25)", letterSpacing: 0.3 }}>
+        <p style={{ fontSize: 11, color: "rgba(234,238,246,0.2)", letterSpacing: 0.3 }}>
           Built for Australian job seekers
         </p>
       </aside>
 
       {/* ── Form panel ── */}
-      <div className="flex-1 flex flex-col" style={{ background: "#ECE7FB" }}>
+      <div className="flex-1 flex flex-col" style={{ background: "#0A0D12" }}>
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#241A5C" }}>
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#0C1016" }}>
               {LOGO_SVG}
             </span>
             <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
           </Link>
-          <Link href="/auth/login" className="text-[13px]" style={{ color: "#6B6A8C" }}>
+          <Link href="/auth/login" className="text-[13px]" style={{ color: "#8B93A5" }}>
             Already have an account?{" "}
-            <span style={{ color: "#5645D4", fontWeight: 500 }}>Sign in</span>
+            <span style={{ color: "#19E3C8", fontWeight: 500 }}>Sign in</span>
           </Link>
         </header>
 
         {/* Desktop top-right link */}
         <div className="hidden lg:flex justify-end px-10 py-6">
-          <Link href="/auth/login" className="text-[13px]" style={{ color: "#6B6A8C" }}>
+          <Link href="/auth/login" className="text-[13px]" style={{ color: "#8B93A5" }}>
             Already have an account?{" "}
-            <span style={{ color: "#5645D4", fontWeight: 500 }}>Sign in</span>
+            <span style={{ color: "#19E3C8", fontWeight: 500 }}>Sign in</span>
           </Link>
         </div>
 
@@ -159,25 +159,25 @@ export default function SignupPage() {
         <main className="flex-1 flex items-center justify-center px-5 py-10">
           <div
             className="w-full max-w-md rounded-2xl px-10 py-12"
-            style={{ background: "#ffffff", border: "1px solid rgba(10, 21, 48, 0.08)", boxShadow: "0 30px 60px -30px rgba(10, 21, 48, 0.12), 0 1px 0 rgba(10, 21, 48, 0.02)" }}
+            style={{ background: "#11151C", border: "1px solid #232A36", boxShadow: "0 30px 60px -30px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.03)" }}
           >
             {submitted ? (
               /* ── Email sent state ── */
               <div className="text-center">
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#E5E1F8", border: "1px solid rgba(86, 69, 212, 0.2)" }}>
-                  <svg width="22" height="22" fill="none" stroke="#5645D4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(25, 227, 200, 0.12)", border: "1px solid rgba(25, 227, 200, 0.2)" }}>
+                  <svg width="22" height="22" fill="none" stroke="#19E3C8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
                   Check your inbox
                 </h1>
-                <p style={{ color: "#6B6A8C", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+                <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
                   We sent a confirmation link to{" "}
-                  <span style={{ color: "#0A1530", fontWeight: 500 }}>{email}</span>.
+                  <span style={{ color: "#EAEEF6", fontWeight: 500 }}>{email}</span>.
                   Click it to activate your account.
                 </p>
-                <button onClick={() => setSubmitted(false)} className="mt-6 text-[13px]" style={{ color: "#938FB8" }}>
+                <button onClick={() => setSubmitted(false)} className="mt-6 text-[13px]" style={{ color: "#5B6478" }}>
                   Try a different email
                 </button>
               </div>
@@ -187,7 +187,7 @@ export default function SignupPage() {
                   <h1 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 4vw, 2.25rem)", lineHeight: 1.12, letterSpacing: "-0.8px", marginBottom: 8 }}>
                     Create your account.
                   </h1>
-                  <p style={{ color: "#6B6A8C", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
+                  <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
                     Start your 3-day free trial — no commitment required.
                   </p>
                 </div>
@@ -197,7 +197,7 @@ export default function SignupPage() {
                   onClick={handleGoogleSignUp}
                   disabled={googleLoading || loading}
                   className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity"
-                  style={{ background: "#ffffff", border: "1.5px solid rgba(10,21,48,0.15)", fontSize: 14, fontWeight: 500, color: "#0A1530", opacity: googleLoading ? 0.7 : 1 }}
+                  style={{ background: "#1A2030", border: "1.5px solid rgba(255,255,255,0.1)", fontSize: 14, fontWeight: 500, color: "#EAEEF6", opacity: googleLoading ? 0.7 : 1 }}
                 >
                   {googleLoading ? (
                     <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -210,9 +210,9 @@ export default function SignupPage() {
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-5">
-                  <div style={{ flex: 1, height: 1, background: "rgba(10,21,48,0.08)" }} />
-                  <span style={{ fontSize: 12, color: "#938FB8" }}>or sign up with email</span>
-                  <div style={{ flex: 1, height: 1, background: "rgba(10,21,48,0.08)" }} />
+                  <div style={{ flex: 1, height: 1, background: "#232A36" }} />
+                  <span style={{ fontSize: 12, color: "#5B6478" }}>or sign up with email</span>
+                  <div style={{ flex: 1, height: 1, background: "#232A36" }} />
                 </div>
 
                 {/* Email + password form */}
@@ -225,8 +225,8 @@ export default function SignupPage() {
                       placeholder="you@example.com"
                       className="w-full px-4 py-3 rounded-lg outline-none"
                       style={inputStyle}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
-                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
                     />
                   </div>
                   <div>
@@ -237,8 +237,8 @@ export default function SignupPage() {
                       placeholder="At least 8 characters"
                       className="w-full px-4 py-3 rounded-lg outline-none"
                       style={inputStyle}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "#5645D4"; e.currentTarget.style.background = "#ffffff"; }}
-                      onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(10, 21, 48, 0.12)"; e.currentTarget.style.background = "#F4EEFB"; }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
                     />
                   </div>
 
@@ -256,7 +256,7 @@ export default function SignupPage() {
                   <button
                     type="submit" disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
                     className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity"
-                    style={{ background: "#5645D4", color: "#F4EEFB", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
+                    style={{ background: "#19E3C8", color: "#04231F", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
                   >
                     {loading ? (
                       <>
@@ -277,9 +277,9 @@ export default function SignupPage() {
                   </button>
                 </form>
 
-                <p className="text-center mt-6" style={{ fontSize: 12, color: "#938FB8" }}>
+                <p className="text-center mt-6" style={{ fontSize: 12, color: "#5B6478" }}>
                   Already have an account?{" "}
-                  <Link href="/auth/login" style={{ color: "#5645D4", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
+                  <Link href="/auth/login" style={{ color: "#19E3C8", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
                 </p>
               </>
             )}
@@ -289,8 +289,8 @@ export default function SignupPage() {
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
             {["5 AU sources", "AI-ranked feed", "Visa signal", "3-day free trial"].map((label) => (
-              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#938FB8" }}>
-                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#5645D4" }} />
+              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#5B6478" }}>
+                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#19E3C8" }} />
                 {label}
               </li>
             ))}
