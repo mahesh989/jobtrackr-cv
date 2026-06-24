@@ -955,9 +955,14 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         homeOrigin,
         serveWindowDays: BUCKET_RETENTION_DAYS,
       });
-      if (served !== null) {
+      // Safety: only replace the scraped set if the bucket actually returned
+      // rows (or we had nothing scraped anyway). Never blank out a non-empty
+      // scrape because serve came back empty (e.g. a location-cell mismatch).
+      if (served !== null && (served.length > 0 || toSave.length === 0)) {
         console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
         toSave = served;
+      } else if (served !== null) {
+        console.warn(`[pipeline] bucket serve returned 0 but ${toSave.length} scraped — keeping scraped set (safety)`);
       }
     }
 
