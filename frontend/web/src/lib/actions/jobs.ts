@@ -179,6 +179,24 @@ async function bulkMarkPoolNoEmail(jobIds: string[]) {
  * (see migration 053). Stars unstarred rows; ignores already-starred ones.
  * Use bulkUnstarJobs() to clear.
  */
+export async function toggleStarJob(jobId: string) {
+  const { supabase } = await authedClient();
+  const { data: row, error: fetchErr } = await supabase
+    .from("jobs")
+    .select("starred_at")
+    .eq("id", jobId)
+    .single();
+  if (fetchErr) throw new Error(fetchErr.message);
+  const newValue = row?.starred_at ? null : new Date().toISOString();
+  const { error } = await supabase
+    .from("jobs")
+    .update({ starred_at: newValue })
+    .eq("id", jobId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard");
+  return { starred: newValue != null };
+}
+
 export async function bulkStarJobs(jobIds: string[]) {
   if (jobIds.length === 0) return { updated: 0 };
   const { supabase } = await authedClient();

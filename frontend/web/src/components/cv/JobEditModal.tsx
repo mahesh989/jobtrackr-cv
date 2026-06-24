@@ -259,7 +259,7 @@ export function JobEditModal({
               rows={3}
               spellCheck={false}
               placeholder={"Level 10, 123 Pitt Street\nSydney NSW 2000"}
-              className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Appears in the cover letter employer block beneath the company name. Leave blank to omit.

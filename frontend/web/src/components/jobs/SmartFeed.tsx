@@ -35,7 +35,7 @@ import {
   Archive, Star,
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { markJobDismissed, bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
+import { markJobDismissed, bulkArchiveJobs, bulkStarJobs, toggleStarJob } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
 import { jobNeedsJd, matchScore, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
@@ -990,6 +990,18 @@ function CardShell({
   const [hiringMgr, setHiringMgr] = useState<string | null>(job.hiring_manager ?? null);
   const [companyAddress, setCompanyAddress] = useState<string | null>(job.company_address ?? null);
   const [pending, setPending] = useState(false);
+  const [starred, setStarred] = useState<boolean>(!!job.starred_at);
+  const [starPending, setStarPending] = useState(false);
+
+  async function onToggleStar(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (starPending) return;
+    setStarPending(true);
+    setStarred((v) => !v);
+    try { await toggleStarJob(job.id); }
+    catch { setStarred((v) => !v); }
+    finally { setStarPending(false); }
+  }
 
   const selection  = useJobSelection();
   const selectable = selection?.selectMode ?? false;  // checkboxes only in select mode
@@ -1048,7 +1060,7 @@ function CardShell({
             !!job.applied_at ? "border-l-2 border-l-green-500" : ""
           }`}
         >
-          <CardActionsContext.Provider value={{ onDismiss, onEdit: () => setShowEdit(true), pending }}>
+          <CardActionsContext.Provider value={{ onDismiss, onEdit: () => setShowEdit(true), onToggleStar, starred, pending }}>
             {children}
           </CardActionsContext.Provider>
         </div>
@@ -1087,10 +1099,12 @@ function CardShell({
 
 // Context so HeroCard/JobCard children can reach the shell's handlers.
 const CardActionsContext = createContext<{
-  onDismiss: () => Promise<void>;
-  onEdit:    () => void;
-  pending:   boolean;
-}>({ onDismiss: async () => {}, onEdit: () => {}, pending: false });
+  onDismiss:    () => Promise<void>;
+  onEdit:       () => void;
+  onToggleStar: (e: React.MouseEvent) => void;
+  starred:      boolean;
+  pending:      boolean;
+}>({ onDismiss: async () => {}, onEdit: () => {}, onToggleStar: () => {}, starred: false, pending: false });
 
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
@@ -1175,7 +1189,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
 }
 
 function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  const { onDismiss, onEdit, pending } = useContext(CardActionsContext);
+  const { onDismiss, onEdit, onToggleStar, starred, pending } = useContext(CardActionsContext);
   return (
     <div
       className={`flex items-center gap-2 shrink-0 ${compact ? "" : "mt-2 justify-between"}`}
@@ -1184,6 +1198,17 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
       {!compact && <ProgressDots progress={job.progress} />}
       <div className="flex items-center gap-1.5">
         {compact && <ProgressDots progress={job.progress} />}
+        <button
+          type="button"
+          onClick={onToggleStar}
+          title={starred ? "Remove from favourites" : "Add to favourites"}
+          className="p-1 rounded hover:bg-[var(--surface-2)] transition-colors"
+        >
+          <Star
+            className={`w-3.5 h-3.5 transition-colors ${starred ? "text-amber-400 fill-amber-400" : "text-text-3"}`}
+            strokeWidth={starred ? 0 : 1.5}
+          />
+        </button>
         {job.progress.latest_run_id ? (
           <FullAnalysisButton
             jobId={job.id}
@@ -1306,28 +1331,19 @@ function MenuItem({ children, onClick, disabled }: { children: React.ReactNode; 
 // ── tiny presentational primitives ──────────────────────────────────────
 
 function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  const hasAnalysis = job.atsBand !== "no_ats";
-  if (!hasAnalysis) return null;
+  // Only show when we have a real ATS score from analysis.
+  const atsScore = job.tailored_match_score ?? job.initial_ats_score ?? null;
+  if (atsScore == null) return null;
 
-  // For analysed jobs show the REAL ATS score (tailored if available, else
-  // initial).
-  const atsScore    = job.tailored_match_score ?? job.initial_ats_score ?? null;
-  const displayScore = atsScore ?? 0;
-  const label        = atsScore != null ? "ATS" : "Match";
-
-  const cls = hasAnalysis
-    ? getAtsMeta(job).barColor
-    : (displayScore >= 70 ? "bg-green-500" : displayScore >= 50 ? "bg-amber-500" : "bg-red-500");
-
-  const tip = atsScore != null
-    ? `ATS score ${displayScore}/100 — ${getAtsMeta(job).tip}`
-    : `Match score ${displayScore}/100 — combines distance, ATS band, JD quality, freshness, visa hints`;
+  const displayScore = atsScore;
+  const cls          = getAtsMeta(job).barColor;
+  const tip          = `ATS score ${displayScore}/100 — ${getAtsMeta(job).tip}`;
 
   return (
     <div className="flex items-center gap-1.5" title={tip}>
       {!compact && (
         <span className="text-[9px] font-semibold text-text-3 shrink-0 uppercase tracking-wide w-7 text-right">
-          {label}
+          ATS
         </span>
       )}
       <div className={`relative bg-[var(--surface-2)] rounded-full overflow-hidden ${compact ? "h-1" : "h-1.5"} flex-1`}>

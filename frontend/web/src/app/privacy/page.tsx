@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             We operate under the <strong className="text-text">Australian Privacy Act 1988</strong> and the
             Australian Privacy Principles (APPs).
           </p>
-          <p>Contact: <a href="mailto:privacy@jobtrackr.app" className="text-brand hover:text-text transition-colors">privacy@jobtrackr.app</a></p>
+          <p>Contact: <a href="mailto:privacy@jobtrackr.com.au" className="text-brand hover:text-text transition-colors">privacy@jobtrackr.com.au</a></p>
         </section>
 
         <section className="space-y-3">
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-medium text-text">8. Complaints</h2>
           <p>
             If you believe we have mishandled your personal information, contact us at{" "}
-            <a href="mailto:privacy@jobtrackr.app" className="text-brand hover:text-text transition-colors">privacy@jobtrackr.app</a>.
+            <a href="mailto:privacy@jobtrackr.com.au" className="text-brand hover:text-text transition-colors">privacy@jobtrackr.com.au</a>.
             If unresolved, you may lodge a complaint with the{" "}
             <a href="https://www.oaic.gov.au/" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-text transition-colors">
               Office of the Australian Information Commissioner (OAIC)

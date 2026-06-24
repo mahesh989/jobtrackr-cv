@@ -379,11 +379,14 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
   const [cvPreviewing, setCvPreviewing] = useState(false);
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
-    // Open the tab synchronously (inside the click gesture) so popup
-    // blockers don't eat it. Navigate to the PDF blob URL after rendering.
+    // Open blank window synchronously so popup blockers don't block it,
+    // then navigate it to the rendered PDF blob URL.
     const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<p>Rendering tailored CV…</p>");
+    if (!win) {
+      setActionError("Popup blocked — please allow popups for this site to view the CV.");
+      return;
+    }
+    try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     setActionError(null);
     setCvPreviewing(true);
     try {
@@ -405,10 +408,10 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
       const url = URL.createObjectURL(pdfBlob);
-      win.location.href = url;
+      win.location.replace(url);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
-      win.close();
+      try { win.close(); } catch { /* ignore */ }
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);
@@ -798,11 +801,12 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
-    // Open the tab synchronously (inside the click gesture) so popup
-    // blockers don't eat it. Navigate to the PDF blob URL after rendering.
     const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<p>Rendering tailored CV…</p>");
+    if (!win) {
+      setActionError("Popup blocked — please allow popups for this site to view the CV.");
+      return;
+    }
+    try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     setCvPreviewing(true);
     setActionError(null);
     try {
@@ -824,10 +828,10 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
       const url = URL.createObjectURL(pdfBlob);
-      win.location.href = url;
+      win.location.replace(url);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
-      win.close();
+      try { win.close(); } catch { /* ignore */ }
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);
