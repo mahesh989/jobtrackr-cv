@@ -179,12 +179,21 @@ export function haversineKm(a: LatLng, b: LatLng): number {
 export async function distanceFor(origin: LatLng, companyLocation: string): Promise<DistanceResult | null> {
   const dest = await geocodeLocation(companyLocation);
   if (!dest) return null;
+  return distanceFromCoords(origin, dest);
+}
 
+/**
+ * Distance from `origin` to ALREADY-GEOCODED destination coordinates. Skips the
+ * Nominatim geocode entirely (the rate-limited 1.1s-gap step) — used by the
+ * global-bucket serve path, where each posting's lat/lng is geocoded once at
+ * write and stored on global_jobs. Only the OSRM driving call (no rate gap)
+ * remains, with the usual haversine fallback.
+ */
+export async function distanceFromCoords(origin: LatLng, dest: LatLng): Promise<DistanceResult> {
   const driving = await drivingDistanceKm(origin, dest);
   if (driving !== null) {
     return { km: Math.round(driving * 100) / 100, method: "driving" };
   }
-  // OSRM had no route (e.g. islands, malformed input) — fall back to straight line.
   const straight = haversineKm(origin, dest);
   return { km: Math.round(straight * 100) / 100, method: "haversine" };
 }

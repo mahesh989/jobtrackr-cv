@@ -1,7 +1,19 @@
 # Global Job Bucket — Detailed Plan
 
-> Status: **PLAN ONLY — not yet executed.** Awaiting go-ahead before any code/migration.
-> Author session: 2026-06-24. Supersedes nothing; additive to the existing sourcing pipeline.
+> Status: **Phase A live on `main`; Phase B/C engine built on branch `feat/global-bucket`.**
+> Author session: 2026-06-24/25. Additive to the existing sourcing pipeline.
+
+> ## ARCHITECTURE UPDATE (2026-06-25) — serve-into-`jobs`
+> The web reads `jobs` in 31 places and `analysis_runs.job_id` FKs `jobs.id`, so the
+> normalized "switch reads to `profile_jobs`" cutover was rejected as too large/risky.
+> **Chosen model: serve-into-`jobs`.** `global_jobs` (067) + `search_coverage` (066) are the
+> shared bucket + freshness ledger. The worker scrapes only the coverage-driven delta, upserts
+> survivors into `global_jobs`, then **materialises each profile's `jobs` rows FROM the bucket**
+> (tier-projected JD + the profile's own filters + per-user distance). Consequences:
+> - **Zero web changes, no `analysis_runs` FK repoint** — open decision #1 is now MOOT.
+> - **`profile_jobs` (068) is reserved/unused** under this model (table stays, harmless).
+> - Everything gated by `USE_GLOBAL_BUCKET` (default off); flag off = byte-for-byte old behaviour.
+> Where the text below says reads switch to `profile_jobs`, read it as "served into `jobs`".
 
 ## 1. Problem & goal
 

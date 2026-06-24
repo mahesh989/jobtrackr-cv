@@ -164,3 +164,82 @@ export function computeDeltaDays(
   );
   return Math.min(daysSince + 1, maxDays);
 }
+
+/** A slice refreshed within this many hours is considered fresh → 0 scrape. */
+export const FRESH_TTL_HOURS = 6;
+/** A refresh lock older than this is treated as dead (worker crash). */
+const LOCK_STALE_MINUTES = 10;
+
+/** Scrape-delta for one slice: cold-start (maxDays) if unseen, 0 if fresh,
+ *  else days-since + 1 buffer, capped at maxDays. */
+export function sliceDeltaDays(row: CoverageRow | undefined, maxDays = 30): number {
+  if (!row) return maxDays;
+  const hoursSince = (Date.now() - new Date(row.last_refreshed_at).getTime()) / 3_600_000;
+  if (hoursSince < FRESH_TTL_HOURS) return 0;
+  return Math.min(Math.ceil(hoursSince / 24) + 1, maxDays);
+}
+
+/**
+ * The profile's scrape lookback = the widest delta across its slices, so the
+ * stalest slice is fully topped up. allFresh=true → every slice is fresh and
+ * the scrape can be skipped entirely (serve straight from the bucket).
+ */
+export function computeProfileLookback(
+  coverage: Map<string, CoverageRow>,
+  slices: CoverageSlice[],
+  maxDays = 30,
+): { lookbackDays: number; allFresh: boolean } {
+  if (slices.length === 0) return { lookbackDays: maxDays, allFresh: false };
+  let max = 0;
+  for (const s of slices) {
+    const row = coverage.get(`${s.keyword_norm}|${s.location_cell}|${s.source}`);
+    max = Math.max(max, sliceDeltaDays(row, maxDays));
+  }
+  return { lookbackDays: max, allFresh: max === 0 };
+}
+
+/**
+ * Single-flight lock (thundering herd). Atomically claims the slices that are
+ * not currently being refreshed (or whose lock is stale). Returns the count
+ * claimed. Best-effort: errors → 0 claimed (caller proceeds without the lock).
+ * Slices with no coverage row yet (cold start) can't be locked and aren't
+ * counted — the caller scrapes them anyway.
+ */
+export async function acquireSliceLocks(slices: CoverageSlice[]): Promise<number> {
+  if (slices.length === 0) return 0;
+  const staleBefore = new Date(Date.now() - LOCK_STALE_MINUTES * 60_000).toISOString();
+  let claimed = 0;
+  try {
+    for (const s of slices) {
+      const { data } = await db
+        .from("search_coverage")
+        .update({ refreshing: true, refresh_started_at: new Date().toISOString() })
+        .eq("keyword_norm", s.keyword_norm)
+        .eq("location_cell", s.location_cell)
+        .eq("source", s.source)
+        .or(`refreshing.eq.false,refresh_started_at.lt.${staleBefore}`)
+        .select("id");
+      if ((data ?? []).length > 0) claimed++;
+    }
+  } catch (err) {
+    console.warn(`[coverage] acquireSliceLocks threw — ${err instanceof Error ? err.message : err}`);
+  }
+  return claimed;
+}
+
+/** Release single-flight locks. Best-effort. */
+export async function releaseSliceLocks(slices: CoverageSlice[]): Promise<void> {
+  if (slices.length === 0) return;
+  try {
+    for (const s of slices) {
+      await db
+        .from("search_coverage")
+        .update({ refreshing: false, refresh_started_at: null })
+        .eq("keyword_norm", s.keyword_norm)
+        .eq("location_cell", s.location_cell)
+        .eq("source", s.source);
+    }
+  } catch (err) {
+    console.warn(`[coverage] releaseSliceLocks threw — ${err instanceof Error ? err.message : err}`);
+  }
+}
