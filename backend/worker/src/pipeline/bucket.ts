@@ -16,7 +16,7 @@ import { db } from "../db/client.js";
 import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
-import { distanceFor, type LatLng } from "../lib/distance.js";
+import { distanceFor, distanceFromCoords, geocodeLocation, type LatLng } from "../lib/distance.js";
 import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
 import type { CoverageSlice } from "./coverage.js";
@@ -54,6 +54,8 @@ interface GlobalRow {
   company: string;
   location: string;
   location_cell: string;
+  lat: number | null;
+  lng: number | null;
   matched_keywords: string[];
   description_snippet: string | null;
   description_full: string | null;
@@ -81,25 +83,41 @@ export async function upsertGlobalJobs(
     const now = new Date().toISOString();
     const hashes = Array.from(new Set(jobs.map((j) => j.url_hash)));
 
-    // Merge with existing matched_keywords.
+    // Merge with existing matched_keywords + reuse already-geocoded coords.
     const existingKw = new Map<string, string[]>();
+    const existingCoords = new Map<string, { lat: number | null; lng: number | null }>();
     const { data: existing } = await db
       .from("global_jobs")
-      .select("url_hash, matched_keywords")
+      .select("url_hash, matched_keywords, lat, lng")
       .in("url_hash", hashes);
-    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[] }>) {
+    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null }>) {
       existingKw.set(r.url_hash, r.matched_keywords ?? []);
+      existingCoords.set(r.url_hash, { lat: r.lat, lng: r.lng });
     }
 
     // De-dup incoming by url_hash (keep first — carries winning content).
     const byHash = new Map<string, NormalisedJob>();
     for (const j of jobs) if (!byHash.has(j.url_hash)) byHash.set(j.url_hash, j);
 
+    // Geocode-on-write: geocode ONLY postings that aren't already in the bucket
+    // with coords. Done once per posting ever (serial — Nominatim's 1.1s/req
+    // policy), then reused by every serve so distance never re-geocodes.
+    const coords = new Map<string, LatLng | null>();
+    for (const j of byHash.values()) {
+      const prior = existingCoords.get(j.url_hash);
+      if (prior && prior.lat != null && prior.lng != null) {
+        coords.set(j.url_hash, { lat: prior.lat, lng: prior.lng });
+      } else {
+        coords.set(j.url_hash, j.location ? await geocodeLocation(j.location) : null);
+      }
+    }
+
     const rows: GlobalRow[] = Array.from(byHash.values()).map((j) => {
       const jd_access = deriveJdAccess(j.source, opts.adzunaFull);
       const mergedKw = Array.from(
         new Set([...(existingKw.get(j.url_hash) ?? []), ...(j.keywords_matched ?? [])]),
       );
+      const c = coords.get(j.url_hash) ?? null;
       return {
         url_hash: j.url_hash,
         canonical_url: j.url,
@@ -109,6 +127,8 @@ export async function upsertGlobalJobs(
         company: j.company,
         location: j.location,
         location_cell: normaliseCity(j.location),
+        lat: c?.lat ?? null,
+        lng: c?.lng ?? null,
         matched_keywords: mergedKw,
         description_snippet: j.description ?? null,
         description_full: jd_access === "snippet" ? null : (j.description ?? null),
@@ -168,6 +188,8 @@ interface BucketRow {
   title: string;
   company: string;
   location: string;
+  lat: number | null;
+  lng: number | null;
   matched_keywords: string[];
   description_snippet: string | null;
   description_full: string | null;
@@ -211,7 +233,7 @@ export async function serveProfileFromBucket(
 
     let query = db
       .from("global_jobs")
-      .select("url_hash, canonical_url, source, source_tier, title, company, location, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, posted_at, expires_at")
+      .select("url_hash, canonical_url, source, source_tier, title, company, location, lat, lng, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, posted_at, expires_at")
       .eq("is_dead_link", false)
       .eq("is_expired", false)
       .or(`posted_at.gte.${floor},posted_at.is.null`)
@@ -265,12 +287,22 @@ export async function serveProfileFromBucket(
       kept = kept.filter((j) => j.sponsorship_status !== "no" && j.citizen_pr_only !== true);
     }
 
-    // Per-user distance (geocode cache makes repeat lookups cheap).
+    // Per-user distance. Uses each posting's STORED lat/lng (geocoded once at
+    // write) so no Nominatim geocoding happens here — only the OSRM driving call
+    // (no rate gap). Falls back to distanceFor() (geocode + cache) for rows that
+    // somehow lack coords.
     if (opts.homeOrigin) {
       const origin = opts.homeOrigin;
+      const coordsByHash = new Map(rows.map((r) => [r.url_hash, { lat: r.lat, lng: r.lng }]));
       const out: NormalisedJob[] = [];
       for (const j of kept) {
-        const d = j.location ? await distanceFor(origin, j.location) : null;
+        const c = coordsByHash.get(j.url_hash);
+        let d = null;
+        if (c && c.lat != null && c.lng != null) {
+          d = await distanceFromCoords(origin, { lat: c.lat, lng: c.lng });
+        } else if (j.location) {
+          d = await distanceFor(origin, j.location);
+        }
         out.push(d ? { ...j, distance_km: d.km, distance_method: d.method } : j);
       }
       kept = out;

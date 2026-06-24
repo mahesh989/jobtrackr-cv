@@ -917,7 +917,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
-    if (homeOrigin && toSave.length > 0) {
+    // When the bucket is on, distance is computed during serveProfileFromBucket
+    // from each posting's STORED coords (geocoded once at write) — so skip this
+    // per-run Nominatim geocoding loop entirely.
+    if (homeOrigin && toSave.length > 0 && !bucketEnabled()) {
       await setStage(runLogId, `Computing distances (${toSave.length} jobs)`);
       let resolved = 0;
       let fallback = 0;
