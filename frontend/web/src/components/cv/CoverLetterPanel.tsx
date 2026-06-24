@@ -452,14 +452,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
   return (
     <div className="bg-surface border border-border rounded-md">
       {/* Header */}
-      <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between">
+      <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-[14px] font-semibold text-text">Cover Letter</h2>
           <p className="text-[11px] text-text-3 mt-0.5">
             Tailored to your voice, your CV, and this job description
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {hasBody && (
             <span className="text-[11px] text-text-3 tabular-nums whitespace-nowrap">
               {wordCount.toLocaleString()} words · {charCount.toLocaleString()} characters

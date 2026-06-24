@@ -174,24 +174,24 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
             Preview, print, or download as Markdown or PDF.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => setShowPreview((v) => !v)}
             disabled={!formattedMd}
-            className="gh-btn text-[11px] px-2 py-1"
+            className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap"
           >
             {showPreview ? "Hide" : "Preview"}
           </button>
-          <button onClick={handlePrint} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1">
+          <button onClick={handlePrint} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap">
             Print / PDF
           </button>
-          <button onClick={handleDownloadMd} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1">
+          <button onClick={handleDownloadMd} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap">
             Download .md
           </button>
           <button
             onClick={handleDownloadPdf}
             disabled={!formattedMd || downloadingPdf}
-            className="gh-btn gh-btn-primary text-[11px] px-2 py-1"
+            className="gh-btn gh-btn-primary text-[11px] px-2 py-1 shrink-0 whitespace-nowrap"
           >
             {downloadingPdf ? "Rendering…" : "Download PDF"}
           </button>

@@ -70,15 +70,15 @@ export function ProfilesTable({
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="overflow-x-auto">
-      <div className="min-w-[720px]">
+      <div className="min-w-[880px]">
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-3">Profile</div>
         <div className="col-span-2">Keywords</div>
         <div className="col-span-1 text-center">New</div>
         <div className="col-span-1 text-center">Total</div>
         <div className="col-span-1 text-center">Applied</div>
-        <div className="col-span-2">Last run</div>
-        <div className="col-span-2"></div>
+        <div className="col-span-1">Last run</div>
+        <div className="col-span-3 text-right">Actions</div>
       </div>
 
       {profiles.map((p, i) => {
@@ -145,12 +145,12 @@ export function ProfilesTable({
               )}
             </div>
 
-            <div className="col-span-2 flex items-center">
+            <div className="col-span-1 flex items-center min-w-0">
               {!run ? (
                 <span className="text-[12px] text-text-3">Never</span>
               ) : isRunning ? (
-                <span className="text-[12px] text-[var(--brand)] font-medium flex items-center gap-1.5">
-                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                <span className="text-[12px] text-[var(--brand)] font-medium flex items-center gap-1.5 whitespace-nowrap">
+                  <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                   </svg>
@@ -159,7 +159,7 @@ export function ProfilesTable({
               ) : failed ? (
                 <span className="text-[12px] text-[#CF222E]">✗ Failed</span>
               ) : (
-                <div>
+                <div className="whitespace-nowrap">
                   <span className="text-[12px] text-text-2">{timeAgo(run.started_at)}</span>
                   {run.jobs_saved > 0 && (
                     <span className="text-[11px] text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
@@ -168,13 +168,13 @@ export function ProfilesTable({
               )}
             </div>
 
-            <div className="col-span-2 flex items-center justify-end gap-1.5">
+            <div className="col-span-3 flex items-center justify-end gap-1.5">
               {p.is_manual ? null : (
                 <>
                   <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
                   <Link
                     href={`/dashboard/profiles/${p.id}/jobs`}
-                    className={`gh-btn text-[12px] px-2.5 py-1 ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
+                    className={`gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
                   >
                     {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
                   </Link>
