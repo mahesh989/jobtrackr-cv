@@ -397,15 +397,9 @@ def _demote_conditional_required_to_preferred(
 # Order matters here — the JD/CV pipeline emits skill dicts with these keys.
 _CATEGORIES: Tuple[str, ...] = ("technical", "soft_skills", "domain_knowledge")
 
-# role_family.id → lexicon vertical. The `master` family is the general
-# fallback (unknown role): we don't apply a vertical lexicon to it, but we
-# DO still apply the universal noise filter (sector-agnostic).
-_ROLE_FAMILY_TO_VERTICAL: Dict[str, Optional[str]] = {
-    "tech": "tech",
-    "nursing": "nursing",
-    "manual": "cleaning",
-    "master": None,
-}
+# role_family.id → lexicon vertical.  Single source of truth lives in the
+# verticals registry; imported here to eliminate the drift risk.
+from app.services.verticals import FAMILY_TO_LEXICON as _ROLE_FAMILY_TO_VERTICAL
 
 
 # JD-side sector / setting labels — descriptors of the role's WORK SETTING or

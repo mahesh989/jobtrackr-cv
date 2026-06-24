@@ -129,13 +129,8 @@ _EXP_TENURE_MAX         = 12
 _EXP_VERTICAL_MAX       =  8
 
 # Role-family → CV-side vertical (lexicon vertical used by experience_parser).
-# Mirrors ats_scoring's _ROLE_FAMILY_TO_VERTICAL on the skills side.
-_ROLE_FAMILY_TO_CV_VERTICAL: Dict[str, Optional[str]] = {
-    "tech":    "tech",
-    "nursing": "nursing",
-    "manual":  "cleaning",
-    "master":  None,
-}
+# Single source of truth lives in the verticals registry.
+from app.services.verticals import FAMILY_TO_LEXICON as _ROLE_FAMILY_TO_CV_VERTICAL
 
 
 def run_ats_scoring(

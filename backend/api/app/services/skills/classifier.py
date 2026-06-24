@@ -158,8 +158,25 @@ def normalise(phrase: str) -> str:
 _LEXICON_DIR = Path(__file__).parent / "lexicons"
 
 
+def _resolve_vertical_lexicon_path(vertical: VerticalT) -> Path:
+    """Return the Path to a vertical's lexicon.json.
+
+    Prefers the co-located copy inside the verticals package (Phase E),
+    falls back to the legacy skills/lexicons/<vertical>.json so a missing
+    vertical folder never hard-crashes the classifier.
+    """
+    from app.services.verticals import lexicon_path as _reg_lexicon_path
+    reg = _reg_lexicon_path(vertical)
+    if reg is not None:
+        return reg
+    return _LEXICON_DIR / f"{vertical}.json"
+
+
 def _load_noise() -> Dict[str, NoiseT]:
-    """Build {normalised_phrase: noise_type} from _universal_noise.json."""
+    """Build {normalised_phrase: noise_type} from _universal_noise.json.
+
+    _universal_noise.json is cross-vertical and stays in skills/lexicons/.
+    """
     path = _LEXICON_DIR / "_universal_noise.json"
     data = json.loads(path.read_text())
     out: Dict[str, NoiseT] = {}
@@ -173,7 +190,7 @@ def _load_noise() -> Dict[str, NoiseT]:
 
 def _load_vertical(vertical: VerticalT) -> Dict[str, Tuple[str, CategoryT]]:
     """Build {normalised_phrase: (canonical, category)} for one vertical."""
-    path = _LEXICON_DIR / f"{vertical}.json"
+    path = _resolve_vertical_lexicon_path(vertical)
     data = json.loads(path.read_text())
     out: Dict[str, Tuple[str, CategoryT]] = {}
     for cat in _CATEGORIES:
@@ -199,7 +216,7 @@ def _load_subsumes(vertical: VerticalT) -> Dict[str, set]:
     generic catch-all and should be dropped in favour of the more specific
     children. The deterministic dedup pass in post_process consumes this map.
     """
-    path = _LEXICON_DIR / f"{vertical}.json"
+    path = _resolve_vertical_lexicon_path(vertical)
     data = json.loads(path.read_text())
     out: Dict[str, set] = {}
     for cat in _CATEGORIES:

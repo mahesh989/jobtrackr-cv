@@ -16,319 +16,26 @@ master.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from typing import Any, Dict, List
 
+# RoleFamilyProfile now lives in verticals/base.py to avoid circular imports.
+# Re-export it so all existing callers (`from role_families import RoleFamilyProfile`)
+# keep working without change.
+from app.services.verticals.base import RoleFamilyProfile as RoleFamilyProfile  # noqa: F401
 
-@dataclass(frozen=True)
-class RoleFamilyProfile:
-    id: str
-    label: str
-    aliases: List[str]                 # router keyword match (substrings, lowercased)
-    section_order: List[str]           # exact ## section order
-    skills_categories: List[str]       # the 3 skills-line labels for this family
-    cert_policy: str                   # "first_class" | "plus" | "rare"
-    injection_policy: str              # "aggressive" | "direct_only" | "none"
-    metric_vocab: List[str]            # domain metric words (for relevance/coverage)
-    identity_guidance: str             # short prompt block: how to frame identity
-    extra_rules: str = ""              # any family-specific rule text
-    # Which internal bucket carries this family's HEADLINE competencies, i.e.
-    # the bucket that should wear skills_categories[0]. The CV/JD categoriser
-    # files software/tools/platforms under "technical" and industry/process/
-    # clinical knowledge under "domain_knowledge". For tech roles the headline
-    # is the technical bucket; for nursing/manual the headline is the domain
-    # bucket (clinical/care competencies), and "technical" (e.g. BESTMed) is
-    # the secondary "Other Skills" bucket.
-    headline_bucket: str = "technical"  # "technical" | "domain_knowledge"
-    # Verified equivalences: (jd_facing_term, [cv_terms_that_justify_it], category).
-    # A small, curated, per-family slice of a skill ontology. When the JD wants
-    # jd_facing_term and the CV literally contains one of the justifying terms,
-    # the term may be surfaced honestly (synonym or child→parent tool inference —
-    # NEVER a domain claim the CV doesn't support). category ∈
-    # {technical, soft_skills, domain_knowledge}.
-    equivalences: List[tuple] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    # Per-family ATS keyword weights — sum to 50 (the Keyword Match half of the
-    # 100-point ATS score). Tech defaults: technical 25 / soft 10 / domain 5 /
-    # preferred 10 (BI/SQL/cloud tools dominate). Nursing/manual flip technical
-    # ↔ domain because the headline competencies live in domain_knowledge.
-    # If a family does not set this, ats_scoring.py falls back to the tech
-    # defaults below.
-    keyword_weights: Dict[str, int] = field(default_factory=lambda: {
-        "technical_required":        25,
-        "soft_skills_required":      10,
-        "domain_knowledge_required":  5,
-        "preferred_overall":         10,
-    })
+# Per-vertical configs now live in services/verticals/<id>/config.py.
+# ROLE_FAMILIES is built by the registry and re-exported here as a backward-compat shim.
+from app.services.verticals import ROLE_FAMILIES as ROLE_FAMILIES  # noqa: F401 re-export
+from app.services.verticals.tech.config    import PROFILE as _TECH
+from app.services.verticals.nursing.config import PROFILE as _NURSING
+from app.services.verticals.manual.config  import PROFILE as _MANUAL
+from app.services.verticals.general.config import PROFILE as _MASTER
 
 
 # ---------------------------------------------------------------------------
-# Families
+# Families (local aliases kept for the routing logic below)
 # ---------------------------------------------------------------------------
-
-_TECH = RoleFamilyProfile(
-    id="tech",
-    label="IT / Tech / Data",
-    aliases=[
-        "data analyst", "data scientist", "data engineer", "analytics",
-        "business intelligence", "bi developer", "software", "developer",
-        "engineer", "machine learning", "ml ", "ai ", "devops", "it support",
-        "systems analyst", "programmer", "full stack", "backend", "frontend",
-        "cloud", "platform",
-    ],
-    section_order=[
-        "Career Highlights", "Professional Experience", "Education",
-        "Skills", "Projects", "Certifications",
-    ],
-    skills_categories=["Technical Skills", "Soft Skills", "Other Skills"],
-    cert_policy="plus",          # include only when JD names the credential
-    injection_policy="aggressive",  # inference allowed (worst case = awkward interview)
-    metric_vocab=[
-        "users", "records", "rows", "queries", "dashboards", "reports",
-        "uptime", "latency", "accuracy", "models", "pipelines", "datasets",
-        "%", "requests", "deployments",
-    ],
-    identity_guidance=(
-        "IDENTITY SCAN — run FIRST, before deciding anything else. Count "
-        "AI/ML signal words in the JD: LLM, GPT, Claude, transformer, RAG, "
-        "embedding, deep learning, neural network, computer vision, NLP, "
-        "PyTorch, TensorFlow, scikit-learn, ML model, AI engineer, ML "
-        "engineer, AI/ML, machine learning, model training, fine-tuning, "
-        "MLOps, research, publication. Pick ONE mode for the entire output:\n"
-        "  • Signal count ≥ 2 → AI-FORWARD MODE. Lead with AI/ML identity; "
-        "keep AI projects/bullets/skills.\n"
-        "  • Signal count = 0 → AI-SUPPRESSED MODE (HARD). Identity is the "
-        "JD's single base title (e.g. 'Data Analyst', 'Software Engineer'), "
-        "NEVER a hybrid. Drop the AI/ML half from BOTH the summary opener "
-        "AND every Experience role title — even if the source CV chains "
-        "them as 'X & AI Engineer'. Drop AI vocabulary (LLM, model "
-        "training, deep learning, CV/NLP, fine-tuning) from Career "
-        "Highlights entirely. Drop AI-only frameworks (PyTorch, TensorFlow, "
-        "scikit-learn, Hugging Face) from Skills. Prefer JD-aligned "
-        "roles/projects over AI-evaluation/training roles.\n"
-        "  • Signal count = 1 → JUDGEMENT CALL. Default to suppression "
-        "unless the single signal is core to the JD's primary methodology.\n"
-        "Once Mode is picked, it controls every downstream choice."
-    ),
-    extra_rules=(
-        "PROJECT RANKING (HARD) — rank every CV project by three keys, in "
-        "this order: (1) Q2 = tech-stack match to the JD, (2) Q1 = domain "
-        "match to the JD, (3) headline metrics. Q2 = yes ALWAYS outranks "
-        "Q2 = no, regardless of how impressive the no-match project's "
-        "numbers are. A SQL/ETL project with '30% time saved' outranks an "
-        "ML project with '92% accuracy' when the JD is SQL/Power BI. Among "
-        "Q2 = no projects, Q1 = yes outranks Q1 = no. Headline metrics "
-        "break ties ONLY when relevance is equal. Pick the top 2 from that "
-        "ranking; never let metric flash decide above relevance.\n\n"
-        "PROJECT RANKING — worked example: JD is SQL/Power BI Data Analyst. "
-        "Candidate projects: [CV Agent (Flutter, Multi-LLM), YOLOv8 (PyTorch, "
-        "Computer Vision, 92% accuracy), SQL Pipeline (SQL, PostgreSQL, ETL, "
-        "30% time saved)]. Rank: SQL Pipeline (Q2=yes — direct stack hit) "
-        "beats every Q2=no project, including YOLOv8 despite the 92%. CV "
-        "Agent (Q2=no but has full-stack/scale framing) > YOLOv8 (Q2=no, "
-        "pure CV). Output: SQL Pipeline first, CV Agent second.\n\n"
-        "TECHNICAL SKILLS LINE — may use ` | ` separators for up to 3 "
-        "logical sub-groups when there are ≥9 technical entries (languages "
-        "| BI tools | cloud). One space on EACH side of the pipe; the "
-        "separator is ASCII U+007C, never capital I or lowercase l — those "
-        "break ATS parsing. Example: 'Python, SQL, R | Power BI, Tableau | "
-        "AWS, Snowflake'. With fewer than 9 entries, write a single comma "
-        "list — do not force sub-groups when there is nothing to group.\n\n"
-        "SKILLS NUMERIC CAPS (HARD): Technical Skills 10-14 entries, Soft "
-        "Skills 4-6 entries, Other Skills 5-8 entries. When the candidate's "
-        "raw skill set exceeds a cap, drop the LEAST JD-relevant items "
-        "first, never the most relevant. Padding to hit a count is "
-        "forbidden.\n\n"
-        "SKILLS MINIMUM FLOOR (HARD): at least 5 total entries across all "
-        "three lines after JD-relevance filtering. If filtering leaves "
-        "fewer than 5, pad Technical Skills with the candidate's most "
-        "impactful tools (even if not in the JD) until the total reaches "
-        "5. Never pad with irrelevant skills beyond the floor.\n\n"
-        "CATEGORY PLACEMENT (HARD): methodologies and domain terms go in "
-        "**Other Skills**, never Technical. Technical = languages, "
-        "libraries, platforms, databases, BI tools, cloud services, ML "
-        "frameworks ONLY. 'Predictive Analytics', 'Statistical Analysis', "
-        "'ETL Pipelines', 'A/B Testing', 'Data Warehousing', 'Marketing "
-        "Analytics', 'Stakeholder Management' → Other Skills. Never "
-        "duplicate a skill across two lines.\n\n"
-        "CAREER HIGHLIGHTS PRE-WRITE 7-STEP CHECK — before emitting the "
-        "summary, internally verify all of: (1) S1 word count ≤ 28? (2) S2 "
-        "word count ≤ 22? (3) Total 35-50? (4) Either sentence names a "
-        "tool (Python, SQL, Power BI, PostgreSQL, AWS)? If yes, replace "
-        "the tool name with the method/outcome the tool enabled. (5) Does "
-        "S2 contain a number or named deliverable? (6) If 2+ Experience "
-        "roles kept, does S2 contain TWO clauses joined by a semicolon, "
-        "one anchored to each top role? (7) Any seniority word in S1 "
-        "(Senior/Lead/Principal/Manager) actually present in the "
-        "candidate's CV titles? Only emit Career Highlights after all 7 "
-        "pass."
-    ),
-    equivalences=[
-        # child→parent (always honest: knowing the specific implies the general)
-        ("SQL", ["postgresql", "postgres", "mysql", "sql server", "t-sql",
-                 "pl/sql", "sqlite", "oracle", "mariadb"], "technical"),
-        ("Relational Databases", ["postgresql", "mysql", "sql server",
-                                  "oracle", "sqlite", "mariadb"], "technical"),
-        ("NoSQL", ["mongodb", "cassandra", "dynamodb", "redis", "couchbase"], "technical"),
-        ("Cloud", ["aws", "azure", "gcp", "google cloud"], "technical"),
-        ("CI/CD", ["github actions", "gitlab ci", "jenkins", "circleci", "travis"], "technical"),
-        ("Data Visualisation", ["power bi", "tableau", "looker", "matplotlib",
-                                "seaborn", "plotly", "qlik"], "technical"),
-        # user-approved tool inference: CV has SQL → JD's PostgreSQL is defensible
-        ("PostgreSQL", ["sql", "postgres", "psql"], "technical"),
-    ],
-)
-
-_NURSING = RoleFamilyProfile(
-    id="nursing",
-    label="Nursing / Healthcare",
-    aliases=[
-        "nurse", "nursing", "rn", "enrolled nurse", "registered nurse",
-        "aged care", "midwife", "clinical", "healthcare assistant",
-        "patient care", "ain", "personal care", "disability support",
-        "care worker", "support worker", "care assistant", "carer",
-        "individual support", "home care", "community care", "aged care worker",
-        "personal care worker", "nursing assistant",
-    ],
-    section_order=[
-        "Professional Summary", "Experience", "Education", "Skills",
-        "Certifications", "Registration & Licences",
-    ],
-    # skills_categories[0] is overwritten per nursing sub-type at resolve time
-    # (Care Skills / Clinical Skills / Core Skills — see _apply_nursing_subtype);
-    # "Clinical Skills" is the base default for an unclassified clinical role.
-    skills_categories=["Clinical Skills", "Soft Skills", "Other Skills"],
-    headline_bucket="domain_knowledge",  # clinical competencies live in domain_knowledge
-    cert_policy="first_class",   # licences/certs are the qualification — lead with them
-    injection_policy="direct_only",  # NEVER infer clinical competencies (patient safety)
-    metric_vocab=[
-        "patients", "beds", "shifts", "rounds", "medications", "wait times",
-        "caseload", "incidents", "compliance", "ratios", "handovers",
-    ],
-    identity_guidance=(
-        "IDENTITY: This is a LICENSED profession. Lead with registration / "
-        "licence status (e.g. AHPRA registration) and mandatory certifications "
-        "(BLS/ACLS/manual handling) — these ARE the qualification, never bury "
-        "or omit them. NEVER infer or imply a clinical competency the CV does "
-        "not state; an invented clinical skill is a patient-safety and "
-        "registration-fraud risk. Only surface clinical skills literally "
-        "present in the CV.\n"
-        "MEDICATION COMPETENCY is a key differentiator in care roles: if the CV "
-        "shows medication assistance/administration (especially via electronic "
-        "systems or a medication-competency cert), surface it prominently — name "
-        "it in the summary AND lead the relevant role with it. It puts the "
-        "candidate ahead of a basic-care applicant. (Only if the CV genuinely "
-        "shows it — never imply medication authority the candidate lacks.)\n"
-        "BREADTH OVER BARE YEARS: when total experience is short (<2 years) but "
-        "the candidate has held several roles or worked across multiple care "
-        "settings/providers, frame the summary by that BREADTH (e.g. "
-        "'experience across multiple residential aged care settings') rather "
-        "than leading with a small year count that undersells them. Never "
-        "inflate the number or the seniority."
-    ),
-    extra_rules=(
-        "- Include a ## Registration & Licences section ONLY if the CV actually "
-        "states a real registration, licence, or clearance (e.g. AHPRA "
-        "registration, police check, NDIS Worker Screening, Working with "
-        "Children Check, driver licence, first aid / CPR). List only the ones "
-        "the CV genuinely contains, with number/expiry if given. If the CV has "
-        "NONE of these, OMIT the section entirely — NEVER write 'eligible to "
-        "work in Australia', 'available on request', or that a credential is "
-        "missing. Stating eligibility or absence is nonsense on a CV.\n"
-        "- Certifications are first-class: include relevant clinical certs "
-        "even when the JD does not name them explicitly."
-    ),
-    equivalences=[
-        # TRUE SYNONYMS only — surfacing the same thing under the JD's vocabulary,
-        # never inferring a clinical competency the CV doesn't state.
-        ("Aged Care", ["ageing support", "aged care", "elderly care",
-                       "residential aged care"], "domain_knowledge"),
-        ("Activities of Daily Living", ["activities of daily living", "adls",
-                                        "personal care", "showering", "dressing"], "domain_knowledge"),
-        ("Person-Centred Care", ["person-centred care", "person centered care",
-                                 "individualised care"], "domain_knowledge"),
-    ],
-    # Nursing flips technical ↔ domain weighting. Clinical/care competencies
-    # (Personal Care, Dementia Care, Medication Administration) live in the
-    # domain_knowledge bucket — those ARE the role. Tools (BESTMed, MedMobile)
-    # are nice-to-have, not the qualification. Sums to 50 like tech (same
-    # keyword-match budget; only the per-bucket distribution differs).
-    keyword_weights={
-        "domain_knowledge_required": 25,
-        "soft_skills_required":      10,
-        "technical_required":         5,
-        "preferred_overall":         10,
-    },
-)
-
-_MANUAL = RoleFamilyProfile(
-    id="manual",
-    label="Manual / Service (cleaner, kitchen, warehouse, driver)",
-    aliases=[
-        "cleaner", "cleaning", "housekeep", "custodian", "janitor",
-        "kitchen", "warehouse", "driver", "labourer", "factory",
-        "sanitation", "domestic", "groundskeeper", "porter", "dishwasher",
-    ],
-    section_order=[
-        "Summary", "Work Experience", "Skills", "Certifications & Checks", "Availability",
-    ],
-    skills_categories=["Core Skills", "Soft Skills", "Other Skills"],
-    headline_bucket="domain_knowledge",  # hands-on/process competencies live in domain_knowledge
-    cert_policy="first_class",   # police check, White Card, WWCC, forklift licence
-    injection_policy="none",     # no keyword injection; honesty + clarity win here
-    metric_vocab=[
-        "sites", "shifts", "rooms", "areas", "deliveries", "hours",
-        "vehicles", "pallets", "customers",
-    ],
-    identity_guidance=(
-        "IDENTITY: Keep it short, clear, and trustworthy. What matters: "
-        "reliability, availability, and trust signals (police check, "
-        "Working-with-Children check, White Card, driver/forklift licence, "
-        "languages spoken, references). Do NOT keyword-stuff or pad — a clean, "
-        "honest one-page CV outperforms an inflated one for these roles."
-    ),
-    extra_rules=(
-        "- Do NOT invent or infer any skill or check. List only what the CV "
-        "states.\n"
-        "- A short ## Availability line (days/shifts, transport) is valuable.\n"
-        "- Skip the keyword-injection game entirely; surface real experience plainly."
-    ),
-    # Manual roles match nursing's weighting: core competencies (cleaning,
-    # forklift operation, kitchen prep) sit in domain_knowledge; "technical"
-    # is mostly empty. Sums to 50 like tech.
-    keyword_weights={
-        "domain_knowledge_required": 25,
-        "soft_skills_required":      10,
-        "technical_required":         5,
-        "preferred_overall":         10,
-    },
-)
-
-_MASTER = RoleFamilyProfile(
-    id="master",
-    label="General (fallback)",
-    aliases=[],  # never matched by alias; only the explicit/last-resort choice
-    section_order=[
-        "Career Highlights", "Professional Experience", "Education",
-        "Skills", "Projects", "Certifications",
-    ],
-    skills_categories=["Technical Skills", "Soft Skills", "Other Skills"],
-    cert_policy="plus",
-    injection_policy="direct_only",  # conservative default for unknown fields
-    metric_vocab=[
-        "%", "customers", "clients", "projects", "revenue", "cost", "time",
-        "teams", "stakeholders",
-    ],
-    identity_guidance=(
-        "IDENTITY: Use the candidate's actual role titles. Surface only "
-        "experience the CV truthfully supports. When unsure whether a keyword "
-        "can be added honestly, leave it as a gap rather than stretch."
-    ),
-)
-
-ROLE_FAMILIES: Dict[str, RoleFamilyProfile] = {
-    f.id: f for f in (_TECH, _NURSING, _MANUAL, _MASTER)
-}
 
 
 # ---------------------------------------------------------------------------
@@ -487,15 +194,9 @@ def _resolve_base_family(
 _CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
 
 
-# Role-family id → curated lexicon vertical. Kept in sync with
-# skills.post_process._ROLE_FAMILY_TO_VERTICAL (manual roles share the
-# "cleaning" lexicon; master has no curated lexicon).
-_FAMILY_TO_VERTICAL: Dict[str, str | None] = {
-    "tech": "tech",
-    "nursing": "nursing",
-    "manual": "cleaning",
-    "master": None,
-}
+# Role-family id → curated lexicon vertical.  Single source of truth now
+# lives in the verticals registry; all four former local copies point here.
+from app.services.verticals import FAMILY_TO_LEXICON as _FAMILY_TO_VERTICAL
 
 
 def resolve_vertical(
