@@ -15,10 +15,16 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
   const currentRank = PLAN_RANK[currentPlanId] ?? 0;
   const upgradeable = PUBLIC_PLANS.filter((p) => (PLAN_RANK[p.id] ?? 0) > currentRank);
 
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError]   = useState<string | null>(null);
+  const [loading, setLoading]   = useState<string | null>(null);
+  const [armed, setArmed]       = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(null);
 
-  async function doUpgrade(planId: string) {
+  function arm(planId: string) {
+    setError(null);
+    setArmed(planId);
+  }
+
+  async function confirm(planId: string) {
     setError(null);
     setLoading(planId);
     try {
@@ -33,6 +39,7 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(null);
+      setArmed(null);
     }
   }
 
@@ -86,19 +93,48 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
                 ))}
               </ul>
 
-              <button
-                onClick={() => doUpgrade(plan.id)}
-                disabled={loading !== null}
-                className={
-                  "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                  (featured
-                    ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                    : "gh-btn")
-                }
-              >
-                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoading ? "Upgrading…" : `Upgrade to ${plan.displayName}`}
-              </button>
+              {armed === plan.id ? (
+                <div className="mt-5 space-y-2">
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    You&apos;ll be charged <strong>{formatAud(plan.priceCents)}</strong> immediately. Your current plan ends now.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => confirm(plan.id)}
+                      disabled={isLoading}
+                      className={
+                        "flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
+                        (featured
+                          ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
+                          : "gh-btn")
+                      }
+                    >
+                      {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {isLoading ? "Upgrading…" : "Confirm upgrade"}
+                    </button>
+                    <button
+                      onClick={() => setArmed(null)}
+                      disabled={isLoading}
+                      className="rounded-lg px-3 py-2 text-sm text-text-2 hover:text-text transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => arm(plan.id)}
+                  disabled={loading !== null}
+                  className={
+                    "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
+                    (featured
+                      ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
+                      : "gh-btn")
+                  }
+                >
+                  {`Upgrade to ${plan.displayName}`}
+                </button>
+              )}
             </div>
           );
         })}
