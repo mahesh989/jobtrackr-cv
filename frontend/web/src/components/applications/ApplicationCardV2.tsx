@@ -515,7 +515,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
           </div>
 
           {/* Section toggle: CV → Cover letter → Email */}
-          <div className="px-4 pt-2 pb-1">
+          <div className="px-4 pt-2 pb-1 overflow-x-auto">
             <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded p-0.5 w-fit">
               {([
                 ["cv",    "Tailored CV",    FileText],
@@ -525,7 +525,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                 <button
                   key={k}
                   onClick={() => setSection(k)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-all shrink-0 whitespace-nowrap ${
                     section === k ? "bg-[var(--surface)] text-text shadow-sm" : "text-text-2 hover:text-text"
                   }`}
                 >

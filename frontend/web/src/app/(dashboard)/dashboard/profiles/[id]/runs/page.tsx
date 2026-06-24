@@ -52,7 +52,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
   return (
     <div className="min-h-full">
       {/* Page header */}
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">

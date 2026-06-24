@@ -116,7 +116,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
 
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <a
           href="/dashboard/analyses"
           className="inline-flex items-center text-[12px] text-text-3 hover:text-text"
@@ -140,7 +140,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="px-6 pt-6 pb-24">
+      <div className="px-4 sm:px-6 pt-6 pb-24">
         <div className="max-w-4xl mx-auto space-y-4">
         {jdChanged && (
           <div className="rounded-md bg-[#FFF8C5] border border-[#D4A72C]/40 px-4 py-3 text-[12px] text-[#9A6700]">

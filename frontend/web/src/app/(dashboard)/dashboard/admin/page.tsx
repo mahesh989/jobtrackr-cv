@@ -170,7 +170,7 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] text-text-3 mb-0.5">Admin</p>

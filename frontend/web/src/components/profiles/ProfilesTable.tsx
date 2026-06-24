@@ -69,6 +69,8 @@ export function ProfilesTable({
 }: Props) {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
+      <div className="overflow-x-auto">
+      <div className="min-w-[720px]">
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-3">Profile</div>
         <div className="col-span-2">Keywords</div>
@@ -184,6 +186,8 @@ export function ProfilesTable({
           </div>
         );
       })}
+      </div>
+      </div>
     </div>
   );
 }

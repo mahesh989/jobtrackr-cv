@@ -160,10 +160,10 @@ export function ProfileJobBoard({
             {StageIcon && (
               <StageIcon className="w-6 h-6 self-center" style={{ color: "var(--brand)" }} strokeWidth={2.5} />
             )}
-            <h2 className="text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
+            <h2 className="text-[22px] sm:text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
               {activeFilters.join(" · ")}
             </h2>
-            <span className="text-[22px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
+            <span className="text-[18px] sm:text-[22px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
               {filtered.length}
             </span>
             {sortLabel && (

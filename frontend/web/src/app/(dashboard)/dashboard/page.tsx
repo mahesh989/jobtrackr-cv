@@ -539,7 +539,7 @@ export default async function DashboardPage({
   return (
     <div className="min-h-full">
       {/* Page header */}
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[16px] font-semibold text-text">Dashboard</h1>
@@ -550,7 +550,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="px-6 py-5 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* ── KPI bar (interactive) ── */}
         <DashboardStatCards
           totalJobs={totalJobs}
@@ -594,7 +594,7 @@ export default async function DashboardPage({
 function FirstRunScreen({ status }: { status: SetupStatus }) {
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <h1 className="text-[16px] font-semibold text-text">Welcome to JobTrackr</h1>
         <p className="text-[12px] text-text-2 mt-0.5">
           Let&apos;s get you set up — your job feed appears here after your first run.
@@ -623,7 +623,7 @@ function FirstRunScreen({ status }: { status: SetupStatus }) {
 function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <h1 className="text-[16px] font-semibold text-text">Ready to scan</h1>
         <p className="text-[12px] text-text-2 mt-0.5">
           {hasProfiles

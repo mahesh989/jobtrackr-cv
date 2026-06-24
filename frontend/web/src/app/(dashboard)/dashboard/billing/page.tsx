@@ -46,7 +46,7 @@ export default async function BillingPage({
   const deny = denied && (denied in DENY_COPY) ? DENY_COPY[denied as DenyReason] : null;
 
   return (
-    <div className="min-h-full px-6 pt-6 pb-24">
+    <div className="min-h-full px-4 sm:px-6 pt-6 pb-24">
       <div className="mx-auto max-w-3xl space-y-6">
         <div>
           <h1 className="page-title text-text">Billing &amp; usage</h1>

@@ -250,13 +250,13 @@ export function SmartToolbar({
   return (
     <div className="rounded-md border border-border bg-surface p-3 space-y-4">
       {/* Row 1 — distance, sort, location search */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0 flex-1 justify-start">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
+        <label className="flex items-center gap-1.5 text-[11px] text-text-2 w-full sm:flex-1 sm:justify-start">
           Distance
           <select
             value={distanceValue}
             onChange={(e) => setDistance(e.target.value)}
-            className="field text-[12px] py-1 pr-7"
+            className="field text-[12px] py-1 pr-7 flex-1 sm:flex-none"
             title={homeAddress ? `Distance from ${homeAddress}` : "Distance from each profile's home address"}
           >
             {DISTANCE_OPTIONS.map((o) => (
@@ -265,13 +265,13 @@ export function SmartToolbar({
           </select>
         </label>
 
-        <div className="flex-1 flex justify-center">
-          <label className="flex items-center gap-1.5 text-[11px] text-text-2 shrink-0">
+        <div className="w-full sm:flex-1 flex justify-start sm:justify-center">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-2 w-full sm:w-auto">
             Sort
             <select
               value={currentSort}
               onChange={(e) => setOne("sort", e.target.value)}
-              className="field text-[12px] py-1 pr-7"
+              className="field text-[12px] py-1 pr-7 flex-1 sm:flex-none"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -280,8 +280,8 @@ export function SmartToolbar({
           </label>
         </div>
 
-        <div className="flex-1 flex justify-end">
-          <div className="relative w-full max-w-[300px]">
+        <div className="w-full sm:flex-1 flex justify-start sm:justify-end">
+          <div className="relative w-full sm:max-w-[300px]">
             <input
               type="text"
               defaultValue={currentLocation}
