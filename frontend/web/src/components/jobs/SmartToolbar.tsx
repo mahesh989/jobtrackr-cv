@@ -30,14 +30,13 @@ import { type AtsThresholds } from "@/lib/atsThresholds";
 // `match` is new (a beta carry-over) and falls back to posted_at server-side
 // since jobFilters.sortJobs doesn't know it — the SmartFeed re-sorts client-side.
 const SORT_OPTIONS = [
-  { value: "match",               label: "Match score" },
+  { value: "ats_score",           label: "ATS score" },
   { value: "posted_at",           label: "Date posted" },
   { value: "created_at",          label: "Date added" },
   { value: "rich_jd_first",       label: "Rich JD first" },
   { value: "recently_progressed", label: "Recently progressed" },
   { value: "most_progressed",     label: "Most progressed" },
   { value: "distance",            label: "Distance (nearest)" },
-  { value: "ats_score",           label: "ATS score" },
 ] as const;
 
 // "over50" is a sentinel — it filters to jobs *farther* than 50 km by setting

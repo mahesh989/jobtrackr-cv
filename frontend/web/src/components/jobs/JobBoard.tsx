@@ -10,6 +10,7 @@ import { SmartFeed } from "./SmartFeed";
 import { type ThinJdJob } from "./BulkThinJdButton";
 import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
+import { ThinJdBanner } from "./ThinJdBanner";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
 function resolveStage(sp: URLSearchParams): string {
@@ -49,7 +50,6 @@ const STAGE_ICON: Record<string, typeof BarChart3> = {
 
 // Human label for the current sort column — mirrors SmartFilterBar's options.
 const SORT_LABEL_FOR_COL: Record<string, string> = {
-  match:               "Match score",
   posted_at:           "Date posted",
   created_at:          "Date added",
   rich_jd_first:       "Rich JD first",
@@ -223,6 +223,8 @@ export function JobBoard({
           )}
         </div>
       </div>
+
+      <ThinJdBanner count={counts.thinJd} />
 
       <ContinueRail jobs={railJobs} currentTab={stage} />
 
