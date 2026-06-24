@@ -60,8 +60,16 @@ async function rateLimitNominatim(): Promise<void> {
  *
  * `countryCode` biases results — default 'au'. Pass undefined to search globally.
  */
-export async function geocode(query: string, countryCode: string | undefined = "au"): Promise<LatLng | null> {
-  const key = `${countryCode ?? "*"}::${query}`;
+export async function geocode(
+  query: string,
+  countryCode: string | undefined = "au",
+  near?: LatLng,
+): Promise<LatLng | null> {
+  // Region bias disambiguates same-named suburbs (e.g. "Killara" exists near
+  // Sydney AND ~760km away). When `near` is given, restrict results to a box
+  // around it so an ambiguous bare-suburb query resolves to the right one.
+  const biasKey = near ? `@${near.lat.toFixed(1)},${near.lng.toFixed(1)}` : "";
+  const key = `${countryCode ?? "*"}${biasKey}::${query}`;
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
 
   await rateLimitNominatim();
@@ -70,6 +78,11 @@ export async function geocode(query: string, countryCode: string | undefined = "
   url.searchParams.set("format", "json");
   url.searchParams.set("limit", "1");
   if (countryCode) url.searchParams.set("countrycodes", countryCode);
+  if (near) {
+    const d = 1.5; // ~165km box — covers a metro + buffer, excludes far matches
+    url.searchParams.set("viewbox", `${near.lng - d},${near.lat - d},${near.lng + d},${near.lat + d}`);
+    url.searchParams.set("bounded", "1");
+  }
 
   try {
     const res = await withTimeout(
@@ -125,9 +138,9 @@ export function candidatesFor(companyLocation: string): string[] {
 }
 
 /** Try each candidate string until one geocodes. */
-export async function geocodeLocation(companyLocation: string): Promise<LatLng | null> {
+export async function geocodeLocation(companyLocation: string, near?: LatLng): Promise<LatLng | null> {
   for (const q of candidatesFor(companyLocation)) {
-    const hit = await geocode(q);
+    const hit = await geocode(q, "au", near);
     if (hit) return hit;
   }
   return null;

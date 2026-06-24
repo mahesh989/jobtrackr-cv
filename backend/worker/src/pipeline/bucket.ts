@@ -76,12 +76,16 @@ interface GlobalRow {
  */
 export async function upsertGlobalJobs(
   jobs: NormalisedJob[],
-  opts: { adzunaFull: boolean },
+  opts: { adzunaFull: boolean; searchLocation?: string },
 ): Promise<void> {
   if (!bucketEnabled() || jobs.length === 0) return;
   try {
     const now = new Date().toISOString();
     const hashes = Array.from(new Set(jobs.map((j) => j.url_hash)));
+
+    // Geocode bias center = the search location, so ambiguous job-location
+    // suburbs resolve to THIS region (e.g. Sydney's Killara, not the far one).
+    const near = opts.searchLocation ? (await geocodeLocation(opts.searchLocation)) ?? undefined : undefined;
 
     // Merge with existing matched_keywords + reuse already-geocoded coords.
     const existingKw = new Map<string, string[]>();
@@ -108,7 +112,7 @@ export async function upsertGlobalJobs(
       if (prior && prior.lat != null && prior.lng != null) {
         coords.set(j.url_hash, { lat: prior.lat, lng: prior.lng });
       } else {
-        coords.set(j.url_hash, j.location ? await geocodeLocation(j.location) : null);
+        coords.set(j.url_hash, j.location ? await geocodeLocation(j.location, near) : null);
       }
     }
 

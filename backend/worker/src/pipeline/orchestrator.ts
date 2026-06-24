@@ -949,7 +949,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     //    still yields the complete result set. No-op (toSave unchanged) when the
     //    flag is off, migrations aren't applied, or the bucket is empty.
     if (bucketEnabled() && bucketSlices.length > 0) {
-      await upsertGlobalJobs(toSave, { adzunaFull: profile.adzuna_method === "direct" });
+      await upsertGlobalJobs(toSave, {
+        adzunaFull: profile.adzuna_method === "direct",
+        searchLocation: profile.location,
+      });
       const served = await serveProfileFromBucket(profile, bucketSlices, {
         tier,
         homeOrigin,
