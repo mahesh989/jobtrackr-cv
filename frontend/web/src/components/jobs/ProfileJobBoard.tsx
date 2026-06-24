@@ -8,6 +8,7 @@ import { type FunnelCounts } from "./PipelineFunnel";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
+import { ThinJdBanner } from "./ThinJdBanner";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
@@ -201,6 +202,8 @@ export function ProfileJobBoard({
           </>
         )}
       </div>
+
+      <ThinJdBanner count={counts.thinJd} />
 
       {/* When the user picks any sort other than the default "Date posted",
           skip the smart-section grouping (Today's picks / Closest / Fresh /

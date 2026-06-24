@@ -27,6 +27,7 @@ import {
 } from "@/components/applications/ApplicationStatusTabs";
 import { type ApplicationRowV2 } from "@/components/applications/ApplicationCardV2";
 import { ApplicationCardListV2 } from "@/components/applications/ApplicationCardListV2";
+import { PoolHowItWorks } from "@/components/applications/PoolHowItWorks";
 import { BackButton } from "@/components/dashboard/BackButton";
 import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
 
@@ -275,6 +276,12 @@ export default async function ApplicationsPage({
         <p className="text-[12px] text-text-2 anim-in anim-delay-1">
           {TAB_HELP[validTab]}
         </p>
+
+        {validTab === "pool" && (
+          <div className="anim-in anim-delay-1">
+            <PoolHowItWorks />
+          </div>
+        )}
 
         <div className="anim-in anim-delay-2">
           <ApplicationCardListV2 rows={visible} tab={validTab} empty={tabEmpty} />
