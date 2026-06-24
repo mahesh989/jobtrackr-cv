@@ -78,3 +78,10 @@ shared/supabase/migrations/careerjet_sample.html
 # Apify SDK local runtime state — auto-generated on actor run, never read in prod
 backend/worker/src/sources/*/storage/
 backend/worker/apify-actors/*/storage/
+
+# Postman desktop/VS Code extension local workspace sync — not app code.
+# NOTE: .postman/collections/jobtrackr-api.openapi.yaml IS tracked (the real
+# OpenAPI spec) — only ignore the local workspace-link file + the separate
+# empty postman/ scaffold folder it also creates.
+.postman/resources.yaml
+postman/
