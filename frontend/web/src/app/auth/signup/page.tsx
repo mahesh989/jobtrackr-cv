@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { TurnstileBox, type TurnstileBoxHandle } from "@/components/auth/TurnstileBox";
+
+const TURNSTILE_CONFIGURED = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 const BRAND_PANEL_FEATURES = [
   "Australia's major sources scanned every night",
@@ -38,6 +41,8 @@ export default function SignupPage() {
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken]   = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileBoxHandle>(null);
 
   async function handleGoogleSignUp() {
     setGoogleLoading(true);
@@ -66,8 +71,14 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        captchaToken: captchaToken ?? undefined,
+      },
     });
+    // Turnstile tokens are single-use — clear + re-mint for any subsequent attempt.
+    turnstileRef.current?.reset();
+    setCaptchaToken(null);
     if (error) {
       setError(error.message);
       setLoading(false);
@@ -240,8 +251,10 @@ export default function SignupPage() {
                     </div>
                   )}
 
+                  <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
+
                   <button
-                    type="submit" disabled={loading || googleLoading}
+                    type="submit" disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
                     className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity"
                     style={{ background: "#5645D4", color: "#F4EEFB", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
                   >

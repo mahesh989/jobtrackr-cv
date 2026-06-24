@@ -28,6 +28,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { verifyTurnstile }              from "@/lib/turnstile";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -38,9 +39,15 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimit(`signup:${ip}`, 10, 60);
   if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
-  let body: { email?: unknown; code?: unknown };
+  let body: { email?: unknown; code?: unknown; turnstileToken?: unknown };
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+
+  // Bot gate (no-op when TURNSTILE_SECRET_KEY is unset — see lib/turnstile.ts).
+  const turnstileToken = typeof body.turnstileToken === "string" ? body.turnstileToken : null;
+  if (!(await verifyTurnstile(turnstileToken, ip)).ok) {
+    return NextResponse.json({ error: "Bot check failed — please retry." }, { status: 403 });
+  }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const code  = typeof body.code  === "string" ? body.code.trim().toUpperCase()  : "";

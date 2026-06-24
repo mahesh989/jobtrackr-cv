@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TurnstileBox, type TurnstileBoxHandle } from "@/components/auth/TurnstileBox";
+
+const TURNSTILE_CONFIGURED = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -31,6 +34,8 @@ export default function LoginPage() {
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken]   = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileBoxHandle>(null);
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
@@ -55,7 +60,14 @@ export default function LoginPage() {
     setError(null);
     const supabase = createClient();
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken: captchaToken ?? undefined },
+    });
+    // Turnstile tokens are single-use — clear + re-mint for any subsequent attempt.
+    turnstileRef.current?.reset();
+    setCaptchaToken(null);
     if (error) {
       setError(error.message);
       setLoading(false);
@@ -268,10 +280,12 @@ export default function LoginPage() {
                     </div>
                   )}
 
+                  <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
+
                   <div style={{ marginTop: 28 }}>
                   <button
                     type="submit"
-                    disabled={loading || googleLoading}
+                    disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
                     className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity"
                     style={{
                       background: "#5645D4",
