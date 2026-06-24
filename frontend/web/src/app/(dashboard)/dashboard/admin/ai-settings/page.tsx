@@ -34,7 +34,7 @@ export default async function AdminAiSettingsPage() {
   });
 
   return (
-    <div className="min-h-full px-6 pt-6 pb-24">
+    <div className="min-h-full px-4 sm:px-6 pt-6 pb-24">
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h1 className="page-title text-text">AI provider</h1>

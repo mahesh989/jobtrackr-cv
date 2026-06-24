@@ -242,7 +242,7 @@ export default async function ApplicationsPage({
   return (
     <div className="min-h-full">
       <MarkApplicationsSeenOnLoad />
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="mb-1.5">
@@ -266,7 +266,7 @@ export default async function ApplicationsPage({
         </div>
       </div>
 
-      <div className="px-6 py-5 space-y-4 max-w-5xl mx-auto w-full">
+      <div className="px-4 sm:px-6 py-5 space-y-4 max-w-5xl mx-auto w-full">
         <div className="anim-in">
           <Suspense>
             <ApplicationStatusTabs counts={counts} />
@@ -294,10 +294,10 @@ export default async function ApplicationsPage({
 function EmptyState() {
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <h1 className="text-[16px] font-semibold text-text">Applications</h1>
       </div>
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="text-center max-w-md anim-in">
           <div className="w-14 h-14 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-4">
             <Inbox className="w-7 h-7 text-[var(--brand)]" />

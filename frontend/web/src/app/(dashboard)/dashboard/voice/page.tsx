@@ -43,7 +43,7 @@ export default async function VoicePage() {
     : [];
 
   return (
-    <div className="min-h-full px-6 pt-6 pb-24">
+    <div className="min-h-full px-4 sm:px-6 pt-6 pb-24">
       <div className="max-w-2xl mx-auto space-y-8">
 
         {/* Writing voice section — HOW you write */}

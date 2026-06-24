@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/getUser";
 import { SidebarNav } from "@/components/SidebarNav";
+import { MobileNav } from "@/components/MobileNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
 import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
@@ -142,6 +143,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex-1 flex flex-col min-w-0 bg-bg overflow-y-auto">
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-border bg-surface shrink-0">
+          <MobileNav
+            email={user.email!}
+            profiles={sidebarProfiles}
+            poolCount={poolCount ?? 0}
+            role={ent.role}
+            userView={userView}
+          />
           <div className="w-5 h-5 rounded bg-blue flex items-center justify-center">
             <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
               <circle cx="7" cy="7" r="2" fill="white"/>

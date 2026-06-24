@@ -136,7 +136,7 @@ export function AddJobModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" onClick={() => !saving && onClose()} />
-      <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl w-full max-w-xl flex flex-col max-h-[90vh]">
+      <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl w-full max-w-xl flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--border)] flex items-start justify-between gap-3">

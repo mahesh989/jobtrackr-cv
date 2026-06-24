@@ -126,7 +126,7 @@ function BulkModal({ jobs, onClose }: { jobs: ThinJdJob[]; onClose: () => void }
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" onClick={() => !running && onClose()} />
-      <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--border)]">
           <h2 className="text-[15px] font-semibold text-text">Fix thin job descriptions</h2>
@@ -158,7 +158,7 @@ function BulkModal({ jobs, onClose }: { jobs: ThinJdJob[]; onClose: () => void }
                   rows={5}
                   spellCheck={false}
                   placeholder="Paste the full job description here…"
-                  className="w-full bg-white border border-[var(--border)] rounded-md px-3 py-2 text-[12px] text-text leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y disabled:opacity-60"
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[12px] text-text leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 resize-y disabled:opacity-60"
                 />
                 <div className="flex items-center justify-between mt-1">
                   <span className={`text-[11px] tabular-nums ${ready ? "text-emerald-700" : "text-text-3"}`}>

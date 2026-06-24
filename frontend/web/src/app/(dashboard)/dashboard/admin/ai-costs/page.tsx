@@ -140,7 +140,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
           <Link href="/dashboard/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">AI costs</span>

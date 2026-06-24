@@ -51,7 +51,7 @@ export function DeleteProfileButton({
             className="absolute inset-0 bg-text/40 backdrop-blur-sm"
             onClick={() => !pending && setShowConfirm(false)}
           />
-          <div className="relative bg-white rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
+          <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
             <h2 className="text-[16px] font-semibold text-text mb-2">Delete profile?</h2>
             <p className="text-[13px] text-text-2 leading-relaxed mb-2">
               This will permanently delete <strong className="text-text">{profileName}</strong> and all its associated jobs, run history, and settings.

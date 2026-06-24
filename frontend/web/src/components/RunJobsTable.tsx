@@ -48,7 +48,7 @@ export function RunJobsTable({
             <p className="text-[12px] text-text-2 py-2">Loading…</p>
           ) : (
             (jobs || []).map((job, i) => (
-              <div key={i} className="bg-white border border-[var(--border)] rounded-md px-4 py-3">
+              <div key={i} className="bg-surface border border-[var(--border)] rounded-md px-4 py-3">
                 <a
                   href={job.url}
                   target="_blank"

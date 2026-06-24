@@ -200,7 +200,7 @@ export default async function AnalyticsPage() {
   return (
     <div className="min-h-full">
       {/* Page header */}
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -342,10 +342,10 @@ function FunnelRow({ row, isTotal = false }: { row: FunnelRowData; isTotal?: boo
 function EmptyState() {
   return (
     <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-6 py-4">
+      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <h1 className="text-[16px] font-semibold text-text">Pipeline analytics</h1>
       </div>
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="text-center max-w-md anim-in">
           <div className="w-14 h-14 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-7 h-7 text-[var(--brand)]" />
