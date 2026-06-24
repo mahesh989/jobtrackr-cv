@@ -24,6 +24,7 @@ import { normalise, canonicalUrl } from "./normalise.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
+import { resolveSlices, recordCoverage } from "./coverage.js";
 import { postFetchFilter, excludeByDescription, formatExcludeBreakdown } from "./postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
@@ -967,6 +968,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       sources_saved: sourcesSaved,
       source_methods: sourceMethods,
     });
+
+    // Phase A — record search-coverage (write-only). Warms the freshness ledger
+    // so Phase B can drive the scrape delta + bucket serve. Best-effort: a
+    // not-yet-applied migration 066 no-ops with a warning, never affects the run.
+    const coverageSlices = resolveSlices(profile.keywords, profile.location, sourcesRun);
+    await recordCoverage(coverageSlices, lookbackDays, jobsFetched);
 
     console.log(`[pipeline] ─── run complete ───\n`);
   } catch (err) {
