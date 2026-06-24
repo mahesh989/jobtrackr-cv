@@ -25,6 +25,7 @@ import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
 import { resolveSlices, recordCoverage } from "./coverage.js";
+import { dualWriteBucket } from "./bucket.js";
 import { postFetchFilter, excludeByDescription, formatExcludeBreakdown } from "./postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
@@ -912,6 +913,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
+
+    // Phase B (dormant) — dual-write to the global bucket when USE_GLOBAL_BUCKET
+    // is enabled. Best-effort and additive: `jobs` (above) stays the source of
+    // truth; nothing reads global_jobs/profile_jobs yet. No-ops when the flag is
+    // off or migrations 067/068 are not applied.
+    await dualWriteBucket(toSave, profileId, { adzunaFull: profile.adzuna_method === "direct" });
 
     // Stage 13 (Phase E-1): auto-analyze new jobs for automation_enabled
     // profiles. Best-effort and fire-and-forget — cv-backend returns 202
