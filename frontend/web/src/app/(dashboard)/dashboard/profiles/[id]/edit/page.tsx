@@ -46,36 +46,36 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1 flex-wrap">
               <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
               <Link href="/dashboard/profiles" className="hover:text-text transition-colors">Job Searches</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
-              <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[180px]">
+              <Link href={`/dashboard/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[140px]">
                 {profile.name}
               </Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
               <span className="text-text-2">Edit</span>
             </div>
             <h1 className="text-[16px] font-semibold text-text">Edit profile</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <CopyProfileButton profileId={id} />
             <DeleteProfileButton profileId={id} profileName={profile.name} />
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-5">
-        <div className="flex gap-6 items-start">
+      <div className="px-4 sm:px-6 py-5">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Form */}
           <div className="flex-1 min-w-0 max-w-2xl bg-surface border border-border rounded-md p-5 anim-in">
             <ProfileForm
