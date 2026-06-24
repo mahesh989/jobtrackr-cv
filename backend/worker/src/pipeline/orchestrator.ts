@@ -24,8 +24,15 @@ import { normalise, canonicalUrl } from "./normalise.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
 import { saveJobs } from "./save.js";
-import { resolveSlices, recordCoverage } from "./coverage.js";
-import { dualWriteBucket } from "./bucket.js";
+import {
+  resolveSlices,
+  recordCoverage,
+  readCoverage,
+  computeProfileLookback,
+  COVERAGE_SOURCES,
+  type CoverageSlice,
+} from "./coverage.js";
+import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, evictStaleBucket, BUCKET_RETENTION_DAYS } from "./bucket.js";
 import { postFetchFilter, excludeByDescription, formatExcludeBreakdown } from "./postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
@@ -324,6 +331,30 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     lookbackDays = Math.min(daysSince + 1, 30);
     console.log(`[pipeline] lookback: ${lookbackDays}d (incremental — last run ${daysSince}d ago)`);
   }
+  // ── Global bucket (USE_GLOBAL_BUCKET): coverage-driven lookback ────────────
+  // The scrape delta is driven by the SLICE'S freshness (across all users), not
+  // this profile's last run. Fresh slices → scrape little/nothing; we still
+  // serve the full window from the shared bucket later.
+  let bucketSlices: CoverageSlice[] = [];
+  let bucketAllFresh = false;
+  if (bucketEnabled()) {
+    await evictStaleBucket();
+    const candidateSources =
+      profile.enabled_sources && profile.enabled_sources.length > 0
+        ? profile.enabled_sources
+        : Array.from(COVERAGE_SOURCES);
+    bucketSlices = resolveSlices(profile.keywords, profile.location, candidateSources);
+    if (bucketSlices.length > 0 && !fullRefresh) {
+      const coverage = await readCoverage(bucketSlices);
+      const { lookbackDays: bucketLookback, allFresh } = computeProfileLookback(
+        coverage, bucketSlices, BUCKET_RETENTION_DAYS,
+      );
+      bucketAllFresh = allFresh;
+      lookbackDays = allFresh ? 0 : bucketLookback;
+      console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${bucketSlices.length} slices, allFresh=${allFresh})`);
+    }
+  }
+
   // Adzuna reads adzuna_max_days_old; SEEK + Careerjet read lookback_days /
   // is_first_run. Set all three so every date-aware adapter follows suit.
   // A full refresh also runs sources at first-run depth (more pages).
@@ -907,18 +938,32 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 11b — distance skipped (no home origin or no jobs)`);
     }
 
+    // ── Global bucket (USE_GLOBAL_BUCKET): grow bucket + serve full window ────
+    // 1. Upsert this run's scraped survivors into the canonical bucket.
+    // 2. Serve the profile's FULL retention window FROM the bucket (the scraped
+    //    delta + everything other users already populated), tier-projected and
+    //    re-filtered, then save THAT into `jobs`. So a near-empty delta scrape
+    //    still yields the complete result set. No-op (toSave unchanged) when the
+    //    flag is off, migrations aren't applied, or the bucket is empty.
+    if (bucketEnabled() && bucketSlices.length > 0) {
+      await upsertGlobalJobs(toSave, { adzunaFull: profile.adzuna_method === "direct" });
+      const served = await serveProfileFromBucket(profile, bucketSlices, {
+        tier,
+        homeOrigin,
+        serveWindowDays: BUCKET_RETENTION_DAYS,
+      });
+      if (served !== null) {
+        console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
+        toSave = served;
+      }
+    }
+
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
     const { saved, bySource, savedIds } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
-
-    // Phase B (dormant) — dual-write to the global bucket when USE_GLOBAL_BUCKET
-    // is enabled. Best-effort and additive: `jobs` (above) stays the source of
-    // truth; nothing reads global_jobs/profile_jobs yet. No-ops when the flag is
-    // off or migrations 067/068 are not applied.
-    await dualWriteBucket(toSave, profileId, { adzunaFull: profile.adzuna_method === "direct" });
 
     // Stage 13 (Phase E-1): auto-analyze new jobs for automation_enabled
     // profiles. Best-effort and fire-and-forget — cv-backend returns 202

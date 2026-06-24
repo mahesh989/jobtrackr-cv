@@ -1,37 +1,49 @@
-// Global job bucket — dual-write (Phase B foundation).
+// Global job bucket — serve-into-jobs engine (Phase B/C).
 //
-// Writes the canonical posting to `global_jobs` (migration 067) and a per-user
-// link row to `profile_jobs` (migration 068), IN ADDITION to the existing
-// per-profile `jobs` upsert. This runs ONLY when USE_GLOBAL_BUCKET=true, and is
-// fully best-effort (try/catch): a missing table or any error is logged and
-// swallowed so the live pipeline is never affected.
+// Architecture (decision: serve-into-jobs, 2026-06-25):
+//   global_jobs (067) is the shared, deduplicated, 30-day canonical bucket.
+//   The worker writes scraped survivors into it, then SERVES each profile by
+//   materialising its `jobs` rows FROM the bucket — applying the profile's own
+//   filters, tier-appropriate JD text, and per-user distance. So the existing
+//   31 web read sites and the analyze/applications flows keep reading `jobs`
+//   unchanged; profile_jobs (068) is reserved/unused under this model.
 //
-// DORMANT by default. Nothing reads global_jobs/profile_jobs yet — the read-path
-// switch and the precise snippet-vs-full JD split are deferred to the read-path
-// build (so the approximations below are harmless until then). Today's source of
-// truth for the UI remains `jobs`.
+// Everything here is gated by USE_GLOBAL_BUCKET (default off) and is best-effort
+// (try/catch): with the flag off, or before migrations 066-067 are applied, the
+// worker behaves exactly as before.
 
 import { db } from "../db/client.js";
 import { normaliseCity } from "./normalise/keys.js";
+import { applyKeywordFilter } from "./keywordFilter.js";
+import { postFetchFilter } from "./postFetchFilter.js";
+import { distanceFor, type LatLng } from "../lib/distance.js";
 import type { NormalisedJob } from "./types.js";
+import type { SearchProfile } from "../sources/types.js";
+import type { CoverageSlice } from "./coverage.js";
 
-/** Feature flag — dual-write to the bucket only when explicitly enabled. */
-export function bucketWriteEnabled(): boolean {
+/** Feature flag — bucket write + serve only when explicitly enabled. */
+export function bucketEnabled(): boolean {
   return process.env.USE_GLOBAL_BUCKET === "true";
 }
 
+/** Days the bucket retains a posting as discoverable (migration plan §10). */
+export const BUCKET_RETENTION_DAYS = 30;
+
+type JdAccess = "snippet" | "all" | "unlimited_only";
+
 /**
  * JD access tier for a row (read-time gating contract):
- *   SEEK / Careerjet full JDs are free → 'all'.
- *   Adzuna full JD (actor/direct) is an unlimited-only feature → 'unlimited_only'.
+ *   SEEK / Careerjet / board full JDs are free → 'all'.
+ *   Adzuna full JD (actor/direct) is unlimited-only → 'unlimited_only'.
  *   Adzuna API snippet → 'snippet'.
- *   Other board sources (greenhouse/RSS/etc.) ship full JDs → 'all'.
- * `adzunaFull` = the run's Adzuna method produced full JDs (profile.adzuna_method === 'direct').
+ * `adzunaFull` = this run's Adzuna method produced full JDs (adzuna_method === 'direct').
  */
-function deriveJdAccess(source: string, adzunaFull: boolean): "snippet" | "all" | "unlimited_only" {
+function deriveJdAccess(source: string, adzunaFull: boolean): JdAccess {
   if (source === "adzuna") return adzunaFull ? "unlimited_only" : "snippet";
   return "all";
 }
+
+// ── Write: scraped survivors → global_jobs (canonical) ───────────────────────
 
 interface GlobalRow {
   url_hash: string;
@@ -56,39 +68,34 @@ interface GlobalRow {
 }
 
 /**
- * Dual-write `jobs` -> (global_jobs, profile_jobs). Best-effort; returns silently
- * on any failure. Call AFTER the existing saveJobs() so the legacy path is the
- * source of truth and this is purely additive.
+ * Upsert scraped survivors into the canonical bucket. Merges matched_keywords
+ * across runs/users (the bucket's coarse serve selector must accumulate).
+ * Best-effort: returns silently on any error.
  */
-export async function dualWriteBucket(
+export async function upsertGlobalJobs(
   jobs: NormalisedJob[],
-  profileId: string,
   opts: { adzunaFull: boolean },
 ): Promise<void> {
-  if (!bucketWriteEnabled() || jobs.length === 0) return;
+  if (!bucketEnabled() || jobs.length === 0) return;
   try {
     const now = new Date().toISOString();
-
-    // ── 1. Merge matched_keywords with any existing bucket rows (the bucket's
-    //       coarse serve selector must accumulate across runs/users). ──────────
     const hashes = Array.from(new Set(jobs.map((j) => j.url_hash)));
+
+    // Merge with existing matched_keywords.
     const existingKw = new Map<string, string[]>();
-    {
-      const { data } = await db
-        .from("global_jobs")
-        .select("url_hash, matched_keywords")
-        .in("url_hash", hashes);
-      for (const r of (data ?? []) as Array<{ url_hash: string; matched_keywords: string[] }>) {
-        existingKw.set(r.url_hash, r.matched_keywords ?? []);
-      }
+    const { data: existing } = await db
+      .from("global_jobs")
+      .select("url_hash, matched_keywords")
+      .in("url_hash", hashes);
+    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[] }>) {
+      existingKw.set(r.url_hash, r.matched_keywords ?? []);
     }
 
-    // De-dup incoming by url_hash (jobs may include possible_duplicate rows;
-    // keep the first occurrence which carries the winning content).
+    // De-dup incoming by url_hash (keep first — carries winning content).
     const byHash = new Map<string, NormalisedJob>();
     for (const j of jobs) if (!byHash.has(j.url_hash)) byHash.set(j.url_hash, j);
 
-    const globalRows: GlobalRow[] = Array.from(byHash.values()).map((j) => {
+    const rows: GlobalRow[] = Array.from(byHash.values()).map((j) => {
       const jd_access = deriveJdAccess(j.source, opts.adzunaFull);
       const mergedKw = Array.from(
         new Set([...(existingKw.get(j.url_hash) ?? []), ...(j.keywords_matched ?? [])]),
@@ -116,52 +123,163 @@ export async function dualWriteBucket(
       };
     });
 
-    // ── 2. Upsert canonical rows, return their ids keyed by url_hash. ─────────
-    const idByHash = new Map<string, string>();
     const BATCH = 100;
-    for (let i = 0; i < globalRows.length; i += BATCH) {
-      const batch = globalRows.slice(i, i + BATCH);
-      const { data, error } = await db
-        .from("global_jobs")
-        .upsert(batch, { onConflict: "url_hash", ignoreDuplicates: false })
-        .select("id, url_hash");
-      if (error) {
-        console.warn(`[bucket] global_jobs upsert skipped — ${error.message}`);
-        return;
-      }
-      for (const r of (data ?? []) as Array<{ id: string; url_hash: string }>) {
-        idByHash.set(r.url_hash, r.id);
-      }
-    }
-
-    // ── 3. Upsert per-user link rows. ────────────────────────────────────────
-    const profileRows = Array.from(byHash.values())
-      .map((j) => {
-        const gid = idByHash.get(j.url_hash);
-        if (!gid) return null;
-        return {
-          profile_id: profileId,
-          global_job_id: gid,
-          keywords_matched: j.keywords_matched ?? [],
-          distance_km: j.distance_km,
-          distance_method: j.distance_method,
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null);
-
-    for (let i = 0; i < profileRows.length; i += BATCH) {
-      const batch = profileRows.slice(i, i + BATCH);
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
       const { error } = await db
-        .from("profile_jobs")
-        .upsert(batch, { onConflict: "profile_id,global_job_id", ignoreDuplicates: false });
+        .from("global_jobs")
+        .upsert(batch, { onConflict: "url_hash", ignoreDuplicates: false });
       if (error) {
-        console.warn(`[bucket] profile_jobs upsert skipped — ${error.message}`);
+        console.warn(`[bucket] upsertGlobalJobs skipped — ${error.message}`);
         return;
       }
     }
-
-    console.log(`[bucket] dual-write ok — ${globalRows.length} global, ${profileRows.length} links`);
+    console.log(`[bucket] upserted ${rows.length} canonical rows`);
   } catch (err) {
-    console.warn(`[bucket] dualWriteBucket threw — ${err instanceof Error ? err.message : err}`);
+    console.warn(`[bucket] upsertGlobalJobs threw — ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/**
+ * Evict postings older than the 30-day retention from the bucket. Simple under
+ * serve-into-jobs: global_jobs is referenced by nothing (per-user state and the
+ * analysis_runs FK both live on `jobs`), so a plain DELETE is safe. Uses
+ * first_seen_at as the reliable clock (posted_at is often null/relative).
+ * Best-effort; runs once per pipeline invocation (indexed, mostly a no-op).
+ */
+export async function evictStaleBucket(): Promise<void> {
+  if (!bucketEnabled()) return;
+  try {
+    const floor = new Date(Date.now() - BUCKET_RETENTION_DAYS * 86_400_000).toISOString();
+    const { error } = await db.from("global_jobs").delete().lt("first_seen_at", floor);
+    if (error) console.warn(`[bucket] evictStaleBucket skipped — ${error.message}`);
+  } catch (err) {
+    console.warn(`[bucket] evictStaleBucket threw — ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+// ── Serve: bucket → this profile's jobs rows (projection) ────────────────────
+
+interface BucketRow {
+  url_hash: string;
+  canonical_url: string;
+  source: string;
+  source_tier: number;
+  title: string;
+  company: string;
+  location: string;
+  matched_keywords: string[];
+  description_snippet: string | null;
+  description_full: string | null;
+  jd_access: JdAccess;
+  salary_min: number | null;
+  salary_max: number | null;
+  sponsorship_status: NormalisedJob["sponsorship_status"] | null;
+  citizen_pr_only: boolean | null;
+  posted_at: string | null;
+  expires_at: string | null;
+}
+
+/** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited. */
+function projectDescription(row: BucketRow, tier: string): string {
+  const full = row.description_full ?? row.description_snippet ?? "";
+  const snippet = row.description_snippet ?? full;
+  if (row.jd_access === "unlimited_only" && tier !== "unlimited") return snippet;
+  return full;
+}
+
+/**
+ * Serve a profile from the bucket: select the bucket rows for the profile's
+ * location-cells within the retention window, apply the profile's keyword /
+ * title / description / working-rights filters and per-user distance, and
+ * return them as NormalisedJob[] ready for the existing saveJobs() upsert into
+ * `jobs`. Tier governs Adzuna full-vs-snippet JD.
+ *
+ * Returns null (caller keeps the legacy scraped set) on any failure.
+ */
+export async function serveProfileFromBucket(
+  profile: SearchProfile,
+  slices: CoverageSlice[],
+  opts: { tier: string; homeOrigin: LatLng | null; serveWindowDays?: number },
+): Promise<NormalisedJob[] | null> {
+  if (!bucketEnabled()) return null;
+  try {
+    const cells = Array.from(new Set(slices.map((s) => s.location_cell)));
+    if (cells.length === 0) return null;
+    const windowDays = Math.min(opts.serveWindowDays ?? BUCKET_RETENTION_DAYS, BUCKET_RETENTION_DAYS);
+    const floor = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+
+    let query = db
+      .from("global_jobs")
+      .select("url_hash, canonical_url, source, source_tier, title, company, location, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, posted_at, expires_at")
+      .eq("is_dead_link", false)
+      .eq("is_expired", false)
+      .or(`posted_at.gte.${floor},posted_at.is.null`)
+      .limit(5000);
+    // location_cell '' = all-AU search → don't constrain by cell.
+    const realCells = cells.filter((c) => c.length > 0);
+    if (realCells.length > 0 && !cells.includes("")) {
+      query = query.in("location_cell", realCells);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn(`[bucket] serve query skipped — ${error.message}`);
+      return null;
+    }
+    const rows = (data ?? []) as BucketRow[];
+    if (rows.length === 0) return [];
+
+    // Map → NormalisedJob with tier-appropriate JD. duplicate_of/repost_of are
+    // dropped (they reference global_jobs ids, not jobs ids); the bucket is
+    // already deduped so served rows are 'original'.
+    const mapped: NormalisedJob[] = rows.map((r) => ({
+      url: r.canonical_url,
+      url_hash: r.url_hash,
+      content_hash: "",
+      title: r.title,
+      company: r.company,
+      location: r.location,
+      description: projectDescription(r, opts.tier),
+      source: r.source,
+      source_tier: r.source_tier,
+      posted_at: r.posted_at,
+      expires_at: r.expires_at,
+      salary_min: r.salary_min ?? undefined,
+      salary_max: r.salary_max ?? undefined,
+      keywords_matched: r.matched_keywords ?? [],
+      dedup_status: "original",
+      duplicate_of: null,
+      repost_of: null,
+      sponsorship_status: r.sponsorship_status ?? "not_mentioned",
+      citizen_pr_only: r.citizen_pr_only,
+      visa_extracted_text: null,
+      distance_km: null,
+      distance_method: null,
+    }));
+
+    // Replay the profile's filters (same passes as the scrape path).
+    let kept = applyKeywordFilter(mapped, profile);
+    kept = postFetchFilter(kept, profile).kept;
+    if (profile.working_rights === "needs_sponsorship") {
+      kept = kept.filter((j) => j.sponsorship_status !== "no" && j.citizen_pr_only !== true);
+    }
+
+    // Per-user distance (geocode cache makes repeat lookups cheap).
+    if (opts.homeOrigin) {
+      const origin = opts.homeOrigin;
+      const out: NormalisedJob[] = [];
+      for (const j of kept) {
+        const d = j.location ? await distanceFor(origin, j.location) : null;
+        out.push(d ? { ...j, distance_km: d.km, distance_method: d.method } : j);
+      }
+      kept = out;
+    }
+
+    console.log(`[bucket] served ${kept.length}/${rows.length} from bucket (tier=${opts.tier}, window ${windowDays}d)`);
+    return kept;
+  } catch (err) {
+    console.warn(`[bucket] serveProfileFromBucket threw — ${err instanceof Error ? err.message : err}`);
+    return null;
   }
 }
