@@ -24,10 +24,9 @@ from app.services.verticals.tech.prompts    import JD_ANALYSIS_HINTS as _TECH_HI
 from app.services.verticals.nursing.prompts import JD_ANALYSIS_HINTS as _NURSING_HINTS
 from app.services.verticals.manual.prompts  import JD_ANALYSIS_HINTS as _CLEANING_HINTS
 
-# Hooks wired in Phase D — importing nursing.hooks here would create a
-# circular import (nursing.hooks re-exports from role_families, which imports
-# from this module).  Set hooks=None until Phase D moves the implementations.
-_nursing_hooks = None  # TODO: Phase D — replace with nursing.hooks module
+# nursing.hooks is self-contained (imports only verticals.base + stdlib),
+# so importing it here is safe — no circular import.
+import app.services.verticals.nursing.hooks as _nursing_hooks
 
 
 VERTICALS: Dict[str, VerticalPack] = {
