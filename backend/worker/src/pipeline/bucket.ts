@@ -16,7 +16,7 @@ import { db } from "../db/client.js";
 import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
-import { distanceFor, distanceFromCoords, geocodeLocation, type LatLng } from "../lib/distance.js";
+import { distanceFor, distanceFromCoords, geocodeLocation, haversineKm, type LatLng } from "../lib/distance.js";
 import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
 import type { CoverageSlice } from "./coverage.js";
@@ -226,10 +226,22 @@ export async function serveProfileFromBucket(
 ): Promise<NormalisedJob[] | null> {
   if (!bucketEnabled()) return null;
   try {
-    const cells = Array.from(new Set(slices.map((s) => s.location_cell)));
-    if (cells.length === 0) return null;
+    if (slices.length === 0) return null;
     const windowDays = Math.min(opts.serveWindowDays ?? BUCKET_RETENTION_DAYS, BUCKET_RETENTION_DAYS);
     const floor = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+
+    // Geographic bound = the same radius the scrape used (distance from the
+    // SEARCH location), via stored coords — NOT the coarse location_cell, which
+    // drops in-radius suburbs whose location string lacks the metro name
+    // (e.g. "Waverley, Eastern Suburbs" near Sydney). Geocode is cached.
+    // Generous serve radius — separates this metro from interstate WITHOUT
+    // dropping the wider SEEK/Careerjet spread (those sources don't enforce the
+    // configured distance at scrape time, only Adzuna does). 2x configured,
+    // floored at 50km: validated to recover 46/47 of a Sydney run vs 28 with the
+    // old exact-cell filter. The app's distance chips still let users narrow.
+    const configuredKm = profile.adzuna_distance_km && profile.adzuna_distance_km > 0 ? profile.adzuna_distance_km : 25;
+    const radiusKm = Math.max(configuredKm * 2, 50);
+    const searchOrigin = profile.location ? await geocodeLocation(profile.location) : null;
 
     let query = db
       .from("global_jobs")
@@ -238,10 +250,18 @@ export async function serveProfileFromBucket(
       .eq("is_expired", false)
       .or(`posted_at.gte.${floor},posted_at.is.null`)
       .limit(5000);
-    // location_cell '' = all-AU search → don't constrain by cell.
-    const realCells = cells.filter((c) => c.length > 0);
-    if (realCells.length > 0 && !cells.includes("")) {
-      query = query.in("location_cell", realCells);
+
+    if (searchOrigin) {
+      // Bounding box (square superset of the radius circle) on indexed lat/lng.
+      const dLat = radiusKm / 111;
+      const dLng = radiusKm / ((111 * Math.cos((searchOrigin.lat * Math.PI) / 180)) || 1);
+      query = query
+        .gte("lat", searchOrigin.lat - dLat).lte("lat", searchOrigin.lat + dLat)
+        .gte("lng", searchOrigin.lng - dLng).lte("lng", searchOrigin.lng + dLng);
+    } else {
+      // Geocode failed → fall back to the coarse cell filter (legacy behaviour).
+      const cells = Array.from(new Set(slices.map((s) => s.location_cell))).filter((c) => c.length > 0);
+      if (cells.length > 0) query = query.in("location_cell", cells);
     }
 
     const { data, error } = await query;
@@ -249,7 +269,13 @@ export async function serveProfileFromBucket(
       console.warn(`[bucket] serve query skipped — ${error.message}`);
       return null;
     }
-    const rows = (data ?? []) as BucketRow[];
+    let rows = (data ?? []) as BucketRow[];
+    // Refine the bbox square to the actual radius circle.
+    if (searchOrigin) {
+      rows = rows.filter(
+        (r) => r.lat != null && r.lng != null && haversineKm(searchOrigin, { lat: r.lat, lng: r.lng }) <= radiusKm,
+      );
+    }
     if (rows.length === 0) return [];
 
     // Map → NormalisedJob with tier-appropriate JD. duplicate_of/repost_of are
