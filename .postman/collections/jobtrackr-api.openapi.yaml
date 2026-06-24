@@ -1,0 +1,1032 @@
+openapi: 3.0.3
+info:
+  title: JobTrackr API
+  version: 1.0.0
+  description: All Next.js API routes for JobTrackr-CV
+
+servers:
+  - url: "{{base_url}}"
+    description: Vercel (set base_url in your environment)
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sb-ltcqqlfsomqxuwfcxxbe-auth-token.0
+
+security:
+  - cookieAuth: []
+
+tags:
+  - name: Admin
+  - name: Billing
+  - name: Jobs
+  - name: CV
+  - name: Profiles
+  - name: User
+  - name: Applications
+  - name: Company Research
+  - name: Auth
+  - name: Internal
+
+paths:
+
+  # ── Admin ──────────────────────────────────────────────────────────────────
+
+  /api/admin/sources:
+    get:
+      tags: [Admin]
+      summary: Get per-tier job source config
+      responses:
+        "200":
+          description: Returns weekly / monthly / unlimited tier configs
+    patch:
+      tags: [Admin]
+      summary: Update a tier's source config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tier:
+                  type: string
+                  enum: [weekly, monthly, unlimited]
+                enabled_sources:
+                  type: array
+                  items:
+                    type: string
+                    enum: [adzuna, seek, careerjet, greenhouse, lever]
+                adzuna_method:
+                  type: string
+                  enum: [api, direct]
+                seek_method:
+                  type: string
+                  enum: [direct, actor]
+              required: [tier]
+            example:
+              tier: weekly
+              enabled_sources: [adzuna, seek, careerjet]
+              adzuna_method: api
+              seek_method: direct
+      responses:
+        "200":
+          description: Updated tier row
+
+  /api/admin/ai-settings:
+    get:
+      tags: [Admin]
+      summary: Get AI provider settings
+      responses:
+        "200":
+          description: Current AI provider config
+    patch:
+      tags: [Admin]
+      summary: Update AI provider settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              provider: openai
+              model: gpt-4o
+      responses:
+        "200":
+          description: Updated settings
+
+  /api/admin/view-as:
+    get:
+      tags: [Admin]
+      summary: View app as another user (founder only)
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session switched
+
+  # ── Billing ─────────────────────────────────────────────────────────────────
+
+  /api/billing/checkout:
+    post:
+      tags: [Billing]
+      summary: Create Stripe checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan:
+                  type: string
+                  enum: [weekly, monthly, unlimited]
+              required: [plan]
+            example:
+              plan: monthly
+      responses:
+        "200":
+          description: Returns Stripe checkout URL
+
+  /api/billing/portal:
+    post:
+      tags: [Billing]
+      summary: Create Stripe billing portal session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Returns Stripe portal URL
+
+  /api/billing/upgrade:
+    post:
+      tags: [Billing]
+      summary: Upgrade subscription plan immediately (no proration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetPlan:
+                  type: string
+                  enum: [monthly, unlimited]
+              required: [targetPlan]
+            example:
+              targetPlan: monthly
+      responses:
+        "200":
+          description: Plan upgraded successfully
+
+  /api/billing/webhook:
+    post:
+      tags: [Billing]
+      summary: Stripe webhook receiver (called by Stripe, not browser)
+      responses:
+        "200":
+          description: Webhook processed
+
+  # ── Jobs ────────────────────────────────────────────────────────────────────
+
+  /api/jobs/{id}:
+    patch:
+      tags: [Jobs]
+      summary: Update a job (status, notes, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              status: applied
+              notes: Applied via LinkedIn
+      responses:
+        "200":
+          description: Updated job
+
+  /api/jobs/{id}/analyze:
+    post:
+      tags: [Jobs]
+      summary: Start CV analysis for a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example: {}
+      responses:
+        "200":
+          description: Analysis run created
+
+  /api/jobs/{id}/analyze/{run_id}/resume:
+    post:
+      tags: [Jobs]
+      summary: Resume a stalled analysis run
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run resumed
+
+  /api/jobs/{id}/cover-letter:
+    post:
+      tags: [Jobs]
+      summary: Generate a cover letter for a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cover letter generation started
+
+  /api/jobs/{id}/cover-letter/{letter_id}:
+    get:
+      tags: [Jobs]
+      summary: Get a specific cover letter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cover letter data
+
+  /api/jobs/{id}/cover-letter/{letter_id}/pick:
+    post:
+      tags: [Jobs]
+      summary: Select a cover letter variant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Variant selected
+
+  /api/jobs/{id}/cover-letter/{letter_id}/download:
+    get:
+      tags: [Jobs]
+      summary: Download cover letter PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF file
+
+  /api/jobs/scrape-url:
+    post:
+      tags: [Jobs]
+      summary: Scrape a job listing URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+              required: [url]
+            example:
+              url: https://www.seek.com.au/job/12345678
+      responses:
+        "200":
+          description: Scraped job data
+
+  # ── CV ──────────────────────────────────────────────────────────────────────
+
+  /api/cv:
+    get:
+      tags: [CV]
+      summary: List all CV versions
+      responses:
+        "200":
+          description: Array of CV versions
+    post:
+      tags: [CV]
+      summary: Create a new CV version
+      responses:
+        "200":
+          description: New CV version created
+
+  /api/cv/create:
+    post:
+      tags: [CV]
+      summary: Create CV from structured data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: My CV
+      responses:
+        "200":
+          description: CV created
+
+  /api/cv/upload-url:
+    post:
+      tags: [CV]
+      summary: Get a pre-signed URL to upload a CV PDF
+      responses:
+        "200":
+          description: Pre-signed upload URL
+
+  /api/cv/{id}:
+    get:
+      tags: [CV]
+      summary: Get a CV version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CV version data
+    patch:
+      tags: [CV]
+      summary: Update a CV version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              is_active: true
+      responses:
+        "200":
+          description: Updated CV
+    delete:
+      tags: [CV]
+      summary: Delete a CV version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+
+  /api/cv/{id}/structured:
+    get:
+      tags: [CV]
+      summary: Get structured CV data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Structured CV JSON
+    patch:
+      tags: [CV]
+      summary: Update structured CV data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+
+  /api/cv/{id}/structurize:
+    post:
+      tags: [CV]
+      summary: AI-extract structured data from uploaded CV PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Structurization started
+
+  /api/cv/{id}/extract-skills:
+    post:
+      tags: [CV]
+      summary: Extract skills from CV
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skills extracted
+
+  /api/cv/{id}/extract-references:
+    post:
+      tags: [CV]
+      summary: Extract references from CV
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: References extracted
+
+  /api/cv/{id}/recategorise:
+    post:
+      tags: [CV]
+      summary: Re-categorise CV skills
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skills recategorised
+
+  # ── Profiles ────────────────────────────────────────────────────────────────
+
+  /api/profiles/{id}/run:
+    post:
+      tags: [Profiles]
+      summary: Trigger a job discovery pipeline run
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullRefresh:
+                  type: boolean
+            example:
+              fullRefresh: false
+      responses:
+        "200":
+          description: Run started
+
+  /api/profiles/{id}/runs:
+    get:
+      tags: [Profiles]
+      summary: List pipeline runs for a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Array of run logs
+    delete:
+      tags: [Profiles]
+      summary: Delete all runs for a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+
+  /api/profiles/{id}/runs/{runId}/logs:
+    get:
+      tags: [Profiles]
+      summary: Get logs for a specific run
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run logs
+
+  /api/profiles/{id}/jobs/export:
+    get:
+      tags: [Profiles]
+      summary: Export jobs for a profile as CSV
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV file
+
+  # ── User ────────────────────────────────────────────────────────────────────
+
+  /api/user/preferences:
+    get:
+      tags: [User]
+      summary: Get user preferences
+      responses:
+        "200":
+          description: User preferences
+    patch:
+      tags: [User]
+      summary: Update user preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              theme: dark
+      responses:
+        "200":
+          description: Updated preferences
+
+  /api/user/runs:
+    get:
+      tags: [User]
+      summary: Get all pipeline runs for the current user
+      responses:
+        "200":
+          description: Array of run logs
+
+  /api/user/stories:
+    get:
+      tags: [User]
+      summary: List user stories
+      responses:
+        "200":
+          description: Array of stories
+    post:
+      tags: [User]
+      summary: Create a user story
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              title: Led migration project
+              body: Migrated legacy system to cloud in 3 months
+      responses:
+        "200":
+          description: Story created
+
+  /api/user/stories/{id}:
+    patch:
+      tags: [User]
+      summary: Update a user story
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated story
+
+  /api/user/stories/extract:
+    post:
+      tags: [User]
+      summary: AI-extract stories from CV text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              cv_id: uuid-here
+      responses:
+        "200":
+          description: Stories extracted
+
+  /api/user/stories/match:
+    post:
+      tags: [User]
+      summary: Match stories to a job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              job_id: uuid-here
+      responses:
+        "200":
+          description: Matched stories
+
+  /api/user/voice-profile:
+    get:
+      tags: [User]
+      summary: Get user voice profile
+      responses:
+        "200":
+          description: Voice profile data
+    post:
+      tags: [User]
+      summary: Generate/update voice profile
+      responses:
+        "200":
+          description: Voice profile updated
+
+  /api/user/export:
+    get:
+      tags: [User]
+      summary: Export all user data (GDPR)
+      responses:
+        "200":
+          description: ZIP of user data
+
+  /api/user/delete:
+    delete:
+      tags: [User]
+      summary: Delete account and all data
+      responses:
+        "200":
+          description: Account deleted
+
+  # ── Applications ────────────────────────────────────────────────────────────
+
+  /api/applications/{letter_id}:
+    get:
+      tags: [Applications]
+      summary: Get an application
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application data
+    patch:
+      tags: [Applications]
+      summary: Update an application
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+
+  /api/applications/{letter_id}/review:
+    post:
+      tags: [Applications]
+      summary: Submit application review
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Review submitted
+
+  /api/applications/{letter_id}/email-draft:
+    get:
+      tags: [Applications]
+      summary: Get email draft for application
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email draft
+
+  /api/applications/{letter_id}/send-email:
+    post:
+      tags: [Applications]
+      summary: Send application email
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email sent
+
+  /api/applications/{letter_id}/cover-letter-pdf:
+    get:
+      tags: [Applications]
+      summary: Download cover letter PDF for application
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF file
+
+  # ── Company Research ─────────────────────────────────────────────────────────
+
+  /api/company-research:
+    post:
+      tags: [Company Research]
+      summary: Start company research
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              company_name: Atlassian
+      responses:
+        "200":
+          description: Research started
+
+  /api/company-research/{company_id}:
+    get:
+      tags: [Company Research]
+      summary: Get company research results
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Research data
+    post:
+      tags: [Company Research]
+      summary: Refresh company research
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Research refreshed
+
+  /api/company-research/facts/select:
+    post:
+      tags: [Company Research]
+      summary: Select company facts for CV tailoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              company_id: uuid-here
+              fact_ids: [uuid1, uuid2]
+      responses:
+        "200":
+          description: Facts selected
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Sign up a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                invite_code:
+                  type: string
+            example:
+              email: test@example.com
+              password: securepassword
+              invite_code: JT-TEST0001
+      responses:
+        "200":
+          description: User created
+
+  /api/auth/validate-invite:
+    post:
+      tags: [Auth]
+      summary: Validate an invite code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invite_code:
+                  type: string
+            example:
+              invite_code: JT-TEST0001
+      responses:
+        "200":
+          description: Invite valid
+
+  /api/auth/email/google:
+    get:
+      tags: [Auth]
+      summary: Start Google OAuth for email integration
+      responses:
+        "302":
+          description: Redirect to Google
+
+  /api/auth/email/google/callback:
+    get:
+      tags: [Auth]
+      summary: Google OAuth callback for email integration
+      responses:
+        "302":
+          description: Redirect back to app
+
+  /api/auth/email/outlook:
+    get:
+      tags: [Auth]
+      summary: Start Outlook OAuth for email integration
+      responses:
+        "302":
+          description: Redirect to Microsoft
+
+  /api/auth/email/outlook/callback:
+    get:
+      tags: [Auth]
+      summary: Outlook OAuth callback for email integration
+      responses:
+        "302":
+          description: Redirect back to app
+
+  /api/auth/email/disconnect:
+    post:
+      tags: [Auth]
+      summary: Disconnect email integration
+      responses:
+        "200":
+          description: Email disconnected
+
+  # ── Integrations ────────────────────────────────────────────────────────────
+
+  /api/integrations/apify:
+    get:
+      tags: [Admin]
+      summary: Get Apify integration status
+      responses:
+        "200":
+          description: Apify quota and status
+    post:
+      tags: [Admin]
+      summary: Save Apify API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                api_key:
+                  type: string
+            example:
+              api_key: apify_api_xxxxx
+      responses:
+        "200":
+          description: Key saved
+    delete:
+      tags: [Admin]
+      summary: Remove Apify integration
+      responses:
+        "200":
+          description: Integration removed
+
+  # ── Internal ─────────────────────────────────────────────────────────────────
+
+  /api/internal/classify-skills:
+    post:
+      tags: [Internal]
+      summary: Classify skills (internal AI route)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              skills: [Python, React, Leadership]
+      responses:
+        "200":
+          description: Classified skills
+
+  # ── Places ───────────────────────────────────────────────────────────────────
+
+  /api/places/autocomplete:
+    get:
+      tags: [User]
+      summary: Google Places autocomplete for location input
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          example: Sydney
+      responses:
+        "200":
+          description: Place suggestions
