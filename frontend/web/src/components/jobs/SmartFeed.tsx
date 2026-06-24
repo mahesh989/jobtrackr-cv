@@ -947,21 +947,24 @@ function HeroCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: s
 function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void }) {
   return (
     <CardShell job={job} currentTab={currentTab} refSetter={refSetter}>
-      <div className="flex items-center gap-3.5 min-w-0">
-        <span
-          className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${getAtsMeta(job).dot}`}
-          title={`ATS ${getAtsMeta(job).label} — ${getAtsMeta(job).tip}`}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
-            <CardTitle job={job} inline />
-            <SourcePill source={job.source} />
-            {job.profile_name && <ProfileChip name={job.profile_name} />}
-            {jobNeedsJd(job) && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
-            {job.dedup_status === "possible_duplicate" && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
+      {/* Mobile: stack title/meta on top, actions below. sm+: side-by-side. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3.5 min-w-0 gap-2">
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+          <span
+            className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 ${getAtsMeta(job).dot}`}
+            title={`ATS ${getAtsMeta(job).label} — ${getAtsMeta(job).tip}`}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+              <CardTitle job={job} inline />
+              <SourcePill source={job.source} />
+              {job.profile_name && <ProfileChip name={job.profile_name} />}
+              {jobNeedsJd(job) && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
+              {job.dedup_status === "possible_duplicate" && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
+            </div>
+            <CardMeta job={job} compact />
+            <div className="mt-2.5"><MatchBar job={job} compact /></div>
           </div>
-          <CardMeta job={job} compact />
-          <div className="mt-2.5"><MatchBar job={job} compact /></div>
         </div>
         <CardActions job={job} compact />
       </div>
@@ -1134,7 +1137,7 @@ function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) {
       href={job.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`${inline ? "text-[13px]" : "text-[13px]"} font-semibold text-text hover:text-[var(--brand)] leading-snug ${inline ? "truncate" : "block mb-1.5"}`}
+      className={`${inline ? "text-[13px]" : "text-[13px]"} font-semibold text-text hover:text-[var(--brand)] leading-snug ${inline ? "break-words" : "block mb-1.5"}`}
     >
       {job.title}
     </a>
@@ -1148,7 +1151,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2 truncate`}>
+    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2 sm:truncate`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}
