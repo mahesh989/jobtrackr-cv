@@ -173,7 +173,7 @@ function JobTable({ jobs, showVisa, currentTab }: {
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
-      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+      <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-3">Role</div>
         <div className="col-span-2">Company</div>
         <div className="col-span-1 text-center">Source</div>
@@ -248,8 +248,112 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
       }}
     >
       <div style={{ overflow: "hidden" }}>
+        {/* ── Mobile card — shown only on small screens ─────────────────────── */}
         <div
-          className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
+          className={`sm:hidden px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
+            isFlash ? "bg-green-light" : "hover:bg-[var(--surface-2)]/60"
+          } ${savedFlicker ? "jd-saved-flicker" : ""} ${
+            !!job.applied_at ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""
+          }`}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                {isNew && (
+                  <span className="badge badge-blue text-[10px] px-1.5 h-4 font-bold">NEW</span>
+                )}
+                {job.pipelineState && (() => {
+                  const meta = PIPELINE_STATE_META[job.pipelineState];
+                  if (!meta.showAsBadge) return null;
+                  const tone = TONE_CLASSES[meta.tone];
+                  return (
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 h-4 rounded font-medium border ${tone.pill}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
+                      {meta.label}
+                    </span>
+                  );
+                })()}
+                {job.is_dead_link && (
+                  <span className="badge badge-red text-[10px] px-1.5 h-4">Dead link</span>
+                )}
+                <span className={`badge ${sourceBadge(job.source)} text-[10px] px-1.5 h-4 capitalize`}>
+                  {job.source}
+                </span>
+              </div>
+              <a
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[13px] font-semibold text-text hover:text-[var(--brand)] transition-colors leading-snug"
+              >
+                {job.title}
+              </a>
+              {job.dedup_status === "possible_duplicate" && (
+                <span className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded bg-[#FFF8C5] text-[#9A6700] border border-[#FAE17D] font-medium">
+                  Possible duplicate
+                </span>
+              )}
+              <p className="text-[12px] text-text-2 mt-0.5">
+                {job.company || "—"}
+                {salary && <span className="ml-2 text-[#1A7F37] font-medium">{salary}</span>}
+              </p>
+              <p className="text-[11px] text-text-3 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                {job.location && <span>{job.location}</span>}
+                {typeof job.distance_km === "number" && (
+                  <DistanceChip km={job.distance_km} method={job.distance_method ?? null} />
+                )}
+                {postedAgo && <span>· {postedAgo}</span>}
+                {job.jd_quality === "thin" && (
+                  <span className="inline-flex items-center gap-0.5 text-amber-600 shrink-0">
+                    <FileWarning className="w-3 h-3" />
+                    <span className="text-[10px] font-medium">thin JD</span>
+                  </span>
+                )}
+              </p>
+              {job.profile_name && (
+                <p className="text-[10px] text-text-3 italic mt-0.5 opacity-80">via {job.profile_name}</p>
+              )}
+              {(manualJd || contactEmail) && (
+                <div className="flex flex-wrap items-center gap-3 mt-1 text-xs">
+                  {manualJd && <span className="font-semibold text-green-600">Edited JD</span>}
+                  {contactEmail && <span className="font-semibold text-[var(--brand)]">✉ Email</span>}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <ProgressIcons job={job} dimmed={isDismissed} />
+              <div className="flex items-center gap-1.5">
+                {job.progress.latest_run_id ? (
+                  <FullAnalysisButton
+                    jobId={job.id}
+                    analysisHref={`/dashboard/jobs/${job.id}/analyze/${job.progress.latest_run_id}`}
+                  />
+                ) : job.applied_at ? (
+                  <button
+                    disabled
+                    className="flex items-center gap-1.5 rounded-md bg-[var(--surface-2)] border border-border px-2.5 py-1 text-xs font-medium text-text-3 cursor-not-allowed"
+                  >
+                    No Analysis
+                  </button>
+                ) : (
+                  <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
+                )}
+                <RowMenu
+                  job={job}
+                  pending={isPending}
+                  onEdit={() => setShowEdit(true)}
+                  onDismiss={handleDismiss}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Desktop table row — hidden on mobile ──────────────────────────── */}
+        <div
+          className={`hidden sm:grid grid-cols-12 gap-2 px-4 py-3 border-b border-border last:border-0 cursor-pointer anim-in anim-delay-${animDelay} transition-colors ${
             isFlash ? "bg-green-light" : "hover:bg-[var(--surface-2)]/60"
           } ${savedFlicker ? "jd-saved-flicker" : ""} ${
             !!job.applied_at ? "border-l-2 border-l-green" : isNew ? "border-l-2 border-l-[var(--brand)]" : ""

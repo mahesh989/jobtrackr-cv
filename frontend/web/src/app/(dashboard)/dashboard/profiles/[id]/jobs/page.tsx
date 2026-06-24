@@ -262,20 +262,20 @@ export default async function JobsPage({
 
       {/* Header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-2">
+          <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <Link href="/dashboard/profiles" className="hover:text-text transition-colors">Job Searches</Link>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span className="text-text font-medium truncate max-w-[160px]">{p.name}</span>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
-              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <Link href="/dashboard/profiles" className="hover:text-text transition-colors">Job Searches</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <span className="text-text font-medium truncate max-w-[200px]">{p.name}</span>
-            </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-[16px] font-semibold text-text">{p.name}</h1>
               {newCount > 0 && (
                 <span className="badge badge-blue font-bold">{newCount} new</span>
@@ -298,21 +298,21 @@ export default async function JobsPage({
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Actions — wrap on mobile */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
             <Link
               href={`/api/profiles/${id}/jobs/export?${exportParams.toString()}`}
-              className="gh-btn text-[12px] px-2.5 py-1"
+              className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
               Export CSV
             </Link>
-            <Link href={`/dashboard/profiles/${id}/runs`} className="gh-btn text-[12px] px-2.5 py-1">
+            <Link href={`/dashboard/profiles/${id}/runs`} className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap">
               Run history
             </Link>
-            <Link href={`/dashboard/profiles/${id}/edit`} className="gh-btn text-[12px] px-2.5 py-1">
+            <Link href={`/dashboard/profiles/${id}/edit`} className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap">
               Edit
             </Link>
             <RunNowButton profileId={id} initialIsRunning={isRunning} />
