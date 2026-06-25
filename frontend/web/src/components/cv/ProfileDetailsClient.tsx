@@ -55,8 +55,8 @@ function resolveInitialMode(data: ReferencesData | null | undefined): References
 interface Ctx {
   cd:        ContactDetails;
   setField:  <K extends typeof CONTACT_KEYS[number]>(k: K, v: string) => void;
-  families:  RoleFamily[];
-  toggleFamily: (f: RoleFamily) => void;
+  family:    RoleFamily | null;
+  setFamily: (f: RoleFamily | null) => void;
   creds:     ProfileCredentials;
   setCred:   <K extends keyof ProfileCredentials>(k: K, v: ProfileCredentials[K]) => void;
   refMode:   ReferencesMode;
@@ -105,9 +105,10 @@ export function ProfileDetailsProvider({
   }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const initRefs = (init as { references?: ReferencesData }).references;
-  const [cd, setCd]             = useState<ContactDetails>(initialContact);
-  const [families, setFamilies] = useState<RoleFamily[]>(init.role_families ?? []);
-  const [creds, setCreds]       = useState<ProfileCredentials>(init.credentials ?? {});
+  const [cd, setCd]           = useState<ContactDetails>(initialContact);
+  const initFamilies          = init.role_families ?? [];
+  const [family, setFamilySt] = useState<RoleFamily | null>(initFamilies.length > 0 ? initFamilies[0] : null);
+  const [creds, setCreds]     = useState<ProfileCredentials>(init.credentials ?? {});
   const [refMode, setRefMode]   = useState<ReferencesMode>(resolveInitialMode(initRefs));
   const [referees, setReferees] = useState<Referee[]>(initRefs?.referees ?? []);
 
@@ -121,8 +122,8 @@ export function ProfileDetailsProvider({
   const ctx: Ctx = {
     cd,
     setField: (k, v) => { setCd((p) => ({ ...p, [k]: v })); touch(); },
-    families,
-    toggleFamily: (f) => { setFamilies((p) => p.includes(f) ? p.filter((x) => x !== f) : [...p, f]); touch(); },
+    family,
+    setFamily: (f) => { setFamilySt(f); touch(); },
     creds,
     setCred: (k, v) => { setCreds((p) => ({ ...p, [k]: v })); touch(); },
     refMode,
@@ -139,14 +140,14 @@ export function ProfileDetailsProvider({
       const missingContact = REQUIRED_CONTACT_KEYS.filter(
         (k) => !((cd as Record<string, string>)[k] ?? "").trim()
       );
-      const noVertical = families.length === 0;
+      const noVertical = family === null;
       if (missingContact.length > 0 || noVertical) {
         setShowErrors(true);
         setError(
           noVertical && missingContact.length > 0
-            ? "Fill the required contact fields and pick at least one role."
+            ? "Fill the required contact fields and pick a role type."
             : noVertical
-              ? "Pick at least one role you're applying for."
+              ? "Select a role type before saving."
               : "Fill the required contact fields highlighted in red."
         );
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -157,7 +158,7 @@ export function ProfileDetailsProvider({
       const cleanedRefs = referees.filter((r) => r.name?.trim() || r.job_title?.trim() || r.company?.trim() || r.email?.trim());
       const payload = {
         ...cd,
-        role_families: families,
+        role_families: family ? [family] : [],
         credentials:   creds,
         references:    { mode: refMode, referees: cleanedRefs.slice(0, MAX_REFEREES) },
       };
@@ -209,8 +210,8 @@ function SectionCard({
 // ── Contact ──────────────────────────────────────────────────────────────────
 
 export function ContactSection() {
-  const { cd, setField, families, showErrors } = useProfile();
-  const showTech = families.includes("tech") || families.includes("general");
+  const { cd, setField, family, showErrors } = useProfile();
+  const showTech = family === "tech" || family === "general";
   const invalid = (k: string) => showErrors && !((cd as Record<string, string>)[k] ?? "").trim();
   return (
     <SectionCard icon={UserCircle2} title="Contact details" subtitle="Stamped onto every tailored CV. Applies to all CVs. Fields marked * are required.">
@@ -237,27 +238,33 @@ export function ContactSection() {
 
 // ── Verticals ────────────────────────────────────────────────────────────────
 
-const FAMILY_LABELS: Record<RoleFamily, string> = { tech: "Tech", nursing: "Healthcare", manual: "Manual", general: "General" };
+const FAMILY_OPTIONS: { value: RoleFamily; label: string }[] = [
+  { value: "tech",    label: "Tech / Data / Engineering" },
+  { value: "nursing", label: "Healthcare / Nursing / Care" },
+  { value: "manual",  label: "Manual / Service / Trades" },
+  { value: "general", label: "Other / General" },
+];
 
 const AVAILABILITY_OPTIONS = ["Full Time", "Part Time", "Casual"] as const;
 
 export function VerticalsSection() {
-  const { families, toggleFamily, showErrors } = useProfile();
-  const invalid = showErrors && families.length === 0;
+  const { family, setFamily, showErrors } = useProfile();
+  const invalid = showErrors && family === null;
   return (
-    <SectionCard icon={Layers} title="What roles are you applying for?" subtitle="Applies to all CVs. Drives your skill-section labels and which credential fields show. Pick at least one.">
-      <div className={`flex flex-wrap gap-2 ${invalid ? "rounded-lg ring-1 ring-red-500/60 p-2 -m-2" : ""}`}>
-        <Pill label="Tech / Data / Engineering"   selected={families.includes("tech")}    onClick={() => toggleFamily("tech")} />
-        <Pill label="Healthcare / Nursing / Care" selected={families.includes("nursing")} onClick={() => toggleFamily("nursing")} />
-        <Pill label="Manual / Service / Trades"   selected={families.includes("manual")}  onClick={() => toggleFamily("manual")} />
-        <Pill label="Other / General"             selected={families.includes("general")} onClick={() => toggleFamily("general")} />
+    <SectionCard icon={Layers} title="What roles are you applying for?" subtitle="Applies to all CVs. Drives your skill-section labels and which credential fields show. Required for CV analysis.">
+      <div className="space-y-1.5">
+        <select
+          value={family ?? ""}
+          onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
+          className={`w-full rounded-md border bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 ${invalid ? "border-red-500" : "border-[var(--border)]"}`}
+        >
+          <option value="">— Select a role type —</option>
+          {FAMILY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {invalid && <p className="text-xs text-red-600 font-medium">Select a role type to continue.</p>}
       </div>
-      {invalid && <p className="text-xs text-red-600 font-medium">Select at least one role to continue.</p>}
-      {families.length > 0 && (
-        <p className="text-xs text-text-3">
-          Showing fields for: <span className="font-medium text-text-2">{families.map((f) => FAMILY_LABELS[f] ?? f).join(", ")}</span>
-        </p>
-      )}
     </SectionCard>
   );
 }
@@ -265,9 +272,9 @@ export function VerticalsSection() {
 // ── Credentials (nursing / manual) ───────────────────────────────────────────
 
 export function CredentialsSection() {
-  const { families, creds, setCred } = useProfile();
-  const showNursing = families.includes("nursing");
-  const showManual  = families.includes("manual");
+  const { family, creds, setCred } = useProfile();
+  const showNursing = family === "nursing";
+  const showManual  = family === "manual";
   if (!showNursing && !showManual) return null;
 
   return (

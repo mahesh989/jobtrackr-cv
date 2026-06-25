@@ -187,54 +187,16 @@ JD_ANALYSIS_USER_TEMPLATE = """Job description:
 # authority on the final category. When the vertical is unknown (master / other)
 # no block is injected and the base prompt is used verbatim.
 
-_NURSING_HINTS = """\
-VERTICAL CONTEXT — this is a NURSING / AGED-CARE / DISABILITY-CARE role.
-Bucket with this field in mind:
-- domain_knowledge: care settings and clinical/care knowledge — aged care,
-  residential aged care, home care, community care, disability support, dementia
-  care, palliative care, person-centred care, medication administration, wound
-  care, infection control, manual handling, activities of daily living, personal
-  care, pressure area care, continence care, mobility support.
-- soft_skills: interpersonal qualities, INCLUDING cultural ones — compassion,
-  empathy, teamwork, communication, patience, "working with culturally and
-  linguistically diverse people" / "CALD" → cultural sensitivity (this is a SOFT
-  skill, NOT domain knowledge — it describes how the worker relates to people,
-  not a clinical procedure).
-- technical: named care SOFTWARE / equipment only — Leecare, Manad, eMMS,
-  electronic medication management system, hoists. The ACT of using them
-  (medication administration, manual handling) is domain_knowledge, not technical.
-"""
-
-_TECH_HINTS = """\
-VERTICAL CONTEXT — this is a TECH / SOFTWARE / DATA role.
-Bucket with this field in mind:
-- technical: named languages, tools, platforms, frameworks — Python, SQL, Java,
-  React, AWS, Docker, Kubernetes, PostgreSQL, Snowflake, Tableau, REST API.
-- domain_knowledge: methodologies, architectures, and business/regulatory
-  knowledge — agile, scrum, CI/CD, microservices, cloud computing, SaaS, data
-  warehousing, GDPR, machine learning, distributed systems.
-- soft_skills: cross-role behaviours — communication, collaboration, problem
-  solving, ownership, stakeholder management, analytical thinking, leadership.
-"""
-
-_CLEANING_HINTS = """\
-VERTICAL CONTEXT — this is a CLEANING / MANUAL / TRADES role.
-Bucket with this field in mind:
-- domain_knowledge: cleaning knowledge and compliance — commercial cleaning,
-  deep cleaning, bathroom cleaning, vacuuming, mopping, dusting, waste
-  management, chemical handling, PPE use, infection control, WHS / work health
-  and safety, food safety.
-- technical: named EQUIPMENT only — floor scrubber, polisher, industrial
-  cleaning machine, pressure washer, forklift, EWP. The ACT of cleaning is
-  domain_knowledge, not technical.
-- soft_skills: cross-role behaviours — reliability, attention to detail,
-  working autonomously, following instructions, time management, teamwork.
-"""
+# VERTICAL_HINTS is built from the per-vertical prompts.py modules via the
+# registry so each vertical owns its own hint string.  Keyed by lexicon
+# vertical ("nursing", "tech", "cleaning") — matching the keys the
+# orchestrator passes from resolve_vertical().
+from app.services.verticals import VERTICALS as _VERTICALS
 
 VERTICAL_HINTS: Dict[str, str] = {
-    "nursing": _NURSING_HINTS,
-    "tech": _TECH_HINTS,
-    "cleaning": _CLEANING_HINTS,
+    pack.lexicon_vertical: pack.prompt_hints
+    for pack in _VERTICALS.values()
+    if pack.lexicon_vertical is not None and pack.prompt_hints is not None
 }
 
 

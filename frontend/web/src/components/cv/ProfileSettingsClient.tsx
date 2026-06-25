@@ -93,7 +93,8 @@ export function ProfileSettingsClient({ initial }: Props) {
   const [cd, setCd]             = useState<ContactDetails>(initial ?? EMPTY);
   const [projects, setProjects] = useState<Project[]>(initial?.projects ?? []);
   const [creds, setCreds]       = useState<ProfileCredentials>(initial?.credentials ?? {});
-  const [families, setFamilies] = useState<RoleFamily[]>(initial?.role_families ?? []);
+  const initFamilies = initial?.role_families ?? [];
+  const [family, setFamily] = useState<RoleFamily | null>(initFamilies.length > 0 ? initFamilies[0] : null);
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -104,9 +105,6 @@ export function ProfileSettingsClient({ initial }: Props) {
   function setCred<K extends keyof ProfileCredentials>(k: K, v: ProfileCredentials[K]) {
     setCreds((prev) => ({ ...prev, [k]: v }));
   }
-  function toggleFamily(f: RoleFamily) {
-    setFamilies((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]);
-  }
   function toggleAvailability(v: string) {
     setCreds((prev) => {
       const cur = prev.availability ?? [];
@@ -115,15 +113,10 @@ export function ProfileSettingsClient({ initial }: Props) {
     });
   }
 
-  // Conditional rendering rules (user-requested):
-  //   • No family picked → HIDE every role-specific card. The user sees a
-  //     friendly "pick a family to customize" placeholder instead. Existing
-  //     saved data is preserved in state (not lost on save).
-  //   • One or more picked → show only the matching cards.
-  const showTech     = families.includes("tech") || families.includes("general");
-  const showNursing  = families.includes("nursing");
-  const showManual   = families.includes("manual");
-  const anySelected  = families.length > 0;
+  const showTech    = family === "tech" || family === "general";
+  const showNursing = family === "nursing";
+  const showManual  = family === "manual";
+  const anySelected = family !== null;
   function addProject() {
     setProjects((p) => [...p, { name: "", url: "", description: "" }]);
   }
@@ -142,7 +135,7 @@ export function ProfileSettingsClient({ initial }: Props) {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          contact_details: { ...cd, projects, credentials: creds, role_families: families },
+          contact_details: { ...cd, projects, credentials: creds, role_families: family ? [family] : [] },
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -190,26 +183,28 @@ export function ProfileSettingsClient({ initial }: Props) {
         </p>
       </div>
 
-      {/* ── Role Families picker — comes RIGHT AFTER Contact, drives which
-            add-on cards show below. Pill-style multi-select feels cleaner
-            than checkboxes per direction. ── */}
+      {/* ── Role Family picker — single-select dropdown ── */}
       <div className="glass rounded-lg shadow-gold p-6 space-y-4">
         <div>
           <h2 className="label-luxury text-text-2">What roles are you applying for?</h2>
           <p className="mt-1 text-xs text-text-3">
-            Pick any that apply. Extra fields appear below for each family.
-            Pick nothing while you're figuring it out — the form stays clean.
+            Choose the role type for your CV tailoring pipeline. Extra fields appear below for each type.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Pill label="Tech / Data / Engineering"     selected={families.includes("tech")}    onClick={() => toggleFamily("tech")} />
-          <Pill label="Healthcare / Nursing / Care"   selected={families.includes("nursing")} onClick={() => toggleFamily("nursing")} />
-          <Pill label="Manual / Service / Trades"     selected={families.includes("manual")}  onClick={() => toggleFamily("manual")} />
-          <Pill label="Other / General"               selected={families.includes("general")} onClick={() => toggleFamily("general")} />
-        </div>
+        <select
+          value={family ?? ""}
+          onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+        >
+          <option value="">— Select a role type —</option>
+          <option value="tech">Tech / Data / Engineering</option>
+          <option value="nursing">Healthcare / Nursing / Care</option>
+          <option value="manual">Manual / Service / Trades</option>
+          <option value="general">Other / General</option>
+        </select>
         {anySelected && (
           <p className="text-xs text-text-3">
-            Showing add-on fields for: <span className="font-medium text-text-2">{families.map(formatFamilyLabel).join(", ")}</span>
+            Showing add-on fields for: <span className="font-medium text-text-2">{formatFamilyLabel(family!)}</span>
           </p>
         )}
       </div>

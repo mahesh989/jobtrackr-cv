@@ -115,11 +115,6 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
 
-      {/* Pass-through hidden inputs for fields the new UI doesn't surface.
-          Preserves existing DB values on edit; uses sensible defaults on create. */}
-      {(defaults?.target_verticals ?? ["tech", "healthcare", "general"]).map((v) => (
-        <input key={`tv-${v}`} type="hidden" name="target_verticals" value={v} />
-      ))}
       {/* The unified "Title must include" field below writes to
           must_include_phrases instead — retire the single-word filter. */}
       <input type="hidden" name="adzuna_title_keywords" value="" />
@@ -142,10 +137,31 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         />
       </section>
 
-      {/* ───── 2. Search ────────────────────────────────────────────── */}
+      {/* ───── 1b. Role type ─────────────────────────────────────────── */}
       <section>
         <SectionHeader
           step={2}
+          title="Role type"
+          subtitle="Sets the CV tailoring pipeline for this profile. Required before running analysis."
+        />
+        <select
+          name="target_verticals"
+          required
+          defaultValue={(defaults?.target_verticals ?? [])[0] ?? ""}
+          className="field"
+        >
+          <option value="">— Select a role type —</option>
+          <option value="tech">Tech / Data / Engineering</option>
+          <option value="nursing">Healthcare / Nursing / Care</option>
+          <option value="manual">Manual / Service / Trades</option>
+          <option value="general">Other / General</option>
+        </select>
+      </section>
+
+      {/* ───── 3. Search ────────────────────────────────────────────── */}
+      <section>
+        <SectionHeader
+          step={3}
           title="Search"
           subtitle="What you're looking for. Each keyword fires a separate search across enabled sources."
         />
@@ -187,10 +203,10 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         </div>
       </section>
 
-      {/* ───── 3. Filters ───────────────────────────────────────────── */}
+      {/* ───── 4. Filters ───────────────────────────────────────────── */}
       <section>
         <SectionHeader
-          step={3}
+          step={4}
           title="Filters"
           subtitle="Applied to every source after fetching, before anything is saved."
         />
@@ -278,9 +294,9 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
 
       {/* Sources moved to Admin → Integrations (global, all users). See migration 063. */}
 
-      {/* ───── 4. Schedule ──────────────────────────────────────────── */}
+      {/* ───── 5. Schedule ──────────────────────────────────────────── */}
       <section>
-        <SectionHeader step={4} title="Schedule" />
+        <SectionHeader step={5} title="Schedule" />
         <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
 
           <div>
@@ -344,7 +360,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
       {/* ───── 6. Automation pipeline ───────────────────────────────── */}
       <section>
         <SectionHeader
-          step={5}
+          step={6}
           title="Automation pipeline"
           subtitle="What happens after a scrape: tailor a CV → send the application."
         />
