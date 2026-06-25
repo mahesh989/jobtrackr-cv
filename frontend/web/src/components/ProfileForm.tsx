@@ -19,6 +19,7 @@
  */
 
 import { useTransition, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { createProfile, updateProfile } from "@/lib/actions";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 
@@ -144,18 +145,21 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
           title="Role type"
           subtitle="Sets the CV tailoring pipeline for this profile. Required before running analysis."
         />
-        <select
-          name="target_verticals"
-          required
-          defaultValue={(defaults?.target_verticals ?? [])[0] ?? ""}
-          className="field select-chevron"
-        >
-          <option value="">— Select a role type —</option>
-          <option value="tech">Tech / Data / Engineering</option>
-          <option value="nursing">Healthcare / Nursing / Care</option>
-          <option value="manual">Manual / Service / Trades</option>
-          <option value="general">Other / General</option>
-        </select>
+        <div className="select-chevron-wrap">
+          <select
+            name="target_verticals"
+            required
+            defaultValue={(defaults?.target_verticals ?? [])[0] ?? ""}
+            className="field select-chevron"
+          >
+            <option value="">— Select a role type —</option>
+            <option value="tech">Tech / Data / Engineering</option>
+            <option value="nursing">Healthcare / Nursing / Care</option>
+            <option value="manual">Manual / Service / Trades</option>
+            <option value="general">Other / General</option>
+          </select>
+          <ChevronDown className="h-4 w-4 text-text-2" />
+        </div>
       </section>
 
       {/* ───── 3. Search ────────────────────────────────────────────── */}
@@ -304,19 +308,22 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
               Initial fetch window <span className="font-normal text-text-2">(first run only)</span>
               <Hint text="Only applies to the first run. Auto-runs after that fetch only what's new since the previous run (+1 day buffer)." />
             </label>
-            <select
-              name="adzuna_max_days_old"
-              defaultValue={defaults?.adzuna_max_days_old ?? 14}
-              className="field select-chevron"
-            >
-              <option value="1">Past 1 day</option>
-              <option value="2">Past 2 days</option>
-              <option value="3">Past 3 days</option>
-              <option value="7">Past 7 days</option>
-              <option value="14">Past 14 days (recommended)</option>
-              <option value="21">Past 21 days</option>
-              <option value="28">Past 28 days</option>
-            </select>
+            <div className="select-chevron-wrap">
+              <select
+                name="adzuna_max_days_old"
+                defaultValue={defaults?.adzuna_max_days_old ?? 14}
+                className="field select-chevron"
+              >
+                <option value="1">Past 1 day</option>
+                <option value="2">Past 2 days</option>
+                <option value="3">Past 3 days</option>
+                <option value="7">Past 7 days</option>
+                <option value="14">Past 14 days (recommended)</option>
+                <option value="21">Past 21 days</option>
+                <option value="28">Past 28 days</option>
+              </select>
+              <ChevronDown className="h-4 w-4 text-text-2" />
+            </div>
           </div>
 
           <div>

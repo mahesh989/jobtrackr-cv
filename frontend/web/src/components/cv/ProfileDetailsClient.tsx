@@ -33,7 +33,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   Plus, Trash2, Sparkles, UserCircle2, Layers,
-  ShieldCheck, UserCheck, Clock,
+  ShieldCheck, UserCheck, Clock, ChevronDown,
 } from "lucide-react";
 import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/components/cv/ProfileSettingsClient";
 import type { Referee, ReferencesMode, ReferencesData } from "@/components/cv/ReferencesSection";
@@ -260,6 +260,7 @@ export function VerticalsSection() {
   return (
     <SectionCard icon={Layers} title="What roles are you applying for?" subtitle="Applies to all CVs. Drives your skill-section labels and which credential fields show. Required for CV analysis.">
       <div className="space-y-1.5">
+        <div className="select-chevron-wrap">
         <select
           value={family ?? ""}
           onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
@@ -270,6 +271,8 @@ export function VerticalsSection() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        <ChevronDown className="h-4 w-4 text-text-2" />
+        </div>
         {invalid && <p className="text-xs text-red-600 font-medium">Select a role type to continue.</p>}
       </div>
     </SectionCard>
@@ -527,10 +530,13 @@ function Select({ label, value, onChange, options }: { label: string; value: str
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium text-text-2">{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30">
-        {options.map((opt) => <option key={opt} value={opt}>{opt || "—"}</option>)}
-      </select>
+      <div className="select-chevron-wrap">
+        <select value={value} onChange={(e) => onChange(e.target.value)}
+          className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30">
+          {options.map((opt) => <option key={opt} value={opt}>{opt || "—"}</option>)}
+        </select>
+        <ChevronDown className="h-4 w-4 text-text-2" />
+      </div>
     </div>
   );
 }

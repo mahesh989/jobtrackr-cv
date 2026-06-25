@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Trash2, ExternalLink, ChevronDown } from "lucide-react";
 
 interface Project {
   name?:        string;
@@ -191,17 +191,20 @@ export function ProfileSettingsClient({ initial }: Props) {
             Choose the role type for your CV tailoring pipeline. Extra fields appear below for each type.
           </p>
         </div>
-        <select
-          value={family ?? ""}
-          onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
-          className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
-        >
-          <option value="">— Select a role type —</option>
-          <option value="tech">Tech / Data / Engineering</option>
-          <option value="nursing">Healthcare / Nursing / Care</option>
-          <option value="manual">Manual / Service / Trades</option>
-          <option value="general">Other / General</option>
-        </select>
+        <div className="select-chevron-wrap">
+          <select
+            value={family ?? ""}
+            onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
+            className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+          >
+            <option value="">— Select a role type —</option>
+            <option value="tech">Tech / Data / Engineering</option>
+            <option value="nursing">Healthcare / Nursing / Care</option>
+            <option value="manual">Manual / Service / Trades</option>
+            <option value="general">Other / General</option>
+          </select>
+          <ChevronDown className="h-4 w-4 text-text-2" />
+        </div>
         {anySelected && (
           <p className="text-xs text-text-3">
             Showing add-on fields for: <span className="font-medium text-text-2">{formatFamilyLabel(family!)}</span>
@@ -562,15 +565,18 @@ function Select({
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium text-text-2">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
-      >
-        {options.map((opt) => (
-          <option key={opt} value={opt}>{opt || "—"}</option>
-        ))}
-      </select>
+      <div className="select-chevron-wrap">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+        >
+          {options.map((opt) => (
+            <option key={opt} value={opt}>{opt || "—"}</option>
+          ))}
+        </select>
+        <ChevronDown className="h-4 w-4 text-text-2" />
+      </div>
     </div>
   );
 }
