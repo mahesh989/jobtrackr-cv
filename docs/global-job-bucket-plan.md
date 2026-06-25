@@ -1,6 +1,10 @@
 # Global Job Bucket — Detailed Plan
 
-> Status: **Phase A live on `main`; Phase B/C engine built on branch `feat/global-bucket`.**
+> Status: **LIVE on `main`** (serve-into-jobs engine merged + deployed; coexists with
+> feat/vertical-pipeline). Validated in production across AIN-Sydney, AIN-Melbourne
+> (cross-metro, no leakage), and Cleaner-Sydney (cross-role), plus skip-when-fresh.
+> Deferred: upgrade-on-read (until a weekly/monthly user exists). SEEK actor parked —
+> see [seek-actor-fix-handoff.md](seek-actor-fix-handoff.md).
 > Author session: 2026-06-24/25. Additive to the existing sourcing pipeline.
 
 > ## ARCHITECTURE UPDATE (2026-06-25) — serve-into-`jobs`
