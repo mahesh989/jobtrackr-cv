@@ -445,6 +445,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   runLogContext.enterWith({ runLogId });
 
   const sourcesRun: string[] = [];
+  // Sources that actually SUCCEEDED this run (returned results, or completed
+  // without a fetch failure). Only these update search_coverage — so a source
+  // that errored/403'd and yielded nothing is NOT marked "fresh" and gets
+  // retried next run instead of being cached as covered.
+  const coverageSources = new Set<string>();
+  let seekRawCount = 0;
   let jobsFetched = 0;
   let jobsAfterDedup = 0;
   let jobsSaved = 0;
@@ -502,6 +508,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         const results = await adapter.fetchJobs(profile);
         rawJobs.push(...results);
         sourcesRun.push(adapter.name);
+        coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
         await recordSuccess(adapter.name);
         console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
       } catch (err) {
@@ -541,6 +548,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         try {
           const seekJobs = await seekDirectAdapter.fetchJobs(profile);
           rawJobs.push(...seekJobs);
+          seekRawCount += seekJobs.length;
           sourcesRun.push("seek");
           sourceMethods.seek.listings = "direct";
           sourceMethods.seek.count    = seekJobs.length;
@@ -569,6 +577,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       try {
         const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
         rawJobs.push(...seekJobs);
+        seekRawCount += seekJobs.length;
         if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
         sourceMethods.seek!.listings = useActor ? "apify" : "apify_fallback";
         sourceMethods.seek!.count    = seekJobs.length;
@@ -598,6 +607,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           .eq("id", seekIntegration.id);
       }
     }
+
+    // SEEK counts as "covered" only if it returned results OR direct succeeded
+    // (legitimately empty). A 403→0-item-actor chain yields nothing and is NOT
+    // marked covered, so the slice stays stale and SEEK is retried next run
+    // instead of being cached as fresh for the TTL window.
+    if (seekEnabled && (seekRawCount > 0 || !seekDirectFailed)) coverageSources.add("seek");
 
     // Careerjet listings run in the adapters[] loop above via the free v4 API
     // (snippet). Full JDs are enriched later at stage 7c via the JD-fetcher
@@ -1076,7 +1091,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Phase A — record search-coverage (write-only). Warms the freshness ledger
     // so Phase B can drive the scrape delta + bucket serve. Best-effort: a
     // not-yet-applied migration 066 no-ops with a warning, never affects the run.
-    const coverageSlices = resolveSlices(profile.keywords, profile.location, sourcesRun);
+    const coverageSlices = resolveSlices(profile.keywords, profile.location, Array.from(coverageSources));
     await recordCoverage(coverageSlices, lookbackDays, jobsFetched);
     // Release single-flight locks so the next caller isn't blocked. (recordCoverage
     // upserts the row but leaves `refreshing` as-is, so we must clear it here.)
