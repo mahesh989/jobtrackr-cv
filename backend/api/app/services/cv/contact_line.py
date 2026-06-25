@@ -363,14 +363,15 @@ def stamp_availability_in_summary(
 ) -> str:
     """Append the opt-in availability note as an italic line at the END of the
     Professional Summary section — i.e. directly after the summary paragraph
-    and just above the next section. No-op when:
-      • the role family is not credentialed (nursing / manual),
+    and just above the next section. Availability applies to EVERY role family
+    (a tech contractor signals "Casual" just as a care worker does), so this is
+    deliberately NOT role-gated — unlike stamp_credentials. No-op when:
       • availability is off or empty,
       • no summary section is found.
+
+    ``role_family_id`` is accepted for call-site symmetry but no longer gates.
     """
     if not markdown:
-        return markdown
-    if role_family_id not in _CREDENTIAL_FAMILIES:
         return markdown
     avail = build_availability_line(contact_details)
     if not avail:

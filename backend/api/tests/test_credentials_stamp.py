@@ -116,8 +116,9 @@ def test_availability_appended_to_professional_summary():
     # off → no-op
     cd_off = {"credentials": {"availability": ["Casual"], "show_availability": False}}
     assert stamp_availability_in_summary(md, cd_off, "nursing") == md
-    # non-credentialed family → no-op
-    assert stamp_availability_in_summary(md, cd, "tech") == md
+    # availability is NOT role-gated — it applies to every family (incl. tech)
+    out_tech = stamp_availability_in_summary(md, cd, "tech")
+    assert "*Available: Full Time, Part Time, Casual*" in out_tech
 
 
 def test_availability_stamp_is_idempotent():
