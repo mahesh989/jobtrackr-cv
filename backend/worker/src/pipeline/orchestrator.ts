@@ -29,6 +29,9 @@ import {
   recordCoverage,
   readCoverage,
   computeProfileLookback,
+  sliceDeltaDays,
+  acquireSliceLocks,
+  releaseSliceLocks,
   COVERAGE_SOURCES,
   type CoverageSlice,
 } from "./coverage.js";
@@ -336,7 +339,8 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   // this profile's last run. Fresh slices → scrape little/nothing; we still
   // serve the full window from the shared bucket later.
   let bucketSlices: CoverageSlice[] = [];
-  let bucketAllFresh = false;
+  let bucketSkipScrape = false;          // skip stage 2 entirely; serve from bucket
+  let bucketLockedSlices: CoverageSlice[] = [];  // slices we hold the refresh lock on (release after run)
   if (bucketEnabled()) {
     await evictStaleBucket();
     const candidateSources =
@@ -346,16 +350,42 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     bucketSlices = resolveSlices(profile.keywords, profile.location, candidateSources);
     if (bucketSlices.length > 0 && !fullRefresh) {
       const coverage = await readCoverage(bucketSlices);
+      const key = (s: CoverageSlice) => `${s.keyword_norm}|${s.location_cell}|${s.source}`;
       const { lookbackDays: bucketLookback, allFresh } = computeProfileLookback(
         coverage, bucketSlices, BUCKET_RETENTION_DAYS,
       );
-      bucketAllFresh = allFresh;
       // Floor at 1 day. A 0-day lookback is FALSY and makes date-aware adapters
       // (Adzuna: `if (profile.adzuna_max_days_old)`) DROP the filter and fetch
-      // their full default window — the opposite of "skip". 1 day = minimal
-      // top-up; the complete result set still comes from the bucket via serve.
+      // their full default window. 1 day = minimal top-up.
       lookbackDays = Math.max(bucketLookback, 1);
-      console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${bucketSlices.length} slices, allFresh=${allFresh})`);
+
+      if (allFresh) {
+        // Every slice refreshed within the TTL → no scrape needed at all.
+        bucketSkipScrape = true;
+        console.log(`[pipeline] bucket: all ${bucketSlices.length} slices fresh — skip scrape, serve from bucket`);
+      } else {
+        // Single-flight: claim the stale slices. Cold slices (no coverage row
+        // yet) MUST be scraped to populate, so we never skip when any exist.
+        const stale = bucketSlices.filter((s) => sliceDeltaDays(coverage.get(key(s)), BUCKET_RETENTION_DAYS) > 0);
+        const cold = stale.filter((s) => !coverage.has(key(s)));
+        if (cold.length === 0) {
+          const claimed = await acquireSliceLocks(stale);
+          if (claimed === 0) {
+            // Another in-flight refresh already owns all stale slices → don't
+            // double-scrape; serve the (about-to-be-refreshed) bucket.
+            bucketSkipScrape = true;
+            console.log(`[pipeline] bucket: ${stale.length} stale slices locked by another refresh — skip scrape, serve from bucket`);
+          } else {
+            bucketLockedSlices = stale;
+            console.log(`[pipeline] bucket lookback: ${lookbackDays}d (claimed ${claimed}/${stale.length} stale slices)`);
+          }
+        } else {
+          // Cold slices present → scrape; still claim existing locks for hygiene.
+          await acquireSliceLocks(stale.filter((s) => coverage.has(key(s))));
+          bucketLockedSlices = stale;
+          console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${cold.length} cold + ${stale.length - cold.length} stale slices — scraping)`);
+        }
+      }
     }
   }
 
@@ -438,7 +468,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     // Stage 2: source layer
     const rawJobs: RawJob[] = [];
+    if (bucketSkipScrape) {
+      console.log(`[pipeline] stage 2 — skipped entirely (bucket fresh/locked); serving from bucket`);
+    }
     for (const adapter of adapters) {
+      if (bucketSkipScrape) break;
       await checkCancellation(runLogId);
 
       if (!sourceEnabled(adapter.name)) {
@@ -488,6 +522,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     sourceMethods.seek = { enabled: seekEnabled };
     if (!seekEnabled) {
       console.log(`[pipeline] stage 2 — seek: skipped (not in enabled_sources)`);
+      sourceMethods.seek.listings = "skipped";
+    } else if (bucketSkipScrape) {
+      console.log(`[pipeline] stage 2 — seek: skipped (bucket fresh/locked — serving from bucket)`);
       sourceMethods.seek.listings = "skipped";
     } else {
       await checkCancellation(runLogId);
@@ -1041,6 +1078,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // not-yet-applied migration 066 no-ops with a warning, never affects the run.
     const coverageSlices = resolveSlices(profile.keywords, profile.location, sourcesRun);
     await recordCoverage(coverageSlices, lookbackDays, jobsFetched);
+    // Release single-flight locks so the next caller isn't blocked. (recordCoverage
+    // upserts the row but leaves `refreshing` as-is, so we must clear it here.)
+    if (bucketLockedSlices.length > 0) await releaseSliceLocks(bucketLockedSlices);
 
     console.log(`[pipeline] ─── run complete ───\n`);
   } catch (err) {
