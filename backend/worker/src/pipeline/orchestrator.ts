@@ -350,7 +350,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         coverage, bucketSlices, BUCKET_RETENTION_DAYS,
       );
       bucketAllFresh = allFresh;
-      lookbackDays = allFresh ? 0 : bucketLookback;
+      // Floor at 1 day. A 0-day lookback is FALSY and makes date-aware adapters
+      // (Adzuna: `if (profile.adzuna_max_days_old)`) DROP the filter and fetch
+      // their full default window — the opposite of "skip". 1 day = minimal
+      // top-up; the complete result set still comes from the bucket via serve.
+      lookbackDays = Math.max(bucketLookback, 1);
       console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${bucketSlices.length} slices, allFresh=${allFresh})`);
     }
   }
