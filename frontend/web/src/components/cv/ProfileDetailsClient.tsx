@@ -18,9 +18,9 @@
  * Sections are exported individually so the page can interleave the CV library
  * between them:
  *   <ProfileDetailsProvider initial activeCvId>
- *     <ContactSection /> <VerticalsSection />
+ *     <VerticalsSection /> <ContactSection />     ← vertical picked first
  *     <CvLibraryClient />                         ← not part of this overlay
- *     <CredentialsSection /> <ReferencesSubSection />
+ *     <CredentialsSection /> <AvailabilitySection /> <ReferencesSubSection />
  *     <ProfileSaveBar />
  *   </ProfileDetailsProvider>
  *
@@ -223,6 +223,13 @@ export function ContactSection() {
         <Field label="State"        value={cd.address     ?? ""} onChange={(v) => setField("address",     v)} placeholder="NSW"               required invalid={invalid("address")} />
         <Field label="Postcode"     value={cd.postcode    ?? ""} onChange={(v) => setField("postcode",    v)} placeholder="2220"              required invalid={invalid("postcode")} />
         <Field label="LinkedIn URL" value={cd.linkedin    ?? ""} onChange={(v) => setField("linkedin",    v)} placeholder="https://linkedin.com/in/yourname" />
+        {showTech && (
+          <>
+            <Field label="GitHub URL"    value={cd.github    ?? ""} onChange={(v) => setField("github",    v)} placeholder="github.com/yourname" />
+            <Field label="Portfolio URL" value={cd.portfolio ?? ""} onChange={(v) => setField("portfolio", v)} placeholder="yourname.dev" />
+            <Field label="Website URL"   value={cd.website   ?? ""} onChange={(v) => setField("website",   v)} placeholder="(used only if no Portfolio)" />
+          </>
+        )}
         <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
           <Field label="Other (label)" value={cd.other_label ?? ""} onChange={(v) => setField("other_label", v)} placeholder="e.g. Medium, Substack" />
           <Field label="Other (URL)"   value={cd.other_url   ?? ""} onChange={(v) => setField("other_url",   v)} placeholder="https://..." />
@@ -230,7 +237,7 @@ export function ContactSection() {
       </div>
       <p className="text-xs text-text-3">
         On your CV: <code className="rounded bg-[var(--surface-2)] px-1 py-0.5">State | Phone | Email | LinkedIn</code>
-        {showTech && <> · plus GitHub / Portfolio when you fill them below</>}
+        {showTech && <> · plus GitHub / Portfolio (Portfolio preferred; Website shown only when no Portfolio)</>}
       </p>
     </SectionCard>
   );

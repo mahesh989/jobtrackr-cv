@@ -105,8 +105,8 @@ export default async function CvPage({ searchParams }: PageProps) {
         )}
 
         <ProfileDetailsProvider initial={contactDetails} activeCvId={activeCv?.id ?? null}>
-          <ContactSection />
           <VerticalsSection />
+          <ContactSection />
 
           {/* The CV library sits between the profile overlay sections (per the
               chosen layout). It does not consume the profile context. */}
