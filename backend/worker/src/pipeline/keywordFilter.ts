@@ -99,12 +99,18 @@ export function teaserRescueFilter(
 // ── Orchestrator entry point ─────────────────────────────────────────────────
 
 /**
- * Production keyword filter. Title-only by default; teaser rescue activates
- * when must_include_phrases is explicitly set on the profile (broader
- * semantic acceptance opted into by the user).
+ * Production keyword filter — TITLE ONLY.
+ *
+ * Honors the UI contract: "Title must include any of …" means the phrase must
+ * appear in the job TITLE. We do NOT scan the description. (Previously a
+ * "teaser rescue" pass also matched the first 500 chars of the description,
+ * which silently admitted off-target roles — e.g. a "Disability Support Worker"
+ * or "Registered Nurse" whose JD merely mentioned "AIN"/"care worker". That
+ * contradicted the field's label and is removed. `teaserRescueFilter` is kept
+ * exported for a possible future opt-in "also match description" toggle.)
  *
  * Phrase source priority:
- *   profile.must_include_phrases (if non-empty)  ← user's smart filter
+ *   profile.must_include_phrases (if non-empty)  ← user's title filter
  *   profile.keywords (otherwise)                 ← fall-back: filter by search keys
  */
 export function applyKeywordFilter(
@@ -113,25 +119,10 @@ export function applyKeywordFilter(
 ): NormalisedJob[] {
   const mustInclude = (profile.must_include_phrases ?? [])
     .filter((s) => typeof s === "string" && s.trim().length > 0);
-  const usingSmartFilter = mustInclude.length > 0;
-  const phrases = usingSmartFilter ? mustInclude : profile.keywords;
+  const phrases = mustInclude.length > 0 ? mustInclude : profile.keywords;
 
   if (phrases.length === 0) return jobs;
 
-  const titlePassed = titleOnlyFilter(jobs, phrases);
-
-  if (!usingSmartFilter) return titlePassed; // no rescue without explicit must-include
-
-  // Teaser rescue on the title rejects.
-  // NOTE: url_hash is NOT set yet at this stage (it's computed later in the
-  // dedup stage), so it is "" for every job here. Keying the passed-set on
-  // url_hash would make `passedHashes` = {""}, turning `titleRejected` into an
-  // empty list whenever ANY title matched — silently disabling rescue. Key on
-  // job.url instead, which normalise() has already populated (canonical URL).
-  const passedUrls = new Set(titlePassed.map((j) => j.url));
-  const titleRejected = jobs.filter((j) => !passedUrls.has(j.url));
-  const rescued = teaserRescueFilter(titleRejected, mustInclude);
-
-  return [...titlePassed, ...rescued];
+  return titleOnlyFilter(jobs, phrases);
 }
 
