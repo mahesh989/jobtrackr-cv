@@ -256,7 +256,7 @@ export function VerticalsSection() {
         <select
           value={family ?? ""}
           onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
-          className={`w-full rounded-md border bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 ${invalid ? "border-red-500" : "border-[var(--border)]"}`}
+          className={`select-chevron w-full rounded-md border bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 ${invalid ? "border-red-500" : "border-[var(--border)]"}`}
         >
           <option value="">— Select a role type —</option>
           {FAMILY_OPTIONS.map((o) => (
@@ -519,7 +519,7 @@ function Select({ label, value, onChange, options }: { label: string; value: str
     <div className="space-y-1">
       <label className="text-xs font-medium text-text-2">{label}</label>
       <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30">
+        className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30">
         {options.map((opt) => <option key={opt} value={opt}>{opt || "—"}</option>)}
       </select>
     </div>

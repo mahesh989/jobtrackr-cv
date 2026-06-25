@@ -194,7 +194,7 @@ export function ProfileSettingsClient({ initial }: Props) {
         <select
           value={family ?? ""}
           onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
-          className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+          className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
         >
           <option value="">— Select a role type —</option>
           <option value="tech">Tech / Data / Engineering</option>
@@ -565,7 +565,7 @@ function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
+        className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>{opt || "—"}</option>

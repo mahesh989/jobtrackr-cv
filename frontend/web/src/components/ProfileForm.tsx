@@ -148,7 +148,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
           name="target_verticals"
           required
           defaultValue={(defaults?.target_verticals ?? [])[0] ?? ""}
-          className="field"
+          className="field select-chevron"
         >
           <option value="">— Select a role type —</option>
           <option value="tech">Tech / Data / Engineering</option>
@@ -307,7 +307,7 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
             <select
               name="adzuna_max_days_old"
               defaultValue={defaults?.adzuna_max_days_old ?? 14}
-              className="field"
+              className="field select-chevron"
             >
               <option value="1">Past 1 day</option>
               <option value="2">Past 2 days</option>
