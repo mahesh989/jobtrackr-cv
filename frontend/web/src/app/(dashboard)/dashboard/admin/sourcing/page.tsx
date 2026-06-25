@@ -128,6 +128,23 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
   const sourceRanked = Object.entries(perSource).sort((a, b) => b[1].saved - a[1].saved);
   const maxSourceSaved = Math.max(...sourceRanked.map(([, d]) => d.saved), 1);
 
+  // ── Global bucket metrics (best-effort — tables may be absent in some envs) ─
+  let bucketTotal = 0;
+  const bucketBySource: Record<string, number> = {};
+  let coverageSlices: { keyword_norm: string; location_cell: string; source: string; last_refreshed_at: string }[] = [];
+  try {
+    const { data: gj, count } = await admin.from("global_jobs").select("source", { count: "exact" });
+    bucketTotal = count ?? 0;
+    for (const r of (gj ?? []) as { source: string }[]) bucketBySource[r.source] = (bucketBySource[r.source] ?? 0) + 1;
+    const { data: cov } = await admin.from("search_coverage").select("keyword_norm, location_cell, source, last_refreshed_at");
+    coverageSlices = (cov ?? []) as typeof coverageSlices;
+  } catch { /* bucket tables not present — show zeros */ }
+  // A completed run that fetched 0 but saved > 0 was served entirely from the
+  // bucket (single-flight skip or all-fresh) — i.e. a scrape we avoided.
+  const bucketServedRuns = completedRuns.filter((r) => (r.jobs_fetched ?? 0) === 0 && (r.jobs_saved ?? 0) > 0).length;
+  const bucketHitRate = completedRuns.length > 0 ? (bucketServedRuns / completedRuns.length) * 100 : null;
+  const freshSlices = coverageSlices.filter((c) => now.getTime() - new Date(c.last_refreshed_at).getTime() < 6 * 3600_000).length;
+
   // ── JD quality breakdown ─────────────────────────────────────────────────
   const totalJobs = jobs.length;
   const fullJd    = jobs.filter((j) => j.jd_quality === "full").length;
@@ -235,6 +252,26 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
           <Kpi label="Save rate"          value={saveRate !== null ? `${saveRate.toFixed(1)}%` : "—"} sub="fetched → saved" color={saveRate !== null && saveRate < 10 ? "text-amber-700" : "text-text"} />
           <Kpi label="Dedup rate"         value={dedupRate !== null ? `${dedupRate.toFixed(1)}%` : "—"} sub="cross-profile + same-URL" />
         </div>
+
+        {/* Global job bucket */}
+        <section>
+          <h2 className="text-[12px] font-semibold text-text mb-3">Global job bucket</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Kpi label="Bucket size" value={bucketTotal.toLocaleString()} sub="canonical postings" color="text-blue-700" />
+            <Kpi label="Coverage slices" value={coverageSlices.length.toLocaleString()} sub={`${freshSlices} fresh (<6h)`} />
+            <Kpi label="Scrapes avoided" value={bucketServedRuns.toLocaleString()} sub="runs served w/o fetching" color="text-emerald-700" />
+            <Kpi label="Bucket hit rate" value={bucketHitRate !== null ? `${bucketHitRate.toFixed(0)}%` : "—"} sub="of completed runs" />
+          </div>
+          {Object.keys(bucketBySource).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(bucketBySource).sort((a, b) => b[1] - a[1]).map(([src, n]) => (
+                <span key={src} className="text-[11px] border border-border bg-surface rounded px-2 py-1 text-text-3">
+                  {src}: <span className="font-semibold text-text">{n}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Source availability — DUMMY_DATA */}
         <section>
