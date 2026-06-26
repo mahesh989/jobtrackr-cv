@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.17",
-    "updated": "2026-06-25 (title-only filter fix shipped; cross-profile aggregate-dedup backlogged)",
+    "updated": "2026-06-26 (auto-analyze fixed to platform key; title-only filter; bucket cleanup)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -370,7 +370,8 @@
       "id": "OPS-19",
       "title": "Platform-wide AI provider replaces BYOK \u2014 migration 060 not yet applied",
       "detail": "Migration shared/supabase/migrations/060_platform_ai_settings.sql creates public.platform_ai_settings, best-effort copies any existing founder/admin BYOK key from user_integrations, picks one active row, then DELETEs all anthropic/openai/deepseek rows from user_integrations (irreversible from the app). RISK flagged by migration-checker: if no founder/admin had a previously-valid key, the seeded 'openai' row is left with status=NULL/no key, so NO user's analyses work until an admin opens /dashboard/admin/ai-settings and pastes+validates a key. Required steps before applying: (1) read-only check that a founder/admin user_integrations row has status='valid' and a key for at least one provider; (2) optionally snapshot user_integrations before running, since the DELETE has no soft-delete/audit trail; (3) after applying, verify `select * from platform_ai_settings` shows exactly one is_active=true row with status='valid', and `select count(*) from user_integrations where provider in ('anthropic','openai','deepseek')` returns 0; (4) if the active row isn't valid, immediately set one via the admin UI to close the AI-dark window. See D20 for the full file list."
-    }
+    },
+    "2026-06-26: (1) FIXED auto-analyze was dead for all users \u2014 worker triggerAutoAnalyze still did per-user BYOK key lookup (user_integrations) post-BYOK-removal, always skipped 'no valid AI key'. Now reads platform_ai_settings via getPlatformAiCredentials() like the web manual path (447b072). (2) FIXED 'Title must include' was scanning JD descriptions (teaser rescue) -> off-target roles leaked; now title-only (87b0b5c). (3) BYOK-for-AI fully gone (web+worker use platform_ai_settings); user_integrations MUST stay (holds Apify/SEEK token + email) \u2014 do NOT drop. (4) Cleanup: deleted AIN Sydney (copy) profile + 3 lingering off-target jobs."
   ],
   "known_issues": [
     {
