@@ -54,6 +54,7 @@ async function getPlatformAiCredentials(): Promise<{ provider: Provider; apiKey:
 
 const JD_MIN_USABLE = 1000;  // chars — below this, JD is too thin for reliable AI analysis. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
+const AUTO_ANALYZE_MAX_KM = 30;  // auto-analyze only jobs within this distance of home; farther = manual-only
 
 interface ProfileThresholds {
   user_id: string;
@@ -89,12 +90,23 @@ export async function triggerAutoAnalyze(
   // ── 1. Fetch the job + check JD quality ─────────────────────────────────
   const { data: job, error: jobErr } = await db
     .from("jobs")
-    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text, jd_quality")
+    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text, jd_quality, distance_km")
     .eq("id", jobId)
     .maybeSingle();
 
   if (jobErr || !job) {
     console.warn(`[auto-analyze] ${jobId}: job not found — skipping`);
+    return null;
+  }
+
+  // Distance gate (auto-mode only). Candidates rarely apply far from home, so
+  // auto-analyze only jobs within AUTO_ANALYZE_MAX_KM of the profile's home
+  // address — this saves AI spend on out-of-range jobs. `distance_km` is null
+  // when the profile has no home address OR the job couldn't be geocoded; both
+  // mean "don't auto-analyze" (the user can still hit Analyze manually).
+  const distKm = (job as { distance_km: number | null }).distance_km;
+  if (distKm == null || distKm > AUTO_ANALYZE_MAX_KM) {
+    console.log(`[auto-analyze] ${jobId}: skipped (${distKm == null ? "no home address / un-geocoded" : `${distKm}km > ${AUTO_ANALYZE_MAX_KM}km`} — manual analysis still available)`);
     return null;
   }
 
