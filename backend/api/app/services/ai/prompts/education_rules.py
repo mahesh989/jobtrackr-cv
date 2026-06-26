@@ -64,10 +64,6 @@ skip steps):
    everything, keep the most recent Bachelor's or highest qualification.
 
 ### FORBIDDEN PATTERNS (zero tolerance)
-❌ Never emit a placeholder token for the institution, location, or dates
-   (e.g. `[Institution Not Provided]`, `[Location Not Provided]`, `[...]`).
-   Copy the institution + location verbatim from the source CV — they are
-   always present. If one field is truly absent, omit just that field.
 ❌ Never open the Education section with a bullet list or code line.
 ❌ Never write `- **Institution | Location**` (bullet format).
 ❌ Never write `CHC43015 – Certificate IV…` (code before name).

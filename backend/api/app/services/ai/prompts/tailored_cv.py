@@ -37,14 +37,6 @@ are eligible to be surfaced in the tailored CV and which are NOT:
 Hard rules (any violation invalidates the CV):
 - Preserve ALL truthful facts from the original CV (employers, titles,
   dates, education, certifications).
-- VERBATIM HEADERS (HARD): For every Professional Experience role and every
-  Education entry, copy the employer/company, institution, location, and dates
-  EXACTLY from the source CV. They are ALWAYS present in the source — locate and
-  reuse them. NEVER write a bracketed placeholder such as "[Experience Details
-  Not Provided]", "[Location Not Provided]", "[Institution Not Provided]", or any
-  "[... Not Provided]" / "[...]" token. If a single field (e.g. a location) is
-  genuinely absent in the source, omit just that field — do NOT emit a
-  placeholder token in its place.
 - Never invent skills, jobs, achievements, technologies, named systems,
   metrics, or domain experience the candidate does not have.
 - Never insert any keyword listed under "cannot_inject".
