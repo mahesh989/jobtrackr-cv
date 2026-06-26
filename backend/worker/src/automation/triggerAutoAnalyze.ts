@@ -28,6 +28,30 @@ import { callCvBackend, CvBackendError } from "../lib/cvBackendHmac.js";
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type Provider = (typeof PROVIDER_PRIORITY)[number];
 
+/**
+ * Resolve the platform-wide AI provider/key/model (platform_ai_settings,
+ * migration 060) — the post-BYOK model. Mirrors the web layer's
+ * getActiveAiCredentials() so auto-analyze uses the SAME platform key as the
+ * manual "Analyze" button. Returns null when no active+valid provider is set.
+ */
+async function getPlatformAiCredentials(): Promise<{ provider: Provider; apiKey: string; model: string | null } | null> {
+  const { data } = await db
+    .from("platform_ai_settings")
+    .select("provider, encrypted_api_key, model, status")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!data?.encrypted_api_key || data.status !== "valid") return null;
+  try {
+    return {
+      provider: data.provider as Provider,
+      apiKey:   decryptApiKey(data.encrypted_api_key as string),
+      model:    (data.model as string | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const JD_MIN_USABLE = 1000;  // chars — below this, JD is too thin for reliable AI analysis. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
 
@@ -111,14 +135,11 @@ export async function triggerAutoAnalyze(
     return null;
   }
 
-  // ── 3. Resolve active CV + AI key (admin DB — service-role) ──────────────
-  const [{ data: cv }, { data: keys }] = await Promise.all([
+  // ── 3. Resolve active CV + PLATFORM AI key (post-BYOK; service-role DB) ────
+  const [{ data: cv }, creds] = await Promise.all([
     db.from("cv_versions").select("id, cv_text")
       .eq("user_id", profile.user_id).eq("is_active", true).maybeSingle(),
-    db.from("user_integrations")
-      .select("provider, encrypted_api_key, status, config")
-      .eq("user_id", profile.user_id).eq("status", "valid").eq("is_enabled", true)
-      .in("provider", PROVIDER_PRIORITY as unknown as string[]),
+    getPlatformAiCredentials(),
   ]);
 
   if (!cv?.cv_text || cv.cv_text.trim().length < 50) {
@@ -126,30 +147,15 @@ export async function triggerAutoAnalyze(
     return null;
   }
 
-  const keyByProvider = new Map<Provider, { encrypted: string; model: string | null }>();
-  for (const row of (keys ?? []) as Array<{
-    provider: Provider; encrypted_api_key: string; config: { model?: string } | null;
-  }>) {
-    keyByProvider.set(row.provider, {
-      encrypted: row.encrypted_api_key,
-      model:     row.config?.model ?? null,
-    });
-  }
-  const chosen = PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
-  if (!chosen) {
-    console.warn(`[auto-analyze] ${jobId}: user ${profile.user_id} has no valid AI key — skipping`);
+  // Platform provider must be configured by an admin (mirrors the web route's
+  // "No AI provider configured" guard). BYOK is gone — no per-user key lookup.
+  if (!creds) {
+    console.warn(`[auto-analyze] ${jobId}: no active platform AI provider configured — skipping`);
     return null;
   }
-
-  const entry = keyByProvider.get(chosen)!;
-  let aiApiKey: string;
-  try {
-    aiApiKey = decryptApiKey(entry.encrypted);
-  } catch (err) {
-    console.warn(`[auto-analyze] ${jobId}: AI-key decrypt failed: ${err instanceof Error ? err.message : err}`);
-    return null;
-  }
-  const aiModel = entry.model;
+  const chosen   = creds.provider;
+  const aiApiKey = creds.apiKey;
+  const aiModel  = creds.model;
 
   // ── 4. Mark prior stale-flagged-false runs as stale (defensive — should be
   // covered by step 2's idempotency check, but matches the web route's pattern) ─
