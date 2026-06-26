@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.17",
-    "updated": "2026-06-26 (auto-analyze fixed to platform key; title-only filter; bucket cleanup)",
+    "updated": "2026-06-26 (30km auto-analyze gate live; UI backlog handoff written for fresh session)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -445,6 +445,13 @@
       "title": "Dedup the 'all jobs across profiles' dashboard view by posting (display-only)",
       "status": "BACKLOG \u2014 only needed once a user has genuinely DIFFERENT overlapping profiles.",
       "detail": "Per-profile design means a posting matching 2 profiles shows as 2 rows in the cross-profile rollup (and inflates the headline counts). For IDENTICAL profiles the fix is just delete the dup (done for AIN Sydney copy). A real display-dedup must collapse by canonical url across ALL of dashboard/page.tsx's job_id-keyed derivations (total/new/applied/analysed/cvReady/letterReady/belowThreshold/funnel + typedJobs board list) consistently, keeping the most-progressed copy. Non-trivial; do on a branch with Vercel preview (cannot runtime-test locally; Next.js flagged breaking-changed). NOT a bucket bug \u2014 bucket dedups scraping + canonical store correctly."
+    },
+    {
+      "id": "UI-BACKLOG",
+      "title": "Pending web/UI work \u2014 needs fresh session + Vercel preview",
+      "handoff": "docs/ui-backlog-handoff.md",
+      "status": "TODO (frontend, untestable without preview)",
+      "detail": "(1) Recently-added sort (today, posted_at desc) as DEFAULT; (2) New/unseen badge -> clickable filter to unseen, lands on recently-added; (3) ProfileForm: default Tailor=Auto + Send=verify + 30km help copy; (4) BUG: dashboard router.refresh() storm during analysis -> patch row via analysis_runs Realtime instead; (5) DECISION: keep Role type dropdown (target_verticals drives sourcing+thresholds+routing) \u2014 optionally pre-fill from CV, do not remove."
     }
   ]
 }
