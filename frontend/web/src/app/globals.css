@@ -62,9 +62,10 @@
   --teal:        #1B7C83;
   --teal-light:  #D1ECF1;
 
-  /* Pipeline running gradient */
+  /* Pipeline running gradient — single-hue blue shimmer (matches the running
+     box's blue bg/brand accent); animates motion without shifting colour. */
   --pipeline-grad: linear-gradient(90deg,
-    #0969DA 0%, #8250DF 33%, #0EA5E9 66%, #0969DA 100%);
+    #0969DA 0%, #54AEFF 50%, #0969DA 100%);
 }
 
 /* ─── Theme: Classic (cv-magic clean light interface) ─────────── */
