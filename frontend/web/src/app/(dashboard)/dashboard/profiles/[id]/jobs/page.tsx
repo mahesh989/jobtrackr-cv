@@ -74,9 +74,18 @@ export default async function JobsPage({
   if (!profile) redirect("/dashboard");
 
   // Per-vertical cutoffs (healthcare/nursing = 55/65). Drives live re-bucketing
-  // so the ATS tabs/counts match the gate the analysis actually used.
+  // so the ATS tabs/counts match the gate the analysis actually used. The
+  // vertical is the user's ONE global My CV choice (contact_details.role_families)
+  // — same source the pipeline uses — with the per-profile field as legacy fallback.
+  const { data: prefRow } = await supabase
+    .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle();
+  const myCvVerticals = (
+    (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
+  ).filter(Boolean);
   const th = resolveThresholds(
-    (profile as { target_verticals?: string[] | null }).target_verticals,
+    myCvVerticals.length > 0
+      ? myCvVerticals
+      : (profile as { target_verticals?: string[] | null }).target_verticals,
   );
 
   const p = profile as {

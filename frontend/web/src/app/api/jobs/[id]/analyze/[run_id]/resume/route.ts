@@ -19,6 +19,7 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, CvBackendError } from "@/lib/cvBackend";
+import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
@@ -137,6 +138,22 @@ export async function POST(
   const aiApiKey = creds.apiKey;
   const aiModel  = creds.model;
 
+  // ── 2c. Billing — reserve a tailored-CV credit ───────────────────────────
+  // The original (gate-stopped) run's reservation was voided when it completed
+  // with no CV (migration 069), so resuming must reserve a fresh credit. Resume
+  // sets skip_initial_gate=true and always produces a CV, so this commits via
+  // the analysis_runs trigger on completion. Over cap / read-only → block.
+  const cvGate = await consumeTailoredCv(user.id, jobId);
+  if (!cvGate.allowed) {
+    return NextResponse.json(
+      { error: "Tailored CV limit reached", reason: cvGate.reason, action: "upgrade" },
+      { status: 402 },
+    );
+  }
+  const usageEventId = cvGate.eventId ?? null;
+  // Link to the (existing) run row so the status trigger commits/voids it.
+  if (usageEventId) await linkUsageEvent(usageEventId, runId);
+
   // ── 3. Reset the skipped steps + flip the run back to running ─────────────
   const resetSteps = { ...stepStatus };
   for (const s of DOWNSTREAM_STEPS) resetSteps[s] = "pending";
@@ -170,6 +187,9 @@ export async function POST(
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze/:run_id/resume] cv-backend rejected:", err);
+    // Free the reservation (the revert below also voids it via the trigger,
+    // but release explicitly in case the revert no-ops).
+    if (usageEventId) await releaseUsageEvent(usageEventId);
     // Revert to the gate-stopped state so the banner re-appears.
     await admin
       .from("analysis_runs")
