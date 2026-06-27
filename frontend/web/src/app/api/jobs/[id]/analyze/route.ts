@@ -116,30 +116,38 @@ export async function POST(
   // analysis run reads the same canonical skeleton, regardless of how the
   // original CV was laid out. Falls back to `cv_text` for legacy CVs OR
   // when migration 059 (the column itself) hasn't been applied yet.
-  const baseSelect = await admin
+  // Fetch cv_text AND normalized_cv_text in ONE query. Previously normalized
+  // was a SEPARATE query wrapped in a silent try/catch — a transient failure on
+  // that second query silently degraded analysis to raw cv_text, whose
+  // plain-text layout mis-parses into phantom roles (Moran vs Uniting incident
+  // 2026-06-26). One query = no separate failure point. Pre-059 fallback
+  // (column absent) re-selects cv_text only.
+  type CvRow = { id: string; cv_text: string | null; normalized_cv_text?: string | null };
+  let cv: CvRow | null = null;
+  const full = await admin
     .from("cv_versions")
-    .select("id, cv_text")
+    .select("id, cv_text, normalized_cv_text")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  const cv = baseSelect.data;
+  if (full.error && /normalized_cv_text|column/i.test(full.error.message)) {
+    const legacy = await admin
+      .from("cv_versions")
+      .select("id, cv_text")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    cv = (legacy.data as CvRow | null);
+  } else {
+    cv = (full.data as CvRow | null);
+  }
   if (!cv) {
     return NextResponse.json(
       { error: "No active CV. Upload a CV in the CV library and mark it active." },
       { status: 422 },
     );
   }
-  let normalizedText: string | null = null;
-  try {
-    const ext = await admin
-      .from("cv_versions")
-      .select("normalized_cv_text")
-      .eq("id", cv.id)
-      .maybeSingle();
-    if (!ext.error) normalizedText = (ext.data as { normalized_cv_text?: string | null } | null)?.normalized_cv_text ?? null;
-  } catch {
-    // Column not present yet (migration 059 unapplied) — fall back silently.
-  }
+  const normalizedText = cv.normalized_cv_text ?? null;
   const cvTextSource =
     typeof normalizedText === "string" && normalizedText.trim().length >= 50
       ? normalizedText

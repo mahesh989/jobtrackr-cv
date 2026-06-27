@@ -148,13 +148,21 @@ export async function triggerAutoAnalyze(
   }
 
   // ── 3. Resolve active CV + PLATFORM AI key (post-BYOK; service-role DB) ────
+  // Option A: prefer the canonical normalized_cv_text (clean ### Employer |
+  // Location skeleton) over raw cv_text — same source-of-truth the manual route
+  // uses. Raw cv_text's plain-text layout mis-parses into phantom roles
+  // (Moran vs Uniting incident 2026-06-26), so auto must match manual here.
   const [{ data: cv }, creds] = await Promise.all([
-    db.from("cv_versions").select("id, cv_text")
+    db.from("cv_versions").select("id, cv_text, normalized_cv_text")
       .eq("user_id", profile.user_id).eq("is_active", true).maybeSingle(),
     getPlatformAiCredentials(),
   ]);
 
-  if (!cv?.cv_text || cv.cv_text.trim().length < 50) {
+  const cvTextForAnalysis =
+    cv?.normalized_cv_text && cv.normalized_cv_text.trim().length >= 50
+      ? cv.normalized_cv_text
+      : (cv?.cv_text ?? "");
+  if (!cv || cvTextForAnalysis.trim().length < 50) {
     console.warn(`[auto-analyze] ${jobId}: user ${profile.user_id} has no usable active CV — skipping`);
     return null;
   }
@@ -220,7 +228,7 @@ export async function triggerAutoAnalyze(
         location: job.location,
         source:   job.source,
       },
-      cv_text:           cv.cv_text,
+      cv_text:           cvTextForAnalysis,
       ai_provider:       chosen,
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
