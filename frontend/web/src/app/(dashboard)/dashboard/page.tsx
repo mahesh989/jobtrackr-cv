@@ -110,11 +110,22 @@ export default async function DashboardPage({
   const ids = profiles.map((p) => p.id);
 
   // ATS thresholds are resolved per-vertical (e.g. 55/65 for healthcare/nursing).
-  // The threshold map maps each profile ID to its specific thresholds.
+  // The vertical is the user's ONE global My CV choice (contact_details.role_families)
+  // — the same source the analysis pipeline uses — so the board bands match the
+  // gate the analysis actually applied. Per-profile target_verticals is a legacy
+  // fallback for users without a My CV selection.
+  const { data: prefRow } = await supabase
+    .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle();
+  const myCvVerticals = (
+    (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
+  ).filter(Boolean);
   const DEFAULT_MIN_INITIAL = MIN_INITIAL_ATS;
   const DEFAULT_MIN_FINAL   = MIN_FINAL_ATS;
   const threshByProfile = new Map<string, { initial: number; final: number }>(
-    profiles.map((p) => [p.id, resolveThresholds(p.target_verticals)]),
+    profiles.map((p) => [
+      p.id,
+      resolveThresholds(myCvVerticals.length > 0 ? myCvVerticals : p.target_verticals),
+    ]),
   );
 
   // ── First-run gate ────────────────────────────────────────────────────────
