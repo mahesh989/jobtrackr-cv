@@ -70,21 +70,30 @@ def _resolve_base_family(
 ) -> RoleFamilyProfile:
     """
     Pick a role family. Priority:
-      1. Explicit vertical hint that maps to a known family (beta dropdown:
-         it→tech, nursing→nursing, cleaner/admin→manual, master/other→master).
+      1. Explicit vertical hint that maps to a SPECIFIC family (dropdown:
+         it→tech, nursing→nursing, cleaner/admin→manual). Authoritative — the
+         explicit dropdown exists to avoid alias-based misclassification.
       2. Keyword match of the JD job_title + required skills against aliases.
       3. master (general fallback).
+
+    Generic / catch-all hints ("general", "other", "master", or empty) are
+    NOT a real vertical and must NOT short-circuit to master: they fall
+    through to JD-based detection (step 2) so a clearly-nursing aged-care JD
+    filed under a "general" profile still gets the nursing pack. (Regression
+    origin: explicit-vertical routing originally mapped "general"→"master",
+    which suppressed JD detection and produced a generic CV that dropped the
+    candidate's real experience.)
     """
     hint = (vertical_hint or "").strip().lower()
+    _GENERIC_HINTS = {"", "master", "other", "general"}
     hint_map = {
         "it": "tech", "tech": "tech", "data": "tech",
         "nursing": "nursing", "health": "nursing", "healthcare": "nursing",
         "cleaner": "manual", "manual": "manual", "admin": "manual",
-        "master": "master", "other": "master", "general": "master",
     }
     if hint in hint_map:
         return ROLE_FAMILIES[hint_map[hint]]
-    if hint in ROLE_FAMILIES:
+    if hint not in _GENERIC_HINTS and hint in ROLE_FAMILIES:
         return ROLE_FAMILIES[hint]
 
     # Keyword match against the JD. We search the structured skill arrays AND
