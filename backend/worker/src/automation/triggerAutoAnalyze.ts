@@ -276,7 +276,12 @@ export async function triggerAutoAnalyze(
       ai_provider:       chosen,
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
-      contact_details:   null,
+      // Stamp contact line + Registration & Licences + Availability from the
+      // user's profile, same as the manual route. cv-backend uses
+      // payload.contact_details ONLY (no DB fallback) — passing null here left
+      // auto-analyzed CVs with no contact line, credentials, or availability.
+      // Reuses prefRow loaded above for the vertical.
+      contact_details:   (prefRow?.contact_details as Record<string, unknown> | null) ?? null,
       // Explicit role vertical from My CV — drives the role-family pack so
       // auto-analyze matches the user's selection instead of JD auto-detection.
       target_vertical:   effectiveVerticals[0] ?? null,
