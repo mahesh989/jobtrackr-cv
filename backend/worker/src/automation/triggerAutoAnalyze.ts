@@ -151,14 +151,44 @@ export async function triggerAutoAnalyze(
   // uses. Raw cv_text's plain-text layout mis-parses into phantom roles
   // (Moran vs Uniting incident 2026-06-26), so auto must match manual here.
   const [{ data: cv }, creds] = await Promise.all([
-    db.from("cv_versions").select("id, cv_text, normalized_cv_text")
+    db.from("cv_versions")
+      .select("id, cv_text, normalized_cv_text, structured_cv, structured_cv_status")
       .eq("user_id", profile.user_id).eq("is_active", true).maybeSingle(),
     getPlatformAiCredentials(),
   ]);
 
+  // structured_cv is the source of truth; normalized_cv_text is a rendered cache
+  // that can drift stale/empty (composer then fabricates Experience/Education —
+  // Moran "[Institution Name]" incident). When a parsed structured_cv exists,
+  // re-render from it and self-heal the cache; any failure falls back to the
+  // stored cache, then raw cv_text. Mirrors the manual analyze route.
+  let normalizedText = cv?.normalized_cv_text ?? null;
+  const structured = (cv as { structured_cv?: unknown } | null)?.structured_cv;
+  const hasParsedStructured =
+    (cv?.structured_cv_status === "parsed" || cv?.structured_cv_status === "verified") &&
+    structured !== null && typeof structured === "object" &&
+    Array.isArray((structured as { experience?: unknown }).experience);
+  if (cv && hasParsedStructured) {
+    try {
+      const rendered = await callCvBackend<{ normalized_cv_text: string }>(
+        "/internal/render-canonical-cv",
+        { structured_cv: structured },
+      );
+      const fresh = (rendered.normalized_cv_text ?? "").trim();
+      if (fresh.length >= 50) {
+        if (fresh !== (normalizedText ?? "").trim()) {
+          await db.from("cv_versions").update({ normalized_cv_text: fresh }).eq("id", cv.id);
+        }
+        normalizedText = fresh;
+      }
+    } catch (err) {
+      console.warn(`[auto-analyze] ${jobId}: canonical re-render failed, using stored CV text — ${String(err)}`);
+    }
+  }
+
   const cvTextForAnalysis =
-    cv?.normalized_cv_text && cv.normalized_cv_text.trim().length >= 50
-      ? cv.normalized_cv_text
+    normalizedText && normalizedText.trim().length >= 50
+      ? normalizedText
       : (cv?.cv_text ?? "");
   if (!cv || cvTextForAnalysis.trim().length < 50) {
     console.warn(`[auto-analyze] ${jobId}: user ${profile.user_id} has no usable active CV — skipping`);

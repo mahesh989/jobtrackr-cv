@@ -19,7 +19,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
-import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
+import { startAnalysis, scrapeJd, CvBackendError, renderCanonicalCv } from "@/lib/cvBackend";
+import type { StructuredCv } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { resolveThresholds } from "@/lib/atsThresholds";
@@ -144,15 +145,21 @@ export async function POST(
   // plain-text layout mis-parses into phantom roles (Moran vs Uniting incident
   // 2026-06-26). One query = no separate failure point. Pre-059 fallback
   // (column absent) re-selects cv_text only.
-  type CvRow = { id: string; cv_text: string | null; normalized_cv_text?: string | null };
+  type CvRow = {
+    id: string;
+    cv_text: string | null;
+    normalized_cv_text?: string | null;
+    structured_cv?: unknown;
+    structured_cv_status?: string | null;
+  };
   let cv: CvRow | null = null;
   const full = await admin
     .from("cv_versions")
-    .select("id, cv_text, normalized_cv_text")
+    .select("id, cv_text, normalized_cv_text, structured_cv, structured_cv_status")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  if (full.error && /normalized_cv_text|column/i.test(full.error.message)) {
+  if (full.error && /normalized_cv_text|structured_cv|column/i.test(full.error.message)) {
     const legacy = await admin
       .from("cv_versions")
       .select("id, cv_text")
@@ -169,7 +176,43 @@ export async function POST(
       { status: 422 },
     );
   }
-  const normalizedText = cv.normalized_cv_text ?? null;
+
+  // The structured_cv is the source of truth (the review form edits it).
+  // normalized_cv_text is only a rendered cache of it and CAN DRIFT stale/empty
+  // — e.g. the structured_cv was fixed but the cache was never re-rendered, so
+  // the composer received a hollow CV and fabricated Experience/Education from
+  // its prompt template (the Moran "[Institution Name]" incident). So when a
+  // parsed structured_cv exists, RE-RENDER from it here and treat that as
+  // authoritative; self-heal the stored cache. Any render failure falls back to
+  // the stored normalized_cv_text, then raw cv_text — never blocks analysis.
+  let normalizedText = cv.normalized_cv_text ?? null;
+  const structured = cv.structured_cv;
+  const hasParsedStructured =
+    (cv.structured_cv_status === "parsed" || cv.structured_cv_status === "verified") &&
+    structured !== null &&
+    typeof structured === "object" &&
+    Array.isArray((structured as { experience?: unknown }).experience);
+  if (hasParsedStructured) {
+    try {
+      const rendered = await renderCanonicalCv({ structured_cv: structured as StructuredCv });
+      const fresh = (rendered.normalized_cv_text ?? "").trim();
+      if (fresh.length >= 50) {
+        const wasStale = fresh !== (normalizedText ?? "").trim();
+        normalizedText = fresh;
+        if (wasStale) {
+          // Best-effort self-heal so the next run + other read paths match.
+          try {
+            await admin
+              .from("cv_versions")
+              .update({ normalized_cv_text: fresh })
+              .eq("id", cv.id);
+          } catch { /* column absent (pre-059) or write denied — ignore */ }
+        }
+      }
+    } catch {
+      // cv-backend render-canonical-cv failed — keep the stored cache below.
+    }
+  }
   const cvTextSource =
     typeof normalizedText === "string" && normalizedText.trim().length >= 50
       ? normalizedText
