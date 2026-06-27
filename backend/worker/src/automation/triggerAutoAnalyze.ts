@@ -24,6 +24,7 @@
 import { db } from "../db/client.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { callCvBackend, CvBackendError } from "../lib/cvBackendHmac.js";
+import { reserveTailoredCv, linkCvUsageEvent, releaseCvUsageEvent } from "./billing.js";
 
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
 type Provider = (typeof PROVIDER_PRIORITY)[number];
@@ -221,6 +222,19 @@ export async function triggerAutoAnalyze(
   const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : (profile.target_verticals ?? []);
   const th = resolveThresholds(effectiveVerticals);
 
+  // ── 3b. Billing choke point — reserve a tailored-CV credit ───────────────
+  // Auto-analyze produces a tailored CV, so it must count against the user's CV
+  // quota exactly like the manual Analyze button (mirrors consumeTailoredCv).
+  // Over cap / read-only → skip this job silently (no run, no AI spend). The
+  // pending reservation is linked to the run below and committed/voided by the
+  // analysis_runs status trigger.
+  const cvGate = await reserveTailoredCv(profile.user_id, jobId);
+  if (!cvGate.allowed) {
+    console.log(`[auto-analyze] ${jobId}: skipped (CV quota: ${cvGate.reason ?? "denied"})`);
+    return null;
+  }
+  const usageEventId = cvGate.eventId;
+
   // ── 4. Mark prior stale-flagged-false runs as stale (defensive — should be
   // covered by step 2's idempotency check, but matches the web route's pattern) ─
   await db
@@ -252,8 +266,14 @@ export async function triggerAutoAnalyze(
 
   if (insertErr || !newRun) {
     console.error(`[auto-analyze] ${jobId}: failed to insert run row — ${insertErr?.message}`);
+    // No run row → free the reservation (the status trigger can't void it).
+    if (usageEventId) await releaseCvUsageEvent(usageEventId);
     return null;
   }
+
+  // Link the reservation to the run so the analysis_runs status trigger commits
+  // it on 'completed' / voids it on 'failed' (same as the manual route).
+  if (usageEventId) await linkCvUsageEvent(usageEventId, newRun.id);
 
   // ── 6. Fire cv-backend /internal/analyze (HMAC + automation flag) ───────
   // Payload mirrors what the web layer sends, plus automation:true so the
@@ -276,7 +296,12 @@ export async function triggerAutoAnalyze(
       ai_provider:       chosen,
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
-      contact_details:   null,
+      // Stamp contact line + Registration & Licences + Availability from the
+      // user's profile, same as the manual route. cv-backend uses
+      // payload.contact_details ONLY (no DB fallback) — passing null here left
+      // auto-analyzed CVs with no contact line, credentials, or availability.
+      // Reuses prefRow loaded above for the vertical.
+      contact_details:   (prefRow?.contact_details as Record<string, unknown> | null) ?? null,
       // Explicit role vertical from My CV — drives the role-family pack so
       // auto-analyze matches the user's selection instead of JD auto-detection.
       target_vertical:   effectiveVerticals[0] ?? null,
