@@ -101,14 +101,36 @@ export async function POST(
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
-  const targetVerticals = (profile as { target_verticals?: string[] | null }).target_verticals;
-  if (!targetVerticals || targetVerticals.length === 0) {
+  // Role vertical is the user's ONE global choice from My CV
+  // ("What roles are you applying for?" → contact_details.role_families),
+  // which "applies to all CVs". It is authoritative for both role-family
+  // routing and ATS thresholds. The per-search-profile target_verticals is a
+  // legacy fallback only (kept so old profiles without a My CV selection still
+  // run). Fetched once here and reused for the contact-line stamp below.
+  const { data: prefRow } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  interface ContactDetails {
+    name?: string; phone?: string; email?: string; address?: string;
+    linkedin?: string; github?: string; website?: string; portfolio?: string;
+    other_label?: string; other_url?: string;
+    role_families?: string[] | null;
+  }
+  const contactDetails =
+    (prefRow?.contact_details as ContactDetails | null) ?? null;
+  const profileVerticals =
+    (profile as { target_verticals?: string[] | null }).target_verticals ?? [];
+  const myCvFamilies = (contactDetails?.role_families ?? []).filter(Boolean);
+  const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : profileVerticals;
+  if (effectiveVerticals.length === 0) {
     return NextResponse.json(
-      { error: "No role vertical selected. Edit this job search profile and choose a role type (e.g. Tech, Healthcare) before running analysis." },
+      { error: "No role type selected. Open My CV and choose a role type (e.g. Healthcare / Nursing, Tech) before running analysis." },
       { status: 422 },
     );
   }
-  const thresholds = resolveThresholds(targetVerticals);
+  const thresholds = resolveThresholds(effectiveVerticals);
 
   // ── 1b. User must have an active CV ──────────────────────────────────────
   // Prefer the user-verified `normalized_cv_text` (rendered from the review
@@ -187,22 +209,9 @@ export async function POST(
   const usageEventId = cvGate.eventId ?? null;
   const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
 
-  // ── 1d. Load saved contact details (optional) ───────────────────────────
-  // Portfolio projects now live per-CV in structured_cv.projects (rendered
-  // into normalized_cv_text by cv-backend), so they're already part of the CV
-  // text below — no separate merge needed.
-  const { data: prefRow } = await admin
-    .from("user_preferences")
-    .select("contact_details")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  interface ContactDetails {
-    name?: string; phone?: string; email?: string; address?: string;
-    linkedin?: string; github?: string; website?: string; portfolio?: string;
-    other_label?: string; other_url?: string;
-  }
-  const contactDetails =
-    (prefRow?.contact_details as ContactDetails | null) ?? null;
+  // Contact details (loaded above for the role vertical) also stamp the CV's
+  // contact line. Portfolio projects now live per-CV in structured_cv.projects
+  // (rendered into normalized_cv_text by cv-backend), so no separate merge.
 
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
   // Priority order:
@@ -306,7 +315,7 @@ export async function POST(
       // Phase C-3 — override forces tailoring even if initial gate fails.
       skip_initial_gate: override === "initial_gate" || override === "all",
       // Pass the explicit vertical so cv-backend skips auto-detection.
-      target_vertical: targetVerticals[0] ?? null,
+      target_vertical: effectiveVerticals[0] ?? null,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);

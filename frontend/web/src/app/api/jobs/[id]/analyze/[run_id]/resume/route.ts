@@ -77,7 +77,10 @@ export async function POST(
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
-  const resumeTargetVertical = ((profile as { target_verticals?: string[] | null }).target_verticals ?? [])[0] ?? null;
+  // Role vertical comes from My CV (contact_details.role_families) — the user's
+  // one global choice. The per-search-profile target_verticals is a legacy
+  // fallback. Resolved below, after contact_details is loaded.
+  const profileVerticals = (profile as { target_verticals?: string[] | null }).target_verticals ?? [];
 
   // Only gate-stopped runs are resumable: completed + tailored_cv skipped.
   const stepStatus = (run.step_status ?? {}) as Record<string, string>;
@@ -112,10 +115,13 @@ export async function POST(
     name?: string; phone?: string; email?: string; address?: string;
     linkedin?: string; github?: string; website?: string; portfolio?: string;
     other_label?: string; other_url?: string;
+    role_families?: string[] | null;
   }
   const contactDetails    = (prefRow?.contact_details as ContactDetails | null) ?? null;
   const cvTextForAnalysis = cv.cv_text;
   const contactForBackend = (contactDetails as Record<string, unknown> | null) ?? null;
+  const myCvFamilies         = (contactDetails?.role_families ?? []).filter(Boolean);
+  const resumeTargetVertical = (myCvFamilies[0] ?? profileVerticals[0]) ?? null;
 
   // ── 2b. Resolve the platform AI provider/key/model ────────────────────────
   // Resuming re-uses whatever provider+model is currently active (an admin
