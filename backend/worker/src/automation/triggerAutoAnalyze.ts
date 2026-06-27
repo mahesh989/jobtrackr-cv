@@ -85,8 +85,6 @@ export async function triggerAutoAnalyze(
   jobId:   string,
   profile: ProfileThresholds,
 ): Promise<string | null> {
-  const th = resolveThresholds(profile.target_verticals);
-
   // ── 1. Fetch the job + check JD quality ─────────────────────────────────
   const { data: job, error: jobErr } = await db
     .from("jobs")
@@ -153,14 +151,44 @@ export async function triggerAutoAnalyze(
   // uses. Raw cv_text's plain-text layout mis-parses into phantom roles
   // (Moran vs Uniting incident 2026-06-26), so auto must match manual here.
   const [{ data: cv }, creds] = await Promise.all([
-    db.from("cv_versions").select("id, cv_text, normalized_cv_text")
+    db.from("cv_versions")
+      .select("id, cv_text, normalized_cv_text, structured_cv, structured_cv_status")
       .eq("user_id", profile.user_id).eq("is_active", true).maybeSingle(),
     getPlatformAiCredentials(),
   ]);
 
+  // structured_cv is the source of truth; normalized_cv_text is a rendered cache
+  // that can drift stale/empty (composer then fabricates Experience/Education —
+  // Moran "[Institution Name]" incident). When a parsed structured_cv exists,
+  // re-render from it and self-heal the cache; any failure falls back to the
+  // stored cache, then raw cv_text. Mirrors the manual analyze route.
+  let normalizedText = cv?.normalized_cv_text ?? null;
+  const structured = (cv as { structured_cv?: unknown } | null)?.structured_cv;
+  const hasParsedStructured =
+    (cv?.structured_cv_status === "parsed" || cv?.structured_cv_status === "verified") &&
+    structured !== null && typeof structured === "object" &&
+    Array.isArray((structured as { experience?: unknown }).experience);
+  if (cv && hasParsedStructured) {
+    try {
+      const rendered = await callCvBackend<{ normalized_cv_text: string }>(
+        "/internal/render-canonical-cv",
+        { structured_cv: structured },
+      );
+      const fresh = (rendered.normalized_cv_text ?? "").trim();
+      if (fresh.length >= 50) {
+        if (fresh !== (normalizedText ?? "").trim()) {
+          await db.from("cv_versions").update({ normalized_cv_text: fresh }).eq("id", cv.id);
+        }
+        normalizedText = fresh;
+      }
+    } catch (err) {
+      console.warn(`[auto-analyze] ${jobId}: canonical re-render failed, using stored CV text — ${String(err)}`);
+    }
+  }
+
   const cvTextForAnalysis =
-    cv?.normalized_cv_text && cv.normalized_cv_text.trim().length >= 50
-      ? cv.normalized_cv_text
+    normalizedText && normalizedText.trim().length >= 50
+      ? normalizedText
       : (cv?.cv_text ?? "");
   if (!cv || cvTextForAnalysis.trim().length < 50) {
     console.warn(`[auto-analyze] ${jobId}: user ${profile.user_id} has no usable active CV — skipping`);
@@ -176,6 +204,22 @@ export async function triggerAutoAnalyze(
   const chosen   = creds.provider;
   const aiApiKey = creds.apiKey;
   const aiModel  = creds.model;
+
+  // Role vertical = the user's ONE global choice from My CV
+  // (contact_details.role_families, "applies to all CVs"). Authoritative for
+  // role-family routing AND ATS thresholds. The per-search-profile
+  // target_verticals is a legacy fallback only. Loaded here (after the cheap
+  // skip-checks) so skipped jobs don't pay for the query.
+  const { data: prefRow } = await db
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", profile.user_id)
+    .maybeSingle();
+  const myCvFamilies = (
+    (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
+  ).filter(Boolean);
+  const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : (profile.target_verticals ?? []);
+  const th = resolveThresholds(effectiveVerticals);
 
   // ── 4. Mark prior stale-flagged-false runs as stale (defensive — should be
   // covered by step 2's idempotency check, but matches the web route's pattern) ─
@@ -233,6 +277,9 @@ export async function triggerAutoAnalyze(
       ai_api_key:        aiApiKey,
       ai_model:          aiModel,
       contact_details:   null,
+      // Explicit role vertical from My CV — drives the role-family pack so
+      // auto-analyze matches the user's selection instead of JD auto-detection.
+      target_vertical:   effectiveVerticals[0] ?? null,
       // Per-vertical ATS cutoffs: healthcare/nursing = 55/65, else 60/70.
       // cv-backend already honours these payload params — no pipeline change.
       min_initial_ats:   th.initial,

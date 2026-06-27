@@ -19,7 +19,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
-import { startAnalysis, scrapeJd, CvBackendError } from "@/lib/cvBackend";
+import { startAnalysis, scrapeJd, CvBackendError, renderCanonicalCv } from "@/lib/cvBackend";
+import type { StructuredCv } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { resolveThresholds } from "@/lib/atsThresholds";
@@ -101,14 +102,36 @@ export async function POST(
   if (!profile || profile.user_id !== user.id) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
-  const targetVerticals = (profile as { target_verticals?: string[] | null }).target_verticals;
-  if (!targetVerticals || targetVerticals.length === 0) {
+  // Role vertical is the user's ONE global choice from My CV
+  // ("What roles are you applying for?" → contact_details.role_families),
+  // which "applies to all CVs". It is authoritative for both role-family
+  // routing and ATS thresholds. The per-search-profile target_verticals is a
+  // legacy fallback only (kept so old profiles without a My CV selection still
+  // run). Fetched once here and reused for the contact-line stamp below.
+  const { data: prefRow } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  interface ContactDetails {
+    name?: string; phone?: string; email?: string; address?: string;
+    linkedin?: string; github?: string; website?: string; portfolio?: string;
+    other_label?: string; other_url?: string;
+    role_families?: string[] | null;
+  }
+  const contactDetails =
+    (prefRow?.contact_details as ContactDetails | null) ?? null;
+  const profileVerticals =
+    (profile as { target_verticals?: string[] | null }).target_verticals ?? [];
+  const myCvFamilies = (contactDetails?.role_families ?? []).filter(Boolean);
+  const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : profileVerticals;
+  if (effectiveVerticals.length === 0) {
     return NextResponse.json(
-      { error: "No role vertical selected. Edit this job search profile and choose a role type (e.g. Tech, Healthcare) before running analysis." },
+      { error: "No role type selected. Open My CV and choose a role type (e.g. Healthcare / Nursing, Tech) before running analysis." },
       { status: 422 },
     );
   }
-  const thresholds = resolveThresholds(targetVerticals);
+  const thresholds = resolveThresholds(effectiveVerticals);
 
   // ── 1b. User must have an active CV ──────────────────────────────────────
   // Prefer the user-verified `normalized_cv_text` (rendered from the review
@@ -122,15 +145,21 @@ export async function POST(
   // plain-text layout mis-parses into phantom roles (Moran vs Uniting incident
   // 2026-06-26). One query = no separate failure point. Pre-059 fallback
   // (column absent) re-selects cv_text only.
-  type CvRow = { id: string; cv_text: string | null; normalized_cv_text?: string | null };
+  type CvRow = {
+    id: string;
+    cv_text: string | null;
+    normalized_cv_text?: string | null;
+    structured_cv?: unknown;
+    structured_cv_status?: string | null;
+  };
   let cv: CvRow | null = null;
   const full = await admin
     .from("cv_versions")
-    .select("id, cv_text, normalized_cv_text")
+    .select("id, cv_text, normalized_cv_text, structured_cv, structured_cv_status")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  if (full.error && /normalized_cv_text|column/i.test(full.error.message)) {
+  if (full.error && /normalized_cv_text|structured_cv|column/i.test(full.error.message)) {
     const legacy = await admin
       .from("cv_versions")
       .select("id, cv_text")
@@ -147,7 +176,43 @@ export async function POST(
       { status: 422 },
     );
   }
-  const normalizedText = cv.normalized_cv_text ?? null;
+
+  // The structured_cv is the source of truth (the review form edits it).
+  // normalized_cv_text is only a rendered cache of it and CAN DRIFT stale/empty
+  // — e.g. the structured_cv was fixed but the cache was never re-rendered, so
+  // the composer received a hollow CV and fabricated Experience/Education from
+  // its prompt template (the Moran "[Institution Name]" incident). So when a
+  // parsed structured_cv exists, RE-RENDER from it here and treat that as
+  // authoritative; self-heal the stored cache. Any render failure falls back to
+  // the stored normalized_cv_text, then raw cv_text — never blocks analysis.
+  let normalizedText = cv.normalized_cv_text ?? null;
+  const structured = cv.structured_cv;
+  const hasParsedStructured =
+    (cv.structured_cv_status === "parsed" || cv.structured_cv_status === "verified") &&
+    structured !== null &&
+    typeof structured === "object" &&
+    Array.isArray((structured as { experience?: unknown }).experience);
+  if (hasParsedStructured) {
+    try {
+      const rendered = await renderCanonicalCv({ structured_cv: structured as StructuredCv });
+      const fresh = (rendered.normalized_cv_text ?? "").trim();
+      if (fresh.length >= 50) {
+        const wasStale = fresh !== (normalizedText ?? "").trim();
+        normalizedText = fresh;
+        if (wasStale) {
+          // Best-effort self-heal so the next run + other read paths match.
+          try {
+            await admin
+              .from("cv_versions")
+              .update({ normalized_cv_text: fresh })
+              .eq("id", cv.id);
+          } catch { /* column absent (pre-059) or write denied — ignore */ }
+        }
+      }
+    } catch {
+      // cv-backend render-canonical-cv failed — keep the stored cache below.
+    }
+  }
   const cvTextSource =
     typeof normalizedText === "string" && normalizedText.trim().length >= 50
       ? normalizedText
@@ -187,22 +252,9 @@ export async function POST(
   const usageEventId = cvGate.eventId ?? null;
   const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
 
-  // ── 1d. Load saved contact details (optional) ───────────────────────────
-  // Portfolio projects now live per-CV in structured_cv.projects (rendered
-  // into normalized_cv_text by cv-backend), so they're already part of the CV
-  // text below — no separate merge needed.
-  const { data: prefRow } = await admin
-    .from("user_preferences")
-    .select("contact_details")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  interface ContactDetails {
-    name?: string; phone?: string; email?: string; address?: string;
-    linkedin?: string; github?: string; website?: string; portfolio?: string;
-    other_label?: string; other_url?: string;
-  }
-  const contactDetails =
-    (prefRow?.contact_details as ContactDetails | null) ?? null;
+  // Contact details (loaded above for the role vertical) also stamp the CV's
+  // contact line. Portfolio projects now live per-CV in structured_cv.projects
+  // (rendered into normalized_cv_text by cv-backend), so no separate merge.
 
   // ── 2. Resolve JD text ────────────────────────────────────────────────────
   // Priority order:
@@ -306,7 +358,7 @@ export async function POST(
       // Phase C-3 — override forces tailoring even if initial gate fails.
       skip_initial_gate: override === "initial_gate" || override === "all",
       // Pass the explicit vertical so cv-backend skips auto-detection.
-      target_vertical: targetVerticals[0] ?? null,
+      target_vertical: effectiveVerticals[0] ?? null,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze] cv-backend rejected:", err);
