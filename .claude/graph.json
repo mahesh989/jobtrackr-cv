@@ -230,7 +230,7 @@
     },
     {
       "id": "D18",
-      "decision": "Billing enforcement is web-layer-only at 4 choke points (createProfile, run, analyze, cover-letter). cv-backend + worker stay billing-unaware. consume_usage() RPC + DB triggers are the authoritative meter (reserve/commit/void)."
+      "decision": "Billing enforcement is web-layer choke points (createProfile, run, analyze, cover-letter) PLUS the worker auto-analyze path (amended 2026-06-27). cv-backend stays billing-unaware. consume_usage() RPC + DB triggers are the authoritative meter (reserve/commit/void). UPDATE 2026-06-27: auto-analyze (worker triggerAutoAnalyze.ts) now reserves a tailored_cv credit via the SAME consume_usage RPC so pipeline-fetched jobs count against CV quota and are blocked when over cap / read-only — the worker is no longer billing-unaware. Minimal entitlement resolution is duplicated in backend/worker/src/automation/billing.ts (mirrors entitlements.ts + plans.ts; keep in sync). KNOWN NUANCE (applies to manual too): the analysis_runs trigger commits on status='completed', so a run that stops at the initial-ATS gate (tailored_cv='skipped', no CV produced) still commits the credit. For auto-analyze this can consume quota on gate-skipped jobs. To NOT charge gate-skips would require a trigger change voiding completed runs whose tailored_cv step is 'skipped' (affects both paths; deferred — needs explicit approval since it changes live manual billing)."
     },
     {
       "id": "D19",
