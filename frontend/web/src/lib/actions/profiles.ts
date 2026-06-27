@@ -80,7 +80,10 @@ export async function createProfile(formData: FormData) {
     working_rights: (formData.get("working_rights") as string) ?? "any",
     schedule_cron: scheduleCron,
     is_active: isActive,
-    target_verticals: formData.getAll("target_verticals") as string[],
+    // Role vertical is no longer set per search profile — it's the user's one
+    // global choice in My CV (contact_details.role_families). Left empty here;
+    // the analysis routes read it from My CV.
+    target_verticals: [],
     home_address: ((formData.get("home_address") as string) ?? "").trim() || null,
     // home_lat/home_lng intentionally left null — the worker geocodes on the
     // next run via Nominatim.
@@ -136,7 +139,8 @@ export async function updateProfile(profileId: string, formData: FormData) {
       working_rights: (formData.get("working_rights") as string) ?? "any",
       schedule_cron: scheduleCron,
       is_active: isActive,
-      target_verticals: formData.getAll("target_verticals") as string[],
+      // Role vertical lives in My CV now (see createProfile) — intentionally not
+      // written here, so any legacy per-profile value is left untouched.
       home_address: newHome,
       ...(homeChanged ? { home_lat: null, home_lng: null } : {}),
       ...extractAdzunaFields(formData),

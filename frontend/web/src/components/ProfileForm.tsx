@@ -138,34 +138,15 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         />
       </section>
 
-      {/* ───── 1b. Role type ─────────────────────────────────────────── */}
+      {/* Role type is NOT set per search profile — it's the user's one global
+          choice in My CV ("What roles are you applying for?"), which applies to
+          all CVs and drives the tailoring pipeline. The old per-profile dropdown
+          was removed; routing reads contact_details.role_families. */}
+
+      {/* ───── 2. Search ────────────────────────────────────────────── */}
       <section>
         <SectionHeader
           step={2}
-          title="Role type"
-          subtitle="Sets the CV tailoring pipeline for this profile. Required before running analysis."
-        />
-        <div className="select-chevron-wrap">
-          <select
-            name="target_verticals"
-            required
-            defaultValue={(defaults?.target_verticals ?? [])[0] ?? ""}
-            className="field select-chevron"
-          >
-            <option value="">— Select a role type —</option>
-            <option value="tech">Tech / Data / Engineering</option>
-            <option value="nursing">Healthcare / Nursing / Care</option>
-            <option value="manual">Manual / Service / Trades</option>
-            <option value="general">Other / General</option>
-          </select>
-          <ChevronDown className="h-4 w-4 text-text-2" />
-        </div>
-      </section>
-
-      {/* ───── 3. Search ────────────────────────────────────────────── */}
-      <section>
-        <SectionHeader
-          step={3}
           title="Search"
           subtitle="What you're looking for. Each keyword fires a separate search across enabled sources."
         />
@@ -207,10 +188,10 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         </div>
       </section>
 
-      {/* ───── 4. Filters ───────────────────────────────────────────── */}
+      {/* ───── 3. Filters ───────────────────────────────────────────── */}
       <section>
         <SectionHeader
-          step={4}
+          step={3}
           title="Filters"
           subtitle="Applied to every source after fetching, before anything is saved."
         />
@@ -298,9 +279,9 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
 
       {/* Sources moved to Admin → Integrations (global, all users). See migration 063. */}
 
-      {/* ───── 5. Schedule ──────────────────────────────────────────── */}
+      {/* ───── 4. Schedule ──────────────────────────────────────────── */}
       <section>
-        <SectionHeader step={5} title="Schedule" />
+        <SectionHeader step={4} title="Schedule" />
         <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
 
           <div>
@@ -364,10 +345,10 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
         </div>
       </section>
 
-      {/* ───── 6. Automation pipeline ───────────────────────────────── */}
+      {/* ───── 5. Automation pipeline ───────────────────────────────── */}
       <section>
         <SectionHeader
-          step={6}
+          step={5}
           title="Automation pipeline"
           subtitle="What happens after a scrape: tailor a CV → send the application."
         />
