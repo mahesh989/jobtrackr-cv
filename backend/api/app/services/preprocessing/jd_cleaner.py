@@ -220,6 +220,35 @@ _BOILERPLATE_HEADINGS: frozenset[str] = frozenset({
 })
 
 
+# Branded perks/why-join headings that vary per company and can't be enumerated
+# literally ("Why Choose Opal?", "Why work with us?", "Why join the team?").
+# Matched as a PATTERN against the normalised heading so any brand name works.
+_BRANDED_BOILERPLATE_RE = re.compile(
+    r"^why\s+(?:choose|join|work|us\b|you)\b",
+)
+
+# Run-on boilerplate headings detected by PREFIX (startswith) rather than exact
+# match, so "Our Benefits Include", "Here's what we offer", "Life at <brand>"
+# classify as boilerplate even though the full string isn't in the frozenset.
+_BOILERPLATE_PREFIXES: tuple = (
+    "why choose", "why join", "why work", "why us",
+    "our benefits", "the benefits", "employee benefits", "staff benefits",
+    "what we offer", "what's in it for you", "what is in it for you",
+    "perks", "life at", "benefits include", "here's what we offer",
+    "what you'll get", "what you will get", "what's on offer", "whats on offer",
+)
+
+
+def _is_branded_boilerplate(norm: str) -> bool:
+    """True when a normalised heading is a branded perks/why-join heading
+    (pattern or prefix match) that isn't a literal _BOILERPLATE_HEADINGS member."""
+    if not norm:
+        return False
+    if _BRANDED_BOILERPLATE_RE.match(norm):
+        return True
+    return any(norm.startswith(p) for p in _BOILERPLATE_PREFIXES)
+
+
 # ---------------------------------------------------------------------------
 # Heading detection
 # ---------------------------------------------------------------------------
@@ -228,8 +257,31 @@ _BOILERPLATE_HEADINGS: frozenset[str] = frozenset({
 _MARKDOWN_PREFIX_RE = re.compile(r"^[#*]+\s*")
 _MARKDOWN_SUFFIX_RE = re.compile(r"\s*[#*]+$")
 
-# Lines starting with these tokens are bullet items, not headings.
-_BULLET_PREFIX_RE = re.compile(r"^[\-\*•○◦→►▪▶]\s+")
+# Lines starting with these tokens are bullet items, not headings. Includes the
+# checkmark / tick family (✔ ✓ ☑ ✅) that SEEK/Indeed JDs use as bullets, with an
+# optional trailing variation selector (U+FE0F) so "✔️" matches as well as "✔".
+_BULLET_PREFIX_RE = re.compile(r"^[\-\*•○◦→►▪▶✔✓☑✅◆●♦]️?\s+")
+
+# Symbol/emoji bullet glyphs that scraped JDs frequently mash together on a
+# single line with NO newline between items, e.g.
+#   "✅ Work-life balance✅ Career development✅ Study support"
+#   "✔️ Certificate III✔️ Certificate in Disability✔️ Nursing students"
+# Hyphen/asterisk are deliberately EXCLUDED here (they occur mid-sentence as
+# punctuation); only unambiguous bullet glyphs trigger a split.
+_INLINE_BULLET_SPLIT_RE = re.compile(r"\s*([•○◦→►▪▶✔✓☑✅◆●♦])️?\s*")
+
+
+def _normalise_inline_bullets(text: str) -> str:
+    """Put each mashed emoji/symbol bullet on its own line.
+
+    Converts run-on bullet lists ("✅ a✅ b✅ c") into newline-separated items so
+    section detection and per-line gates see each item independently. Drops the
+    Unicode variation selector (U+FE0F) so "✔️" normalises to a bare "✔ " bullet
+    that ``_BULLET_PREFIX_RE`` recognises. Idempotent.
+    """
+    if not text:
+        return text
+    return _INLINE_BULLET_SPLIT_RE.sub(lambda m: "\n" + m.group(1) + " ", text)
 
 # Sentence-terminal characters that disqualify a line from being a heading.
 _SENTENCE_TERMINAL_RE = re.compile(r"[.!?]$")
@@ -249,7 +301,9 @@ def _normalise_heading(line: str) -> str:
     """Return a lowercase, colon-stripped, marker-stripped heading string
     suitable for lookup against _SKILL_HEADINGS / _BOILERPLATE_HEADINGS."""
     s = _strip_markers(line).strip()
-    if s.endswith(":"):
+    # Strip a single trailing ':' or '?' — branded perks headings are routinely
+    # phrased as questions ("Why Choose Opal?") and must still match the vocab.
+    if s.endswith(":") or s.endswith("?"):
         s = s[:-1].rstrip()
     return s.lower()
 
@@ -274,7 +328,20 @@ def _is_heading_line(line: str) -> bool:
     bare = _strip_markers(s)
     if len(bare) > _MAX_HEADING_LEN:
         return False
+
+    norm = _normalise_heading(s)
+    known = (
+        norm in _SKILL_HEADINGS
+        or norm in _BOILERPLATE_HEADINGS
+        or _is_branded_boilerplate(norm)
+    )
+
     if _SENTENCE_TERMINAL_RE.search(bare):
+        # A trailing '?' is allowed ONLY for a recognised heading ("Why Choose
+        # Opal?"), so arbitrary interrogative sentences aren't treated as
+        # headings. '.'/'!' still always disqualify.
+        if bare.endswith("?") and known:
+            return True
         return False
 
     # Most reliable signal: line ends with a colon.
@@ -289,8 +356,7 @@ def _is_heading_line(line: str) -> bool:
 
     # Title-case or mixed-case short line: only accept when it matches a known
     # heading to avoid treating inline sentence fragments as headings.
-    norm = bare.lower()
-    if norm in _SKILL_HEADINGS or norm in _BOILERPLATE_HEADINGS:
+    if known:
         return True
 
     return False
@@ -307,7 +373,7 @@ def _classify_heading(line: str) -> str:
     norm = _normalise_heading(line)
     if norm in _SKILL_HEADINGS:
         return "skill"
-    if norm in _BOILERPLATE_HEADINGS:
+    if norm in _BOILERPLATE_HEADINGS or _is_branded_boilerplate(norm):
         return "boilerplate"
     return "unknown"
 
@@ -360,6 +426,10 @@ def clean_jd_text(raw_text: str) -> Tuple[str, Dict[str, str]]:
     """
     if not raw_text:
         return "", {}
+
+    # Un-mash run-on emoji/symbol bullet lists ("✅ a✅ b") into one item per line
+    # BEFORE heading/section detection, so each item is attributed independently.
+    raw_text = _normalise_inline_bullets(raw_text)
 
     lines = raw_text.split("\n")
 

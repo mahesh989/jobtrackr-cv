@@ -160,7 +160,23 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
         # step (evidence gate, section clamp, setting demotion) which need the
         # full unmodified JD. Deterministic + cheap → safe to recompute on
         # resume. Falls back to the raw text when no skill sections are found.
-        jd_text_for_llm, _ = clean_jd_text(payload.jd_text)
+        jd_text_for_llm, _jd_section_map = clean_jd_text(payload.jd_text)
+        # Belt-and-suspenders provenance for the section gates below: the bodies
+        # of sections the cleaner discarded as boilerplate (perks/benefits/About
+        # Us). A credential or soft skill whose only support is here is a leak.
+        # Empty on the fallback path (no '_boilerplate' key) → gates no-op.
+        _boilerplate_blob = ""
+        try:
+            _bp_headings = (_jd_section_map.get("_boilerplate") or "")
+            if _bp_headings:
+                from app.services.skills.post_process import _ground_norm
+                _bp_bodies = " ".join(
+                    _jd_section_map.get(h.strip(), "")
+                    for h in _bp_headings.split(",")
+                )
+                _boilerplate_blob = f" {_ground_norm(_bp_bodies)} "
+        except Exception:  # noqa: BLE001 — provenance is best-effort
+            logger.debug("boilerplate blob build: failed", exc_info=True)
 
         # ── Step 1 — JD analysis ───────────────────────────────────────────────
         jd_analysis = cached.get("jd_analysis_result")
@@ -254,6 +270,7 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
                 jd_analysis,
                 payload.jd_text,
                 role_family_id=str(jd_analysis.get("role_family") or "master"),
+                skill_text=jd_text_for_llm,
             )
             jd_analysis = enrich_required_skills_from_jd_body(
                 jd_analysis,
@@ -271,7 +288,23 @@ async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
             # is empty) but that are explicitly listed in the JD. Merges with
             # any sidecar-derived credentials already in jd_analysis["credentials"].
             try:
-                scanned = extract_credentials_from_jd(jd_text_for_llm)
+                _cred_drops: list = []
+                scanned = extract_credentials_from_jd(
+                    jd_text_for_llm,
+                    boilerplate_blob=_boilerplate_blob,
+                    drops_out=_cred_drops,
+                )
+                if _cred_drops:
+                    _meta = dict(jd_analysis.get("lexicon_meta") or {})
+                    _meta["boilerplate_dropped_credentials"] = (
+                        list(_meta.get("boilerplate_dropped_credentials") or [])
+                        + _cred_drops
+                    )
+                    jd_analysis["lexicon_meta"] = _meta
+                    logger.info(
+                        "credential scan: dropped %d offer/boilerplate phrases — %s",
+                        len(_cred_drops), [d["phrase"] for d in _cred_drops],
+                    )
                 existing_creds = jd_analysis.get("credentials") or {}
                 jd_analysis["credentials"] = {
                     "required":    _dedup_keep_order(
