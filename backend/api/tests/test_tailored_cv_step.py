@@ -7,6 +7,8 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_summary_opener,
     _extract_employers_from_cv,
     _lowercase_generic_care_phrases,
+    _promote_qualification_cert_to_education,
+    _split_cert_entry,
     _title_case_role,
     _trim_to_words,
 )
@@ -465,4 +467,127 @@ def test_enforce_company_anchor_no_op_when_s2_ends_with_dangling_subordinator():
         )
         out = _enforce_company_anchor(md, cv_text)
         assert "The Jesmond Group" not in out, f"anchor wrongly injected after '{tail}'"
+
+
+# ---------------------------------------------------------------------------
+# Qualification-cert → Education promotion (first_class families)
+# ---------------------------------------------------------------------------
+
+
+def test_split_cert_entry_dash_issuer_and_year():
+    qual, inst, date = _split_cert_entry(
+        "Certificate IV in Ageing Support — Heritage Skills Institute 2025"
+    )
+    assert qual == "Certificate IV in Ageing Support"
+    assert inst == "Heritage Skills Institute"
+    assert date == "2025"
+
+
+def test_split_cert_entry_comma_issuer_and_paren_month_year():
+    qual, inst, date = _split_cert_entry(
+        "Certificate III in Individual Support, TAFE NSW (May 2025)"
+    )
+    assert qual == "Certificate III in Individual Support"
+    assert inst == "TAFE NSW"
+    assert date == "May 2025"
+
+
+def test_split_cert_entry_no_issuer():
+    qual, inst, date = _split_cert_entry("Diploma of Nursing")
+    assert qual == "Diploma of Nursing"
+    assert inst == ""
+    assert date == ""
+
+
+def test_promote_moves_qualification_cert_into_education():
+    """An AQF cert living under Certifications is moved into Education for a
+    first_class family — inserted at the top, removed from Certifications."""
+    md = (
+        "## Education\n\n"
+        "### Central Queensland University | Sydney, Australia\n"
+        "*Master of Professional Accounting | Jul 2025 – Present*\n\n"
+        "## Certifications\n\n"
+        "- Certificate IV in Ageing Support — Heritage Skills Institute 2025\n"
+        "- First Aid Certificate — St John 2024\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="first_class")
+
+    edu = out.split("## Certifications")[0]
+    assert "### Heritage Skills Institute" in edu
+    assert "*Certificate IV in Ageing Support | 2025*" in edu
+    # Promoted entry leads the Education section (role-critical, most recent).
+    assert edu.index("Heritage Skills Institute") < edu.index("Central Queensland")
+    # Moved, not copied: gone from Certifications; the licence stays.
+    certs = out.split("## Certifications")[1]
+    assert "Ageing Support" not in certs
+    assert "First Aid Certificate" in certs
+
+
+def test_promote_drops_certifications_when_it_becomes_empty():
+    md = (
+        "## Education\n\n"
+        "### Pokhara University | Pokhara, Nepal\n"
+        "*Bachelor in Business Administration | 2018 – 2021*\n\n"
+        "## Certifications\n\n"
+        "- Certificate IV in Ageing Support — Heritage Skills Institute 2025\n\n"
+        "## Skills\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="first_class")
+    assert "## Certifications" not in out
+    assert "### Heritage Skills Institute" in out
+    assert "## Skills" in out
+
+
+def test_promote_no_op_when_already_in_education():
+    """Cert already in Education → left untouched (dedupe pass owns the copy)."""
+    md = (
+        "## Education\n\n"
+        "### Heritage Skills Institute | Arncliffe, NSW\n"
+        "*Certificate IV in Ageing Support | May 2025*\n\n"
+        "## Certifications\n\n"
+        "- Certificate IV in Ageing Support — Heritage Skills Institute 2025\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="first_class")
+    assert out == md
+
+
+def test_promote_leaves_cert_without_issuer_in_place():
+    """No parseable issuer → can't form a clean Education block; never dropped."""
+    md = (
+        "## Education\n\n"
+        "### Pokhara University | Pokhara, Nepal\n"
+        "*Bachelor in Business Administration | 2018 – 2021*\n\n"
+        "## Certifications\n\n"
+        "- Diploma of Nursing\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="first_class")
+    assert "## Certifications" in out
+    assert "Diploma of Nursing" in out.split("## Certifications")[1]
+
+
+def test_promote_ignores_licences_and_checks():
+    """First Aid / CPR / Police Check carry no AQF level → stay in Certifications."""
+    md = (
+        "## Education\n\n"
+        "### Pokhara University | Pokhara, Nepal\n"
+        "*Bachelor in Business Administration | 2018 – 2021*\n\n"
+        "## Certifications\n\n"
+        "- First Aid Certificate — St John 2024\n"
+        "- CPR Certificate\n"
+        "- National Police Check 2025\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="first_class")
+    assert out == md
+
+
+def test_promote_no_op_for_non_first_class_policy():
+    md = (
+        "## Education\n\n"
+        "### MIT | Cambridge, MA\n"
+        "*BSc Computer Science | 2018 – 2022*\n\n"
+        "## Certifications\n\n"
+        "- Certificate IV in Cyber Security — TAFE 2023\n"
+    )
+    assert _promote_qualification_cert_to_education(md, cert_policy="plus") == md
+    assert _promote_qualification_cert_to_education(md, cert_policy="") == md
 

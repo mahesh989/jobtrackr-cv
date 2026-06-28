@@ -949,6 +949,169 @@ def _strip_certs_when_projects_exist(markdown: str, cert_policy: str = "") -> st
     return "\n".join(lines[:cert_start] + lines[cert_end:])
 
 
+# An AQF qualification certificate (Certificate I–IV / Diploma / Advanced
+# Diploma) is an *educational* qualification — the foundational credential that
+# qualifies a candidate for the role (e.g. "Certificate IV in Ageing Support"
+# for an AIN). It is NOT a licence/check (First Aid, CPR, Police Check, WWCC,
+# Driver Licence) — those carry no AQF level and stay in Certifications. The
+# level token (I–IV or 1–4) immediately after "Cert(ificate)" is what
+# distinguishes the two, so "First Aid Certificate" / "Certificate of
+# Completion" deliberately do NOT match.
+_QUAL_CERT_RE = re.compile(
+    r"\bcert(?:ificate)?\s+(?:iv|iii|ii|i|[1-4])\b"   # Certificate I–IV / Cert IV
+    r"|\b(?:advanced\s+)?diploma\b",                   # Diploma / Advanced Diploma
+    re.IGNORECASE,
+)
+
+
+def _norm_credential(text: str) -> str:
+    """Lowercase + strip markdown/punctuation noise for substring comparison."""
+    text = re.sub(r"[*_>#`\[\]]", "", text)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _split_cert_entry(entry: str) -> Tuple[str, str, str]:
+    """Parse a one-line certification entry into (qualification, institution,
+    date). institution/date are "" when the entry doesn't carry them.
+
+    Handles the common production shapes:
+      Certificate IV in Ageing Support — Heritage Skills Institute 2025
+      Certificate IV in Ageing Support, Heritage Skills Institute (May 2025)
+      Certificate III in Individual Support – TAFE NSW
+      Diploma of Nursing
+    """
+    text = re.sub(r"\*+", "", entry).strip()
+    date = ""
+    # Trailing date: an optional real month name, a 4-digit year, and an
+    # optional range. The month must be an actual month token (not just any
+    # 3–9 letter word) so an issuer like "…Institute 2025" doesn't get its
+    # last word swallowed into the date.
+    _month = (
+        r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
+    )
+    m = re.search(
+        r"[(,–—-]?\s*("
+        rf"(?:{_month}\s+)?(?:19|20)\d{{2}}"
+        rf"(?:\s*[–—-]\s*(?:Present|(?:{_month}\s+)?(?:19|20)\d{{2}}))?"
+        r")\)?\s*$",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        date = m.group(1).strip()
+        text = text[: m.start()].rstrip(" ,–—-(").strip()
+    text = text.strip().rstrip(")").strip()
+    # Split qualification from institution on the first strong separator.
+    parts = re.split(r"\s+[–—|]\s+|\s+-\s+|,\s+|\s*\(", text, maxsplit=1)
+    qualification = re.sub(r"\*+", "", parts[0]).strip().rstrip(",–—-").strip()
+    institution = (
+        re.sub(r"\*+", "", parts[1]).strip().rstrip(")").strip() if len(parts) > 1 else ""
+    )
+    return qualification, institution, date
+
+
+def _promote_qualification_cert_to_education(
+    markdown: str, cert_policy: str = ""
+) -> str:
+    """For first_class cert families (nursing, manual), surface an AQF
+    qualification certificate under ## Education — consistently, regardless of
+    whether the source CV listed it under Education or Certifications.
+
+    The bug this fixes: two AINs with the same "Certificate IV in Ageing
+    Support" rendered differently — one had it in Education (source put it
+    there), the other had it under Certifications. For these families the
+    certificate IS the educational qualification, so it belongs in Education
+    every time. When such a cert is found in ## Certifications but not already in
+    ## Education, it is moved (inserted at the top of Education — role-critical
+    and most recent — and removed from Certifications, which is dropped if it
+    becomes empty).
+
+    No-op unless cert_policy == "first_class". Conservative by construction:
+      • only AQF qualification certs move (licences/checks stay put);
+      • a cert already represented in Education is left untouched (the
+        cross-section dedupe pass owns that case);
+      • a cert with no parseable issuer is left in Certifications rather than
+        emit a malformed Education entry (it is never dropped).
+    """
+    if cert_policy != "first_class":
+        return markdown
+
+    lines = markdown.split("\n")
+
+    def _bounds(heading: str) -> Tuple[Optional[int], int]:
+        start = next((i for i, l in enumerate(lines) if l.strip() == heading), None)
+        if start is None:
+            return None, 0
+        end = next(
+            (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+            len(lines),
+        )
+        return start, end
+
+    edu_start, edu_end = _bounds("## Education")
+    cert_start, cert_end = _bounds("## Certifications")
+    if edu_start is None or cert_start is None:
+        return markdown  # need both a source and a destination
+
+    edu_blob = _norm_credential(" ".join(lines[edu_start + 1 : edu_end]))
+
+    promoted: list[Tuple[str, str, str]] = []  # (institution, qualification, date)
+    kept_cert: list[str] = []
+    for ln in lines[cert_start + 1 : cert_end]:
+        s = ln.strip()
+        entry = re.sub(r"^\s*(?:[-*•]|#{1,6})\s*", "", s)
+        if not (s and _QUAL_CERT_RE.search(entry)):
+            kept_cert.append(ln)
+            continue
+        qualification, institution, date = _split_cert_entry(entry)
+        qual_norm = _norm_credential(qualification)
+        if qual_norm and qual_norm in edu_blob:
+            kept_cert.append(ln)  # already in Education — dedupe pass owns this
+            continue
+        if not institution:
+            kept_cert.append(ln)  # can't form a clean Education block — leave it
+            continue
+        promoted.append((institution, qualification, date))
+
+    if not promoted:
+        return markdown
+
+    # Build the promoted Education entries (h3 + italic two-line blocks).
+    promoted_lines: list[str] = []
+    for institution, qualification, date in promoted:
+        promoted_lines.append(f"### {institution}")
+        promoted_lines.append(f"*{qualification}" + (f" | {date}" if date else "") + "*")
+        promoted_lines.append("")
+
+    edu_body = lines[edu_start + 1 : edu_end]
+    while edu_body and not edu_body[0].strip():
+        edu_body.pop(0)
+    while edu_body and not edu_body[-1].strip():
+        edu_body.pop()
+    new_edu = [lines[edu_start], ""] + promoted_lines + edu_body + [""]
+
+    while kept_cert and not kept_cert[0].strip():
+        kept_cert.pop(0)
+    while kept_cert and not kept_cert[-1].strip():
+        kept_cert.pop()
+    new_cert = [lines[cert_start], ""] + kept_cert + [""] if kept_cert else []
+
+    # Splice both sections back in, replacing the higher index first so the
+    # lower-index replacement keeps its offsets (sections may be in any order).
+    result = list(lines)
+    for start, end, repl in sorted(
+        [(edu_start, edu_end, new_edu), (cert_start, cert_end, new_cert)],
+        reverse=True,
+    ):
+        result[start:end] = repl
+
+    logger.info(
+        "w8: promoted %d qualification cert(s) into Education (first_class family)",
+        len(promoted),
+    )
+    return "\n".join(result)
+
+
 def _dedup_career_highlights(markdown: str) -> str:
     """
     If the AI emitted ## Career Highlights twice (prose then bullets),
@@ -1273,10 +1436,14 @@ def _enforce_structure(
     `cv_text` (when supplied) lets the company-anchor enforcer inject employer
     names into S2 when the LLM omitted them despite having multi-month roles.
     `cert_policy` (when supplied) keeps the Certifications section for
-    first_class families (nursing/manual) instead of dropping it for Projects.
+    first_class families (nursing/manual) instead of dropping it for Projects,
+    and promotes an AQF qualification certificate (Certificate I–IV / Diploma)
+    into Education so an AIN's "Certificate IV in Ageing Support" lands in the
+    same section every time, regardless of where the source CV placed it.
     """
     markdown = _dedup_project_bullets(markdown)
     markdown = _strip_certs_when_projects_exist(markdown, cert_policy)
+    markdown = _promote_qualification_cert_to_education(markdown, cert_policy)
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)
