@@ -21,6 +21,8 @@ from typing import Any, Dict, Literal, Optional
 import asyncio as _asyncio_mod
 import time as _time
 
+from json_repair import repair_json
+
 from app.config import get_settings
 from app.services.ai import usage_tracker
 
@@ -145,6 +147,14 @@ class AIRateLimitError(AIClientError):
         )
 
 
+class AIJSONParseError(AIClientError):
+    """Raised when an LLM response can't be parsed as JSON even after tolerant
+    repair. Distinct from AIClientError so complete_json can treat it as a
+    signal to REGENERATE (the next sample is usually well-formed) without also
+    catching unrelated failures like billing/rate-limit/auth, which must
+    propagate untouched."""
+
+
 # ---------------------------------------------------------------------------
 # Error classification — turn raw SDK errors into typed AIClientError variants
 # ---------------------------------------------------------------------------
@@ -267,23 +277,48 @@ class AIClient:
         max_tokens: int = 4096,
         temperature: float = 0.1,
         no_training: bool = False,
+        max_attempts: int = 3,
     ) -> Dict[str, Any]:
         """
         Return a parsed JSON object.
 
-        Both providers are nudged via prompt to return raw JSON. We extract
-        the first balanced { ... } block and parse it. Raises AIClientError
-        on parse failure.
+        Both providers are nudged via prompt to return raw JSON. The response
+        is parsed/repaired by _extract_json. If even repair fails (a badly
+        malformed sample — a stray missing comma, truncation mid-key), the
+        generation is RETRIED up to `max_attempts` times: the next sample is
+        almost always well-formed, so a one-off glitch self-heals instead of
+        aborting the whole analysis run.
+
+        Retries force temperature to 0.0 for the most deterministic output.
+        Only AIJSONParseError triggers a retry — billing/rate-limit/auth and
+        other AIClientError variants propagate immediately (a regen wouldn't
+        help and would waste the user's tokens). Raises the last
+        AIJSONParseError if every attempt fails.
         """
         json_system = (
             system
             + "\n\nRespond with a single valid JSON object. No prose, no markdown fences."
         )
-        raw = await self.complete(
-            system=json_system, user=user, max_tokens=max_tokens,
-            temperature=temperature, no_training=no_training,
-        )
-        return _extract_json(raw)
+        last_exc: Optional[AIJSONParseError] = None
+        for attempt in range(1, max_attempts + 1):
+            raw = await self.complete(
+                system=json_system, user=user, max_tokens=max_tokens,
+                # First attempt honours the caller's temperature; retries drop
+                # to 0.0 to bias toward strict, well-formed JSON.
+                temperature=temperature if attempt == 1 else 0.0,
+                no_training=no_training,
+            )
+            try:
+                return _extract_json(raw)
+            except AIJSONParseError as exc:
+                last_exc = exc
+                logger.warning(
+                    "complete_json: unparseable JSON (attempt %d/%d): %s%s",
+                    attempt, max_attempts, exc,
+                    " — regenerating" if attempt < max_attempts else " — giving up",
+                )
+        assert last_exc is not None  # loop ran ≥1 time and every attempt raised
+        raise last_exc
 
     # ----------------------------------------------------------------------
     # Provider-specific implementations
@@ -643,32 +678,17 @@ def make_ai_client(
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 
-def _extract_json(text: str) -> Dict[str, Any]:
-    """
-    Extract a JSON object from a possibly-noisy LLM response.
-
-    Strategy:
-      1. Strip markdown code fences if present.
-      2. Try json.loads on the whole stripped string.
-      3. Fallback: find the first balanced { ... } block and parse that.
-    """
-    stripped = _FENCE_RE.sub("", text).strip()
-
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        pass
-
-    # Find first balanced { ... } block
-    start = stripped.find("{")
+def _first_balanced_object(text: str) -> Optional[str]:
+    """Return the first balanced ``{ ... }`` block in ``text`` (quote/escape
+    aware), or None if there is no opening brace / it never closes."""
+    start = text.find("{")
     if start == -1:
-        raise AIClientError(f"No JSON object found in AI response: {text[:200]}…")
-
+        return None
     depth = 0
     in_string = False
     escape = False
-    for i in range(start, len(stripped)):
-        ch = stripped[i]
+    for i in range(start, len(text)):
+        ch = text[i]
         if escape:
             escape = False
             continue
@@ -685,12 +705,55 @@ def _extract_json(text: str) -> Dict[str, Any]:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                candidate = stripped[start : i + 1]
-                try:
-                    return json.loads(candidate)
-                except json.JSONDecodeError as exc:
-                    raise AIClientError(
-                        f"Failed to parse JSON: {exc}. Snippet: {candidate[:200]}…"
-                    ) from exc
+                return text[start : i + 1]
+    return None
 
-    raise AIClientError(f"Unbalanced JSON object in AI response: {text[:200]}…")
+
+def _extract_json(text: str) -> Dict[str, Any]:
+    """
+    Extract a JSON object from a possibly-noisy LLM response.
+
+    Strategy, cheapest first — each layer only runs if the previous failed:
+      1. Strip markdown code fences.
+      2. Strict json.loads on the whole stripped string.
+      3. Strict json.loads on the first balanced { ... } block.
+      4. Tolerant repair (json_repair) of the best candidate — fixes the
+         common LLM generation glitches (a missing/trailing comma, single
+         quotes, unescaped control chars) WITHOUT a second model call.
+
+    Raises AIJSONParseError when every layer fails. complete_json treats that
+    as a signal to regenerate; the next sample is almost always well-formed.
+    """
+    stripped = _FENCE_RE.sub("", text).strip()
+
+    # 2. Strict parse of the whole string.
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+
+    # 3. Strict parse of the first balanced { ... } block.
+    candidate = _first_balanced_object(stripped)
+    if candidate is not None:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    # 4. Tolerant repair of the best candidate we have. Guard on a non-empty
+    #    dict so json_repair can't mask a garbage response by coercing it to
+    #    an empty {} — that would silently yield a contentless analysis.
+    for blob in (candidate, stripped):
+        if not blob:
+            continue
+        try:
+            parsed = json.loads(repair_json(blob))
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(parsed, dict) and parsed:
+            logger.info("recovered malformed LLM JSON via json_repair")
+            return parsed
+
+    raise AIJSONParseError(
+        f"Failed to parse JSON after repair. Snippet: {(candidate or stripped)[:200]}…"
+    )
