@@ -49,7 +49,7 @@ import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
 import { enrichAdzunaJDsViaActor } from "../sources/adzunaActor.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
-import { geocode, distanceFor, type LatLng } from "../lib/distance.js";
+import { geocode, geocodeLocation, distanceFor, type LatLng } from "../lib/distance.js";
 
 interface FullProfile extends SearchProfile {
   user_id: string;
@@ -1040,11 +1040,19 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       await setStage(runLogId, `Auto-analyzing ${savedIds.length} jobs`);
       console.log(`[pipeline] stage 13 — auto-analyze ${savedIds.length} jobs (automation_enabled=true)`);
       try {
+        // Geocode the search-profile location once (cached — already warmed by
+        // the bucket serve). Passed to auto-analyze so a deliberate inter-city
+        // search (home far from the searched city) still auto-analyzes jobs that
+        // are near the SEARCH location, not just near home.
+        const searchOrigin = profile.location
+          ? await geocodeLocation(profile.location)
+          : null;
         const result = await autoAnalyzeBatch(savedIds, {
           user_id:          profile.user_id,
           // Per-vertical ATS cutoffs (healthcare/nursing = 55/65). Resolved
           // inside triggerAutoAnalyze and passed in the analyze payload.
           target_verticals: profile.target_verticals,
+          searchOrigin,
         });
         console.log(`[pipeline] stage 13 — triggered ${result.triggered}, skipped ${result.skipped}`);
       } catch (err) {

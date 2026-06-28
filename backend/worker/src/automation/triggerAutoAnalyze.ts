@@ -24,6 +24,7 @@
 import { db } from "../db/client.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { callCvBackend, CvBackendError } from "../lib/cvBackendHmac.js";
+import { geocodeLocation, haversineKm, type LatLng } from "../lib/distance.js";
 import { reserveTailoredCv, linkCvUsageEvent, releaseCvUsageEvent } from "./billing.js";
 
 const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
@@ -63,6 +64,10 @@ interface ProfileThresholds {
   // else the global 60/70. Mirrors frontend/web/src/lib/atsThresholds.ts (worker is a
   // separate package, so the small resolver is duplicated, not imported).
   target_verticals?: string[] | null;
+  // Geocoded search-profile location (profile.location). Lets the distance gate
+  // measure intent-distance for inter-city searches, not just distance from home.
+  // null when the profile has no location or it couldn't be geocoded.
+  searchOrigin?: LatLng | null;
 }
 
 const GLOBAL_THRESHOLDS = { initial: 60, final: 70 };
@@ -98,14 +103,32 @@ export async function triggerAutoAnalyze(
     return null;
   }
 
-  // Distance gate (auto-mode only). Candidates rarely apply far from home, so
-  // auto-analyze only jobs within AUTO_ANALYZE_MAX_KM of the profile's home
-  // address — this saves AI spend on out-of-range jobs. `distance_km` is null
-  // when the profile has no home address OR the job couldn't be geocoded; both
-  // mean "don't auto-analyze" (the user can still hit Analyze manually).
-  const distKm = (job as { distance_km: number | null }).distance_km;
-  if (distKm == null || distKm > AUTO_ANALYZE_MAX_KM) {
-    console.log(`[auto-analyze] ${jobId}: skipped (${distKm == null ? "no home address / un-geocoded" : `${distKm}km > ${AUTO_ANALYZE_MAX_KM}km`} — manual analysis still available)`);
+  // Distance gate (auto-mode only). Auto-analyze a job when it is within
+  // AUTO_ANALYZE_MAX_KM of EITHER home (distance_km, driving distance) OR the
+  // SEARCH profile's location (straight-line). A deliberate inter-city search —
+  // home far from the searched city — still auto-analyzes jobs near the search
+  // location, because the user clearly intended to look there. This saves AI
+  // spend on genuinely out-of-range jobs (far from both home and the search
+  // centre) while honouring the search's geographic intent.
+  //
+  // `distance_km` is from home (null if no home address / un-geocoded).
+  // searchKm is derived from the job's location string against the geocoded
+  // search origin (cached within the run). When BOTH are null there is no
+  // geographic signal at all → skip (manual Analyze still works).
+  const homeKm = (job as { distance_km: number | null }).distance_km;
+  let searchKm: number | null = null;
+  if (profile.searchOrigin && job.location) {
+    const hit = await geocodeLocation(job.location); // cached — warmed by serve
+    if (hit) searchKm = haversineKm(profile.searchOrigin, hit);
+  }
+  const dists = [homeKm, searchKm].filter((d): d is number => d != null);
+  const nearestKm = dists.length ? Math.min(...dists) : null;
+  if (nearestKm == null || nearestKm > AUTO_ANALYZE_MAX_KM) {
+    const why = nearestKm == null
+      ? "no home/search distance (un-geocoded)"
+      : `nearest ${nearestKm.toFixed(1)}km > ${AUTO_ANALYZE_MAX_KM}km `
+        + `(home ${homeKm ?? "n/a"}, search ${searchKm?.toFixed(1) ?? "n/a"})`;
+    console.log(`[auto-analyze] ${jobId}: skipped (${why} — manual analysis still available)`);
     return null;
   }
 
