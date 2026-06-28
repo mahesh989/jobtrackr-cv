@@ -1142,22 +1142,30 @@ async def _writer_w8_verified(
     #    stripped and surfaced via quality_flags.
     verified_md, _n = enforce_credential_claims(verified_md, contact_details)
     _hg_notes.extend(_n)
-    # 5. Forbidden-opener RE-ENFORCEMENT. _enforce_summary_opener already ran
-    #    inside _writer_w8_integrated, but verify_claims (an AI step) can rewrite
-    #    S1 and re-introduce a forbidden status/identity opener — most commonly
-    #    "International student with …". The post-verify re-run block above
-    #    re-applies the other deterministic passes but had omitted this one, so
-    #    the strip was being undone. Re-run it (title-case first, per its
-    #    contract) against the JD job title so the opener becomes the role.
-    _before_opener = verified_md
+    # 5. Forbidden-opener RE-ENFORCEMENT + title-honesty gate. The opener strip
+    #    ran inside _writer_w8_integrated, but verify_claims (an AI step) can
+    #    rewrite S1 and re-introduce a forbidden status/identity opener
+    #    ("International student with …"). The post-verify re-run block above
+    #    re-applies the other deterministic passes but had omitted this one.
+    #    CRITICAL honesty rule: use the JD job title as the opener ONLY when it
+    #    shares the candidate's domain (role family). For an off-axis JD
+    #    ("Pharmacy Technician" on an aged-care CV) inserting the JD title
+    #    fabricates an identity the CV can't support — flag instead of aligning.
     verified_md = _enforce_summary_s1_title_case(verified_md)
+    _before_opener = verified_md
+    _cv_family = resolve_role_family(None, {"summary": cv_text}).id
+    _title_supported = _cv_family == role_family.id
     verified_md = _enforce_summary_opener(
-        verified_md, str((result.jd_analysis or {}).get("job_title") or "")
+        verified_md,
+        str((result.jd_analysis or {}).get("job_title") or ""),
+        title_supported=_title_supported,
     )
     if verified_md != _before_opener:
         _hg_notes.append(
-            "Replaced a non-professional summary opener (e.g. status/education "
-            "label) with the JD-aligned role title"
+            "Adjusted the summary opener to the candidate's CV-aligned role title"
+            if _title_supported else
+            "Summary opener: the JD's role title isn't supported by the CV's "
+            "experience — flagged for a manual title rather than fabricating alignment"
         )
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes

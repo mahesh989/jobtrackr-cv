@@ -605,13 +605,34 @@ def _clean_job_title(jd_job_title: str) -> str:
     return title
 
 
-def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
-    """If S1 opens with a forbidden status / education / identity label instead
-    of a JD-aligned role title, replace the opener with the JD job title. When
-    no usable JD title is available, flag with [ROLE TITLE NEEDED] so the failure
-    is conspicuous rather than silently shipped.
+def _norm_opener_title(s: str) -> str:
+    """Lowercase, drop a trailing '(...)' abbrev, collapse whitespace and trim
+    trailing punctuation — so an opener can be compared to the JD title."""
+    s = re.sub(r"\s*\([^)]*\)", "", s or "")
+    return re.sub(r"\s+", " ", s).strip().lower().rstrip(".,")
 
-    Runs AFTER _enforce_summary_s1_title_case so the inserted title keeps the
+
+def _enforce_summary_opener(
+    markdown: str, jd_job_title: str = "", *, title_supported: bool = True
+) -> str:
+    """Fix the S1 opener role-title slot. Two trigger conditions:
+
+      1. The opener is a forbidden status / education / identity label
+         ("International student", "Recent graduate", …).
+      2. The opener IS the JD job title but the candidate's CV does NOT support
+         that title (``title_supported=False``) — e.g. a "Pharmacy Technician"
+         opener on an aged-care CV. The composer (or pass 1) can insert this to
+         force JD alignment; it fabricates an identity the CV can't back.
+
+    Replacement rule: use the JD job title ONLY when it is CV-supported. When it
+    is NOT supported (or unavailable), flag ``[ROLE TITLE NEEDED]`` so the
+    failure is conspicuous — never fabricate a title to make the CV "align".
+
+    ``title_supported`` should be set by the caller from a domain / role-family
+    comparison of the JD vs the candidate's CV. Defaults True for back-compat
+    with callers that have no CV context (they keep the prior behaviour).
+
+    Runs AFTER _enforce_summary_s1_title_case so an inserted title keeps the
     JD's own casing (e.g. "Assistant in Nursing", not "Assistant In Nursing")."""
     lines = markdown.split("\n")
     start, end = _find_summary_block(lines)
@@ -629,15 +650,30 @@ def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
         r"^(.*?)(\s+(?:with|having|–|-|,)\b.*)$", s1, re.IGNORECASE | re.DOTALL
     )
     opener = split.group(1) if split else s1
-    if not _FORBIDDEN_OPENER_RE.match(opener.strip()):
+    opener_clean = opener.strip()
+    jd_title = _clean_job_title(jd_job_title)
+
+    forbidden = bool(_FORBIDDEN_OPENER_RE.match(opener_clean))
+    # Off-axis JD title inserted into the opener despite no CV support.
+    fabricated_jd_title = (
+        not title_supported
+        and bool(jd_title)
+        and _norm_opener_title(opener_clean) == _norm_opener_title(jd_title)
+    )
+    if not (forbidden or fabricated_jd_title):
         return markdown
-    title = _clean_job_title(jd_job_title)
-    replacement = title if title else "[ROLE TITLE NEEDED]"
+
+    # Use the JD title ONLY when the CV supports it; otherwise flag rather than
+    # fabricate a title to force alignment.
+    replacement = jd_title if (jd_title and title_supported) else "[ROLE TITLE NEEDED]"
     if split:
         new_s1 = replacement + split.group(2)
-    else:
+    elif forbidden:
         # No "with"-style tail: swap only the leading forbidden phrase.
         new_s1 = _FORBIDDEN_OPENER_RE.sub(replacement, s1, count=1)
+    else:
+        # Fabricated-title case with no tail boundary: replace the opener span.
+        new_s1 = replacement + s1[len(opener):]
     lines[idx[0]] = new_s1 + rest
     for i in idx[1:]:
         lines[i] = ""
