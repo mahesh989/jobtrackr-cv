@@ -65,7 +65,12 @@ async def run_tailored_cv(
     if not markdown or len(markdown.strip()) < 200:
         raise ValueError("Tailored CV: response too short")
 
-    enforced_md = _enforce_structure(markdown.strip(), jd_job_title=str(jd_analysis.get("job_title") or ""), cv_text=cv_text)
+    enforced_md = _enforce_structure(
+        markdown.strip(),
+        jd_job_title=str(jd_analysis.get("job_title") or ""),
+        cv_text=cv_text,
+        cert_policy=_cert_policy_for(jd_analysis),
+    )
 
     role_family_id = jd_analysis.get("role_family")
     family_label_map = None
@@ -895,12 +900,36 @@ def _dedup_project_bullets(markdown: str) -> str:
     return "\n".join(new_lines)
 
 
-def _strip_certs_when_projects_exist(markdown: str) -> str:
+def _cert_policy_for(jd_analysis: Optional[Dict[str, Any]]) -> str:
+    """Resolve the role family's cert_policy ("first_class" | "plus" | "rare")
+    for the given JD analysis. Empty string on any failure (treated as
+    non-first-class — i.e. the default strip behaviour)."""
+    if not jd_analysis:
+        return ""
+    try:
+        from app.services.eval.role_families import resolve_role_family
+        rf = resolve_role_family(jd_analysis.get("role_family"), jd_analysis)
+        return getattr(rf, "cert_policy", "") or ""
+    except Exception:  # noqa: BLE001 — never block structure enforcement on this
+        return ""
+
+
+def _strip_certs_when_projects_exist(markdown: str, cert_policy: str = "") -> str:
     """
     If ## Projects is present, remove ## Certifications entirely.
     The prompt rule (projects beat certs) is routinely ignored by the AI;
     this enforces it deterministically.
+
+    EXCEPTION — first_class cert families (nursing, manual): certs ARE the
+    qualification there (e.g. "Certificate IV in Ageing Support" for an AIN,
+    AHPRA registration, White Card). Stripping them in favour of Projects
+    silently drops the candidate's most role-relevant credential — exactly the
+    inconsistency where one AIN CV keeps the Cert IV and another loses it. For
+    these families the Certifications section is preserved even when Projects
+    exist (mirrors composition.py's first_class policy: "certs outrank projects").
     """
+    if cert_policy == "first_class":
+        return markdown
     lines = markdown.split("\n")
     has_projects = any(ln.strip() == "## Projects" for ln in lines)
     if not has_projects:
@@ -1230,7 +1259,9 @@ def _inject_missing_skills(
     return "\n".join(lines)
 
 
-def _enforce_structure(markdown: str, jd_job_title: str = "", cv_text: str = "") -> str:
+def _enforce_structure(
+    markdown: str, jd_job_title: str = "", cv_text: str = "", cert_policy: str = ""
+) -> str:
     """
     Deterministic post-processing:
       - Deduplicate Career Highlights (keep prose, drop bullet repeat)
@@ -1241,9 +1272,11 @@ def _enforce_structure(markdown: str, jd_job_title: str = "", cv_text: str = "")
     forbidden status/education opener with the real JD-aligned role title.
     `cv_text` (when supplied) lets the company-anchor enforcer inject employer
     names into S2 when the LLM omitted them despite having multi-month roles.
+    `cert_policy` (when supplied) keeps the Certifications section for
+    first_class families (nursing/manual) instead of dropping it for Projects.
     """
     markdown = _dedup_project_bullets(markdown)
-    markdown = _strip_certs_when_projects_exist(markdown)
+    markdown = _strip_certs_when_projects_exist(markdown, cert_policy)
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)

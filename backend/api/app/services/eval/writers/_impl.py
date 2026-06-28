@@ -61,6 +61,7 @@ from app.services.pipeline.steps.ats_scoring import run_ats_scoring
 from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
 from app.services.pipeline.steps.tailored_cv import (
+    _cert_policy_for,          # role-family cert_policy (keep first_class certs)
     _enforce_company_anchor,   # summary employer-anchor net (re-run post-verify)
     _enforce_structure,        # production-stable post-processor — reused for fairness
     _enforce_summary_opener,   # forbidden-opener strip (re-run post-verify)
@@ -654,7 +655,12 @@ async def _writer_w8_integrated(
     )
     # 2. Run the VERBATIM production post-processors (structural caps, bullet
     #    method, summary clamp, education rules, skills safety-net injector).
-    md = _enforce_structure(md, jd_job_title=str(up["jd_analysis"].get("job_title") or ""), cv_text=cv_text)
+    md = _enforce_structure(
+        md,
+        jd_job_title=str(up["jd_analysis"].get("job_title") or ""),
+        cv_text=cv_text,
+        cert_policy=_cert_policy_for(up["jd_analysis"]),
+    )
     # Pass the family-aware label map so inject_directly domain keywords land on
     # the correct category line. For nursing: domain_knowledge → "**Care Skills:**"
     # not "**Other Skills:**". Without this, wound care / continence care injected
