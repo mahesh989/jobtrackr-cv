@@ -63,6 +63,8 @@ from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibil
 from app.services.pipeline.steps.tailored_cv import (
     _enforce_company_anchor,   # summary employer-anchor net (re-run post-verify)
     _enforce_structure,        # production-stable post-processor — reused for fairness
+    _enforce_summary_opener,   # forbidden-opener strip (re-run post-verify)
+    _enforce_summary_s1_title_case,  # S1 title-case (runs before opener strip)
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
@@ -1140,6 +1142,23 @@ async def _writer_w8_verified(
     #    stripped and surfaced via quality_flags.
     verified_md, _n = enforce_credential_claims(verified_md, contact_details)
     _hg_notes.extend(_n)
+    # 5. Forbidden-opener RE-ENFORCEMENT. _enforce_summary_opener already ran
+    #    inside _writer_w8_integrated, but verify_claims (an AI step) can rewrite
+    #    S1 and re-introduce a forbidden status/identity opener — most commonly
+    #    "International student with …". The post-verify re-run block above
+    #    re-applies the other deterministic passes but had omitted this one, so
+    #    the strip was being undone. Re-run it (title-case first, per its
+    #    contract) against the JD job title so the opener becomes the role.
+    _before_opener = verified_md
+    verified_md = _enforce_summary_s1_title_case(verified_md)
+    verified_md = _enforce_summary_opener(
+        verified_md, str((result.jd_analysis or {}).get("job_title") or "")
+    )
+    if verified_md != _before_opener:
+        _hg_notes.append(
+            "Replaced a non-professional summary opener (e.g. status/education "
+            "label) with the JD-aligned role title"
+        )
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
         logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
