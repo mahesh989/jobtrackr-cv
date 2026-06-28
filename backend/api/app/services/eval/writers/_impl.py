@@ -61,8 +61,11 @@ from app.services.pipeline.steps.ats_scoring import run_ats_scoring
 from app.services.pipeline.steps.input_recommendations import run_input_recommendations
 from app.services.pipeline.steps.keyword_feasibility import run_keyword_feasibility
 from app.services.pipeline.steps.tailored_cv import (
+    _cert_policy_for,          # role-family cert_policy (keep first_class certs)
     _enforce_company_anchor,   # summary employer-anchor net (re-run post-verify)
     _enforce_structure,        # production-stable post-processor — reused for fairness
+    _enforce_summary_opener,   # forbidden-opener strip (re-run post-verify)
+    _enforce_summary_s1_title_case,  # S1 title-case (runs before opener strip)
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
@@ -652,7 +655,12 @@ async def _writer_w8_integrated(
     )
     # 2. Run the VERBATIM production post-processors (structural caps, bullet
     #    method, summary clamp, education rules, skills safety-net injector).
-    md = _enforce_structure(md, jd_job_title=str(up["jd_analysis"].get("job_title") or ""), cv_text=cv_text)
+    md = _enforce_structure(
+        md,
+        jd_job_title=str(up["jd_analysis"].get("job_title") or ""),
+        cv_text=cv_text,
+        cert_policy=_cert_policy_for(up["jd_analysis"]),
+    )
     # Pass the family-aware label map so inject_directly domain keywords land on
     # the correct category line. For nursing: domain_knowledge → "**Care Skills:**"
     # not "**Other Skills:**". Without this, wound care / continence care injected
@@ -1140,6 +1148,31 @@ async def _writer_w8_verified(
     #    stripped and surfaced via quality_flags.
     verified_md, _n = enforce_credential_claims(verified_md, contact_details)
     _hg_notes.extend(_n)
+    # 5. Forbidden-opener RE-ENFORCEMENT + title-honesty gate. The opener strip
+    #    ran inside _writer_w8_integrated, but verify_claims (an AI step) can
+    #    rewrite S1 and re-introduce a forbidden status/identity opener
+    #    ("International student with …"). The post-verify re-run block above
+    #    re-applies the other deterministic passes but had omitted this one.
+    #    CRITICAL honesty rule: use the JD job title as the opener ONLY when it
+    #    shares the candidate's domain (role family). For an off-axis JD
+    #    ("Pharmacy Technician" on an aged-care CV) inserting the JD title
+    #    fabricates an identity the CV can't support — flag instead of aligning.
+    verified_md = _enforce_summary_s1_title_case(verified_md)
+    _before_opener = verified_md
+    _cv_family = resolve_role_family(None, {"summary": cv_text}).id
+    _title_supported = _cv_family == role_family.id
+    verified_md = _enforce_summary_opener(
+        verified_md,
+        str((result.jd_analysis or {}).get("job_title") or ""),
+        title_supported=_title_supported,
+    )
+    if verified_md != _before_opener:
+        _hg_notes.append(
+            "Adjusted the summary opener to the candidate's CV-aligned role title"
+            if _title_supported else
+            "Summary opener: the JD's role title isn't supported by the CV's "
+            "experience — flagged for a manual title rather than fabricating alignment"
+        )
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
         logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))

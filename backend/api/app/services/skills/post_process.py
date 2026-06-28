@@ -674,6 +674,21 @@ def _strip_leading_cred_qualifiers(phrase_display: str) -> str:
     return " ".join(words)
 
 
+def _clean_credential_phrase(phrase: str) -> str:
+    """Normalise a credential phrase routed to the sidecar so BOTH capture
+    paths (the JD-body scan and the LLM-skills sidecar) emit clean values.
+
+    Strips leading filler ('minimum', articles) and any dangling trailing
+    connector/punctuation ('Cert IV Med Comp Training - Emerging &' →
+    'Cert IV Med Comp Training - Emerging'). Idempotent.
+    """
+    p = _strip_leading_cred_qualifiers(phrase.strip())
+    words = p.split()
+    while words and words[-1].strip(".,;:()&/-").lower() in _CRED_TAIL_CONNECTORS:
+        words.pop()
+    return " ".join(words).strip(" .,;:-&/")
+
+
 def _is_vaccination_phrase(phrase_lower: str) -> bool:
     """True for vaccination/immunisation phrases — these are compliance/eligibility
     items, not credentials, so they route to the eligibility list."""
@@ -684,7 +699,62 @@ def _is_vaccination_phrase(phrase_lower: str) -> bool:
     )
 
 
-def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
+# ---------------------------------------------------------------------------
+# Offer-vs-obligation verb arbiter (Layer 3)
+# ---------------------------------------------------------------------------
+# Section structure tells us WHERE a phrase sits; these verbs tell us whether a
+# line states something the employer OFFERS (a perk — "Cert IV training
+# provided", "scholarships on offer") versus something it OBLIGATES the
+# candidate to hold ("must hold a current First Aid certificate", "required
+# before commencement"). The obligation signal OVERRIDES section/offer — a
+# genuine mandatory credential inside a benefits block is still kept; an
+# offer-phrased credential is dropped even when section detection missed it
+# (the fallback / unstructured-JD safety net).
+
+_OFFER_VERB_RE = re.compile(
+    r"(?ix)\b("
+    r"provided\b|on\s+offer\b|we\s+(?:provide|offer)\b|on\s+completion\b|"
+    r"access\s+to\b|reimburse(?:d|ment)?\b|"
+    r"scholarships?\b|study\s+support\b|salary\s+packaging\b|"
+    r"career\s+development\b|development\s+pathways?\b|"
+    r"training\s+(?:provided|on\s+offer|available|opportunities)\b|"
+    r"learning\s+(?:and\s+development|opportunities)\b"
+    r")"
+)
+
+_OBLIGATION_RE = re.compile(
+    r"(?ix)\b("
+    r"must\s+(?:have|hold|complete|possess|obtain|undergo|be)\b|"
+    r"required\b|essential\b|mandatory\b|"
+    r"you\s+(?:will|must)\s+(?:have|need|hold|complete|possess|obtain)\b|"
+    r"need\s+to\s+(?:have|hold|complete|obtain)\b|"
+    r"applicants?\s+must\b|all\s+applicants\b|"
+    r"before\s+commencement\b|prior\s+to\s+(?:commencement|starting|start)\b|"
+    r"within\s+\d+\s*(?:months?|weeks?|days?)\b"
+    r")"
+)
+
+
+_LEADING_BULLET_RE = re.compile(r"^[\s\-\*•○◦→►▪▶✔✓☑✅◆●♦️]+")
+
+
+def _line_is_offer_only(line: str) -> bool:
+    """True when a line states a PERK the employer offers and carries NO
+    obligation marker — i.e. a credential/skill on this line is something
+    provided, not something required of the candidate. Obligation wins ties."""
+    if not line:
+        return False
+    if _OBLIGATION_RE.search(line):
+        return False
+    return bool(_OFFER_VERB_RE.search(line))
+
+
+def extract_credentials_from_jd(
+    jd_text: str,
+    *,
+    boilerplate_blob: str = "",
+    drops_out: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, List[str]]:
     """Deterministic scan of JD text for credential and eligibility phrases.
 
     Returns ``{"required": [...], "preferred": [...], "eligibility": [...]}``.
@@ -703,10 +773,19 @@ def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
     eligibility: List[str] = []
 
     for line in jd_text.splitlines():
-        line_stripped = line.strip()
+        # Strip a leading bullet glyph (incl. the ✔/✓/✅ family the emoji
+        # normaliser leaves) so it never bleeds into a captured credential.
+        line_stripped = _LEADING_BULLET_RE.sub("", line.strip())
         if not line_stripped:
             continue
         line_lower = line_stripped.lower()
+
+        # Layer 3 — offer-vs-obligation: a perk line ("Cert IV training
+        # provided", "scholarships on offer") states something the employer
+        # offers, not a candidate requirement. Skip required/preferred harvest
+        # for it (eligibility is always obligation-shaped so it still flows).
+        # An obligation marker on the same line overrides and keeps it.
+        line_is_offer = _line_is_offer_only(line_stripped)
 
         # A leading "Desirable:"/"Preferred:" heading applies its preferred-signal
         # to every clause on the line; detect it once per line.
@@ -791,7 +870,10 @@ def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
                 used_chars |= span
 
                 phrase_display = scan_text[idx: idx + len(phrase_lower)]
-                phrase_display = _strip_leading_cred_qualifiers(phrase_display)
+                # Clean both ends: leading filler ('minimum') AND dangling
+                # trailing connectors/punctuation ('Individual Support /',
+                # 'Emerging &') left by the ngram-window cut.
+                phrase_display = _clean_credential_phrase(phrase_display)
                 if not phrase_display:
                     continue
 
@@ -799,7 +881,25 @@ def extract_credentials_from_jd(jd_text: str) -> Dict[str, List[str]]:
                 # even though the static list tags it as a credential.
                 if noise_type == "eligibility" or _is_vaccination_phrase(phrase_lower):
                     eligibility.append(phrase_display)
-                elif is_preferred:
+                    continue
+                # Layer 3 — drop a credential merely OFFERED on a perk line.
+                if line_is_offer:
+                    if drops_out is not None:
+                        drops_out.append(
+                            {"phrase": phrase_display, "reason": "offer_line"}
+                        )
+                    continue
+                # Belt-and-suspenders — drop a credential whose support is a
+                # boilerplate section the cleaner failed to strip (branded
+                # heading). _ground_norm keeps this byte-compatible with the
+                # blob built from the discarded section_map.
+                if boilerplate_blob and _ground_norm(phrase_display) in boilerplate_blob:
+                    if drops_out is not None:
+                        drops_out.append(
+                            {"phrase": phrase_display, "reason": "boilerplate_only"}
+                        )
+                    continue
+                if is_preferred:
                     preferred.append(phrase_display)
                 else:
                     required.append(phrase_display)
@@ -868,7 +968,7 @@ def post_process_skills(
 
             # 1a. Qualification / student-status phrases — always credentials.
             if _is_qualification_phrase(phrase):
-                sidecar["credential"].append(phrase)
+                sidecar["credential"].append(_clean_credential_phrase(phrase))
                 continue
 
             # 1a'. Australian VET unit codes (HLTHPS007, HLTAID011, CHCCCS015)
@@ -876,7 +976,7 @@ def post_process_skills(
             #     here before noise lookup because they're not in the static
             #     noise lexicon (there are hundreds; pattern is cleaner).
             if _is_au_unit_code(phrase):
-                sidecar["credential"].append(phrase)
+                sidecar["credential"].append(_clean_credential_phrase(phrase))
                 continue
 
             # 1a-veh. Vehicle / driver-licence / car-insurance JD requirements
@@ -887,7 +987,7 @@ def post_process_skills(
             #     before the static noise lookup because variants outnumber
             #     what's reasonable to enumerate by hand.
             if _is_vehicle_eligibility(phrase):
-                sidecar["credential"].append(phrase)
+                sidecar["credential"].append(_clean_credential_phrase(phrase))
                 continue
 
             # 1a''. Embedded credential markers — the qualification-phrase
@@ -899,7 +999,7 @@ def post_process_skills(
             #      credential sidecar so the JD-analysis display stays
             #      clean of credential leakage.
             if _has_credential_marker(phrase):
-                sidecar["credential"].append(phrase)
+                sidecar["credential"].append(_clean_credential_phrase(phrase))
                 continue
 
             phrase_lower = phrase.lower().strip()
@@ -1350,6 +1450,7 @@ def drop_ungrounded_soft_skills(
     jd_text: str,
     *,
     role_family_id: str,
+    skill_text: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Drop LLM-emitted soft skills with no verbatim support in the JD.
 
@@ -1369,7 +1470,13 @@ def drop_ungrounded_soft_skills(
     if vertical is None:
         return jd_analysis
 
-    blob = _ground_blob(jd_text)
+    # Ground against the boilerplate-STRIPPED text when the caller supplies it
+    # (jd_text_for_llm). A soft skill whose only support was a perks/benefits
+    # line ("leadership" in "Senior Leadership Pathways") is then correctly
+    # ungrounded and dropped, while genuine duty-bullet soft skills survive.
+    # Falls back to raw jd_text for back-compat with callers that pass neither.
+    ground_text = skill_text if (skill_text and skill_text.strip()) else jd_text
+    blob = _ground_blob(ground_text)
     if not blob.strip():
         return jd_analysis
 

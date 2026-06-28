@@ -65,7 +65,12 @@ async def run_tailored_cv(
     if not markdown or len(markdown.strip()) < 200:
         raise ValueError("Tailored CV: response too short")
 
-    enforced_md = _enforce_structure(markdown.strip(), jd_job_title=str(jd_analysis.get("job_title") or ""), cv_text=cv_text)
+    enforced_md = _enforce_structure(
+        markdown.strip(),
+        jd_job_title=str(jd_analysis.get("job_title") or ""),
+        cv_text=cv_text,
+        cert_policy=_cert_policy_for(jd_analysis),
+    )
 
     role_family_id = jd_analysis.get("role_family")
     family_label_map = None
@@ -605,13 +610,34 @@ def _clean_job_title(jd_job_title: str) -> str:
     return title
 
 
-def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
-    """If S1 opens with a forbidden status / education / identity label instead
-    of a JD-aligned role title, replace the opener with the JD job title. When
-    no usable JD title is available, flag with [ROLE TITLE NEEDED] so the failure
-    is conspicuous rather than silently shipped.
+def _norm_opener_title(s: str) -> str:
+    """Lowercase, drop a trailing '(...)' abbrev, collapse whitespace and trim
+    trailing punctuation — so an opener can be compared to the JD title."""
+    s = re.sub(r"\s*\([^)]*\)", "", s or "")
+    return re.sub(r"\s+", " ", s).strip().lower().rstrip(".,")
 
-    Runs AFTER _enforce_summary_s1_title_case so the inserted title keeps the
+
+def _enforce_summary_opener(
+    markdown: str, jd_job_title: str = "", *, title_supported: bool = True
+) -> str:
+    """Fix the S1 opener role-title slot. Two trigger conditions:
+
+      1. The opener is a forbidden status / education / identity label
+         ("International student", "Recent graduate", …).
+      2. The opener IS the JD job title but the candidate's CV does NOT support
+         that title (``title_supported=False``) — e.g. a "Pharmacy Technician"
+         opener on an aged-care CV. The composer (or pass 1) can insert this to
+         force JD alignment; it fabricates an identity the CV can't back.
+
+    Replacement rule: use the JD job title ONLY when it is CV-supported. When it
+    is NOT supported (or unavailable), flag ``[ROLE TITLE NEEDED]`` so the
+    failure is conspicuous — never fabricate a title to make the CV "align".
+
+    ``title_supported`` should be set by the caller from a domain / role-family
+    comparison of the JD vs the candidate's CV. Defaults True for back-compat
+    with callers that have no CV context (they keep the prior behaviour).
+
+    Runs AFTER _enforce_summary_s1_title_case so an inserted title keeps the
     JD's own casing (e.g. "Assistant in Nursing", not "Assistant In Nursing")."""
     lines = markdown.split("\n")
     start, end = _find_summary_block(lines)
@@ -629,15 +655,30 @@ def _enforce_summary_opener(markdown: str, jd_job_title: str = "") -> str:
         r"^(.*?)(\s+(?:with|having|–|-|,)\b.*)$", s1, re.IGNORECASE | re.DOTALL
     )
     opener = split.group(1) if split else s1
-    if not _FORBIDDEN_OPENER_RE.match(opener.strip()):
+    opener_clean = opener.strip()
+    jd_title = _clean_job_title(jd_job_title)
+
+    forbidden = bool(_FORBIDDEN_OPENER_RE.match(opener_clean))
+    # Off-axis JD title inserted into the opener despite no CV support.
+    fabricated_jd_title = (
+        not title_supported
+        and bool(jd_title)
+        and _norm_opener_title(opener_clean) == _norm_opener_title(jd_title)
+    )
+    if not (forbidden or fabricated_jd_title):
         return markdown
-    title = _clean_job_title(jd_job_title)
-    replacement = title if title else "[ROLE TITLE NEEDED]"
+
+    # Use the JD title ONLY when the CV supports it; otherwise flag rather than
+    # fabricate a title to force alignment.
+    replacement = jd_title if (jd_title and title_supported) else "[ROLE TITLE NEEDED]"
     if split:
         new_s1 = replacement + split.group(2)
-    else:
+    elif forbidden:
         # No "with"-style tail: swap only the leading forbidden phrase.
         new_s1 = _FORBIDDEN_OPENER_RE.sub(replacement, s1, count=1)
+    else:
+        # Fabricated-title case with no tail boundary: replace the opener span.
+        new_s1 = replacement + s1[len(opener):]
     lines[idx[0]] = new_s1 + rest
     for i in idx[1:]:
         lines[i] = ""
@@ -859,12 +900,36 @@ def _dedup_project_bullets(markdown: str) -> str:
     return "\n".join(new_lines)
 
 
-def _strip_certs_when_projects_exist(markdown: str) -> str:
+def _cert_policy_for(jd_analysis: Optional[Dict[str, Any]]) -> str:
+    """Resolve the role family's cert_policy ("first_class" | "plus" | "rare")
+    for the given JD analysis. Empty string on any failure (treated as
+    non-first-class — i.e. the default strip behaviour)."""
+    if not jd_analysis:
+        return ""
+    try:
+        from app.services.eval.role_families import resolve_role_family
+        rf = resolve_role_family(jd_analysis.get("role_family"), jd_analysis)
+        return getattr(rf, "cert_policy", "") or ""
+    except Exception:  # noqa: BLE001 — never block structure enforcement on this
+        return ""
+
+
+def _strip_certs_when_projects_exist(markdown: str, cert_policy: str = "") -> str:
     """
     If ## Projects is present, remove ## Certifications entirely.
     The prompt rule (projects beat certs) is routinely ignored by the AI;
     this enforces it deterministically.
+
+    EXCEPTION — first_class cert families (nursing, manual): certs ARE the
+    qualification there (e.g. "Certificate IV in Ageing Support" for an AIN,
+    AHPRA registration, White Card). Stripping them in favour of Projects
+    silently drops the candidate's most role-relevant credential — exactly the
+    inconsistency where one AIN CV keeps the Cert IV and another loses it. For
+    these families the Certifications section is preserved even when Projects
+    exist (mirrors composition.py's first_class policy: "certs outrank projects").
     """
+    if cert_policy == "first_class":
+        return markdown
     lines = markdown.split("\n")
     has_projects = any(ln.strip() == "## Projects" for ln in lines)
     if not has_projects:
@@ -882,6 +947,169 @@ def _strip_certs_when_projects_exist(markdown: str) -> str:
         len(lines),
     )
     return "\n".join(lines[:cert_start] + lines[cert_end:])
+
+
+# An AQF qualification certificate (Certificate I–IV / Diploma / Advanced
+# Diploma) is an *educational* qualification — the foundational credential that
+# qualifies a candidate for the role (e.g. "Certificate IV in Ageing Support"
+# for an AIN). It is NOT a licence/check (First Aid, CPR, Police Check, WWCC,
+# Driver Licence) — those carry no AQF level and stay in Certifications. The
+# level token (I–IV or 1–4) immediately after "Cert(ificate)" is what
+# distinguishes the two, so "First Aid Certificate" / "Certificate of
+# Completion" deliberately do NOT match.
+_QUAL_CERT_RE = re.compile(
+    r"\bcert(?:ificate)?\s+(?:iv|iii|ii|i|[1-4])\b"   # Certificate I–IV / Cert IV
+    r"|\b(?:advanced\s+)?diploma\b",                   # Diploma / Advanced Diploma
+    re.IGNORECASE,
+)
+
+
+def _norm_credential(text: str) -> str:
+    """Lowercase + strip markdown/punctuation noise for substring comparison."""
+    text = re.sub(r"[*_>#`\[\]]", "", text)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _split_cert_entry(entry: str) -> Tuple[str, str, str]:
+    """Parse a one-line certification entry into (qualification, institution,
+    date). institution/date are "" when the entry doesn't carry them.
+
+    Handles the common production shapes:
+      Certificate IV in Ageing Support — Heritage Skills Institute 2025
+      Certificate IV in Ageing Support, Heritage Skills Institute (May 2025)
+      Certificate III in Individual Support – TAFE NSW
+      Diploma of Nursing
+    """
+    text = re.sub(r"\*+", "", entry).strip()
+    date = ""
+    # Trailing date: an optional real month name, a 4-digit year, and an
+    # optional range. The month must be an actual month token (not just any
+    # 3–9 letter word) so an issuer like "…Institute 2025" doesn't get its
+    # last word swallowed into the date.
+    _month = (
+        r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
+    )
+    m = re.search(
+        r"[(,–—-]?\s*("
+        rf"(?:{_month}\s+)?(?:19|20)\d{{2}}"
+        rf"(?:\s*[–—-]\s*(?:Present|(?:{_month}\s+)?(?:19|20)\d{{2}}))?"
+        r")\)?\s*$",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        date = m.group(1).strip()
+        text = text[: m.start()].rstrip(" ,–—-(").strip()
+    text = text.strip().rstrip(")").strip()
+    # Split qualification from institution on the first strong separator.
+    parts = re.split(r"\s+[–—|]\s+|\s+-\s+|,\s+|\s*\(", text, maxsplit=1)
+    qualification = re.sub(r"\*+", "", parts[0]).strip().rstrip(",–—-").strip()
+    institution = (
+        re.sub(r"\*+", "", parts[1]).strip().rstrip(")").strip() if len(parts) > 1 else ""
+    )
+    return qualification, institution, date
+
+
+def _promote_qualification_cert_to_education(
+    markdown: str, cert_policy: str = ""
+) -> str:
+    """For first_class cert families (nursing, manual), surface an AQF
+    qualification certificate under ## Education — consistently, regardless of
+    whether the source CV listed it under Education or Certifications.
+
+    The bug this fixes: two AINs with the same "Certificate IV in Ageing
+    Support" rendered differently — one had it in Education (source put it
+    there), the other had it under Certifications. For these families the
+    certificate IS the educational qualification, so it belongs in Education
+    every time. When such a cert is found in ## Certifications but not already in
+    ## Education, it is moved (inserted at the top of Education — role-critical
+    and most recent — and removed from Certifications, which is dropped if it
+    becomes empty).
+
+    No-op unless cert_policy == "first_class". Conservative by construction:
+      • only AQF qualification certs move (licences/checks stay put);
+      • a cert already represented in Education is left untouched (the
+        cross-section dedupe pass owns that case);
+      • a cert with no parseable issuer is left in Certifications rather than
+        emit a malformed Education entry (it is never dropped).
+    """
+    if cert_policy != "first_class":
+        return markdown
+
+    lines = markdown.split("\n")
+
+    def _bounds(heading: str) -> Tuple[Optional[int], int]:
+        start = next((i for i, l in enumerate(lines) if l.strip() == heading), None)
+        if start is None:
+            return None, 0
+        end = next(
+            (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+            len(lines),
+        )
+        return start, end
+
+    edu_start, edu_end = _bounds("## Education")
+    cert_start, cert_end = _bounds("## Certifications")
+    if edu_start is None or cert_start is None:
+        return markdown  # need both a source and a destination
+
+    edu_blob = _norm_credential(" ".join(lines[edu_start + 1 : edu_end]))
+
+    promoted: list[Tuple[str, str, str]] = []  # (institution, qualification, date)
+    kept_cert: list[str] = []
+    for ln in lines[cert_start + 1 : cert_end]:
+        s = ln.strip()
+        entry = re.sub(r"^\s*(?:[-*•]|#{1,6})\s*", "", s)
+        if not (s and _QUAL_CERT_RE.search(entry)):
+            kept_cert.append(ln)
+            continue
+        qualification, institution, date = _split_cert_entry(entry)
+        qual_norm = _norm_credential(qualification)
+        if qual_norm and qual_norm in edu_blob:
+            kept_cert.append(ln)  # already in Education — dedupe pass owns this
+            continue
+        if not institution:
+            kept_cert.append(ln)  # can't form a clean Education block — leave it
+            continue
+        promoted.append((institution, qualification, date))
+
+    if not promoted:
+        return markdown
+
+    # Build the promoted Education entries (h3 + italic two-line blocks).
+    promoted_lines: list[str] = []
+    for institution, qualification, date in promoted:
+        promoted_lines.append(f"### {institution}")
+        promoted_lines.append(f"*{qualification}" + (f" | {date}" if date else "") + "*")
+        promoted_lines.append("")
+
+    edu_body = lines[edu_start + 1 : edu_end]
+    while edu_body and not edu_body[0].strip():
+        edu_body.pop(0)
+    while edu_body and not edu_body[-1].strip():
+        edu_body.pop()
+    new_edu = [lines[edu_start], ""] + promoted_lines + edu_body + [""]
+
+    while kept_cert and not kept_cert[0].strip():
+        kept_cert.pop(0)
+    while kept_cert and not kept_cert[-1].strip():
+        kept_cert.pop()
+    new_cert = [lines[cert_start], ""] + kept_cert + [""] if kept_cert else []
+
+    # Splice both sections back in, replacing the higher index first so the
+    # lower-index replacement keeps its offsets (sections may be in any order).
+    result = list(lines)
+    for start, end, repl in sorted(
+        [(edu_start, edu_end, new_edu), (cert_start, cert_end, new_cert)],
+        reverse=True,
+    ):
+        result[start:end] = repl
+
+    logger.info(
+        "w8: promoted %d qualification cert(s) into Education (first_class family)",
+        len(promoted),
+    )
+    return "\n".join(result)
 
 
 def _dedup_career_highlights(markdown: str) -> str:
@@ -1194,7 +1422,9 @@ def _inject_missing_skills(
     return "\n".join(lines)
 
 
-def _enforce_structure(markdown: str, jd_job_title: str = "", cv_text: str = "") -> str:
+def _enforce_structure(
+    markdown: str, jd_job_title: str = "", cv_text: str = "", cert_policy: str = ""
+) -> str:
     """
     Deterministic post-processing:
       - Deduplicate Career Highlights (keep prose, drop bullet repeat)
@@ -1205,9 +1435,15 @@ def _enforce_structure(markdown: str, jd_job_title: str = "", cv_text: str = "")
     forbidden status/education opener with the real JD-aligned role title.
     `cv_text` (when supplied) lets the company-anchor enforcer inject employer
     names into S2 when the LLM omitted them despite having multi-month roles.
+    `cert_policy` (when supplied) keeps the Certifications section for
+    first_class families (nursing/manual) instead of dropping it for Projects,
+    and promotes an AQF qualification certificate (Certificate I–IV / Diploma)
+    into Education so an AIN's "Certificate IV in Ageing Support" lands in the
+    same section every time, regardless of where the source CV placed it.
     """
     markdown = _dedup_project_bullets(markdown)
-    markdown = _strip_certs_when_projects_exist(markdown)
+    markdown = _strip_certs_when_projects_exist(markdown, cert_policy)
+    markdown = _promote_qualification_cert_to_education(markdown, cert_policy)
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)
