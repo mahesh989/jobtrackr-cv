@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.17",
-    "updated": "2026-06-29 (Radancy adapter: Bupa AU aged care via TalentBrew JSON-LD; detail-cap removed)",
+    "updated": "2026-06-29 (Radancy works but pagination broken=15/52; next-agent instructions written)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
@@ -254,7 +254,7 @@
     },
     {
       "id": "D24",
-      "decision": "Radancy/TalentBrew adapter added (radancy.ts, adapter.name='radancy', source='agedcare', vertical=healthcare, tier 3). Bupa AU aged care is on Radancy (careers.bupa.com.au), NOT Workday (bupa.wd3 is UK-only). Validated 2026-06-29: search-jobs page server-renders /job/{city}/{slug}/{companyId}/{jobId} links; detail pages carry clean schema.org JSON-LD JobPosting (full HTML JD + structured AU address w/ country + datePosted). Approach: paginate via /search-jobs/results AJAX (RecordsPerPage=100; JSON 'results' field holds rendered job HTML) with static /search-jobs fallback → role-taxonomy pre-filter on slug → fetch detail → JSON-LD JD → AU-country filter. Static ?p=N pagination does NOT work (returns page 1). Enabled on unlimited tier via migration 073; added to VALID_SOURCES + PlatformSourcesCard ('Aged Care — Bupa'). Test: testRadancy.ts. Reusable for other Radancy employers (add to ORGS). Also: agedCareWorkday MAX_DETAIL_FETCH removed (Infinity), MAX_PAGES 35->60."
+      "decision": "Radancy/TalentBrew adapter added (radancy.ts, adapter.name='radancy', source='agedcare', vertical=healthcare, tier 3). Bupa AU aged care is on Radancy (careers.bupa.com.au), NOT Workday (bupa.wd3 is UK-only). Validated 2026-06-29: search-jobs page server-renders /job/{city}/{slug}/{companyId}/{jobId} links; detail pages carry clean schema.org JSON-LD JobPosting (full HTML JD + structured AU address w/ country + datePosted). Approach: paginate via /search-jobs/results AJAX (RecordsPerPage=100; JSON 'results' field holds rendered job HTML) with static /search-jobs fallback → role-taxonomy pre-filter on slug → fetch detail → JSON-LD JD → AU-country filter. Static ?p=N pagination does NOT work (returns page 1). Enabled on unlimited tier via migration 073; added to VALID_SOURCES + PlatformSourcesCard ('Aged Care — Bupa'). Test: testRadancy.ts. Reusable for other Radancy employers (add to ORGS). Also: agedCareWorkday MAX_DETAIL_FETCH removed (Infinity), MAX_PAGES 35->60. TEST 2026-06-29: Radancy WORKS (3 jobs, full 3-4k JDs, clean AU locations incl an RN) BUT pagination BROKEN — collectLinks gets only 15 links (static page 1) because /search-jobs/results returns empty results JSON with the guessed params; falls back to static page. Bupa has 52 positions/~21 care roles across 4 pages. NEXT: capture the real /search-jobs/results request from Chrome DevTools (Copy as cURL on page-2 click) and replicate params/headers in collectLinks. Migrations applied through 073. Full instructions for next agent in docs/aged-care-scraping-handoff.md (top section)."
     }
   ],
   "operational_notes": [

@@ -10,6 +10,53 @@ learnings) and `.claude/graph.json` decisions **D22, D23, D24**.
 
 ---
 
+## 🤖 INSTRUCTIONS FOR THE NEXT AI AGENT — START HERE
+
+Read this whole file, then `docs/aged-care-ats-map.md`, then `.claude/graph.json`
+(decisions D22–D24). Work on branch `claude/direct-career-site-scraping-r6vq44`.
+Commit + push after each logical change. The user runs all live validation on
+their Mac (this environment's egress blocks the ATS hosts — do NOT try to curl
+them yourself; ask the user to run commands and paste output).
+
+**State as of 2026-06-29 end of session:** migrations applied through 073.
+Workday (6 providers) and Radancy (Bupa AU) both return full JDs. ONE known bug:
+
+### PRIORITY 1 — Fix Radancy pagination (only gets 15 of ~52 Bupa jobs)
+`radancy.ts` `collectLinks()` tries `/search-jobs/results?CurrentPage=N&RecordsPerPage=100`
+but that endpoint returns `{"hasJobs":true,"results":""}` (empty) — so it falls
+back to the static `/search-jobs` page = page 1 only = 15 links = 3 role matches.
+Bupa actually has 52 positions / ~21 care roles across 4 pages.
+
+To fix, you need the REAL TalentBrew results request. Ask the user to:
+  1. Open `https://careers.bupa.com.au/search-jobs` in Chrome → DevTools (F12)
+     → Network tab → filter "results" (or XHR).
+  2. Click "Next" / page 2 of the results.
+  3. Find the request to `/search-jobs/results...`, right-click → Copy → "Copy
+     as cURL", and paste the whole thing (URL + all query params + headers).
+Then update `collectLinks()` to replicate that exact request (params/headers),
+parse `/job/` links from the returned `results` HTML, and page until no new
+links. Re-test with `npx tsx src/scripts/testRadancy.ts` — expect ~21 care jobs,
+not 3. (If `/results` is hopeless, fallback: loop the static page with whatever
+pagination param DevTools shows — note plain `?p=N` did NOT work.)
+
+### PRIORITY 2 — Confirm Workday at scale + Fly egress
+Have the user run `npx tsx src/scripts/testAgedCareWorkday.ts` (expect ~250+ jobs
+now the detail cap is gone, 0 known-overseas locations). Then confirm a full
+pipeline run on a healthcare-vertical profile (founder/unlimited account) shows
+`[agedcare]`/`[radancy]` logs and rows land with `source='agedcare'` + non-empty
+descriptions. **Critically: verify the Fly worker's datacenter IP can reach
+Workday CXS + Radancy** — if they 403 there (but work on the Mac), route through
+the Apify residential proxy (`getApifyProxyUrl` + `curlFetch`/`curlPostJson`).
+
+### PRIORITY 3 — Expand (only after 1 & 2 are green)
+Add more Workday/Radancy providers (one row each, validate first). Then consider
+the paused JS-SPA ATSs (need network capture or Playwright) — see LATER.
+
+**Golden rule (we got burned 3×):** never trust a tenant/board until the user
+validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."
+
+---
+
 ## ✅ DONE this branch (shipped, validated)
 
 ### Workday adapter — `backend/worker/src/sources/agedCareWorkday.ts`
