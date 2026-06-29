@@ -39,14 +39,19 @@ const byCompany = new Map<string, number>();
 const byGroup   = new Map<string, number>();
 let emptyJD = 0;
 let nonAU   = 0;
-const AU_HINT = /\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT|australia|sydney|melbourne|brisbane|perth|adelaide)\b/i;
+const overseas: string[] = [];
+// Flag only KNOWN-overseas locations. Most AU jobs are bare suburbs (e.g.
+// "Castle Hill", "Glebe") that no AU regex can reliably whitelist, so requiring
+// an AU token produces false positives. Detecting clearly-overseas tokens is the
+// meaningful signal (e.g. Bupa UK / AgeCare Canada leakage).
+const NON_AU = /\b(london|united kingdom|england|scotland|wales|ireland|dublin|canada|alberta|ontario|calgary|toronto|new zealand|auckland|wellington|singapore|manila|philippines|india|bangalore|mumbai|usa|united states|spain|madrid|poland|chile)\b/i;
 
 for (const j of jobs) {
   byCompany.set(j.company, (byCompany.get(j.company) ?? 0) + 1);
   const group = (j.raw as { group?: string })?.group ?? "?";
   byGroup.set(group, (byGroup.get(group) ?? 0) + 1);
   if (!j.description || j.description.length < 50) emptyJD++;
-  if (j.location && j.location !== "Australia" && !AU_HINT.test(j.location)) nonAU++;
+  if (j.location && NON_AU.test(j.location)) { nonAU++; overseas.push(`${j.company}: ${j.location}`); }
 }
 
 console.log("By company:");
@@ -58,7 +63,8 @@ for (const [g, n] of byGroup.entries()) console.log(`  ${n.toString().padStart(3
 
 console.log(`\nQuality flags:`);
 console.log(`  jobs with empty/thin JD (<50 chars): ${emptyJD}`);
-console.log(`  jobs with a non-AU-looking location:  ${nonAU}  ${nonAU > 0 ? "⚠ check AU filter" : "✓"}`);
+console.log(`  jobs with a KNOWN-overseas location:  ${nonAU}  ${nonAU > 0 ? "⚠ AU filter leak" : "✓"}`);
+if (overseas.length) console.log("   " + overseas.slice(0, 10).join("\n   "));
 
 console.log("\n--- 8 samples (title | company | location | JD chars) ---");
 for (const j of jobs.slice(0, 8)) {
