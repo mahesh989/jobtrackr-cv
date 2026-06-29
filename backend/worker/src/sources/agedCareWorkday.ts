@@ -26,6 +26,7 @@
 // careers URL: https://{tenant}.wd{wdN}.myworkdayjobs.com/.../{board}).
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
 // ── Aged-care Workday tenants ─────────────────────────────────────────────────
 // wdN = the version number in the subdomain (wd1 / wd3 / wd5 / wd105 …).
@@ -33,48 +34,17 @@ import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 //   curl -s -X POST https://{tenant}.wd{wdN}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs \
 //     -H 'Content-Type: application/json' -d '{"appliedFacets":{},"limit":1,"offset":0,"searchText":""}'
 const TENANTS: { tenant: string; wdN: number; board: string; company: string }[] = [
-  { tenant: "anglicare", wdN: 105, board: "Anglicare_Careers", company: "Anglicare" },
+  { tenant: "anglicare",      wdN: 105, board: "Anglicare_Careers",        company: "Anglicare" },        // ✅ validated 2026-06-29
+  // Researched from public careers URLs — boards need the two-call validation
+  // before they can be trusted (see docs/aged-care-ats-map.md).
+  { tenant: "bupa",           wdN: 3,   board: "EXT_CAREER",               company: "Bupa Aged Care" },
+  { tenant: "estiahealth",    wdN: 105, board: "Estia_Health_Careers",     company: "Estia Health" },
+  { tenant: "hammondcare",    wdN: 105, board: "External_Careers",         company: "HammondCare" },
+  { tenant: "boltonclarke",   wdN: 105, board: "Careers",                  company: "Bolton Clarke" },
+  { tenant: "unitingcareqld", wdN: 105, board: "UnitingCareCareers",       company: "UnitingCare QLD" },
+  { tenant: "rsllc",          wdN: 3,   board: "rsllc",                    company: "RSL LifeCare" },
+  { tenant: "agecare",        wdN: 10,  board: "AgeCare_Careers_External", company: "AgeCare" },
 ];
-
-// ── Role taxonomy ─────────────────────────────────────────────────────────────
-// A job's TITLE must match one of these to be worth a detail fetch. Each entry
-// carries spelled-out forms AND abbreviations. Abbreviations use \b word
-// boundaries so "RN" matches "RN — Night Shift" but not "lea[rn]ing", and "EN"
-// / "AIN" don't match inside "tr[ain]ing" / "gov[en]ance".
-const ROLE_PATTERNS: { group: string; re: RegExp }[] = [
-  // Core nursing (priority)
-  { group: "nursing", re: /\bregistered nurse\b|\benrolled nurse\b|\bassistant in nursing\b|\bclinical nurse\b|\bnurse unit manager\b|\b(rn|en|ain)\b/i },
-  // Care / support workers
-  { group: "care",    re: /\bcare worker\b|\bcarer\b|\bpersonal care\b|\bsupport worker\b|\bhome care\b|\baged care worker\b|\bcare assistant\b|\blifestyle (carer|assistant|officer)\b|\b(pcw|pca)\b/i },
-  // Administration officers / coordinators
-  { group: "admin",   re: /\badministration (officer|assistant|coordinator)\b|\badmin (officer|assistant)\b|\bcare coordinator\b|\brostering\b/i },
-];
-
-function matchRole(title: string): string | null {
-  for (const { group, re } of ROLE_PATTERNS) {
-    if (re.test(title)) return group;
-  }
-  return null;
-}
-
-// ── HTML → plain text ─────────────────────────────────────────────────────────
-// Workday serves jobDescription as real HTML (<p><b>…). Strip to plain text so
-// downstream keyword matching / visa extraction works on prose, not markup.
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<\/?(p|div|li|ul|ol|h[1-6]|tr|td|th|section|article)[^>]*>/gi, " ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
 
 // ── Workday CXS API shapes ────────────────────────────────────────────────────
 interface WDListJob {
@@ -115,9 +85,6 @@ const DETAIL_DELAY_MS  = 300;  // gentle pacing between detail fetches
 
 function base(tenant: string, wdN: number): string {
   return `https://${tenant}.wd${wdN}.myworkdayjobs.com`;
-}
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function fetchPage(

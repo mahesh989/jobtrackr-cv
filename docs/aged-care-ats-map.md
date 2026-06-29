@@ -85,6 +85,20 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 - St Vincent's Care — `svcs.org.au/people/careers`
 - Allity — acquired by Bolton Clarke; check if folded into `boltonclarke` Workday
 
+## Adapter build status (2026-06-29)
+
+| ATS | Adapter file | adapter.name | Status |
+|---|---|---|---|
+| Workday | `agedCareWorkday.ts` | `agedcare` | ✅ built; Anglicare validated, 7 boards pending |
+| Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | built; ⚠ API unvalidated |
+| PageUp | `pageup.ts` | `pageup` | built (instance-based); ⚠ unvalidated |
+| Scout Talent | `scoutTalent.ts` | `scout_talent` | built (JSON-LD); ⚠ slugs unvalidated |
+| Avature | `avature.ts` | `avature` | built (JSON-LD); ⚠ unvalidated |
+
+Shared role taxonomy + HTML strip: `agedCareRoles.ts`. All emit `source:"agedcare"`
+(SOURCE_BONUS 1800). All gated `vertical=healthcare`. Enabled on the unlimited
+tier via migrations 070–071. Each fails safe (returns []/throws → skipped).
+
 ## Coverage strategy
 
 Two tiers, not infinite adapters:

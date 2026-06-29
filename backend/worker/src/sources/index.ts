@@ -9,6 +9,8 @@ import { leverAdapter } from "./lever.js";
 import { joraAdapter } from "./jora.js";
 import { workdayAdapter } from "./workday.js";
 import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
+import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
+import { avatureAdapter } from "./avature.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
 import { pageupAdapter } from "./pageup.js";
@@ -42,6 +44,15 @@ export const adapters: SourceAdapter[] = [
   // Tier 2 — AU aged-care employers on Workday (public CXS JSON, no auth).
   // vertical=healthcare → only runs for profiles targeting healthcare.
   agedCareWorkdayAdapter,
+  agedCareDayforceAdapter,   // Dayforce public jobposting/search (Opal etc.)
+
+  // Tier 3 — AU aged-care employers on HTML/JSON-LD ATS (role-taxonomy filter).
+  // All gated vertical=healthcare. ⚠ researched but NOT yet API-validated —
+  // each fails safe (returns []/throws → orchestrator skips). Validate the
+  // tenant/instance lists per docs/aged-care-ats-map.md, then trust.
+  pageupAdapter,             // BaptistCare, Calvary, Resthaven, Arcare, SA Health
+  scoutTalentAdapter,        // NFP aged-care boards (JSON-LD)
+  avatureAdapter,            // Regis Aged Care
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
@@ -53,12 +64,10 @@ export const adapters: SourceAdapter[] = [
   // workdayAdapter,
   // smartrecruitersAdapter,
   // ashbyAdapter,
-  // Tier 3 — AU healthcare ATS (HTML/JSON-LD scraping)
-  // pageupAdapter,
+  // Tier 3 — AU healthcare ATS (HTML/JSON-LD scraping) — still disabled
   // elmoAdapter,
   // jobadderAdapter,
   // mercuryRoublerAdapter,
-  // scoutTalentAdapter,
   // directHospitalsAdapter,
   // Tier 4 — State health portals
   // nswHealthAdapter,
@@ -80,6 +89,8 @@ export {
   joraAdapter,
   workdayAdapter,
   agedCareWorkdayAdapter,
+  agedCareDayforceAdapter,
+  avatureAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
   pageupAdapter,

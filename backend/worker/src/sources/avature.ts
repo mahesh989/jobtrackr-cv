@@ -1,48 +1,39 @@
-// PageUp ATS adapter — aged-care / healthcare providers on PageUp.
+// Avature ATS adapter — aged-care providers on Avature career sites.
+// Boards live at https://{tenant}.avature.net/{site}/ with a SearchJobs listing
+// and JobDetail pages. Most Avature sites embed schema.org JobPosting JSON-LD on
+// detail pages (for SEO), so we use the same generic JSON-LD extraction as the
+// PageUp/Scout Talent adapters + the shared role-taxonomy title filter.
 //
-// PageUp does NOT use per-company subdomains. Boards live on shared hosts under
-// a numeric INSTANCE id plus a per-client SOURCE code, e.g.:
-//   https://careers.pageuppeople.com/{instance}/{source}/en/listing/
-//   https://secure.dc2.pageuppeople.com/apply/{instance}/{source}/...
-// (Calvary=1106/cw, SA Health=532/caw, BaptistCare=999/ci, Resthaven=1140/aw,
-//  Arcare=1073/arc — researched 2026-06-29, see docs/aged-care-ats-map.md.)
-//
-// Approach: fetch the listing HTML → extract job-detail links → fetch each job
-// page → parse JSON-LD (schema.org JobPosting) → role-taxonomy title filter.
-//
-// ⚠ NOT yet validated end-to-end (egress-blocked here). Fail-safe: any HTTP or
-// parse problem yields [] / throws → the orchestrator skips the source.
+// ⚠ NOT yet validated (egress-blocked here). Fail-safe: HTTP/parse problems
+// yield [] → the orchestrator skips the source. Avature listing/detail URL
+// shapes vary by tenant; validate per provider (see docs/aged-care-ats-map.md).
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
 interface Org {
-  instance: string;
-  source:   string;
-  company:  string;
-  host?:    string;   // default careers.pageuppeople.com
+  tenant:  string;            // {tenant}.avature.net
+  site:    string;            // path segment, e.g. "careers"
+  company: string;
+  listing?: string;           // override listing path
 }
 
 const ORGS: Org[] = [
-  { instance: "999",  source: "ci",  company: "BaptistCare" },
-  { instance: "1106", source: "cw",  company: "Calvary Health Care" },
-  { instance: "1140", source: "aw",  company: "Resthaven" },
-  { instance: "1073", source: "arc", company: "Arcare" },
-  { instance: "532",  source: "caw", company: "SA Health" },
+  { tenant: "regis", site: "careers", company: "Regis Aged Care", listing: "/careers/SearchJobs/" }, // researched 2026-06-29
 ];
 
-const TIMEOUT_MS        = 15_000;
-const MAX_JOBS_PER_ORG  = 40;
-const DETAIL_DELAY_MS   = 600;
+const TIMEOUT_MS       = 15_000;
+const MAX_JOBS_PER_ORG = 40;
+const DETAIL_DELAY_MS  = 600;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-function host(o: Org): string { return o.host ?? "careers.pageuppeople.com"; }
-function listingUrl(o: Org): string { return `https://${host(o)}/${o.instance}/${o.source}/en/listing/`; }
+function origin(o: Org): string { return `https://${o.tenant}.avature.net`; }
+function listingUrl(o: Org): string { return `${origin(o)}${o.listing ?? `/${o.site}/SearchJobs/`}`; }
 
-// Job-detail links on a PageUp listing page point at .../en/job/{id}/...
-const JOB_LINK_RE = /href="((?:https?:\/\/[^"]+)?\/(?:[^"]*\/)?en\/job\/\d+[^"]*)"/gi;
+// Avature job-detail links: .../careers/JobDetail/{slug}/{id} (sometimes /Job/).
+const JOB_LINK_RE = /href="((?:https?:\/\/[^"]+)?\/[^"]*\/(?:JobDetail|Job)\/[^"]+)"/gi;
 
 interface JsonLdJobPosting {
   "@type"?: string;
@@ -82,22 +73,18 @@ function locationFromJsonLd(jl: JsonLdJobPosting): string {
   return [addr.addressLocality, addr.addressRegion].filter(Boolean).join(", ") || "Australia";
 }
 
-async function fetchText(url: string): Promise<{ status: number; body: string }> {
+async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (res.status === 404 || res.status === 403) return { status: res.status, body: "" };
+  if (res.status === 404 || res.status === 403) return "";
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return { status: res.status, body: await res.text() };
+  return res.text();
 }
 
-function absUrl(o: Org, href: string): string {
-  return href.startsWith("http") ? href : `https://${host(o)}${href}`;
-}
-
-export const pageupAdapter: SourceAdapter = {
-  name:           "pageup",
+export const avatureAdapter: SourceAdapter = {
+  name:           "avature",
   tier:           3,
   vertical:       "healthcare",
   rateLimitDelay: 1500,
@@ -108,28 +95,27 @@ export const pageupAdapter: SourceAdapter = {
     for (const o of ORGS) {
       let listing: string;
       try {
-        ({ body: listing } = await fetchText(listingUrl(o)));
+        listing = await fetchText(listingUrl(o));
       } catch (err) {
-        console.warn(`[pageup] ${o.company} (${o.instance}): ${err instanceof Error ? err.message : err}`);
+        console.warn(`[avature] ${o.company}: ${err instanceof Error ? err.message : err}`);
         continue;
       }
       if (!listing) continue;
 
-      const paths = new Set<string>();
+      const links = new Set<string>();
       let m: RegExpExecArray | null;
       const re = new RegExp(JOB_LINK_RE.source, "gi");
-      while ((m = re.exec(listing)) !== null && paths.size < MAX_JOBS_PER_ORG) paths.add(m[1]);
-      if (paths.size === 0) continue;
+      while ((m = re.exec(listing)) !== null && links.size < MAX_JOBS_PER_ORG) {
+        links.add(m[1].startsWith("http") ? m[1] : `${origin(o)}${m[1]}`);
+      }
+      if (links.size === 0) continue;
 
       await sleep(this.rateLimitDelay);
 
       let added = 0;
-      for (const href of paths) {
-        const url = absUrl(o, href);
+      for (const url of links) {
         let body: string;
-        try {
-          ({ body } = await fetchText(url));
-        } catch { continue; }
+        try { body = await fetchText(url); } catch { continue; }
         if (!body) continue;
 
         for (const p of extractJsonLd(body)) {
@@ -150,7 +136,7 @@ export const pageupAdapter: SourceAdapter = {
         }
         await sleep(DETAIL_DELAY_MS);
       }
-      console.log(`[pageup] ${o.company} (${o.instance}): ${added} role-matched jobs`);
+      console.log(`[avature] ${o.company}: ${added} role-matched jobs`);
     }
 
     return jobs;
@@ -158,8 +144,7 @@ export const pageupAdapter: SourceAdapter = {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const { body } = await fetchText(listingUrl(ORGS[0]));
-      return body.length > 0;
+      return (await fetchText(listingUrl(ORGS[0]))).length > 0;
     } catch {
       return false;
     }
