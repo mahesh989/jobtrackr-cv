@@ -15,6 +15,9 @@ import type { NormalisedJob } from "../types.js";
 
 const SOURCE_BONUS: Record<string, number> = {
   seek:       2000,
+  agedcare:   1800,   // Direct-from-employer Workday JD — most authoritative
+                      // (full canonical description); should win duplicates
+                      // against aggregator teasers when the same role appears.
   greenhouse: 1500,
   lever:      1500,
   adzuna:      400,

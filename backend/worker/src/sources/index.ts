@@ -8,6 +8,7 @@ import { greenhouseAdapter } from "./greenhouse.js";
 import { leverAdapter } from "./lever.js";
 import { joraAdapter } from "./jora.js";
 import { workdayAdapter } from "./workday.js";
+import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
 import { pageupAdapter } from "./pageup.js";
@@ -37,6 +38,10 @@ export const adapters: SourceAdapter[] = [
   // Tier 2 — AU tech/enterprise ATS (public JSON, no auth)
   greenhouseAdapter,
   leverAdapter,
+
+  // Tier 2 — AU aged-care employers on Workday (public CXS JSON, no auth).
+  // vertical=healthcare → only runs for profiles targeting healthcare.
+  agedCareWorkdayAdapter,
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
@@ -74,6 +79,7 @@ export {
   leverAdapter,
   joraAdapter,
   workdayAdapter,
+  agedCareWorkdayAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
   pageupAdapter,
