@@ -98,7 +98,7 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 | PageUp | `pageup.ts` | `pageup` | ⚠ degraded — listings OK (≈20 links/board) but detail is a JS SPA with no JSON-LD → title+URL only, no JD |
 | Scout Talent | `scoutTalent.ts` | `scout_talent` | ⚠ unvalidated (Salesforce; JSON-LD likely absent like PageUp) |
 | Avature | `avature.ts` | `avature` | ⚠ unvalidated |
-| Radancy/TalentBrew | `radancy.ts` | `radancy` | ✅ working (full JDs) — ⚠ pagination broken: gets 15/52 Bupa jobs (static page only; /search-jobs/results AJEX params TBD) |
+| Radancy/TalentBrew | `radancy.ts` | `radancy` | ✅ **WORKING** — pagination fixed (commit `5ec41b6`): /search-jobs/results needs full query string incl. `SearchType=5`. Bupa AU: 269 links → 37 care-role full JDs |
 
 ### Validation learnings (why the JS-ATS ones are hard)
 

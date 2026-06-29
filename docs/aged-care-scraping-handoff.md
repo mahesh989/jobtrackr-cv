@@ -19,25 +19,20 @@ their Mac (this environment's egress blocks the ATS hosts — do NOT try to curl
 them yourself; ask the user to run commands and paste output).
 
 **State as of 2026-06-29 end of session:** migrations applied through 073.
-Workday (6 providers) and Radancy (Bupa AU) both return full JDs. ONE known bug:
+Workday (6 providers) and Radancy (Bupa AU) both return full JDs. Priority 1
+below is now FIXED — start at Priority 2.
 
-### PRIORITY 1 — Fix Radancy pagination (only gets 15 of ~52 Bupa jobs)
-`radancy.ts` `collectLinks()` tries `/search-jobs/results?CurrentPage=N&RecordsPerPage=100`
-but that endpoint returns `{"hasJobs":true,"results":""}` (empty) — so it falls
-back to the static `/search-jobs` page = page 1 only = 15 links = 3 role matches.
-Bupa actually has 52 positions / ~21 care roles across 4 pages.
-
-To fix, you need the REAL TalentBrew results request. Ask the user to:
-  1. Open `https://careers.bupa.com.au/search-jobs` in Chrome → DevTools (F12)
-     → Network tab → filter "results" (or XHR).
-  2. Click "Next" / page 2 of the results.
-  3. Find the request to `/search-jobs/results...`, right-click → Copy → "Copy
-     as cURL", and paste the whole thing (URL + all query params + headers).
-Then update `collectLinks()` to replicate that exact request (params/headers),
-parse `/job/` links from the returned `results` HTML, and page until no new
-links. Re-test with `npx tsx src/scripts/testRadancy.ts` — expect ~21 care jobs,
-not 3. (If `/results` is hopeless, fallback: loop the static page with whatever
-pagination param DevTools shows — note plain `?p=N` did NOT work.)
+### ✅ PRIORITY 1 — Radancy pagination — FIXED (commit `5ec41b6`)
+Root cause confirmed via DevTools cURL: `/search-jobs/results` requires the FULL
+TalentBrew query string — sending only `CurrentPage&RecordsPerPage=100` made it
+return `{"hasJobs":true,"results":""}`, so it fell back to the static page (15
+links → 3 role matches). The missing key was `SearchType=5` plus the full
+distance/sort/facet param set + `Content-Type: application/json` and `Referer`
+headers. `collectLinks()` now builds the full query via `resultsUrl()` (only
+`CurrentPage` varies), `RecordsPerPage=15` (100 returns degenerate), `MAX_PAGES`
+40 safety ceiling, loop breaks early when a page yields no new `/job/` links.
+**Live test (residential IP):** 269 links → 37 role-matched → 37 full JDs (0
+thin), up from 3. No cookie/Imperva session needed — params alone fixed it.
 
 ### PRIORITY 2 — Confirm Workday at scale + Fly egress
 Have the user run `npx tsx src/scripts/testAgedCareWorkday.ts` (expect ~250+ jobs
@@ -107,10 +102,8 @@ removed from admin toggles, migration **072** strips their names from the DB.
    differ) and paste results to confirm:
    - `npx tsx src/scripts/testAgedCareWorkday.ts` → expect ~250+ jobs now the
      cap is gone (Estia alone ~113), 0 known-overseas locations.
-   - `npx tsx src/scripts/testRadancy.ts` → **confirm pagination grabbed all
-     ~52 Bupa jobs (4 pages), not just the first 15.** If only 15, the
-     `/search-jobs/results` params need fixing (it returned `hasJobs:true` but
-     empty `results` in manual testing — may need `ProjectId`/`SearchType`).
+   - `npx tsx src/scripts/testRadancy.ts` → pagination FIXED (commit `5ec41b6`);
+     validated 2026-06-29: 269 links → 37 role-matched → 37 full JDs (0 thin).
 
 3. **Full pipeline E2E**: run a healthcare-vertical profile on a founder/
    unlimited account. Watch worker logs for `[agedcare] …` and `[radancy] …`;
@@ -125,8 +118,8 @@ removed from admin toggles, migration **072** strips their names from the DB.
 
 ## 🔭 LATER (backlog, lower priority)
 
-- **Find Bupa AU's real coverage**: confirm Radancy pagination; the page showed
-  52 positions across categories (Care Support 21, Clinical 14, etc.).
+- **Bupa AU coverage**: RESOLVED — pagination fix surfaces 269 listings → 37
+  care-role matches (far more than the 52-position category view suggested).
 
 - **Add more Workday providers** (cheapest expansion): validate with the 2-curl
   check, add a row to `TENANTS`. Candidates to investigate from the ATS map.
