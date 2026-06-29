@@ -34,14 +34,18 @@ headers. `collectLinks()` now builds the full query via `resultsUrl()` (only
 **Live test (residential IP):** 269 links → 37 role-matched → 37 full JDs (0
 thin), up from 3. No cookie/Imperva session needed — params alone fixed it.
 
-### PRIORITY 2 — Confirm Workday at scale + Fly egress
-Have the user run `npx tsx src/scripts/testAgedCareWorkday.ts` (expect ~250+ jobs
-now the detail cap is gone, 0 known-overseas locations). Then confirm a full
-pipeline run on a healthcare-vertical profile (founder/unlimited account) shows
-`[agedcare]`/`[radancy]` logs and rows land with `source='agedcare'` + non-empty
-descriptions. **Critically: verify the Fly worker's datacenter IP can reach
-Workday CXS + Radancy** — if they 403 there (but work on the Mac), route through
-the Apify residential proxy (`getApifyProxyUrl` + `curlFetch`/`curlPostJson`).
+### ✅ PRIORITY 2 — Workday at scale + Fly egress — MOSTLY DONE (2026-06-29)
+- ✅ **Workday at scale**: `testAgedCareWorkday.ts` → **207 jobs** across 6
+  tenants (Estia 113, Bolton Clarke 26, RSL 20, Anglicare 17, UnitingCare QLD 17,
+  HammondCare 14), 0 overseas locations, 1 thin JD of 207 (negligible EOI).
+- ✅ **Radancy**: 37 care-role full JDs (Bupa AU).
+- ✅ **Fly egress CONFIRMED**: from `fly ssh console -a jobtrackr-worker`,
+  `node -e "fetch(...)"` returned **bupa 200 + anglicare 200** — the datacenter
+  IP reaches both Workday CXS and Radancy direct. **No Apify proxy needed.**
+  (curl isn't in the worker image; test egress with Node's global fetch.)
+- ⏳ **REMAINING**: full pipeline E2E on a healthcare-vertical profile
+  (founder/unlimited) — apply migrations 070+073, run, confirm `[agedcare]`/
+  `[radancy]` logs and rows land with `source='agedcare'` + non-empty descriptions.
 
 ### PRIORITY 3 — Expand (only after 1 & 2 are green)
 Add more Workday/Radancy providers (one row each, validate first). Then consider
@@ -109,10 +113,10 @@ removed from admin toggles, migration **072** strips their names from the DB.
    unlimited account. Watch worker logs for `[agedcare] …` and `[radancy] …`;
    confirm rows land with `source='agedcare'` + non-empty descriptions.
 
-4. **⚠ Verify Fly egress**: all validation was from a residential Mac. Confirm
-   Workday CXS + Radancy are reachable from the Fly worker's datacenter IP. If
-   they 403, route through the Apify residential proxy (helper already exists:
-   `getApifyProxyUrl` + `curlFetch`/`curlPostJson`).
+4. ✅ **Fly egress — DONE (2026-06-29)**: Node fetch from `fly ssh console`
+   returned bupa 200 + anglicare 200. Datacenter IP reaches both direct; no
+   Apify proxy needed. (Test with `node -e "fetch(...)"`, not curl — curl isn't
+   in the image.)
 
 ---
 
