@@ -27,19 +27,21 @@ _Last researched: 2026-06-29._
 
 Subdomain encodes the version (`wd3`/`wd10`/`wd105`); board = first path segment.
 
-| Provider | tenant | wdN | board (verify) | Status |
+| Provider | tenant | wdN | board | Status |
 |---|---|---|---|---|
-| Anglicare | `anglicare` | 105 | `Anglicare_Careers` | ✅ validated |
-| Bupa | `bupa` | 3 | `EXT_CAREER` | researched |
-| Estia Health | `estiahealth` | 105 | `Estia_Health_Careers` | researched |
-| HammondCare | `hammondcare` | 105 | `External_Careers` | researched |
-| Bolton Clarke | `boltonclarke` | 105 | `Careers` | researched |
-| UnitingCare QLD | `unitingcareqld` | 105 | `UnitingCareCareers` | researched |
-| RSL LifeCare | `rsllc` | 3 | `rsllc` | researched |
-| AgeCare | `agecare` | 10 | `AgeCare_Careers_External` | researched |
+| Anglicare | `anglicare` | 105 | `Anglicare_Careers` | ✅ list + JD validated |
+| Estia Health | `estiahealth` | 105 | `Estia_Health_Careers` | ✅ list validated (363, AU) |
+| HammondCare | `hammondcare` | 105 | `External_Careers` | ✅ list validated (102, AU) |
+| Bolton Clarke | `boltonclarke` | 105 | `Careers` | ✅ list validated (211, AU) |
+| UnitingCare QLD | `unitingcareqld` | 105 | `UnitingCareCareers` | ✅ list validated (254, AU) |
+| RSL LifeCare | `rsllc` | 3 | `rsllc` | ✅ list validated (62, AU) |
+| Bupa | `bupa` | 3 | `EXT_CAREER` | ✅ validated (562) but **GLOBAL** — AU-filtered in adapter |
+| ~~AgeCare~~ | ~~`agecare`~~ | ~~10~~ | ~~`AgeCare_Careers_External`~~ | ❌ REMOVED — this tenant is **AgeCare Canada** (Calgary), not an AU provider |
 
-→ **8 of AU's largest aged-care employers on one adapter.** Validate boards, then
-add as rows in `TENANTS`.
+→ **7 AU aged-care employers on one adapter.** All boards validated 2026-06-29.
+Bupa is a global Workday tenant (UK-based) so the adapter applies an AU location
+filter (`auOnly:false`); the rest are AU-only (`auOnly:true`). Anglicare is the
+only one with a full-JD detail check so far.
 
 ## PageUp cluster — needs `pageup.ts` fleshed out (scaffold exists)
 
