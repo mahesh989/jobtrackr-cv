@@ -54,9 +54,23 @@ thin), up from 3. No cookie/Imperva session needed — params alone fixed it.
   677–1244km > 30km (home n/a; survivors were interstate QLD/SA jobs — the
   Sydney ones were filtered earlier by the profile keyword + home-care rules).
 
-### PRIORITY 3 — Expand (only after 1 & 2 are green)
-Add more Workday/Radancy providers (one row each, validate first). Then consider
-the paused JS-SPA ATSs (need network capture or Playwright) — see LATER.
+### PRIORITY 3 — Expand (IN PROGRESS)
+Add more Workday/Radancy/Avature providers (one row each, validate first). Then
+consider the paused JS-SPA ATSs (need network capture or Playwright) — see LATER.
+
+- ✅ **Regis Aged Care (Avature) DONE 2026-06-29 (commit `c141b39`)** — `avature.ts`
+  rewritten. Regis server-renders the full JD inline in the listing (NO JSON-LD on
+  detail pages), so it's a list-only adapter: paginate `?jobOffset`, parse
+  `<article article--result>`, role-filter title, extract inline `article__content`
+  JD. Live: 120 listed → 59 care-role full JDs. NEEDS worker redeploy + migration
+  074. **8 direct providers now** (6 Workday + Radancy/Bupa + Avature/Regis).
+- ⏭ **NEXT — Uniting family (state-federated; each a separate org/ATS):**
+  UnitingCare **QLD** = Workday (done). Validate ATS for: Uniting **NSW/ACT**
+  (`uniting.org/careers`), Uniting **Vic/Tas** (`careers.unitingvictas.org.au`),
+  Uniting **AgeWell** (`unitingagewell.org`), Uniting **SA** (`unitingsa.com.au`),
+  Uniting **WA** (`unitingwa.org.au`). Method: open careers → click a job → follow
+  Apply → read the domain (`*.myworkdayjobs.com`/`*.avature.net`/`*.pageuppeople.com`
+  …). Workday/Avature hits = near-free (one ORGS/TENANTS row).
 
 **Golden rule (we got burned 3×):** never trust a tenant/board until the user
 validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."

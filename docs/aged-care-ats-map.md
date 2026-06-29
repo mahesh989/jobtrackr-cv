@@ -71,7 +71,7 @@ API: `POST https://jobs.dayforcehcm.com/api/geo/{client}/jobposting/search`
 
 | Provider | ATS | Notes |
 |---|---|---|
-| Regis Aged Care (82 homes, 14k staff) | Avature (`regis.avature.net`) | No scaffold; Avature API varies |
+| Regis Aged Care (84 homes, 14k staff) | Avature (`regis.avature.net`) | ✅ DONE — `avature.ts`, inline-JD listing, 59 care roles |
 | Scout Talent clients (many NFP aged-care) | Scout Talent (Salesforce `my.site.com`) | Confirmed big in aged care; Salesforce Experience Cloud |
 | "Careers for Carers" board | JobAdder | Aggregator board for smaller providers |
 
@@ -97,7 +97,7 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 | Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | ❌ blocked — search API 403s even via curl_cffi (not TLS; needs session cookie or real endpoint) |
 | PageUp | `pageup.ts` | `pageup` | ⚠ degraded — listings OK (≈20 links/board) but detail is a JS SPA with no JSON-LD → title+URL only, no JD |
 | Scout Talent | `scoutTalent.ts` | `scout_talent` | ⚠ unvalidated (Salesforce; JSON-LD likely absent like PageUp) |
-| Avature | `avature.ts` | `avature` | ⚠ unvalidated |
+| Avature | `avature.ts` | `avature` | ✅ **WORKING** (commit `c141b39`) — Regis: listing server-renders full JD inline (no JSON-LD/detail fetch); paginate via `?jobOffset`, parse `<article article--result>`. 120 listed → 59 care-role full JDs |
 | Radancy/TalentBrew | `radancy.ts` | `radancy` | ✅ **WORKING** — pagination fixed (commit `5ec41b6`): /search-jobs/results needs full query string incl. `SearchType=5`. Bupa AU: 269 links → 37 care-role full JDs |
 
 ### Validation learnings (why the JS-ATS ones are hard)
