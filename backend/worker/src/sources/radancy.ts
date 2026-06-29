@@ -21,8 +21,8 @@ const ORGS: Org[] = [
 ];
 
 const TIMEOUT_MS      = 15_000;
-const RECORDS_PER_PAGE = 100;   // ask for a big page from /results
-const MAX_PAGES        = 10;
+const RECORDS_PER_PAGE = 15;    // Radancy serves 15/page; asking for 100 returns a degenerate response
+const MAX_PAGES        = 40;    // 15 × 40 = 600 safety ceiling (Bupa AU ≈ 269 links / ~18 pages); loop breaks early when a page yields no new links
 const DETAIL_DELAY_MS  = 300;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -80,6 +80,43 @@ async function fetchText(url: string, headers: Record<string, string> = {}): Pro
   return { status: res.status, body: await res.text() };
 }
 
+// The /search-jobs/results AJAX endpoint requires the FULL browser query string
+// (verified via DevTools "Copy as cURL", 2026-06-29) — SearchType=5 plus the
+// distance/sort/facet params. Sending only CurrentPage returns a degenerate
+// 3-job response. Only CurrentPage varies per page.
+function resultsUrl(host: string, page: number): string {
+  const params = new URLSearchParams({
+    ActiveFacetID:           "0",
+    CurrentPage:             String(page),
+    RecordsPerPage:          String(RECORDS_PER_PAGE),
+    TotalContentResults:     "",
+    Distance:                "50",
+    RadiusUnitType:          "0",
+    Keywords:                "",
+    Location:                "",
+    ShowRadius:              "False",
+    IsPagination:            "False",
+    CustomFacetName:         "",
+    FacetTerm:               "",
+    FacetType:               "0",
+    SearchResultsModuleName: "Search Results",
+    SearchFiltersModuleName: "Search Filters",
+    SortCriteria:            "0",
+    SortDirection:           "0",
+    SearchType:              "5",
+    PostalCode:              "",
+    ResultsType:             "0",
+    fc:                      "",
+    fl:                      "",
+    fcf:                     "",
+    afc:                     "",
+    afl:                     "",
+    afcf:                    "",
+    TotalContentPages:       "NaN",
+  });
+  return `https://${host}/search-jobs/results?${params.toString()}`;
+}
+
 // Collect job-detail hrefs across pages. Prefer the /results AJAX endpoint
 // (returns rendered job HTML inside a JSON "results" field); fall back to the
 // static /search-jobs page (page 1 only).
@@ -97,11 +134,17 @@ async function collectLinks(o: Org): Promise<Map<string, { slug: string; path: s
     return links.size - before;
   };
 
+  const ajaxHeaders = {
+    "X-Requested-With": "XMLHttpRequest",
+    "Content-Type": "application/json; charset=utf-8",
+    Accept: "*/*",
+    Referer: `https://${o.host}/search-jobs`,
+  };
+
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = `https://${o.host}/search-jobs/results?CurrentPage=${page}&RecordsPerPage=${RECORDS_PER_PAGE}`;
     let body = "";
     try {
-      ({ body } = await fetchText(url, { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" }));
+      ({ body } = await fetchText(resultsUrl(o.host, page), ajaxHeaders));
     } catch { break; }
     if (!body) break;
 
