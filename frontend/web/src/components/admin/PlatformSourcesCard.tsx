@@ -6,8 +6,7 @@
 
 import { useState } from "react";
 
-type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever"
-             | "agedcare" | "agedcare_dayforce" | "pageup" | "scout_talent" | "avature";
+type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever" | "agedcare";
 type Tier    = "weekly" | "monthly" | "unlimited";
 type AdzunaM = "api" | "direct";
 type SeekM   = "direct" | "actor";
@@ -34,11 +33,7 @@ const SOURCES: { id: Source; label: string; tag: string }[] = [
   { id: "careerjet",  label: "Careerjet",  tag: "v4 API" },
   { id: "greenhouse", label: "Greenhouse", tag: "API" },
   { id: "lever",      label: "Lever",      tag: "API" },
-  { id: "agedcare",          label: "Aged Care — Workday",  tag: "Workday direct" },
-  { id: "agedcare_dayforce", label: "Aged Care — Dayforce", tag: "Dayforce direct" },
-  { id: "pageup",            label: "Aged Care — PageUp",   tag: "PageUp HTML" },
-  { id: "scout_talent",      label: "Aged Care — Scout",    tag: "Scout Talent" },
-  { id: "avature",           label: "Aged Care — Avature",  tag: "Avature HTML" },
+  { id: "agedcare",   label: "Aged Care",  tag: "Workday direct" },
 ];
 
 function MethodRadio({ name, value, checked, onChange, label }: {

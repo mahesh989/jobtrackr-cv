@@ -43,16 +43,16 @@ export const adapters: SourceAdapter[] = [
 
   // Tier 2 — AU aged-care employers on Workday (public CXS JSON, no auth).
   // vertical=healthcare → only runs for profiles targeting healthcare.
+  // The ONLY validated/working direct aged-care source (7 AU providers, full JD).
   agedCareWorkdayAdapter,
-  agedCareDayforceAdapter,   // Dayforce public jobposting/search (Opal etc.)
 
-  // Tier 3 — AU aged-care employers on HTML/JSON-LD ATS (role-taxonomy filter).
-  // All gated vertical=healthcare. ⚠ researched but NOT yet API-validated —
-  // each fails safe (returns []/throws → orchestrator skips). Validate the
-  // tenant/instance lists per docs/aged-care-ats-map.md, then trust.
-  pageupAdapter,             // BaptistCare, Calvary, Resthaven, Arcare, SA Health
-  scoutTalentAdapter,        // NFP aged-care boards (JSON-LD)
-  avatureAdapter,            // Regis Aged Care
+  // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
+  // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
+  // re-enabling is a one-line uncomment once their JSON APIs are captured:
+  //   agedCareDayforceAdapter — search API 403s app-level (cookie/token/path)
+  //   pageupAdapter           — modern PageUp is a JS SPA (listing-only, no JD)
+  //   scoutTalentAdapter      — likely JS SPA, unvalidated
+  //   avatureAdapter          — unvalidated
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
