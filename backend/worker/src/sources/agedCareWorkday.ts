@@ -87,11 +87,11 @@ const HEADERS = {
 };
 
 const PAGE_LIMIT       = 20;   // Workday hard cap per list call
-const MAX_PAGES        = 35;   // up to 700 jobs scanned (cheap list calls) — big
-                               // global boards (Bupa ~560) need depth to surface
-                               // their sparse AU roles; AU-only boards stop early.
-const MAX_DETAIL_FETCH = 40;   // safety: cap full-JD (detail) fetches per tenant
-const DETAIL_DELAY_MS  = 300;  // gentle pacing between detail fetches
+const MAX_PAGES        = 60;   // up to 1200 jobs scanned per tenant (cheap list
+                               // calls); AU-only boards stop early at their total.
+const MAX_DETAIL_FETCH = Infinity; // no cap — fetch a full JD for EVERY role match.
+                               // Natural bound is the board size (× MAX_PAGES).
+const DETAIL_DELAY_MS  = 250;  // gentle pacing between detail fetches
 
 function base(tenant: string, wdN: number): string {
   return `https://${tenant}.wd${wdN}.myworkdayjobs.com`;
