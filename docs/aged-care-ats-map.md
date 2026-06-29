@@ -89,13 +89,29 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 
 ## Adapter build status (2026-06-29)
 
-| ATS | Adapter file | adapter.name | Status |
+| ATS | Adapter file | adapter.name | Status (2026-06-29 validation) |
 |---|---|---|---|
-| Workday | `agedCareWorkday.ts` | `agedcare` | ✅ built; Anglicare validated, 7 boards pending |
-| Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | built; ⚠ API unvalidated |
-| PageUp | `pageup.ts` | `pageup` | built (instance-based); ⚠ unvalidated |
-| Scout Talent | `scoutTalent.ts` | `scout_talent` | built (JSON-LD); ⚠ slugs unvalidated |
-| Avature | `avature.ts` | `avature` | built (JSON-LD); ⚠ unvalidated |
+| Workday | `agedCareWorkday.ts` | `agedcare` | ✅ **WORKING** — 7 AU boards validated, Anglicare JD-confirmed |
+| Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | ❌ blocked — search API 403s even via curl_cffi (not TLS; needs session cookie or real endpoint) |
+| PageUp | `pageup.ts` | `pageup` | ⚠ degraded — listings OK (≈20 links/board) but detail is a JS SPA with no JSON-LD → title+URL only, no JD |
+| Scout Talent | `scoutTalent.ts` | `scout_talent` | ⚠ unvalidated (Salesforce; JSON-LD likely absent like PageUp) |
+| Avature | `avature.ts` | `avature` | ⚠ unvalidated |
+
+### Validation learnings (why the JS-ATS ones are hard)
+
+- **Workday & Dayforce expose real JSON APIs** — Workday's is open (✅). Dayforce's
+  `POST jobs.dayforcehcm.com/api/geo/{client}/jobposting/search` returns 403 for
+  Opal even with Chrome-124 TLS impersonation **and** a residential IP, so the
+  block is application-level (session cookie / token / wrong path), not TLS.
+  Needs a captured network-tab XHR (URL + payload + cookies) to resolve.
+- **Modern PageUp / Scout Talent / Avature are JS SPAs** — job detail pages no
+  longer embed schema.org JSON-LD, so server-side HTML scraping yields no JD.
+  Realistic options: (a) capture each platform's job JSON API from the browser
+  network tab and call it directly, or (b) render with a headless browser
+  (Playwright — currently disabled on the 512MB Fly VM, BUG-5).
+- **Net:** Workday is the reliable direct-scrape win. The JS-based ATSs need
+  per-platform API capture or headless rendering before they yield full JDs;
+  until then their listings still surface role-matched job links.
 
 Shared role taxonomy + HTML strip: `agedCareRoles.ts`. All emit `source:"agedcare"`
 (SOURCE_BONUS 1800). All gated `vertical=healthcare`. Enabled on the unlimited

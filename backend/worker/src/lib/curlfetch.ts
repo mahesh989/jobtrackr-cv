@@ -75,6 +75,56 @@ export async function curlRedirect(
 }
 
 /**
+ * POST JSON to a URL using Python curl_cffi (Chrome 124 TLS impersonation).
+ *
+ * Same Cloudflare/bot-defence bypass as curlFetch, for JSON APIs that reject
+ * plain clients via TLS fingerprinting (e.g. Dayforce's jobposting/search,
+ * which 403s a normal fetch even from a residential IP). Extra headers (Referer,
+ * Origin, X-Requested-With, …) are passed through as repeated --header args.
+ */
+export async function curlPostJson(
+  url:       string,
+  body:      unknown,
+  headers:   Record<string, string> = {},
+  proxyUrl?: string,
+  timeoutMs: number = 35_000,
+): Promise<CurlFetchResult> {
+  return new Promise((resolve, reject) => {
+    const args: string[] = [PY_SCRIPT, url, "--method", "POST", "--data", JSON.stringify(body)];
+    for (const [k, v] of Object.entries(headers)) args.push("--header", `${k}: ${v}`);
+    if (proxyUrl) args.push("--proxy", proxyUrl);
+
+    const child = spawn("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (c: Buffer) => { stdout += c.toString(); });
+    child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`curlPostJson timed out after ${timeoutMs}ms: ${url}`));
+    }, timeoutMs);
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error(`fetch_jd.py exited ${code} for ${url}: ${stderr.trim() || "(no stderr)"}`));
+        return;
+      }
+      const raw = stdout.trim();
+      if (!raw) { reject(new Error(`fetch_jd.py produced no output for ${url}`)); return; }
+      try {
+        resolve(JSON.parse(raw) as CurlFetchResult);
+      } catch {
+        reject(new Error(`fetch_jd.py output not valid JSON for ${url}: ${raw.slice(0, 200)}`));
+      }
+    });
+
+    child.on("error", (err) => { clearTimeout(timer); reject(new Error(`spawn python3 failed: ${err.message}`)); });
+  });
+}
+
+/**
  * Fetch a URL using Python curl_cffi (Chrome 124 TLS impersonation).
  *
  * @param url       - Target URL to fetch

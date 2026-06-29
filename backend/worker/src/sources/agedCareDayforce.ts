@@ -15,6 +15,8 @@
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
+import { curlPostJson } from "../lib/curlfetch.js";
+import { getApifyProxyUrl } from "../lib/proxy.js";
 
 // Aged-care Dayforce clients. client = the {namespace} in the portal URL
 // (jobs.dayforcehcm.com/en-AU/{client}/CANDIDATEPORTAL).
@@ -28,14 +30,18 @@ const MAX_DETAIL_FETCH = 60;
 const DETAIL_DELAY_MS  = 250;
 const TIMEOUT_MS       = 15_000;
 
-const HEADERS = {
-  "Content-Type": "application/json",
-  Accept: "application/json",
-  "Accept-Language": "en-AU,en;q=0.9",
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-};
+// Browser-ish headers. Dayforce's jobposting/search 403s plain clients (TLS
+// fingerprinting), so we route through curl_cffi (Chrome-124 impersonation) and
+// add the Referer/Origin/X-Requested-With the portal SPA sends.
+function dayforceHeaders(client: string): Record<string, string> {
+  return {
+    Accept: "application/json, text/plain, */*",
+    "Accept-Language": "en-AU,en;q=0.9",
+    Origin: "https://jobs.dayforcehcm.com",
+    Referer: `https://jobs.dayforcehcm.com/en-AU/${client}/CANDIDATEPORTAL`,
+    "X-Requested-With": "XMLHttpRequest",
+  };
+}
 
 // Dayforce search responses differ by tenant; capture the common fields loosely.
 interface DFPosting {
@@ -60,16 +66,27 @@ function field<T>(...vals: (T | undefined)[]): T | undefined {
 
 async function search(client: string, page: number): Promise<DFSearchResponse> {
   const url = `https://jobs.dayforcehcm.com/api/geo/${client}/jobposting/search`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: HEADERS,
-    // Common pagination shape; tenants ignore unknown keys.
-    body: JSON.stringify({ jobBoardCode: "CANDIDATEPORTAL", page, pageSize: PAGE_SIZE, searchText: "" }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if ([400, 403, 404, 410].includes(res.status)) return {};
-  if (!res.ok) throw new Error(`search HTTP ${res.status}`);
-  return (await res.json()) as DFSearchResponse;
+  // Route through curl_cffi: this endpoint rejects plain clients. NOTE: as of
+  // 2026-06-29 it 403s even via curl_cffi from a residential IP, which means the
+  // block is NOT TLS-level — the endpoint likely needs a session cookie obtained
+  // by first loading the portal, or the path/namespace differs. UNRESOLVED until
+  // a real network-tab XHR is captured (see docs/aged-care-ats-map.md). Kept
+  // wired so the fix is a one-liner once the correct request is known.
+  const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
+  const { status, body } = await curlPostJson(
+    url,
+    { jobBoardCode: "CANDIDATEPORTAL", page, pageSize: PAGE_SIZE, searchText: "" },
+    dayforceHeaders(client),
+    proxyUrl,
+    TIMEOUT_MS + 10_000,
+  );
+  if ([400, 401, 403, 404, 410].includes(status)) return {};
+  if (status !== 200) throw new Error(`search HTTP ${status}`);
+  try {
+    return JSON.parse(body) as DFSearchResponse;
+  } catch {
+    return {};
+  }
 }
 
 function postingUrl(client: string, p: DFPosting): string {

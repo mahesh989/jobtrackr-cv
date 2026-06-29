@@ -16,6 +16,7 @@ Why curl_cffi beats got-scraping:
 Usage:
     python3 fetch_jd.py <url>
     python3 fetch_jd.py <url> --proxy <http://user:pass@host:port>
+    python3 fetch_jd.py <url> --method POST --data '{"k":"v"}' --header 'Accept: application/json'
 
 Output:
     Single JSON line to stdout: {"status": N, "body": "..."}
@@ -38,11 +39,12 @@ except ImportError:
     sys.exit(2)
 
 
-def parse_args() -> tuple[str, Optional[str], bool]:
+def parse_args() -> tuple[str, Optional[str], bool, str, Optional[str], dict]:
     args = sys.argv[1:]
     if not args:
         print(
-            "Usage: fetch_jd.py <url> [--proxy <proxy_url>] [--no-redirect]",
+            "Usage: fetch_jd.py <url> [--proxy <proxy_url>] [--no-redirect] "
+            "[--method POST] [--data <body>] [--header 'K: V' ...]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -50,6 +52,9 @@ def parse_args() -> tuple[str, Optional[str], bool]:
     url = args[0]
     proxy: Optional[str] = None
     no_redirect = False
+    method = "GET"
+    data: Optional[str] = None
+    headers: dict = {}
     i = 1
     while i < len(args):
         if args[i] == "--proxy" and i + 1 < len(args):
@@ -58,32 +63,55 @@ def parse_args() -> tuple[str, Optional[str], bool]:
         elif args[i] == "--no-redirect":
             no_redirect = True
             i += 1
+        elif args[i] == "--method" and i + 1 < len(args):
+            method = args[i + 1].upper()
+            i += 2
+        elif args[i] == "--data" and i + 1 < len(args):
+            data = args[i + 1]
+            i += 2
+        elif args[i] == "--header" and i + 1 < len(args):
+            raw = args[i + 1]
+            if ":" in raw:
+                k, v = raw.split(":", 1)
+                headers[k.strip()] = v.strip()
+            i += 2
         else:
             i += 1
 
-    return url, proxy, no_redirect
+    return url, proxy, no_redirect, method, data, headers
 
 
 def main() -> None:
-    url, proxy_url, no_redirect = parse_args()
+    url, proxy_url, no_redirect, method, data, extra_headers = parse_args()
 
     proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
 
+    # Sensible defaults; caller-supplied --header values override these.
+    base_headers = {
+        "Accept": "application/json"
+        if method == "POST"
+        else "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-AU,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    if method == "POST" and data is not None:
+        base_headers.setdefault("Content-Type", "application/json")
+    base_headers.update(extra_headers)
+
     try:
-        resp = cffi_requests.get(
-            url,
+        common = dict(
             impersonate="chrome124",
             proxies=proxies,
             timeout=25,
-            headers={
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-AU,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
-            },
+            headers=base_headers,
             allow_redirects=not no_redirect,
         )
+        if method == "POST":
+            resp = cffi_requests.post(url, data=data, **common)
+        else:
+            resp = cffi_requests.get(url, **common)
     except Exception as exc:
         print(f"fetch error: {exc}", file=sys.stderr)
         sys.exit(1)
