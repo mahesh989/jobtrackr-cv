@@ -22,9 +22,8 @@ import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 // client = the {namespace} in the portal URL; board = the candidate-site code
 // (jobBoardCode). Both come from the portal URL: /en-AU/{namespace}/{board}.
 const CLIENTS: { namespace: string; board: string; company: string }[] = [
-  { namespace: "unitingaunsw", board: "UNITINGCCS", company: "Uniting NSW/ACT" }, // ✅ validated 2026-06-29
-  // Opal HealthCare is also on Dayforce (namespace opalhealthcare) but its
-  // jobBoardCode is unknown — capture it from the portal URL before adding.
+  { namespace: "unitingaunsw",  board: "UNITINGCCS",             company: "Uniting NSW/ACT" }, // ✅ validated 2026-06-29
+  { namespace: "opalhealthcare", board: "CANDIDATEPORTALNURSING", company: "Opal HealthCare" }, // ✅ board confirmed 2026-06-29
 ];
 
 const PAGE_SIZE  = 25;    // server-fixed page size (response.count)
