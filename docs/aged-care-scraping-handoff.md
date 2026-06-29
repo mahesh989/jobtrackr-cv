@@ -64,13 +64,31 @@ consider the paused JS-SPA ATSs (need network capture or Playwright) — see LAT
   `<article article--result>`, role-filter title, extract inline `article__content`
   JD. Live: 120 listed → 59 care-role full JDs. NEEDS worker redeploy + migration
   074. **8 direct providers now** (6 Workday + Radancy/Bupa + Avature/Regis).
-- ⏭ **NEXT — Uniting family (state-federated; each a separate org/ATS):**
-  UnitingCare **QLD** = Workday (done). Validate ATS for: Uniting **NSW/ACT**
-  (`uniting.org/careers`), Uniting **Vic/Tas** (`careers.unitingvictas.org.au`),
-  Uniting **AgeWell** (`unitingagewell.org`), Uniting **SA** (`unitingsa.com.au`),
-  Uniting **WA** (`unitingwa.org.au`). Method: open careers → click a job → follow
-  Apply → read the domain (`*.myworkdayjobs.com`/`*.avature.net`/`*.pageuppeople.com`
-  …). Workday/Avature hits = near-free (one ORGS/TENANTS row).
+- ✅ **Uniting NSW/ACT + Opal HealthCare (Dayforce) DONE** (commits `f3bf500`,
+  `3d21db2`) — 66 + 86 jobs.
+- ⏭ **Uniting family — ATS map (state-federated, 4 different ATSs):**
+  | Entity | ATS | Status |
+  |---|---|---|
+  | UnitingCare QLD | Workday | ✅ done |
+  | Uniting NSW/ACT | Dayforce (`unitingaunsw`/`UNITINGCCS`) | ✅ done |
+  | Opal HealthCare | Dayforce (`opalhealthcare`/`CANDIDATEPORTALNURSING`) | ✅ done |
+  | Uniting Vic/Tas | **Clinch** (`careers.unitingvictas.org.au`) | TODO new build |
+  | Uniting AgeWell | **Clinch** (`careers.unitingagewell.org`) | same adapter as Vic/Tas |
+  | Uniting SA | **BigRedSky** (`unitingsa.bigredsky.com`) | TODO new build |
+  | Uniting WA | ? (`unitingwa.org.au`) | apply-domain not captured |
+
+  **Clinch** (Vic/Tas + AgeWell, one adapter covers both): Rails Hotwire. The
+  listing is a `/jobs/search` **turbo-stream XHR** (`accept: text/vnd.turbo-stream.html`)
+  that REQUIRES the CMS widget IDs `block_uid`+`page_row_uid`+`page_version_uid`
+  (param-less call 404s) — so the adapter must GET the search page first, scrape
+  those UIDs, then call the XHR, then fetch each `/jobs/{slug}` detail page for the
+  JD (NOT inline). ⚠ AWS WAF (`aws-waf-token`) is present — feasibility of the XHR
+  from a server (no JS challenge) is UNCONFIRMED; the full HTML page loads 200 from
+  curl, but the XHR wasn't tested with correct params. Validate before building.
+  **BigRedSky** (SA): `unitingsa.bigredsky.com/page.php?pageID={list|detail}&AdvertID={id}`,
+  cookie `NRJobBoardID`, server-rendered PHP. Simplest of the two — classic
+  list-page + AdvertID detail scrape. Recon the list page (pageID=106 per referer)
+  + a detail page structure before building.
 
 **Golden rule (we got burned 3×):** never trust a tenant/board until the user
 validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."
