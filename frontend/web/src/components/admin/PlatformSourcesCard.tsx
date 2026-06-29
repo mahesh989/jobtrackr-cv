@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 
-type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever";
+type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever" | "agedcare";
 type Tier    = "weekly" | "monthly" | "unlimited";
 type AdzunaM = "api" | "direct";
 type SeekM   = "direct" | "actor";
@@ -33,6 +33,7 @@ const SOURCES: { id: Source; label: string; tag: string }[] = [
   { id: "careerjet",  label: "Careerjet",  tag: "v4 API" },
   { id: "greenhouse", label: "Greenhouse", tag: "API" },
   { id: "lever",      label: "Lever",      tag: "API" },
+  { id: "agedcare",   label: "Aged Care",  tag: "Workday direct" },
 ];
 
 function MethodRadio({ name, value, checked, onChange, label }: {

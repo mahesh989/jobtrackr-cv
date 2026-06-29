@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 
-const VALID_SOURCES = ["adzuna", "seek", "careerjet", "greenhouse", "lever"] as const;
+const VALID_SOURCES = ["adzuna", "seek", "careerjet", "greenhouse", "lever", "agedcare"] as const;
 type Source = (typeof VALID_SOURCES)[number];
 type Tier   = "weekly" | "monthly" | "unlimited";
 
