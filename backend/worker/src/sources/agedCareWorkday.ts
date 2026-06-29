@@ -33,33 +33,26 @@ import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 // board = the site slug in the careers URL path. Validate a new tenant with:
 //   curl -s -X POST https://{tenant}.wd{wdN}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs \
 //     -H 'Content-Type: application/json' -d '{"appliedFacets":{},"limit":1,"offset":0,"searchText":""}'
-// auOnly=true → tenant lists only AU jobs, skip the country filter. auOnly=false
-// → GLOBAL tenant (e.g. Bupa is UK-based with jobs worldwide), so we must filter
-// to AU before spending detail calls. All boards below were validated 2026-06-29
-// (each returned a job total); the AU/global classification is from their sample
-// locations.
-const TENANTS: { tenant: string; wdN: number; board: string; company: string; auOnly: boolean }[] = [
-  { tenant: "anglicare",      wdN: 105, board: "Anglicare_Careers",    company: "Anglicare",       auOnly: true  }, // ✅ JD-validated
-  { tenant: "estiahealth",    wdN: 105, board: "Estia_Health_Careers", company: "Estia Health",    auOnly: true  },
-  { tenant: "hammondcare",    wdN: 105, board: "External_Careers",     company: "HammondCare",     auOnly: true  },
-  { tenant: "boltonclarke",   wdN: 105, board: "Careers",              company: "Bolton Clarke",   auOnly: true  },
-  { tenant: "unitingcareqld", wdN: 105, board: "UnitingCareCareers",   company: "UnitingCare QLD", auOnly: true  },
-  { tenant: "rsllc",          wdN: 3,   board: "rsllc",                company: "RSL LifeCare",    auOnly: true  },
-  { tenant: "bupa",           wdN: 3,   board: "EXT_CAREER",           company: "Bupa Aged Care",  auOnly: false }, // global (UK) — AU-filtered
-  // REMOVED: agecare.wd10/AgeCare_Careers_External — that tenant is AgeCare
-  // CANADA (samples in Calgary/Alberta), not an AU provider. If an AU "AgeCare"
-  // exists on Workday, validate its real tenant/board before adding.
+// All tenants below are AU-only boards, validated 2026-06-29 (each returned a
+// job total and AU sample locations).
+//
+// Adding a GLOBAL tenant (one whose board lists jobs worldwide): do NOT guess AU
+// from suburb text — Workday locations are often bare suburbs. Instead filter
+// server-side with the country facet. Discover the AU GUID once:
+//   curl -s -X POST .../jobs -d '{"appliedFacets":{},"limit":1,"offset":0,"searchText":""}'
+//   → facets[].facetParameter "Location_Country", values[] with {descriptor,id}
+// then pass it back: appliedFacets: { "Location_Country": ["<AU-guid>"] }.
+// (Checked for Bupa's EXT_CAREER board — its Location_Country facet has UK/Egypt/
+// HK/etc. but NO Australia, i.e. that board has zero AU jobs, so Bupa is not
+// listed here. Bupa AU aged care is on a different board/system — TBD.)
+const TENANTS: { tenant: string; wdN: number; board: string; company: string }[] = [
+  { tenant: "anglicare",      wdN: 105, board: "Anglicare_Careers",    company: "Anglicare" },        // ✅ JD-validated
+  { tenant: "estiahealth",    wdN: 105, board: "Estia_Health_Careers", company: "Estia Health" },
+  { tenant: "hammondcare",    wdN: 105, board: "External_Careers",     company: "HammondCare" },
+  { tenant: "boltonclarke",   wdN: 105, board: "Careers",              company: "Bolton Clarke" },
+  { tenant: "unitingcareqld", wdN: 105, board: "UnitingCareCareers",   company: "UnitingCare QLD" },
+  { tenant: "rsllc",          wdN: 3,   board: "rsllc",                company: "RSL LifeCare" },
 ];
-
-// AU location signal — matched against a list job's locationsText + externalPath
-// (the path embeds the location, e.g. "/job/St-Leonards-NSW/…"). Used only for
-// global tenants (auOnly=false) to drop non-AU jobs before detail fetches.
-const AU_LOCATION_RE =
-  /\b(australia|australian|sydney|melbourne|brisbane|perth|adelaide|canberra|hobart|darwin|gold[- ]coast|newcastle|wollongong|geelong|townsville|cairns|toowoomba|nsw|vic|qld|wa|sa|tas|act|nt)\b|new south wales|victoria|queensland|western australia|south australia|tasmania|northern territory|remote.{0,30}(australia|au)\b/i;
-
-function looksAU(job: { locationsText?: string; externalPath?: string }): boolean {
-  return AU_LOCATION_RE.test(`${job.locationsText ?? ""} ${job.externalPath ?? ""}`);
-}
 
 // ── Workday CXS API shapes ────────────────────────────────────────────────────
 interface WDListJob {
@@ -138,7 +131,7 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
   async fetchJobs(_profile: SearchProfile): Promise<RawJob[]> {
     const out: RawJob[] = [];
 
-    for (const { tenant, wdN, board, company, auOnly } of TENANTS) {
+    for (const { tenant, wdN, board, company } of TENANTS) {
       // 1) Page the cheap LIST endpoint and collect title-matched jobs.
       const matched: { job: WDListJob; group: string }[] = [];
       let total = Infinity;
@@ -158,9 +151,6 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
         if (postings.length === 0) break;
 
         for (const job of postings) {
-          // Global tenants (Bupa) list worldwide jobs — drop non-AU before we
-          // spend a detail call. AU-only tenants skip this (their list is AU).
-          if (!auOnly && !looksAU(job)) continue;
           const group = matchRole(job.title ?? "");
           if (group) matched.push({ job, group });
         }

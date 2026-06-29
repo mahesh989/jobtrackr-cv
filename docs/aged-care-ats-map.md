@@ -34,14 +34,16 @@ Subdomain encodes the version (`wd3`/`wd10`/`wd105`); board = first path segment
 | HammondCare | `hammondcare` | 105 | `External_Careers` | ✅ list validated (102, AU) |
 | Bolton Clarke | `boltonclarke` | 105 | `Careers` | ✅ list validated (211, AU) |
 | UnitingCare QLD | `unitingcareqld` | 105 | `UnitingCareCareers` | ✅ list validated (254, AU) |
-| RSL LifeCare | `rsllc` | 3 | `rsllc` | ✅ list validated (62, AU) |
-| Bupa | `bupa` | 3 | `EXT_CAREER` | ✅ validated (562) but **GLOBAL** — AU-filtered in adapter |
-| ~~AgeCare~~ | ~~`agecare`~~ | ~~10~~ | ~~`AgeCare_Careers_External`~~ | ❌ REMOVED — this tenant is **AgeCare Canada** (Calgary), not an AU provider |
+| RSL LifeCare | `rsllc` | 3 | `rsllc` | ✅ end-to-end (20 jobs, full JDs) |
+| ~~Bupa~~ | ~~`bupa`~~ | ~~3~~ | ~~`EXT_CAREER`~~ | ❌ REMOVED — board's `Location_Country` facet has UK/Egypt/HK but **no Australia**; Bupa AU is on another board/system (TBD) |
+| ~~AgeCare~~ | ~~`agecare`~~ | ~~10~~ | ~~`AgeCare_Careers_External`~~ | ❌ REMOVED — tenant is **AgeCare Canada** (Calgary), not AU |
 
-→ **7 AU aged-care employers on one adapter.** All boards validated 2026-06-29.
-Bupa is a global Workday tenant (UK-based) so the adapter applies an AU location
-filter (`auOnly:false`); the rest are AU-only (`auOnly:true`). Anglicare is the
-only one with a full-JD detail check so far.
+→ **6 AU aged-care employers live on one adapter.** End-to-end test (2026-06-29,
+`testAgedCareWorkday.ts`) returned **134 jobs with full 3–5k char JDs**: Estia 40
+(detail-cap), Bolton Clarke 26, RSL 20, Anglicare 17, UnitingCare QLD 17,
+HammondCare 14. Role split 64 nursing / 59 care / 11 admin. To add a global
+tenant later, filter AU server-side via the `Location_Country` facet (see the
+TENANTS comment in `agedCareWorkday.ts`).
 
 ## PageUp cluster — needs `pageup.ts` fleshed out (scaffold exists)
 
