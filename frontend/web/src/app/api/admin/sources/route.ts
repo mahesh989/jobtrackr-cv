@@ -15,8 +15,9 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 
 const VALID_SOURCES = [
   "adzuna", "seek", "careerjet", "greenhouse", "lever",
-  "agedcare", // Workday aged-care (working). Dayforce/PageUp/Scout/Avature are
-              // paused (no full JD yet) so they're intentionally not toggleable.
+  "agedcare", // Workday aged-care (working).
+  "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
+              // Dayforce/PageUp/Scout/Avature paused (no full JD yet) — not toggleable.
 ] as const;
 type Source = (typeof VALID_SOURCES)[number];
 type Tier   = "weekly" | "monthly" | "unlimited";

@@ -11,6 +11,7 @@ import { workdayAdapter } from "./workday.js";
 import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
 import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
 import { avatureAdapter } from "./avature.js";
+import { radancyAdapter } from "./radancy.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
 import { pageupAdapter } from "./pageup.js";
@@ -45,6 +46,10 @@ export const adapters: SourceAdapter[] = [
   // vertical=healthcare → only runs for profiles targeting healthcare.
   // The ONLY validated/working direct aged-care source (7 AU providers, full JD).
   agedCareWorkdayAdapter,
+
+  // Tier 3 — Radancy/TalentBrew (validated 2026-06-29: detail pages carry clean
+  // JSON-LD JDs). First tenant: Bupa AU aged care (careers.bupa.com.au).
+  radancyAdapter,
 
   // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
   // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
@@ -91,6 +96,7 @@ export {
   agedCareWorkdayAdapter,
   agedCareDayforceAdapter,
   avatureAdapter,
+  radancyAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
   pageupAdapter,

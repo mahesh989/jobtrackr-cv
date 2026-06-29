@@ -98,6 +98,7 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 | PageUp | `pageup.ts` | `pageup` | ⚠ degraded — listings OK (≈20 links/board) but detail is a JS SPA with no JSON-LD → title+URL only, no JD |
 | Scout Talent | `scoutTalent.ts` | `scout_talent` | ⚠ unvalidated (Salesforce; JSON-LD likely absent like PageUp) |
 | Avature | `avature.ts` | `avature` | ⚠ unvalidated |
+| Radancy/TalentBrew | `radancy.ts` | `radancy` | ✅ **WORKING** — Bupa AU; detail JSON-LD JDs confirmed |
 
 ### Validation learnings (why the JS-ATS ones are hard)
 
