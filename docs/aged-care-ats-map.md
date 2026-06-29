@@ -94,7 +94,7 @@ Open each careers page, follow the **apply** button, read the domain it lands on
 | ATS | Adapter file | adapter.name | Status (2026-06-29 validation) |
 |---|---|---|---|
 | Workday | `agedCareWorkday.ts` | `agedcare` | ✅ **WORKING** — 7 AU boards validated, Anglicare JD-confirmed |
-| Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | ❌ blocked — search API 403s even via curl_cffi (not TLS; needs session cookie or real endpoint) |
+| Dayforce | `agedCareDayforce.ts` | `agedcare_dayforce` | ✅ **WORKING** (commit pending) — bootstrap CSRF session via careers page → POST jobposting/search (full JD inline). Uniting NSW/ACT: 146 listed → 66 care-role full JDs. The old 403 was a wrong body + missing CSRF, NOT Cloudflare |
 | PageUp | `pageup.ts` | `pageup` | ⚠ degraded — listings OK (≈20 links/board) but detail is a JS SPA with no JSON-LD → title+URL only, no JD |
 | Scout Talent | `scoutTalent.ts` | `scout_talent` | ⚠ unvalidated (Salesforce; JSON-LD likely absent like PageUp) |
 | Avature | `avature.ts` | `avature` | ✅ **WORKING** (commit `c141b39`) — Regis: listing server-renders full JD inline (no JSON-LD/detail fetch); paginate via `?jobOffset`, parse `<article article--result>`. 120 listed → 59 care-role full JDs |

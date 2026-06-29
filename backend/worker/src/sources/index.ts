@@ -56,10 +56,15 @@ export const adapters: SourceAdapter[] = [
   // 120 listed → 59 care roles with full JD).
   avatureAdapter,
 
+  // Tier 2 — Dayforce (validated 2026-06-29: bootstrap a CSRF session via the
+  // careers page, then POST jobposting/search — full JD inline. The earlier 403
+  // was a wrong body + missing CSRF, NOT Cloudflare). First tenant: Uniting
+  // NSW/ACT (unitingaunsw/UNITINGCCS, 146 listed → 66 care roles with full JD).
+  agedCareDayforceAdapter,
+
   // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
   // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
   // re-enabling is a one-line uncomment once their JSON APIs are captured:
-  //   agedCareDayforceAdapter — search API 403s app-level (cookie/token/path)
   //   pageupAdapter           — modern PageUp is a JS SPA (listing-only, no JD)
   //   scoutTalentAdapter      — likely JS SPA, unvalidated
 
