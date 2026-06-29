@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.18",
-    "updated": "2026-06-29 (Radancy pagination FIXED; Workday at scale 207 jobs; Fly egress CONFIRMED 200/200 — no Apify proxy needed. P2 done bar full pipeline E2E)",
+    "updated": "2026-06-29 (P1+P2 DONE & LIVE: Radancy pagination fixed; Workday 207 + Radancy 37 = 244 raw confirmed end-to-end in prod job 339 after worker redeploy; Fly egress 200/200. Next: P3 expand providers)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },

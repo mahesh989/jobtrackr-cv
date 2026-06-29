@@ -43,9 +43,16 @@ thin), up from 3. No cookie/Imperva session needed — params alone fixed it.
   `node -e "fetch(...)"` returned **bupa 200 + anglicare 200** — the datacenter
   IP reaches both Workday CXS and Radancy direct. **No Apify proxy needed.**
   (curl isn't in the worker image; test egress with Node's global fetch.)
-- ⏳ **REMAINING**: full pipeline E2E on a healthcare-vertical profile
-  (founder/unlimited) — apply migrations 070+073, run, confirm `[agedcare]`/
-  `[radancy]` logs and rows land with `source='agedcare'` + non-empty descriptions.
+- ✅ **Full pipeline E2E CONFIRMED LIVE (2026-06-29, prod job 339, image
+  041a4b5)**: a manual full-refresh run on a healthcare profile logged
+  `[agedcare] done — 207 jobs across 6 tenant(s)` + `[radancy] Bupa Aged Care:
+  269 links → 37 role-matched → 37 jobs with full JD` → total raw 244 → stage 12
+  saved 13. **P2 fully closed.** NOTE: the deployed worker had been a STALE build
+  (showed phantom `bupa: 0` Workday tenant + no `[radancy]` + capped 134); a
+  `flyctl deploy --config backend/worker/fly.toml` was required to go live.
+  NOTE 2 (profile tuning, not adapter): all 13 saved auto-analyze-skipped as
+  677–1244km > 30km (home n/a; survivors were interstate QLD/SA jobs — the
+  Sydney ones were filtered earlier by the profile keyword + home-care rules).
 
 ### PRIORITY 3 — Expand (only after 1 & 2 are green)
 Add more Workday/Radancy providers (one row each, validate first). Then consider
