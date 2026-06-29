@@ -51,13 +51,17 @@ export const adapters: SourceAdapter[] = [
   // JSON-LD JDs). First tenant: Bupa AU aged care (careers.bupa.com.au).
   radancyAdapter,
 
+  // Tier 3 — Avature (validated 2026-06-29: listing server-renders the full JD
+  // inline; no detail fetch). First tenant: Regis Aged Care (regis.avature.net,
+  // 120 listed → 59 care roles with full JD).
+  avatureAdapter,
+
   // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
   // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
   // re-enabling is a one-line uncomment once their JSON APIs are captured:
   //   agedCareDayforceAdapter — search API 403s app-level (cookie/token/path)
   //   pageupAdapter           — modern PageUp is a JS SPA (listing-only, no JD)
   //   scoutTalentAdapter      — likely JS SPA, unvalidated
-  //   avatureAdapter          — unvalidated
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in

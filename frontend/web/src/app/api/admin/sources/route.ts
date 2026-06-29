@@ -17,7 +17,8 @@ const VALID_SOURCES = [
   "adzuna", "seek", "careerjet", "greenhouse", "lever",
   "agedcare", // Workday aged-care (working).
   "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
-              // Dayforce/PageUp/Scout/Avature paused (no full JD yet) — not toggleable.
+  "avature",  // Avature aged-care (Regis, inline-JD listing, working).
+              // Dayforce/PageUp/Scout paused (no full JD yet) — not toggleable.
 ] as const;
 type Source = (typeof VALID_SOURCES)[number];
 type Tier   = "weekly" | "monthly" | "unlimited";
