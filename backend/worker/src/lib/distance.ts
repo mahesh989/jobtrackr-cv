@@ -66,22 +66,28 @@ export async function geocode(
   near?: LatLng,
 ): Promise<LatLng | null> {
   // Region bias disambiguates same-named suburbs (e.g. "Killara" exists near
-  // Sydney AND ~760km away). When `near` is given, restrict results to a box
-  // around it so an ambiguous bare-suburb query resolves to the right one.
+  // Sydney AND ~760km away). When `near` is given we PREFER results inside a box
+  // around it (soft viewbox) — but do NOT hard-bound, because the aged-care
+  // sources are NATIONAL: a hard box made far suburbs ("Busselton WA",
+  // "Gatton QLD") either match a wrong in-box place (absurd 15km distance) or
+  // return nothing (null → no distance). Soft viewbox keeps the in-box
+  // preference for ambiguous bare suburbs while letting genuinely-distant,
+  // state-qualified suburbs resolve to their real location.
   const biasKey = near ? `@${near.lat.toFixed(1)},${near.lng.toFixed(1)}` : "";
   const key = `${countryCode ?? "*"}${biasKey}::${query}`;
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
 
   await rateLimitNominatim();
   const url = new URL(NOMINATIM_BASE);
+  const D = 1.5; // ~165km box — soft preference (no `bounded`), not a hard cap
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
+  // With a bias box, pull several candidates so we can PREFER an in-box one;
+  // without a bias, the single best result is enough.
+  url.searchParams.set("limit", near ? "10" : "1");
   if (countryCode) url.searchParams.set("countrycodes", countryCode);
   if (near) {
-    const d = 1.5; // ~165km box — covers a metro + buffer, excludes far matches
-    url.searchParams.set("viewbox", `${near.lng - d},${near.lat - d},${near.lng + d},${near.lat + d}`);
-    url.searchParams.set("bounded", "1");
+    url.searchParams.set("viewbox", `${near.lng - D},${near.lat - D},${near.lng + D},${near.lat + D}`);
   }
 
   try {
@@ -99,7 +105,18 @@ export async function geocode(
       geocodeCache.set(key, null);
       return null;
     }
-    const hit = { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+    // Prefer a candidate INSIDE the bias box (handles ambiguous bare suburbs like
+    // "Killara" → the Sydney one); otherwise fall back to the best overall match
+    // (so a genuinely-distant suburb like "Busselton, WA" still resolves).
+    let chosen = arr[0];
+    if (near) {
+      const inBox = arr.find((r) => {
+        const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+        return la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
+      });
+      if (inBox) chosen = inBox;
+    }
+    const hit = { lat: parseFloat(chosen.lat), lng: parseFloat(chosen.lon) };
     geocodeCache.set(key, hit);
     return hit;
   } catch (err) {
