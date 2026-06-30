@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "0.18",
-    "updated": "2026-06-29 (P3 expanding: +Avature/Regis (59) +Dayforce/Uniting NSW (66) — Dayforce CSRF-bootstrap crack. 9 direct providers. NEEDS worker redeploy + migrations 074+075, batched with more Uniting tenants)",
+    "updated": "2026-06-29 (P3: 10 direct providers live-ready — +Avature/Regis(59) +Dayforce/Uniting NSW(66)+Opal(86). Clinch(AgeWell) built but PAUSED (AWS WAF). BigRedSky(SA) blocked (HTTP000). Vic/Tas dropped (not aged care). NEEDS worker redeploy + migrations 074+075)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },

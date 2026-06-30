@@ -12,6 +12,7 @@ import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
 import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
 import { avatureAdapter } from "./avature.js";
 import { radancyAdapter } from "./radancy.js";
+import { clinchAdapter } from "./clinch.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
 import { pageupAdapter } from "./pageup.js";
@@ -67,6 +68,9 @@ export const adapters: SourceAdapter[] = [
   // re-enabling is a one-line uncomment once their JSON APIs are captured:
   //   pageupAdapter           — modern PageUp is a JS SPA (listing-only, no JD)
   //   scoutTalentAdapter      — likely JS SPA, unvalidated
+  //   clinchAdapter           — sitemap+JSON-LD works, but AWS WAF 202-challenges
+  //                             bulk detail fetches (needs headless/aws-waf-token).
+  //                             High-value: Uniting AgeWell (35 aged-care roles).
 
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
@@ -106,6 +110,7 @@ export {
   agedCareDayforceAdapter,
   avatureAdapter,
   radancyAdapter,
+  clinchAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
   pageupAdapter,

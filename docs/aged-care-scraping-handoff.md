@@ -77,18 +77,20 @@ consider the paused JS-SPA ATSs (need network capture or Playwright) — see LAT
   | Uniting SA | **BigRedSky** (`unitingsa.bigredsky.com`) | TODO new build |
   | Uniting WA | ? (`unitingwa.org.au`) | apply-domain not captured |
 
-  **Clinch** (Vic/Tas + AgeWell, one adapter covers both): Rails Hotwire. The
-  listing is a `/jobs/search` **turbo-stream XHR** (`accept: text/vnd.turbo-stream.html`)
-  that REQUIRES the CMS widget IDs `block_uid`+`page_row_uid`+`page_version_uid`
-  (param-less call 404s) — so the adapter must GET the search page first, scrape
-  those UIDs, then call the XHR, then fetch each `/jobs/{slug}` detail page for the
-  JD (NOT inline). ⚠ AWS WAF (`aws-waf-token`) is present — feasibility of the XHR
-  from a server (no JS challenge) is UNCONFIRMED; the full HTML page loads 200 from
-  curl, but the XHR wasn't tested with correct params. Validate before building.
-  **BigRedSky** (SA): `unitingsa.bigredsky.com/page.php?pageID={list|detail}&AdvertID={id}`,
-  cookie `NRJobBoardID`, server-rendered PHP. Simplest of the two — classic
-  list-page + AdvertID detail scrape. Recon the list page (pageID=106 per referer)
-  + a detail page structure before building.
+  **Clinch** (`clinch.ts`, BUILT but PAUSED — AWS WAF): the SEO back-door works —
+  `/sitemap.xml` lists every `/jobs/{slug}` and detail pages carry clean JSON-LD
+  JobPosting. Adapter = sitemap → role-filter slug → curl_cffi detail → JSON-LD.
+  BLOCKER: a SINGLE curl_cffi hit to `/jobs/*` returns 200+JSON-LD, but a SEQUENCE
+  (even spaced 1.5s) gets 202 challenge interstitials — AWS WAF behavioural/session
+  challenge needing an `aws-waf-token` (headless/JS only). Re-enable when we have a
+  headless path (Playwright OOM-disabled, BUG-5) or a got-scraping fingerprint that
+  passes. ONLY worth it for **Uniting AgeWell** (35 real aged-care roles: home/
+  personal care workers, RN/EN, lifestyle). **DROP Uniting Vic/Tas** — its matches
+  are AOD/family-violence/out-of-home-care, NOT aged care.
+  **BigRedSky** (SA, `unitingsa.bigredsky.com/page.php?pageID=…&AdvertID=…`): plain
+  curl returned **HTTP 000** (connection refused/reset) — needs a cookie bootstrap
+  (`NRJobBoardID`) or rejects bare requests. Not yet diagnosed; recon the landing
+  `pageID=106` WITH a cookie jar (like the Dayforce bootstrap) before building.
 
 **Golden rule (we got burned 3×):** never trust a tenant/board until the user
 validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."
