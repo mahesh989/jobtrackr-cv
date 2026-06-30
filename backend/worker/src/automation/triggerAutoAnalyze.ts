@@ -60,7 +60,7 @@ const AUTO_ANALYZE_MAX_KM = 30;  // auto-analyze only jobs within this distance 
 
 interface ProfileThresholds {
   user_id: string;
-  // Per-vertical ATS cutoffs: healthcare/nursing profiles get 55/65, everything
+  // Per-vertical ATS cutoffs: healthcare/nursing profiles get 40/60, everything
   // else the global 60/70. Mirrors frontend/web/src/lib/atsThresholds.ts (worker is a
   // separate package, so the small resolver is duplicated, not imported).
   target_verticals?: string[] | null;
@@ -71,8 +71,14 @@ interface ProfileThresholds {
 }
 
 const GLOBAL_THRESHOLDS = { initial: 60, final: 70 };
+// Keyed by BOTH vertical identifiers. effectiveVerticals prefers the My CV
+// role_family ("nursing", from contact_details.role_families) over the
+// search-profile sourcing vertical ("healthcare", from target_verticals), so
+// keying only "healthcare" silently fell back to 60/70 for nursing CVs (the
+// "57% stopped at the 60% gate" bug). Kept in sync with web atsThresholds.ts.
 const VERTICAL_THRESHOLDS: Record<string, { initial: number; final: number }> = {
-  healthcare: { initial: 55, final: 65 },
+  healthcare: { initial: 40, final: 60 },
+  nursing:    { initial: 40, final: 60 },
 };
 
 function resolveThresholds(verticals?: string[] | null): { initial: number; final: number } {
@@ -328,7 +334,7 @@ export async function triggerAutoAnalyze(
       // Explicit role vertical from My CV — drives the role-family pack so
       // auto-analyze matches the user's selection instead of JD auto-detection.
       target_vertical:   effectiveVerticals[0] ?? null,
-      // Per-vertical ATS cutoffs: healthcare/nursing = 55/65, else 60/70.
+      // Per-vertical ATS cutoffs: healthcare/nursing = 40/60, else 60/70.
       // cv-backend already honours these payload params — no pipeline change.
       min_initial_ats:   th.initial,
       min_final_ats:     th.final,

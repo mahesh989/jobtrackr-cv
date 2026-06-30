@@ -91,7 +91,7 @@ export async function POST(
   }
 
   // Ownership: job → profile → user. We also read target_verticals to resolve
-  // per-vertical ATS cutoffs (healthcare/nursing = 55/65, everything else
+  // per-vertical ATS cutoffs (healthcare/nursing = 40/60, everything else
   // 60/70). The orchestrator already accepts min_initial_ats/min_final_ats —
   // we only pass different VALUES here; no pipeline change.
   const { data: profile } = await admin
@@ -351,7 +351,7 @@ export async function POST(
       ai_api_key:     aiApiKey,
       ai_model:       aiModel,
       contact_details: contactForBackend,
-      // Per-vertical ATS cutoffs: healthcare/nursing = 55/65, else global 60/70.
+      // Per-vertical ATS cutoffs: healthcare/nursing = 40/60, else global 60/70.
       // The orchestrator already honours these payload params — no pipeline change.
       min_initial_ats: thresholds.initial,
       min_final_ats:   thresholds.final,

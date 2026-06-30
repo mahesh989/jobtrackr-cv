@@ -29,15 +29,20 @@ export interface AtsThresholds {
  * lower on the deterministic ATS scorer (more off-axis transferable matches),
  * so the global 60/70 buckets genuine matches as "below final". Healthcare
  * profiles get a lower fixed pair so that genuine residential AIN matches
- * (which honestly score 40–65 on the deterministic scorer for sub-12-month
+ * (which honestly score 40–60 on the deterministic scorer for sub-12-month
  * candidates) clear the initial gate and proceed to tailoring.
  *
- * Keyed by the search-profile `target_verticals` value ("healthcare" is the
- * nursing/care sourcing vertical — there is no separate "nursing" vertical).
+ * Keyed by BOTH vertical identifiers, because resolveThresholds is called with
+ * EITHER source: the search-profile sourcing vertical ("healthcare", from
+ * target_verticals) OR the My CV role_family ("nursing", from
+ * contact_details.role_families). The analyze route PREFERS role_families, so
+ * keying only "healthcare" made nursing CVs silently fall back to the global
+ * 60/70 — the "57% stopped at the 60% gate" bug. Keep both rows in sync.
  * Everything else falls through to the global 60/70.
  */
 const VERTICAL_THRESHOLDS: Record<string, AtsThresholds> = {
-  healthcare: { initial: 40, final: 65 },
+  healthcare: { initial: 40, final: 60 },
+  nursing:    { initial: 40, final: 60 },
 };
 
 /**
