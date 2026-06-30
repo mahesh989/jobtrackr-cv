@@ -8,6 +8,12 @@ import { greenhouseAdapter } from "./greenhouse.js";
 import { leverAdapter } from "./lever.js";
 import { joraAdapter } from "./jora.js";
 import { workdayAdapter } from "./workday.js";
+import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
+import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
+import { avatureAdapter } from "./avature.js";
+import { radancyAdapter } from "./radancy.js";
+import { successFactorsAdapter } from "./successFactors.js";
+import { clinchAdapter } from "./clinch.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
 import { pageupAdapter } from "./pageup.js";
@@ -38,6 +44,41 @@ export const adapters: SourceAdapter[] = [
   greenhouseAdapter,
   leverAdapter,
 
+  // Tier 2 — AU aged-care employers on Workday (public CXS JSON, no auth).
+  // vertical=healthcare → only runs for profiles targeting healthcare.
+  // The ONLY validated/working direct aged-care source (7 AU providers, full JD).
+  agedCareWorkdayAdapter,
+
+  // Tier 3 — Radancy/TalentBrew (validated 2026-06-29: detail pages carry clean
+  // JSON-LD JDs). First tenant: Bupa AU aged care (careers.bupa.com.au).
+  radancyAdapter,
+
+  // Tier 3 — Avature (validated 2026-06-29: listing server-renders the full JD
+  // inline; no detail fetch). First tenant: Regis Aged Care (regis.avature.net,
+  // 120 listed → 59 care roles with full JD).
+  avatureAdapter,
+
+  // Tier 2 — Dayforce (validated 2026-06-29: bootstrap a CSRF session via the
+  // careers page, then POST jobposting/search — full JD inline. The earlier 403
+  // was a wrong body + missing CSRF, NOT Cloudflare). First tenant: Uniting
+  // NSW/ACT (unitingaunsw/UNITINGCCS, 146 listed → 66 care roles with full JD).
+  agedCareDayforceAdapter,
+
+  // Tier 3 — SuccessFactors (SAP) CSB career sites. Expected: server-rendered
+  // /search/?startrow=N listing → JSON-LD detail (like Radancy). First tenant:
+  // Australian Unity (careers.australianunity.com.au). ⚠ UNVALIDATED — built from
+  // the documented SF CSB pattern; fails safe until the user validates live.
+  successFactorsAdapter,
+
+  // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
+  // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
+  // re-enabling is a one-line uncomment once their JSON APIs are captured:
+  //   pageupAdapter           — modern PageUp is a JS SPA (listing-only, no JD)
+  //   scoutTalentAdapter      — likely JS SPA, unvalidated
+  //   clinchAdapter           — sitemap+JSON-LD works, but AWS WAF 202-challenges
+  //                             bulk detail fetches (needs headless/aws-waf-token).
+  //                             High-value: Uniting AgeWell (35 aged-care roles).
+
   // Tier 3 — headless browser scraping (AU business hours only, max delays)
   // joraAdapter — DISABLED 2026-05-19. Playwright Chromium hangs in
   //   makeBrowser/makeContext/makePage on the 512MB shared-cpu-1x Fly machine
@@ -48,12 +89,10 @@ export const adapters: SourceAdapter[] = [
   // workdayAdapter,
   // smartrecruitersAdapter,
   // ashbyAdapter,
-  // Tier 3 — AU healthcare ATS (HTML/JSON-LD scraping)
-  // pageupAdapter,
+  // Tier 3 — AU healthcare ATS (HTML/JSON-LD scraping) — still disabled
   // elmoAdapter,
   // jobadderAdapter,
   // mercuryRoublerAdapter,
-  // scoutTalentAdapter,
   // directHospitalsAdapter,
   // Tier 4 — State health portals
   // nswHealthAdapter,
@@ -74,6 +113,12 @@ export {
   leverAdapter,
   joraAdapter,
   workdayAdapter,
+  agedCareWorkdayAdapter,
+  agedCareDayforceAdapter,
+  avatureAdapter,
+  radancyAdapter,
+  successFactorsAdapter,
+  clinchAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
   pageupAdapter,

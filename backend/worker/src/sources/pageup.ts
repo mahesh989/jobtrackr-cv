@@ -1,170 +1,113 @@
-// PageUp ATS adapter — *.pageuppeople.com career boards
-// Used heavily by AU healthcare, aged care, universities, and large NFPs.
-// Approach: fetch listings page HTML → extract job links via regex →
-// fetch individual job pages → extract JSON-LD (schema.org JobPosting).
+// PageUp ATS adapter — aged-care / healthcare providers on PageUp.
+//
+// PageUp boards live on shared hosts under a numeric INSTANCE id + a per-client
+// SOURCE code: https://careers.pageuppeople.com/{instance}/{source}/en/listing/
+// (BaptistCare=999/ci, Calvary=1106/cw, Arcare=1073/arc, SA Health=532/caw —
+// listings validated 2026-06-29: each returns ~20 server-rendered job links.)
+//
+// ⚠ DEGRADED MODE (listing-only). Modern PageUp job DETAIL pages are a JS SPA
+// (Stimulus/Hotwire) with NO schema.org JSON-LD (verified 2026-06-29), so we
+// cannot scrape the full JD from the detail HTML. This adapter therefore emits
+// only what the listing exposes: the job URL + a title derived from the link
+// slug, role-filtered. Descriptions are empty until we capture PageUp's job
+// JSON API from the browser network tab (see docs/aged-care-ats-map.md).
+//
+// Resthaven (1140/aw) is excluded: it uses the newer PageUp that redirects to a
+// custom domain (careers.resthaven.asn.au/jobs/search) — different shape, TODO.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import { matchRole, sleep } from "./agedCareRoles.js";
 
-// AU organisations using PageUp. Add slugs as discovered.
-// Format: { slug, company } where career board is at {slug}.pageuppeople.com
-const ORGS: { slug: string; company: string }[] = [
-  { slug: "svha", company: "St Vincent's Health Australia" },
-  { slug: "catho", company: "Catholic Healthcare" },
-  { slug: "ramsay", company: "Ramsay Health Care" },
-  { slug: "calvary", company: "Calvary Health Care" },
-  { slug: "regis", company: "Regis Aged Care" },
-  { slug: "bupa", company: "Bupa Aged Care" },
-  { slug: "japara", company: "Japara Healthcare" },
-  { slug: "baptistcare", company: "BaptistCare" },
-  { slug: "anglicare", company: "Anglicare" },
-  { slug: "bluecare", company: "Blue Care" },
-  { slug: "benevolent", company: "The Benevolent Society" },
-  { slug: "nswhealthjobs", company: "NSW Health" },
-  { slug: "healthscope", company: "Healthscope" },
-  { slug: "cabrini", company: "Cabrini Health" },
-  { slug: "monash-health", company: "Monash Health" },
-  { slug: "alfred", company: "Alfred Health" },
-  { slug: "austin", company: "Austin Health" },
-  { slug: "mater", company: "Mater Group" },
-  { slug: "uniting", company: "Uniting" },
-  { slug: "acacia", company: "Acacia Living" },
+interface Org {
+  instance: string;
+  source:   string;
+  company:  string;
+  host?:    string;   // default careers.pageuppeople.com
+}
+
+const ORGS: Org[] = [
+  { instance: "999",  source: "ci",  company: "BaptistCare" },
+  { instance: "1106", source: "cw",  company: "Calvary Health Care" },
+  { instance: "1073", source: "arc", company: "Arcare" },
+  { instance: "532",  source: "caw", company: "SA Health" },
 ];
 
-const TIMEOUT_MS = 15_000;
-const MAX_JOBS_PER_ORG = 20;
-const USER_AGENT = "JobTrackr/1.0 (+https://jobtrackr.app)";
+const TIMEOUT_MS       = 15_000;
+const MAX_JOBS_PER_ORG = 60;
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// Extract href values from anchor tags that look like PageUp job detail links
-const JOB_LINK_RE = /href="(\/apply\/[^"]*?\/job[^"]*?)"/gi;
+function host(o: Org): string { return o.host ?? "careers.pageuppeople.com"; }
+function listingUrl(o: Org): string { return `https://${host(o)}/${o.instance}/${o.source}/en/listing/`; }
 
-interface JsonLdJobPosting {
-  "@type"?: string;
-  title?: string;
-  description?: string;
-  datePosted?: string;
-  validThrough?: string;
-  hiringOrganization?: { name?: string };
-  jobLocation?: { address?: { addressLocality?: string; addressRegion?: string } } | Array<{ address?: { addressLocality?: string; addressRegion?: string } }>;
-  url?: string;
+// Job-detail links: .../en/job/{id}/{slug}. Capture id + slug.
+const JOB_LINK_RE = /\/(\d+)\/([a-z0-9-]+)\/en\/job\/(\d+)\/([a-z0-9-]+)/gi;
+
+// "lifestyle-officer-warena-centre" → "Lifestyle Officer Warena Centre"
+function slugToTitle(slug: string): string {
+  return slug.split("-").filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
-function extractJsonLd(html: string): JsonLdJobPosting[] {
-  const results: JsonLdJobPosting[] = [];
-  const re = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    try {
-      const data = JSON.parse(m[1]) as unknown;
-      const items = Array.isArray(data) ? data : [data];
-      for (const item of items) {
-        if (
-          item &&
-          typeof item === "object" &&
-          (item as Record<string, unknown>)["@type"] === "JobPosting"
-        ) {
-          results.push(item as JsonLdJobPosting);
-        }
-      }
-    } catch {
-      // malformed JSON-LD — skip
-    }
-  }
-  return results;
-}
-
-function locationFromJsonLd(jl: JsonLdJobPosting): string {
-  const loc = jl.jobLocation;
-  if (!loc) return "Australia";
-  const addr = Array.isArray(loc) ? loc[0]?.address : loc.address;
-  if (!addr) return "Australia";
-  const parts = [addr.addressLocality, addr.addressRegion].filter(Boolean);
-  return parts.join(", ") || "Australia";
-}
-
-async function fetchListingsHtml(slug: string): Promise<string> {
-  const res = await fetch(`https://${slug}.pageuppeople.com/apply/listings`, {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (res.status === 404 || res.status === 403) return "";
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${slug}`);
-  return res.text();
-}
-
-async function fetchJobPage(slug: string, path: string): Promise<string> {
-  const url = `https://${slug}.pageuppeople.com${path}`;
+async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) return "";
+  if (res.status === 404 || res.status === 403) return "";
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
 }
 
 export const pageupAdapter: SourceAdapter = {
-  name: "pageup",
-  tier: 3,
-  vertical: "healthcare",
+  name:           "pageup",
+  tier:           3,
+  vertical:       "healthcare",
   rateLimitDelay: 1500,
 
-  async fetchJobs(profile: SearchProfile): Promise<RawJob[]> {
-    const kwLower = profile.keywords.map((k) => k.toLowerCase());
+  async fetchJobs(_profile: SearchProfile): Promise<RawJob[]> {
     const jobs: RawJob[] = [];
 
-    for (const { slug, company } of ORGS) {
-      let listingsHtml: string;
+    for (const o of ORGS) {
+      let listing: string;
       try {
-        listingsHtml = await fetchListingsHtml(slug);
+        listing = await fetchText(listingUrl(o));
       } catch (err) {
-        console.warn(`[pageup] ${slug} listings failed: ${err instanceof Error ? err.message : err}`);
+        console.warn(`[pageup] ${o.company} (${o.instance}): ${err instanceof Error ? err.message : err}`);
         continue;
       }
-      if (!listingsHtml) continue;
+      if (!listing) continue;
 
-      // Collect unique job detail paths from the listings page
-      const paths = new Set<string>();
+      const seen = new Set<string>();
+      let added = 0;
       let m: RegExpExecArray | null;
-      const linkRe = new RegExp(JOB_LINK_RE.source, "gi");
-      while ((m = linkRe.exec(listingsHtml)) !== null && paths.size < MAX_JOBS_PER_ORG) {
-        paths.add(m[1]);
+      const re = new RegExp(JOB_LINK_RE.source, "gi");
+      while ((m = re.exec(listing)) !== null && added < MAX_JOBS_PER_ORG) {
+        const [, inst, src, id, slug] = m;
+        if (seen.has(id)) continue;
+        seen.add(id);
+
+        const title = slugToTitle(slug);
+        if (!matchRole(title)) continue;
+
+        jobs.push({
+          url:         `https://${host(o)}/${inst}/${src}/en/job/${id}/${slug}`,
+          title,
+          company:     o.company,
+          location:    "Australia",      // listing-only; real location needs the JD API
+          description: "",               // ⚠ degraded — no JD until PageUp JSON API captured
+          source:      "agedcare",
+          source_tier: 3,
+          posted_at:   null,
+          expires_at:  null,
+          raw:         { instance: inst, source: src, id, slug, degraded: true },
+        });
+        added++;
       }
-
-      if (paths.size === 0) continue;
-
-      await new Promise((r) => setTimeout(r, this.rateLimitDelay));
-
-      for (const path of paths) {
-        let jobHtml: string;
-        try {
-          jobHtml = await fetchJobPage(slug, path);
-        } catch {
-          continue;
-        }
-        if (!jobHtml) continue;
-
-        const postings = extractJsonLd(jobHtml);
-        for (const p of postings) {
-          if (!p.title) continue;
-          const text = `${p.title} ${p.description ?? ""}`.toLowerCase();
-          if (!kwLower.some((kw) => text.includes(kw))) continue;
-
-          const jobUrl = `https://${slug}.pageuppeople.com${path}`;
-          jobs.push({
-            url: p.url ?? jobUrl,
-            title: p.title,
-            company: p.hiringOrganization?.name ?? company,
-            location: locationFromJsonLd(p),
-            description: p.description ?? "",
-            source: "pageup",
-            source_tier: 3,
-            posted_at: p.datePosted ?? null,
-            expires_at: p.validThrough ?? null,
-            raw: p,
-          });
-        }
-
-        await new Promise((r) => setTimeout(r, 800));
-      }
+      console.log(`[pageup] ${o.company} (${o.instance}): ${added} role-matched links (listing-only, no JD)`);
+      await sleep(this.rateLimitDelay);
     }
 
     return jobs;
@@ -172,8 +115,7 @@ export const pageupAdapter: SourceAdapter = {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const html = await fetchListingsHtml("svha");
-      return html.length > 0;
+      return (await fetchText(listingUrl(ORGS[0]))).length > 0;
     } catch {
       return false;
     }

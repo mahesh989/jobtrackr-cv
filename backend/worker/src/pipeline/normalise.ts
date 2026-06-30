@@ -48,9 +48,14 @@ export function canonicalUrl(raw: string): string {
     ["utm_source", "utm_medium", "utm_campaign", "ref", "src"].forEach(
       (p) => u.searchParams.delete(p)
     );
-    return u.href.replace(/\/$/, "").toLowerCase();
+    // Do NOT lowercase the whole href: the URL constructor already lowercases the
+    // (case-insensitive) scheme + host, but the PATH/QUERY are case-sensitive.
+    // Many ATS detail URLs depend on that case — e.g. Avature
+    // /en_US/careers/JobDetail/…, SuccessFactors /job/{Slug}/… — so lowercasing
+    // produced dead links the user couldn't open, copy the JD from, or apply to.
+    return u.href.replace(/\/$/, "");
   } catch {
-    return raw.toLowerCase().replace(/\/$/, "");
+    return raw.replace(/\/$/, "");
   }
 }
 

@@ -66,22 +66,28 @@ export async function geocode(
   near?: LatLng,
 ): Promise<LatLng | null> {
   // Region bias disambiguates same-named suburbs (e.g. "Killara" exists near
-  // Sydney AND ~760km away). When `near` is given, restrict results to a box
-  // around it so an ambiguous bare-suburb query resolves to the right one.
+  // Sydney AND ~760km away). When `near` is given we PREFER results inside a box
+  // around it (soft viewbox) — but do NOT hard-bound, because the aged-care
+  // sources are NATIONAL: a hard box made far suburbs ("Busselton WA",
+  // "Gatton QLD") either match a wrong in-box place (absurd 15km distance) or
+  // return nothing (null → no distance). Soft viewbox keeps the in-box
+  // preference for ambiguous bare suburbs while letting genuinely-distant,
+  // state-qualified suburbs resolve to their real location.
   const biasKey = near ? `@${near.lat.toFixed(1)},${near.lng.toFixed(1)}` : "";
   const key = `${countryCode ?? "*"}${biasKey}::${query}`;
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
 
   await rateLimitNominatim();
   const url = new URL(NOMINATIM_BASE);
+  const D = 1.5; // ~165km box — soft preference (no `bounded`), not a hard cap
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
+  // With a bias box, pull several candidates so we can PREFER an in-box one;
+  // without a bias, the single best result is enough.
+  url.searchParams.set("limit", near ? "10" : "1");
   if (countryCode) url.searchParams.set("countrycodes", countryCode);
   if (near) {
-    const d = 1.5; // ~165km box — covers a metro + buffer, excludes far matches
-    url.searchParams.set("viewbox", `${near.lng - d},${near.lat - d},${near.lng + d},${near.lat + d}`);
-    url.searchParams.set("bounded", "1");
+    url.searchParams.set("viewbox", `${near.lng - D},${near.lat - D},${near.lng + D},${near.lat + D}`);
   }
 
   try {
@@ -94,12 +100,29 @@ export async function geocode(
       geocodeCache.set(key, null);
       return null;
     }
-    const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
+    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string }>;
     if (!arr.length) {
       geocodeCache.set(key, null);
       return null;
     }
-    const hit = { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+    // Pick by Nominatim importance PLUS a small in-box bonus — not "any in-box
+    // wins". This way an ambiguous bare suburb prefers the search-city one
+    // ("Killara" → Sydney), but a genuinely-distant real place still beats a
+    // spurious low-importance in-box street/POI ("Ballina"/"Yeronga"/"Mildura"
+    // → their real far location, not a 19-29km Sydney mismatch).
+    const IN_BOX_BONUS = 0.15;
+    let chosen = arr[0];
+    if (near) {
+      let best = -Infinity;
+      for (const r of arr) {
+        const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+        const inBox = la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
+        const imp = typeof r.importance === "number" ? r.importance : parseFloat(String(r.importance ?? "0")) || 0;
+        const score = imp + (inBox ? IN_BOX_BONUS : 0);
+        if (score > best) { best = score; chosen = r; }
+      }
+    }
+    const hit = { lat: parseFloat(chosen.lat), lng: parseFloat(chosen.lon) };
     geocodeCache.set(key, hit);
     return hit;
   } catch (err) {
@@ -107,6 +130,26 @@ export async function geocode(
     geocodeCache.set(key, null);
     return null;
   }
+}
+
+// Aged-care location strings carry facility/provider/shift noise that Nominatim
+// can't resolve (e.g. "Mercy Place Parkville", "Anglicare Castle Hill Villages",
+// "Kilsyth Night Duty, VIC"). Stripping these exposes the bare suburb.
+const PROVIDER_PREFIX =
+  /^(anglicare|estia(\s+health)?|hammondcare|bolton\s+clarke|unitingcare(\s+qld)?|uniting|rsl(\s+lifecare)?|mercy(\s+place|\s+health)?|bupa(\s+aged\s+care)?|regis(\s+aged\s+care)?|opal(\s+healthcare)?|australian\s+unity|salvation\s+army|salvos|baptistcare|catholic\s+healthcare|whiddon|irt(\s+group)?|benetas|carinity)\b[\s,'-]*/i;
+const FACILITY_WORDS =
+  /\b(aged\s+care|care\s+community|community\s+care|nursing\s+home|retirement\s+(?:village|living)|villages?|lodge|house|gardens?|grove|court|manor|residences?|centre|center|estate|hostel|wing)\b/gi;
+const SHIFT_NOISE =
+  /\b(night|day|morning|afternoon|evening)\s+(?:duty|shift)\b|\b(casual|permanent|part[\s-]?time|full[\s-]?time|expressions?\s+of\s+interest|eoi|aboriginal|indigenous|torres\s+strait)\b/gi;
+
+function cleanLocale(s: string): string {
+  return s
+    .replace(SHIFT_NOISE, " ")
+    .replace(PROVIDER_PREFIX, "")
+    .replace(FACILITY_WORDS, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,'-]+|[\s,'-]+$/g, "")
+    .trim();
 }
 
 /**
@@ -122,17 +165,26 @@ export function candidatesFor(companyLocation: string): string[] {
   const dotSplit = raw.split(/\s+[·•]\s+/);
   const tail = dotSplit.length > 1 ? dotSplit.slice(1).join(" ") : raw;
   const candidates = new Set<string>();
+  const add = (s: string | undefined) => {
+    const t = (s ?? "").trim();
+    if (t.length > 1) candidates.add(t);
+  };
 
   // 1. Whole thing — sometimes the company is a real venue (hospitals etc).
-  candidates.add(raw);
+  add(raw);
   // 2. Address tail.
-  candidates.add(tail);
+  add(tail);
   // 3. Strip "X Area" — Nominatim doesn't know "Manly Area" but knows Narrabeen.
-  const noArea = tail.replace(/,?\s*[A-Za-z\s]+Area\b/i, "").trim();
-  if (noArea) candidates.add(noArea);
-  // 4. First suburb only.
-  const firstSuburb = tail.split(",")[0]?.trim();
-  if (firstSuburb) candidates.add(firstSuburb);
+  add(tail.replace(/,?\s*[A-Za-z\s]+Area\b/i, "").trim());
+  // 4. Each comma segment on its own — the suburb may be ANY segment, not just
+  //    the first ("St Johns Village, Glebe" → Glebe; "Woodberry, Winston Hills").
+  const segs = tail.split(",").map((s) => s.trim()).filter(Boolean);
+  for (const s of segs) add(s);
+  // 5. Facility/provider/shift-stripped variants of the tail + each segment —
+  //    exposes the bare suburb from "Mercy Place Parkville", "Anglicare
+  //    Carlingford House", "Kilsyth Night Duty", etc.
+  add(cleanLocale(tail));
+  for (const s of segs) add(cleanLocale(s));
 
   return Array.from(candidates).filter(Boolean);
 }

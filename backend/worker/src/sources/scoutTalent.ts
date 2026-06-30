@@ -1,8 +1,14 @@
 // Scout Talent ATS adapter — AU aged care, NFP, and community services.
-// Career boards at https://{slug}.scouttalent.com.au/
-// Tries JSON-LD extraction first; falls back to anchor scan.
+// Scout Talent is confirmed heavily used across NFP aged care. Client boards
+// are reached at https://{slug}.scouttalent.com.au/ (override via `domain`).
+// Tries JSON-LD (schema.org JobPosting) extraction first; falls back to anchor
+// scan. Role-taxonomy title filter (shared with the other aged-care adapters).
+//
+// ⚠ slug/domain list is researched, NOT yet validated (egress-blocked here).
+// Fail-safe: HTTP/parse problems yield [] → orchestrator skips the source.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import { matchRole, stripHtml } from "./agedCareRoles.js";
 
 interface OrgConfig {
   slug: string;
@@ -87,8 +93,7 @@ export const scoutTalentAdapter: SourceAdapter = {
   vertical: "healthcare",
   rateLimitDelay: 1500,
 
-  async fetchJobs(profile: SearchProfile): Promise<RawJob[]> {
-    const kwLower = profile.keywords.map((k) => k.toLowerCase());
+  async fetchJobs(_profile: SearchProfile): Promise<RawJob[]> {
     const jobs: RawJob[] = [];
 
     for (const org of ORGS) {
@@ -106,16 +111,14 @@ export const scoutTalentAdapter: SourceAdapter = {
 
       if (postings.length > 0) {
         for (const p of postings) {
-          if (!p.title) continue;
-          const text = `${p.title} ${p.description ?? ""}`.toLowerCase();
-          if (!kwLower.some((kw) => text.includes(kw))) continue;
+          if (!p.title || !matchRole(p.title)) continue;
           jobs.push({
             url: p.url ?? `https://${domain}/`,
             title: p.title,
             company: p.hiringOrganization?.name ?? org.company,
             location: locationFromJsonLd(p),
-            description: p.description ?? "",
-            source: "scout_talent",
+            description: p.description ? stripHtml(p.description) : "",
+            source: "agedcare",
             source_tier: 3,
             posted_at: p.datePosted ?? null,
             expires_at: p.validThrough ?? null,
@@ -128,14 +131,14 @@ export const scoutTalentAdapter: SourceAdapter = {
         let m: RegExpExecArray | null;
         while ((m = re.exec(html)) !== null) {
           const title = m[2].trim();
-          if (!kwLower.some((kw) => title.toLowerCase().includes(kw))) continue;
+          if (!matchRole(title)) continue;
           jobs.push({
             url: `https://${domain}${m[1]}`,
             title,
             company: org.company,
             location: "Australia",
             description: "",
-            source: "scout_talent",
+            source: "agedcare",
             source_tier: 3,
             posted_at: null,
             expires_at: null,

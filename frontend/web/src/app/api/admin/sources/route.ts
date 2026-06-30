@@ -13,7 +13,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 
-const VALID_SOURCES = ["adzuna", "seek", "careerjet", "greenhouse", "lever"] as const;
+const VALID_SOURCES = [
+  "adzuna", "seek", "careerjet", "greenhouse", "lever",
+  "agedcare", // Workday aged-care (working).
+  "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
+  "avature",  // Avature aged-care (Regis, inline-JD listing, working).
+  "agedcare_dayforce", // Dayforce aged-care (Uniting NSW/ACT, CSRF bootstrap, working).
+  "successfactors", // SuccessFactors CSB aged-care (Australian Unity, JSON-LD detail). UNVALIDATED.
+              // PageUp/Scout paused (no full JD yet) — not toggleable.
+] as const;
 type Source = (typeof VALID_SOURCES)[number];
 type Tier   = "weekly" | "monthly" | "unlimited";
 
