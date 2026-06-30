@@ -39,6 +39,7 @@ const ORGS: Org[] = [
 const TIMEOUT_MS      = 15_000;
 const PAGE_SIZE       = 25;    // CSB default block size; paginate via ?startrow=
 const MAX_PAGES       = 40;    // 25 × 40 = 1000 ceiling; loop breaks early when a page yields no new links
+const MAX_DETAIL_FETCHES = 300; // per-tenant ceiling on full-JD detail fetches
 const DETAIL_DELAY_MS = 300;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -172,6 +173,7 @@ function searchUrl(host: string, startrow: number): string {
 // Collect job-detail paths across pages. jobId (trailing number) → slug path.
 async function collectLinks(o: Org): Promise<Map<string, string>> {
   const links = new Map<string, string>();
+  let emptyPages = 0;   // tolerate one zero-new-links page (re-sorted boundary)
 
   for (let page = 0; page < MAX_PAGES; page++) {
     let body = "";
@@ -190,7 +192,11 @@ async function collectLinks(o: Org): Promise<Map<string, string>> {
       const id = JOB_ID_RE.exec(path)?.[1];
       if (id && !links.has(id)) links.set(id, path);
     }
-    if (links.size === before) break;   // no new links on this page → done
+    if (links.size === before) {
+      if (++emptyPages >= 2) break;     // two consecutive no-new pages → end of list
+    } else {
+      emptyPages = 0;
+    }
     await sleep(400);
   }
 
@@ -217,8 +223,13 @@ export const successFactorsAdapter: SourceAdapter = {
 
       // Cheap pre-filter on the de-slugged path to skip detail fetches for
       // non-care roles (finance, IT, customer service, etc.).
-      const candidates = [...links.entries()].filter(([, path]) => matchRole(pathToWords(path)));
-      console.log(`[successfactors] ${o.company}: ${links.size} links → ${candidates.length} role-matched → fetching JDs`);
+      const allCandidates = [...links.entries()].filter(([, path]) => matchRole(pathToWords(path)));
+      // Safety ceiling on outbound detail requests per tenant — a future national
+      // SF board could push role matches into the hundreds; cap so one tenant
+      // can't dominate the run or hammer the host.
+      const candidates = allCandidates.slice(0, MAX_DETAIL_FETCHES);
+      const capped = allCandidates.length > candidates.length ? ` (capped from ${allCandidates.length})` : "";
+      console.log(`[successfactors] ${o.company}: ${links.size} links → ${candidates.length} role-matched${capped} → fetching JDs`);
 
       let added = 0;
       for (const [jobId, path] of candidates) {
