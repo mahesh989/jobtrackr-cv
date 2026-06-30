@@ -385,6 +385,38 @@ def test_normalise_h3_non_date_org_rescue():
     assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
 
 
+def test_normalise_h3_with_standalone_italic_date_keeps_date():
+    """Regression: H3 name/org followed by a STANDALONE italic date line
+    (`*August 2025*`) then an italic description. The lone italic date used to
+    fall through to the org/discard branches and was dropped entirely — the
+    award rendered as 'Staff Excellence Award, The Jesmond Group' with no date,
+    even though the source CV carried one."""
+    md = (
+        "## Awards\n\n"
+        "### Staff Excellence Award, The Jesmond Group\n"
+        "*August 2025*\n"
+        "*Recognised for hard work, caring nature, and positive attitude.*\n\n"
+        "## Education\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "* Staff Excellence Award, The Jesmond Group (August 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
+
+
+def test_normalise_middle_dot_bullet_keeps_date():
+    """Regression: the canonical renderer emits awards as
+    'Name · Issuer · Date' (cv_renderer._render_award_lines). The middle-dot
+    form had no handler, so the whole string mashed into `name` and the date
+    was lost on re-parse."""
+    md = (
+        "## Awards\n\n"
+        "- Staff Excellence Award · The Jesmond Group · August 2025\n"
+        "  Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    out = _normalise_awards_entries(md)
+    assert "* Staff Excellence Award, The Jesmond Group (August 2025)" in out
+    assert "recognised for hard work, caring nature, and positive attitude." in out.lower()
+
 
 def test_normalise_noops_without_awards_section():
     md = "## Skills\n**Care Skills:** Personal Care\n"

@@ -100,12 +100,22 @@ export async function triggerAutoAnalyze(
   // ── 1. Fetch the job + check JD quality ─────────────────────────────────
   const { data: job, error: jobErr } = await db
     .from("jobs")
-    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text, jd_quality, distance_km")
+    .select("id, profile_id, title, company, location, source, url, description, manual_jd_text, jd_quality, distance_km, dedup_status")
     .eq("id", jobId)
     .maybeSingle();
 
   if (jobErr || !job) {
     console.warn(`[auto-analyze] ${jobId}: job not found — skipping`);
+    return null;
+  }
+
+  // Cross-source weak duplicate (same title + company, different city — kept in
+  // the feed with a Hide pill, see dedup.ts L2-weak). Auto-analyzing it would
+  // spawn a second analysis_run and burn a CV credit for what is almost
+  // certainly the same role. Skip here so only ONE of the pair auto-analyzes;
+  // the user can still hit manual Analyze on the flagged twin if they want it.
+  if ((job as { dedup_status?: string | null }).dedup_status === "possible_duplicate") {
+    console.log(`[auto-analyze] ${jobId}: skipped (possible_duplicate — manual analysis still available)`);
     return null;
   }
 
