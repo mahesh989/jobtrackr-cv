@@ -764,7 +764,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const seekSurvivors = dedupKept.some((j) => j.source === "seek");
     if (seekSurvivors) {
       await setStage(runLogId, "Fetching full SEEK descriptions");
-      const jdCap = 20;
+      // No cap — every SEEK survivor gets a full JD. SEEK direct enrichment is
+      // free (curl_cffi, $0), so the only cost is wall-clock; "full JD for all
+      // saved jobs" matters more than shaving a few seconds.
+      const jdCap = dedupKept.length;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
         kept = enriched;
@@ -835,7 +838,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       await setStage(runLogId, "Fetching full Adzuna descriptions");
       try {
         const { jobs: enriched, merged, fetched, costUsd } =
-          await enrichAdzunaJDsViaActor(kept, seekToken);
+          // No per-run cap — full JD for every Adzuna survivor. The monthly
+          // SEEK_MONTHLY_BUDGET_USD guard below bounds total actor spend, and
+          // Adzuna survivors per run are few (most lose dedup to SEEK/agedcare).
+          await enrichAdzunaJDsViaActor(kept, seekToken, kept.length);
         kept = enriched;
         sourceMethods.adzuna.enrichment = "actor";
         sourceMethods.adzuna.merged     = merged;
