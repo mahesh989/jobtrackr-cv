@@ -188,7 +188,10 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
           : null;
 
         out.push({
-          url:         `${base(tenant, wdN)}${job.externalPath}`,
+          // Public job page = base + /{board} + externalPath. The CXS
+          // externalPath ("/job/St-George/Care-Worker_JR7452") omits the board
+          // segment, so without it the URL 404s / bounces to the generic search.
+          url:         `${base(tenant, wdN)}/${board}${job.externalPath}`,
           title:       info?.title ?? job.title,
           company,
           // Prefer the clean detail suburb; fall back to the list facility name.
