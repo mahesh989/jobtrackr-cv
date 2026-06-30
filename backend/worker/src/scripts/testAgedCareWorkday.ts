@@ -66,6 +66,9 @@ console.log(`  jobs with empty/thin JD (<50 chars): ${emptyJD}`);
 console.log(`  jobs with a KNOWN-overseas location:  ${nonAU}  ${nonAU > 0 ? "⚠ AU filter leak" : "✓"}`);
 if (overseas.length) console.log("   " + overseas.slice(0, 10).join("\n   "));
 
+console.log("\n--- 8 sample URLs (open these to verify the link works) ---");
+for (const j of jobs.slice(0, 8)) console.log(`  ${j.url}`);
+
 console.log("\n--- 8 samples (title | company | location | JD chars) ---");
 for (const j of jobs.slice(0, 8)) {
   console.log(`  ${j.title}  |  ${j.company}  |  ${j.location}  |  ${j.description.length} chars`);

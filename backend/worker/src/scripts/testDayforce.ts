@@ -20,6 +20,9 @@ let emptyJD = 0;
 for (const j of jobs) if (!j.description || j.description.length < 50) emptyJD++;
 console.log(`jobs with empty/thin JD (<50 chars): ${emptyJD}`);
 
+console.log("\n--- 8 sample URLs (open these to verify the link works) ---");
+for (const j of jobs.slice(0, 8)) console.log(`  ${j.url}`);
+
 console.log("\n--- up to 15 samples (title | location | JD chars | posted) ---");
 for (const j of jobs.slice(0, 15)) {
   console.log(`  ${j.title}  |  ${j.location}  |  ${j.description.length} chars  |  ${j.posted_at ?? "—"}`);
