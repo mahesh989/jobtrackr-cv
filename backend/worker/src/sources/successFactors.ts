@@ -33,7 +33,7 @@ interface Org { host: string; company: string }
 
 const ORGS: Org[] = [
   { host: "careers.australianunity.com.au", company: "Australian Unity" }, // ✅ validated 2026-06-30 (89 JDs)
-  { host: "careers.irt.org.au",             company: "IRT Group" },        // recon'd 2026-06-30 (SF CSB, /job/{slug}/{id}/ + rmkcdn); confirm detail via testSuccessFactors
+  { host: "careers.irt.org.au",             company: "IRT Group" },        // ✅ validated 2026-06-30 (26 links → 11 care-role full JDs; same jobdescription span)
 ];
 
 const TIMEOUT_MS      = 15_000;
