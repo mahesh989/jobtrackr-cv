@@ -973,6 +973,18 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
+    // Fallback origin: when the profile has no usable home address, use its SEARCH
+    // location as the distance origin so distance still works from just the
+    // Location field (the user-requested behaviour — distances appear without
+    // requiring the separate optional address). Geocoded once; cached for the run.
+    if (!homeOrigin && profile.location && profile.location.trim()) {
+      const hit = await geocodeLocation(profile.location);
+      if (hit) {
+        homeOrigin = hit;
+        console.log(`[pipeline] stage 11b — distance origin from search location: "${profile.location}"`);
+      }
+    }
+
     // When the bucket is on, distance is computed during serveProfileFromBucket
     // from each posting's STORED coords (geocoded once at write) — so skip this
     // per-run Nominatim geocoding loop entirely.

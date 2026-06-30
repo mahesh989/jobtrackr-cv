@@ -109,6 +109,26 @@ export async function geocode(
   }
 }
 
+// Aged-care location strings carry facility/provider/shift noise that Nominatim
+// can't resolve (e.g. "Mercy Place Parkville", "Anglicare Castle Hill Villages",
+// "Kilsyth Night Duty, VIC"). Stripping these exposes the bare suburb.
+const PROVIDER_PREFIX =
+  /^(anglicare|estia(\s+health)?|hammondcare|bolton\s+clarke|unitingcare(\s+qld)?|uniting|rsl(\s+lifecare)?|mercy(\s+place|\s+health)?|bupa(\s+aged\s+care)?|regis(\s+aged\s+care)?|opal(\s+healthcare)?|australian\s+unity|salvation\s+army|salvos|baptistcare|catholic\s+healthcare|whiddon|irt(\s+group)?|benetas|carinity)\b[\s,'-]*/i;
+const FACILITY_WORDS =
+  /\b(aged\s+care|care\s+community|community\s+care|nursing\s+home|retirement\s+(?:village|living)|villages?|lodge|house|gardens?|grove|court|manor|residences?|centre|center|estate|hostel|wing)\b/gi;
+const SHIFT_NOISE =
+  /\b(night|day|morning|afternoon|evening)\s+(?:duty|shift)\b|\b(casual|permanent|part[\s-]?time|full[\s-]?time|expressions?\s+of\s+interest|eoi|aboriginal|indigenous|torres\s+strait)\b/gi;
+
+function cleanLocale(s: string): string {
+  return s
+    .replace(SHIFT_NOISE, " ")
+    .replace(PROVIDER_PREFIX, "")
+    .replace(FACILITY_WORDS, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,'-]+|[\s,'-]+$/g, "")
+    .trim();
+}
+
 /**
  * Build candidate query strings from a raw `company · suburb, area` location,
  * ordered from most specific to most generic. We stop at the first one
@@ -122,17 +142,26 @@ export function candidatesFor(companyLocation: string): string[] {
   const dotSplit = raw.split(/\s+[·•]\s+/);
   const tail = dotSplit.length > 1 ? dotSplit.slice(1).join(" ") : raw;
   const candidates = new Set<string>();
+  const add = (s: string | undefined) => {
+    const t = (s ?? "").trim();
+    if (t.length > 1) candidates.add(t);
+  };
 
   // 1. Whole thing — sometimes the company is a real venue (hospitals etc).
-  candidates.add(raw);
+  add(raw);
   // 2. Address tail.
-  candidates.add(tail);
+  add(tail);
   // 3. Strip "X Area" — Nominatim doesn't know "Manly Area" but knows Narrabeen.
-  const noArea = tail.replace(/,?\s*[A-Za-z\s]+Area\b/i, "").trim();
-  if (noArea) candidates.add(noArea);
-  // 4. First suburb only.
-  const firstSuburb = tail.split(",")[0]?.trim();
-  if (firstSuburb) candidates.add(firstSuburb);
+  add(tail.replace(/,?\s*[A-Za-z\s]+Area\b/i, "").trim());
+  // 4. Each comma segment on its own — the suburb may be ANY segment, not just
+  //    the first ("St Johns Village, Glebe" → Glebe; "Woodberry, Winston Hills").
+  const segs = tail.split(",").map((s) => s.trim()).filter(Boolean);
+  for (const s of segs) add(s);
+  // 5. Facility/provider/shift-stripped variants of the tail + each segment —
+  //    exposes the bare suburb from "Mercy Place Parkville", "Anglicare
+  //    Carlingford House", "Kilsyth Night Duty", etc.
+  add(cleanLocale(tail));
+  for (const s of segs) add(cleanLocale(s));
 
   return Array.from(candidates).filter(Boolean);
 }
