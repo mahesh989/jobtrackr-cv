@@ -161,6 +161,14 @@ export const CV_PDF_STYLE = `
     font-weight: 400;
   }
 
+  .cv-award-desc {
+    margin: 1pt 0 0 0;
+    color: #000000;
+    font-size: 10pt;
+    line-height: 12pt;
+    text-align: justify;
+  }
+
   .cv-entry {
     margin: 0 0 8.64pt 0;
     break-inside: avoid;
