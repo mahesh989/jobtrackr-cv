@@ -35,8 +35,10 @@ from app.services.cv.adaptive_layout import (
     PAGE_H,
 )
 from app.services.cv.pdf_generator import (
+    _AWARD_TRAILING_DATE_RE,
     _measure_fill,
     _parse_markdown,
+    _render_awards,
     _render_pdf_with_config,
     generate_pdf_from_markdown,
 )
@@ -429,3 +431,36 @@ class TestFillMetricsIsOptimal:
 
     def test_multi_page_not_optimal_below_75(self):
         assert not self._metrics(74.9, 2).is_optimal
+
+
+class TestAwardDateRightAligned:
+    """Awards render as bullet-free two-column rows with the date right-aligned
+    (matching Experience/Education), instead of an inline '(Date)' bullet."""
+
+    def test_trailing_date_regex_splits_only_real_dates(self):
+        m = _AWARD_TRAILING_DATE_RE.match(
+            "Staff Excellence Award, The Jesmond Group (August 2025)"
+        )
+        assert m and m.group(1).strip() == "Staff Excellence Award, The Jesmond Group"
+        assert m.group(2).strip() == "August 2025"
+        # A non-date parenthetical must NOT be mistaken for the date.
+        assert _AWARD_TRAILING_DATE_RE.match("Innovator Award (Acme Corp)") is None
+
+    def test_dated_award_renders_two_column_row(self):
+        out = _render_awards([
+            {"type": "bullet", "text": "Staff Excellence Award, The Jesmond Group (August 2025)"},
+            {"type": "paragraph", "text": "Recognised for hard work, caring nature, and positive attitude."},
+        ])
+        table = out[0]
+        # Two-column row: left = name/org, right = the date.
+        left, right = table._cellvalues[0]
+        assert left.text == "Staff Excellence Award, The Jesmond Group"
+        assert right.text == "August 2025"
+        # Description follows as a paragraph (no bullet symbol row).
+        assert any(getattr(f, "text", "").startswith("Recognised for hard work") for f in out)
+
+    def test_undated_award_has_no_date_column(self):
+        out = _render_awards([{"type": "bullet", "text": "Volunteer of the Year"}])
+        # No trailing date → single left-aligned header paragraph, not a 2-col table.
+        assert out[0].__class__.__name__ == "Paragraph"
+        assert out[0].text == "Volunteer of the Year"

@@ -210,15 +210,6 @@ def _bullet_row(text_para: Paragraph) -> Table:
     return t
 
 
-def _indented_row(text_para: Paragraph) -> Table:
-    """A text paragraph aligned under a bullet's text column (no bullet symbol).
-    Used for award descriptions that continue under the award line."""
-    c = _cfg()
-    t = Table([["", text_para]], colWidths=[c.bullet_col_w, c.text_col_w])
-    t.setStyle(_NO_PAD_TABLE)
-    return t
-
-
 def _ensure_https(url: str) -> str:
     if url and "://" not in url:
         return "https://" + url
@@ -1021,6 +1012,16 @@ _AWARD_DATE_TAIL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Trailing parenthesised date on an award header line:
+#   "Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)"
+#   → left = "Staff Excellence Award, Jesmond Miranda Nursing Home"
+#     date = "August 2025"
+# Requires a 4-digit year inside the final parens so we never strip a non-date
+# parenthetical (e.g. an acronym) as if it were the date.
+_AWARD_TRAILING_DATE_RE = re.compile(
+    r"^(.*?)\s*\(([^()]*\b(?:19|20)\d{2}\b[^()]*)\)\s*$"
+)
+
 
 def _render_awards(items: List[Dict]) -> List[Any]:
     """
@@ -1054,20 +1055,27 @@ def _render_awards(items: List[Dict]) -> List[Any]:
             out.append(_spacer(_cfg().subsection_gap))
         entry_count += 1
 
-        # Bullet line: "Award Name, Org (Date)" — rendered verbatim.
-        out.append(_bullet_row(
-            _inline_markup(item["text"].strip(), _styles()["bullet_text"])
-        ))
+        # Header line "Award Name, Org (Date)" → two-column row with the date
+        # right-aligned (matches Experience / Education), no bullet. The trailing
+        # parenthesised date is split into the right column; a line with no date
+        # renders as the left header alone.
+        text = item["text"].strip()
+        m = _AWARD_TRAILING_DATE_RE.match(text)
+        if m:
+            out.append(_two_col(
+                Paragraph(_escape(m.group(1).strip()), _styles()["company_row"]),
+                Paragraph(_escape(m.group(2).strip()), _styles()["date_right"]),
+            ))
+        else:
+            out.append(Paragraph(_escape(text), _styles()["company_row"]))
         i += 1
 
-        # Optional description: the paragraph that follows the bullet, indented
-        # to align under the award text.
+        # Optional description: the paragraph that follows, full-width left
+        # (no bullet indent now that the award header is a two-column row).
         if i < len(items) and items[i]["type"] == "paragraph":
             desc = items[i]["text"].strip()
             if desc:
-                out.append(_indented_row(
-                    _inline_markup(desc, _styles()["bullet_text"])
-                ))
+                out.append(_inline_markup(desc, _styles()["body"]))
             i += 1
 
     return out

@@ -226,6 +226,73 @@ export function applyCvSectionLayout(root: HTMLElement) {
     "achievements",
   ]);
 
+  // Award/recognition sections render as bullet lists ("* Name, Org (Date)"),
+  // not H3 headers, so the H3 entry logic below skips them. These get the
+  // dedicated bullet→two-column transform instead.
+  const awardSectionNames = new Set([
+    "awards",
+    "awards & achievements",
+    "recognition",
+    "recognitions",
+    "honours",
+    "honors",
+    "accolades",
+    "achievements",
+  ]);
+
+  // Trailing parenthesised date on an award header ("…Nursing Home (August
+  // 2025)"). Requires a 4-digit year inside the final parens so a non-date
+  // parenthetical is never mistaken for the date. Mirrors the PDF renderer.
+  const awardDateRe = /^([\s\S]*?)\s*\(([^()]*\b(?:19|20)\d{2}\b[^()]*)\)\s*$/;
+
+  // Convert each award <li> into a bullet-free two-column entry (left =
+  // name/org, right = date) with the description below — matching the
+  // Experience/Education layout. Handles tight lists (<li>text<br>desc</li>)
+  // and loose lists (<li><p>text<br>desc</p></li> / two <p>s). Returns true
+  // when the section was handled (or was already converted — idempotent).
+  const layOutAwardBullets = (nodes: HTMLElement[], slug: string): boolean => {
+    if (nodes.some((n) => n.classList?.contains("cv-entry"))) return true;
+    let handled = false;
+    for (const node of nodes) {
+      if (node.tagName !== "UL" && node.tagName !== "OL") continue;
+      const lis = Array.from(node.querySelectorAll(":scope > li")) as HTMLElement[];
+      if (lis.length === 0) continue;
+
+      const frag = document.createDocumentFragment();
+      for (const li of lis) {
+        const ps = Array.from(li.querySelectorAll(":scope > p")) as HTMLElement[];
+        const source = ps.length > 0 ? ps[0].innerHTML : li.innerHTML;
+        let headHtml = source.trim();
+        let descHtml = "";
+        const br = headHtml.match(/<br\s*\/?>/i);
+        if (br && br.index !== undefined) {
+          descHtml = headHtml.slice(br.index + br[0].length).trim();
+          headHtml = headHtml.slice(0, br.index).trim();
+        }
+        const extra = ps.slice(1).map((p) => p.innerHTML.trim()).filter(Boolean);
+        if (extra.length) descHtml = [descHtml, ...extra].filter(Boolean).join(" ");
+
+        const dm = headHtml.match(awardDateRe);
+        const leftHtml = dm ? dm[1].trim() : headHtml;
+        const rightHtml = dm ? dm[2].trim() : "";
+
+        const entry = document.createElement("div");
+        entry.className = "cv-entry cv-entry-" + slug;
+        entry.appendChild(makeRow({ leftHtml, rightHtml }, true, false));
+        if (descHtml) {
+          const desc = document.createElement("p");
+          desc.className = "cv-award-desc";
+          desc.innerHTML = descHtml;
+          entry.appendChild(desc);
+        }
+        frag.appendChild(entry);
+      }
+      node.replaceWith(frag);
+      handled = true;
+    }
+    return handled;
+  };
+
   const splitRow = (text: string) => {
     const value = text.trim();
     if (!value) return null;
@@ -285,6 +352,14 @@ export function applyCvSectionLayout(root: HTMLElement) {
       walker = walker.nextElementSibling as HTMLElement | null;
     }
     if (sectionNodes.length === 0) continue;
+
+    // Award/recognition sections are bullet lists → convert to bullet-free
+    // two-column entries. Falls through to the H3 logic only if there was no
+    // list to transform (e.g. an award section authored with H3 headers).
+    if (awardSectionNames.has(sectionName)) {
+      const slug = sectionName.replace(/[^a-z0-9]+/g, "-");
+      if (layOutAwardBullets(sectionNodes, slug)) continue;
+    }
 
     const entries: HTMLElement[][] = [];
     let current: HTMLElement[] | null = null;
