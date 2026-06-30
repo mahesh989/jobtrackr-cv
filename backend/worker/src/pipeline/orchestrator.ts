@@ -873,7 +873,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     } else if (adzunaSurvivors && useAdzunaDirect) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
-      const jdCap = 50;
+      // No cap — full JD for every Adzuna survivor (consistent with the actor
+      // branch). This legacy curl-from-Fly path is 429-rate-limited in prod so
+      // it's dev-only, but uncapping keeps the two 'direct' branches aligned.
+      const jdCap = kept.length;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
         kept = enriched;
