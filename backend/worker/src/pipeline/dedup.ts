@@ -34,7 +34,11 @@ export function computeHashes(job: NormalisedJob): NormalisedJob {
   const fp = `${normaliseTitle(job.title)}|${normaliseCity(job.location)}|${normaliseCompany(job.company)}`;
   return {
     ...job,
-    url_hash:     sha256(job.url),
+    // Hash the LOWERCASED url so the dedup key is case-insensitive and stable
+    // across the canonicalUrl casing fix (which now preserves path/query case so
+    // ATS links stay valid). Without this, any pre-existing job whose URL had
+    // uppercase path chars would re-hash and be re-inserted as a duplicate row.
+    url_hash:     sha256(job.url.toLowerCase()),
     content_hash: sha256(fp),
   };
 }
