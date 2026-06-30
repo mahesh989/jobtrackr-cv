@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "0.21",
-    "updated": "2026-06-30 (Bug-fix session: invalid job links + missing distances FIXED. 14 active aged-care tenants across 5 ATSs (Workday 8 incl Mercy✓, SF 2 incl IRT✓, Dayforce 2, Radancy 1, Avature 1); Clinch paused (2). All links click-verified. NEEDS: flyctl deploy worker + `delete from jobs where source='agedcare'` then Full refresh.)",
+    "version": "0.22",
+    "updated": "2026-06-30 (MERGED TO MAIN @45ec738. Direct aged-care scraping: 14 tenants/5 ATSs (Workday 8, SuccessFactors 2, Dayforce 2, Radancy 1, Avature 1) + Clinch paused(2). Link fixes (URL-casing + Workday board) + distance fixes (facility-noise geocode, search-location origin fallback, soft importance-weighted geocode bias) all validated live. Migrations 070-076 applied. POST-MERGE: Vercel auto-deploys web; run flyctl deploy worker from main to ship the distance/link fixes to prod, then `update global_jobs set lat=null,lng=null where source='agedcare'` + Full refresh to recompute stale coords.)",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md"
   },
