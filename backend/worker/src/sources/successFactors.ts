@@ -4,28 +4,27 @@
 //
 // Why SuccessFactors is a PRIME target: it's one of the most common enterprise
 // ATSs in AU, so ONE adapter unlocks MANY aged-care providers (the same leverage
-// Workday gave us). Adding a provider = one row in ORGS (after the 2-curl recon).
+// Workday gave us). Adding a provider = one row in ORGS (after a 2-curl recon).
 //
-// Expected shape (RECON before trusting — see docs/aged-care-scraping-handoff.md):
-//   CSB sites server-render the job list and, like Radancy/Avature, embed a clean
-//   schema.org JSON-LD JobPosting on each DETAIL page (CSB adds it for SEO). So:
-//     1. LIST   GET /search/?q=&startrow=N  (25/page; paginate via startrow)
-//               → server-rendered HTML with /job/{slug}/{id} links
-//     2. DETAIL GET {job link}
-//               → <script type="application/ld+json"> "@type":"JobPosting" → full JD
-//   Approach mirrors radancy.ts: collect links → role-taxonomy pre-filter on the
-//   de-slugged path → fetch detail → JSON-LD JD → AU-country filter.
+// Shape (validated against Australian Unity 2026-06-30):
+//   1. LIST   GET /search/?q=&startrow=N   (25/page; paginate via startrow)
+//             → server-rendered HTML with /job/{slug}/{id}/ links. Slugs are
+//               rich: "{Suburb}-{Title}-{STATE}-{postcode}".
+//   2. DETAIL GET {job link}  →  NO schema.org JSON-LD here. The full JD lives in
+//             <span itemprop="description" class="jobdescription">…</span> and the
+//             role title in <title>{Title} Job Details | {Company}</title>.
+//   So: collect links → role-taxonomy pre-filter on the de-slugged path → fetch
+//   detail → <title> for title + balanced jobdescription span for the JD +
+//   suburb/STATE parsed from the slug. (A JSON-LD path is kept as a fallback for
+//   future SF tenants whose CSB theme does emit it.)
 //
-// Bot layer: CSB sits behind Imperva (visid_incap/incap_ses) — the SAME passive
-// layer we beat on Bupa/Radancy with a realistic UA and no cookie. If a SEQUENCE
-// of fetches starts returning challenge interstitials (like Clinch's AWS WAF),
-// this adapter will need a cookie bootstrap or headless path; until then plain
-// fetch + browser UA is expected to pass (validate live).
+// Bot layer: CSB sits behind Imperva (visid_incap/incap_ses) but it's passive
+// here — plain fetch + a realistic UA passes (listing 200, detail 200, 55 KB).
+// If a SEQUENCE ever starts returning challenge interstitials (Clinch-style AWS
+// WAF), this would need a cookie bootstrap or headless path.
 //
-// ⚠ UNVALIDATED as of 2026-06-30 — built from the documented SF CSB pattern, not
-// yet confirmed against Australian Unity. The user must run the recon + test
-// (testSuccessFactors.ts) on a residential IP before this is trusted. Fails safe
-// (returns [] / throws → orchestrator skips), so enabling cannot break runs.
+// Validated 2026-06-30: 99 links → 65 role-matched. Fails safe (returns [] /
+// throws → orchestrator skips), so enabling cannot break runs.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
@@ -33,23 +32,33 @@ import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 interface Org { host: string; company: string }
 
 const ORGS: Org[] = [
-  { host: "careers.australianunity.com.au", company: "Australian Unity" }, // ⚠ UNVALIDATED
+  { host: "careers.australianunity.com.au", company: "Australian Unity" }, // ✅ validated 2026-06-30
 ];
 
-const TIMEOUT_MS   = 15_000;
-const PAGE_SIZE    = 25;    // CSB default block size; paginate via ?startrow=
-const MAX_PAGES    = 40;    // 25 × 40 = 1000 safety ceiling; loop breaks early when a page yields no new links
+const TIMEOUT_MS      = 15_000;
+const PAGE_SIZE       = 25;    // CSB default block size; paginate via ?startrow=
+const MAX_PAGES       = 40;    // 25 × 40 = 1000 ceiling; loop breaks early when a page yields no new links
 const DETAIL_DELAY_MS = 300;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// CSB job-detail links: /job/{location-slug}/{title-slug}/{jobId}/ (trailing
-// slash optional). The trailing numeric id is the stable de-dupe key. We tolerate
-// 2–4 path segments after /job/ so URL-shape variance across tenants doesn't
-// drop jobs; the JSON-LD title is the authoritative role re-check below.
-const JOB_LINK_RE = /\/job\/([A-Za-z0-9][A-Za-z0-9\-/_]*?\/\d+)\/?/gi;
-const JOB_ID_RE   = /\/(\d+)\/?$/;
+// CSB job-detail links: /job/{slug}/{jobId}/ (trailing slash optional). Slugs can
+// contain %2C (encoded comma) and &amp; (encoded ampersand), so match anything up
+// to the closing quote — only stop at quotes/space/brackets. The trailing numeric
+// id is the stable de-dupe key.
+const JOB_LINK_RE = /\/job\/([^"'\s<>]+?\/\d+)\/?(?=["'\s<>])/gi;
+const JOB_ID_RE   = /\/(\d+)$/;
+
+const AU_STATES = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"];
+// Slug tokens that mark where the role TITLE begins (everything before the first
+// one is the suburb). Lower-cased for comparison.
+const ROLE_START_TOKENS = new Set([
+  "home", "personal", "care", "support", "registered", "enrolled", "clinical",
+  "nurse", "lifestyle", "administration", "admin", "carer", "aged", "ain", "rn",
+  "en", "coordinator", "assistant", "worker", "partner", "companion", "allied",
+  "physiotherapist", "manager", "cook", "chef", "hospitality", "cleaner",
+]);
 
 interface JsonLdJobPosting {
   "@type"?: string;
@@ -59,22 +68,11 @@ interface JsonLdJobPosting {
   validThrough?: string;
   hiringOrganization?: { name?: string };
   jobLocation?:
-    | { address?: { addressLocality?: string; addressRegion?: string; addressCountry?: string } }
-    | Array<{ address?: { addressLocality?: string; addressRegion?: string; addressCountry?: string } }>;
+    | { address?: { addressLocality?: string; addressRegion?: string } }
+    | Array<{ address?: { addressLocality?: string; addressRegion?: string } }>;
 }
 
-function firstAddress(jl: JsonLdJobPosting) {
-  const loc = jl.jobLocation;
-  if (!loc) return undefined;
-  return Array.isArray(loc) ? loc[0]?.address : loc.address;
-}
-
-function addrCountry(a?: { addressCountry?: string | { name?: string } }): string {
-  if (!a?.addressCountry) return "";
-  return typeof a.addressCountry === "string" ? a.addressCountry : a.addressCountry.name ?? "";
-}
-
-function extractJobPosting(html: string): JsonLdJobPosting | null {
+function extractJsonLd(html: string): JsonLdJobPosting | null {
   const re = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
@@ -90,12 +88,59 @@ function extractJobPosting(html: string): JsonLdJobPosting | null {
   return null;
 }
 
-// "/job/Sydney-NSW-Australia/Registered-Nurse/12345/" → "Sydney NSW Australia
-// Registered Nurse 12345" — a superset to role-filter on cheaply before spending
-// a detail fetch. Location slugs never match the role taxonomy, so this is
-// effectively a title pre-filter that's robust to CSB URL-shape differences.
+// Pull the role title from <title>…</title>, stripping the CSB-generic
+// "Job Details" + "| {Company}" suffix. e.g.
+//   "Personal Care Worker / AIN Job Details | Australian Unity" → "Personal Care Worker / AIN"
+function titleFromHead(html: string): string {
+  const m = /<title>([\s\S]*?)<\/title>/i.exec(html);
+  if (!m) return "";
+  return stripHtml(m[1])
+    .replace(/\s*Job Details\s*\|.*$/i, "")
+    .replace(/\s*\|\s*[^|]*$/, "")
+    .replace(/\s*Job Details\s*$/i, "")
+    .trim();
+}
+
+// The JD is <span itemprop="description" class="jobdescription">…</span>; the body
+// itself nests <span>s, so walk the tags balancing depth to find the true close.
+function extractJobDescription(html: string): string {
+  const anchor = html.search(/class="jobdescription"/i);
+  if (anchor < 0) return "";
+  const contentStart = html.indexOf(">", anchor) + 1;
+  if (contentStart <= 0) return "";
+
+  let depth = 1;
+  const re = /<\/?span\b[^>]*>/gi;
+  re.lastIndex = contentStart;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    depth += m[0][1] === "/" ? -1 : 1;
+    if (depth === 0) return stripHtml(html.slice(contentStart, m.index));
+  }
+  return stripHtml(html.slice(contentStart)); // unbalanced — take the rest
+}
+
+// "Glen-Waverley-Personal-Care-Worker-AIN-VIC-3150" → "Glen Waverley, VIC".
+// Suburb = tokens before the first role-keyword token; STATE = AU state code.
+function locationFromSlug(slug: string): string {
+  const decoded = decodeURIComponent(slug).replace(/&amp;/gi, "&");
+  const tokens = decoded.split("-").map((t) => t.trim()).filter(Boolean);
+
+  const state = tokens.find((t) => AU_STATES.includes(t.toUpperCase()));
+  const suburb: string[] = [];
+  for (const t of tokens) {
+    if (ROLE_START_TOKENS.has(t.toLowerCase().replace(/[^a-z]/g, ""))) break;
+    suburb.push(t);
+  }
+  const suburbStr = suburb.join(" ").replace(/\s*,\s*/g, ", ").trim();
+  if (!suburbStr) return state ? `Australia, ${state.toUpperCase()}` : "Australia";
+  return state ? `${suburbStr}, ${state.toUpperCase()}` : suburbStr;
+}
+
+// De-slugged path words for the cheap pre-filter (a superset of the title, so it
+// never drops a real match — location slugs simply don't hit the role taxonomy).
 function pathToWords(path: string): string {
-  return path.replace(/^\/job\//i, "").replace(/[/_-]+/g, " ").trim();
+  return decodeURIComponent(path).replace(/&amp;/gi, " ").replace(/^\/job\//i, "").replace(/[/_-]+/g, " ").trim();
 }
 
 async function fetchText(url: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> {
@@ -123,7 +168,7 @@ function searchUrl(host: string, startrow: number): string {
   return `https://${host}/search/?${params.toString()}`;
 }
 
-// Collect job-detail links across pages. jobId (trailing number) → path.
+// Collect job-detail paths across pages. jobId (trailing number) → slug path.
 async function collectLinks(o: Org): Promise<Map<string, string>> {
   const links = new Map<string, string>();
 
@@ -176,33 +221,36 @@ export const successFactorsAdapter: SourceAdapter = {
 
       let added = 0;
       for (const [jobId, path] of candidates) {
-        const url = `https://${o.host}${path}`;
+        // CSB serves the detail page WITH a trailing slash; keep it.
+        const url = `https://${o.host}${path}/`;
         let body = "";
         try {
           ({ body } = await fetchText(url));
         } catch { continue; }
         if (!body) continue;
 
-        const jp = extractJobPosting(body);
-        if (!jp?.title || !matchRole(jp.title)) continue;
+        const jsonld = extractJsonLd(body);   // fallback for CSB themes that emit it
+        const title = jsonld?.title || titleFromHead(body);
+        if (!title || !matchRole(title)) continue;
 
-        const addr = firstAddress(jp);
-        // Keep AU only (Australian Unity is AU-only, but be safe for future tenants).
-        const country = addrCountry(addr);
-        if (country && !/austral/i.test(country)) continue;
-        const location = [addr?.addressLocality, addr?.addressRegion].filter(Boolean).join(", ") || "Australia";
+        const description = (jsonld?.description ? stripHtml(jsonld.description) : "") || extractJobDescription(body);
+        if (!description || description.length < 50) continue;   // skip thin/empty JDs
+
+        // Slug = path minus "/job/" prefix and "/{id}" suffix.
+        const slug = path.replace(/^\/job\//i, "").replace(/\/\d+$/, "");
+        const location = locationFromSlug(slug);
 
         out.push({
           url,
-          title:       jp.title,
-          company:     jp.hiringOrganization?.name ?? o.company,
+          title,
+          company:     jsonld?.hiringOrganization?.name ?? o.company,
           location,
-          description: jp.description ? stripHtml(jp.description) : "",
+          description,
           source:      "agedcare",
           source_tier: 3,
-          posted_at:   jp.datePosted ?? null,
-          expires_at:  jp.validThrough ?? null,
-          raw:         { jobId, path, jsonld: jp },
+          posted_at:   jsonld?.datePosted ?? null,
+          expires_at:  jsonld?.validThrough ?? null,
+          raw:         { jobId, slug, path },
         });
         added++;
         await sleep(DETAIL_DELAY_MS);
