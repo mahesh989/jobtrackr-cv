@@ -122,6 +122,53 @@ validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."
 
 ---
 
+## 📋 SCOUTED CANDIDATE QUEUE (2026-06-30, via web research — NOT yet recon'd)
+
+ATS classification of major AU aged-care providers not yet added. **All UNVALIDATED**
+— the next session must run the 2-curl recon before adding any `ORGS`/`TENANTS` row
+(golden rule). Detector signatures used: SuccessFactors = `/search/?q=&startrow=` +
+`rmkcdn.successfactors.com`; PageUp/Clinch family = `careers.{co}.com.au/jobs/search`
++ `secure.dcN.pageuppeople.com/apply/...`; Workday = `*.myworkdayjobs.com`; Dayforce
+= `dayforcehcm.com`; BigRedSky = `*.bigredsky.com/page.php`.
+
+### 🟢 READY — fits a WORKING adapter, recon then add one row
+| Provider | ATS | Identifiers | Adapter | Recon |
+|---|---|---|---|---|
+| **Mercy Health (aged care)** | Workday | tenant `mercyagedcare`, `wd105`, board `External` | `agedCareWorkday.ts` | POST CXS `/jobs` (below) |
+| **IRT Group** | SuccessFactors | `careers.irt.org.au` (`/search/?q=`, rmkcdn) | `successFactors.ts` | GET `/search/?startrow=0` + one detail |
+| **Catholic Healthcare** | Dayforce | namespace `chl`, **legacy** `dayforcehcm.com/CandidatePortal/en-AU/chl` | `agedCareDayforce.ts` ⚠ | older CandidatePortal URL ≠ the `jobs.dayforcehcm.com/en-AU/{ns}/{board}` flow the adapter uses — needs a network-tab capture, may need a tweak |
+
+Recon commands (run on Mac, residential IP — no `#` lines in zsh paste):
+```
+curl -s 'https://careers.irt.org.au/search/?q=&startrow=0' -H 'User-Agent: Mozilla/5.0' | grep -o '/job/[^"]*' | sort -u | head
+curl -s -X POST 'https://mercyagedcare.wd105.myworkdayjobs.com/wday/cxs/mercyagedcare/External/jobs' -H 'Content-Type: application/json' -d '{"appliedFacets":{},"limit":1,"offset":0,"searchText":""}'
+```
+IRT: confirm `/job/{slug}/{id}/` links, then GET one and grep for `class="jobdescription"`
+(SF CSB, same as Australian Unity) OR `application/ld+json`. If either present →
+add `{ host: "careers.irt.org.au", company: "IRT Group" }` to `successFactors.ts` ORGS.
+Mercy: confirm `total` > 0 + AU sample locations → add a `TENANTS` row.
+
+### 🔵 BLOCKED — fits a PAUSED adapter (comes online when that ATS is solved)
+| Provider | ATS | Identifiers |
+|---|---|---|
+| BaptistCare | PageUp | `careers.baptistcare.org.au/jobs/search`, `dc2.pageuppeople.com/apply/999` |
+| Benetas | PageUp | `careers.benetas.com.au/jobs/search`, `secure.dc2.pageuppeople.com/apply/1189` |
+| VMCH (Villa Maria) | PageUp | `careers.pageuppeople.com/607/...` |
+| Brightwater | PageUp/Clinch (likely) | `careers.brightwatergroup.com/jobs/search` — recon to rule out SF |
+| Southern Cross Care | Clinch | `careers.southerncrosscare.com.au/jobs/search` — already in paused `clinch.ts` ORGS |
+| Carinity | BigRedSky | `qb.bigredsky.com/page.php?pageID=106` — same ATS as Uniting SA (HTTP 000, undiagnosed) |
+
+### ⚪ UNKNOWN ATS — needs a job-detail capture before classifying
+Aegis Aged Care (`aegisagedcare.applynow.net.au` — ApplyNow/Scout family), Helping
+Hand SA (`helpinghand.org.au/careers/job-vacancies/?se=...` — embedded ATS via `?se=`),
+Churches of Christ (`careers.cofc.com.au` custom), Juniper, TriCare, Hall & Prior,
+Whiddon (landing pages didn't expose the ATS host).
+
+> Already covered, do NOT re-add: Bolton Clarke + Allity (Workday `boltonclarke/wd105`),
+> Regis (Avature), Bupa (Radancy), Uniting NSW/ACT + Opal (Dayforce), Australian Unity (SF).
+
+---
+
 ## ✅ DONE this branch (shipped, validated)
 
 ### Workday adapter — `backend/worker/src/sources/agedCareWorkday.ts`
