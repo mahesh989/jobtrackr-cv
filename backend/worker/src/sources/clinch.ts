@@ -27,8 +27,10 @@ import { curlFetch } from "../lib/curlfetch.js";
 interface Org { host: string; company: string }
 
 const ORGS: Org[] = [
-  { host: "careers.unitingvictas.org.au", company: "Uniting Vic/Tas" }, // ✅ validated 2026-06-29
-  { host: "careers.unitingagewell.org",   company: "Uniting AgeWell" }, // same platform (sitemap+JSON-LD)
+  // ⚠ all blocked by AWS WAF on bulk detail fetch (see header). Drop Vic/Tas if
+  // re-enabling (not aged care). AgeWell + Southern Cross Care are real aged care.
+  { host: "careers.unitingagewell.org",      company: "Uniting AgeWell" },     // 35 aged-care roles
+  { host: "careers.southerncrosscare.com.au", company: "Southern Cross Care SA" }, // Clinch, sitemap+JSON-LD
 ];
 
 const TIMEOUT_MS      = 15_000;

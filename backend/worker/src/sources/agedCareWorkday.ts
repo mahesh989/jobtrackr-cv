@@ -52,6 +52,7 @@ const TENANTS: { tenant: string; wdN: number; board: string; company: string }[]
   { tenant: "boltonclarke",   wdN: 105, board: "Careers",              company: "Bolton Clarke" },
   { tenant: "unitingcareqld", wdN: 105, board: "UnitingCareCareers",   company: "UnitingCare QLD" },
   { tenant: "rsllc",          wdN: 3,   board: "rsllc",                company: "RSL LifeCare" },
+  { tenant: "salvationarmy",  wdN: 3,   board: "Salvos",               company: "Salvation Army (Salvos)" }, // ⚠ validate AU-only (Salvos = AU brand)
 ];
 
 // ── Workday CXS API shapes ────────────────────────────────────────────────────

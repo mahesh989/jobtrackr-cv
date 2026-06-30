@@ -92,6 +92,28 @@ consider the paused JS-SPA ATSs (need network capture or Playwright) — see LAT
   (`NRJobBoardID`) or rejects bare requests. Not yet diagnosed; recon the landing
   `pageID=106` WITH a cookie jar (like the Dayforce bootstrap) before building.
 
+- 🟢 **Salvation Army (Salvos) — Workday, ADDED but UNVALIDATED** (one-row in
+  `agedCareWorkday.ts` TENANTS: `salvationarmy`/wd3/`Salvos`). ⚠ TOP NEXT STEP:
+  run `testAgedCareWorkday.ts` and confirm Salvos is AU-only (could be a GLOBAL
+  board — the Salvos brand is AU but the Workday tenant may list intl jobs). If
+  overseas locations appear, add a `Location_Country` AU facet (see TENANTS
+  comment) or remove. Fails safe meanwhile (returns [] → skipped).
+- ⭐ **PRIME NEXT TARGET — SuccessFactors (SAP), first tenant Australian Unity**
+  (`careers.australianunity.com.au`). SuccessFactors is one of the most common
+  enterprise ATSs → ONE adapter unlocks MANY AU aged-care providers (like Workday
+  did). Pattern: server-rendered `/search/?q=&startrow=N` HTML listing (paginate
+  via startrow, 25/page) → `/job/{slug}/{id}/` detail pages (almost certainly
+  JSON-LD, like Radancy/Avature). Behind Imperva (`visid_incap`/`incap_ses`) — the
+  SAME bot layer we beat on Bupa/Radancy with params alone (no cookie), so likely
+  passive. RECON before building: (1) GET `/search/?q=&startrow=0`, confirm 200 +
+  extract `/job/{slug}/{id}/` links + count; (2) GET one detail page, check for
+  `application/ld+json` "@type":"JobPosting". If both good → clean Radancy-style
+  build covering Australian Unity + future SF tenants.
+- 🔵 **Southern Cross Care (SA) — Clinch** (`careers.southerncrosscare.com.au`):
+  added to the PAUSED `clinch.ts` ORGS (alongside AgeWell). Comes online when the
+  AWS WAF is solved. Confirms Clinch is worth a headless effort (AgeWell + SCC +
+  more = several real aged-care tenants behind one adapter).
+
 **Golden rule (we got burned 3×):** never trust a tenant/board until the user
 validates it live. "Company X uses ATS Y" ≠ "X's AU jobs are on that Y board."
 
