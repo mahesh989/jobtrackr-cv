@@ -12,6 +12,7 @@ import { agedCareWorkdayAdapter } from "./agedCareWorkday.js";
 import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
 import { avatureAdapter } from "./avature.js";
 import { radancyAdapter } from "./radancy.js";
+import { successFactorsAdapter } from "./successFactors.js";
 import { clinchAdapter } from "./clinch.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
@@ -63,6 +64,12 @@ export const adapters: SourceAdapter[] = [
   // NSW/ACT (unitingaunsw/UNITINGCCS, 146 listed → 66 care roles with full JD).
   agedCareDayforceAdapter,
 
+  // Tier 3 — SuccessFactors (SAP) CSB career sites. Expected: server-rendered
+  // /search/?startrow=N listing → JSON-LD detail (like Radancy). First tenant:
+  // Australian Unity (careers.australianunity.com.au). ⚠ UNVALIDATED — built from
+  // the documented SF CSB pattern; fails safe until the user validates live.
+  successFactorsAdapter,
+
   // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
   // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
   // re-enabling is a one-line uncomment once their JSON APIs are captured:
@@ -110,6 +117,7 @@ export {
   agedCareDayforceAdapter,
   avatureAdapter,
   radancyAdapter,
+  successFactorsAdapter,
   clinchAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,

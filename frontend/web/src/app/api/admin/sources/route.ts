@@ -19,6 +19,7 @@ const VALID_SOURCES = [
   "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
   "avature",  // Avature aged-care (Regis, inline-JD listing, working).
   "agedcare_dayforce", // Dayforce aged-care (Uniting NSW/ACT, CSRF bootstrap, working).
+  "successfactors", // SuccessFactors CSB aged-care (Australian Unity, JSON-LD detail). UNVALIDATED.
               // PageUp/Scout paused (no full JD yet) — not toggleable.
 ] as const;
 type Source = (typeof VALID_SOURCES)[number];
