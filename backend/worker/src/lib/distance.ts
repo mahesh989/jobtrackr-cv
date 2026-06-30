@@ -100,21 +100,27 @@ export async function geocode(
       geocodeCache.set(key, null);
       return null;
     }
-    const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
+    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string }>;
     if (!arr.length) {
       geocodeCache.set(key, null);
       return null;
     }
-    // Prefer a candidate INSIDE the bias box (handles ambiguous bare suburbs like
-    // "Killara" → the Sydney one); otherwise fall back to the best overall match
-    // (so a genuinely-distant suburb like "Busselton, WA" still resolves).
+    // Pick by Nominatim importance PLUS a small in-box bonus — not "any in-box
+    // wins". This way an ambiguous bare suburb prefers the search-city one
+    // ("Killara" → Sydney), but a genuinely-distant real place still beats a
+    // spurious low-importance in-box street/POI ("Ballina"/"Yeronga"/"Mildura"
+    // → their real far location, not a 19-29km Sydney mismatch).
+    const IN_BOX_BONUS = 0.15;
     let chosen = arr[0];
     if (near) {
-      const inBox = arr.find((r) => {
+      let best = -Infinity;
+      for (const r of arr) {
         const la = parseFloat(r.lat), lo = parseFloat(r.lon);
-        return la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
-      });
-      if (inBox) chosen = inBox;
+        const inBox = la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
+        const imp = typeof r.importance === "number" ? r.importance : parseFloat(String(r.importance ?? "0")) || 0;
+        const score = imp + (inBox ? IN_BOX_BONUS : 0);
+        if (score > best) { best = score; chosen = r; }
+      }
     }
     const hit = { lat: parseFloat(chosen.lat), lng: parseFloat(chosen.lon) };
     geocodeCache.set(key, hit);
