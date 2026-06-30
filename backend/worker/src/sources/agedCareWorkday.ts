@@ -53,6 +53,7 @@ const TENANTS: { tenant: string; wdN: number; board: string; company: string }[]
   { tenant: "unitingcareqld", wdN: 105, board: "UnitingCareCareers",   company: "UnitingCare QLD" },
   { tenant: "rsllc",          wdN: 3,   board: "rsllc",                company: "RSL LifeCare" },
   { tenant: "salvationarmy",  wdN: 3,   board: "Salvos",               company: "Salvation Army (Salvos)" }, // ✅ AU-only validated 2026-06-30 (8 care roles, 0 overseas)
+  { tenant: "mercyagedcare",  wdN: 105, board: "External",             company: "Mercy Health" },             // recon'd 2026-06-30 (total 112, AU-only: Mercy Place + hospitals VIC/NSW/QLD/WA); confirm via testAgedCareWorkday
 ];
 
 // ── Workday CXS API shapes ────────────────────────────────────────────────────

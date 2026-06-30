@@ -32,7 +32,8 @@ import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 interface Org { host: string; company: string }
 
 const ORGS: Org[] = [
-  { host: "careers.australianunity.com.au", company: "Australian Unity" }, // ✅ validated 2026-06-30
+  { host: "careers.australianunity.com.au", company: "Australian Unity" }, // ✅ validated 2026-06-30 (89 JDs)
+  { host: "careers.irt.org.au",             company: "IRT Group" },        // recon'd 2026-06-30 (SF CSB, /job/{slug}/{id}/ + rmkcdn); confirm detail via testSuccessFactors
 ];
 
 const TIMEOUT_MS      = 15_000;
