@@ -137,6 +137,25 @@ def _parse_award_parts(content: str) -> tuple:
             date = inner
             description = nested.group("desc").strip().lstrip(",.").strip()
             return name.strip(), org.strip(), date.strip(), description.strip()
+    # Middle-dot delimited form — the canonical renderer emits awards as
+    # "Name · Issuer · [Location] · Date" (cv_renderer._render_award_lines).
+    # Without a dedicated split the whole string lands in `name` and the date
+    # is lost. Last segment is taken as the date only when it IS a date; the
+    # remaining middle segments become the org (any AU location tail is stripped
+    # downstream in _format_award_entry).
+    if "·" in content:
+        segs = [p.strip() for p in content.split("·") if p.strip()]
+        if segs:
+            name = segs[0]
+            rest = segs[1:]
+            if rest:
+                dm = _DATE_TAIL_RE.search(rest[-1])
+                if dm and dm.start() == 0:
+                    date = rest[-1]
+                    rest = rest[:-1]
+            if rest:
+                org = ", ".join(rest)
+            return name.strip(), org.strip(), date.strip(), description.strip()
     if "|" in content:
         left, right = content.rsplit("|", 1)
         right = right.strip()
@@ -589,6 +608,15 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                         date = right.strip()
                 elif not org:
                     org = content
+            elif (_idate := _DATE_TAIL_RE.search(content)) and _idate.start() == 0:
+                # Standalone italic date line ("*August 2025*") — the common
+                # H3 + italic-date + italic-description award shape. Without this
+                # the line fell through to the org/discard branches and the date
+                # was lost entirely ("Staff Excellence Award, The Jesmond Group"
+                # rendered with no date). Anchored start()==0 so an italic that
+                # merely ends in a year ("…recognised in 2024") is NOT consumed.
+                if not date:
+                    date = _idate.group(1).strip()
             elif _DESCRIPTION_PREFIX_RE.match(content):
                 description = _add_desc_sentence(description, content)
             elif not org:
