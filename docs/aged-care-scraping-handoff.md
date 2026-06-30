@@ -92,23 +92,26 @@ consider the paused JS-SPA ATSs (need network capture or Playwright) — see LAT
   (`NRJobBoardID`) or rejects bare requests. Not yet diagnosed; recon the landing
   `pageID=106` WITH a cookie jar (like the Dayforce bootstrap) before building.
 
-- 🟢 **Salvation Army (Salvos) — Workday, ADDED but UNVALIDATED** (one-row in
-  `agedCareWorkday.ts` TENANTS: `salvationarmy`/wd3/`Salvos`). ⚠ TOP NEXT STEP:
-  run `testAgedCareWorkday.ts` and confirm Salvos is AU-only (could be a GLOBAL
-  board — the Salvos brand is AU but the Workday tenant may list intl jobs). If
-  overseas locations appear, add a `Location_Country` AU facet (see TENANTS
-  comment) or remove. Fails safe meanwhile (returns [] → skipped).
-- ⭐ **PRIME NEXT TARGET — SuccessFactors (SAP), first tenant Australian Unity**
-  (`careers.australianunity.com.au`). SuccessFactors is one of the most common
-  enterprise ATSs → ONE adapter unlocks MANY AU aged-care providers (like Workday
-  did). Pattern: server-rendered `/search/?q=&startrow=N` HTML listing (paginate
-  via startrow, 25/page) → `/job/{slug}/{id}/` detail pages (almost certainly
-  JSON-LD, like Radancy/Avature). Behind Imperva (`visid_incap`/`incap_ses`) — the
-  SAME bot layer we beat on Bupa/Radancy with params alone (no cookie), so likely
-  passive. RECON before building: (1) GET `/search/?q=&startrow=0`, confirm 200 +
-  extract `/job/{slug}/{id}/` links + count; (2) GET one detail page, check for
-  `application/ld+json` "@type":"JobPosting". If both good → clean Radancy-style
-  build covering Australian Unity + future SF tenants.
+- ✅ **Salvation Army (Salvos) — Workday, VALIDATED AU-only 2026-06-30** (one-row
+  in `agedCareWorkday.ts` TENANTS: `salvationarmy`/wd3/`Salvos`). `testAgedCareWorkday.ts`
+  returned 8 care-role jobs, 0 overseas across all 218 (the overseas denylist catches
+  the exact Bupa-UK/AgeCare-Canada failure mode). Workday is now 7 validated tenants.
+- ✅ **SuccessFactors (SAP CSB) DONE + VALIDATED 2026-06-30** (`successFactors.ts`,
+  commit on this branch) — first tenant **Australian Unity** (`careers.australianunity.com.au`).
+  Live: 123 links → 89 role-matched → **89 full JDs, 0 thin**, 37s. ONE adapter
+  unlocks MANY AU aged-care providers (Workday-style leverage); add a tenant = one
+  `ORGS` row after a 2-curl recon. **PLAN DIFFERED FROM REALITY:** the detail pages
+  carry **NO JSON-LD** — the JD is in `<span itemprop="description"
+  class="jobdescription">` (balanced-span extraction), the title in
+  `<title>{Title} Job Details | {Company}</title>`, and the suburb/STATE are parsed
+  from the rich slug `{Suburb}-{Title}-{STATE}-{postcode}`. JSON-LD kept as a
+  fallback for future CSB themes that emit it. Link regex keeps `%2C`/`&amp;` slugs
+  + the trailing slash (detail URL needs it). Imperva is passive here (plain fetch
+  + UA, no cookie). Enablement migration **076** (unlimited tier) + VALID_SOURCES +
+  PlatformSourcesCard ('Aged Care — Aus Unity'). Test: `testSuccessFactors.ts`.
+  NEEDS: `flyctl deploy` worker + apply migration 076. Minor cosmetic: a slug word
+  before the role keyword can leak into the suburb ("Kilsyth Night Duty") — real
+  suburb still present/geocodable, distance gate unaffected.
 - 🔵 **Southern Cross Care (SA) — Clinch** (`careers.southerncrosscare.com.au`):
   added to the PAUSED `clinch.ts` ORGS (alongside AgeWell). Comes online when the
   AWS WAF is solved. Confirms Clinch is worth a headless effort (AgeWell + SCC +
