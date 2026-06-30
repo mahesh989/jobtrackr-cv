@@ -24,6 +24,7 @@ export default async function Home() {
         </a>
         <ul className="land-nav-links">
           <li><a href="#how">How it works</a></li>
+          <li><a href="#tailor">Tailoring</a></li>
           <li><a href="#features">Features</a></li>
           <li><a href="#sources">Sources</a></li>
           <li><a href="#faq">FAQ</a></li>
@@ -43,8 +44,9 @@ export default async function Home() {
         </h1>
         <p className="land-sub">
           JobTrackr scans Australia&apos;s major job sources every night, scores each
-          listing with AI, flags visa sponsorship, and surfaces only what
-          actually matches you. Wake up to a ranked feed — not an inbox of noise.
+          listing with AI, and flags visa sponsorship. Then it tailors your CV
+          and cover letter to the roles that fit — so you wake up to a ranked
+          feed and ready-to-send applications, not an inbox of noise.
         </p>
         <div className="land-actions">
           <Link href="/auth/signup" className="land-btn-primary">
@@ -136,10 +138,10 @@ export default async function Home() {
               <span className="land-demo-pill land-pill-green">Sponsored · 482</span>
               <span className="land-feed-score" style={{ marginLeft: "auto" }}>92</span>
             </div>
-            <div className="land-demo-title">Senior Data Engineer</div>
-            <div className="land-demo-meta">Atlassian · Sydney NSW · $160-185k</div>
+            <div className="land-demo-title">Registered Nurse — Aged Care</div>
+            <div className="land-demo-meta">Bupa · Sydney NSW · $80-95k</div>
             <p className="land-demo-snippet">
-              &ldquo;We sponsor 482 visa applications for the right candidate.
+              &ldquo;We sponsor 482 visa applications for qualified RNs.
               Full relocation support to Sydney included…&rdquo;
             </p>
           </article>
@@ -153,6 +155,63 @@ export default async function Home() {
             <div className="land-demo-meta">DXC Technology · Canberra ACT · $110-130k</div>
             <p className="land-demo-snippet">
               &ldquo;Australian Citizenship required. NV1 clearance preferred…&rdquo;
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <div className="land-divider" />
+
+      {/* ───────── CV tailoring ───────── */}
+      <section className="land-section" id="tailor">
+        <div className="land-eyebrow">After the match</div>
+        <h2 className="land-h2">Don&apos;t just find it.<br />Land it.</h2>
+        <p className="land-section-sub">
+          Finding the role is half the battle. Point JobTrackr at any match and
+          it rewrites your CV against that exact job description, drafts a cover
+          letter and intro email, and scores how well you&apos;ll clear the ATS —
+          all in one pass.
+        </p>
+
+        <div className="land-features">
+          {TAILOR_FEATURES.map((f) => (
+            <div key={f.title} className="land-feature">
+              <div className="land-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={f.icon} />
+                </svg>
+              </div>
+              <div className="land-feature-title">{f.title}</div>
+              <p className="land-feature-desc">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="land-visa-demo">
+          <article className="land-demo-card">
+            <div className="land-demo-card-top">
+              <span className="land-feed-source">Tailored CV</span>
+              <span className="land-demo-pill land-pill-green">ATS 91 · strong match</span>
+            </div>
+            <div className="land-demo-title">Registered Nurse — Aged Care</div>
+            <div className="land-demo-meta">Tailored for Bupa · Sydney NSW</div>
+            <p className="land-demo-snippet">
+              &ldquo;Reworded your summary and care-skills section to mirror the
+              JD — without inventing experience, dates, or credentials you
+              don&apos;t have.&rdquo;
+            </p>
+          </article>
+          <article className="land-demo-card">
+            <div className="land-demo-card-top">
+              <span className="land-feed-source">Cover letter</span>
+              <span className="land-demo-pill land-pill-green">Drafted</span>
+            </div>
+            <div className="land-demo-title">Ready to send</div>
+            <div className="land-demo-meta">Cover letter + intro email · per role</div>
+            <p className="land-demo-snippet">
+              &ldquo;Dear Hiring Team, I&apos;m writing to apply for the
+              Registered Nurse role at Bupa. With hands-on aged-care
+              experience…&rdquo;
             </p>
           </article>
         </div>
@@ -188,7 +247,7 @@ export default async function Home() {
       <section className="land-sources-band" id="sources">
         <div className="land-section land-sources-head">
           <div className="land-eyebrow">Sources</div>
-          <h2 className="land-h2">Five sources.<br />One clean feed.</h2>
+          <h2 className="land-h2">Six sources.<br />One clean feed.</h2>
           <p className="land-section-sub">
             We scan the job platforms Australian employers actually use —
             with more added over time.
@@ -248,7 +307,8 @@ export default async function Home() {
           <summary>How is this different from Seek alerts?</summary>
           <p>
             Seek alerts only know about Seek. JobTrackr watches several sources
-            at once — SEEK, Adzuna, Careerjet, Greenhouse and Lever. Every
+            at once — SEEK, Adzuna, Careerjet, Greenhouse, Lever and direct
+            aged-care employers. Every
             listing is AI-ranked against your profile and tagged with a
             visa-sponsorship signal. You get a clean dashboard, not an inbox.
           </p>
@@ -347,16 +407,16 @@ export default async function Home() {
 
 // ───────── Static content ─────────
 const DEMO_JOBS = [
-  { source: "SEEK",      title: "Senior Data Analyst",       company: "Atlassian",         location: "Sydney NSW",    score: 94, visa: "Sponsored" },
-  { source: "Careerjet", title: "ML Engineer",                company: "Canva",             location: "Sydney NSW",    score: 91, visa: "Sponsored" },
-  { source: "Adzuna",    title: "Analytics Manager",          company: "Commonwealth Bank", location: "Sydney CBD",    score: 88, visa: null },
-  { source: "Lever",     title: "Data Engineer",              company: "REA Group",         location: "Melbourne VIC", score: 86, visa: "Sponsored" },
-  { source: "SEEK",      title: "Business Intelligence Lead", company: "Telstra",           location: "Sydney NSW",    score: 84, visa: null },
-  { source: "Greenhouse",title: "Senior Data Engineer",       company: "Stripe",            location: "Remote AU",     score: 82, visa: "Sponsored" },
+  { source: "SEEK",      title: "Registered Nurse — Aged Care", company: "Bupa",             location: "Sydney NSW",    score: 94, visa: "Sponsored" },
+  { source: "Aged Care", title: "Assistant in Nursing (AIN)",   company: "Uniting",          location: "Newcastle NSW", score: 92, visa: null },
+  { source: "Careerjet", title: "Personal Care Worker",         company: "Regis Aged Care",  location: "Melbourne VIC", score: 90, visa: null },
+  { source: "Adzuna",    title: "Senior Data Analyst",          company: "Atlassian",        location: "Sydney NSW",    score: 88, visa: "Sponsored" },
+  { source: "Aged Care", title: "Enrolled Nurse",               company: "Australian Unity", location: "Brisbane QLD",  score: 87, visa: null },
+  { source: "Lever",     title: "Data Engineer",                company: "REA Group",        location: "Melbourne VIC", score: 85, visa: "Sponsored" },
 ];
 
 const STATS = [
-  { value: "5",         label: "Live AU sources" },
+  { value: "6",         label: "Live AU sources" },
   { value: "Nightly",   label: "Automatic scan cadence" },
   { value: "AI-ranked", label: "Relevance scoring" },
   { value: "60s",       label: "Setup time" },
@@ -364,18 +424,25 @@ const STATS = [
 
 const STEPS = [
   { title: "Create your profile",  desc: "Add keywords, locations, salary, and visa preferences in under two minutes." },
-  { title: "We scan everything",   desc: "Australia's major sources — SEEK, Adzuna, Careerjet, plus Greenhouse & Lever ATS feeds." },
+  { title: "We scan everything",   desc: "Australia's major sources — SEEK, Adzuna, Careerjet, Greenhouse & Lever, plus direct aged-care employers." },
   { title: "AI scores each match", desc: "Relevance, freshness, salary fit, visa likelihood. Best matches rise to the top." },
   { title: "You apply, not hunt",  desc: "Review the ranked feed in five minutes. Mark applied. Move on with your day." },
 ];
 
 const FEATURES = [
-  { title: "Multi-source scanning",   desc: "SEEK, Adzuna, Careerjet, Greenhouse and Lever — all checked nightly.", icon: "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zm5 12l5 5" },
+  { title: "Multi-source scanning",   desc: "SEEK, Adzuna, Careerjet, Greenhouse, Lever and direct aged-care employers — all checked nightly.", icon: "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14zm5 12l5 5" },
   { title: "AI relevance scoring",    desc: "Each listing scored against your profile. Best matches surface to the top automatically.",  icon: "M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" },
   { title: "Visa sponsorship signal", desc: "Sponsorship language, 482 visa mentions, and PR-only constraints flagged at a glance.",   icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { title: "Cross-source dedup",      desc: "Same role on Seek + LinkedIn + Adzuna? Collapsed to one — the richest version.",          icon: "M8 3h8M8 21h8M3 8v8M21 8v8M7 7h10v10H7z" },
   { title: "Scheduled auto-runs",     desc: "Run nightly, every other day, weekly. Your call. The feed updates without you lifting a finger.", icon: "M3 7h18M5 7v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7M8 3v4M16 3v4" },
   { title: "Application tracking",    desc: "Mark jobs applied, saved, or dismissed. Track your pipeline from listing to final round.", icon: "M9 11l3 3 8-8M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
+];
+
+const TAILOR_FEATURES = [
+  { title: "CV tailored per job",  desc: "Rewrites your CV against each job description — summary, skills, and bullets aligned to what the role asks for.", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4" },
+  { title: "ATS match score",      desc: "See how well you'll clear the applicant-tracking filter before you apply — and what's pulling the score down.", icon: "M3 3v18h18M7 15l4-4 3 3 5-6" },
+  { title: "Cover letter + email", desc: "A ready-to-send cover letter and intro email drafted for each role, in your voice.", icon: "M4 4h16v12H5.2L4 17.2zM8 9h8M8 12h5" },
+  { title: "Honesty-guarded",      desc: "Never invents experience, dates, or credentials you don't have. Every claim is checked against your real CV.", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4" },
 ];
 
 const TESTIMONIALS = [
@@ -400,9 +467,10 @@ const TESTIMONIALS = [
 ];
 
 const SOURCES = [
-  { name: "SEEK",       featured: true  },
-  { name: "Adzuna",     featured: true  },
-  { name: "Careerjet",  featured: true  },
-  { name: "Greenhouse", featured: true  },
-  { name: "Lever",      featured: true  },
+  { name: "SEEK",                   featured: true  },
+  { name: "Adzuna",                 featured: true  },
+  { name: "Careerjet",              featured: true  },
+  { name: "Greenhouse",             featured: true  },
+  { name: "Lever",                  featured: true  },
+  { name: "Aged-care employers",    featured: true  },
 ];
