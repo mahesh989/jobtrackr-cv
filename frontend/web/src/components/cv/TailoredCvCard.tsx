@@ -12,8 +12,7 @@ import {
   tidyContactLine,
   type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
-import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
-import { renderTailoredCvHtml, renderTailoredCvBlob } from "@/lib/cvPdfRender";
+import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
 
 interface Props {
   storagePath:    string | null;   // markdown path in tailored-cvs bucket
@@ -107,32 +106,6 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
     return () => clearTimeout(t);
   }, [showPreview, formattedMd]);
 
-  // ── Download .md (raw) ────────────────────────────────────────────────────
-  function handleDownloadMd() {
-    if (!formattedMd) return;
-    const blob = new Blob([formattedMd], { type: "text/markdown;charset=utf-8" });
-    triggerDownload(blob, `tailored-cv-${runId.slice(0, 8)}.md`);
-  }
-
-  // ── Print / PDF — open clean window, then call window.print ───────────────
-  async function handlePrint() {
-    // Open the window synchronously (inside the click gesture) so popup
-    // blockers don't eat it. Populate after the async rendering completes.
-    const win = window.open("", "_blank", "width=900,height=1100");
-    if (!win) return;
-    win.document.write("<p>Preparing…</p>");
-    try {
-      const html = await renderTailoredCvHtml({ markdown: rawMd || "", contactDetails: contact });
-      win.document.open();
-      win.document.write(buildPrintDocument(html));
-      win.document.close();
-      setTimeout(() => win.print(), 300);
-    } catch (e) {
-      win.close();
-      setErr(e instanceof Error ? e.message : "Print preparation failed");
-    }
-  }
-
   // ── Download PDF — html2canvas-pro + jsPDF client-side render ───────────
   async function handleDownloadPdf() {
     setDP(true); setErr(null);
@@ -171,7 +144,7 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
         <div>
           <h2 className="text-[14px] font-semibold text-text">Tailored CV</h2>
           <p className="text-[12px] text-text-3 mt-0.5">
-            Preview, print, or download as Markdown or PDF.
+            Preview or download as PDF.
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -181,12 +154,6 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
             className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap"
           >
             {showPreview ? "Hide" : "Preview"}
-          </button>
-          <button onClick={handlePrint} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap">
-            Print / PDF
-          </button>
-          <button onClick={handleDownloadMd} disabled={!formattedMd} className="gh-btn text-[11px] px-2 py-1 shrink-0 whitespace-nowrap">
-            Download .md
           </button>
           <button
             onClick={handleDownloadPdf}
@@ -259,14 +226,4 @@ function triggerDownload(blob: Blob, filename: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-function buildPrintDocument(rawHtml: string): string {
-  return `<!doctype html>
-<html><head><meta charset="utf-8"/><title>Tailored CV</title>
-<style>${CV_PDF_STYLE}</style>
-</head><body><main class="cv-root">${rawHtml}</main>
-<script>
-  (${String(applyCvSectionLayout)})(document.querySelector(".cv-root"));
-</script></body></html>`;
 }
