@@ -20,6 +20,7 @@ const VALID_SOURCES = [
   "avature",  // Avature aged-care (Regis, inline-JD listing, working).
   "agedcare_dayforce", // Dayforce aged-care (Uniting NSW/ACT, CSRF bootstrap, working).
   "successfactors", // SuccessFactors CSB aged-care (Australian Unity, JSON-LD detail). UNVALIDATED.
+  "adlogic",  // AdLogic aged-care (Moran Health Care, /api/search + __NEXT_DATA__ JD).
               // PageUp/Scout paused (no full JD yet) — not toggleable.
 ] as const;
 type Source = (typeof VALID_SOURCES)[number];

@@ -13,6 +13,7 @@ import { agedCareDayforceAdapter } from "./agedCareDayforce.js";
 import { avatureAdapter } from "./avature.js";
 import { radancyAdapter } from "./radancy.js";
 import { successFactorsAdapter } from "./successFactors.js";
+import { adlogicAdapter } from "./adlogic.js";
 import { clinchAdapter } from "./clinch.js";
 import { smartrecruitersAdapter } from "./smartrecruiters.js";
 import { ashbyAdapter } from "./ashby.js";
@@ -70,6 +71,12 @@ export const adapters: SourceAdapter[] = [
   // the documented SF CSB pattern; fails safe until the user validates live.
   successFactorsAdapter,
 
+  // Tier 3 — AdLogic (MartianLogic/myRecruitment+) — Next.js board over a public
+  // JSON API (/api/search) + full JD from the SSR detail page's __NEXT_DATA__.
+  // First tenant: Moran Health Care (careers.morangroup.com.au). Multi-tenant
+  // (Maroba + others). Recon'd 2026-07-01; fails safe until validated live.
+  adlogicAdapter,
+
   // PAUSED 2026-06-29 after live validation — these ATSs don't yield full JDs via
   // simple HTTP yet (see docs/aged-care-ats-map.md). Code is kept + exported so
   // re-enabling is a one-line uncomment once their JSON APIs are captured:
@@ -118,6 +125,7 @@ export {
   avatureAdapter,
   radancyAdapter,
   successFactorsAdapter,
+  adlogicAdapter,
   clinchAdapter,
   smartrecruitersAdapter,
   ashbyAdapter,
