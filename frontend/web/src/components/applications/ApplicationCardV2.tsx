@@ -38,6 +38,28 @@ import { downloadApplicationBundle } from "@/lib/downloadZip";
 import { CvInlinePreview } from "./CvInlinePreview";
 import { SentEmailModal } from "./SentEmailModal";
 
+/**
+ * Show a rendered blob: navigate the pre-opened tab when we have one, otherwise
+ * (popups blocked → window.open returned null) fall back to a download, which is
+ * never popup-blocked. Returns how it was presented so the caller can message.
+ */
+function presentBlob(win: Window | null, blob: Blob, filename: string): "tab" | "download" {
+  const url = URL.createObjectURL(blob);
+  if (win && !win.closed) {
+    win.location.replace(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return "tab";
+  }
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return "download";
+}
+
 export interface ApplicationRowV2 {
   /** null for jobs applied outside the Applications flow (no cover letter). */
   letter_id:                 string | null;
@@ -381,12 +403,13 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
     // Open blank window synchronously so popup blockers don't block it,
     // then navigate it to the rendered PDF blob URL.
+    // Pre-open a tab from the click gesture for the best UX. If popups are
+    // blocked window.open returns null — we DON'T bail here; presentBlob() below
+    // falls back to a download (never popup-blocked) so the user still gets the CV.
     const win = window.open("", "_blank");
-    if (!win) {
-      setActionError("Popup blocked — please allow popups for this site to view the CV.");
-      return;
+    if (win) {
+      try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     }
-    try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     setActionError(null);
     setCvPreviewing(true);
     try {
@@ -407,11 +430,12 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         }
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
-      const url = URL.createObjectURL(pdfBlob);
-      win.location.replace(url);
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const how = presentBlob(win, pdfBlob, "tailored-cv.pdf");
+      if (how === "download") {
+        setActionError("Popups are blocked, so the CV was downloaded instead. Allow popups for this site to open it in a new tab.");
+      }
     } catch (e) {
-      try { win.close(); } catch { /* ignore */ }
+      try { win?.close(); } catch { /* ignore */ }
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);
@@ -801,12 +825,13 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
+    // Pre-open a tab from the click gesture for the best UX. If popups are
+    // blocked window.open returns null — we DON'T bail here; presentBlob() below
+    // falls back to a download (never popup-blocked) so the user still gets the CV.
     const win = window.open("", "_blank");
-    if (!win) {
-      setActionError("Popup blocked — please allow popups for this site to view the CV.");
-      return;
+    if (win) {
+      try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     }
-    try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
     setCvPreviewing(true);
     setActionError(null);
     try {
@@ -827,11 +852,12 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         }
       }
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
-      const url = URL.createObjectURL(pdfBlob);
-      win.location.replace(url);
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const how = presentBlob(win, pdfBlob, "tailored-cv.pdf");
+      if (how === "download") {
+        setActionError("Popups are blocked, so the CV was downloaded instead. Allow popups for this site to open it in a new tab.");
+      }
     } catch (e) {
-      try { win.close(); } catch { /* ignore */ }
+      try { win?.close(); } catch { /* ignore */ }
       setActionError(e instanceof Error ? e.message : "CV preview failed");
     } finally {
       setCvPreviewing(false);
