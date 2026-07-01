@@ -243,6 +243,7 @@ export function SmartFeed({
   atsCounts,
   homeAddress = null,
   thresholds,
+  excludeKeywords,
 }: {
   /** Pre-filtered + pre-sorted by the parent board. */
   jobs:            BoardJob[];
@@ -263,6 +264,7 @@ export function SmartFeed({
   /** When set, the toolbar renders the "Within X km" distance select. */
   homeAddress?:    string | null;
   thresholds?:     AtsThresholds;
+  excludeKeywords?: string;
 }) {
   const router = useRouter();
 
@@ -479,6 +481,7 @@ export function SmartFeed({
             scrollToJob={scrollToJob}
             activeSelectModes={activeSelectModes}
             onToggleSelectMode={hasJobs ? toggleSelectMode : undefined}
+            excludeKeywords={excludeKeywords}
           />
         </JobSelectionContext.Provider>
       )}
@@ -586,7 +589,7 @@ function useJobSelection(): JobSelectionCtx | null {
 
 function SmartFeedBody({
   jobs, groups, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
-  activeSelectModes, onToggleSelectMode,
+  activeSelectModes, onToggleSelectMode, excludeKeywords,
 }: {
   jobs: BoardJob[];
   groups?: JobGroup[];
@@ -597,6 +600,7 @@ function SmartFeedBody({
   scrollToJob: (id: string) => void;
   activeSelectModes: Set<string>;
   onToggleSelectMode?: (sectionId: string, sectionJobs?: BoardJob[]) => void;
+  excludeKeywords?: string;
 }) {
   const sp       = useSearchParams();
   const pathname = usePathname();
@@ -663,6 +667,7 @@ function SmartFeedBody({
               refSetter={(id) => (el: HTMLDivElement | null) => { cardRefs.current[id] = el; }}
               selectMode={activeSelectModes.has(sec.id)}
               onToggleSelectMode={onToggleSelectMode ? () => onToggleSelectMode(sec.id, sec.jobs) : undefined}
+              excludeKeywords={excludeKeywords}
             />
           ))}
         </div>
@@ -690,6 +695,7 @@ function SmartFeedBody({
                   job={job}
                   currentTab={currentTab}
                   refSetter={(el) => { cardRefs.current[job.id] = el; }}
+                  excludeKeywords={excludeKeywords}
                 />
               ))}
             </div>
@@ -703,13 +709,14 @@ function SmartFeedBody({
 // ── section ─────────────────────────────────────────────────────────────
 
 function FeedSectionView({
-  section, currentTab, refSetter, selectMode, onToggleSelectMode,
+  section, currentTab, refSetter, selectMode, onToggleSelectMode, excludeKeywords,
 }: {
   section: FeedSection;
   currentTab: string;
   refSetter: (id: string) => (el: HTMLDivElement | null) => void;
   selectMode: boolean;
   onToggleSelectMode?: () => void;
+  excludeKeywords?: string;
 }) {
   const parentCtx = useJobSelection();
   const selectionValue = useMemo(() => ({
@@ -754,13 +761,13 @@ function FeedSectionView({
       {section.hero ? (
         <div className="grid gap-2.5 sm:grid-cols-1 lg:grid-cols-3">
           {section.jobs.map((job) => (
-            <HeroCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} />
+            <HeroCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
           ))}
         </div>
       ) : (
         <div className="grid gap-2.5">
           {section.jobs.map((job) => (
-            <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} />
+            <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
           ))}
         </div>
       )}
@@ -930,9 +937,9 @@ function Legend({ color, label }: { color: string; label: string }) {
 
 // ── hero card (Today's picks) ───────────────────────────────────────────
 
-function HeroCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void }) {
+function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
-    <CardShell job={job} currentTab={currentTab} refSetter={refSetter} hero>
+    <CardShell job={job} currentTab={currentTab} refSetter={refSetter} hero excludeKeywords={excludeKeywords}>
       <CardChips job={job} />
       <CardTitle job={job} />
       <CardMeta job={job} />
@@ -944,9 +951,9 @@ function HeroCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: s
 
 // ── compact card ────────────────────────────────────────────────────────
 
-function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void }) {
+function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
-    <CardShell job={job} currentTab={currentTab} refSetter={refSetter}>
+    <CardShell job={job} currentTab={currentTab} refSetter={refSetter} excludeKeywords={excludeKeywords}>
       {/* Mobile: stack title/meta on top, actions below. sm+: side-by-side. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3.5 min-w-0 gap-2">
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -977,13 +984,14 @@ function JobCard({ job, currentTab, refSetter }: { job: BoardJob; currentTab: st
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
 function CardShell({
-  job, currentTab, refSetter, hero, children,
+  job, currentTab, refSetter, hero, children, excludeKeywords,
 }: {
   job: BoardJob;
   currentTab: string;
   refSetter: (el: HTMLDivElement | null) => void;
   hero?: boolean;
   children: React.ReactNode;
+  excludeKeywords?: string;
 }) {
   const [exit, setExit] = useState<ExitPhase>("idle");
   const [showEdit, setShowEdit] = useState(false);
@@ -1078,6 +1086,7 @@ function CardShell({
           initialEmail={contactEmail}
           initialHiringMgr={hiringMgr}
           initialCompanyAddress={companyAddress}
+          excludeKeywords={excludeKeywords}
           onClose={() => setShowEdit(false)}
           onSaved={(patch) => {
             // Flicker the card on the thin→filled JD flip so the user can see

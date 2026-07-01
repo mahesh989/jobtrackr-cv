@@ -74,12 +74,14 @@ export function JobBoard({
   railJobs = [],
   thinJdJobs,
   sourceParam,
+  excludeKeywords,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
   railJobs?:   RailJob[];
   thinJdJobs:  ThinJdJob[];
   sourceParam?: string;
+  excludeKeywords?: string;
 }) {
   const sp = useSearchParams();
   const pathname = usePathname();
@@ -245,6 +247,7 @@ export function JobBoard({
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
+        excludeKeywords={excludeKeywords}
       />
     </>
   );

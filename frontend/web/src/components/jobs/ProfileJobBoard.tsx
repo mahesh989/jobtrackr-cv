@@ -69,6 +69,7 @@ export function ProfileJobBoard({
   homeAddress = null,
   thresholds,
   isManual = false,
+  excludeKeywords,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
@@ -78,6 +79,7 @@ export function ProfileJobBoard({
   thresholds?:  AtsThresholds;
   /** When true (Saved Jobs profile), always renders flat list — no smart sections. */
   isManual?:    boolean;
+  excludeKeywords?: string;
 }) {
   const sp = useSearchParams();
   const pathname = usePathname();
@@ -218,6 +220,7 @@ export function ProfileJobBoard({
         atsCounts={atsCounts}
         homeAddress={homeAddress}
         thresholds={thresholds}
+        excludeKeywords={excludeKeywords}
       />
     </>
   );

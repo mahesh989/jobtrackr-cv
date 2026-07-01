@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
+import { matchedExclusions } from "@/lib/descExclusion";
 
 interface Props {
   jobId:              string;
@@ -14,6 +15,7 @@ interface Props {
   initialEmail:       string | null;             // jobs.contact_email
   initialHiringMgr:   string | null;             // jobs.hiring_manager
   initialCompanyAddress: string | null;          // jobs.company_address
+  excludeKeywords?:   string;                    // profile's adzuna_exclude_keywords
   onClose():          void;
   onSaved(patch: {
     manual_jd_text:  string | null;
@@ -26,7 +28,7 @@ interface Props {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function JobEditModal({
-  jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, onClose, onSaved,
+  jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, excludeKeywords, onClose, onSaved,
 }: Props) {
   // The textarea starts with whatever the user previously set, falling back
   // to the raw scraped description so they can edit-in-place.
@@ -36,8 +38,14 @@ export function JobEditModal({
   const [companyAddress, setCompanyAddress] = useState<string>(initialCompanyAddress ?? "");
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [confirmExclusion, setConfirmExclusion] = useState(false);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const router = useRouter();
+
+  const exclusionHits = useMemo(
+    () => matchedExclusions(text, excludeKeywords ?? ""),
+    [text, excludeKeywords],
+  );
 
   // Track whether the field has been edited so we know how to interpret it.
   const wasOriginallyEdited = initialManual !== null && initialManual !== "";
@@ -47,9 +55,18 @@ export function JobEditModal({
     taRef.current?.focus();
   }, []);
 
+  function handleSave() {
+    if (exclusionHits.length > 0 && !confirmExclusion) {
+      setConfirmExclusion(true);
+      return;
+    }
+    void save();
+  }
+
   async function save() {
     setError(null);
     setBusy(true);
+    setConfirmExclusion(false);
 
     const trimmedText  = text.trim();
     const trimmedEmail = email.trim();
@@ -266,6 +283,48 @@ export function JobEditModal({
             </p>
           </div>
 
+          {exclusionHits.length > 0 && (
+            <div className="rounded-md bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-3 py-2">
+              <p className="text-[12px] font-medium text-[var(--amber)]">
+                This JD matches {exclusionHits.length} exclusion{exclusionHits.length > 1 ? "s" : ""} from your profile settings
+              </p>
+              <p className="text-[11px] text-text-2 mt-1">
+                {exclusionHits.map((h, i) => (
+                  <span key={h} className="inline-block bg-[var(--amber)]/15 border border-[var(--amber)]/30 rounded px-1.5 py-0.5 mr-1.5 mb-1 text-[var(--amber)] font-medium">
+                    {h}
+                  </span>
+                ))}
+              </p>
+              <p className="text-[11px] text-text-3 mt-1">
+                The scraping pipeline would have filtered this job out. You can still save and analyse it.
+              </p>
+            </div>
+          )}
+
+          {confirmExclusion && (
+            <div className="rounded-md bg-[var(--amber)]/8 border border-[var(--amber)]/40 px-3 py-3">
+              <p className="text-[12px] font-medium text-text mb-2">
+                Save anyway? This JD contains excluded phrases.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  className="gh-btn gh-btn-primary text-[12px]"
+                >
+                  Save &amp; analyse anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmExclusion(false)}
+                  className="gh-btn text-[12px]"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="rounded-md bg-[var(--red)]/12 border border-[var(--red)]/30 px-3 py-2 text-[12px] text-[var(--red)]">
               {error}
@@ -276,7 +335,7 @@ export function JobEditModal({
         <div className="px-5 py-3 border-t border-[var(--border)] flex gap-2 justify-end bg-[var(--surface-2)] rounded-b-lg">
           <button onClick={onClose} disabled={busy} className="gh-btn text-[13px]">Cancel</button>
           <button
-            onClick={save}
+            onClick={handleSave}
             disabled={busy}
             className="gh-btn gh-btn-primary text-[13px]"
           >

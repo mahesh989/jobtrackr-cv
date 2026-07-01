@@ -40,6 +40,7 @@ export type CachedProfile = {
   home_address: string | null;
   home_lat: number | null;
   home_lng: number | null;
+  adzuna_exclude_keywords: string | null;
   created_at: string;
 };
 
@@ -53,7 +54,7 @@ export function getCachedProfiles(userId: string): Promise<CachedProfile[]> {
       const admin = createAdminClient();
       const { data } = await admin
         .from("search_profiles")
-        .select("id, name, is_active, is_manual, keywords, location, schedule_cron, target_verticals, home_address, home_lat, home_lng, created_at")
+        .select("id, name, is_active, is_manual, keywords, location, schedule_cron, target_verticals, home_address, home_lat, home_lng, adzuna_exclude_keywords, created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
       return (data ?? []) as CachedProfile[];

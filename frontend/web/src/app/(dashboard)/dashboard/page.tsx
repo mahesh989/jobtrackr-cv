@@ -106,8 +106,13 @@ export default async function DashboardPage({
     id: string; name: string; is_active: boolean;
     keywords: string[]; location: string; schedule_cron: string;
     target_verticals?: string[] | null;
+    adzuna_exclude_keywords?: string | null;
   }>;
   const ids = profiles.map((p) => p.id);
+
+  const mergedExcludeKeywords = [...new Set(
+    profiles.flatMap((p) => (p.adzuna_exclude_keywords ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
+  )].join(",");
 
   // ATS thresholds are resolved per-vertical (e.g. 55/65 for healthcare/nursing).
   // The vertical is the user's ONE global My CV choice (contact_details.role_families)
@@ -583,6 +588,7 @@ export default async function DashboardPage({
               counts={funnelCounts}
               thinJdJobs={thinJdJobs}
               sourceParam={sp.source}
+              excludeKeywords={mergedExcludeKeywords}
             />
           </Suspense>
         </div>

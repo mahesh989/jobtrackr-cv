@@ -69,7 +69,7 @@ export default async function JobsPage({
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals")
+    .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals, adzuna_exclude_keywords")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
 
@@ -342,6 +342,7 @@ export default async function JobsPage({
             homeAddress={p.home_address}
             thresholds={th}
             isManual={p.is_manual ?? false}
+            excludeKeywords={(profile as { adzuna_exclude_keywords?: string | null }).adzuna_exclude_keywords ?? undefined}
           />
         </Suspense>
 
