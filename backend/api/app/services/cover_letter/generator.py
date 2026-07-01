@@ -35,14 +35,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.company_name import normalise_company_in_body
-from app.services.ai.client import AIClient, AIClientError, make_ai_client
+from app.services.ai.client import (
+    AIClient,
+    AIBillingError,
+    AIClientError,
+    make_ai_client,
+)
 from app.services.ai.prompts.cover_letter.gate_1_honesty import (
     GATE_1_SYSTEM,
     GATE_1_USER_TEMPLATE,
@@ -292,6 +298,40 @@ async def _generate_body_with_chosen_opener(
 
 # ── Pipeline orchestrator ─────────────────────────────────────────────────────
 
+# Pipeline-level retry for the GENERATE step. The AI client already retries
+# connection/timeout/overload a couple of times, but during an auto-analyze
+# batch a burst of concurrent cover-letter generations can exhaust those and
+# blow past a rate-limit / 529-overload window — permanently marking the letter
+# 'failed' so a high-ATS job never reaches the application pool. A pipeline-level
+# retry with longer, jittered backoff lets the provider recover so a transient
+# blip doesn't strand the letter. Billing errors are permanent — never retried.
+_GENERATE_MAX_ATTEMPTS = 3
+_GENERATE_RETRY_BASE_S = 5.0   # backoff doubles each attempt (~5s, ~10s) + jitter
+
+
+async def _generate_with_retry(
+    attempt: Callable[[], Coroutine[Any, Any, str]],
+    letter_id: str,
+) -> str:
+    last: Optional[AIClientError] = None
+    for i in range(_GENERATE_MAX_ATTEMPTS):
+        try:
+            return await attempt()
+        except AIBillingError:
+            raise  # out of credit/quota — retrying won't help
+        except AIClientError as exc:
+            last = exc
+            if i < _GENERATE_MAX_ATTEMPTS - 1:
+                delay = _GENERATE_RETRY_BASE_S * (2 ** i) + random.uniform(0, _GENERATE_RETRY_BASE_S)
+                logger.warning(
+                    "cover letter %s: generate attempt %d/%d failed (%s) — retrying in %.0fs",
+                    letter_id, i + 1, _GENERATE_MAX_ATTEMPTS, exc, delay,
+                )
+                await asyncio.sleep(delay)
+    assert last is not None
+    raise last
+
+
 async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None:
     """Execute the single-call cover letter pipeline. Never raises."""
     letter_id = payload.letter_id
@@ -348,24 +388,26 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             "generation_status": {"generate": "running", "honesty": "pending"},
         })
 
-        if payload.chosen_opening:
-            # Phase 11 path: user picked a P1 opener — write P2-4 only,
-            # then prepend the chosen opener so the honesty gate sees the
-            # complete letter.
-            p2_4 = await _generate_body_with_chosen_opener(
+        async def _attempt_generate() -> str:
+            if payload.chosen_opening:
+                # Phase 11 path: user picked a P1 opener — write P2-4 only,
+                # then prepend the chosen opener so the honesty gate sees the
+                # complete letter.
+                p2_4 = await _generate_body_with_chosen_opener(
+                    client, payload,
+                    primary_story_block=primary_story_block,
+                    secondary_story_block=secondary_story_block,
+                    honesty_retry_block="",
+                )
+                return payload.chosen_opening.rstrip() + "\n\n" + p2_4.lstrip()
+            return await _generate_body(
                 client, payload,
                 primary_story_block=primary_story_block,
                 secondary_story_block=secondary_story_block,
                 honesty_retry_block="",
             )
-            body = payload.chosen_opening.rstrip() + "\n\n" + p2_4.lstrip()
-        else:
-            body = await _generate_body(
-                client, payload,
-                primary_story_block=primary_story_block,
-                secondary_story_block=secondary_story_block,
-                honesty_retry_block="",
-            )
+
+        body = await _generate_with_retry(_attempt_generate, letter_id)
 
         # Guarantee the prompt's "full name once, short form after" rule
         # deterministically — the model is best-effort about it.
