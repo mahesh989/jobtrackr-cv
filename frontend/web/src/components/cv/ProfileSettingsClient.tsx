@@ -383,8 +383,8 @@ export function ProfileSettingsClient({ initial }: Props) {
             <CheckBox label="Working with Children Check"        checked={!!creds.wwcc}                  onChange={(v) => setCred("wwcc", v)} />
             <CheckBox label="National Police Check (current)"     checked={!!creds.police_check}          onChange={(v) => setCred("police_check", v)} />
             <CheckBox label="NDIS Worker Screening Check"         checked={!!creds.ndis_screening}        onChange={(v) => setCred("ndis_screening", v)} />
-            <CheckBox label="First Aid Certificate (HLTAID011)"   checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
-            <CheckBox label="CPR Certificate (HLTAID009)"         checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
+            <CheckBox label="First Aid Certificate"   checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
+            <CheckBox label="CPR Certificate"         checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
             <CheckBox label="Medication Competency Certificate"   checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
             <CheckBox label="Own a car"                           checked={!!creds.own_car}               onChange={(v) => setCred("own_car", v)} />
             <CheckBox label="Current Influenza Vaccination"       checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />

@@ -319,8 +319,8 @@ export function CredentialsSection() {
         {showNursing && (
           <>
             <CheckBox label="NDIS Worker Screening Check"       checked={!!creds.ndis_screening}        onChange={(v) => setCred("ndis_screening", v)} />
-            <CheckBox label="First Aid Certificate (HLTAID011)" checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
-            <CheckBox label="CPR Certificate (HLTAID009)"       checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
+            <CheckBox label="First Aid Certificate" checked={!!creds.first_aid}             onChange={(v) => setCred("first_aid", v)} />
+            <CheckBox label="CPR Certificate"       checked={!!creds.cpr}                   onChange={(v) => setCred("cpr", v)} />
             <CheckBox label="Medication Competency Certificate" checked={!!creds.medication_competency} onChange={(v) => setCred("medication_competency", v)} />
             <CheckBox label="Current Influenza Vaccination"     checked={!!creds.flu_vaccination}       onChange={(v) => setCred("flu_vaccination", v)} />
             <CheckBox label="COVID-19 Vaccination (up to date)" checked={!!creds.covid_vaccination}     onChange={(v) => setCred("covid_vaccination", v)} />
