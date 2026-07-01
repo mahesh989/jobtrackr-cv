@@ -224,7 +224,12 @@ async def _run_honesty_gate(
             else []
         )
         return passed, unsupported
-    except AIClientError as exc:
+    except Exception as exc:  # noqa: BLE001 — gate must NEVER crash a generated letter
+        # Broadened from AIClientError: a raw transient (e.g. an h2
+        # ConnectionTerminated the client didn't classify) was escaping to the
+        # pipeline's top-level handler and marking an already-generated letter
+        # 'failed' — the exact ATS-Above-vs-pool gap. The honesty gate is pure
+        # verification; on ANY failure treat as pass so the letter still ships.
         logger.warning("honesty gate call failed (%s) — treating as pass", exc)
         return True, []
 
@@ -465,7 +470,7 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                 if not passed_2 and unsupported_2:
                     # Decision (b): accept output, surface warning in flags.
                     quality_flags["unsupported_claims"] = unsupported_2
-            except AIClientError as exc:
+            except Exception as exc:  # noqa: BLE001 — retry must not crash a generated letter
                 logger.warning(
                     "cover letter %s: honesty retry failed: %s", letter_id, exc,
                 )
