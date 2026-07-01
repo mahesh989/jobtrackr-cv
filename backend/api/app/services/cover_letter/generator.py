@@ -154,11 +154,34 @@ _PROVIDER_DEFAULT_MODEL: Dict[str, str] = {
 
 # ── Supabase persistence ──────────────────────────────────────────────────────
 
+_PATCH_MAX_ATTEMPTS = 4
+_PATCH_BASE_DELAY_S = 0.5   # backoff doubles: 0.5s, 1s, 2s
+
+
 async def _patch(letter_id: str, patch: Dict[str, Any]) -> None:
-    """Persist a partial update to the cover_letters row. Supabase-py is sync."""
+    """Persist a partial update to the cover_letters row. Supabase-py is sync.
+
+    Resilient to transient network blips (e.g. an h2 ConnectionTerminated to
+    PostgREST): retries a few times with backoff and NEVER raises. THIS is the
+    real root cause of the 'ConnectionTerminated -> letter failed' bug — a
+    transient failure on a *status* write was crashing a pipeline that had
+    already generated the letter body. A progress write must never do that; the
+    next successful write reconciles the row.
+    """
     def _do() -> None:
         get_supabase().table(_TABLE).update(patch).eq("id", letter_id).execute()
-    await asyncio.to_thread(_do)
+    for i in range(_PATCH_MAX_ATTEMPTS):
+        try:
+            await asyncio.to_thread(_do)
+            return
+        except Exception as exc:  # noqa: BLE001 — a status write must never crash the pipeline
+            if i < _PATCH_MAX_ATTEMPTS - 1:
+                await asyncio.sleep(_PATCH_BASE_DELAY_S * (2 ** i))
+                continue
+            logger.warning(
+                "cover letter %s: _patch failed after %d attempts (%s) — continuing",
+                letter_id, _PATCH_MAX_ATTEMPTS, exc,
+            )
 
 
 async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:

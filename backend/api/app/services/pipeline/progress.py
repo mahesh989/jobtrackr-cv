@@ -47,11 +47,32 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_UPDATE_MAX_ATTEMPTS = 4
+_UPDATE_BASE_DELAY_S = 0.5   # backoff doubles: 0.5s, 1s, 2s
+
+
 async def _update(run_id: uuid.UUID, patch: Dict[str, Any]) -> None:
-    """Run a Supabase UPDATE in a worker thread (supabase-py is sync)."""
+    """Run a Supabase UPDATE in a worker thread (supabase-py is sync).
+
+    Resilient to transient network blips (e.g. an h2 ConnectionTerminated to
+    PostgREST): retries with backoff and NEVER raises. A status/step write must
+    not crash a run whose real work already succeeded — the same class of bug
+    that was failing cover letters. The next successful write reconciles the row.
+    """
     def _do() -> None:
         get_supabase().table("analysis_runs").update(patch).eq("id", str(run_id)).execute()
-    await asyncio.to_thread(_do)
+    for i in range(_UPDATE_MAX_ATTEMPTS):
+        try:
+            await asyncio.to_thread(_do)
+            return
+        except Exception as exc:  # noqa: BLE001 — a status write must never crash the run
+            if i < _UPDATE_MAX_ATTEMPTS - 1:
+                await asyncio.sleep(_UPDATE_BASE_DELAY_S * (2 ** i))
+                continue
+            logger.warning(
+                "run %s: _update failed after %d attempts (%s) — continuing",
+                run_id, _UPDATE_MAX_ATTEMPTS, exc,
+            )
 
 
 async def mark_run_running(run_id: uuid.UUID) -> None:
