@@ -201,18 +201,21 @@ def _render_award_lines(a: Dict[str, Any]) -> List[str]:
     location = _str(a.get("location"))
     date = _str(a.get("date"))
     description = _str(a.get("description"))
-    parts: List[str] = []
+    # Build "Name, Issuer, Location (Date)" — the trailing parens let the
+    # PDF renderer right-align the date (matched by _AWARD_TRAILING_DATE_RE).
+    label_parts: List[str] = []
     if name:
-        parts.append(name)
+        label_parts.append(name)
     if issuer:
-        parts.append(issuer)
+        label_parts.append(issuer)
     if location:
-        parts.append(location)
+        label_parts.append(location)
+    header = ", ".join(label_parts)
     if date:
-        parts.append(date)
+        header = f"{header} ({date})" if header else f"({date})"
     lines: List[str] = []
-    if parts:
-        lines.append(f"- {' · '.join(parts)}")
+    if header:
+        lines.append(f"- {header}")
     if description:
         lines.append(f"  {description}")
     return lines
