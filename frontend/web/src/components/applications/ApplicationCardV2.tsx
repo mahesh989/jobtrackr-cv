@@ -701,17 +701,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             >
               <FileType className="w-3 h-3" /> Cover letter
             </a>
-            {row.tailored_pdf_storage_path && row.letter_id ? (
-              <a
-                href={`/api/applications/${row.letter_id}/tailored-cv-pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-                title="Open tailored CV PDF in new tab"
-              >
-                <FileText className="w-3 h-3" /> Tailored CV
-              </a>
-            ) : row.tailored_cv_storage_path ? (
+            {row.tailored_cv_storage_path && (
               <button
                 onClick={previewTailoredCv}
                 disabled={cvPreviewing}
@@ -721,7 +711,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                 {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                 Tailored CV
               </button>
-            ) : null}
+            )}
             {row.tailored_cv_storage_path && (
               <button
                 onClick={handleDownloadZip}
@@ -983,17 +973,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             <FileType className="w-3 h-3" /> Cover letter
           </a>
         )}
-        {row.tailored_pdf_storage_path && row.letter_id ? (
-          <a
-            href={`/api/applications/${row.letter_id}/tailored-cv-pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
-            title="Open tailored CV PDF in new tab"
-          >
-            <FileText className="w-3 h-3" /> Tailored CV
-          </a>
-        ) : row.tailored_cv_storage_path ? (
+        {row.tailored_cv_storage_path && (
           <button
             onClick={previewTailoredCv}
             disabled={cvPreviewing}
@@ -1002,7 +982,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
             Tailored CV
           </button>
-        ) : null}
+        )}
         {row.tailored_cv_storage_path && row.letter_id && (
           <button
             onClick={handleDownloadZip}
