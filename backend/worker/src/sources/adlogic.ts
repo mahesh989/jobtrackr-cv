@@ -29,8 +29,14 @@ interface Org { host: string; clientCode: string; company: string }
 
 const ORGS: Org[] = [
   { host: "careers.morangroup.com.au", clientCode: "moran", company: "Moran Health Care" }, // ✅ validated 2026-07-01 (7 care roles, full JDs 3.5k chars)
-  // Add more AdLogic tenants after a 2-request recon (GET /api/search + one detail page):
-  // { host: "careers.maroba.com.au", clientCode: "maroba", company: "Maroba Aged Care" },  // TODO validate
+  // Add more AdLogic tenants ONLY if they use this SAME Next.js flavor — confirm
+  // GET /api/search/?clientCode={code}&page=1 returns JSON ({total,jobAds}), not HTML.
+  //
+  // ⚠ NOT all AdLogic boards are this flavor. Maroba Aged Care
+  // (careers.maroba.com.au) is the CLASSIC AdLogic PHP/WordPress board — its
+  // /api/search path serves HTML, detail pages are /job-details/query/{id}/
+  // server-rendered HTML. That needs a SEPARATE code path (own listing endpoint +
+  // HTML parse), not an ORGS row here.
 ];
 
 const TIMEOUT_MS      = 15_000;
