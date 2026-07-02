@@ -48,6 +48,18 @@ from app.services.pipeline.steps.tailored_structural_validation import (
 logger = logging.getLogger(__name__)
 
 
+# Bounded pipeline concurrency. /internal/analyze schedules every request as an
+# unbounded BackgroundTask, so a bulk trigger (select N jobs → N instant 202s)
+# would spin up N pipelines at once — the stampede that hammered the shared
+# Supabase client's HTTP/2 connection into a GOAWAY / ConnectionTerminated, blew
+# past the user's AI-key rate limit, and risked OOM from concurrent PDF renders.
+# This caps how many pipelines do real work simultaneously; the rest queue here
+# (already 202-accepted) until a slot frees. A single manual run always finds a
+# free slot, so it's unaffected. asyncio.Semaphore (py3.10+) binds lazily to the
+# running loop, so a module-level instance is safe.
+_PIPELINE_SEMAPHORE = asyncio.Semaphore(max(1, get_settings().MAX_CONCURRENT_ANALYSES))
+
+
 class _CancelledByUser(Exception):
     """Raised when the user clicked Stop on the analysis run page.
 
@@ -109,6 +121,18 @@ async def _load_cached_results(run_id) -> dict:
 
 
 async def run_analysis_pipeline(payload: AnalyzeRequest) -> None:
+    """Bounded entry point — the ONLY one the route/schedulers should call.
+
+    Acquires a concurrency slot BEFORE any work so a bulk trigger can't stampede
+    the shared Supabase client / the user's AI-key rate limit. While queued, the
+    run row stays in its pre-running state; it flips to 'running' only once the
+    inner pipeline actually starts. Never raises (the inner owns error handling).
+    """
+    async with _PIPELINE_SEMAPHORE:
+        await _run_analysis_pipeline_inner(payload)
+
+
+async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
     """Top-level pipeline entry. Owns its own error handling — never raises."""
     run_id      = payload.run_id
     step_status = dict(DEFAULT_STEP_STATUS)

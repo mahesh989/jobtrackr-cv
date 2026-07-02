@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     TAILORED_CV_WRITER: str = "w8_verified"
 
     # -------------------------------------------------------------------------
+    # Max analysis pipelines that may run their real work concurrently.
+    # /internal/analyze fires every request as an unbounded BackgroundTask, so a
+    # bulk auto-analysis of N jobs would otherwise stampede N pipelines at once
+    # onto the shared Supabase client + the user's AI-key rate limit (the cause
+    # of the HTTP/2 ConnectionTerminated failures during bulk runs). Excess runs
+    # queue on a semaphore and start as slots free — they're still 202-accepted
+    # instantly. Raise carefully: too high re-introduces the stampede.
+    # -------------------------------------------------------------------------
+    MAX_CONCURRENT_ANALYSES: int = 4
+
+    # -------------------------------------------------------------------------
     # HMAC shared secret with JobTrackr (set in commit 2c, deployed in 2f).
     # cv-backend rejects requests whose signature does not verify with this.
     # -------------------------------------------------------------------------
