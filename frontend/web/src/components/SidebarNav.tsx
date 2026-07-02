@@ -149,15 +149,10 @@ function UserFooter({ email }: { email: string }) {
 
 function Logo() {
   return (
-    <div className="sidebar-logo flex items-center gap-2.5 px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+    <div className="sidebar-logo flex items-center px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+      {/* The logo is the full "JobTrackr" wordmark, so no separate text label. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="" className="h-6 w-6 shrink-0 object-contain" />
-      <span
-        className="sidebar-logo-text font-semibold tracking-tight text-[16px] text-[var(--sidebar-text-hover)]"
-        style={{ fontFamily: "var(--font-serif-active), Georgia, serif" }}
-      >
-        JobTrackr
-      </span>
+      <img src="/logo-wordmark.png" alt="JobTrackr" className="h-7 w-auto shrink-0 object-contain" />
     </div>
   );
 }

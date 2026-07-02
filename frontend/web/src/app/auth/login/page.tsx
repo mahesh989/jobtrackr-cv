@@ -25,7 +25,7 @@ const BRAND_PANEL_FEATURES = [
 ];
 
 // eslint-disable-next-line @next/next/no-img-element
-const LOGO_SVG = <img src="/logo.png" alt="" width={20} height={20} style={{ objectFit: "contain" }} />;
+const LOGO_SVG = <img src="/logo-wordmark.png" alt="JobTrackr" style={{ height: 30, width: "auto", objectFit: "contain" }} />;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -87,15 +87,9 @@ export default function LoginPage() {
         className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10"
         style={{ background: "#0C1016", color: "#EAEEF6" }}
       >
-        <Link href="/" className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}
-            aria-hidden="true"
-          >
-            {LOGO_SVG}
-          </span>
-          <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
+        <Link href="/" className="flex items-center">
+          {/* Logo is the full "JobTrackr" wordmark — no separate badge/text. */}
+          {LOGO_SVG}
         </Link>
 
         <div>
@@ -146,15 +140,8 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col" style={{ background: "#0A0D12" }}>
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "#0C1016" }}
-              aria-hidden="true"
-            >
-              {LOGO_SVG}
-            </span>
-            <span style={{ fontFamily: "var(--font-cv-serif)", fontSize: 18, letterSpacing: "-0.3px" }}>JobTrackr</span>
+          <Link href="/" className="flex items-center">
+            {LOGO_SVG}
           </Link>
           <Link href="/auth/signup" className="text-[13px]" style={{ color: "#8B93A5" }}>
             Need an account?{" "}

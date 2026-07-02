@@ -150,13 +150,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             role={ent.role}
             userView={userView}
           />
-          <div className="w-5 h-5 rounded bg-blue flex items-center justify-center">
-            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-              <circle cx="7" cy="7" r="2" fill="white"/>
-              <path d="M7 1v2M7 11v2M1 7h2M11 7h2" stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <span className="font-semibold text-text text-[13px]">JobTrackr</span>
+          {/* Logo is the full "JobTrackr" wordmark — no separate icon/text. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-wordmark.png" alt="JobTrackr" className="h-6 w-auto object-contain" />
           <div className="ml-auto flex items-center gap-2">
             <form action="/auth/signout" method="post">
               <button className="text-xs gh-btn">Sign out</button>

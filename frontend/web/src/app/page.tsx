@@ -16,11 +16,9 @@ export default async function Home() {
       {/* ───────── Nav ───────── */}
       <nav className="land-nav">
         <a href="#top" className="land-logo">
-          <span className="land-logo-mark" aria-hidden="true">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
-          </span>
-          <span className="land-logo-text">JobTrackr</span>
+          {/* Logo is the full "JobTrackr" wordmark — no separate text label. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-wordmark.png" alt="JobTrackr" style={{ height: 26, width: "auto", objectFit: "contain" }} />
         </a>
         <ul className="land-nav-links">
           <li><a href="#how">How it works</a></li>
