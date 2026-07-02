@@ -495,6 +495,20 @@ def test_normalise_two_distinct_awards_no_blank_line_both_survive():
     assert "* Employee of the Year, Acme Health (2023)" in out
 
 
+def test_format_award_entry_strips_leading_bullet_marker():
+    """Regression: the description sometimes arrives from the writer/structurizer
+    with a literal leading '- '. Rendered on the 2-space-indented continuation
+    line that parses as a NESTED markdown bullet, so it must be stripped."""
+    from app.services.eval.writers.awards_parsing import _format_award_entry
+    lines = _format_award_entry(
+        "Staff Excellence Award", "The Jesmond Group", "August 2025",
+        "- Recognised for hard work, caring nature, and positive attitude.",
+    )
+    desc_line = lines[-1]
+    assert not desc_line.lstrip().startswith("- "), desc_line
+    assert "Recognised for hard work" in desc_line
+
+
 def test_normalise_description_preserves_proper_noun_casing():
     """Regression (Fix E): the description must not be blanket-lowercased —
     acronyms and proper nouns (NDIS, Jesmond) have to survive."""

@@ -71,6 +71,20 @@ class TestRender:
         out = render_canonical_cv(no_awards)
         assert "## Awards" not in out
 
+    def test_award_description_leading_bullet_marker_stripped(self):
+        # Upstream sometimes bakes a literal "- " into the description text;
+        # at the 2-space render indent that parses as a NESTED bullet. The
+        # rendered continuation line must be plain (indent + text), no marker.
+        with_marker = {**SHANTI_STRUCTURED, "awards": [
+            {"name": "Staff Excellence Award", "issuer": "The Jesmond Group",
+             "location": "", "date": "August 2025",
+             "description": "- Recognised for hard work, caring nature, and positive attitude."},
+        ]}
+        out = render_canonical_cv(with_marker)
+        desc_line = next(l for l in out.split("\n") if "Recognised for hard work" in l)
+        assert desc_line == "  Recognised for hard work, caring nature, and positive attitude."
+        assert not desc_line.lstrip().startswith("- ")
+
     def test_languages_rendered_when_present(self):
         with_langs = {**SHANTI_STRUCTURED, "languages": [
             {"language": "English", "proficiency": "Advanced"},

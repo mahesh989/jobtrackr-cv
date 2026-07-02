@@ -440,6 +440,10 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
         # Strip stray leading punctuation — e.g. ". Recognised for..." when
         # verify_claims appends description directly after a closing paren date.
         desc = desc.lstrip(".,;").strip()
+        # Strip a leading markdown bullet marker ("- Recognised for…") the LLM
+        # sometimes bakes into the description. On the 2-space-indented render
+        # line it would parse as a NESTED list item and show a stray bullet.
+        desc = re.sub(r'^[-*+•]\s+', '', desc)
         # Strip trailing " |" left over from old pipe-delimiter format conversion.
         desc = desc.rstrip("|").strip().rstrip(".")
         if desc:
