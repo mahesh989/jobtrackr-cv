@@ -17,6 +17,7 @@
 // Stage 13: notify — Phase 6
 
 import { createHash } from "crypto";
+import pLimit from "p-limit";
 import { db } from "../db/client.js";
 import { adapters } from "../sources/index.js";
 import type { RawJob, SearchProfile } from "../sources/types.js";
@@ -474,51 +475,75 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const sourceEnabled = (name: string): boolean =>
       !enabledSources || enabledSources.length === 0 || enabledSources.includes(name);
 
-    // Stage 2: source layer
+    // Stage 2: source layer. The 11 sources are independent origins that
+    // neither write to the DB nor share any client/session state during
+    // fetch (each fetchJobs() call is return-only — Stage 12 does the one
+    // batched save, later) — so they run CONCURRENTLY, bounded to
+    // STAGE2_CONCURRENCY at a time, instead of one after another. This alone
+    // collapsed a 7-minute run (96% of it spent in sequential stage-2 fetch)
+    // to roughly the duration of the single slowest source. Promise.allSettled
+    // (via the per-task try/catch below) means one source's failure/timeout
+    // never blocks or cancels the others — same isolation the old sequential
+    // try/catch gave, just running in parallel.
+    const STAGE2_CONCURRENCY = 6;
+    const stage2Limit = pLimit(STAGE2_CONCURRENCY);
     const rawJobs: RawJob[] = [];
     if (bucketSkipScrape) {
       console.log(`[pipeline] stage 2 — skipped entirely (bucket fresh/locked); serving from bucket`);
-    }
-    for (const adapter of adapters) {
-      if (bucketSkipScrape) break;
+    } else {
       await checkCancellation(runLogId);
 
-      if (!sourceEnabled(adapter.name)) {
-        console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (not in enabled_sources)`);
-        continue;
-      }
-
-      // Apply vertical filter (default to all if not set).
-      // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
-      // every profile regardless of target_verticals.
-      // Sector-specific adapters (tech, healthcare) only run when the profile
-      // explicitly targets that vertical.
-      if (profile.target_verticals && profile.target_verticals.length > 0) {
-        if (adapter.vertical !== "general" && !profile.target_verticals.includes(adapter.vertical)) {
-          console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
+      // Pre-filter BEFORE dispatch — identical skip logic/order to the old
+      // sequential loop, just evaluated up front so only eligible adapters are
+      // scheduled. isBlocked() reads are independent per-adapter Redis GETs,
+      // safe to await in sequence here (cheap; not the bottleneck).
+      const toRun: (typeof adapters)[number][] = [];
+      for (const adapter of adapters) {
+        if (!sourceEnabled(adapter.name)) {
+          console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (not in enabled_sources)`);
           continue;
         }
+        // Apply vertical filter (default to all if not set).
+        // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
+        // every profile regardless of target_verticals.
+        // Sector-specific adapters (tech, healthcare) only run when the profile
+        // explicitly targets that vertical.
+        if (profile.target_verticals && profile.target_verticals.length > 0) {
+          if (adapter.vertical !== "general" && !profile.target_verticals.includes(adapter.vertical)) {
+            console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
+            continue;
+          }
+        }
+        if (await isBlocked(adapter.name)) {
+          console.log(`[pipeline] stage 2 — ${adapter.name}: blocked (3+ consecutive failures) — skipping`);
+          continue;
+        }
+        toRun.push(adapter);
       }
 
-      if (await isBlocked(adapter.name)) {
-        console.log(`[pipeline] stage 2 — ${adapter.name}: blocked (3+ consecutive failures) — skipping`);
-        continue;
-      }
-      try {
-        console.log(`[pipeline] stage 2 — fetching: ${adapter.name}`);
-        await setStage(runLogId, `Fetching from ${adapter.name}`);
-        const results = await adapter.fetchJobs(profile);
-        rawJobs.push(...results);
-        sourcesRun.push(adapter.name);
-        coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
-        await recordSuccess(adapter.name);
-        console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
-      } catch (err) {
-        console.error(`[pipeline] ${adapter.name} failed:`, err);
-        const failures = await recordFailure(adapter.name);
-        if (failures >= 3) {
-          console.warn(`[pipeline] ${adapter.name}: ${failures} consecutive failures — will be skipped next run`);
-        }
+      if (toRun.length > 0) {
+        await setStage(runLogId, `Fetching from ${toRun.length} sources (up to ${STAGE2_CONCURRENCY} at a time)`);
+        console.log(`[pipeline] stage 2 — fetching ${toRun.length} sources, concurrency ${STAGE2_CONCURRENCY}: ${toRun.map((a) => a.name).join(", ")}`);
+        await Promise.allSettled(
+          toRun.map((adapter) =>
+            stage2Limit(async () => {
+              try {
+                const results = await adapter.fetchJobs(profile);
+                rawJobs.push(...results);
+                sourcesRun.push(adapter.name);
+                coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
+                await recordSuccess(adapter.name);
+                console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
+              } catch (err) {
+                console.error(`[pipeline] ${adapter.name} failed:`, err);
+                const failures = await recordFailure(adapter.name);
+                if (failures >= 3) {
+                  console.warn(`[pipeline] ${adapter.name}: ${failures} consecutive failures — will be skipped next run`);
+                }
+              }
+            }),
+          ),
+        );
       }
     }
     // ── SEEK ──────────────────────────────────────────────────────────────────

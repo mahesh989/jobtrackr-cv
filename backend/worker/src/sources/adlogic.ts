@@ -22,6 +22,7 @@
 //
 // Job/apply URL: https://{host}/{clientCode}/{id}/  (human page with apply button).
 
+import pLimit from "p-limit";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
@@ -41,7 +42,8 @@ const ORGS: Org[] = [
 
 const TIMEOUT_MS      = 15_000;
 const MAX_PAGES       = 50;    // safety ceiling; loop stops once `total` is collected
-const DETAIL_DELAY_MS = 300;
+const DETAIL_CONCURRENCY = 5;  // bounded concurrency replaces the old
+                               // one-at-a-time + 300ms sleep per detail fetch
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -156,35 +158,40 @@ export const adlogicAdapter: SourceAdapter = {
       console.log(`[adlogic] ${o.company}: ${matched.length} role-matched → fetching JDs`);
 
       // 2) Spend a DETAIL fetch (full JD via __NEXT_DATA__) only on role matches.
-      let added = 0;
-      for (const j of matched) {
-        const url = jobUrl(o, j.id);
-        let ad: AdDetail | null = null;
-        try {
-          const { body } = await fetchText(url);
-          if (body) ad = extractAd(body);
-        } catch { /* skip on error */ }
+      // Bounded concurrency replaces the old sequential one-at-a-time + sleep
+      // loop. .map() + Promise.all preserves output order.
+      const detailLimit = pLimit(DETAIL_CONCURRENCY);
+      const added = await Promise.all(
+        matched.map((j) =>
+          detailLimit(async (): Promise<RawJob> => {
+            const url = jobUrl(o, j.id);
+            let ad: AdDetail | null = null;
+            try {
+              const { body } = await fetchText(url);
+              if (body) ad = extractAd(body);
+            } catch { /* skip on error */ }
 
-        const jd = ad?.body ? stripHtml(ad.body) : "";
-        // Fall back to the list teaser if the detail JD is missing.
-        const description = jd || stripHtml(j.description ?? "");
+            const jd = ad?.body ? stripHtml(ad.body) : "";
+            // Fall back to the list teaser if the detail JD is missing.
+            const description = jd || stripHtml(j.description ?? "");
 
-        out.push({
-          url,
-          title:       j.title!,
-          company:     o.company,
-          location:    parseLocation(j.location),
-          description,
-          source:      "agedcare",
-          source_tier: 3,
-          posted_at:   toIso(ad?.publishDate),
-          expires_at:  null,
-          raw:         { id: j.id, applyUrl: ad?.applictionURL, list: j },
-        });
-        added++;
-        await sleep(DETAIL_DELAY_MS);
-      }
-      console.log(`[adlogic] ${o.company}: ${added} jobs with full JD`);
+            return {
+              url,
+              title:       j.title!,
+              company:     o.company,
+              location:    parseLocation(j.location),
+              description,
+              source:      "agedcare",
+              source_tier: 3,
+              posted_at:   toIso(ad?.publishDate),
+              expires_at:  null,
+              raw:         { id: j.id, applyUrl: ad?.applictionURL, list: j },
+            };
+          }),
+        ),
+      );
+      out.push(...added);
+      console.log(`[adlogic] ${o.company}: ${added.length} jobs with full JD`);
       await sleep(this.rateLimitDelay);
     }
 

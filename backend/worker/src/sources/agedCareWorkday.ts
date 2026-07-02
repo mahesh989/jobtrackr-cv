@@ -25,6 +25,7 @@
 // Adding a provider = one row in TENANTS (discover tenant/wdN/board from its
 // careers URL: https://{tenant}.wd{wdN}.myworkdayjobs.com/.../{board}).
 
+import pLimit from "p-limit";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
@@ -93,7 +94,9 @@ const MAX_PAGES        = 60;   // up to 1200 jobs scanned per tenant (cheap list
                                // calls); AU-only boards stop early at their total.
 const MAX_DETAIL_FETCH = Infinity; // no cap — fetch a full JD for EVERY role match.
                                // Natural bound is the board size (× MAX_PAGES).
-const DETAIL_DELAY_MS  = 250;  // gentle pacing between detail fetches
+const DETAIL_CONCURRENCY = 5;  // Workday's CXS is a public JSON API with no
+                               // stated rate limit; bounded concurrency replaces
+                               // the old one-at-a-time + 250ms sleep pacing.
 
 function base(tenant: string, wdN: number): string {
   return `https://${tenant}.wd${wdN}.myworkdayjobs.com`;
@@ -168,44 +171,52 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
 
       console.log(`[agedcare] ${tenant}: ${matched.length} role-matched titles → fetching JDs`);
 
-      // 2) Spend a DETAIL call (full JD) only on the role-matched jobs.
-      let fetched = 0;
-      for (const { job, group } of matched) {
-        if (fetched >= MAX_DETAIL_FETCH) break;
-        let info: WDDetail["jobPostingInfo"] | null = null;
-        try {
-          info = await fetchDetail(tenant, wdN, board, job.externalPath);
-        } catch (err) {
-          console.warn(`[agedcare] ${tenant} detail ${job.externalPath}: ${err instanceof Error ? err.message : err}`);
-        }
-        fetched++;
+      // 2) Spend a DETAIL call (full JD) only on the role-matched jobs, up to
+      // DETAIL_CONCURRENCY in flight at once — bounded concurrency replaces
+      // the old sequential one-at-a-time + sleep loop. .map() + Promise.all
+      // preserves output order (results land in `out` in the same order as
+      // `matched`, matching the old sequential behaviour) regardless of which
+      // request actually resolves first.
+      const toFetch = Number.isFinite(MAX_DETAIL_FETCH) ? matched.slice(0, MAX_DETAIL_FETCH) : matched;
+      const detailLimit = pLimit(DETAIL_CONCURRENCY);
+      const results = await Promise.all(
+        toFetch.map(({ job, group }) =>
+          detailLimit(async () => {
+            let info: WDDetail["jobPostingInfo"] | null = null;
+            try {
+              info = await fetchDetail(tenant, wdN, board, job.externalPath);
+            } catch (err) {
+              console.warn(`[agedcare] ${tenant} detail ${job.externalPath}: ${err instanceof Error ? err.message : err}`);
+            }
 
-        const jd = info?.jobDescription ? stripHtml(info.jobDescription) : "";
-        // Fall back to list teaser bullets if the detail JD is missing.
-        const description = jd || (job.bulletFields ?? []).join(" ");
-        const posted_at = info?.startDate
-          ? (() => { try { return new Date(info!.startDate!).toISOString(); } catch { return null; } })()
-          : null;
+            const jd = info?.jobDescription ? stripHtml(info.jobDescription) : "";
+            // Fall back to list teaser bullets if the detail JD is missing.
+            const description = jd || (job.bulletFields ?? []).join(" ");
+            const posted_at = info?.startDate
+              ? (() => { try { return new Date(info!.startDate!).toISOString(); } catch { return null; } })()
+              : null;
 
-        out.push({
-          // Public job page = base + /{board} + externalPath. The CXS
-          // externalPath ("/job/St-George/Care-Worker_JR7452") omits the board
-          // segment, so without it the URL 404s / bounces to the generic search.
-          url:         `${base(tenant, wdN)}/${board}${job.externalPath}`,
-          title:       info?.title ?? job.title,
-          company,
-          // Prefer the clean detail suburb; fall back to the list facility name.
-          location:    info?.location ?? job.locationsText ?? "Australia",
-          description,
-          source:      "agedcare",
-          source_tier: 2,
-          posted_at,
-          expires_at:  null,
-          raw:         { list: job, group, detail: info ?? undefined },
-        });
-
-        if (fetched < matched.length) await sleep(DETAIL_DELAY_MS);
-      }
+            const raw: RawJob = {
+              // Public job page = base + /{board} + externalPath. The CXS
+              // externalPath ("/job/St-George/Care-Worker_JR7452") omits the board
+              // segment, so without it the URL 404s / bounces to the generic search.
+              url:         `${base(tenant, wdN)}/${board}${job.externalPath}`,
+              title:       info?.title ?? job.title,
+              company,
+              // Prefer the clean detail suburb; fall back to the list facility name.
+              location:    info?.location ?? job.locationsText ?? "Australia",
+              description,
+              source:      "agedcare",
+              source_tier: 2,
+              posted_at,
+              expires_at:  null,
+              raw:         { list: job, group, detail: info ?? undefined },
+            };
+            return raw;
+          }),
+        ),
+      );
+      out.push(...results);
     }
 
     console.log(`[agedcare] done — ${out.length} jobs across ${TENANTS.length} tenant(s)`);

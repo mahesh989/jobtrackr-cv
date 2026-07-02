@@ -11,6 +11,7 @@
 //
 // Job URL shape: /job/{city}/{slug}/{companyId}/{jobId}
 
+import pLimit from "p-limit";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
@@ -23,7 +24,8 @@ const ORGS: Org[] = [
 const TIMEOUT_MS      = 15_000;
 const RECORDS_PER_PAGE = 15;    // Radancy serves 15/page; asking for 100 returns a degenerate response
 const MAX_PAGES        = 40;    // 15 × 40 = 600 safety ceiling (Bupa AU ≈ 269 links / ~18 pages); loop breaks early when a page yields no new links
-const DETAIL_DELAY_MS  = 300;
+const DETAIL_CONCURRENCY = 5;  // bounded concurrency replaces the old
+                               // one-at-a-time + 300ms sleep per detail fetch
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -193,39 +195,48 @@ export const radancyAdapter: SourceAdapter = {
       const candidates = [...links.entries()].filter(([, v]) => matchRole(slugToTitle(v.slug)));
       console.log(`[radancy] ${o.company}: ${links.size} links → ${candidates.length} role-matched → fetching JDs`);
 
-      let added = 0;
-      for (const [jobId, { path }] of candidates) {
-        const url = `https://${o.host}${path}`;
-        let body = "";
-        try {
-          ({ body } = await fetchText(url));
-        } catch { continue; }
-        if (!body) continue;
+      // Bounded concurrency replaces the old sequential one-at-a-time + sleep
+      // loop. .map() + Promise.all preserves order; entries that fail/don't
+      // pass the post-fetch role/country check resolve to null and get
+      // filtered out below, matching the old `continue` behaviour.
+      const detailLimit = pLimit(DETAIL_CONCURRENCY);
+      const results = await Promise.all(
+        candidates.map(([jobId, { path }]) =>
+          detailLimit(async (): Promise<RawJob | null> => {
+            const url = `https://${o.host}${path}`;
+            let body = "";
+            try {
+              ({ body } = await fetchText(url));
+            } catch { return null; }
+            if (!body) return null;
 
-        const jp = extractJobPosting(body);
-        if (!jp?.title || !matchRole(jp.title)) continue;
+            const jp = extractJobPosting(body);
+            if (!jp?.title || !matchRole(jp.title)) return null;
 
-        const addr = firstAddress(jp);
-        // Keep AU only (Bupa AU site should be all-AU, but be safe).
-        if (addr?.addressCountry && !/austral/i.test(addr.addressCountry)) continue;
-        const location = [addr?.addressLocality, addr?.addressRegion].filter(Boolean).join(", ") || "Australia";
+            const addr = firstAddress(jp);
+            // Keep AU only (Bupa AU site should be all-AU, but be safe).
+            if (addr?.addressCountry && !/austral/i.test(addr.addressCountry)) return null;
+            const location = [addr?.addressLocality, addr?.addressRegion].filter(Boolean).join(", ") || "Australia";
 
-        out.push({
-          url,
-          title:       jp.title,
-          company:     jp.hiringOrganization?.name ?? o.company,
-          location,
-          description: jp.description ? stripHtml(jp.description) : "",
-          source:      "agedcare",
-          source_tier: 3,
-          posted_at:   jp.datePosted ?? null,
-          expires_at:  jp.validThrough ?? null,
-          raw:         { jobId, path, jsonld: jp },
-        });
-        added++;
-        await sleep(DETAIL_DELAY_MS);
-      }
-      console.log(`[radancy] ${o.company}: ${added} jobs with full JD`);
+            const raw: RawJob = {
+              url,
+              title:       jp.title,
+              company:     jp.hiringOrganization?.name ?? o.company,
+              location,
+              description: jp.description ? stripHtml(jp.description) : "",
+              source:      "agedcare",
+              source_tier: 3,
+              posted_at:   jp.datePosted ?? null,
+              expires_at:  jp.validThrough ?? null,
+              raw:         { jobId, path, jsonld: jp },
+            };
+            return raw;
+          }),
+        ),
+      );
+      const added = results.filter((r): r is RawJob => r !== null);
+      out.push(...added);
+      console.log(`[radancy] ${o.company}: ${added.length} jobs with full JD`);
       await sleep(this.rateLimitDelay);
     }
 

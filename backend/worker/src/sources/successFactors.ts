@@ -26,6 +26,7 @@
 // Validated 2026-06-30: 99 links → 65 role-matched. Fails safe (returns [] /
 // throws → orchestrator skips), so enabling cannot break runs.
 
+import pLimit from "p-limit";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
 
@@ -40,7 +41,12 @@ const TIMEOUT_MS      = 15_000;
 const PAGE_SIZE       = 25;    // CSB default block size; paginate via ?startrow=
 const MAX_PAGES       = 40;    // 25 × 40 = 1000 ceiling; loop breaks early when a page yields no new links
 const MAX_DETAIL_FETCHES = 300; // per-tenant ceiling on full-JD detail fetches
-const DETAIL_DELAY_MS = 300;
+// This host sits behind Imperva bot-management (see file-header note) — kept
+// deliberately more conservative than the other aged-care adapters: a lower
+// concurrency ceiling AND a small per-request delay inside each task, rather
+// than relying on concurrency-capping alone to self-throttle.
+const DETAIL_CONCURRENCY = 2;
+const DETAIL_DELAY_MS = 150;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -231,43 +237,54 @@ export const successFactorsAdapter: SourceAdapter = {
       const capped = allCandidates.length > candidates.length ? ` (capped from ${allCandidates.length})` : "";
       console.log(`[successfactors] ${o.company}: ${links.size} links → ${candidates.length} role-matched${capped} → fetching JDs`);
 
-      let added = 0;
-      for (const [jobId, path] of candidates) {
-        // CSB serves the detail page WITH a trailing slash; keep it.
-        const url = `https://${o.host}${path}/`;
-        let body = "";
-        try {
-          ({ body } = await fetchText(url));
-        } catch { continue; }
-        if (!body) continue;
+      // Bounded, deliberately conservative concurrency (see DETAIL_CONCURRENCY
+      // comment) replaces the old sequential one-at-a-time loop. .map() +
+      // Promise.all preserves order; entries that fail/don't pass the
+      // post-fetch role/description checks resolve to null and get filtered
+      // out below, matching the old `continue` behaviour.
+      const detailLimit = pLimit(DETAIL_CONCURRENCY);
+      const results = await Promise.all(
+        candidates.map(([jobId, path]) =>
+          detailLimit(async (): Promise<RawJob | null> => {
+            // CSB serves the detail page WITH a trailing slash; keep it.
+            const url = `https://${o.host}${path}/`;
+            let body = "";
+            try {
+              ({ body } = await fetchText(url));
+            } catch { return null; }
+            if (!body) return null;
 
-        const jsonld = extractJsonLd(body);   // fallback for CSB themes that emit it
-        const title = jsonld?.title || titleFromHead(body);
-        if (!title || !matchRole(title)) continue;
+            const jsonld = extractJsonLd(body);   // fallback for CSB themes that emit it
+            const title = jsonld?.title || titleFromHead(body);
+            if (!title || !matchRole(title)) return null;
 
-        const description = (jsonld?.description ? stripHtml(jsonld.description) : "") || extractJobDescription(body);
-        if (!description || description.length < 50) continue;   // skip thin/empty JDs
+            const description = (jsonld?.description ? stripHtml(jsonld.description) : "") || extractJobDescription(body);
+            if (!description || description.length < 50) return null;   // skip thin/empty JDs
 
-        // Slug = path minus "/job/" prefix and "/{id}" suffix.
-        const slug = path.replace(/^\/job\//i, "").replace(/\/\d+$/, "");
-        const location = locationFromSlug(slug);
+            // Slug = path minus "/job/" prefix and "/{id}" suffix.
+            const slug = path.replace(/^\/job\//i, "").replace(/\/\d+$/, "");
+            const location = locationFromSlug(slug);
 
-        out.push({
-          url,
-          title,
-          company:     jsonld?.hiringOrganization?.name ?? o.company,
-          location,
-          description,
-          source:      "agedcare",
-          source_tier: 3,
-          posted_at:   jsonld?.datePosted ?? null,
-          expires_at:  jsonld?.validThrough ?? null,
-          raw:         { jobId, slug, path },
-        });
-        added++;
-        await sleep(DETAIL_DELAY_MS);
-      }
-      console.log(`[successfactors] ${o.company}: ${added} jobs with full JD`);
+            const raw: RawJob = {
+              url,
+              title,
+              company:     jsonld?.hiringOrganization?.name ?? o.company,
+              location,
+              description,
+              source:      "agedcare",
+              source_tier: 3,
+              posted_at:   jsonld?.datePosted ?? null,
+              expires_at:  jsonld?.validThrough ?? null,
+              raw:         { jobId, slug, path },
+            };
+            await sleep(DETAIL_DELAY_MS);
+            return raw;
+          }),
+        ),
+      );
+      const added = results.filter((r): r is RawJob => r !== null);
+      out.push(...added);
+      console.log(`[successfactors] ${o.company}: ${added.length} jobs with full JD`);
       await sleep(this.rateLimitDelay);
     }
 
