@@ -22,6 +22,7 @@ import { useTransition, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { createProfile, updateProfile } from "@/lib/actions";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
+import { SETTING_CATEGORY_META } from "@/lib/settingCategories";
 
 interface Props {
   mode: "create" | "edit";
@@ -32,6 +33,7 @@ interface Props {
     location: string;
     visa_filter_mode: string;
     working_rights?: string;
+    setting_filter?: string[];
     schedule_cron: string;
     is_active: boolean;
     target_verticals?: string[];
@@ -227,6 +229,40 @@ export function ProfileForm({ mode, profileId, defaults }: Props) {
                 );
               })}
             </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          {/* Work setting (Migration 078) — healthcare/aged-care only. Tick the
+              settings you want; leave all unticked to show every setting. */}
+          <div>
+            <label className="block text-[12px] font-semibold text-text mb-1.5">
+              Work setting
+              <Hint text="For nursing / aged-care / care roles. We classify each job by WHERE the work happens and keep only the settings you tick. Leave all unticked to show every setting. Jobs we can't confidently classify are always shown." />
+            </label>
+            <div className="flex flex-col gap-2">
+              {SETTING_CATEGORY_META.map((opt) => {
+                const checked = defaults?.setting_filter?.includes(opt.key) ?? false;
+                return (
+                  <label key={opt.key} className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="setting_filter"
+                      value={opt.key}
+                      defaultChecked={checked}
+                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                    />
+                    <span>
+                      <span className="block text-[13px] font-medium text-text">{opt.label}</span>
+                      <span className="block text-[11px] text-text-2 leading-snug">{opt.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-2 mt-1.5">
+              Leave all unticked to show jobs in every setting.
+            </p>
           </div>
 
           <div className="border-t border-border" />

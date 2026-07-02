@@ -23,6 +23,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     id: string; name: string; keywords: string[]; location: string;
     visa_filter_mode: string; working_rights: string; schedule_cron: string; is_active: boolean;
     target_verticals: string[];
+    setting_filter?: string[];
     adzuna_title_keywords?: string;
     adzuna_exclude_keywords?: string;
     adzuna_salary_min?: number;
@@ -87,6 +88,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 location: profile.location,
                 visa_filter_mode: profile.visa_filter_mode,
                 working_rights: profile.working_rights ?? "any",
+                setting_filter: profile.setting_filter ?? [],
                 schedule_cron: profile.schedule_cron,
                 is_active: profile.is_active,
                 target_verticals: profile.target_verticals ?? [],

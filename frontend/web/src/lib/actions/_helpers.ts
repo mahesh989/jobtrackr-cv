@@ -92,6 +92,25 @@ export function extractAdzunaFields(formData: FormData) {
 }
 
 /**
+ * Work-setting filter (Migration 078). Multi-checkbox of the 4 canonical
+ * categories the user wants to keep; empty = no filtering (opt-in). Validated
+ * against the allowed keys so a hand-edited form can't inject arbitrary values.
+ */
+const SETTING_CATEGORY_KEYS = new Set([
+  "hospital_clinical",
+  "residential_aged_care",
+  "home_community",
+  "other",
+]);
+export function extractSettingFilter(formData: FormData) {
+  const selected = formData
+    .getAll("setting_filter")
+    .map(String)
+    .filter((v) => SETTING_CATEGORY_KEYS.has(v));
+  return { setting_filter: Array.from(new Set(selected)) };
+}
+
+/**
  * Per-profile source selection (Migration 041). enabled_sources holds the
  * adapter names the user ticked; null = all active sources. seek_method picks
  * the free direct scrape vs the paid Apify actor.

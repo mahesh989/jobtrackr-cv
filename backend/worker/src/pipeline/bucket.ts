@@ -16,6 +16,7 @@ import { db } from "../db/client.js";
 import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
+import { applySettingFilter, formatSettingBreakdown } from "./settingFilter.js";
 import { distanceFor, distanceFromCoords, geocodeLocation, haversineKm, type LatLng } from "../lib/distance.js";
 import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
@@ -64,6 +65,9 @@ interface GlobalRow {
   salary_max: number | null;
   sponsorship_status: string | null;
   citizen_pr_only: boolean | null;
+  setting_category: string | null;
+  setting_confidence: number | null;
+  setting_evidence: string | null;
   posted_at: string | null;
   expires_at: string | null;
   last_seen_at: string;
@@ -87,16 +91,21 @@ export async function upsertGlobalJobs(
     // suburbs resolve to THIS region (e.g. Sydney's Killara, not the far one).
     const near = opts.searchLocation ? (await geocodeLocation(opts.searchLocation)) ?? undefined : undefined;
 
-    // Merge with existing matched_keywords + reuse already-geocoded coords.
+    // Merge with existing matched_keywords + reuse already-geocoded coords +
+    // preserve an existing setting classification (a run by a non-healthcare
+    // profile skips classification, so its incoming setting_* is null — never
+    // let that null clobber a good label another profile already computed).
     const existingKw = new Map<string, string[]>();
     const existingCoords = new Map<string, { lat: number | null; lng: number | null }>();
+    const existingSetting = new Map<string, { category: string | null; confidence: number | null; evidence: string | null }>();
     const { data: existing } = await db
       .from("global_jobs")
-      .select("url_hash, matched_keywords, lat, lng")
+      .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence")
       .in("url_hash", hashes);
-    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null }>) {
+    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null }>) {
       existingKw.set(r.url_hash, r.matched_keywords ?? []);
       existingCoords.set(r.url_hash, { lat: r.lat, lng: r.lng });
+      existingSetting.set(r.url_hash, { category: r.setting_category, confidence: r.setting_confidence, evidence: r.setting_evidence });
     }
 
     // De-dup incoming by url_hash (keep first — carries winning content).
@@ -141,6 +150,11 @@ export async function upsertGlobalJobs(
         salary_max: j.salary_max ?? null,
         sponsorship_status: j.sponsorship_status ?? null,
         citizen_pr_only: j.citizen_pr_only,
+        // Prefer this run's fresh classification; fall back to any label already
+        // on the bucket so a non-classifying run can't null it out.
+        setting_category: j.setting_category ?? existingSetting.get(j.url_hash)?.category ?? null,
+        setting_confidence: j.setting_confidence ?? existingSetting.get(j.url_hash)?.confidence ?? null,
+        setting_evidence: j.setting_evidence ?? existingSetting.get(j.url_hash)?.evidence ?? null,
         posted_at: j.posted_at,
         expires_at: j.expires_at,
         last_seen_at: now,
@@ -202,6 +216,9 @@ interface BucketRow {
   salary_max: number | null;
   sponsorship_status: NormalisedJob["sponsorship_status"] | null;
   citizen_pr_only: boolean | null;
+  setting_category: NormalisedJob["setting_category"];
+  setting_confidence: number | null;
+  setting_evidence: string | null;
   posted_at: string | null;
   expires_at: string | null;
 }
@@ -249,7 +266,7 @@ export async function serveProfileFromBucket(
 
     let query = db
       .from("global_jobs")
-      .select("url_hash, canonical_url, source, source_tier, title, company, location, lat, lng, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, posted_at, expires_at")
+      .select("url_hash, canonical_url, source, source_tier, title, company, location, lat, lng, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, setting_category, setting_confidence, setting_evidence, posted_at, expires_at")
       .eq("is_dead_link", false)
       .eq("is_expired", false)
       .or(`posted_at.gte.${floor},posted_at.is.null`)
@@ -306,6 +323,9 @@ export async function serveProfileFromBucket(
       sponsorship_status: r.sponsorship_status ?? "not_mentioned",
       citizen_pr_only: r.citizen_pr_only,
       visa_extracted_text: null,
+      setting_category: r.setting_category ?? null,
+      setting_confidence: r.setting_confidence ?? null,
+      setting_evidence: r.setting_evidence ?? null,
       distance_km: null,
       distance_method: null,
     }));
@@ -315,6 +335,16 @@ export async function serveProfileFromBucket(
     kept = postFetchFilter(kept, profile).kept;
     if (profile.working_rights === "needs_sponsorship") {
       kept = kept.filter((j) => j.sponsorship_status !== "no" && j.citizen_pr_only !== true);
+    }
+    // Work-setting filter (Migration 078) — the per-profile final gate. Runs
+    // HERE, after the shared bucket read, so it never affects what other
+    // profiles can discover. Classification lives on the shared row already.
+    if ((profile.setting_filter?.length ?? 0) > 0) {
+      const { kept: afterSetting, dropped, byCategory } = applySettingFilter(kept, profile);
+      kept = afterSetting;
+      if (dropped > 0) {
+        console.log(`[bucket] setting filter: ${dropped} dropped, ${kept.length} remain${formatSettingBreakdown(byCategory)}`);
+      }
     }
 
     // Per-user distance. Uses each posting's STORED lat/lng (geocoded once at

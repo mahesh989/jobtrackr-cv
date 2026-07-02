@@ -82,6 +82,10 @@ export function normalise(job: RawJob): NormalisedJob {
     sponsorship_status: "not_mentioned",
     citizen_pr_only: null,
     visa_extracted_text: null,
+    // Setting fields — set by settingClassifier (stage 10c)
+    setting_category: null,
+    setting_confidence: null,
+    setting_evidence: null,
     distance_km: null,
     distance_method: null,
   };

@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { classifySettingText }       from "@/lib/settingClassifier";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_JD_CHARS = 60_000;          // sane upper bound — tokens get expensive
@@ -43,7 +44,7 @@ export async function PATCH(
   }
 
   // Build the update patch, only including fields the caller actually sent.
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, string | number | null> = {};
 
   if ("manual_jd_text" in body) {
     const raw = body.manual_jd_text;
@@ -112,6 +113,20 @@ export async function PATCH(
     }
   }
 
+  // Classify the WORK SETTING of a manually pasted JD (Migration 078). Manual
+  // jobs bypass the worker/bucket pipeline, so we run the deterministic setting
+  // rule here so hand-added thin-JD jobs still carry a setting_category (badge +
+  // per-profile filter). Only on a non-empty paste — clearing manual_jd_text
+  // leaves the original scrape's classification intact.
+  if (typeof patch.manual_jd_text === "string" && patch.manual_jd_text.length > 0) {
+    const s = classifySettingText(patch.manual_jd_text);
+    if (s.setting_category !== null) {
+      patch.setting_category   = s.setting_category;
+      patch.setting_confidence = s.setting_confidence;
+      patch.setting_evidence   = s.setting_evidence;
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
   }
@@ -140,7 +155,7 @@ export async function PATCH(
     .from("jobs")
     .update(patch)
     .eq("id", jobId)
-    .select("id, manual_jd_text, contact_email, hiring_manager, company_address")
+    .select("id, manual_jd_text, contact_email, hiring_manager, company_address, setting_category, setting_confidence, setting_evidence")
     .single();
 
   if (error || !updated) {

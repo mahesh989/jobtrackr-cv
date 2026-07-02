@@ -48,6 +48,11 @@ export interface Job {
   sponsorship_status:  "yes" | "no" | "not_mentioned" | null;
   citizen_pr_only:     boolean | null;
   visa_extracted_text: string | null;
+  // Work-setting classification (Migration 078). Null category = not a care job
+  // / unclassified — no chip shown.
+  setting_category?:   "hospital_clinical" | "residential_aged_care" | "home_community" | "other" | null;
+  setting_confidence?: number | null;
+  setting_evidence?:   string | null;
   keywords_matched:    string[];
   applied_at:          string | null;
   dismissed_at:        string | null;
@@ -123,6 +128,25 @@ function distanceTone(km: number): string {
   if (km <= 25) return "text-text-2";
   if (km <= 50) return "text-amber-600";
   return "text-red-600";
+}
+
+const SETTING_CHIP: Record<string, { label: string; cls: string }> = {
+  hospital_clinical:     { label: "Hospital",    cls: "bg-sky-50 text-sky-700" },
+  residential_aged_care: { label: "Aged care",   cls: "bg-emerald-50 text-emerald-700" },
+  home_community:        { label: "Home/comm.",  cls: "bg-amber-50 text-amber-700" },
+  other:                 { label: "Setting: ?",  cls: "bg-slate-100 text-slate-600" },
+};
+
+function SettingChip({ category, evidence }: { category?: string | null; evidence?: string | null }) {
+  if (!category) return null;
+  const meta = SETTING_CHIP[category];
+  if (!meta) return null;
+  const title = evidence ? `Work setting — classified from: ${evidence}` : "Work setting";
+  return (
+    <span title={title} className={`inline-flex items-center rounded px-1.5 h-4 text-[10px] font-medium shrink-0 ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
 }
 
 function DistanceChip({ km, method }: { km: number; method: "driving" | "haversine" | null | undefined }) {
@@ -304,6 +328,7 @@ function JobRow({ job, showVisa, animDelay, currentTab }: {
                 {typeof job.distance_km === "number" && (
                   <DistanceChip km={job.distance_km} method={job.distance_method ?? null} />
                 )}
+                <SettingChip category={job.setting_category} evidence={job.setting_evidence} />
                 {postedAgo && <span>· {postedAgo}</span>}
                 {job.jd_quality === "thin" && (
                   <span className="inline-flex items-center gap-0.5 text-amber-600 shrink-0">
