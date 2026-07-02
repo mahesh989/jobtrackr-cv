@@ -575,10 +575,11 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
         </div>
       </div>
 
-      {/* Callout strip — single horizontal line, scrolls on narrow screens
-          rather than wrapping (keeps the three counters visually grouped). */}
+      {/* Callout strip — wraps onto multiple lines on mobile so the counters
+          stack (no horizontal scroll for these); collapses to a single
+          scrolling row from sm up to keep them visually grouped on desktop. */}
       {(data.callouts.thinJdCount > 0 || data.callouts.passedButNoLetter > 0 || data.callouts.readyToApply > 0) && (
-        <div className="flex flex-nowrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border overflow-x-auto whitespace-nowrap">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border sm:overflow-x-auto whitespace-nowrap">
           {data.callouts.thinJdCount > 0 && (
             <FilterAnchor href="/dashboard?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
               ⚠ {data.callouts.thinJdCount} thin JD{data.callouts.thinJdCount > 1 ? "s" : ""} need attention
