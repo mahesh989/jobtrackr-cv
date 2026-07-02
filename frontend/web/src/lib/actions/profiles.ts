@@ -179,11 +179,32 @@ export async function copyProfile(profileId: string) {
 
   if (!orig) throw new Error("Profile not found");
 
+  const targetName = `${orig.name} (copy)`;
+
+  // Idempotency guard: a double-click / double-submit of "Duplicate" (the
+  // button's disabled state only reflects after React re-renders, so two
+  // clicks within the same tick can both reach here) previously created two
+  // rows back-to-back. If we just created this exact copy moments ago,
+  // redirect to it instead of inserting another — one click, one copy.
+  const dedupeWindow = new Date(Date.now() - 10_000).toISOString();
+  const { data: recentCopy } = await supabase
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("name", targetName)
+    .gte("created_at", dedupeWindow)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recentCopy) {
+    redirect(`/dashboard/profiles/${recentCopy.id}/edit`);
+  }
+
   const { data: newProfile, error } = await supabase
     .from("search_profiles")
     .insert({
       user_id: user.id,
-      name: `${orig.name} (copy)`,
+      name: targetName,
       keywords: orig.keywords,
       location: orig.location,
       visa_filter_mode: orig.visa_filter_mode,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useRef, useTransition } from "react";
 import { copyProfile } from "@/lib/actions";
 
 export function CopyProfileButton({
@@ -11,8 +11,15 @@ export function CopyProfileButton({
   compact?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  // `pending` only reflects in the DOM after React re-renders — a rapid
+  // double-click/double-tap can fire handleCopy twice before `disabled`
+  // takes effect. This ref blocks re-entry synchronously, independent of
+  // render timing (server-side dedupe in copyProfile() is the second layer).
+  const firedRef = useRef(false);
 
   function handleCopy() {
+    if (firedRef.current) return;
+    firedRef.current = true;
     startTransition(() => copyProfile(profileId));
   }
 
