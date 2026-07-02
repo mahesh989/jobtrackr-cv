@@ -22,7 +22,7 @@
  *   markJobApplied / markJobDismissed                      — server actions
  */
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -58,6 +58,33 @@ function presentBlob(win: Window | null, blob: Blob, filename: string): "tab" | 
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return "download";
+}
+
+/**
+ * Load the raw tailored-CV markdown + current contact details — the two inputs
+ * renderTailoredCvBlob needs. Shared by the send-email flow, the inline-PDF
+ * cache, and the no-letter preview fallback.
+ */
+async function loadCvInputs(
+  storagePath: string,
+): Promise<{ markdown: string; contactDetails: ContactDetails | null }> {
+  const supabase = createSupabaseClient();
+  const [{ data: mdBlob, error: dlErr }, prefsRes] = await Promise.all([
+    supabase.storage.from("tailored-cvs").download(storagePath),
+    fetch("/api/user/preferences"),
+  ]);
+  if (dlErr || !mdBlob) throw new Error(dlErr?.message ?? "Couldn't load CV markdown");
+  const markdown = await mdBlob.text();
+  let contactDetails: ContactDetails | null = null;
+  if (prefsRes.ok) {
+    const json = await prefsRes.json();
+    if (json?.contact_details) {
+      const cd = { ...json.contact_details };
+      delete cd.projects;
+      contactDetails = cd as ContactDetails;
+    }
+  }
+  return { markdown, contactDetails };
 }
 
 export interface ApplicationRowV2 {
@@ -116,6 +143,98 @@ function scoreColor(n: number | null) {
   if (n >= 75) return "text-emerald-600";
   if (n >= 55) return "text-amber-600";
   return "text-red-600";
+}
+
+// ── Tailored CV inline PDF — client-render, cache, serve inline ───────────────
+//
+// The tailored CV's correct render is the client html2canvas pipeline
+// (renderTailoredCvBlob). To make the "Tailored CV" button open inline in a new
+// tab exactly like the Cover-letter button — a plain <a target="_blank">, no
+// popup, no download fallback — we render those exact bytes once, PUT them to
+// the server cache, then link to the GET route that streams them inline. The
+// served PDF is byte-identical to the analysis-page Download.
+
+type CvPdfState = "idle" | "preparing" | "ready" | "error";
+
+function useTailoredCvPdf(row: ApplicationRowV2, onError?: (msg: string) => void) {
+  const [state, setState] = useState<CvPdfState>("idle");
+  const started = useRef(false);
+
+  // Route keys off letter_id (same ownership gate as the cover-letter PDF).
+  // Null for the rare applied-without-a-letter row — caller falls back then.
+  const url = row.letter_id ? `/api/applications/${row.letter_id}/tailored-cv-pdf` : null;
+
+  const ensure = useCallback(async () => {
+    if (!url || !row.tailored_cv_storage_path) return;
+    if (started.current) return;
+    started.current = true;
+    setState("preparing");
+    try {
+      // Fast path: already cached from a previous view / reload → skip the render.
+      const head = await fetch(url, { method: "HEAD" });
+      if (head.ok) { setState("ready"); return; }
+
+      const { markdown, contactDetails } = await loadCvInputs(row.tailored_cv_storage_path);
+      const blob = await renderTailoredCvBlob({ markdown, contactDetails });
+      const res = await fetch(url, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/pdf" },
+        body:    blob,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Could not prepare CV (${res.status})`);
+      }
+      setState("ready");
+    } catch (e) {
+      started.current = false; // allow a manual retry
+      setState("error");
+      onError?.(e instanceof Error ? e.message : "Could not prepare tailored CV PDF");
+    }
+  }, [url, row.tailored_cv_storage_path, onError]);
+
+  return { state, url, ensure };
+}
+
+/** The pool/sent "Tailored CV" button, driven by useTailoredCvPdf. */
+function TailoredCvButton({ cvPdf }: { cvPdf: ReturnType<typeof useTailoredCvPdf> }) {
+  const { state, url, ensure } = cvPdf;
+  if (!url) return null; // no letter_id — caller renders the fallback
+
+  if (state === "ready") {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+        title="Open tailored CV PDF in new tab"
+      >
+        <FileText className="w-3 h-3" /> Tailored CV
+      </a>
+    );
+  }
+  if (state === "error") {
+    return (
+      <button
+        onClick={ensure}
+        className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1"
+        title="Preparing the CV PDF failed — click to retry"
+      >
+        <FileText className="w-3 h-3" /> Tailored CV
+      </button>
+    );
+  }
+  // idle | preparing — transitions to preparing immediately once ensure() runs
+  return (
+    <button
+      disabled
+      className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+      title="Preparing tailored CV PDF…"
+    >
+      <Loader2 className="w-3 h-3 animate-spin" /> Tailored CV
+    </button>
+  );
 }
 
 export function ApplicationCardV2({
@@ -397,50 +516,12 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     }
   }
 
-  // ── Preview tailored CV PDF (open in new tab) ──────────────────────────────
-  const [cvPreviewing, setCvPreviewing] = useState(false);
-  async function previewTailoredCv() {
-    if (cvPreviewing || !row.tailored_cv_storage_path) return;
-    // Open blank window synchronously so popup blockers don't block it,
-    // then navigate it to the rendered PDF blob URL.
-    // Pre-open a tab from the click gesture for the best UX. If popups are
-    // blocked window.open returns null — we DON'T bail here; presentBlob() below
-    // falls back to a download (never popup-blocked) so the user still gets the CV.
-    const win = window.open("", "_blank");
-    if (win) {
-      try { win.document.write("<html><body style='font-family:sans-serif;padding:20px;color:#888'><p>Rendering tailored CV…</p></body></html>"); } catch { /* ignore */ }
-    }
-    setActionError(null);
-    setCvPreviewing(true);
-    try {
-      const supabase = createSupabaseClient();
-      const [{ data: mdBlob, error: dlErr }, prefsRes] = await Promise.all([
-        supabase.storage.from("tailored-cvs").download(row.tailored_cv_storage_path),
-        fetch("/api/user/preferences"),
-      ]);
-      if (dlErr || !mdBlob) throw new Error(dlErr?.message ?? "Couldn't load CV markdown");
-      const markdown = await mdBlob.text();
-      let contactDetails: ContactDetails | null = null;
-      if (prefsRes.ok) {
-        const json = await prefsRes.json();
-        if (json?.contact_details) {
-          const cd = { ...json.contact_details };
-          delete cd.projects;
-          contactDetails = cd as ContactDetails;
-        }
-      }
-      const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
-      const how = presentBlob(win, pdfBlob, "tailored-cv.pdf");
-      if (how === "download") {
-        setActionError("Popups are blocked, so the CV was downloaded instead. Allow popups for this site to open it in a new tab.");
-      }
-    } catch (e) {
-      try { win?.close(); } catch { /* ignore */ }
-      setActionError(e instanceof Error ? e.message : "CV preview failed");
-    } finally {
-      setCvPreviewing(false);
-    }
-  }
+  // ── Tailored CV inline PDF (client-render → cache → serve inline) ──────────
+  const cvPdf = useTailoredCvPdf(row, setActionError);
+  const ensureCvPdf = cvPdf.ensure;
+  // Prepare the PDF as soon as the card opens so the button is ready by the
+  // time the user reaches for it. HEAD-checks first, renders only if uncached.
+  useEffect(() => { if (open) ensureCvPdf(); }, [open, ensureCvPdf]);
 
   const analysisHref = row.latest_run_id
     ? `/dashboard/jobs/${row.job_id}/analyze/${row.latest_run_id}`
@@ -701,17 +782,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             >
               <FileType className="w-3 h-3" /> Cover letter
             </a>
-            {row.tailored_cv_storage_path && (
-              <button
-                onClick={previewTailoredCv}
-                disabled={cvPreviewing}
-                className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
-                title="Open tailored CV PDF in new tab"
-              >
-                {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                Tailored CV
-              </button>
-            )}
+            {row.tailored_cv_storage_path && <TailoredCvButton cvPdf={cvPdf} />}
             {row.tailored_cv_storage_path && (
               <button
                 onClick={handleDownloadZip}
@@ -823,6 +894,12 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
   const isApplied  = !!row.job_applied_at;
   const isArchived = !!row.job_dismissed_at && !isApplied;
 
+  // Inline PDF via the server cache when a letter exists; the old client-render
+  // preview below is the fallback for applied-without-a-letter rows (no route).
+  const cvPdf = useTailoredCvPdf(row, setActionError);
+  const ensureCvPdf = cvPdf.ensure;
+  useEffect(() => { if (row.letter_id) ensureCvPdf(); }, [row.letter_id, ensureCvPdf]);
+
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
     // Pre-open a tab from the click gesture for the best UX. If popups are
@@ -835,22 +912,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     setCvPreviewing(true);
     setActionError(null);
     try {
-      const supabase = createSupabaseClient();
-      const [{ data: mdBlob, error: dlErr }, prefsRes] = await Promise.all([
-        supabase.storage.from("tailored-cvs").download(row.tailored_cv_storage_path),
-        fetch("/api/user/preferences"),
-      ]);
-      if (dlErr || !mdBlob) throw new Error(dlErr?.message ?? "Couldn't load CV markdown");
-      const markdown = await mdBlob.text();
-      let contactDetails: ContactDetails | null = null;
-      if (prefsRes.ok) {
-        const json = await prefsRes.json();
-        if (json?.contact_details) {
-          const cd = { ...json.contact_details };
-          delete cd.projects;
-          contactDetails = cd as ContactDetails;
-        }
-      }
+      const { markdown, contactDetails } = await loadCvInputs(row.tailored_cv_storage_path);
       const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
       const how = presentBlob(win, pdfBlob, "tailored-cv.pdf");
       if (how === "download") {
@@ -974,14 +1036,19 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
           </a>
         )}
         {row.tailored_cv_storage_path && (
-          <button
-            onClick={previewTailoredCv}
-            disabled={cvPreviewing}
-            className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
-          >
-            {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-            Tailored CV
-          </button>
+          cvPdf.url
+            ? <TailoredCvButton cvPdf={cvPdf} />
+            : (
+              <button
+                onClick={previewTailoredCv}
+                disabled={cvPreviewing}
+                className="inline-flex items-center gap-1 gh-btn text-[11px] px-2.5 py-1 disabled:opacity-40"
+                title="Open tailored CV PDF in new tab"
+              >
+                {cvPreviewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                Tailored CV
+              </button>
+            )
         )}
         {row.tailored_cv_storage_path && row.letter_id && (
           <button
