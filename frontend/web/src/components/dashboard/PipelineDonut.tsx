@@ -501,8 +501,10 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
         })}
       </div>
 
-      {/* Donut + legend */}
-      <div className="flex gap-6 px-5 py-5 items-center">
+      {/* Donut + legend — stacks vertically on mobile so the legend gets the
+          full width (the 240px canvas + legend won't fit side-by-side on a
+          phone, which clipped the count/% columns). Side-by-side from sm up. */}
+      <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 px-5 py-5 items-center">
         <div className="shrink-0">
           <canvas
             ref={canvasRef}
@@ -514,7 +516,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           <p className="text-[10px] text-text-3 text-center mt-1">click to explore</p>
         </div>
 
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className="w-full sm:flex-1 min-w-0 space-y-2">
           <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wider mb-3">Breakdown</p>
           {meta.slices.slice(0, vis).map((s, i) => {
             const n   = counts[i];

@@ -73,11 +73,11 @@ export function ProfilesTable({
       <div className="min-w-[880px]">
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-3">Profile</div>
-        <div className="col-span-2">Keywords</div>
+        <div className="col-span-1 sm:col-span-2">Keywords</div>
         <div className="col-span-1 text-center">New</div>
         <div className="col-span-1 text-center">Total</div>
         <div className="col-span-1 text-center">Applied</div>
-        <div className="col-span-1">Last run</div>
+        <div className="col-span-2 sm:col-span-1">Last run</div>
         <div className="col-span-3 text-right">Actions</div>
       </div>
 
@@ -118,7 +118,7 @@ export function ProfilesTable({
               </div>
             </div>
 
-            <div className="col-span-2 flex items-center">
+            <div className="col-span-1 sm:col-span-2 flex items-center">
               <span className="text-[12px] text-text-2 truncate">
                 {p.keywords.slice(0, 3).join(", ")}
                 {p.keywords.length > 3 && <span className="text-text-3"> +{p.keywords.length - 3}</span>}
@@ -145,7 +145,7 @@ export function ProfilesTable({
               )}
             </div>
 
-            <div className="col-span-1 flex items-center min-w-0">
+            <div className="col-span-2 sm:col-span-1 flex items-center min-w-0">
               {!run ? (
                 <span className="text-[12px] text-text-3">Never</span>
               ) : isRunning ? (
