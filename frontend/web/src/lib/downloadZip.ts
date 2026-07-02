@@ -82,14 +82,34 @@ export async function downloadApplicationBundle({
   folder.file(`${sanitizedCandidateName}_CV.pdf`, cvBlob);
   folder.file(`${sanitizedCandidateName}_CovLetter.pdf`, letterBlob);
 
-  // 9. Generate and download ZIP
+  // 9. Generate ZIP
   const zipContent = await zip.generateAsync({ type: "blob" });
+  const zipName = `${folderName}.zip`;
+
+  // 10. Deliver. Desktop handles a synthetic <a download> fine, but mobile
+  // browsers (iOS Safari especially) silently ignore programmatic blob
+  // downloads. When the Web Share API can take files, use it so mobile users
+  // get a proper "Save to Files"/share sheet with the same company-named ZIP.
+  const zipFile = new File([zipContent], zipName, { type: "application/zip" });
+  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+  if (typeof nav.share === "function" && nav.canShare?.({ files: [zipFile] })) {
+    try {
+      await nav.share({ files: [zipFile], title: folderName });
+      return;
+    } catch (err) {
+      // User dismissed the share sheet → respect that, don't force a download.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      // Anything else (e.g. share unsupported for files at runtime) → fall
+      // through to the anchor download below.
+    }
+  }
+
   const url = URL.createObjectURL(zipContent);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${folderName}.zip`;
+  a.download = zipName;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
