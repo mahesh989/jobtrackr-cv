@@ -21,6 +21,11 @@ export interface NormalisedJob {
   sponsorship_status: "yes" | "no" | "not_mentioned";
   citizen_pr_only: boolean | null;    // null = not mentioned
   visa_extracted_text: string | null; // sentences used, for transparency
+  // Work-setting classification — set by settingClassifier (stage 10c).
+  // null category = not a care/health job (unclassified, never filtered).
+  setting_category: "hospital_clinical" | "residential_aged_care" | "home_community" | "other" | null;
+  setting_confidence: number | null;
+  setting_evidence: string | null;
   // Driving distance from the profile's home_address — set by the distance
   // stage (between working-rights filter and save). Both null when the
   // profile has no home_address or the job location can't be geocoded.

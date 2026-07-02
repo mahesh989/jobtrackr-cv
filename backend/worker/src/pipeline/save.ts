@@ -47,6 +47,9 @@ export async function saveJobs(
       sponsorship_status: job.sponsorship_status,
       citizen_pr_only: job.citizen_pr_only,
       visa_extracted_text: job.visa_extracted_text,
+      setting_category: job.setting_category,
+      setting_confidence: job.setting_confidence,
+      setting_evidence: job.setting_evidence,
       distance_km: job.distance_km,
       distance_method: job.distance_method,
     };

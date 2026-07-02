@@ -11,6 +11,17 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // Work-setting filter is only relevant to healthcare/nursing users — gate the
+  // ProfileForm section on the user's My CV role family (contact_details).
+  const { data: prefRow } = await supabase
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const roleFamilies =
+    ((prefRow?.contact_details as { role_families?: string[] } | null)?.role_families) ?? [];
+  const showWorkSetting = roleFamilies.includes("nursing");
+
   const { data } = await supabase
     .from("search_profiles")
     .select("*")
@@ -23,6 +34,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
     id: string; name: string; keywords: string[]; location: string;
     visa_filter_mode: string; working_rights: string; schedule_cron: string; is_active: boolean;
     target_verticals: string[];
+    setting_filter?: string[];
     adzuna_title_keywords?: string;
     adzuna_exclude_keywords?: string;
     adzuna_salary_min?: number;
@@ -81,12 +93,14 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
             <ProfileForm
               mode="edit"
               profileId={profile.id}
+              showWorkSetting={showWorkSetting}
               defaults={{
                 name: profile.name,
                 keywords: profile.keywords,
                 location: profile.location,
                 visa_filter_mode: profile.visa_filter_mode,
                 working_rights: profile.working_rights ?? "any",
+                setting_filter: profile.setting_filter ?? [],
                 schedule_cron: profile.schedule_cron,
                 is_active: profile.is_active,
                 target_verticals: profile.target_verticals ?? [],

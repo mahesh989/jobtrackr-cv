@@ -8,6 +8,10 @@ export interface SearchProfile {
   visa_filter_mode: string;
   working_rights?: "any" | "pr_citizen" | "needs_sponsorship";
   target_verticals?: string[];
+  // Work-setting filter (Migration 078). Category keys the user wants to keep:
+  // 'hospital_clinical' | 'residential_aged_care' | 'home_community' | 'other'.
+  // Empty/undefined = no filtering (opt-in). See pipeline/settingFilter.ts.
+  setting_filter?: string[];
   adzuna_title_keywords?: string;
   adzuna_exact_phrase?: string;
   adzuna_any_keywords?: string;

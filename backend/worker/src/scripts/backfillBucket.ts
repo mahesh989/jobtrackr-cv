@@ -59,6 +59,9 @@ async function main() {
       sponsorship_status: (r.sponsorship_status as NormalisedJob["sponsorship_status"]) ?? "not_mentioned",
       citizen_pr_only: (r.citizen_pr_only as boolean | null) ?? null,
       visa_extracted_text: null,
+      setting_category: (r.setting_category as NormalisedJob["setting_category"]) ?? null,
+      setting_confidence: (r.setting_confidence as number | null) ?? null,
+      setting_evidence: (r.setting_evidence as string | null) ?? null,
       distance_km: null,
       distance_method: null,
     }));

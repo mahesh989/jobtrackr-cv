@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertCanCreateProfile } from "@/lib/billing/entitlements";
-import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields } from "./_helpers";
+import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields, extractSettingFilter } from "./_helpers";
 
 /**
  * Get the user's "Saved Jobs" profile, creating it if it doesn't exist yet.
@@ -90,6 +90,7 @@ export async function createProfile(formData: FormData) {
     ...extractAdzunaFields(formData),
     ...extractAutomationFields(formData),
     ...extractSourceFields(formData),
+    ...extractSettingFilter(formData),
   });
 
   if (error) throw new Error(error.message);
@@ -146,6 +147,7 @@ export async function updateProfile(profileId: string, formData: FormData) {
       ...extractAdzunaFields(formData),
       ...extractAutomationFields(formData),
       ...extractSourceFields(formData),
+      ...extractSettingFilter(formData),
     })
     .eq("id", profileId)
     .eq("user_id", user.id);

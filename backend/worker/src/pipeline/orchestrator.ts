@@ -40,6 +40,8 @@ import { postFetchFilter, excludeByDescription, formatExcludeBreakdown } from ".
 import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
+import { classifySettings } from "../ai/settingClassifier.js";
+import { applySettingFilter, formatSettingBreakdown } from "./settingFilter.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter } from "../sources/seek.js";
@@ -220,7 +222,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
+    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -938,11 +940,35 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       });
     }
 
+    // Stage 10c: work-setting classification — keyword-first, AI only for
+    // ambiguous care jobs (env SETTING_CLASSIFIER_AI). A shared, once-per-job
+    // FACT (like visa): it flows into global_jobs and is reused by every profile.
+    // The per-profile setting FILTER is separate (stage 10d / bucket serve).
+    // Runs on EVERY fetched job before the bucket write so the shared bucket
+    // always carries a setting label — the classifier skips non-care JDs cheaply
+    // (a regex gate) and the AI tier only fires for ambiguous CARE jobs, so
+    // classifying non-healthcare runs costs effectively nothing.
+    let settingReady = visaReady;
+    if (visaReady.length > 0) {
+      await setStage(runLogId, `Classifying work setting (${visaReady.length} jobs)`);
+      const settingMap = await classifySettings(visaReady);
+      settingReady = visaReady.map((job) => {
+        const info = settingMap.get(job.url_hash);
+        if (!info) return job;
+        return {
+          ...job,
+          setting_category: info.setting_category,
+          setting_confidence: info.setting_confidence,
+          setting_evidence: info.setting_evidence,
+        };
+      });
+    }
+
     // Stage 10b: working rights filter
     // Drop jobs that conflict with the user's working rights situation.
     // "needs_sponsorship" → drop jobs that explicitly say no sponsorship or citizens/PR only.
     // "pr_citizen" and "any" → no filtering, all jobs saved (just different labels shown).
-    let toSave = visaReady;
+    let toSave = settingReady;
     if (profile.working_rights === "needs_sponsorship") {
       const beforeWR = toSave.length;
       toSave = toSave.filter((j) =>
@@ -952,6 +978,16 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 10b — working rights filter: ${droppedWR} dropped (explicit no-sponsorship / PR-citizen-only), ${toSave.length} remaining`);
     } else {
       console.log(`[pipeline] stage 10b — working rights: "${profile.working_rights ?? "any"}" — no filter applied`);
+    }
+
+    // Stage 10d: work-setting filter (per-profile). LEGACY (non-bucket) path
+    // ONLY — in bucket mode the identical filter runs inside serveProfileFromBucket
+    // AFTER the shared bucket write. Filtering `toSave` here would drop jobs from
+    // the shared global_jobs bucket that OTHER profiles want (bucket poisoning).
+    if (!bucketEnabled() && (profile.setting_filter?.length ?? 0) > 0) {
+      const { kept: afterSetting, dropped, byCategory } = applySettingFilter(toSave, profile);
+      toSave = afterSetting;
+      console.log(`[pipeline] stage 10d — setting filter: ${dropped} dropped, ${toSave.length} remaining${formatSettingBreakdown(byCategory)}`);
     }
 
     // Stage 11b: distance computation (Migration 048).

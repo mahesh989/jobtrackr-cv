@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { authedClient, sha256 } from "./_helpers";
 import { getOrCreateManualProfile } from "./profiles";
+import { classifySettingText } from "@/lib/settingClassifier";
 
 /**
  * Add a manually-found job to the user's Saved Jobs profile.
@@ -33,6 +34,10 @@ export async function addManualJob(input: {
   }
 
   const jdLen = input.description?.trim().length ?? 0;
+  // Classify work setting at insert time (Migration 078) — manual jobs bypass
+  // the worker/bucket, so hand-added JDs still get a setting_category (badge +
+  // per-profile filter). Deterministic web port; non-care JDs stay null.
+  const setting = classifySettingText(input.description.trim());
 
   // jobs.url_hash is NOT NULL + unique per (profile_id, url_hash). Worker uses
   // sha256(url); paste-only entries get a synthetic manual:// UUID so each
@@ -52,6 +57,9 @@ export async function addManualJob(input: {
       // Classify JD quality at insert time — same threshold as the DB trigger
       // (migration 062) + the worker. The trigger re-stamps this on insert too.
       jd_quality:    jdLen >= 1000 ? "rich" : jdLen >= 200 ? "thin" : "unknown",
+      setting_category:   setting.setting_category,
+      setting_confidence: setting.setting_confidence,
+      setting_evidence:   setting.setting_evidence,
       source:        "manual",
       source_tier:   4,
     })
