@@ -1,7 +1,24 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "@/components/ProfileForm";
 
-export default function NewProfilePage() {
+export default async function NewProfilePage() {
+  // Work-setting filter is only relevant to healthcare/nursing users — gate the
+  // ProfileForm section on the user's My CV role family (contact_details).
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let showWorkSetting = false;
+  if (user) {
+    const { data: prefRow } = await supabase
+      .from("user_preferences")
+      .select("contact_details")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const roleFamilies =
+      ((prefRow?.contact_details as { role_families?: string[] } | null)?.role_families) ?? [];
+    showWorkSetting = roleFamilies.includes("nursing");
+  }
+
   return (
     <div className="min-h-full">
       {/* Page header */}
@@ -24,7 +41,7 @@ export default function NewProfilePage() {
         <div className="flex gap-6 items-start">
           {/* Form */}
           <div className="flex-1 min-w-0 max-w-2xl bg-surface border border-border rounded-md p-5 anim-in">
-            <ProfileForm mode="create" />
+            <ProfileForm mode="create" showWorkSetting={showWorkSetting} />
           </div>
 
           {/* Tips panel */}
