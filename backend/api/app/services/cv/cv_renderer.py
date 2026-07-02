@@ -33,6 +33,8 @@ renders to the same text (pure function).
 """
 from __future__ import annotations
 
+import re
+
 from typing import Any, Dict, List
 
 
@@ -217,6 +219,12 @@ def _render_award_lines(a: Dict[str, Any]) -> List[str]:
     if header:
         lines.append(f"- {header}")
     if description:
+        # Strip a leading markdown bullet marker upstream sometimes bakes into
+        # the description text. Rendered at a 2-space indent, a leading "- "
+        # is valid CommonMark/GFM for a NESTED list item, so it would show as
+        # its own stray bullet in both the web preview and the PDF. This narrow
+        # strip is deliberate despite the "rendered verbatim" note above.
+        description = re.sub(r'^[-*+•]\s+', '', description)
         lines.append(f"  {description}")
     return lines
 

@@ -76,13 +76,17 @@ interface GlobalRow {
 /**
  * Upsert scraped survivors into the canonical bucket. Merges matched_keywords
  * across runs/users (the bucket's coarse serve selector must accumulate).
- * Best-effort: returns silently on any error.
+ * Best-effort: swallows errors, but reports success/failure via the return
+ * value so callers can tell "this run's jobs are in the bucket" from "they
+ * might not be" — serveProfileFromBucket() reads back from the SAME bucket
+ * right after this call, and an upsert failure would otherwise be
+ * indistinguishable from a legitimate "nothing in this area" empty result.
  */
 export async function upsertGlobalJobs(
   jobs: NormalisedJob[],
   opts: { adzunaFull: boolean; searchLocation?: string },
-): Promise<void> {
-  if (!bucketEnabled() || jobs.length === 0) return;
+): Promise<boolean> {
+  if (!bucketEnabled() || jobs.length === 0) return true;
   try {
     const now = new Date().toISOString();
     const hashes = Array.from(new Set(jobs.map((j) => j.url_hash)));
@@ -169,12 +173,14 @@ export async function upsertGlobalJobs(
         .upsert(batch, { onConflict: "url_hash", ignoreDuplicates: false });
       if (error) {
         console.warn(`[bucket] upsertGlobalJobs skipped — ${error.message}`);
-        return;
+        return false;
       }
     }
     console.log(`[bucket] upserted ${rows.length} canonical rows`);
+    return true;
   } catch (err) {
     console.warn(`[bucket] upsertGlobalJobs threw — ${err instanceof Error ? err.message : err}`);
+    return false;
   }
 }
 

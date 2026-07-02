@@ -1062,7 +1062,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     //    still yields the complete result set. No-op (toSave unchanged) when the
     //    flag is off, migrations aren't applied, or the bucket is empty.
     if (bucketEnabled() && bucketSlices.length > 0) {
-      await upsertGlobalJobs(toSave, {
+      const upsertOk = await upsertGlobalJobs(toSave, {
         adzunaFull: profile.adzuna_method === "direct",
         searchLocation: profile.location,
       });
@@ -1071,14 +1071,23 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         homeOrigin,
         serveWindowDays: BUCKET_RETENTION_DAYS,
       });
-      // Safety: only replace the scraped set if the bucket actually returned
-      // rows (or we had nothing scraped anyway). Never blank out a non-empty
-      // scrape because serve came back empty (e.g. a location-cell mismatch).
-      if (served !== null && (served.length > 0 || toSave.length === 0)) {
-        console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
+      // Trust a successful bucket serve even when it legitimately returns
+      // zero — that's serveProfileFromBucket's geo-radius + filter replay
+      // working correctly (e.g. a niche search location with nothing nearby),
+      // not a failure to guard against. Only fall back to the raw, UNFILTERED
+      // scraped set when the serve call itself failed/was skipped
+      // (served === null), or when this run's own upsert didn't make it into
+      // the bucket (upsertOk === false) — in that case an empty `served`
+      // would be a MASKED upsert failure rather than a genuine "nothing
+      // nearby" result, and trusting it would wipe a good scrape to zero.
+      if (served !== null && upsertOk) {
+        if (served.length !== toSave.length) {
+          console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
+        }
         toSave = served;
-      } else if (served !== null) {
-        console.warn(`[pipeline] bucket serve returned 0 but ${toSave.length} scraped — keeping scraped set (safety)`);
+      } else {
+        const why = served === null ? "serve unavailable" : "upsert failed, serve result untrusted";
+        console.warn(`[pipeline] bucket ${why} — keeping ${toSave.length} scraped (unfiltered) set`);
       }
     }
 
