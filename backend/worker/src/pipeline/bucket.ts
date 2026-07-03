@@ -17,6 +17,7 @@ import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
 import { applySettingFilter, formatSettingBreakdown } from "./settingFilter.js";
+import { classifySettingDeterministic } from "../ai/settingClassifier.js";
 import { distanceFor, distanceFromCoords, geocodeLocation, haversineKm, type LatLng } from "../lib/distance.js";
 import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
@@ -304,6 +305,62 @@ export async function serveProfileFromBucket(
       );
     }
     if (rows.length === 0) return [];
+
+    // Classify-on-read: a served row can carry setting_category = null forever
+    // if it was contributed to the shared bucket by ANOTHER profile's scrape
+    // before classification ever ran on it (stage 10c in orchestrator.ts only
+    // classifies THIS run's own freshly-scraped jobs, never rows merely being
+    // served here) — so a stale null silently bypasses applySettingFilter below
+    // regardless of which category the JD actually is. Rules-only (deterministic,
+    // no AI — classifySettingDeterministic never calls out), so this is cheap
+    // even over thousands of rows: hasCareSignal is a single cheap regex gate
+    // that skips non-care JDs before any real scoring. Mutating `r` in place
+    // means the `mapped` projection below (`r.setting_category ?? null`) picks
+    // up the fresh label with no other change needed.
+    const newlyClassified: Array<{ url_hash: string; setting_category: string; setting_confidence: number; setting_evidence: string | null }> = [];
+    for (const r of rows) {
+      if (r.setting_category !== null) continue;
+      const text = r.description_full ?? r.description_snippet ?? "";
+      const det = classifySettingDeterministic(text);
+      if (det.kind === "skip") continue; // not a care job — stays null, as designed
+      const info =
+        det.kind === "resolved"
+          ? det.info
+          : { setting_category: "other" as const, setting_confidence: 0.3, setting_evidence: det.evidence.join(", ") || null };
+      r.setting_category = info.setting_category;
+      r.setting_confidence = info.setting_confidence;
+      r.setting_evidence = info.setting_evidence;
+      newlyClassified.push({
+        url_hash: r.url_hash,
+        setting_category: info.setting_category!,
+        setting_confidence: info.setting_confidence,
+        setting_evidence: info.setting_evidence,
+      });
+    }
+    if (newlyClassified.length > 0) {
+      // Fire-and-forget: the caller already has the classified labels in memory
+      // (via the mutated `rows`/`mapped` below) — this write only benefits FUTURE
+      // serves, so it must never add latency to the current request. The
+      // .is("setting_category", null) guard makes the column immutable-once-set:
+      // if two profiles concurrently classify the same never-before-seen row,
+      // both computations are deterministic and agree, but only the first UPDATE
+      // to land actually applies — harmless, no corruption either way.
+      void (async () => {
+        for (const c of newlyClassified) {
+          const { error: uErr } = await db
+            .from("global_jobs")
+            .update({
+              setting_category: c.setting_category,
+              setting_confidence: c.setting_confidence,
+              setting_evidence: c.setting_evidence,
+            })
+            .eq("url_hash", c.url_hash)
+            .is("setting_category", null);
+          if (uErr) console.warn(`[bucket] classify-on-read write-back ${c.url_hash} failed: ${uErr.message}`);
+        }
+        console.log(`[bucket] classify-on-read: retroactively classified ${newlyClassified.length} previously-null row(s)`);
+      })().catch((err) => console.warn(`[bucket] classify-on-read write-back threw — ${err instanceof Error ? err.message : err}`));
+    }
 
     // Map → NormalisedJob with tier-appropriate JD. duplicate_of/repost_of are
     // dropped (they reference global_jobs ids, not jobs ids); the bucket is
