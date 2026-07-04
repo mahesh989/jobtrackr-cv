@@ -41,6 +41,28 @@ export interface SettingInfo {
   setting_method: "keyword" | "ai" | "none";
 }
 
+// ── Smart-punctuation normalisation ──────────────────────────────────────────
+// Real JDs are authored in Word/Google Docs and published with typographic
+// punctuation: curly apostrophes ("clients’ homes", U+2019), curly quotes, and
+// non-breaking hyphens / en-dashes ("in‑home"). Every rule below is written
+// with straight ASCII punctuation, so we normalise the input ONCE here instead
+// of hardening each regex — this keeps every current and future rule immune.
+// Production bug (2026-07-03): a Mor. Care Group home-care JD containing
+// "clients’ homes" with a curly apostrophe scored 0 against the weight-3
+// clients'-homes rule and landed in the fail-open 'other' bucket, slipping
+// through a residential-only setting filter.
+const SMART_PUNCT: Array<[RegExp, string]> = [
+  [/[‘’ʼ]/g, "'"], // ‘ ’ ʼ  curly/modifier apostrophes → '
+  [/[“”]/g, '"'],       // “ ”    curly double quotes → "
+  [/[‐‑‒–—−]/g, "-"], // ‐ ‑ ‒ – — −  dash variants → -
+];
+
+function normaliseSmartPunct(text: string): string {
+  let out = text;
+  for (const [re, to] of SMART_PUNCT) out = out.replace(re, to);
+  return out;
+}
+
 // ── Care-vertical gate ───────────────────────────────────────────────────────
 // If none of these appear, the JD is not in our nursing/health/care domain and
 // we skip classification entirely (return null). Short acronyms use strict word
@@ -176,8 +198,9 @@ type DetResult =
   | { kind: "skip" } // not a care job
   | { kind: "ambiguous"; excerpt: string; evidence: string[] };
 
-export function classifySettingDeterministic(text: string): DetResult {
-  if (!text || text.length < 10) return { kind: "skip" };
+export function classifySettingDeterministic(rawText: string): DetResult {
+  if (!rawText || rawText.length < 10) return { kind: "skip" };
+  const text = normaliseSmartPunct(rawText);
   if (!hasCareSignal(text)) return { kind: "skip" };
 
   const scores = [

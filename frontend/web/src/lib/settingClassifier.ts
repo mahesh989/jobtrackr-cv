@@ -14,6 +14,23 @@ export interface SettingResult {
   setting_evidence: string | null;
 }
 
+// Smart-punctuation normalisation — mirror of the canonical worker
+// implementation. Real JDs carry curly apostrophes ("clients’ homes"), curly
+// quotes and dash variants ("in‑home"); every rule below is written with
+// straight ASCII punctuation, so the input is normalised once here instead of
+// hardening each regex.
+const SMART_PUNCT: Array<[RegExp, string]> = [
+  [/[‘’ʼ]/g, "'"], // ‘ ’ ʼ  curly/modifier apostrophes → '
+  [/[“”]/g, '"'],       // “ ”    curly double quotes → "
+  [/[‐‑‒–—−]/g, "-"], // ‐ ‑ ‒ – — −  dash variants → -
+];
+
+function normaliseSmartPunct(text: string): string {
+  let out = text;
+  for (const [re, to] of SMART_PUNCT) out = out.replace(re, to);
+  return out;
+}
+
 const CARE_SIGNALS: RegExp[] = [
   /\bnurs(e|ing)\b/i, /\baged\s+care\b/i, /\bage(d|ing)\b/i, /\belderly\b/i,
   /\bolder\s+(people|persons|australians|adults)\b/i, /\bdisabilit/i, /\bndis\b/i,
@@ -103,9 +120,10 @@ function score(text: string, category: SettingCategory, rules: Rule[]) {
  * when the text isn't a care/health job (no badge, never filtered), and "other"
  * when it's a care job we can't confidently pin.
  */
-export function classifySettingText(text: string): SettingResult {
+export function classifySettingText(rawText: string): SettingResult {
   const none: SettingResult = { setting_category: null, setting_confidence: null, setting_evidence: null };
-  if (!text || text.length < 10) return none;
+  if (!rawText || rawText.length < 10) return none;
+  const text = normaliseSmartPunct(rawText);
   if (!CARE_SIGNALS.some((re) => re.test(text))) return none;
 
   const scored = [
