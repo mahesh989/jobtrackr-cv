@@ -84,9 +84,21 @@ export async function getValidAccessToken(
   }
 
   // Refresh
-  const refreshed = tokens.provider === "google"
-    ? await refreshGoogleToken(tokens.refresh_token)
-    : await refreshMicrosoftToken(tokens.refresh_token);
+  let refreshed: { access_token: string; refresh_token?: string; expiry_at: string };
+  try {
+    refreshed = tokens.provider === "google"
+      ? await refreshGoogleToken(tokens.refresh_token)
+      : await refreshMicrosoftToken(tokens.refresh_token);
+  } catch (err) {
+    // If Google/Microsoft rejected the refresh token (400), the stored token is
+    // permanently dead. Clear it so the UI shows "Connect Gmail" again instead
+    // of a confusing "token refresh failed" error on every action.
+    if ((err as { shouldDisconnect?: boolean }).shouldDisconnect) {
+      await deleteTokens(userId).catch(() => {});
+      throw new Error("Your Gmail connection has expired — please reconnect it in My CV → Email account.");
+    }
+    throw err;
+  }
 
   const updated: StoredTokens = {
     ...tokens,
@@ -114,7 +126,16 @@ async function refreshGoogleToken(
       grant_type:    "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Google token refresh failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.error("[refreshGoogleToken] failed:", res.status, body);
+    // 400 means the refresh token was revoked or expired (e.g. app in Testing mode).
+    // Signal the caller to clear stale tokens so the user can reconnect.
+    const err = new Error(`Google token refresh failed: ${res.status}`);
+    (err as Error & { googleError?: string; shouldDisconnect?: boolean }).googleError = body?.error ?? String(res.status);
+    (err as Error & { shouldDisconnect?: boolean }).shouldDisconnect = res.status === 400;
+    throw err;
+  }
   const json = await res.json();
   return {
     access_token: json.access_token,
