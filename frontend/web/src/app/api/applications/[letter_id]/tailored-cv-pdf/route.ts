@@ -19,8 +19,9 @@
  *   GET  — streams the cached PDF inline.
  *
  * The cache lives in the existing `tailored-cvs` bucket at
- * `{user_id}/{letter_id}.client.pdf` — deterministic, so no DB pointer is
- * needed (mirrors the cover-letter store's regen-on-missing behaviour).
+ * `{user_id}/{letter_id}.{version}.client.pdf` — deterministic, so no DB
+ * pointer is needed (mirrors the cover-letter store's regen-on-missing
+ * behaviour).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -29,7 +30,17 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
-const pdfKey = (userId: string, letterId: string) => `${userId}/${letterId}.client.pdf`;
+// Bump whenever the tailored-CV renderer changes materially
+// (cvPdfRender.tsx / cvMarkdownHelpers.ts) — this invalidates all cached PDFs
+// and forces a one-time client re-render.
+const CV_PDF_RENDER_VERSION = "v2";
+
+// Single source of truth for the cached object's file name / key so
+// HEAD / GET / PUT can never diverge.
+const pdfFileName = (letterId: string) =>
+  `${letterId}.${CV_PDF_RENDER_VERSION}.client.pdf`;
+const pdfKey = (userId: string, letterId: string) =>
+  `${userId}/${pdfFileName(letterId)}`;
 
 /**
  * Confirm the cover letter (and therefore its tailored CV) belongs to the
@@ -67,8 +78,8 @@ export async function HEAD(
   const { data: list } = await admin
     .storage
     .from(TAILORED_CV_BUCKET)
-    .list(user.id, { search: `${letter_id}.client.pdf`, limit: 1 });
-  const exists = !!list?.some((f) => f.name === `${letter_id}.client.pdf`);
+    .list(user.id, { search: pdfFileName(letter_id), limit: 1 });
+  const exists = !!list?.some((f) => f.name === pdfFileName(letter_id));
 
   return new NextResponse(null, { status: exists ? 200 : 404 });
 }
