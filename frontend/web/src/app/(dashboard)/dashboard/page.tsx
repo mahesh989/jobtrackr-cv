@@ -207,6 +207,7 @@ export default async function DashboardPage({
     { data: dismissedJobs },
     { data: countRows },
     { data: runLogData },
+    { data: completedRuns },
   ] = await Promise.all([
     q,
     dq,
@@ -220,11 +221,55 @@ export default async function DashboardPage({
       .from("run_logs")
       .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
       .in("profile_id", ids),
+    // Recent completed runs per profile — the ?status=new "latest fetch" floors
+    // are derived from these (see the isNewView block below).
+    supabase
+      .from("run_logs")
+      .select("profile_id, started_at")
+      .in("profile_id", ids)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false })
+      .limit(300),
   ]);
+
+  // ── ?status=new — latest fetched batch (cross-profile) ───────────────────
+  // "New jobs" = per profile, jobs first discovered (created_at) since the
+  // start of that profile's most recent completed run that actually found
+  // something. Stable until the next batch — independent of seen_at (which is
+  // consumed on first view). Profiles with no completed run yet keep all their
+  // jobs (the first fetch IS the first batch).
+  const isNewView = sp.status === "new";
+  let activeJobs = (jobs ?? []) as Array<{
+    id: string; profile_id: string; created_at?: string | null; [k: string]: unknown;
+  }>;
+  if (isNewView) {
+    const runsByProfile = new Map<string, number[]>(); // newest-first (query desc)
+    for (const r of (completedRuns ?? []) as Array<{ profile_id: string; started_at: string }>) {
+      const t = new Date(r.started_at).getTime();
+      if (isNaN(t)) continue;
+      const list = runsByProfile.get(r.profile_id) ?? [];
+      list.push(t);
+      runsByProfile.set(r.profile_id, list);
+    }
+    const createdMs = (j: { created_at?: string | null }) => {
+      const t = new Date(j.created_at ?? "").getTime();
+      return isNaN(t) ? 0 : t;
+    };
+    const floorByProfile = new Map<string, number>();
+    for (const [pid, starts] of runsByProfile) {
+      const profJobs = activeJobs.filter((j) => j.profile_id === pid);
+      const floor = starts.find((t) => profJobs.some((j) => createdMs(j) >= t));
+      if (floor !== undefined) floorByProfile.set(pid, floor);
+    }
+    activeJobs = activeJobs.filter((j) => {
+      const floor = floorByProfile.get(j.profile_id);
+      return floor === undefined || createdMs(j) >= floor;
+    });
+  }
 
   // ── Derive secondary IDs (sync) ───────────────────────────────────────────
   // Merge active + dismissed into one list so JobBoard can filter client-side.
-  const jobList = [...(jobs ?? []), ...(dismissedJobs ?? [])] as Array<{
+  const jobList = [...activeJobs, ...(dismissedJobs ?? [])] as Array<{
     id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
   }>;
   const jobIds          = jobList.map((j) => j.id);
@@ -582,6 +627,19 @@ export default async function DashboardPage({
         <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2 scroll-mt-4">
           {/* Smoothly scrolls here whenever a filter/sort changes. */}
           <Suspense><ScrollToJobsOnFilter /></Suspense>
+
+          {/* ?status=new banner — each profile's latest fetched batch */}
+          {isNewView && (
+            <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-[12px]">
+              <span className="text-text">
+                <span className="font-semibold text-[var(--brand)]">Latest fetch</span>
+                {" — "}showing each profile&apos;s most recent batch of new jobs. Your usual sort and filters apply.
+              </span>
+              <Link href="/dashboard" className="text-[var(--brand)] font-medium hover:underline shrink-0">
+                Show all jobs →
+              </Link>
+            </div>
+          )}
           <Suspense>
             <JobBoard
               jobs={typedJobs}

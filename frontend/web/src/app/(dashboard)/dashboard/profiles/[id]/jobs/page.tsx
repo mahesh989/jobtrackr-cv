@@ -41,6 +41,9 @@ interface SearchParams {
   dir?:           string;
   stage?:         string;
   triage?:        string;
+  /** "new" — show only the latest fetched batch (jobs discovered by the most
+   *  recent completed run that found anything). Stable until the next run. */
+  view?:          string;
   /** @deprecated — kept for backward compat with old bookmarks */
   status?:        string;
   /** @deprecated — kept for backward compat with old bookmarks */
@@ -122,11 +125,12 @@ export default async function JobsPage({
   }
   query = query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
 
-  // ── BATCH 1 — three parallel queries (all need only profile `id`) ─────────
+  // ── BATCH 1 — four parallel queries (all need only profile `id`) ─────────
   const [
     { data: jobs },
     { data: countRows },
     { data: activeRunData },
+    { data: completedRuns },
   ] = await Promise.all([
     query,
     supabase
@@ -136,6 +140,14 @@ export default async function JobsPage({
       .eq("is_expired", false)
       .eq("is_dead_link", false),
     supabase.from("run_logs").select("id").eq("profile_id", id).eq("status", "running").maybeSingle(),
+    // Recent completed runs — the ?view=new "latest fetch" floor is derived
+    // from these (jobs discovered since the newest run that found anything).
+    supabase.from("run_logs")
+      .select("started_at")
+      .eq("profile_id", id)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false })
+      .limit(25),
   ]);
 
   const isRunning     = !!activeRunData;
@@ -219,6 +231,28 @@ export default async function JobsPage({
       tailored_match_score: run?.tailored_match_score ?? null,
     };
   });
+
+  // ── ?view=new — latest fetched batch ──────────────────────────────────────
+  // "New jobs" = jobs first discovered (created_at) since the start of the most
+  // recent completed run that actually found something. Stable until the next
+  // batch lands — unlike seen_at, which MarkSeenOnLoad consumes on first view.
+  // Runs that discovered nothing are skipped (they'd blank the view), and with
+  // no completed runs yet (first fetch) the whole board is the first batch.
+  const isNewView = sp.view === "new";
+  let visibleBoardJobs = boardJobs;
+  if (isNewView) {
+    const runStarts = ((completedRuns ?? []) as Array<{ started_at: string }>)
+      .map((r) => new Date(r.started_at).getTime())
+      .filter((t) => !isNaN(t)); // newest-first (query is ordered desc)
+    const createdMs = (j: BoardJob) => {
+      const t = new Date((j as { created_at?: string | null }).created_at ?? "").getTime();
+      return isNaN(t) ? 0 : t;
+    };
+    const floor = runStarts.find((t) => boardJobs.some((j) => createdMs(j) >= t));
+    if (floor !== undefined) {
+      visibleBoardJobs = boardJobs.filter((j) => createdMs(j) >= floor);
+    }
+  }
 
   // (allRows, runsRes, lettersRes fetched in BATCH 1 and BATCH 2 above)
 
@@ -334,10 +368,23 @@ export default async function JobsPage({
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
         <LiveLogConsole profileId={id} />
 
+        {/* ?view=new banner — latest fetched batch, with an exit back to all */}
+        {isNewView && (
+          <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-[12px] anim-in">
+            <span className="text-text">
+              <span className="font-semibold text-[var(--brand)]">Latest fetch</span>
+              {" — "}{visibleBoardJobs.length} job{visibleBoardJobs.length !== 1 ? "s" : ""} from the most recent run. Your usual sort and filters apply.
+            </span>
+            <Link href={`/dashboard/profiles/${id}/jobs`} className="text-[var(--brand)] font-medium hover:underline shrink-0">
+              Show all jobs →
+            </Link>
+          </div>
+        )}
+
         {/* Client-side board — instant stage/triage/sort/keyword filtering */}
         <Suspense>
           <ProfileJobBoard
-            jobs={boardJobs}
+            jobs={visibleBoardJobs}
             counts={funnelCounts}
             homeAddress={p.home_address}
             thresholds={th}

@@ -535,33 +535,46 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
   return (
     <div className="bg-surface border border-border rounded-md anim-in hover:border-[var(--text-3)] transition-colors">
-      {/* Collapsed summary */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left"
-      >
-        {open ? <ChevronDown className="w-4 h-4 text-text-3 shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />}
-        <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-semibold text-text truncate">{row.job_title}</p>
-          <p className="text-[12px] text-text-2 truncate mt-0.5">
-            {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {hasEmail && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-text-3">
-              <Mail className="w-3 h-3 text-[var(--brand)]" /> Email ready
-            </span>
-          )}
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-text-3">Tailored</p>
-            <p className={`text-[18px] font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
-              {row.tailored_match_score == null ? "—" : Math.round(row.tailored_match_score)}
-              {row.tailored_match_score != null && <span className="text-[11px] text-text-3 font-medium">/100</span>}
+      {/* Collapsed summary — the toggle button plus a sibling link to the job
+          posting (an <a> can't live inside the <button>). */}
+      <div className="flex items-center gap-1 pr-3">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="min-w-0 flex-1 flex items-center gap-3 pl-4 pr-1 py-3 text-left"
+        >
+          {open ? <ChevronDown className="w-4 h-4 text-text-3 shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold text-text truncate">{row.job_title}</p>
+            <p className="text-[12px] text-text-2 truncate mt-0.5">
+              {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
             </p>
           </div>
-        </div>
-      </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {hasEmail && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-text-3">
+                <Mail className="w-3 h-3 text-[var(--brand)]" /> Email ready
+              </span>
+            )}
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wider text-text-3">Tailored</p>
+              <p className={`text-[18px] font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
+                {row.tailored_match_score == null ? "—" : Math.round(row.tailored_match_score)}
+                {row.tailored_match_score != null && <span className="text-[11px] text-text-3 font-medium">/100</span>}
+              </p>
+            </div>
+          </div>
+        </button>
+        <a
+          href={row.job_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open job posting"
+          aria-label="Open job posting"
+          className="p-1.5 rounded-md text-text-3 hover:text-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors shrink-0"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
 
       {open && (
         <>

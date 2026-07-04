@@ -173,7 +173,9 @@ export function ProfilesTable({
                 <>
                   <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
                   <Link
-                    href={`/dashboard/profiles/${p.id}/jobs`}
+                    // "N new →" opens the latest-fetch view (?view=new): the
+                    // batch from the most recent run, stable until the next one.
+                    href={`/dashboard/profiles/${p.id}/jobs${newJobs > 0 ? "?view=new" : ""}`}
                     className={`gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}
                   >
                     {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
