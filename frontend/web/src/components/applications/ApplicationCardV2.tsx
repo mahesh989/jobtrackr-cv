@@ -548,6 +548,14 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             <p className="text-[12px] text-text-2 truncate mt-0.5">
               {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
             </p>
+            {(row.job_distance_km != null || row.job_posted_at) && (
+              <p className="text-[11px] text-text-3 mt-0.5">
+                {[
+                  row.job_distance_km != null ? `${Math.round(row.job_distance_km)} km away` : null,
+                  row.job_posted_at ? `Posted ${relativeDate(row.job_posted_at)}` : null,
+                ].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {hasEmail && (
