@@ -28,6 +28,7 @@ import {
 import { type ApplicationRowV2 } from "@/components/applications/ApplicationCardV2";
 import { ApplicationCardListV2 } from "@/components/applications/ApplicationCardListV2";
 import { PoolHowItWorks } from "@/components/applications/PoolHowItWorks";
+import { ApplicationPoolSort, type PoolSortKey } from "@/components/applications/ApplicationPoolSort";
 import { BackButton } from "@/components/dashboard/BackButton";
 import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
 
@@ -42,16 +43,37 @@ type JobRow = {
   dismissed_at:    string | null;
   contact_email:   string | null;
   hiring_manager:  string | null;
+  posted_at:       string | null;
+  distance_km:     number | null;
 };
+
+/** Sort pool rows by the chosen key. Missing values always sort last. */
+function sortPoolRows(rows: ApplicationRowV2[], key: PoolSortKey): ApplicationRowV2[] {
+  const ms = (s: string | null) => (s ? new Date(s).getTime() : null);
+  // Recent-first for dates, closest-first for distance; nulls last either way.
+  const cmp = (a: number | null, b: number | null, dir: "desc" | "asc") => {
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return dir === "desc" ? b - a : a - b;
+  };
+  const sorted = [...rows];
+  if (key === "posted") sorted.sort((a, b) => cmp(ms(a.job_posted_at), ms(b.job_posted_at), "desc"));
+  else if (key === "distance") sorted.sort((a, b) => cmp(a.job_distance_km, b.job_distance_km, "asc"));
+  else sorted.sort((a, b) => cmp(ms(a.analyzed_at), ms(b.analyzed_at), "desc"));
+  return sorted;
+}
 
 export default async function ApplicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; sort?: string }>;
 }) {
   const sp = await searchParams;
   const rawTab = sp.status as ApplicationStatusKey | undefined;
   const validTab: ApplicationStatusKey = rawTab === "sent" ? "sent" : "pool";
+  const sortKey: PoolSortKey =
+    sp.sort === "posted" || sp.sort === "distance" ? sp.sort : "analyzed";
 
   const supabase = await createClient();
   const user = await getAuthUser();
@@ -84,7 +106,7 @@ export default async function ApplicationsPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let appliedOnlyQuery: any = allProfileIds.length > 0
     ? supabase.from("jobs")
-        .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
+        .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager, posted_at, distance_km")
         .in("profile_id", allProfileIds)
         .not("applied_at", "is", null)
         .is("dismissed_at", null)
@@ -99,7 +121,7 @@ export default async function ApplicationsPage({
   ] = await Promise.all([
     letterJobIds.length > 0
       ? supabase.from("jobs")
-          .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager")
+          .select("id, profile_id, title, company, location, url, applied_at, dismissed_at, contact_email, hiring_manager, posted_at, distance_km")
           .in("id", letterJobIds)
       : Promise.resolve({ data: [] as JobRow[] }),
     appliedOnlyQuery
@@ -124,18 +146,21 @@ export default async function ApplicationsPage({
 
   const runByJob = new Map<string, {
     id: string;
+    analyzed_at:               string | null;
     tailored_match_score:      number | null;
     tailored_pdf_storage_path: string | null;
     tailored_cv_storage_path:  string | null;
   }>();
   for (const r of (runs ?? []) as Array<{
-    id: string; job_id: string;
+    id: string; job_id: string; created_at: string | null;
     tailored_match_score:      number | null;
     tailored_pdf_storage_path: string | null;
     tailored_cv_storage_path:  string | null;
   }>) {
+    // runs are ordered created_at DESC, so the first per job is the latest.
     if (!runByJob.has(r.job_id)) runByJob.set(r.job_id, {
       id: r.id,
+      analyzed_at:               r.created_at,
       tailored_match_score:      r.tailored_match_score,
       tailored_pdf_storage_path: r.tailored_pdf_storage_path,
       tailored_cv_storage_path:  r.tailored_cv_storage_path,
@@ -162,6 +187,9 @@ export default async function ApplicationsPage({
       job_dismissed_at:          j.dismissed_at,
       job_contact_email:         j.contact_email,
       job_hiring_manager:        j.hiring_manager,
+      job_posted_at:             j.posted_at,
+      job_distance_km:           j.distance_km,
+      analyzed_at:               run?.analyzed_at ?? null,
       profile_id:                j.profile_id,
       profile_name:              profileNameById.get(j.profile_id) ?? "",
       latest_run_id:             run?.id ?? null,
@@ -186,6 +214,9 @@ export default async function ApplicationsPage({
       job_dismissed_at:          j.dismissed_at,
       job_contact_email:         j.contact_email,
       job_hiring_manager:        j.hiring_manager,
+      job_posted_at:             j.posted_at,
+      job_distance_km:           j.distance_km,
+      analyzed_at:               run?.analyzed_at ?? null,
       profile_id:                j.profile_id,
       profile_name:              profileNameById.get(j.profile_id) ?? "",
       latest_run_id:             run?.id ?? null,
@@ -219,9 +250,13 @@ export default async function ApplicationsPage({
     sent: allRows.filter(isSent).length,
   };
 
-  const visible = allRows.filter((r) =>
+  const visibleUnsorted = allRows.filter((r) =>
     validTab === "pool" ? isPool(r) : isSent(r)
   );
+  // Sorting is a pool-tab affordance; the Sent tab keeps its completed-at order.
+  const visible = validTab === "pool"
+    ? sortPoolRows(visibleUnsorted, sortKey)
+    : visibleUnsorted;
 
   const TAB_HELP: Record<ApplicationStatusKey, string> = {
     pool: "Review your tailored CV, cover letter, and email message for each job. Edit anything, save your changes, then send or apply. Cards with a contact email send in one click; cards without one let you copy the message and apply via the job link.",
@@ -280,6 +315,15 @@ export default async function ApplicationsPage({
         {validTab === "pool" && (
           <div className="anim-in anim-delay-1">
             <PoolHowItWorks />
+          </div>
+        )}
+
+        {validTab === "pool" && visible.length > 0 && (
+          <div className="anim-in anim-delay-2 flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-[11px] text-text-3">
+              {visible.length} in pool
+            </span>
+            <ApplicationPoolSort current={sortKey} />
           </div>
         )}
 

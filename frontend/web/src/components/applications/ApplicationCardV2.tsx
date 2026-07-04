@@ -100,6 +100,10 @@ export interface ApplicationRowV2 {
   job_dismissed_at:          string | null;
   job_contact_email:         string | null;
   job_hiring_manager:        string | null;
+  /** Sort fields for the pool (post date / distance / recently analysed). */
+  job_posted_at:             string | null;
+  job_distance_km:           number | null;
+  analyzed_at:               string | null;
   profile_id:                string;
   profile_name:              string;
   latest_run_id:             string | null;
