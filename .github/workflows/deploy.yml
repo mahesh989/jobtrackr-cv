@@ -1,0 +1,107 @@
+name: Deploy
+
+# Deploy-on-merge for the two Fly apps (docs/MIGRATION_PLAN.md §4).
+# - Path-filtered: only the service whose files changed is deployed.
+# - Each deploy re-runs its service's hard gate inline (Actions has no
+#   cross-workflow `needs`; workflow_run can't path-filter multi-commit
+#   pushes reliably, and this repo commits straight to main).
+# - Manual `flyctl deploy --config .../fly.toml` remains the break-glass path,
+#   plus the workflow_dispatch trigger below.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Which app to force-deploy"
+        required: true
+        type: choice
+        options: [worker, api, both]
+
+jobs:
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      worker: ${{ steps.filter.outputs.worker }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            worker:
+              - 'backend/worker/**'
+            api:
+              - 'backend/api/**'
+
+  gate-worker:
+    name: worker · typecheck + test gate
+    needs: changes
+    if: >
+      (github.event_name == 'push' && needs.changes.outputs.worker == 'true') ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["worker","both"]'), inputs.app))
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/worker/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  gate-api:
+    name: api · pytest gate
+    needs: changes
+    if: >
+      (github.event_name == 'push' && needs.changes.outputs.api == 'true') ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["api","both"]'), inputs.app))
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/api/requirements.txt
+      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: pytest -q
+
+  deploy-worker:
+    name: Deploy jobtrackr-worker
+    needs: gate-worker
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-worker
+      cancel-in-progress: false   # never kill a deploy mid-flight; queue instead
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --config backend/worker/fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER }}
+
+  deploy-api:
+    name: Deploy jobtrackr-cv-api
+    needs: gate-api
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-api
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --config backend/api/fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_API }}
