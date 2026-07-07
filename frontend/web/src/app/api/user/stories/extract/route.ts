@@ -125,7 +125,7 @@ export async function POST() {
     return rest;
   });
 
-  const { error: rpcErr } = await (admin as any).rpc("replace_stories", {
+  const { error: rpcErr } = await admin.rpc("replace_stories", {
     p_user_id: user.id,
     p_rows:    rows,
   });
