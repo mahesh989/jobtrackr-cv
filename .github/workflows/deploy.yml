@@ -38,7 +38,7 @@ jobs:
               - 'backend/api/**'
 
   gate-worker:
-    name: worker · typecheck gate
+    name: worker · typecheck + test gate
     needs: changes
     if: >
       (github.event_name == 'push' && needs.changes.outputs.worker == 'true') ||
@@ -56,6 +56,7 @@ jobs:
           cache-dependency-path: backend/worker/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
 
   gate-api:
     name: api · pytest gate
