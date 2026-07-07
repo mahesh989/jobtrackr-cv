@@ -2,7 +2,7 @@ app = 'jobtrackr-worker'
 primary_region = 'syd'
 
 [build]
-  dockerfile = "backend/worker/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [processes]
   worker = 'node dist/index.js'
