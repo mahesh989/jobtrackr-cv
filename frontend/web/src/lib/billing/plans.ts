@@ -175,10 +175,6 @@ export const DENY_COPY: Record<DenyReason, { title: string; body: string }> = {
   },
 };
 
-function isUnlimited(v: number | null): v is null {
-  return v === null;
-}
-
 /** Format AUD cents → "A$9.99". */
 export function formatAud(cents: number): string {
   return `A$${(cents / 100).toFixed(2)}`;

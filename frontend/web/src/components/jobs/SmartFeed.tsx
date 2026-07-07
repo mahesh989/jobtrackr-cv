@@ -984,9 +984,11 @@ function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJo
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
 function CardShell({
-  job, currentTab, refSetter, hero, children, excludeKeywords,
+  job, refSetter, hero, children, excludeKeywords,
 }: {
   job: BoardJob;
+  // currentTab is still passed by every caller (HeroCard/JobCard) but unused
+  // here — kept in the type so callers don't need touching for this cleanup.
   currentTab: string;
   refSetter: (el: HTMLDivElement | null) => void;
   hero?: boolean;

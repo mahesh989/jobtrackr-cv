@@ -28,7 +28,6 @@ export function LiveRunStatus({
 
   // ── Poll for running state ────────────────────────────────────────────────────
   useEffect(() => {
-    let poll: ReturnType<typeof setInterval>;
     let tick: ReturnType<typeof setInterval>;
 
     async function check() {
@@ -60,7 +59,7 @@ export function LiveRunStatus({
 
     const isActive = banner === "running" || banner === "stopping";
     check();
-    poll = setInterval(check, isActive ? 3000 : 12000);
+    const poll = setInterval(check, isActive ? 3000 : 12000);
 
     if (banner === "running") {
       tick = setInterval(() => {

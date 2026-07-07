@@ -108,7 +108,7 @@ export default function LoginPage() {
             <em style={{ fontStyle: "italic", color: "#19E3C8" }}>while you sleep.</em>
           </h2>
           <p style={{ color: "rgba(234,238,246,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
-            Australia's major sources scanned nightly, AI-ranked and ready in your feed every morning.
+            Australia&apos;s major sources scanned nightly, AI-ranked and ready in your feed every morning.
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {BRAND_PANEL_FEATURES.map((f) => (

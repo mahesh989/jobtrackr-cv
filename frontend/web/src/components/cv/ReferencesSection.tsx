@@ -210,7 +210,7 @@ export function ReferencesSection({
               </div>
               <p className="text-[11px] text-text-3 leading-relaxed">
                 Use AI to extract referees already listed in your active CV.
-                Nothing is saved until you click "Save references" below.
+                Nothing is saved until you click &quot;Save references&quot; below.
               </p>
             </div>
             <button
@@ -266,7 +266,7 @@ export function ReferencesSection({
         <div className="space-y-3 pl-1">
           {referees.length === 0 && (
             <p className="text-[12px] text-text-3 italic">
-              No referees added yet. Click "Add referee" to get started.
+              No referees added yet. Click &quot;Add referee&quot; to get started.
             </p>
           )}
 

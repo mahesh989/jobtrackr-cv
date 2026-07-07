@@ -220,7 +220,7 @@ export function ProfileSettingsClient({ initial }: Props) {
           </p>
           <p className="mt-1 text-xs text-text-3">
             Tech links, healthcare credentials, and manual/trade credentials
-            appear only when you've selected the matching family.
+            appear only when you&apos;ve selected the matching family.
           </p>
         </div>
       )}

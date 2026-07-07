@@ -63,19 +63,6 @@ interface SearchParams {
   ats?:           string;
 }
 
-/** Map the new ?stage= param (or legacy ?status=) to a stage key */
-function resolveStage(sp: SearchParams): string {
-  if (sp.stage) return sp.stage;
-  // Backward compat: map old ?status= to new stages
-  if (sp.status === "applied") return "applied";
-  if (sp.status === "dismissed") return "dismissed";
-  // Old chips backward compat
-  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasLetter")) return "letterReady";
-  if (sp.chips?.includes("analysed") && sp.chips?.includes("hasCv")) return "cvReady";
-  if (sp.chips?.includes("analysed")) return "analysed";
-  return "all";
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {

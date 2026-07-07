@@ -159,30 +159,6 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
 }
 
 /**
- * Bulk variants of the pool actions. RLS still scopes each update to jobs
- * the user owns (via the profile → user_id chain) — sending extra ids in
- * the array is safe, those rows just won't match.
- */
-
-async function bulkMarkPoolNoEmail(jobIds: string[]) {
-  if (jobIds.length === 0) return { updated: 0 };
-  const { supabase } = await authedClient();
-  // pool_decision_at stamped, contact_email left null → routes to "Ready to apply".
-  const { data, error } = await supabase
-    .from("jobs")
-    .update({ pool_decision_at: new Date().toISOString() })
-    .in("id", jobIds)
-    .is("pool_decision_at", null)   // only flip undecided rows
-    .select("id");
-
-  if (error) throw new Error(error.message);
-  revalidatePath("/dashboard/applications");
-  // Per-profile boards may also surface these jobs — broad revalidate is fine.
-  revalidatePath("/dashboard");
-  return { updated: data?.length ?? 0 };
-}
-
-/**
  * Toggle "starred" on a batch of jobs. Star is a personal-shortlist marker
  * (see migration 053). Stars unstarred rows; ignores already-starred ones.
  * Use bulkUnstarJobs() to clear.

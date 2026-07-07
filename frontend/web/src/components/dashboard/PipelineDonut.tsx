@@ -375,7 +375,6 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
   }
 
   const [activeLens, setActiveLens] = useState<LensKey>("sourcing");
-  const [hovered,    setHovered]    = useState<number | null>(null);
   const [popup,      setPopup]      = useState<"center" | number | null>(null);
 
   const canvasRef    = useRef<HTMLCanvasElement>(null);
@@ -440,7 +439,6 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
     lensRef.current = lens;
     setActiveLens(lens);
     hovRef.current = null;
-    setHovered(null);
     tFracs.current  = toFracsN(getTotals(data, lens), visN(LENS_META[lens]));
     tCenter.current = centerTarget(data, lens);
     runAnim();
@@ -454,11 +452,11 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
   function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const [mx, my] = xy(e);
     const hit = hitSlice(mx, my, dFracs.current);
-    if (hit !== hovRef.current) { hovRef.current = hit; setHovered(hit); draw(); }
+    if (hit !== hovRef.current) { hovRef.current = hit; draw(); }
   }
 
   function onMouseLeave() {
-    if (hovRef.current !== null) { hovRef.current = null; setHovered(null); draw(); }
+    if (hovRef.current !== null) { hovRef.current = null; draw(); }
   }
 
   function onClick(e: React.MouseEvent<HTMLCanvasElement>) {

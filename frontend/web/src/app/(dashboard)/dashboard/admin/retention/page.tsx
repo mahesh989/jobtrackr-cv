@@ -140,7 +140,6 @@ export default async function AdminRetentionPage() {
   // Signup trend: count by week for last 8 weeks
   const weekBuckets: Record<string, number> = {};
   for (let i = 7; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 7 * 86400_000);
     weekBuckets[`W${8 - i}`] = 0;
   }
   let wIdx = 1;

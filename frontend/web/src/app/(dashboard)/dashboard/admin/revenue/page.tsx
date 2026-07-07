@@ -86,7 +86,6 @@ export default async function AdminRevenuePage() {
 
   const activeSubs  = subs.filter((s) => s.status === "active");
   const trialSubs   = subs.filter((s) => s.status === "trialing");
-  const cancelledSubs = subs.filter((s) => s.status === "canceled" && s.current_period_end && new Date(s.current_period_end) >= monthStart);
   const compSubs    = subs.filter((s) => s.status === "comp");
   const pastDueSubs = subs.filter((s) => s.status === "past_due");
 

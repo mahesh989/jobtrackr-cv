@@ -27,10 +27,6 @@ interface Prefilled {
   source_url:  string;
 }
 
-function emptyPrefilled(): Prefilled {
-  return { title: "", company: "", location: "", description: "", source_url: "" };
-}
-
 export function AddJobModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>("url");
@@ -200,7 +196,7 @@ export function AddJobModal({ onClose }: { onClose: () => void }) {
 
           {fetchError && (
             <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-              {fetchError} — try the "Paste JD" tab instead.
+              {fetchError} — try the &quot;Paste JD&quot; tab instead.
             </p>
           )}
 

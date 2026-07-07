@@ -37,7 +37,6 @@ import { createAdminClient }                               from "@/lib/supabase/
 import { getActiveAiCredentials }                          from "@/lib/ai/activeProvider";
 import { MIN_FINAL_ATS }                                   from "@/lib/atsThresholds";
 import {
-  generateCoverLetter,
   generateOpeningVariants,
   matchStories,
   CvBackendError,
