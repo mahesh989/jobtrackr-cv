@@ -12,15 +12,12 @@ primary_region = 'syd'
   memory = '512mb'
   processes = ['worker']
 
-# No http_service (this is a background BullMQ worker, not an HTTP server),
-# so a plain liveness check via exec: is PID 1 still the node process.
-# CMD uses exec form (Dockerfile), so node runs as PID 1 — no pgrep/procps
-# needed (not installed in the node:22-slim image), just read /proc.
-# Faster crash/OOM detection than the 15-min stale-lock auto-expire in
-# orchestrator.ts, which only fires on that profile's next scheduled run.
-[[checks]]
-  type     = "exec"
-  interval = "30s"
-  timeout  = "5s"
-  [checks.exec]
-    command = ["sh", "-c", "test \"$(cat /proc/1/comm)\" = \"node\""]
+# No [[checks]] here — considered and dropped. This is a background BullMQ
+# worker with no http_service, so a failing check has nothing to act on:
+# it doesn't trigger a restart (that's restart_policy, keyed on process
+# exit, not check status) and doesn't reroute traffic (nothing to reroute).
+# It would only be a status flag in `fly checks list` that nothing reads.
+# Crash/OOM recovery is already handled for free by Fly's default
+# restart_policy (on-failure) on process exit — no config needed here.
+# Real-time crash *alerting* (vs. auto-recovery) remains a known gap,
+# deferred: see docs/MIGRATION_PLAN.md §5 Phase 3 follow-up notes.
