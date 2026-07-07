@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { getSavedJobsForRun } from "@/lib/actions";
 
+type SavedJob = Awaited<ReturnType<typeof getSavedJobsForRun>>[number];
+
 export function RunJobsTable({
   profileId, startedAt, finishedAt, jobsSaved,
 }: {
@@ -12,7 +14,7 @@ export function RunJobsTable({
   jobsSaved: number;
 }) {
   const [isOpen, setIsOpen]   = useState(false);
-  const [jobs, setJobs]       = useState<any[] | null>(null);
+  const [jobs, setJobs]       = useState<SavedJob[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (jobsSaved === 0) return null;
