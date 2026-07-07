@@ -215,13 +215,18 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
   }
 
   // Refs so the polling interval can read the latest state without
-  // restarting the effect each render.
+  // restarting the effect each render. Synced via effect (not inline during
+  // render) — mutating a ref mid-render isn't safe under concurrent
+  // rendering/Strict Mode: a render can be started and discarded, but a ref
+  // write already happened wouldn't be rolled back with it.
   const statusRef       = useRef(run.status);
   const clsRef          = useRef<string | null>(run.cover_letter_status ?? null);
   const coverLetterRef  = useRef<CoverLetterRow | null>(null);
-  statusRef.current      = run.status;
-  clsRef.current         = run.cover_letter_status ?? null;
-  coverLetterRef.current = coverLetter;
+  useEffect(() => {
+    statusRef.current      = run.status;
+    clsRef.current         = run.cover_letter_status ?? null;
+    coverLetterRef.current = coverLetter;
+  }, [run.status, run.cover_letter_status, coverLetter]);
 
   useEffect(() => {
     const supabase = createClient();
