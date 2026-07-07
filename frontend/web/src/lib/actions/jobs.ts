@@ -18,7 +18,7 @@ export async function addManualJob(input: {
   description:  string;      // the full JD text the user pasted / scraped
   source_url:   string | null;
 }): Promise<{ jobId: string; alreadyExisted: boolean }> {
-  const { supabase, user } = await authedClient();
+  const { supabase } = await authedClient();
 
   const profileId = await getOrCreateManualProfile();
 
