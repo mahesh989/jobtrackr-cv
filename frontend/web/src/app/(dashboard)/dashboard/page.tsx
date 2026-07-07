@@ -29,7 +29,6 @@ import { SetupCards } from "@/components/onboarding/SetupCards";
 import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
 import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
 import { firstIncompleteStep } from "@/lib/setupSteps";
-import { type ThinJdJob } from "@/components/jobs/BulkThinJdButton";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
@@ -371,17 +370,6 @@ export default async function DashboardPage({
     };
   });
 
-  // Thin-JD jobs in the loaded board — fed to the bulk "Fix thin JDs" modal.
-  // Captured before the stage/triage filters below mutate typedJobs.
-  const thinJdJobs: ThinJdJob[] = typedJobs
-    .filter((x) => !x.dismissed_at && jobNeedsJd(x))
-    .map((x) => ({
-      id:             x.id,
-      title:          x.title ?? null,
-      company:        x.company ?? null,
-      description:    (x as { description?: string | null }).description ?? null,
-      manual_jd_text: (x as { manual_jd_text?: string | null }).manual_jd_text ?? null,
-    }));
 
   let funnelCounts: FunnelCounts = {
     discovered: 0, analysed: 0, cvReady: 0, letterReady: 0, applied: 0, dismissed: 0, favourite: 0, newCount: 0,
@@ -631,7 +619,6 @@ export default async function DashboardPage({
             <JobBoard
               jobs={typedJobs}
               counts={funnelCounts}
-              thinJdJobs={thinJdJobs}
               sourceParam={sp.source}
               excludeKeywords={mergedExcludeKeywords}
             />
