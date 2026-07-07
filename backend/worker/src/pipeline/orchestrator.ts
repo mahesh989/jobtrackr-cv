@@ -288,6 +288,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     console.warn(`[pipeline] stale-expire failed: ${expireErr.message}`);
   } else if (expired && expired.length > 0) {
     console.log(`[pipeline] expired ${expired.length} stale lock(s): ${expired.map((r) => r.id).join(", ")}`);
+    await sendPipelineFailureAlert(
+      profileId,
+      `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
+      "stale_crash"
+    );
   }
 
   // Step 2: check for a genuinely active run (started within the last STALE_MINUTES).
