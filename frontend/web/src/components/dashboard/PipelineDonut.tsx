@@ -422,6 +422,10 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
   function runAnim() {
     fromFracs.current  = [...dFracs.current] as [number, number, number];
     fromCenter.current = dCenter.current;
+    // runAnim is only ever called from switchLens, which is only wired to
+    // the lens button's onClick (below) — never invoked during render. The
+    // linter can't prove that reachability statically, hence the disable.
+    // eslint-disable-next-line react-hooks/purity -- event-handler-only call path, not render
     animStart.current  = performance.now();
     cancelAnimationFrame(raf.current);
     function frame(now: number) {
