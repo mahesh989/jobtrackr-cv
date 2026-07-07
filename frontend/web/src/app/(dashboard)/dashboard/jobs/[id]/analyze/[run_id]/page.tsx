@@ -1,8 +1,8 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
-import { AnalysisRunClient } from "@/components/cv/AnalysisRunClient";
-import { CoverLetterPanel }  from "@/components/cv/CoverLetterPanel";
+import { AnalysisRunClient, type AnalysisRunRow } from "@/components/cv/AnalysisRunClient";
+import { CoverLetterPanel, type CoverLetterRow }  from "@/components/cv/CoverLetterPanel";
 
 interface Props {
   params: Promise<{ id: string; run_id: string }>;
@@ -154,16 +154,16 @@ export default async function AnalyzeRunPage({ params }: Props) {
         )}
         <AnalysisRunClient
           runId={runId}
-          initial={run as any}
+          initial={run as unknown as AnalysisRunRow}
           cvLabel={cvLabel}
           cvCharLen={cvCharLen}
           cvCategorisedSkills={cvSkills}
         />
         <CoverLetterPanel
           jobId={jobId}
-          initial={existingLetter as any}
+          initial={existingLetter as CoverLetterRow | null}
           jobHiringManager={job?.hiring_manager ?? null}
-          cvStoragePath={(run as any).tailored_cv_storage_path}
+          cvStoragePath={(run as unknown as AnalysisRunRow).tailored_cv_storage_path}
           companyName={job?.company ?? null}
         />
         </div>

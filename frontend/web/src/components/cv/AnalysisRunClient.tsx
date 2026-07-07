@@ -15,7 +15,7 @@ import { TailoredScoreCard }    from "@/components/cv/TailoredScoreCard";
 import { QualityFlagsCard }     from "@/components/cv/QualityFlagsCard";
 import { AnalyzeJobButton }     from "@/components/cv/AnalyzeJobButton";
 
-interface AnalysisRunRow {
+export interface AnalysisRunRow {
   id:                          string;
   job_id?:                     string;
   status:                      "pending" | "running" | "completed" | "failed";

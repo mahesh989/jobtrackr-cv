@@ -17,7 +17,7 @@ interface OpeningVariant {
   pattern_label: string;
 }
 
-interface CoverLetterRow {
+export interface CoverLetterRow {
   id:                       string;
   status:                   "pending" | "running" | "completed" | "failed" | "picking";
   generation_status:        GenerationStatus;
