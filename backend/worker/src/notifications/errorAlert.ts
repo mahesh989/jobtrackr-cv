@@ -2,12 +2,41 @@
 // No-ops silently when RESEND_API_KEY or FOUNDER_ALERT_EMAIL are not configured.
 
 import { resend, fromEmail } from "./resendClient.js";
+import { connection } from "../queue/connection.js";
 
-export async function sendPipelineFailureAlert(profileId: string, errorMessage: string): Promise<void> {
+// Dedup/rate-limit: suppress repeat alerts for the same key within this
+// window, so a systemic failure (e.g. a bad AI API key breaking every run)
+// sends one email, not one per run. Same Redis TTL-counter pattern as
+// pipeline/healthTracker.ts.
+const ALERT_DEDUP_TTL_SECONDS = 60 * 60; // 1 hour
+const ALERT_DEDUP_PREFIX = "jobtrackr:alert:sent:";
+
+async function shouldSuppress(dedupKey: string): Promise<boolean> {
+  const key = `${ALERT_DEDUP_PREFIX}${dedupKey}`;
+  // SET ... NX EX: only the first caller within the window gets `OK`
+  // (i.e. permission to send); everyone else within the TTL gets null.
+  const acquired = await connection.set(key, "1", "EX", ALERT_DEDUP_TTL_SECONDS, "NX");
+  return acquired === null;
+}
+
+export type FailureKind = "pipeline_fatal" | "stale_crash";
+
+export async function sendPipelineFailureAlert(
+  profileId: string,
+  errorMessage: string,
+  kind: FailureKind = "pipeline_fatal"
+): Promise<void> {
   const alertEmail = process.env.FOUNDER_ALERT_EMAIL;
   if (!alertEmail || !resend) return;
 
+  if (await shouldSuppress(`profile:${profileId}`)) {
+    console.log(`[errorAlert] suppressed duplicate alert for profile ${profileId} (within ${ALERT_DEDUP_TTL_SECONDS}s window)`);
+    return;
+  }
+
   const timestamp = new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" });
+  const kindLabel =
+    kind === "stale_crash" ? "Worker crash / OOM (detected via stale run lock)" : "Pipeline logic error";
 
   try {
     await resend.emails.send({
@@ -21,6 +50,10 @@ export async function sendPipelineFailureAlert(profileId: string, errorMessage: 
             <tr>
               <td style="padding:6px 12px 6px 0;color:#6b7280;white-space:nowrap">Profile ID</td>
               <td style="padding:6px 0;font-family:monospace">${profileId}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 12px 6px 0;color:#6b7280">Failure type</td>
+              <td style="padding:6px 0">${kindLabel}</td>
             </tr>
             <tr>
               <td style="padding:6px 12px 6px 0;color:#6b7280">Time (AEST)</td>

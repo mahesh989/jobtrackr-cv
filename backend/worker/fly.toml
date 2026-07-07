@@ -11,3 +11,16 @@ primary_region = 'syd'
   size = 'shared-cpu-1x'
   memory = '512mb'
   processes = ['worker']
+
+# No http_service (this is a background BullMQ worker, not an HTTP server),
+# so a plain liveness check via exec: is PID 1 still the node process.
+# CMD uses exec form (Dockerfile), so node runs as PID 1 — no pgrep/procps
+# needed (not installed in the node:22-slim image), just read /proc.
+# Faster crash/OOM detection than the 15-min stale-lock auto-expire in
+# orchestrator.ts, which only fires on that profile's next scheduled run.
+[[checks]]
+  type     = "exec"
+  interval = "30s"
+  timeout  = "5s"
+  [checks.exec]
+    command = ["sh", "-c", "test \"$(cat /proc/1/comm)\" = \"node\""]
