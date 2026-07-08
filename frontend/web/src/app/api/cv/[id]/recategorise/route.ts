@@ -13,6 +13,7 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { categoriseCv, CvBackendError } from "@/lib/cvBackend";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 25;
@@ -26,6 +27,10 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: 1 AI call (categoriseCv).
+  const rl = await rateLimit(`cv-recategorise:${user.id}`, 10, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   const admin = createAdminClient();
 

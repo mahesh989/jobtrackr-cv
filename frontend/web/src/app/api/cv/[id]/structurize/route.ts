@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { structurizeAndPersist }     from "@/lib/cv/structurizeAndCategorise";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
@@ -29,6 +30,11 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: 2 AI calls (structurize + categorise), also silently
+  // auto-fired by the review page on a stale stored version.
+  const rl = await rateLimit(`cv-structurize:${user.id}`, 8, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   const { searchParams } = new URL(req.url);
   const raw = searchParams.get("provider");

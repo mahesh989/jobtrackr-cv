@@ -19,6 +19,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { extractCvText, CvBackendError, type StructuredCv, type CategoriseCvResponse } from "@/lib/cvBackend";
 import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 // Extraction is normally <3s; allow headroom for cold-edge cases.
@@ -51,6 +52,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Rate limit: upload triggers 2 AI calls (structurize + categorise).
+  const rl = await rateLimit(`cv-upload:${user.id}`, 5, 60);
+  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
   let body: { cv_id?: string; label?: string; storage_path?: string };
   try {
