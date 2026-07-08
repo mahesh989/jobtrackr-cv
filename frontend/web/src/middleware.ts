@@ -11,7 +11,10 @@ export async function middleware(request: NextRequest) {
   // logged-in user's token still refreshes on their next protected navigation.
   // This shaves a round-trip off every anonymous landing/pricing/privacy hit.
   const isPublicRoute =
-    pathname === "/" || pathname === "/privacy" || pathname === "/terms";
+    pathname === "/" ||
+    pathname === "/pricing" ||
+    pathname === "/privacy" ||
+    pathname === "/terms";
   if (isPublicRoute) {
     return NextResponse.next({ request });
   }
