@@ -14,6 +14,9 @@ export function ThemePickerClient() {
   const [current, setCurrent] = useState<Theme>("classic");
 
   useEffect(() => {
+    // Mount-only read of an external system (localStorage), deferred past
+    // hydration on purpose — same reasoning as DensityPickerClient.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration read, not a sync loop
     setCurrent(getStoredTheme());
   }, []);
 

@@ -68,6 +68,10 @@ export function LiveRunStatus({
         }
       }, 1000);
     } else {
+      // Part of this same polling-interval-setup effect (setInterval above,
+      // async check() polling) — the setState here is a branch of that
+      // machinery, not a standalone sync-on-change case.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- branch of a real polling-interval effect
       setElapsed(0);
     }
 
