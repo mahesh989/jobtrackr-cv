@@ -82,36 +82,51 @@ different maturity:
   including a SIGKILL from an OOM event. Nothing in this repo configures
   this explicitly (`backend/worker/fly.toml` has no `[[restart]]` block) —
   it's the platform default, already in effect today.
-- **Notification — open gap.** An OOM kill (SIGKILL) takes the process down
-  before any in-process code — including the pipeline's own fatal-catch
-  email alert (`src/notifications/errorAlert.ts`, wired in during Phase 3)
-  — gets a chance to run. The only detection path today is the stale-lock
-  auto-expire in `orchestrator.ts` (`~15` min threshold), which fires
-  *retrospectively*, at the start of that same profile's *next scheduled
-  run* — which could be hours or days later depending on the profile's
-  cron. There is currently no real-time "the machine just restarted" alert.
+- **Notification — in-code half closed.** `src/index.ts` now distinguishes
+  a deploy-triggered SIGTERM (expected — writes a Redis "expected
+  shutdown" marker via `notifications/restartDetection.ts` before exiting,
+  stays quiet on next boot) from anything that skips that path: an
+  uncaught exception/unhandled rejection (new `process.on` handlers,
+  alerts immediately with the real error before exiting) or an OOM
+  SIGKILL (no handler runs, but the *absence* of the expected-shutdown
+  marker at the next startup — which happens within seconds, thanks to
+  `restart_policy` — triggers the same alert, `errorAlert.ts`'s
+  `sendWorkerRestartAlert()`, deduped so a crash loop sends one email per
+  window, not one per restart). This is a real improvement over the old
+  stale-lock-only detection (minutes-to-days lag) even for the OOM case,
+  since the worker process itself restarts fast even though it can't
+  alert *before* dying.
+- **Still open — pure crash-loop-before-first-boot.** If the process
+  never completes a startup (a bug that throws before the marker-check
+  code even runs), nothing in `backend/worker` can ever alert, because
+  nothing in `backend/worker` ever finishes running. This is structurally
+  a Fly-platform-detection problem, not a code problem — see the
+  follow-up options below. Not yet done: confirming Fly's org-level
+  crash-loop failure-alert emails are switched on for this account
+  (dashboard setting, zero code), or a log-drain watching for Fly's OOM
+  log signature for true zero-latency detection independent of whether
+  the worker code ever runs again.
 
-**Why it's not solved yet.** A `fly.toml` `[[checks]]` exec-type liveness
-probe was built and then deliberately removed in Phase 3 (see PR #27
-history) after review surfaced two problems: (1) it assumed the app is PID
-1 inside the container, but Fly injects its own init process ahead of the
-app, so a `/proc/1/comm`-style check reads Fly's init, not the worker; (2)
-even fixed, a failing check doesn't do anything for a non-HTTP background
-worker — check failures don't drive `restart_policy` (that's keyed on
-process exit, not check status) and there's no `http_service` to reroute
-traffic away from. It would only flip a status flag in `fly checks list`
-that nothing reads. This dead end is recorded here so it isn't re-derived
-from scratch next time someone reaches for "just add a Fly health check."
+**Why the first attempt at this didn't work.** A `fly.toml` `[[checks]]`
+exec-type liveness probe was built and then deliberately removed in Phase 3
+(see PR #27 history) after review surfaced two problems: (1) it assumed the
+app is PID 1 inside the container, but Fly injects its own init process
+ahead of the app, so a `/proc/1/comm`-style check reads Fly's init, not the
+worker; (2) even fixed, a failing check doesn't do anything for a non-HTTP
+background worker — check failures don't drive `restart_policy` (that's
+keyed on process exit, not check status) and there's no `http_service` to
+reroute traffic away from. It would only flip a status flag in
+`fly checks list` that nothing reads. This dead end is recorded here so
+it isn't re-derived from scratch next time someone reaches for "just add a
+Fly health check" — the working answer turned out to be in-process
+(signal handlers + a Redis marker), not a Fly config change.
 
-**Breaks if violated (i.e. if this gap is mistaken for "already handled").**
-Anyone assuming "the worker alerts on crash" because Phase 3 shipped
-pipeline-failure alerting will be surprised that a hard crash can go
-unnoticed for as long as the affected profile's schedule interval. The real
-fix — real-time crash alerting, not just recovery — is still open. Likely
-candidates for a future session: Fly's platform-level failure-alert
-emails (org/account setting, not code — never confirmed enabled), or a
-worker-side heartbeat written to Redis/`run_logs` with an *external* watcher
-(the worker itself can't watch itself once it's dead).
+**Breaks if violated (i.e. if the remaining gap is mistaken for "already
+handled").** The in-code mechanism only reports a restart *after* the
+worker successfully boots again. Anyone assuming "the worker alerts on
+literally any crash scenario" will be surprised specifically by the
+crash-loop-before-first-boot case above — everything else (deploy, normal
+crash, OOM) is covered.
 
 ## 4. No shared runtime code across `frontend/web` / `backend/worker` /
    `backend/api`
