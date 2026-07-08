@@ -175,9 +175,13 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
   // Reset session-only edits when the active letter changes (e.g. regenerate)
   // so stale edits from a prior letter aren't silently sent to the PDF route.
-  useEffect(() => {
+  // Compared during render (React's "adjusting state when a prop changes"
+  // pattern) rather than in an effect.
+  const [prevLetterId, setPrevLetterId] = useState(letter?.id);
+  if (prevLetterId !== letter?.id) {
+    setPrevLetterId(letter?.id);
     setEditedBody(null);
-  }, [letter?.id]);
+  }
 
   // Escape-to-close + body scroll lock while the download modal is open.
   useEffect(() => {
