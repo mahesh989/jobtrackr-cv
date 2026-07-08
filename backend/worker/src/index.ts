@@ -9,6 +9,9 @@ import type { PipelineJobData } from "./queue/queue.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { syncSchedules, registerGlobalSchedules } from "./queue/scheduler.js";
 import { runWeeklyDigest } from "./notifications/weeklyDigest.js";
+import { sendWorkerRestartAlert } from "./notifications/errorAlert.js";
+import { markExpectedShutdown, wasShutdownExpected } from "./notifications/restartDetection.js";
+import { getLastKnownRun } from "./pipeline/runLog.js";
 import { db } from "./db/client.js";
 
 const worker = new Worker<PipelineJobData>(
@@ -59,6 +62,30 @@ worker.on("failed", (job, err) => {
 
 console.log(`[worker] started — queue: ${QUEUE_NAME}`);
 
+// ── Crash-notification: was the previous shutdown expected? ───────────────────
+// See notifications/restartDetection.ts for the full mechanism. Absence of
+// the marker means the previous process never reached the graceful SIGTERM
+// path — covers both an uncaught-crash restart (which also alerts directly,
+// below — this is the dedup-collapsed follow-up) and an OOM-kill restart
+// (which has no other alerting path at all; this is the only place OOM
+// notification happens, just delayed to "next boot" rather than instant).
+wasShutdownExpected().then(async (expected) => {
+  if (expected) {
+    console.log("[worker] previous shutdown was graceful — resuming normally");
+    return;
+  }
+  console.warn("[worker] previous shutdown was NOT graceful (no expected-shutdown marker) — alerting");
+  const lastKnownRun = await getLastKnownRun();
+  await sendWorkerRestartAlert(
+    "Previous shutdown was not graceful — no error detail available " +
+      "(likely OOM-killed or force-stopped; an uncaught in-process crash " +
+      "would have sent its own alert with the real error already).",
+    lastKnownRun
+  );
+}).catch((err) => {
+  console.error("[worker] startup shutdown-marker check failed:", err);
+});
+
 // ── Graceful shutdown — mark any in-flight run_logs as failed ─────────────────
 // Fly.io and Docker send SIGTERM before killing the process (default 10s grace).
 // This ensures a crash/deploy never leaves a run stuck in "running" indefinitely.
@@ -81,6 +108,9 @@ async function shutdown(signal: string) {
     if (stuck && stuck.length > 0) {
       console.log(`[worker] cleared ${stuck.length} in-flight run_log(s) on shutdown`);
     }
+    // Mark this shutdown as expected — SIGTERM/SIGINT are how Fly stops a
+    // machine for a deploy, so the next startup shouldn't alert about it.
+    await markExpectedShutdown();
   } catch (err) {
     console.error("[worker] shutdown error:", err);
   }
@@ -89,6 +119,57 @@ async function shutdown(signal: string) {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT",  () => shutdown("SIGINT"));
+
+// ── Crash notification — the catchable half ────────────────────────────────────
+// An uncaught exception or unhandled rejection is a real bug, not a deploy —
+// it does NOT go through the SIGTERM shutdown() path above (nothing external
+// asked the process to stop), so without this handler it would silently skip
+// both the run_logs cleanup AND any alert. Node fires these events before
+// actually terminating, same shape as a signal handler — deliberately NOT
+// marking this an "expected" shutdown, so if this alert send itself fails,
+// the startup-marker check above still catches it as a backup on next boot
+// (the dedup in sendWorkerRestartAlert collapses that into one email, not two).
+const CRASH_ALERT_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timed-out"> {
+  return Promise.race([
+    promise,
+    new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), ms)),
+  ]);
+}
+
+async function attemptCrashAlert(kind: string, message: string): Promise<void> {
+  const lastKnownRun = await getLastKnownRun();
+  await sendWorkerRestartAlert(`${kind}: ${message}`, lastKnownRun);
+}
+
+function crashHandler(kind: string) {
+  return async (err: unknown) => {
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(`[worker] ${kind}:`, message);
+    // The process is in an undefined state after an uncaught exception or
+    // unhandled rejection — the correct pattern is attempt cleanup, then
+    // exit unconditionally, never try to recover and keep running. Bound
+    // the alert attempt so a hung network call (the Redis dedup check —
+    // ioredis is configured with unlimited retries for BullMQ's sake, so
+    // it has no timeout of its own — the run_logs read, or the Resend API)
+    // can never block the exit below indefinitely. A crash handler that
+    // never exits is worse than one that does: Fly's restart_policy only
+    // fires on actual process exit, not on a hung-but-technically-alive one.
+    try {
+      const outcome = await withTimeout(attemptCrashAlert(kind, message), CRASH_ALERT_TIMEOUT_MS);
+      if (outcome === "timed-out") {
+        console.error(`[worker] crash alert send timed out after ${CRASH_ALERT_TIMEOUT_MS}ms — exiting anyway`);
+      }
+    } catch (alertErr) {
+      console.error("[worker] failed to send crash alert:", alertErr);
+    }
+    process.exit(1);
+  };
+}
+
+process.on("uncaughtException",  crashHandler("uncaughtException"));
+process.on("unhandledRejection", crashHandler("unhandledRejection"));
 
 // Reconcile all active profile schedules on every startup so cron state
 // in Redis stays in sync even after worker restarts or profile changes

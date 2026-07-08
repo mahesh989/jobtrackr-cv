@@ -1,6 +1,34 @@
 // Run log lifecycle — written at start AND end of every pipeline run
 import { db } from "../db/client.js";
 
+/**
+ * Most recent run_logs row across all profiles, regardless of status.
+ * Used by the worker-restart alert to give "what was the worker doing
+ * last" context — best-effort, never throws (a failed read shouldn't
+ * block sending the alert itself).
+ */
+export async function getLastKnownRun(): Promise<
+  { profileId: string; status: string; startedAt: string } | null
+> {
+  try {
+    const { data } = await db
+      .from("run_logs")
+      .select("profile_id, status, started_at")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      profileId: data.profile_id as string,
+      status:    data.status as string,
+      startedAt: data.started_at as string,
+    };
+  } catch (err) {
+    console.warn(`[runLog] getLastKnownRun failed: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
 export async function startRunLog(profileId: string): Promise<string> {
   const { data, error } = await db
     .from("run_logs")
