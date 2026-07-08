@@ -368,8 +368,8 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
                 Recommended — writing fresh in your own voice gives the cleanest signal.
               </p>
               <p className="text-[11px] text-text-2 leading-relaxed">
-                Type {WORD_MIN}+ words about a project, a problem you've solved, or anything you'd naturally
-                talk about. Don't polish, don't proof, don't paraphrase — typos and casual phrasing are
+                Type {WORD_MIN}+ words about a project, a problem you&apos;ve solved, or anything you&apos;d naturally
+                talk about. Don&apos;t polish, don&apos;t proof, don&apos;t paraphrase — typos and casual phrasing are
                 what give us your real voice. Pasting is disabled on this tab on purpose.
               </p>
             </div>
@@ -380,7 +380,7 @@ export function VoiceCaptureClient({ initialProfile }: Props) {
               </p>
               <p className="text-[11px] text-[var(--text-2)] leading-relaxed">
                 Paste a cover letter <span className="font-semibold">you wrote yourself</span> (not one AI generated
-                or someone else drafted for you). {WORD_MIN}+ words. We'll still learn from it, but the rewrites
+                or someone else drafted for you). {WORD_MIN}+ words. We&apos;ll still learn from it, but the rewrites
                 may come out a bit more buttoned-up than how you actually sound. If you want the warmest result,
                 switch to the other tab.
               </p>

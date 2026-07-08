@@ -71,7 +71,7 @@ export default async function VoicePage() {
             <h2 className="page-title text-text" style={{ fontSize: "1.125rem" }}>Stories from your CV</h2>
             <p className="page-subtitle">
               Concrete achievements with metrics, extracted from your CV — used as the substance of cover
-              letter body paragraphs. Different from your writing voice above: this is <span className="font-semibold">what</span> you've done,
+              letter body paragraphs. Different from your writing voice above: this is <span className="font-semibold">what</span> you&apos;ve done,
               that section is <span className="font-semibold">how</span> you write about it.
             </p>
           </div>

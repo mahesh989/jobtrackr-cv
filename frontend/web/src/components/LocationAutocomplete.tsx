@@ -34,6 +34,11 @@ export function LocationAutocomplete({ name, defaultValue = "", placeholder }: P
     }
     const q = value.trim();
     if (q.length < 2) {
+      // This guard clause is part of a debounced-fetch effect (setTimeout
+      // below) that has to live in an effect regardless — the setState here
+      // is incidental to that timer machinery, not a standalone sync-on-
+      // change case that could move to render time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard inside a real debounce/timer effect
       setSugg([]);
       setOpen(false);
       return;

@@ -37,9 +37,15 @@ export function MobileNav({
   const pathname = usePathname();
 
   // Close the drawer whenever the route changes (a nav item was tapped).
-  useEffect(() => {
+  // Compared during render (React's "adjusting state when a prop changes"
+  // pattern) rather than in an effect — a conditional setState call during
+  // render is tracked by React and safely discardable with a thrown-away
+  // render under concurrent rendering.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // Escape to close + lock background scroll while the drawer is open.
   useEffect(() => {

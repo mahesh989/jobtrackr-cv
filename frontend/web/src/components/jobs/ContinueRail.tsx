@@ -55,6 +55,11 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
   const [dismissed, setDismissed]   = useState<boolean | null>(null); // null = SSR/loading
 
   useEffect(() => {
+    // Mount-only read of an external system (localStorage), deferred past
+    // hydration on purpose — server always renders null (SSR/loading);
+    // reading synchronously during the first client render risks a
+    // hydration mismatch. No "previous render" to compare against.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe hydration read, not a sync loop
     setDismissed(typeof window !== "undefined" && window.localStorage.getItem(DISMISS_KEY) === "1");
   }, []);
 

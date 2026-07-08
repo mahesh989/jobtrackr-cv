@@ -289,7 +289,7 @@ export function JobEditModal({
                 This JD matches {exclusionHits.length} exclusion{exclusionHits.length > 1 ? "s" : ""} from your profile settings
               </p>
               <p className="text-[11px] text-text-2 mt-1">
-                {exclusionHits.map((h, i) => (
+                {exclusionHits.map((h) => (
                   <span key={h} className="inline-block bg-[var(--amber)]/15 border border-[var(--amber)]/30 rounded px-1.5 py-0.5 mr-1.5 mb-1 text-[var(--amber)] font-medium">
                     {h}
                   </span>

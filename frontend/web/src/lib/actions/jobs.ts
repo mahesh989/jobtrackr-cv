@@ -18,7 +18,7 @@ export async function addManualJob(input: {
   description:  string;      // the full JD text the user pasted / scraped
   source_url:   string | null;
 }): Promise<{ jobId: string; alreadyExisted: boolean }> {
-  const { supabase, user } = await authedClient();
+  const { supabase } = await authedClient();
 
   const profileId = await getOrCreateManualProfile();
 
@@ -156,30 +156,6 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
 
   revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard/applications");
-}
-
-/**
- * Bulk variants of the pool actions. RLS still scopes each update to jobs
- * the user owns (via the profile → user_id chain) — sending extra ids in
- * the array is safe, those rows just won't match.
- */
-
-async function bulkMarkPoolNoEmail(jobIds: string[]) {
-  if (jobIds.length === 0) return { updated: 0 };
-  const { supabase } = await authedClient();
-  // pool_decision_at stamped, contact_email left null → routes to "Ready to apply".
-  const { data, error } = await supabase
-    .from("jobs")
-    .update({ pool_decision_at: new Date().toISOString() })
-    .in("id", jobIds)
-    .is("pool_decision_at", null)   // only flip undecided rows
-    .select("id");
-
-  if (error) throw new Error(error.message);
-  revalidatePath("/dashboard/applications");
-  // Per-profile boards may also surface these jobs — broad revalidate is fine.
-  revalidatePath("/dashboard");
-  return { updated: data?.length ?? 0 };
 }
 
 /**

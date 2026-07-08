@@ -7,7 +7,6 @@ import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive
 import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
-import { type ThinJdJob } from "./BulkThinJdButton";
 import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "./jobFilters";
 import { shallowSetParams } from "./shallowNav";
 import { ThinJdBanner } from "./ThinJdBanner";
@@ -72,14 +71,12 @@ export function JobBoard({
   jobs,
   counts,
   railJobs = [],
-  thinJdJobs,
   sourceParam,
   excludeKeywords,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
   railJobs?:   RailJob[];
-  thinJdJobs:  ThinJdJob[];
   sourceParam?: string;
   excludeKeywords?: string;
 }) {

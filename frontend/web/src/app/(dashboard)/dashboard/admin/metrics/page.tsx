@@ -39,6 +39,11 @@ export default async function MetricsPage() {
   if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard");
 
   const admin = createAdminClient();
+  // This is an async Server Component — it renders once per request on the
+  // server, not repeatedly on the client, so Date.now()'s "unstable across
+  // re-renders" concern doesn't apply here. The linter doesn't distinguish
+  // server vs. client components for this rule.
+  // eslint-disable-next-line react-hooks/purity -- server-rendered once per request, not a re-rendering client component
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
 

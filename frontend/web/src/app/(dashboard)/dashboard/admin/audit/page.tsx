@@ -39,7 +39,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const filterAction = sp.action ?? null;
 
-  const { admin, userId: myId } = await requireAdmin();
+  const { admin } = await requireAdmin();
 
   const { data: usersRaw } = await admin.from("users").select("id, email");
   const users  = (usersRaw ?? []) as { id: string; email: string }[];

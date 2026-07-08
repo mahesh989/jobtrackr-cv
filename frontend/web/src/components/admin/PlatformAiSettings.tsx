@@ -245,7 +245,7 @@ export function PlatformAiSettings({ initialProviders }: { initialProviders: Adm
                       className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[13px] font-mono text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]"
                     />
                     <p className="text-[11px] text-text-3">
-                      Stored encrypted (AES-256-GCM). Used for every user's analyses while this provider is active.
+                      Stored encrypted (AES-256-GCM). Used for every user&apos;s analyses while this provider is active.
                     </p>
                   </div>
                 )}

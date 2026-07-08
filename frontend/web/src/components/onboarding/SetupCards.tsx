@@ -9,7 +9,7 @@
  * the previous card (non-destructive). A green check marks steps already done.
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { SetupStatus } from "@/lib/setupStatus";
@@ -34,7 +34,13 @@ export function SetupCards({
   // The instructions page re-renders with a fresh initialStep when the stepper
   // bar navigates back to a card; keep the visible card in sync across that
   // soft-navigation (useState only reads initialStep on first mount).
-  useEffect(() => { setI(initialStep); }, [initialStep]);
+  // Compared during render (React's "adjusting state when a prop changes"
+  // pattern) rather than in an effect.
+  const [prevInitialStep, setPrevInitialStep] = useState(initialStep);
+  if (prevInitialStep !== initialStep) {
+    setPrevInitialStep(initialStep);
+    setI(initialStep);
+  }
 
   const step = SETUP_STEPS[i];
   const Icon = step.icon;

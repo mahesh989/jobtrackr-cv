@@ -341,9 +341,13 @@ export function SmartFeed({
   // Reset hiddenIds when the upstream `jobs` array reference changes (server
   // refresh completed). Without this, a job re-archived later would still
   // appear briefly while the optimistic hide from a previous run lingers.
-  const lastJobsRef = useRef(jobs);
-  if (lastJobsRef.current !== jobs) {
-    lastJobsRef.current = jobs;
+  // Compared via state (not a ref) — React's own "adjusting state when a
+  // prop changes" pattern: a conditional setState call during render is
+  // safe under concurrent rendering (React can discard it along with a
+  // thrown-away render), whereas mutating a ref during render isn't.
+  const [prevJobs, setPrevJobs] = useState(jobs);
+  if (prevJobs !== jobs) {
+    setPrevJobs(jobs);
     if (hiddenIds.size > 0) setHiddenIds(new Set());
   }
 
@@ -799,10 +803,20 @@ function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
   // once on mouseup.
   const [localRange, setLocalRange] = useState<[number, number]>(range);
   const localRangeRef = useRef(localRange);
-  localRangeRef.current = localRange;
+  useEffect(() => { localRangeRef.current = localRange; }, [localRange]);
 
-  // Sync local state when the URL changes from somewhere else (e.g. "clear").
-  useEffect(() => { if (!dragging) setLocalRange(range); }, [range, dragging]);
+  // Sync local state when the URL changes from somewhere else (e.g. "clear"),
+  // or when a drag just ended — same trigger condition as the effect this
+  // replaces ([range, dragging] deps), just checked during render instead:
+  // conditional setState during render is safe under concurrent rendering
+  // (React can discard it with a thrown-away render); mutating a ref isn't.
+  const [prevRange, setPrevRange]       = useState(range);
+  const [prevDragging, setPrevDragging] = useState(dragging);
+  if (prevRange !== range || prevDragging !== dragging) {
+    setPrevRange(range);
+    setPrevDragging(dragging);
+    if (!dragging) setLocalRange(range);
+  }
 
   // Tick step adapts to the axis so we don't render 100 overlapping labels.
   // At 50 km we get 0/10/20/30/40/50 — same as the beta.
@@ -984,9 +998,11 @@ function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJo
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
 function CardShell({
-  job, currentTab, refSetter, hero, children, excludeKeywords,
+  job, refSetter, hero, children, excludeKeywords,
 }: {
   job: BoardJob;
+  // currentTab is still passed by every caller (HeroCard/JobCard) but unused
+  // here — kept in the type so callers don't need touching for this cleanup.
   currentTab: string;
   refSetter: (el: HTMLDivElement | null) => void;
   hero?: boolean;

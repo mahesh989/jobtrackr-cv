@@ -39,7 +39,6 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
 
   const now    = new Date();
   const cutoff = rangeStart(range);
-  const d7ago  = new Date(now.getTime() - 7  * 86400_000);
   const stuckCutoff = new Date(now.getTime() - 20 * 60_000); // 20 min ago
 
   // Core queries — always exist

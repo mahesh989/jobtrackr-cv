@@ -56,15 +56,15 @@ export default async function NewProfilePage() {
                 </div>
                 <div className="border-t border-border pt-3">
                   <p className="font-semibold text-text mb-0.5">Use the title filter wisely</p>
-                  <p className="text-text-2 leading-relaxed">Under Adzuna refinements, "Title must contain" narrows results to a word that <em>must appear</em> in the job title — great for enforcing role type.</p>
+                  <p className="text-text-2 leading-relaxed">Under Adzuna refinements, &quot;Title must contain&quot; narrows results to a word that <em>must appear</em> in the job title — great for enforcing role type.</p>
                 </div>
                 <div className="border-t border-border pt-3">
                   <p className="font-semibold text-text mb-0.5">Initial window vs. auto-run</p>
-                  <p className="text-text-2 leading-relaxed">Set a wider initial window (28 days) for a rich first batch. Auto-runs then fetch only what's new since the last run — no duplicates.</p>
+                  <p className="text-text-2 leading-relaxed">Set a wider initial window (28 days) for a rich first batch. Auto-runs then fetch only what&apos;s new since the last run — no duplicates.</p>
                 </div>
                 <div className="border-t border-border pt-3">
                   <p className="font-semibold text-text mb-0.5">Exclude noise upfront</p>
-                  <p className="text-text-2 leading-relaxed">Add seniority words to "Exclude from title" — e.g. <em>senior, lead, principal</em> — so you only see roles at the right level.</p>
+                  <p className="text-text-2 leading-relaxed">Add seniority words to &quot;Exclude from title&quot; — e.g. <em>senior, lead, principal</em> — so you only see roles at the right level.</p>
                 </div>
               </div>
             </div>

@@ -45,7 +45,7 @@ export function QualityFlagsCard({ flags }: Props) {
         <ul className="mt-3 space-y-1.5 text-xs text-text-2 list-disc pl-5">
           {notes.map((n, i) => <li key={`n${i}`}>{n}</li>)}
           {dropped.map((d, i) => (
-            <li key={`d${i}`}>{d}: role removed (not aligned with this role's vertical)</li>
+            <li key={`d${i}`}>{d}: role removed (not aligned with this role&apos;s vertical)</li>
           ))}
         </ul>
       )}

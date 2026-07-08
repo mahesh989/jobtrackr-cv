@@ -20,7 +20,7 @@
  * error messages, status codes, and story counts.
  */
 
-import { NextRequest, NextResponse }                     from "next/server";
+import { NextResponse }                                  from "next/server";
 import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
@@ -29,7 +29,7 @@ import { extractStories, Story, CvBackendError }         from "@/lib/cvBackend";
 export const runtime     = "nodejs";
 export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s timeout
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   // ── 1. Verify session ────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     return rest;
   });
 
-  const { error: rpcErr } = await (admin as any).rpc("replace_stories", {
+  const { error: rpcErr } = await admin.rpc("replace_stories", {
     p_user_id: user.id,
     p_rows:    rows,
   });
