@@ -129,12 +129,38 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 // marking this an "expected" shutdown, so if this alert send itself fails,
 // the startup-marker check above still catches it as a backup on next boot
 // (the dedup in sendWorkerRestartAlert collapses that into one email, not two).
+const CRASH_ALERT_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timed-out"> {
+  return Promise.race([
+    promise,
+    new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), ms)),
+  ]);
+}
+
+async function attemptCrashAlert(kind: string, message: string): Promise<void> {
+  const lastKnownRun = await getLastKnownRun();
+  await sendWorkerRestartAlert(`${kind}: ${message}`, lastKnownRun);
+}
+
 function crashHandler(kind: string) {
   return async (err: unknown) => {
     const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error(`[worker] ${kind}:`, message);
+    // The process is in an undefined state after an uncaught exception or
+    // unhandled rejection — the correct pattern is attempt cleanup, then
+    // exit unconditionally, never try to recover and keep running. Bound
+    // the alert attempt so a hung network call (the Redis dedup check —
+    // ioredis is configured with unlimited retries for BullMQ's sake, so
+    // it has no timeout of its own — the run_logs read, or the Resend API)
+    // can never block the exit below indefinitely. A crash handler that
+    // never exits is worse than one that does: Fly's restart_policy only
+    // fires on actual process exit, not on a hung-but-technically-alive one.
     try {
-      await sendWorkerRestartAlert(`${kind}: ${message}`, await getLastKnownRun());
+      const outcome = await withTimeout(attemptCrashAlert(kind, message), CRASH_ALERT_TIMEOUT_MS);
+      if (outcome === "timed-out") {
+        console.error(`[worker] crash alert send timed out after ${CRASH_ALERT_TIMEOUT_MS}ms — exiting anyway`);
+      }
     } catch (alertErr) {
       console.error("[worker] failed to send crash alert:", alertErr);
     }
