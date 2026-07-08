@@ -37,11 +37,11 @@ export const metadata: Metadata = {
   },
 };
 
-// JSON-LD structured data. Describes what JobTrackr actually is — a free-to-start
-// web application with paid plans (offers points at /pricing). Deliberately NO
-// aggregateRating/review: the on-page testimonials are illustrative, not
-// verified, and fabricating rating schema is both dishonest and a Google
-// penalty risk.
+// JSON-LD structured data. Describes what JobTrackr actually is — a
+// trial-to-start web application with paid plans (offers points at
+// /pricing). Deliberately NO aggregateRating/review: the on-page
+// testimonials are illustrative, not verified, and fabricating rating
+// schema is both dishonest and a Google penalty risk.
 const JSON_LD = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -52,10 +52,10 @@ const JSON_LD = {
   description: LANDING_DESCRIPTION,
   offers: {
     "@type": "Offer",
-    price: "0",
+    price: "9.99",
     priceCurrency: "AUD",
     url: `${SITE_URL}/pricing`,
-    description: "Free plan available; paid plans unlock more profiles and higher scan frequency.",
+    description: "3-day free trial (card required), then plans from A$9.99/week.",
   },
 };
 
@@ -114,7 +114,7 @@ export default async function Home() {
           <a href="#how" className="land-btn-secondary">See how it works</a>
         </div>
         <p className="land-note">
-          Built for Australia · Free plan available · 60-second setup
+          Built for Australia · 3-day free trial · 60-second setup
         </p>
 
         {/* Live-feed surprise — a fake job feed scrolling in the hero */}
@@ -389,9 +389,11 @@ export default async function Home() {
         <details className="land-faq">
           <summary>What does it cost?</summary>
           <p>
-            There&apos;s a free plan you can use indefinitely. Paid plans
-            unlock more profiles, higher scan frequency, and priority compute.
-            No credit card needed to start.
+            New accounts get a 3-day free trial — enough for 3 tailored CVs
+            and 3 cover letters — so you can see real results before paying.
+            A card is required to start the trial, and it rolls into your
+            chosen plan (Weekly, Monthly, or Unlimited) automatically unless
+            you cancel first. You&apos;re not charged until the trial ends.
           </p>
         </details>
         <details className="land-faq">
