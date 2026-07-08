@@ -1,10 +1,63 @@
 // JobTrackr landing page — public marketing surface.
 // Logged-in users skip straight to the dashboard.
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SITE_URL } from "@/lib/site";
 import "./landing.css";
+
+const LANDING_TITLE = "JobTrackr — AI job search & CV tailoring for Australia";
+const LANDING_DESCRIPTION =
+  "AI-powered job search for Australia. JobTrackr scans SEEK, Adzuna, Careerjet and more every night, ranks each role for you, flags 482 visa sponsorship, and tailors your CV and cover letter with an ATS match score.";
+
+// Landing-specific metadata. Overrides the layout default so the homepage and
+// its social previews carry keyword-relevant, page-specific copy rather than
+// inheriting the generic site title.
+export const metadata: Metadata = {
+  title: LANDING_TITLE,
+  description: LANDING_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "JobTrackr",
+    url: "/",
+    title: LANDING_TITLE,
+    description: LANDING_DESCRIPTION,
+    // A page's openGraph replaces (not deep-merges) the layout default, so the
+    // og:image must be repeated here or the homepage loses its social preview.
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "JobTrackr" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: LANDING_TITLE,
+    description: LANDING_DESCRIPTION,
+    images: ["/og.png"],
+  },
+};
+
+// JSON-LD structured data. Describes what JobTrackr actually is — a free-to-start
+// web application with paid plans (offers points at /pricing). Deliberately NO
+// aggregateRating/review: the on-page testimonials are illustrative, not
+// verified, and fabricating rating schema is both dishonest and a Google
+// penalty risk.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "JobTrackr",
+  url: `${SITE_URL}/`,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description: LANDING_DESCRIPTION,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "AUD",
+    url: `${SITE_URL}/pricing`,
+    description: "Free plan available; paid plans unlock more profiles and higher scan frequency.",
+  },
+};
 
 export default async function Home() {
   const supabase = await createClient();
@@ -13,6 +66,11 @@ export default async function Home() {
 
   return (
     <main className="landing" id="top">
+      {/* JSON-LD structured data for search engines. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       {/* ───────── Nav ───────── */}
       <nav className="land-nav">
         <a href="#top" className="land-logo">
