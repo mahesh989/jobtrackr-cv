@@ -21,7 +21,7 @@ vi.mock("../queue/connection.js", () => ({
   },
 }));
 
-const { sendPipelineFailureAlert } = await import("./errorAlert.js");
+const { sendPipelineFailureAlert, sendWorkerRestartAlert } = await import("./errorAlert.js");
 
 beforeEach(() => {
   store.clear();
@@ -45,5 +45,36 @@ describe("sendPipelineFailureAlert dedup", () => {
     await sendPipelineFailureAlert("profile-a", "boom");
     await sendPipelineFailureAlert("profile-b", "boom");
     expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("sendWorkerRestartAlert dedup", () => {
+  it("sends the first restart alert", async () => {
+    await sendWorkerRestartAlert("crashed");
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses a second restart alert within the window, regardless of detail text", async () => {
+    await sendWorkerRestartAlert("crashed once");
+    await sendWorkerRestartAlert("crashed differently");
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a fixed dedup key independent of sendPipelineFailureAlert's per-profile keys", async () => {
+    await sendPipelineFailureAlert("profile-a", "boom");
+    await sendWorkerRestartAlert("crashed");
+    // Different dedup keys (profile:profile-a vs worker:restart) — both sends go through.
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("includes last-known-run detail in the email when provided", async () => {
+    await sendWorkerRestartAlert("crashed", {
+      profileId: "profile-a",
+      status:    "running",
+      startedAt: "2026-07-08T00:00:00Z",
+    });
+    const html = (sendMock.mock.calls[0][0] as { html: string }).html;
+    expect(html).toContain("profile-a");
+    expect(html).toContain("running");
   });
 });
