@@ -40,7 +40,7 @@ _MAX_CV_CHARS = 24_000
 # Bump whenever parser logic changes — the review page's server component
 # silently re-runs structurization on any CV whose stored `_version` is
 # below this. Mirror in frontend/web/src/lib/cvBackend.ts.
-STRUCTURED_CV_VERSION = 4
+STRUCTURED_CV_VERSION = 5
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +156,20 @@ def detect_gaps(structured: Dict[str, Any]) -> List[Dict[str, str]]:
 # Normalisers
 # ---------------------------------------------------------------------------
 
+_DATE_LABEL_RE = re.compile(
+    r"^\s*(?:issued|completed|dated|awarded|expiry|expires|valid(?:\s+from)?|date)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_date_label(v: Any) -> str:
+    """Strip a leading field label the source text attached to a date value
+    (e.g. "Issued: Oct. 2024" -> "Oct. 2024"). The AI is instructed to do
+    this itself, but a deterministic pass catches what it misses."""
+    s = _str(v)
+    return _DATE_LABEL_RE.sub("", s).strip() if s else s
+
+
 _BULLET_PREFIX_RE = re.compile(r"^[\s\-•·*]+")
 _SENTENCE_END_RE  = re.compile(r"[\.!?\"'\)\]]\s*$")
 _CONTINUATION_HEAD_RE = re.compile(r"^(?:and|or|but|with|to|for|by|including|such as|while|when|that|which|who|whom|whose)\b", re.IGNORECASE)
@@ -219,8 +233,8 @@ def _normalise_experience(raw: Any) -> Dict[str, Any]:
         "employer":    _str(raw.get("employer")),
         "role":        _str(raw.get("role")),
         "location":    _str(raw.get("location")),
-        "start_date":  _str(raw.get("start_date")),
-        "end_date":    _str(raw.get("end_date")),
+        "start_date":  _strip_date_label(raw.get("start_date")),
+        "end_date":    _strip_date_label(raw.get("end_date")),
         "is_current":  bool(raw.get("is_current")),
         "bullets":     cleaned,
     }
@@ -233,8 +247,8 @@ def _normalise_education(raw: Any) -> Dict[str, Any]:
         "institution":   _str(raw.get("institution")),
         "qualification": qual,
         "location":      _str(raw.get("location")),
-        "start_date":    _str(raw.get("start_date")),
-        "end_date":      _str(raw.get("end_date")),
+        "start_date":    _strip_date_label(raw.get("start_date")),
+        "end_date":      _strip_date_label(raw.get("end_date")),
         "completed":     bool(raw.get("completed")),
         # Carried through when the post-processor moved an item out of
         # certifications; the UI surfaces an "moved from certifications"
@@ -249,7 +263,7 @@ def _normalise_award(raw: Any) -> Dict[str, Any]:
         "name":        _str(raw.get("name")),
         "issuer":      _str(raw.get("issuer")),
         "location":    _str(raw.get("location")),
-        "date":        _str(raw.get("date")),
+        "date":        _strip_date_label(raw.get("date")),
         "description": _str(raw.get("description")),
     }
 
@@ -269,7 +283,7 @@ def _normalise_cert(raw: Any) -> Dict[str, Any]:
         "name":        name,
         "issuer":      _str(raw.get("issuer")),
         "code":        _str(raw.get("code")),
-        "issued_date": _str(raw.get("issued_date")),
+        "issued_date": _strip_date_label(raw.get("issued_date")),
     }
 
 
