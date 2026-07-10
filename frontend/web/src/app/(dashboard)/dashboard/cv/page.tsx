@@ -9,6 +9,7 @@ import {
   CredentialsSection, AvailabilitySection, ReferencesSubSection, ProfileSaveBar,
 } from "@/components/cv/ProfileDetailsClient";
 import { EmailIntegrationCard } from "@/components/email/EmailIntegrationCard";
+import { NotificationsToggle } from "@/components/NotificationsToggle";
 import type { ContactDetails } from "@/components/cv/ProfileSettingsClient";
 
 export const metadata = { title: "My CV — JobTrackr" };
@@ -47,7 +48,7 @@ export default async function CvPage({ searchParams }: PageProps) {
   await ensureSomeoneActive(admin, user.id);
 
   // CVs + profile overlay + email integration, all in parallel.
-  const [cvsExt, prefsRes, emailRes] = await Promise.all([
+  const [cvsExt, prefsRes, emailRes, engagementRes] = await Promise.all([
     admin
       .from("cv_versions")
       .select("id, label, pdf_storage_path, is_active, categorised_skills, created_at, structured_cv_status, structured_cv")
@@ -55,6 +56,7 @@ export default async function CvPage({ searchParams }: PageProps) {
       .order("created_at", { ascending: false }),
     admin.from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
     admin.from("email_integrations").select("provider, from_address").eq("user_id", user.id).maybeSingle(),
+    admin.from("user_engagement").select("notify_new_jobs").eq("user_id", user.id).maybeSingle(),
   ]);
 
   // Legacy fallback when migrations 058/059 aren't applied yet.
@@ -78,6 +80,9 @@ export default async function CvPage({ searchParams }: PageProps) {
   const emailConnected = emailRes.data?.from_address
     ? { provider: emailRes.data.provider as "google" | "microsoft", from_address: emailRes.data.from_address as string }
     : null;
+
+  // Row may not exist yet (user pre-dates the touch RPC) — default true.
+  const notifyNewJobs = (engagementRes.data?.notify_new_jobs as boolean | undefined) ?? true;
 
   return (
     <div className="min-h-full px-4 sm:px-6 pt-6 pb-24">
@@ -140,6 +145,25 @@ export default async function CvPage({ searchParams }: PageProps) {
             googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
             microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}
           />
+        </section>
+
+        {/* Notifications — per-user email preferences. */}
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
+          <div>
+            <h2 className="text-[14.5px] font-semibold text-text">Notifications</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">
+              Control which emails JobTrackr sends you.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[13px] text-text font-medium">Email me when new jobs are found</p>
+              <p className="text-[12px] text-text-3 mt-0.5">
+                One email per scheduled run that saves new jobs. You can unsubscribe from any email too.
+              </p>
+            </div>
+            <NotificationsToggle initial={notifyNewJobs} />
+          </div>
         </section>
       </div>
     </div>

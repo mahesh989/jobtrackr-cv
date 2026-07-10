@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertCanCreateProfile } from "@/lib/billing/entitlements";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields, extractSettingFilter } from "./_helpers";
 
 /**
@@ -153,6 +154,16 @@ export async function updateProfile(profileId: string, formData: FormData) {
     .eq("user_id", user.id);
 
   if (error) throw new Error(error.message);
+
+  // If the user manually re-activated a paused profile, clear its pause row
+  // so the resume banner (Deliverable 7) can't show a profile they already
+  // resumed themselves through this form. profile_pause_state has no user
+  // write policy (service-role only) — use the admin client for the delete.
+  if (isActive) {
+    const admin = createAdminClient();
+    await admin.from("profile_pause_state").delete().eq("profile_id", profileId).eq("user_id", user.id);
+  }
+
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");

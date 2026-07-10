@@ -16,6 +16,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect("/auth/login");
   const supabase = await createClient();
 
+  // Fire-and-forget engagement touch — bumps user_engagement.last_seen_at
+  // (throttled to once/hour inside the SECURITY DEFINER SQL function itself,
+  // see migration 079). Must never block or fail rendering: no await, and
+  // errors are only logged.
+  void supabase.rpc("touch_user_engagement").then(({ error }) => {
+    if (error) console.error("[layout] touch_user_engagement failed:", error.message);
+  });
+
   // Entitlement first — determines whether this is an admin or a regular user,
   // which controls which queries we run and what the sidebar renders.
   const ent = await getEntitlement(user.id);

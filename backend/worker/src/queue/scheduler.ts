@@ -4,6 +4,10 @@ import { db } from "../db/client.js";
 // Weekly digest: Monday 8am AEST = Sunday 10pm UTC (UTC+10)
 const WEEKLY_DIGEST_CRON = "0 22 * * 0";
 
+// New-jobs notification sweep — drains pending_job_notifications every 15
+// minutes (5-minute settle window batches multi-profile ticks into one email).
+const NOTIFY_SWEEP_CRON = "*/15 * * * *";
+
 export async function registerGlobalSchedules(): Promise<void> {
   await pipelineQueue.upsertJobScheduler(
     "weekly-digest",
@@ -11,6 +15,13 @@ export async function registerGlobalSchedules(): Promise<void> {
     { name: "send_weekly_digest", data: { type: "send_weekly_digest" as const } }
   );
   console.log(`[scheduler] registered global: weekly-digest (${WEEKLY_DIGEST_CRON})`);
+
+  await pipelineQueue.upsertJobScheduler(
+    "notify-sweep",
+    { pattern: NOTIFY_SWEEP_CRON },
+    { name: "run_notify_sweep", data: { type: "run_notify_sweep" as const } }
+  );
+  console.log(`[scheduler] registered global: notify-sweep (${NOTIFY_SWEEP_CRON})`);
 }
 
 const schedulerKey = (profileId: string) => `profile:${profileId}`;

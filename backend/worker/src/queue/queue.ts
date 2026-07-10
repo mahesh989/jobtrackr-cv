@@ -7,4 +7,5 @@ export type PipelineJobData =
   | { type: "noop"; message: string }
   | { type: "run_profile"; profileId: string; trigger?: "manual" | "auto"; fullRefresh?: boolean }
   | { type: "sync_schedules" }
-  | { type: "send_weekly_digest" };
+  | { type: "send_weekly_digest" }
+  | { type: "run_notify_sweep" };

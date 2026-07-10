@@ -9,6 +9,7 @@ import type { PipelineJobData } from "./queue/queue.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { syncSchedules, registerGlobalSchedules } from "./queue/scheduler.js";
 import { runWeeklyDigest } from "./notifications/weeklyDigest.js";
+import { runNotifySweep } from "./notifications/newJobsSweep.js";
 import { sendWorkerRestartAlert } from "./notifications/errorAlert.js";
 import { markExpectedShutdown, wasShutdownExpected } from "./notifications/restartDetection.js";
 import { getLastKnownRun } from "./pipeline/runLog.js";
@@ -36,6 +37,11 @@ const worker = new Worker<PipelineJobData>(
 
     if (type === "send_weekly_digest") {
       await runWeeklyDigest();
+      return { ok: true };
+    }
+
+    if (type === "run_notify_sweep") {
+      await runNotifySweep();
       return { ok: true };
     }
 

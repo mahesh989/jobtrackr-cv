@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/components/profiles/ProfilesTable";
+import { ResumePausedBanner } from "@/components/profiles/ResumePausedBanner";
 import { BackButton } from "@/components/dashboard/BackButton";
 import { AddJobButton } from "@/components/jobs/AddJobButton";
 import { Inbox } from "lucide-react";
@@ -20,10 +21,14 @@ export default async function ProfilesListPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profileRows } = await supabase
-    .from("search_profiles")
-    .select("id, name, is_active, is_manual, keywords, location, schedule_cron")
-    .order("created_at", { ascending: false });
+  const [{ data: profileRows }, { data: pauseRows }] = await Promise.all([
+    supabase
+      .from("search_profiles")
+      .select("id, name, is_active, is_manual, keywords, location, schedule_cron")
+      .order("created_at", { ascending: false }),
+    supabase.from("profile_pause_state").select("profile_id"),
+  ]);
+  const pausedCount = pauseRows?.length ?? 0;
 
   const profiles = (profileRows ?? []) as ProfileRow[];
 
@@ -99,6 +104,7 @@ export default async function ProfilesListPage() {
       </div>
 
       <div className="px-6 py-5 anim-in">
+        <ResumePausedBanner count={pausedCount} />
         <ProfilesTable
           profiles={profiles}
           totalCounts={totalCounts}

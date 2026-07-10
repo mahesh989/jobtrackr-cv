@@ -53,9 +53,12 @@ import { enrichAdzunaJDsViaActor } from "../sources/adzunaActor.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
 import { geocode, geocodeLocation, distanceFor, type LatLng } from "../lib/distance.js";
+import { applyGate } from "../notifications/gate.js";
 
 interface FullProfile extends SearchProfile {
   user_id: string;
+  // Engagement notifications (migration 079) — used for pending_job_notifications.profile_name.
+  name: string;
   // Phase A automation config. min_initial_ats / min_final_ats were dropped
   // from search_profiles in migration 041 — global constants now (60 / 70)
   // enforced by cv-backend AnalyzeRequest defaults.
@@ -223,7 +226,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
+    .select("id, name, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -248,6 +251,18 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   }
 
   profile.is_manual_run = trigger === "manual";
+
+  // Activity-gated auto-fetch scheduling — scheduled (auto) runs only.
+  // Manual runs (trigger="manual", user-initiated from the profile UI) are
+  // NEVER gated: this must run before ANY tier-config/source/AI work so an
+  // inactive/paused user's run is skipped before any Apify/LLM cost.
+  if (trigger === "auto") {
+    const gate = await applyGate(profileId, profile.user_id);
+    if (!gate.proceed) {
+      console.log(`[pipeline] profile ${profileId} — gated (paused), skipping run before any cost`);
+      return;
+    }
+  }
 
   // Source selection + per-source method are tier-gated (platform_source_tiers,
   // migration 064). The user's subscription plan determines the tier row. Override
@@ -1127,6 +1142,21 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved}`);
+
+    // Auto-run new-jobs notification queue — never for manual runs. A failure
+    // here must NEVER fail the pipeline; it's purely a notification side effect.
+    if (trigger === "auto" && jobsSaved > 0) {
+      try {
+        await db.from("pending_job_notifications").insert({
+          user_id: profile.user_id,
+          profile_id: profileId,
+          profile_name: profile.name ?? "",
+          jobs_saved: jobsSaved,
+        });
+      } catch (err) {
+        console.error("[pipeline] failed to queue new-jobs notification (non-fatal):", err);
+      }
+    }
 
     // Stage 13 (Phase E-1): auto-analyze new jobs for automation_enabled
     // profiles. Best-effort and fire-and-forget — cv-backend returns 202
