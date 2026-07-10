@@ -114,7 +114,11 @@ export function extractCvText(storagePath: string): Promise<ExtractCvTextRespons
   return callCvBackend<ExtractCvTextResponse>(
     "/internal/extract-cv-text",
     { storage_path: storagePath },
-    { timeoutMs: 15_000 },         // pypdf on large PDFs can take a few seconds
+    // Pure pypdf/python-docx text extraction (no OCR/AI) — 1-3s for a normal
+    // 2-3 page CV. 30s is headroom for the worst realistic case: a ~5MB
+    // image-heavy PDF on a machine that just cold-booted. Not retried on
+    // timeout, so this is a hard ceiling; kept well inside the route's 60s cap.
+    { timeoutMs: 30_000 },
   );
 }
 
