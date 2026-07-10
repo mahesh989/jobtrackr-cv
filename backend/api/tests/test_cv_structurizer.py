@@ -206,6 +206,39 @@ class TestNormalise:
         assert s["certifications"] == []
         assert any("Individual Support" in e["qualification"] for e in s["education"])
 
+    def test_cert_issued_date_strips_label(self):
+        raw = {"certifications": [
+            {"name": "Statement of Attainment in CPR and First Aid",
+             "issuer": "Training Course Experts, Sydney, Australia",
+             "code": "", "issued_date": "Issued: Oct. 2024"},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["certifications"][0]["issued_date"] == "Oct. 2024"
+        assert s["certifications"][0]["issuer"] == "Training Course Experts, Sydney, Australia"
+
+    def test_award_date_strips_label(self):
+        raw = {"awards": [
+            {"name": "Staff Excellence Award", "issuer": "The Jesmond Group",
+             "location": "", "date": "Awarded: August 2025", "description": ""},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["awards"][0]["date"] == "August 2025"
+
+    def test_education_dates_strip_label(self):
+        raw = {"education": [
+            {"institution": "SPES Education", "qualification": "Certificate IV in Ageing Support",
+             "location": "", "start_date": "", "end_date": "Completed: Oct. 2024", "completed": True},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["education"][0]["end_date"] == "Oct. 2024"
+
+    def test_date_without_label_untouched(self):
+        raw = {"certifications": [
+            {"name": "White Card", "issuer": "Safety Org", "code": "", "issued_date": "2024"},
+        ]}
+        s = normalise_structured_cv(raw)
+        assert s["certifications"][0]["issued_date"] == "2024"
+
     def test_merges_wrapped_bullets(self):
         """PDF column wrapping splits one bullet into 2-3 fragments. The
         deterministic merger rejoins them based on continuation cues."""

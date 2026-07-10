@@ -122,6 +122,22 @@ CLASSIFICATION RULES:
   academic credentials, NOT under certifications.
 - Other certifications / licences (First Aid, CPR, White Card, Police
   Check, Driver Licence, vaccination evidence) → certifications.
+  PDF extraction sometimes mashes a certification's title and its issuer
+  onto one run-on line with no clear delimiter (e.g. "Statement of
+  Attainment in CPR and First Aid Training Course Experts, Sydney,
+  Australia"). When this happens, DO NOT drop any word while deciding
+  the boundary — every token belongs to either `name` or `issuer`. The
+  issuer is usually the trailing organisation name (often ending in a
+  city/country), so reason from the end: "Training Course Experts,
+  Sydney, Australia" is the issuer name (keep "Training" — it is part
+  of the business name, not a leftover from the qualification title),
+  leaving "Statement of Attainment in CPR and First Aid" as `name`.
+  Never silently omit an ambiguous word — if truly unsure which side it
+  belongs to, keep it attached to `issuer` rather than dropping it.
+- `issued_date` is the date VALUE only — strip any leading field label
+  the source text attaches to it (e.g. "Issued: Oct. 2024" → "Oct.
+  2024", "Completed: 2021" → "2021"). Apply the same label-stripping to
+  `date` on awards and `start_date`/`end_date` on education/experience.
 - **Awards / Recognition / Recognitions / Honours / Honors / Commendations /
   Achievements / Scholarships → awards array, NOT certifications.** A
   section with ANY of these headings — even just one of them, even singular
