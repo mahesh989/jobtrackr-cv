@@ -40,6 +40,47 @@ const CONTENT_W_PX = PAGE_W_PX - 2 * 48;      // 698px
 const SCAN_BACK_FRAC = 0.18;                  // % of a page to scan back for clean breaks
 
 /**
+ * Markdown → plain text for the invisible text layer. Strips md syntax and
+ * table pipes; keeps line structure so the text reads in order.
+ */
+function markdownToPlainText(md: string): string {
+  return md
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")   // links → label
+    .replace(/^\s*[#>]+\s*/gm, "")             // headings / blockquotes
+    .replace(/^\s*[-*+]\s+/gm, "")             // list bullets
+    .replace(/\|/g, "  ")                      // table pipes
+    .replace(/[*_`~]/g, "")                    // emphasis markers
+    .replace(/[ \t]{2,}/g, " ")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Stamp an invisible (renderingMode "invisible") text layer onto the CURRENT
+ * pdf page. The visible content is a JPEG raster from html2canvas — without
+ * this layer the PDF has no extractable text at all, so (a) ATS systems and
+ * employers' parsers read nothing from the "ATS-optimised" CV, and (b)
+ * re-uploading a JobTrackr-generated CV into JobTrackr itself fails with
+ * "Could not extract any text". Same text-behind-image sandwich OCR tools
+ * produce, except we have the ground-truth text so no OCR is needed.
+ * Positioning is approximate — extraction/copy order is what matters.
+ */
+function stampInvisibleTextLayer(
+  pdf: { setFontSize: (n: number) => unknown; text: (t: string, x: number, y: number, o?: object) => unknown },
+  lines: string[],
+): void {
+  if (lines.length === 0) return;
+  pdf.setFontSize(6);
+  let y = MARGIN_PT + 6;
+  for (const line of lines) {
+    pdf.text(line, MARGIN_PT, y, { renderingMode: "invisible" });
+    y += 7;
+  }
+}
+
+/**
  * Produce the styled HTML string from raw tailored CV markdown using the same
  * off-screen rendering pipeline.
  */
@@ -198,8 +239,12 @@ export async function renderTailoredCvBlob({ markdown, contactDetails }: RenderI
     const imgH     = (canvas.height * imgW) / canvas.width;
     const imgData  = canvas.toDataURL("image/jpeg", 0.95);
 
+    // Plain-text lines for the invisible text layer (see stampInvisibleTextLayer).
+    const textLines = markdownToPlainText(formattedMd).split("\n");
+
     if (imgH <= usableH) {
       pdf.addImage(imgData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, imgH);
+      stampInvisibleTextLayer(pdf, textLines);
     } else {
       // Multi-page with safe-break scan — verbatim port of TailoredCvCard logic
       const pageHpx = (canvas.width * usableH) / usableW;
@@ -248,6 +293,13 @@ export async function renderTailoredCvBlob({ markdown, contactDetails }: RenderI
         const sliceData = slice.toDataURL("image/jpeg", 0.95);
         const sliceImgH = (sliceH * imgW) / canvas.width;
         pdf.addImage(sliceData, "JPEG", MARGIN_PT, MARGIN_PT, imgW, sliceImgH);
+
+        // Invisible text layer for this page — allocate lines proportionally
+        // to the pixel range the slice covers, so multi-page extraction keeps
+        // reading order without duplicating content across pages.
+        const lineStart = Math.round((yPx  / canvas.height) * textLines.length);
+        const lineEnd   = Math.round((endY / canvas.height) * textLines.length);
+        stampInvisibleTextLayer(pdf, textLines.slice(lineStart, lineEnd));
 
         yPx = endY;
         pageCount += 1;
