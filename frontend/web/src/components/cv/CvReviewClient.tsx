@@ -105,10 +105,6 @@ export function CvReviewClient({
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({});
 
   const toggle     = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
-  const collapseAll = () => setOpen({
-    skills: false, summary: false, experience: false, education: false,
-    projects: false, languages: false, awards: false, certifications: false, references: false,
-  });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -156,14 +152,26 @@ export function CvReviewClient({
   const [showErrors, setShowErrors] = useState(false);
   const validationErrors = useMemo(() => validateCreate(doc), [doc]);
 
-  // Review mode: verify + collapse, stay on page.
-  async function saveAndCollapse() {
+  // Once the user has saved in create mode, Cancel must NOT delete the draft.
+  const savedRef = useRef(false);
+  // Was this CV blank when the builder opened? (i.e. freshly created, never
+  // filled in). Only then does Cancel discard it — an existing draft opened
+  // for editing keeps its content when cancelled.
+  const initiallyEmpty = useRef(
+    isCreate &&
+    initialStructuredCv.experience.length === 0 &&
+    initialStructuredCv.education.length === 0 &&
+    !(initialStructuredCv.summary ?? "").trim(),
+  );
+
+  // Return to My CV scrolled to this CV's card (both flows land here on save).
+  const returnToCard = () => router.push(`/dashboard/cv#cv-${cvId}`);
+
+  // Review mode: verify, then return to My CV at this CV's card.
+  async function saveAndReturn() {
     if (timer.current) clearTimeout(timer.current);
     const ok = await persist(doc, customSects, true);
-    if (ok) {
-      collapseAll();
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    if (ok) returnToCard();
   }
 
   // Create mode: save as draft — no validation, stays unverified. User can
@@ -171,7 +179,7 @@ export function CvReviewClient({
   async function saveDraft() {
     if (timer.current) clearTimeout(timer.current);
     const ok = await persist(doc, customSects, false);
-    if (ok) router.push("/dashboard/cv");
+    if (ok) { savedRef.current = true; returnToCard(); }
   }
 
   // Create mode: finish — validate mandatory sections, mark verified, return.
@@ -185,7 +193,22 @@ export function CvReviewClient({
     }
     if (timer.current) clearTimeout(timer.current);
     const ok = await persist(doc, customSects, true);
-    if (ok) router.push("/dashboard/cv");
+    if (ok) { savedRef.current = true; returnToCard(); }
+  }
+
+  // Create mode: cancel — discard the never-saved blank draft, then return.
+  const [cancelling, setCancelling] = useState(false);
+  async function cancelCreate() {
+    if (timer.current) clearTimeout(timer.current);
+    if (initiallyEmpty.current && !savedRef.current) {
+      setCancelling(true);
+      try {
+        await fetch(`/api/cv/${cvId}`, { method: "DELETE" });
+      } catch {
+        /* best-effort — even if the delete fails, don't trap the user here */
+      }
+    }
+    router.push("/dashboard/cv");
   }
 
   const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
@@ -861,8 +884,16 @@ export function CvReviewClient({
             <>
               <button
                 type="button"
+                onClick={cancelCreate}
+                disabled={save === "saving" || cancelling}
+                className="rounded-full px-3.5 py-1.5 text-[13px] font-medium text-text-3 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors shrink-0 disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling…" : "Cancel"}
+              </button>
+              <button
+                type="button"
                 onClick={saveDraft}
-                disabled={save === "saving"}
+                disabled={save === "saving" || cancelling}
                 className="rounded-full border border-[var(--border)] px-3.5 py-1.5 text-[13px] font-medium text-text-2 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors shrink-0 disabled:opacity-50"
               >
                 Save as draft
@@ -870,7 +901,7 @@ export function CvReviewClient({
               <button
                 type="button"
                 onClick={saveFinish}
-                disabled={save === "saving"}
+                disabled={save === "saving" || cancelling}
                 className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
               >
                 Save
@@ -879,7 +910,7 @@ export function CvReviewClient({
           ) : (
             <button
               type="button"
-              onClick={saveAndCollapse}
+              onClick={saveAndReturn}
               disabled={save === "saving"}
               className="rounded-full bg-[var(--brand)] px-4 py-1.5 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"
             >

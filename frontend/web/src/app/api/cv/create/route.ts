@@ -21,8 +21,6 @@ import { NextResponse }       from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import {
-  renderCanonicalCv,
-  CvBackendError,
   STRUCTURED_CV_VERSION,
   type StructuredCv,
 } from "@/lib/cvBackend";
@@ -54,22 +52,14 @@ export async function POST() {
   const storage_path    = `built://${cv_id}`;
   const structured_cv   = blankStructuredCv();
 
-  // Render the (near-empty) canonical text. Pure function, no AI — but if the
-  // renderer is unreachable we still want the row to exist with valid text, so
-  // fall back to a minimal placeholder rather than failing the create.
-  let normalized_cv_text = "";
-  try {
-    const r = await renderCanonicalCv({ structured_cv });
-    normalized_cv_text = r.normalized_cv_text;
-  } catch (err) {
-    const detail = err instanceof CvBackendError
-      ? `cv-backend render failed (${err.status})`
-      : String(err);
-    console.warn("[/api/cv/create] render failed (using placeholder):", detail);
-  }
-  // cv_text is NOT NULL — keep it in sync with the rendered text from the start.
-  // (The structured PATCH keeps these two in lockstep on every save.)
-  const cv_text = normalized_cv_text.trim() || "(CV built in JobTrackr — add your details)";
+  // No canonical render here — the doc is blank, so rendering it would only
+  // produce an empty string while adding a full round-trip to the Sydney
+  // cv-backend on the critical path (making "Build from scratch" feel slow).
+  // The row ships with a placeholder; the first structured PATCH re-renders
+  // and syncs cv_text ↔ normalized_cv_text once there's real content to render.
+  const normalized_cv_text = "";
+  // cv_text is NOT NULL — seed it with a placeholder until the first save.
+  const cv_text = "(CV built in JobTrackr — add your details)";
 
   const admin = createAdminClient();
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil, X } from "lucide-react";
 import { CvReviewClient } from "@/components/cv/CvReviewClient";
 import type { StructuredCv } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
@@ -49,6 +49,15 @@ const EXT_FROM_MIME: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
+// Rotating status lines shown in the upload progress modal. The message
+// advances on a timer while the real work runs in the background — the last
+// line stays put until the upload actually finishes.
+const UPLOAD_MESSAGES = [
+  "Uploading your CV…",
+  "Analysing the sections…",
+  "Almost there — tidying things up…",
+];
+
 // Extract a useful error string from a fetch response, even when the body
 // isn't JSON (e.g. Vercel's edge-level rejection for over-limit bodies).
 async function readError(res: Response): Promise<string> {
@@ -73,6 +82,70 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<CvRow | null>(null);
   const [deleting, setDeleting]         = useState(false);
+
+  // Arrive-at-card: the review page returns here as /dashboard/cv#cv-<id>
+  // after a save. Scroll that CV into view and pulse a highlight so the user
+  // lands on the CV they just edited, not the top of the list.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  useEffect(() => {
+    const m = (typeof window !== "undefined" ? window.location.hash : "").match(/^#cv-(.+)$/);
+    if (!m) return;
+    const id = m[1];
+    const el = document.getElementById(`cv-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const on  = setTimeout(() => setHighlightId(id), 0);
+    const off = setTimeout(() => setHighlightId(null), 2200);
+    return () => { clearTimeout(on); clearTimeout(off); };
+  }, []);
+
+  // ── Upload progress modal ────────────────────────────────────────────────
+  // `uploadPhase` drives the modal: "uploading" (spinner + rotating messages)
+  // → "success" (check + OK). null = modal closed. Closing the modal never
+  // cancels the in-flight upload; it only hides the box.
+  const [uploadPhase, setUploadPhase] = useState<"uploading" | "success" | null>(null);
+  const [uploadStep,  setUploadStep]  = useState(0);
+  const [flash,       setFlash]       = useState<string | null>(null);
+  const dismissedRef = useRef(false);            // user closed the box mid-upload
+  const redirectRef  = useRef<string | null>(null); // where "OK" / auto-proceed goes
+
+  // Advance the status message on a timer while uploading (stops at the last).
+  useEffect(() => {
+    if (uploadPhase !== "uploading") return;
+    const id = window.setInterval(() => {
+      setUploadStep((s) => Math.min(s + 1, UPLOAD_MESSAGES.length - 1));
+    }, 2600);
+    return () => window.clearInterval(id);
+  }, [uploadPhase]);
+
+  // On success, auto-proceed after a short "flash" unless the user acts first.
+  useEffect(() => {
+    if (uploadPhase !== "success") return;
+    const id = window.setTimeout(() => {
+      const to = redirectRef.current;
+      setUploadPhase(null);
+      if (to) router.push(to);
+    }, 3800);
+    return () => window.clearTimeout(id);
+  }, [uploadPhase, router]);
+
+  function openUploadModal() {
+    dismissedRef.current = false;
+    setUploadStep(0);
+    setUploadPhase("uploading");
+  }
+  // Close (X) — hides the box only. Marks dismissed so a later success won't
+  // pull the user into the review form; the background upload keeps running.
+  function dismissUploadModal() {
+    dismissedRef.current = true;
+    setUploadPhase(null);
+  }
+  // OK — proceed now to wherever the finished upload wants to go.
+  function proceedAfterUpload() {
+    const to = redirectRef.current;
+    setUploadPhase(null);
+    if (to) router.push(to);
+  }
 
   // Inline review-expand state — only one CV expanded at a time so the
   // page stays focused; clicking the same CV again collapses it.
@@ -150,6 +223,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
 
     const label = labelFromFilename(file.name);
     setUploading(true);
+    openUploadModal();
 
     const ext = EXT_FROM_MIME[file.type] ?? (file.name.toLowerCase().endsWith(".docx") ? "docx" : "pdf");
     const contentType = ext === "docx"
@@ -169,6 +243,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       });
       if (!r.ok) {
         setUploading(false);
+        setUploadPhase(null);
         setError(await readError(r));
         return;
       }
@@ -179,6 +254,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       token       = j.token;
     } catch (err) {
       setUploading(false);
+      setUploadPhase(null);
       setError(err instanceof Error ? `Network error: ${err.message}` : "Could not get upload URL.");
       return;
     }
@@ -191,7 +267,6 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       .uploadToSignedUrl(storagePath, token, file, { contentType, upsert: false });
 
     if (uploadErr) {
-      setUploading(false);
       // If the SDK path failed with "Failed to fetch", try a raw fetch PUT as a fallback.
       // This bypasses any SDK-level header/auth logic and uses the simplest possible request.
       try {
@@ -201,17 +276,21 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
           body:    file,
         });
         if (!r.ok) {
+          setUploading(false);
+          setUploadPhase(null);
           setError(`Storage upload failed (HTTP ${r.status}). ${await r.text().catch(() => "")}`.slice(0, 300));
           return;
         }
       } catch (err) {
+        setUploading(false);
+        setUploadPhase(null);
         setError(
           `Upload failed: ${uploadErr.message}` +
           (err instanceof Error ? ` — fallback also failed: ${err.message}` : ""),
         );
         return;
       }
-      setUploading(true); // continue to finalise
+      // fallback PUT succeeded — fall through to finalise (upload still in progress)
     }
 
     // ── Step 3 — tell the API to finalise (extract text + INSERT row).
@@ -228,6 +307,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       if (!res.ok) {
         // Best-effort cleanup of the orphan Storage object.
         await supabase.storage.from("cvs").remove([storagePath]);
+        setUploadPhase(null);
         setError(await readError(res));
         return;
       }
@@ -249,13 +329,23 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       // Forced review step — every freshly-structurized CV must pass through
       // the review form before it can drive analysis. The route only returns
       // `redirect_to` when structurization succeeded; when it didn't, we stay
-      // on the library (legacy fallback path).
-      if (typeof json.redirect_to === "string" && json.redirect_to.length > 0) {
-        router.push(json.redirect_to);
-        return;
+      // on the library (legacy fallback path). Rather than yank the user away
+      // instantly, surface a success state in the progress modal.
+      redirectRef.current =
+        typeof json.redirect_to === "string" && json.redirect_to.length > 0
+          ? json.redirect_to
+          : null;
+      if (dismissedRef.current) {
+        // User closed the progress box mid-upload — don't pull them into the
+        // review form. Confirm with a brief flash; the row is already listed.
+        setFlash("CV uploaded successfully");
+        window.setTimeout(() => setFlash(null), 3500);
+      } else {
+        setUploadPhase("success");
       }
     } catch (err) {
       await supabase.storage.from("cvs").remove([storagePath]);
+      setUploadPhase(null);
       setError(
         err instanceof Error
           ? `Network error: ${err.message}`
@@ -388,8 +478,14 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
               day: "numeric", month: "short", year: "numeric",
             });
             return (
-              <CvRowCard
+              <div
                 key={cv.id}
+                id={`cv-${cv.id}`}
+                className={`scroll-mt-24 rounded-2xl transition-all duration-500 ${
+                  highlightId === cv.id ? "ring-2 ring-[var(--brand)]/70 ring-offset-2 ring-offset-transparent" : ""
+                }`}
+              >
+              <CvRowCard
                 cv={cv}
                 ext={ext}
                 isBuilt={isBuilt}
@@ -412,9 +508,69 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
                   setCvs((prev) => prev.map((c) => c.id === cv.id ? { ...c, categorised_skills: skills } : c))
                 }
               />
+              </div>
             );
           })}
         </div>
+      )}
+
+      {/* Upload progress modal — spinner + rotating status, then success + OK.
+          The X only closes the box; the upload keeps running in the background. */}
+      {uploadPhase && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-sm rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl"
+          >
+            <button
+              type="button"
+              onClick={dismissUploadModal}
+              aria-label="Close"
+              className="absolute right-3 top-3 rounded-full p-1.5 text-text-3 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex flex-col items-center text-center pt-3">
+              {uploadPhase === "uploading" ? (
+                <>
+                  <Loader2 className="h-11 w-11 animate-spin text-[var(--brand)]" aria-hidden="true" />
+                  <p className="mt-4 text-[15px] font-semibold text-text" aria-live="polite">
+                    {UPLOAD_MESSAGES[uploadStep]}
+                  </p>
+                  <p className="mt-1 text-[13px] text-text-2">
+                    This may take a moment — please wait.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-11 w-11 text-green-500" aria-hidden="true" />
+                  <p className="mt-4 text-[15px] font-semibold text-text">CV uploaded successfully</p>
+                  <p className="mt-1 text-[13px] text-text-2">Taking you to review your CV…</p>
+                  <button
+                    type="button"
+                    onClick={proceedAfterUpload}
+                    className="mt-5 rounded-full bg-[var(--brand)] px-7 py-2 text-[13px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+                  >
+                    OK
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Success flash — shown when the user closed the modal before the
+          upload finished (background completion confirmation). */}
+      {flash && typeof window !== "undefined" && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 rounded-full border border-[var(--border)] bg-surface px-4 py-2 text-[13px] font-medium text-text shadow-lg">
+          <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" /> {flash}
+        </div>,
+        document.body,
       )}
 
       {/* Delete confirm modal — same pattern as DeleteProfileButton */}

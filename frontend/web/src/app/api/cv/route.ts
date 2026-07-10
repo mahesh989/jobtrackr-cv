@@ -22,8 +22,10 @@ import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
-// Extraction is normally <3s; allow headroom for cold-edge cases.
-export const maxDuration = 25;
+// Extract (<=15s) + structurize/categorise in parallel (<=30s) + render
+// (<=10s) can legitimately reach ~55s. 60 is the safe ceiling on any Vercel
+// plan tier (Hobby included) without needing Fluid compute.
+export const maxDuration = 60;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_EXT = new Set(["pdf", "docx"]);

@@ -114,7 +114,7 @@ export function extractCvText(storagePath: string): Promise<ExtractCvTextRespons
   return callCvBackend<ExtractCvTextResponse>(
     "/internal/extract-cv-text",
     { storage_path: storagePath },
-    { timeoutMs: 60_000 },         // pypdf on large PDFs can take a few seconds
+    { timeoutMs: 15_000 },         // pypdf on large PDFs can take a few seconds
   );
 }
 
@@ -149,7 +149,7 @@ export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCv
   return callCvBackend<CategoriseCvResponse>(
     "/internal/categorise-cv",
     payload,
-    { timeoutMs: 45_000 },         // AI call can take a few seconds
+    { timeoutMs: 30_000 },         // AI call can take a few seconds
   );
 }
 
@@ -298,7 +298,7 @@ export function structurizeCv(
   return callCvBackend<StructurizeCvResponse>(
     "/internal/structurize-cv",
     payload,
-    { timeoutMs: 60_000 },   // covers summary/experience/education/awards/certs/refs (skills come from categoriseCv)
+    { timeoutMs: 30_000 },   // covers summary/experience/education/awards/certs/refs (skills come from categoriseCv)
   );
 }
 

@@ -20,7 +20,10 @@ import { categoriseCv, CvBackendError } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";
-export const maxDuration = 30;
+// categoriseCv retries once (sequential) on a stored-model failure, so worst
+// case is ~2x its 30s internal timeout — 55 stays under the 60s ceiling that
+// works on any Vercel plan tier.
+export const maxDuration = 55;
 
 export async function POST(
   req: NextRequest,
