@@ -55,6 +55,14 @@ const worker = new Worker<PipelineJobData>(
     // silently inside makeBrowser() with no error to log. Increase only
     // if memory is bumped via `fly scale memory`.
     concurrency: 1,
+    // Upstash bills per command, and BullMQ's idle loop at the defaults
+    // (drainDelay 5s, stalledInterval 30s) measured 1.03 cmds/sec ≈ 2.7M
+    // commands/month against this queue doing nothing. Job pickup latency
+    // is unaffected: the blocking pop wakes on push; drainDelay only sets
+    // how long each block waits before re-issuing. stalledInterval 5min is
+    // safe with concurrency 1 — a stalled job just waits one extra cycle.
+    drainDelay: 60,
+    stalledInterval: 300_000,
   }
 );
 
