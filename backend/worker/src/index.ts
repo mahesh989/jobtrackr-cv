@@ -14,6 +14,7 @@ import { sendWorkerRestartAlert } from "./notifications/errorAlert.js";
 import { markExpectedShutdown, wasShutdownExpected } from "./notifications/restartDetection.js";
 import { getLastKnownRun } from "./pipeline/runLog.js";
 import { db } from "./db/client.js";
+import { startHeartbeat } from "./queue/heartbeat.js";
 
 const worker = new Worker<PipelineJobData>(
   QUEUE_NAME,
@@ -74,7 +75,8 @@ worker.on("failed", (job, err) => {
   console.error(`[worker] failed ${job?.id}:`, err.message);
 });
 
-console.log(`[worker] started — queue: ${QUEUE_NAME}`);
+const heartbeat = startHeartbeat();
+console.log(`[worker] started — queue: ${QUEUE_NAME}, machine=${heartbeat.machineId}`);
 
 // ── Crash-notification: was the previous shutdown expected? ───────────────────
 // See notifications/restartDetection.ts for the full mechanism. Absence of
@@ -107,6 +109,7 @@ wasShutdownExpected().then(async (expected) => {
 async function shutdown(signal: string) {
   console.log(`[worker] ${signal} received — closing gracefully`);
   try {
+    await heartbeat.stop();
     await worker.close();
     // Mark any "running" run_logs as failed — the stale auto-expire catches these
     // too, but doing it here means the next run sees clean state immediately.

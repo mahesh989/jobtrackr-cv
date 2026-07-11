@@ -95,6 +95,32 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER }}
 
+  verify-worker:
+    name: Verify no duplicate worker (zombie-VM guard)
+    # Detects the 2026-07-10 failure mode: a Fly deploy can leave the OLD
+    # machine running and polling Redis while the control plane reports it
+    # "stopped" — silently doubling BullMQ idle command volume until the
+    # next Upstash bill. Alert-only by design: this job FAILS (red X +
+    # GitHub notification) rather than destroying any machine unattended.
+    # See backend/worker/src/scripts/checkDuplicateWorkers.ts for the
+    # remediation command.
+    needs: deploy-worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/worker/package-lock.json
+      - run: npm ci
+      - run: npm run check:duplicate-workers
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL_WORKER }}
+
   deploy-api:
     name: Deploy jobtrackr-cv-api
     needs: gate-api

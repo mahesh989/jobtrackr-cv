@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "enqueue:noop": "tsx --env-file=.env src/scripts/enqueueNoop.ts",
+    "check:duplicate-workers": "tsx src/scripts/checkDuplicateWorkers.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
