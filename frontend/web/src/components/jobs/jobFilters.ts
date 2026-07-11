@@ -28,6 +28,13 @@ export interface ViewFilters {
   maxDistance: string;
   minDistance?: string;
   sort?:        string;
+  /** Comma-separated employment tags (080): full_time,part_time,casual,…
+   *  Empty = no filtering. Jobs with no extracted types always pass —
+   *  never hide jobs we couldn't classify (same rule as the pipeline). */
+  employment?:  string;
+  /** "1" → hide not_eligible jobs (eligibility derived in page.tsx from the
+   *  user's My CV visa status). Unclear jobs stay visible. */
+  eligibleOnly?: string;
 }
 
 /** Minimum manual-JD length (chars) that counts as "the user supplied a usable
@@ -100,6 +107,22 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
   else if (f.stage === "thinJd")     out = out.filter(jobNeedsJd);
   else if (f.stage === "applied")    out = out.filter((x) => x.applied_at != null);
   else if (f.stage === "favourite")  out = out.filter((x) => x.starred_at != null);
+
+  // Employment-type filter (080) — unclassified jobs always pass.
+  if (f.employment) {
+    const keep = new Set(f.employment.split(",").map((s) => s.trim()).filter(Boolean));
+    if (keep.size > 0) {
+      out = out.filter((x) => {
+        const types = x.employment_types ?? [];
+        return types.length === 0 || types.some((t) => keep.has(t));
+      });
+    }
+  }
+
+  // Eligibility filter (080) — drops only the hard "not eligible" jobs.
+  if (f.eligibleOnly === "1") {
+    out = out.filter((x) => x.eligibility !== "not_eligible");
+  }
 
   // Triage sub-filter
   if (f.triage === "needsJd" || f.triage === "thinJd") out = out.filter(jobNeedsJd);

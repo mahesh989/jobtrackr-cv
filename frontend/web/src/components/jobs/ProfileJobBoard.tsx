@@ -92,10 +92,12 @@ export function ProfileJobBoard({
   const minDistance = sp.get("min_distance") || "";
   const sortCol     = sp.get("sort") || "posted_at";
   const asc         = sp.get("dir") === "asc";
+  const employment   = sp.get("employment") || "";
+  const eligibleOnly = sp.get("eligible") || "";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
-    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol, employment, eligibleOnly }), sortCol, asc),
+    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc, employment, eligibleOnly],
   );
 
   // Group mode mirrors JobBoard — Analysed/Not-analysed → time buckets;

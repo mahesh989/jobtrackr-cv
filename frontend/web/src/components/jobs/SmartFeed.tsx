@@ -1136,6 +1136,80 @@ const CardActionsContext = createContext<{
 
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
+const EMPLOYMENT_CHIP_LABEL: Record<string, string> = {
+  full_time: "FT", part_time: "PT", casual: "Casual",
+  contract: "Contract", temporary: "Temp", internship: "Intern",
+};
+
+/** "$34.50–$42/hr" / "$85k–$95k" — null when the job has no salary data. */
+function formatSalary(job: BoardJob): string | null {
+  if (job.salary_min == null) return null;
+  const period = job.salary_period;
+  const fmt = (v: number) =>
+    period === "hour" || period === "day"
+      ? `$${v % 1 === 0 ? v : v.toFixed(2)}`
+      : v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`;
+  const range = job.salary_max != null && job.salary_max !== job.salary_min
+    ? `${fmt(job.salary_min)}–${fmt(job.salary_max)}`
+    : fmt(job.salary_min);
+  const suffix = period === "hour" ? "/hr" : period === "day" ? "/day"
+    : period === "week" ? "/wk" : period === "fortnight" ? "/fn" : "";
+  return `${range}${suffix}`;
+}
+
+/** Days until the closing date; null when absent/unparseable/past by >1d. */
+function daysUntilClose(job: BoardJob): number | null {
+  if (!job.closing_date) return null;
+  const d = Math.ceil((new Date(job.closing_date).getTime() - Date.now()) / 86_400_000);
+  return d >= 0 ? d : null;
+}
+
+function FactsChips({ job }: { job: BoardJob }) {
+  const applyEmail = job.extracted_emails?.find((e) => e.kind === "application");
+  const anyEmail = applyEmail ?? job.extracted_emails?.[0];
+  const closeDays = daysUntilClose(job);
+  return (
+    <>
+      {(job.employment_types ?? []).map((t) => (
+        <span key={t} className="badge badge-blue text-[10px] px-1.5 h-4" title="Work type (from the JD/source)">
+          {EMPLOYMENT_CHIP_LABEL[t] ?? t}
+        </span>
+      ))}
+      {anyEmail && (
+        <span
+          className="badge badge-gray text-[10px] px-1.5 h-4 cursor-copy"
+          title={`${anyEmail.kind === "application" ? "Apply by email" : "Contact"}: ${anyEmail.email}${anyEmail.person ? ` (${anyEmail.person})` : ""} — click card menu to copy`}
+        >
+          ✉ {anyEmail.kind === "application" ? "Apply by email" : "Contact"}
+        </span>
+      )}
+      {closeDays !== null && closeDays <= 14 && (
+        <span
+          className={`badge ${closeDays <= 3 ? "badge-red" : "badge-amber"} text-[10px] px-1.5 h-4`}
+          title={`Applications close ${job.closing_date}`}
+        >
+          Closes {closeDays === 0 ? "today" : `in ${closeDays}d`}
+        </span>
+      )}
+      {job.is_agency === true && (
+        <span className="badge badge-gray text-[10px] px-1.5 h-4" title="Posted by a recruitment agency">
+          Agency
+        </span>
+      )}
+      {job.eligibility === "not_eligible" && (
+        <span className="badge badge-red text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "Based on the JD's stated work-rights requirement vs your visa status (My CV)"}>
+          Not eligible
+        </span>
+      )}
+      {job.hours_cap_conflict && job.eligibility !== "not_eligible" && (
+        <span className="badge badge-amber text-[10px] px-1.5 h-4" title="Full-time only — may conflict with student-visa hour caps">
+          FT only ⚠
+        </span>
+      )}
+    </>
+  );
+}
+
 function CardChips({ job }: { job: BoardJob }) {
   return (
     <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -1146,6 +1220,7 @@ function CardChips({ job }: { job: BoardJob }) {
       <SourcePill source={job.source} />
       {job.profile_name && <ProfileChip name={job.profile_name} />}
       {job.atsBand !== "no_ats" && <AtsChip job={job} />}
+      <FactsChips job={job} />
       <span
         className="inline-block w-2 h-2 rounded-full ml-auto"
         style={{ background: VISA_COLOR[visaKey(job)] }}
@@ -1184,6 +1259,14 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
         <>
           <span className="text-text-3"> · </span>
           <Distance km={job.distance_km} method={job.distance_method ?? null} />
+        </>
+      )}
+      {formatSalary(job) && (
+        <>
+          <span className="text-text-3"> · </span>
+          <span className="text-emerald-700" title="Salary — from the source or extracted from the JD">
+            {formatSalary(job)}
+          </span>
         </>
       )}
       {postedRel && (

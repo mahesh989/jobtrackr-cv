@@ -35,6 +35,7 @@ import {
   type CoverLetterRef,
 } from "@/components/jobs/progressFlags";
 import { derivePipelineState, recomputeGates } from "@/components/jobs/pipelineState";
+import { computeEligibility, hoursCapConflict, isUserVisaStatus } from "@/lib/eligibility";
 
 interface SearchParams {
   sort?:          string;
@@ -85,6 +86,9 @@ export default async function JobsPage({
   const myCvVerticals = (
     (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
   ).filter(Boolean);
+  // User-level visa status (080) — same contact_details home as role_families.
+  const rawVisaStatus = (prefRow?.contact_details as { visa_status?: string } | null)?.visa_status;
+  const userVisaStatus = isUserVisaStatus(rawVisaStatus) ? rawVisaStatus : null;
   const th = resolveThresholds(
     myCvVerticals.length > 0
       ? myCvVerticals
@@ -106,24 +110,40 @@ export default async function JobsPage({
 
   const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
 
-  let query = supabase
-    .from("jobs")
-    .select("id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence")
-    .eq("profile_id", id)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false);
-  if (isDismissedView) query = query.not("dismissed_at", "is", null);
-  else                 query = query.is("dismissed_at", null);
-  if (sp.location) query = query.ilike("location", `%${sp.location}%`);
-  if (sp.posted_within && sp.posted_within !== "any") {
-    const days = parseInt(sp.posted_within, 10);
-    if (!isNaN(days)) {
-      const d = new Date();
-      d.setDate(d.getDate() - days);
-      query = query.gte("posted_at", d.toISOString());
+  const JOBS_BASE_COLS = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence";
+  const JOBS_M080_COLS = ", salary_min, salary_max, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
+
+  const buildJobsQuery = (cols: string) => {
+    let query = supabase
+      .from("jobs")
+      .select(cols)
+      .eq("profile_id", id)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false);
+    if (isDismissedView) query = query.not("dismissed_at", "is", null);
+    else                 query = query.is("dismissed_at", null);
+    if (sp.location) query = query.ilike("location", `%${sp.location}%`);
+    if (sp.posted_within && sp.posted_within !== "any") {
+      const days = parseInt(sp.posted_within, 10);
+      if (!isNaN(days)) {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        query = query.gte("posted_at", d.toISOString());
+      }
     }
-  }
-  query = query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
+    return query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
+  };
+
+  // Migration-080 columns with pre-migration fallback: retry on the base
+  // column set if the DB doesn't have them yet (board keeps working either way).
+  const fetchJobsWithFallback = async () => {
+    let res = await buildJobsQuery(JOBS_BASE_COLS + JOBS_M080_COLS);
+    if (res.error && /column|42703|PGRST/i.test(res.error.message)) {
+      res = await buildJobsQuery(JOBS_BASE_COLS);
+    }
+    return res;
+  };
+  const query = fetchJobsWithFallback();
 
   // ── BATCH 1 — four parallel queries (all need only profile `id`) ─────────
   const [
@@ -151,7 +171,7 @@ export default async function JobsPage({
   ]);
 
   const isRunning     = !!activeRunData;
-  const jobList       = (jobs ?? []) as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  const jobList       = (jobs ?? []) as unknown as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
   const jobIds        = jobList.map((j) => j.id);
   const allRows       = (countRows ?? []) as AllCountRow[];
   const jobIdsForCounts = allRows.map((r) => r.id);
@@ -221,14 +241,19 @@ export default async function JobsPage({
       th.initial,
       th.final
     );
+    const jobShape = j as unknown as BoardJob;
     return {
-      ...(j as unknown as BoardJob),
+      ...jobShape,
       progress,
       pipelineState,
       atsBand,
       atsThresholds:        th,
       initial_ats_score:    run?.initial_ats_score    ?? null,
       tailored_match_score: run?.tailored_match_score ?? null,
+      // Eligibility badge (080): user's My CV visa status × the JD's stated
+      // work-rights requirement. Null status → no badge (legacy behaviour).
+      eligibility:        userVisaStatus ? computeEligibility(jobShape, userVisaStatus) : null,
+      hours_cap_conflict: userVisaStatus ? hoursCapConflict(jobShape, userVisaStatus) : false,
     };
   });
 

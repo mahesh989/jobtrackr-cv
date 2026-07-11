@@ -37,6 +37,7 @@ interface Props {
     visa_filter_mode: string;
     working_rights?: string;
     setting_filter?: string[];
+    employment_filter?: string[];
     schedule_cron: string;
     is_active: boolean;
     target_verticals?: string[];
@@ -271,6 +272,36 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               </div>
             </>
           )}
+
+          <div className="border-t border-border" />
+
+          {/* Work type filter (Migration 080) — serve-time, like setting_filter. */}
+          <div>
+            <label className="block text-[12px] font-semibold text-text mb-1.5">
+              Work type
+              <Hint text="Full-time / part-time / casual / contract, read from the job board or the JD text. Tick the types you want; leave all unticked for everything. Jobs whose type we can't detect are always shown." />
+            </label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {[
+                { key: "full_time", label: "Full-time" },
+                { key: "part_time", label: "Part-time" },
+                { key: "casual",    label: "Casual" },
+                { key: "contract",  label: "Contract" },
+                { key: "temporary", label: "Temp" },
+              ].map((opt) => (
+                <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="employment_filter"
+                    value={opt.key}
+                    defaultChecked={defaults?.employment_filter?.includes(opt.key) ?? false}
+                    className="w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
+                  />
+                  <span className="text-[13px] text-text">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           <div className="border-t border-border" />
 

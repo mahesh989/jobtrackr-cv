@@ -36,6 +36,15 @@ export interface Job {
   setting_category?:   "hospital_clinical" | "residential_aged_care" | "home_community" | "other" | null;
   setting_confidence?: number | null;
   setting_evidence?:   string | null;
+  // JD facts (Migration 080) — extracted at scrape time by the worker.
+  // All optional/null-tolerant: rows scraped before the migration carry nulls.
+  employment_types?:        string[] | null;
+  work_rights_requirement?: string | null;
+  extracted_emails?:        Array<{ email: string; kind: string; person: string | null; context: string }> | null;
+  salary_period?:           "hour" | "day" | "week" | "fortnight" | "year" | null;
+  closing_date?:            string | null;
+  shift_patterns?:          string[] | null;
+  is_agency?:               boolean | null;
   keywords_matched:    string[];
   applied_at:          string | null;
   dismissed_at:        string | null;
@@ -64,6 +73,12 @@ export interface Job {
   /** ATS scores from the latest analysis run (null when not yet analysed). */
   initial_ats_score?:   number | null;
   tailored_match_score?: number | null;
+  /** Derived in page.tsx from (work_rights_requirement × the user's My CV
+   *  visa status) via lib/eligibility.computeEligibility. Null when the user
+   *  hasn't declared a visa status. */
+  eligibility?:        "eligible" | "not_eligible" | "unclear" | null;
+  /** Derived in page.tsx: capped student × exclusively full-time job. */
+  hours_cap_conflict?: boolean;
   /** Derived in page.tsx via progressFlags.deriveProgress(). */
   progress:            JobProgress;
   /** Derived in page.tsx via pipelineState.derivePipelineState(). */

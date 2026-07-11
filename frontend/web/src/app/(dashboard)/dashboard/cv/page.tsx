@@ -10,6 +10,8 @@ import {
 } from "@/components/cv/ProfileDetailsClient";
 import { EmailIntegrationCard } from "@/components/email/EmailIntegrationCard";
 import { NotificationsToggle } from "@/components/NotificationsToggle";
+import { VisaStatusSelect } from "@/components/VisaStatusSelect";
+import { isUserVisaStatus } from "@/lib/eligibility";
 import type { ContactDetails } from "@/components/cv/ProfileSettingsClient";
 
 export const metadata = { title: "My CV — JobTrackr" };
@@ -83,6 +85,8 @@ export default async function CvPage({ searchParams }: PageProps) {
 
   // Row may not exist yet (user pre-dates the touch RPC) — default true.
   const notifyNewJobs = (engagementRes.data?.notify_new_jobs as boolean | undefined) ?? true;
+  const rawVisaStatus = (prefsRes.data?.contact_details as { visa_status?: string } | null)?.visa_status;
+  const userVisaStatus = isUserVisaStatus(rawVisaStatus) ? rawVisaStatus : null;
 
   return (
     <div className="min-h-full px-4 sm:px-6 pt-6 pb-24">
@@ -163,6 +167,24 @@ export default async function CvPage({ searchParams }: PageProps) {
               </p>
             </div>
             <NotificationsToggle initial={notifyNewJobs} />
+          </div>
+        </section>
+
+        {/* Working rights — user-level visa status (contact_details.visa_status,
+            same "applies to all CVs" home as role_families). Drives the
+            eligibility badge on job cards and the pipeline's fetch filter. */}
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
+          <div>
+            <h2 className="text-[14.5px] font-semibold text-text">Working rights</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">
+              Your visa situation in Australia. Jobs whose description rules you out
+              (e.g. &ldquo;PR/citizens only&rdquo;, &ldquo;unrestricted working rights required&rdquo;)
+              get flagged on the board and skipped by scheduled fetches.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[13px] text-text font-medium">My working rights</p>
+            <VisaStatusSelect initial={userVisaStatus} />
           </div>
         </section>
       </div>
