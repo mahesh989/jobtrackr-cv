@@ -168,6 +168,7 @@ export function createSeekAdapter(apifyToken: string): {
           expires_at:  null,
           ...(salary_min !== undefined && { salary_min }),
           ...(salary_max !== undefined && { salary_max }),
+          ...(item.workType && { employment_types_raw: [item.workType] }),
           raw: item,
         });
       }

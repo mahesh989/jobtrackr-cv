@@ -82,6 +82,17 @@ export function normalise(job: RawJob): NormalisedJob {
     sponsorship_status: "not_mentioned",
     citizen_pr_only: null,
     visa_extracted_text: null,
+    work_rights_requirement: "not_stated",
+    // JD facts — set by jdFacts extractors (stage 10e); the raw adapter
+    // work-type strings ride along until then.
+    employment_types_raw: job.employment_types_raw,
+    employment_types: null,
+    employment_source: null,
+    extracted_emails: null,
+    salary_period: null,
+    closing_date: null,
+    shift_patterns: null,
+    is_agency: null,
     // Setting fields — set by settingClassifier (stage 10c)
     setting_category: null,
     setting_confidence: null,

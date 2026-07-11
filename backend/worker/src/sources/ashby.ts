@@ -103,6 +103,7 @@ export const ashbyAdapter: SourceAdapter = {
           source_tier: 2,
           posted_at: p.publishedDate ?? null,
           expires_at: null,
+          ...(p.employmentType && { employment_types_raw: [p.employmentType] }),
           raw: p,
         });
       }

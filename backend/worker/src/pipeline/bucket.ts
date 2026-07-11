@@ -22,6 +22,7 @@ import { distanceFor, distanceFromCoords, geocodeLocation, haversineKm, type Lat
 import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
 import type { CoverageSlice } from "./coverage.js";
+import { computeEligibility, isUserVisaStatus } from "./eligibility.js";
 
 /** Feature flag — bucket write + serve only when explicitly enabled. */
 export function bucketEnabled(): boolean {
@@ -72,6 +73,27 @@ interface GlobalRow {
   posted_at: string | null;
   expires_at: string | null;
   last_seen_at: string;
+  // JD facts (migration 080) — optional so a strip-retry can delete them
+  // pre-migration without fighting the type.
+  employment_types?: string[] | null;
+  employment_source?: string | null;
+  work_rights_requirement?: string | null;
+  extracted_emails?: unknown;
+  salary_period?: string | null;
+  closing_date?: string | null;
+  shift_patterns?: string[] | null;
+  is_agency?: boolean | null;
+}
+
+const M080_BUCKET_COLUMNS = [
+  "employment_types", "employment_source", "work_rights_requirement",
+  "extracted_emails", "salary_period", "closing_date", "shift_patterns", "is_agency",
+] as const;
+
+function stripM080Bucket(row: GlobalRow): GlobalRow {
+  const out = { ...row };
+  for (const c of M080_BUCKET_COLUMNS) delete out[c];
+  return out;
 }
 
 /**
@@ -163,15 +185,35 @@ export async function upsertGlobalJobs(
         posted_at: j.posted_at,
         expires_at: j.expires_at,
         last_seen_at: now,
+        // JD facts (080) — deterministic from the JD, so a re-scrape recomputes
+        // the same values; no cross-run merge needed (unlike keywords/setting).
+        employment_types: j.employment_types,
+        employment_source: j.employment_source,
+        work_rights_requirement: j.work_rights_requirement,
+        extracted_emails: j.extracted_emails,
+        salary_period: j.salary_period,
+        closing_date: j.closing_date,
+        shift_patterns: j.shift_patterns,
+        is_agency: j.is_agency,
       };
     });
 
     const BATCH = 100;
+    let m080Available = true;
     for (let i = 0; i < rows.length; i += BATCH) {
-      const batch = rows.slice(i, i + BATCH);
-      const { error } = await db
+      let batch = rows.slice(i, i + BATCH);
+      if (!m080Available) batch = batch.map(stripM080Bucket);
+      let { error } = await db
         .from("global_jobs")
         .upsert(batch, { onConflict: "url_hash", ignoreDuplicates: false });
+      if (error && m080Available && /column|PGRST204/i.test(error.message)) {
+        console.warn(`[bucket] migration 080 columns missing (${error.message}) — retrying without them`);
+        m080Available = false;
+        batch = batch.map(stripM080Bucket);
+        ({ error } = await db
+          .from("global_jobs")
+          .upsert(batch, { onConflict: "url_hash", ignoreDuplicates: false }));
+      }
       if (error) {
         console.warn(`[bucket] upsertGlobalJobs skipped — ${error.message}`);
         return false;
@@ -228,6 +270,15 @@ interface BucketRow {
   setting_evidence: string | null;
   posted_at: string | null;
   expires_at: string | null;
+  // JD facts (080) — undefined when served pre-migration (fallback select).
+  employment_types?: string[] | null;
+  employment_source?: string | null;
+  work_rights_requirement?: string | null;
+  extracted_emails?: NormalisedJob["extracted_emails"];
+  salary_period?: NormalisedJob["salary_period"];
+  closing_date?: string | null;
+  shift_patterns?: string[] | null;
+  is_agency?: boolean | null;
 }
 
 /** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited. */
@@ -271,33 +322,43 @@ export async function serveProfileFromBucket(
     const radiusKm = Math.max(configuredKm * 2, 50);
     const searchOrigin = profile.location ? await geocodeLocation(profile.location) : null;
 
-    let query = db
-      .from("global_jobs")
-      .select("url_hash, canonical_url, source, source_tier, title, company, location, lat, lng, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, setting_category, setting_confidence, setting_evidence, posted_at, expires_at")
-      .eq("is_dead_link", false)
-      .eq("is_expired", false)
-      .or(`posted_at.gte.${floor},posted_at.is.null`)
-      .limit(5000);
+    const BASE_COLS = "url_hash, canonical_url, source, source_tier, title, company, location, lat, lng, matched_keywords, description_snippet, description_full, jd_access, salary_min, salary_max, sponsorship_status, citizen_pr_only, setting_category, setting_confidence, setting_evidence, posted_at, expires_at";
+    const M080_COLS = ", employment_types, employment_source, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
 
-    if (searchOrigin) {
-      // Bounding box (square superset of the radius circle) on indexed lat/lng.
-      const dLat = radiusKm / 111;
-      const dLng = radiusKm / ((111 * Math.cos((searchOrigin.lat * Math.PI) / 180)) || 1);
-      query = query
-        .gte("lat", searchOrigin.lat - dLat).lte("lat", searchOrigin.lat + dLat)
-        .gte("lng", searchOrigin.lng - dLng).lte("lng", searchOrigin.lng + dLng);
-    } else {
-      // Geocode failed → fall back to the coarse cell filter (legacy behaviour).
-      const cells = Array.from(new Set(slices.map((s) => s.location_cell))).filter((c) => c.length > 0);
-      if (cells.length > 0) query = query.in("location_cell", cells);
+    const buildQuery = (cols: string) => {
+      let query = db
+        .from("global_jobs")
+        .select(cols)
+        .eq("is_dead_link", false)
+        .eq("is_expired", false)
+        .or(`posted_at.gte.${floor},posted_at.is.null`)
+        .limit(5000);
+
+      if (searchOrigin) {
+        // Bounding box (square superset of the radius circle) on indexed lat/lng.
+        const dLat = radiusKm / 111;
+        const dLng = radiusKm / ((111 * Math.cos((searchOrigin.lat * Math.PI) / 180)) || 1);
+        query = query
+          .gte("lat", searchOrigin.lat - dLat).lte("lat", searchOrigin.lat + dLat)
+          .gte("lng", searchOrigin.lng - dLng).lte("lng", searchOrigin.lng + dLng);
+      } else {
+        // Geocode failed → fall back to the coarse cell filter (legacy behaviour).
+        const cells = Array.from(new Set(slices.map((s) => s.location_cell))).filter((c) => c.length > 0);
+        if (cells.length > 0) query = query.in("location_cell", cells);
+      }
+      return query;
+    };
+
+    let { data, error } = await buildQuery(BASE_COLS + M080_COLS);
+    if (error && /column|PGRST204|42703/i.test(error.message)) {
+      // Migration 080 not applied yet — serve without the JD-facts columns.
+      ({ data, error } = await buildQuery(BASE_COLS));
     }
-
-    const { data, error } = await query;
     if (error) {
       console.warn(`[bucket] serve query skipped — ${error.message}`);
       return null;
     }
-    let rows = (data ?? []) as BucketRow[];
+    let rows = (data ?? []) as unknown as BucketRow[];
     // Refine the bbox square to the actual radius circle.
     if (searchOrigin) {
       rows = rows.filter(
@@ -386,6 +447,14 @@ export async function serveProfileFromBucket(
       sponsorship_status: r.sponsorship_status ?? "not_mentioned",
       citizen_pr_only: r.citizen_pr_only,
       visa_extracted_text: null,
+      work_rights_requirement: r.work_rights_requirement ?? "not_stated",
+      employment_types: r.employment_types ?? null,
+      employment_source: (r.employment_source as NormalisedJob["employment_source"]) ?? null,
+      extracted_emails: r.extracted_emails ?? null,
+      salary_period: r.salary_period ?? null,
+      closing_date: r.closing_date ?? null,
+      shift_patterns: r.shift_patterns ?? null,
+      is_agency: r.is_agency ?? null,
       setting_category: r.setting_category ?? null,
       setting_confidence: r.setting_confidence ?? null,
       setting_evidence: r.setting_evidence ?? null,
@@ -398,6 +467,29 @@ export async function serveProfileFromBucket(
     kept = postFetchFilter(kept, profile).kept;
     if (profile.working_rights === "needs_sponsorship") {
       kept = kept.filter((j) => j.sponsorship_status !== "no" && j.citizen_pr_only !== true);
+    }
+    // Eligibility matrix (080) — per-user, so it runs HERE after the shared
+    // bucket read, mirroring the setting filter below. Hard-drops only
+    // not_eligible; unclear/eligible pass through for the UI badge to explain.
+    const userVisa = profile.user_visa_status;
+    if (isUserVisaStatus(userVisa)) {
+      const before = kept.length;
+      kept = kept.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
+      if (before !== kept.length) {
+        console.log(`[bucket] eligibility (${userVisa}): ${before - kept.length} dropped, ${kept.length} remain`);
+      }
+    }
+    // Employment-type filter (080) — per-profile. Unclassified jobs always pass.
+    if ((profile.employment_filter?.length ?? 0) > 0) {
+      const keep = new Set(profile.employment_filter);
+      const before = kept.length;
+      kept = kept.filter((j) => {
+        const types = j.employment_types ?? [];
+        return types.length === 0 || types.some((t) => keep.has(t));
+      });
+      if (before !== kept.length) {
+        console.log(`[bucket] employment filter: ${before - kept.length} dropped, ${kept.length} remain`);
+      }
     }
     // Work-setting filter (Migration 078) — the per-profile final gate. Runs
     // HERE, after the shared bucket read, so it never affects what other

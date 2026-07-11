@@ -17,7 +17,19 @@ export interface VisaInfo {
   citizen_pr_only: boolean | null;     // null = not mentioned in JD
   visa_extracted_text: string | null;  // sentences we found, for transparency
   visa_likelihood: number;             // derived: 1.0 | 0.5 | 0.0
+  // What the JD requires the applicant to hold TODAY (migration 080) —
+  // orthogonal to sponsorship_status, which is about the future. Ordered
+  // strictest-first; "full_unrestricted" excludes student-visa holders
+  // (capped hours) even though it says nothing about sponsorship.
+  work_rights_requirement: WorkRightsRequirement;
 }
+
+export type WorkRightsRequirement =
+  | "citizen_only"        // citizenship / security clearance demanded
+  | "pr_citizen"          // PR or citizen
+  | "full_unrestricted"   // unrestricted working rights (no student caps)
+  | "any_valid"           // any valid right to work
+  | "not_stated";
 
 // ── Sentence extraction ──────────────────────────────────────────────────────
 
@@ -122,6 +134,45 @@ function matchCitizenPROnly(text: string): boolean | null {
   return null;
 }
 
+// Returns the strictest work-rights requirement the JD states, or "not_stated".
+// Evaluated strictest-first so "Australian citizens only (PR holders will not
+// be considered)" lands on citizen_only, not pr_citizen.
+function matchWorkRightsRequirement(text: string, citizenPROnly: boolean | null): WorkRightsRequirement {
+  // citizen_only — citizenship without a PR alternative, or a security
+  // clearance (AU government context: clearance requires citizenship).
+  if (/\b(nv1|nv2|baseline clearance|negative vetting)\b/i.test(text)) return "citizen_only";
+  if (/\bsecurity clearance\b.{0,40}\b(required|essential|needed|must|mandatory)\b/i.test(text)) return "citizen_only";
+  if (
+    /\bmust be an? australian citizen\b/i.test(text) &&
+    !/\bpermanent resident|\bpr\b/i.test(text)
+  ) return "citizen_only";
+  if (/\baustralian citizens? only\b/i.test(text) && !/\bpermanent resident|\bpr\b/i.test(text)) {
+    return "citizen_only";
+  }
+
+  // pr_citizen — the existing detector already handles the phrasing zoo.
+  if (citizenPROnly === true) return "pr_citizen";
+
+  // full_unrestricted — excludes capped visas (students) but not 485/482 etc.
+  if (/\b(full|unrestricted|unlimited)\s+work(ing)?\s+rights?\b/i.test(text)) return "full_unrestricted";
+  if (/\bwork(ing)?\s+rights?\s+(with no|without)\s+restrictions?\b/i.test(text)) return "full_unrestricted";
+  if (/\bno\s+work(ing)?\s+(hour\s+)?restrictions?\b/i.test(text)) return "full_unrestricted";
+  if (/\bunrestricted\s+(right|ability)\s+to\s+work\b/i.test(text)) return "full_unrestricted";
+  // "without requiring sponsorship now or in the future" — demands standing
+  // work rights AND rules out sponsorship (the caller keeps sponsorship "no").
+  if (/\bwithout\b.{0,30}\bsponsorship\b.{0,30}\b(now or in the future|at any time)\b/i.test(text)) {
+    return "full_unrestricted";
+  }
+
+  // any_valid — must be able to work, any valid visa qualifies.
+  if (/\b(right|eligib\w+|authoris\w+|authoriz\w+)\s+to\s+work\s+in\s+australia\b/i.test(text)) return "any_valid";
+  if (/\bvalid\s+work(ing)?\s+(rights?|visa|permit)\b/i.test(text)) return "any_valid";
+  if (/\bmust\s+(hold|have)\s+.{0,20}work(ing)?\s+rights?\b/i.test(text)) return "any_valid";
+  if (/\bwork(ing)?\s+rights?\s+(in|for)\s+australia\b.{0,30}\b(required|essential|must)\b/i.test(text)) return "any_valid";
+
+  return "not_stated";
+}
+
 function deriveVisaLikelihood(
   sponsorship: "yes" | "no" | "not_mentioned",
   citizenPROnly: boolean | null
@@ -222,6 +273,7 @@ export async function extractVisaInfo(jobs: NormalisedJob[]): Promise<Map<string
         citizen_pr_only: null,
         visa_extracted_text: null,
         visa_likelihood: 0.5,
+        work_rights_requirement: "not_stated",
       });
       continue;
     }
@@ -247,6 +299,7 @@ export async function extractVisaInfo(jobs: NormalisedJob[]): Promise<Map<string
         citizen_pr_only: finalCPR,
         visa_extracted_text: extracted,
         visa_likelihood: deriveVisaLikelihood(finalSp as "yes" | "no" | "not_mentioned", finalCPR),
+        work_rights_requirement: matchWorkRightsRequirement(extracted, finalCPR),
       });
     } else {
       // Ambiguous — extracted sentences exist but no clear pattern matched
@@ -287,6 +340,10 @@ export async function extractVisaInfo(jobs: NormalisedJob[]): Promise<Map<string
             citizen_pr_only: cpr,
             visa_extracted_text: extracted,
             visa_likelihood: deriveVisaLikelihood(cpr === true ? "no" : sp, cpr),
+            // Requirement stays regex-derived even on the AI path: the AI call
+            // only adjudicates sponsorship/citizen ambiguity, and the regex
+            // tier covers the requirement phrasing deterministically.
+            work_rights_requirement: matchWorkRightsRequirement(extracted, cpr),
           });
         }
       }

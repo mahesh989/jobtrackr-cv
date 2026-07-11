@@ -42,6 +42,15 @@ import { startRunLog, finishRunLog, setStage } from "./runLog.js";
 import { runLogContext } from "./logContext.js";
 import { extractVisaInfo } from "../ai/visaExtractor.js";
 import { classifySettings } from "../ai/settingClassifier.js";
+import {
+  extractEmploymentTypes,
+  extractEmails,
+  extractTextSalary,
+  extractClosingDate,
+  extractShiftPatterns,
+  detectAgency,
+} from "../ai/jdFacts.js";
+import { computeEligibility, isUserVisaStatus } from "./eligibility.js";
 import { applySettingFilter, formatSettingBreakdown } from "./settingFilter.js";
 import { isBlocked, recordSuccess, recordFailure } from "./healthTracker.js";
 import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
@@ -251,6 +260,35 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   }
 
   profile.is_manual_run = trigger === "manual";
+
+  // Per-profile employment filter (migration 080) — fetched separately and
+  // best-effort so the pipeline keeps running before the migration is applied
+  // (an unknown column in the main loadProfile select would fail the run).
+  try {
+    const { data: ef } = await db
+      .from("search_profiles")
+      .select("employment_filter")
+      .eq("id", profileId)
+      .single();
+    profile.employment_filter = (ef as { employment_filter?: string[] } | null)?.employment_filter ?? [];
+  } catch {
+    profile.employment_filter = [];
+  }
+
+  // User-level visa status (My CV → user_preferences.contact_details.visa_status,
+  // same identity-level home as role_families). Drives the stage-10b eligibility
+  // filter; absent → legacy behaviour (working_rights only).
+  try {
+    const { data: prefRow } = await db
+      .from("user_preferences")
+      .select("contact_details")
+      .eq("user_id", profile.user_id)
+      .maybeSingle();
+    const vs = (prefRow?.contact_details as { visa_status?: string } | null)?.visa_status;
+    if (isUserVisaStatus(vs)) profile.user_visa_status = vs;
+  } catch {
+    /* no prefs row / pre-migration — legacy behaviour */
+  }
 
   // Activity-gated auto-fetch scheduling — scheduled (auto) runs only.
   // Manual runs (trigger="manual", user-initiated from the profile UI) are
@@ -979,6 +1017,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           sponsorship_status: info.sponsorship_status,
           citizen_pr_only: info.citizen_pr_only,
           visa_extracted_text: info.visa_extracted_text,
+          work_rights_requirement: info.work_rights_requirement,
           // Keep visa_likelihood for sort compat — derived from binary result
           // (saved separately below via update, as it lives on the jobs table)
         };
@@ -1009,6 +1048,41 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       });
     }
 
+    // Stage 10e: JD facts — employment type, contact emails, text salary,
+    // closing date, shift patterns, agency flag (migration 080). Pure
+    // regex/lexicon, no AI, so it runs on every survivor before the bucket
+    // write: like visa/setting these are once-per-job FACTS shared via
+    // global_jobs. Per-profile filtering on them happens at 10d / bucket serve.
+    if (settingReady.length > 0) {
+      const factsNow = new Date();
+      settingReady = settingReady.map((job) => {
+        const emp = extractEmploymentTypes({
+          title: job.title,
+          description: job.description,
+          employment_types_raw: job.employment_types_raw,
+        });
+        const textSalary =
+          job.salary_min == null ? extractTextSalary(job.description) : null;
+        return {
+          ...job,
+          employment_types: emp.source ? emp.types : [],
+          employment_source: emp.source,
+          extracted_emails: extractEmails(job.description),
+          ...(textSalary && {
+            salary_min: textSalary.min,
+            salary_max: textSalary.max ?? undefined,
+            salary_period: textSalary.period,
+          }),
+          closing_date: extractClosingDate(job.description, factsNow),
+          shift_patterns: extractShiftPatterns(job.description),
+          is_agency: detectAgency(job.company, job.description),
+        };
+      });
+      const withEmp = settingReady.filter((j) => (j.employment_types?.length ?? 0) > 0).length;
+      const withEmail = settingReady.filter((j) => (j.extracted_emails?.length ?? 0) > 0).length;
+      console.log(`[pipeline] stage 10e — JD facts: ${withEmp}/${settingReady.length} employment-typed, ${withEmail} with emails`);
+    }
+
     // Stage 10b: working rights filter
     // Drop jobs that conflict with the user's working rights situation.
     // "needs_sponsorship" → drop jobs that explicitly say no sponsorship or citizens/PR only.
@@ -1023,6 +1097,35 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 10b — working rights filter: ${droppedWR} dropped (explicit no-sponsorship / PR-citizen-only), ${toSave.length} remaining`);
     } else {
       console.log(`[pipeline] stage 10b — working rights: "${profile.working_rights ?? "any"}" — no filter applied`);
+    }
+
+    // Stage 10b+: eligibility matrix (migration 080) — hard-drop jobs the
+    // user's declared visa status (My CV) makes them ineligible for, e.g. a
+    // student-visa holder vs "unrestricted working rights required". LEGACY
+    // path only — bucket mode replays this inside serveProfileFromBucket
+    // AFTER the shared write, same reasoning as the setting filter below.
+    const userVisa = profile.user_visa_status;
+    if (!bucketEnabled() && isUserVisaStatus(userVisa)) {
+      const before = toSave.length;
+      toSave = toSave.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
+      if (before !== toSave.length) {
+        console.log(`[pipeline] stage 10b+ — eligibility (${userVisa}): ${before - toSave.length} dropped, ${toSave.length} remaining`);
+      }
+    }
+
+    // Stage 10b++: employment-type filter (migration 080). Same legacy-only
+    // gating. A job with no extracted types always passes — never hide jobs
+    // we couldn't classify.
+    if (!bucketEnabled() && (profile.employment_filter?.length ?? 0) > 0) {
+      const keep = new Set(profile.employment_filter);
+      const before = toSave.length;
+      toSave = toSave.filter((j) => {
+        const types = j.employment_types ?? [];
+        return types.length === 0 || types.some((t) => keep.has(t));
+      });
+      if (before !== toSave.length) {
+        console.log(`[pipeline] stage 10b++ — employment filter [${profile.employment_filter!.join(",")}]: ${before - toSave.length} dropped, ${toSave.length} remaining`);
+      }
     }
 
     // Stage 10d: work-setting filter (per-profile). LEGACY (non-bucket) path

@@ -71,6 +71,10 @@ function mapToRawJob(r: AdzunaResult): RawJob {
     expires_at: null,
     salary_min: r.salary_min,
     salary_max: r.salary_max,
+    // contract_time = full_time|part_time; contract_type = permanent|contract.
+    employment_types_raw: [r.contract_time, r.contract_type].filter(
+      (v): v is string => typeof v === "string" && v.length > 0
+    ),
     raw: r,
   };
 }

@@ -195,6 +195,7 @@ function jobToRaw(job: ReduxJob, profile: SearchProfile): RawJob | null {
     expires_at:  null,
     ...(salary_min !== undefined && { salary_min }),
     ...(salary_max !== undefined && { salary_max }),
+    ...(job.workTypes && job.workTypes.length > 0 && { employment_types_raw: job.workTypes }),
     raw:         job,
   };
 }

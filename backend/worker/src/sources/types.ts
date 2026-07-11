@@ -12,6 +12,16 @@ export interface SearchProfile {
   // 'hospital_clinical' | 'residential_aged_care' | 'home_community' | 'other'.
   // Empty/undefined = no filtering (opt-in). See pipeline/settingFilter.ts.
   setting_filter?: string[];
+  // Employment-type filter (Migration 080). Canonical tags to keep
+  // (full_time/part_time/casual/contract/temporary/internship); a job passes
+  // when its employment_types intersect, or when it has none extracted
+  // (never hide jobs we couldn't classify). Empty/undefined = no filtering.
+  employment_filter?: string[];
+  // User-level visa status resolved from user_preferences.contact_details
+  // (set by the orchestrator per run, not a search_profiles column):
+  // citizen | pr | temp_unrestricted | student_capped | needs_sponsorship.
+  // Drives the stage-10b eligibility filter; undefined = legacy behaviour.
+  user_visa_status?: string;
   adzuna_title_keywords?: string;
   adzuna_exact_phrase?: string;
   adzuna_any_keywords?: string;
@@ -64,6 +74,10 @@ export interface RawJob {
   expires_at: string | null;
   salary_min?: number;
   salary_max?: number;
+  // Source-provided work-type strings, verbatim (SEEK workTypes, Adzuna
+  // contract_time/contract_type, ATS employmentType, …). Mapped to canonical
+  // employment_types tags in normalise — structured beats regex.
+  employment_types_raw?: string[];
   raw?: unknown;          // original adapter response, for debugging
 }
 
