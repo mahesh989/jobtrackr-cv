@@ -23,6 +23,14 @@ import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
 import type { CoverageSlice } from "./coverage.js";
 import { computeEligibility, isUserVisaStatus } from "./eligibility.js";
+import {
+  extractEmploymentTypes,
+  extractEmails,
+  extractTextSalary,
+  extractClosingDate,
+  extractShiftPatterns,
+  detectAgency,
+} from "../ai/jdFacts.js";
 
 /** Feature flag — bucket write + serve only when explicitly enabled. */
 export function bucketEnabled(): boolean {
@@ -349,9 +357,11 @@ export async function serveProfileFromBucket(
       return query;
     };
 
+    let m080Selected = true;
     let { data, error } = await buildQuery(BASE_COLS + M080_COLS);
     if (error && /column|PGRST204|42703/i.test(error.message)) {
       // Migration 080 not applied yet — serve without the JD-facts columns.
+      m080Selected = false;
       ({ data, error } = await buildQuery(BASE_COLS));
     }
     if (error) {
@@ -421,6 +431,64 @@ export async function serveProfileFromBucket(
         }
         console.log(`[bucket] classify-on-read: retroactively classified ${newlyClassified.length} previously-null row(s)`);
       })().catch((err) => console.warn(`[bucket] classify-on-read write-back threw — ${err instanceof Error ? err.message : err}`));
+    }
+
+    // Facts-on-read (080): same rationale as classify-on-read above — a served
+    // row scraped before stage 10e existed carries employment_types = null
+    // forever unless something backfills it. All the extractors are pure
+    // regex/lexicon (no AI, no network), so running them over the null rows at
+    // serve time is cheap, and the guarded write-back means each row is
+    // extracted at most once ever. Skipped when the fallback (pre-migration)
+    // select ran — the columns wouldn't accept the write anyway.
+    if (m080Selected) {
+      const factsNow = new Date();
+      const newlyFacted: Array<Record<string, unknown> & { url_hash: string }> = [];
+      for (const r of rows) {
+        if (r.employment_types !== null && r.employment_types !== undefined) continue; // already extracted
+        const text = r.description_full ?? r.description_snippet ?? "";
+        if (!text) continue;
+        const emp = extractEmploymentTypes({ title: r.title, description: text });
+        const textSalary = r.salary_min == null ? extractTextSalary(text) : null;
+        r.employment_types = emp.source ? emp.types : [];
+        r.employment_source = emp.source;
+        r.extracted_emails = extractEmails(text);
+        r.salary_period = textSalary?.period ?? null;
+        r.closing_date = extractClosingDate(text, factsNow);
+        r.shift_patterns = extractShiftPatterns(text);
+        r.is_agency = detectAgency(r.company, text);
+        if (textSalary) {
+          r.salary_min = textSalary.min;
+          r.salary_max = textSalary.max;
+        }
+        newlyFacted.push({
+          url_hash: r.url_hash,
+          employment_types: r.employment_types,
+          employment_source: r.employment_source,
+          extracted_emails: r.extracted_emails,
+          salary_period: r.salary_period,
+          closing_date: r.closing_date,
+          shift_patterns: r.shift_patterns,
+          is_agency: r.is_agency,
+          ...(textSalary && { salary_min: textSalary.min, salary_max: textSalary.max }),
+        });
+      }
+      if (newlyFacted.length > 0) {
+        // Fire-and-forget, same shape as the classify-on-read write-back: the
+        // current serve already holds the facts in memory via the mutated rows;
+        // this write only benefits future serves. .is() guard = write-once.
+        void (async () => {
+          for (const f of newlyFacted) {
+            const { url_hash, ...cols } = f;
+            const { error: uErr } = await db
+              .from("global_jobs")
+              .update(cols)
+              .eq("url_hash", url_hash)
+              .is("employment_types", null);
+            if (uErr) console.warn(`[bucket] facts-on-read write-back ${url_hash} failed: ${uErr.message}`);
+          }
+          console.log(`[bucket] facts-on-read: retroactively extracted ${newlyFacted.length} previously-null row(s)`);
+        })().catch((err) => console.warn(`[bucket] facts-on-read write-back threw — ${err instanceof Error ? err.message : err}`));
+      }
     }
 
     // Map → NormalisedJob with tier-appropriate JD. duplicate_of/repost_of are
