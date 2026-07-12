@@ -18,7 +18,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/getUser";
+import { getAuthUser } from "@/modules/auth/server";
 import { getCachedProfiles } from "@/lib/queryCache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";

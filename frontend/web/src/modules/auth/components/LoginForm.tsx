@@ -1,0 +1,188 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { AuthShell } from "./AuthShell";
+import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
+import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
+
+export function LoginForm() {
+  const router = useRouter();
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken]   = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileBoxHandle>(null);
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/confirm`,
+        // Force Google's account chooser every time. Without this Google
+        // silently picks the only signed-in account and skips the picker,
+        // which makes switching accounts impossible on shared machines.
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (error) { setError(error.message); setGoogleLoading(false); }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken: captchaToken ?? undefined },
+    });
+    // Turnstile tokens are single-use — clear + re-mint for any subsequent attempt.
+    turnstileRef.current?.reset();
+    setCaptchaToken(null);
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
+  }
+
+  return (
+    <AuthShell
+      headline={
+        <>
+          Find your next role<br />
+          <em style={{ fontStyle: "italic", color: "#19E3C8" }}>while you sleep.</em>
+        </>
+      }
+      tagline="Australia's major sources scanned nightly, AI-ranked and ready in your feed every morning."
+      switchPrompt="Need an account?"
+      switchHref="/auth/signup"
+      switchLabel="Sign up"
+      trustLabels={["5 AU sources", "AI-ranked feed", "Visa signal", "3-day trial"]}
+    >
+      <h1
+        style={{
+          fontFamily: "var(--font-cv-serif)",
+          fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+          lineHeight: 1.12,
+          letterSpacing: "-0.8px",
+          marginBottom: 8,
+        }}
+      >
+        Welcome back.
+      </h1>
+      <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+        Sign in with your email and password.
+      </p>
+
+      {/* Google button */}
+      <button
+        onClick={handleGoogleSignIn}
+        disabled={googleLoading || loading}
+        className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity"
+        style={{ background: "#1A2030", border: "1.5px solid rgba(255,255,255,0.1)", fontSize: 14, fontWeight: 500, color: "#EAEEF6", opacity: googleLoading ? 0.7 : 1 }}
+      >
+        {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
+        Continue with Google
+      </button>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-5">
+        <div style={{ flex: 1, height: 1, background: "#232A36" }} />
+        <span style={{ fontSize: 12, color: "#5B6478" }}>or sign in with email</span>
+        <div style={{ flex: 1, height: 1, background: "#232A36" }} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="email" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
+            Email address
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoFocus
+            className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+            onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
+            style={inputStyle}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+            onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+          />
+        </div>
+
+        {error && <ErrorNotice message={error} />}
+
+        <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
+
+        <div style={{ marginTop: 28 }}>
+          <button
+            type="submit"
+            disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
+            className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity"
+            style={{
+              background: "#19E3C8",
+              color: "#04231F",
+              fontSize: 14,
+              fontWeight: 500,
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading ? (
+              <>
+                <Spinner />
+                Signing in…
+              </>
+            ) : (
+              <>
+                Sign in
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      <p className="text-center mt-6" style={{ fontSize: 12, color: "#5B6478" }}>
+        No account yet?{" "}
+        <Link href="/auth/signup" style={{ color: "#19E3C8", fontWeight: 500, textDecoration: "none" }}>
+          Sign up free
+        </Link>
+      </p>
+    </AuthShell>
+  );
+}

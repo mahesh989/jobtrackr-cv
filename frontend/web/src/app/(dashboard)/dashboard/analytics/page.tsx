@@ -21,7 +21,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/getUser";
+import { getAuthUser } from "@/modules/auth/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
