@@ -12,9 +12,9 @@
  */
 
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Loader2, Link2, FileText, X } from "lucide-react";
+import { Modal } from "@/components/ui";
 import { addManualJob } from "@/lib/actions";
 
 type Tab = "url" | "paste";
@@ -129,12 +129,8 @@ export function AddJobModal({ onClose }: { onClose: () => void }) {
   const canSave = title.trim().length > 0 && jd.trim().length >= 50;
   const showFields = tab === "paste" || prefilled !== null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" onClick={() => !saving && onClose()} />
-      <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl w-full max-w-xl flex flex-col max-h-[90vh]">
-
-        {/* Header */}
+  return (
+    <Modal open onClose={onClose} size="md">
         <div className="px-5 py-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[15px] font-semibold text-text">Add a job</h2>
@@ -300,8 +296,6 @@ export function AddJobModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

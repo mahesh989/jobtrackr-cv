@@ -1,179 +1,38 @@
 "use client";
 
-/**
- * SmartFeed — card-based job board for the dashboard.
- *
- * Replaces the JobTable on /dashboard with a denser, scannable card layout
- * inspired by the /dashboard/beta/job-feed prototype. Reads the same URL
- * params as the legacy board so PipelineFunnel + SmartFilterBar continue to
- * drive filtering — this component is purely the presentation layer.
- *
- * Two modes:
- *   • No view filter active → smart sections (Today's picks · Closest ·
- *     Fresh today · Needs attention · Everything else), each with a
- *     coloured banner.
- *   • Any view filter active → flat card list, sorted by SmartFilterBar.
- *
- * Top of feed (always shown when ≥1 job has distance_km):
- *   • Distance ribbon — 0→max-km axis with every job plotted as a dot
- *     coloured by ATS band. Hover for title. Click jumps to the card.
- *
- * Cards carry: profile chip · title · company · location · distance ·
- * visa dot · source pill · ATS chip (band-coloured) · keyword chips ·
- * match-score bar · progress dots · Analyze button · ⋮ menu (Edit /
- * Mark applied / Dismiss). Apply + Dismiss reuse the JobTable's flash +
- * fade-collapse animations.
- *
- * The per-profile board still uses JobTable — this component is dashboard-only.
- */
-
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import {
-  BarChart3, FileText, Mail, CheckCircle2, MoreHorizontal, Sparkles, MapPin,
-  Clock, AlertTriangle, Inbox, FileWarning, FileQuestion, Loader2, X,
-  Archive, Star,
+  BarChart3, FileText, Mail, CheckCircle2, Sparkles, MapPin,
+  Clock, AlertTriangle, Inbox, FileWarning, FileQuestion, Star,
 } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobDismissed, bulkArchiveJobs, bulkStarJobs, toggleStarJob } from "@/lib/actions";
-import { AnalyzeJobButton, FullAnalysisButton, triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
+import { AnalyzeJobButton, FullAnalysisButton } from "@/components/cv/AnalyzeJobButton";
 import { JobEditModal } from "@/components/cv/JobEditModal";
-import { jobNeedsJd, matchScore, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
+import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "./jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { shallowSetParams } from "./shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
-
-// ── time helpers (mirror JobTable) ──────────────────────────────────────
-
-function relativeDate(d: string | null): string | null {
-  if (!d) return null;
-  const diff = Date.now() - new Date(d).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7)   return `${days}d ago`;
-  if (days < 30)  return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
-
-/** Parse a string param to an int, clamp to [lo, hi], fall back to default. */
-function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
-  if (raw == null) return fallback;
-  const n = parseInt(raw, 10);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(hi, Math.max(lo, n));
-}
-
-function isPostedToday(j: BoardJob): boolean {
-  if (!j.posted_at) return false;
-  const d = new Date(j.posted_at);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear()
-      && d.getMonth()    === now.getMonth()
-      && d.getDate()     === now.getDate();
-}
-
-// ── ATS band visuals (mirrors lib/atsThresholds) ────────────────────────
-
-// Job-card badge labels — kept numeric/range here because the card prefixes
-// "ATS " before the label (`AtsChip` below). The filter chips in SmartToolbar
-// use friendlier "ATS Above / Fair / Below" labels — those are defined inline
-// there since they own their own "ATS " prefix.
-const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg: string; chipText: string; barColor: string; tip: string }> = {
-  above_final:   { label: "≥ 70",  dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800", barColor: "bg-green-500", tip: "Passed final gate — auto cover letter eligible" },
-  below_final:   { label: "60–69", dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800", barColor: "bg-amber-500", tip: "Tailored CV — between gates" },
-  below_initial: { label: "< 60",  dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800",   barColor: "bg-red-500",   tip: "Below initial gate — pipeline stopped" },
-  no_ats:        { label: "—",     dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
-};
-
-function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
-  const band = job.atsBand;
-  const th = job.atsThresholds ?? { initial: 60, final: 70 };
-  const staticMeta = ATS_BAND_META[band];
-
-  // Dynamic labels per profile vertical (healthcare uses 40/65 — see
-  // lib/atsThresholds). The job-card AtsChip below renders `ATS ${label}`
-  // so we keep these as raw range/threshold tokens here.
-  if (band === "above_final") {
-    return {
-      ...staticMeta,
-      label: `≥ ${th.final}`,
-      tip: `Passed final gate (${th.final}) — auto cover letter eligible`,
-    };
-  }
-  if (band === "below_final") {
-    return {
-      ...staticMeta,
-      label: `${th.initial}–${th.final - 1}`,
-      tip: `Tailored CV — between gates (${th.initial}–${th.final - 1})`,
-    };
-  }
-  if (band === "below_initial") {
-    return {
-      ...staticMeta,
-      label: `< ${th.initial}`,
-      tip: `Below initial gate (${th.initial}) — pipeline stopped`,
-    };
-  }
-  return staticMeta;
-}
-
-const VISA_COLOR = { yes: "#22c55e", no: "#ef4444", pr_only: "#f59e0b", unknown: "#94a3b8" };
-const VISA_LABEL = { yes: "Sponsored", no: "No sponsor", pr_only: "PR or citizens only", unknown: "Visa not mentioned" };
-
-function visaKey(j: BoardJob): keyof typeof VISA_COLOR {
-  if (j.citizen_pr_only === true) return "pr_only";
-  if (j.sponsorship_status === "yes") return "yes";
-  if (j.sponsorship_status === "no")  return "no";
-  return "unknown";
-}
-
-function sourcePillTone(source: string): string {
-  // Token-based so every theme stays consistent and readable (under Aurora
-  // these resolve to brand-tinted pills; under the other themes to the
-  // matching --blue/--purple/--amber/--teal tints). All sources now share
-  // the same shape — only the hue changes.
-  const m: Record<string, string> = {
-    adzuna:    "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    seek:      "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    careerjet: "bg-[var(--teal)]/14 text-[var(--teal)] border border-[var(--teal)]/25",
-    greenhouse:"bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    lever:     "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    indeed:    "bg-[var(--amber)]/12 text-[var(--amber)] border border-[var(--amber)]/25",
-  };
-  return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2 border border-border";
-}
+import {
+  relativeDate, clampInt, isPostedToday, getAtsMeta, visaKey, VISA_COLOR, VISA_LABEL,
+  sourcePillTone, pickScore, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, formatSalary, daysUntilClose,
+} from "@/lib/smartFeedUtils";
+import { DistanceRibbon } from "./DistanceRibbon";
+import { BulkActionBar } from "./BulkActionBar";
+import { CardMenu } from "./CardMenu";
 
 // ── smart-section bucketing ─────────────────────────────────────────────
 
-function pickScore(j: BoardJob): number {
-  // Same shape as matchScore but tuned for ranking "today's picks".
-  return matchScore(j);
-}
-
 interface FeedSection {
-  /** Built-in smart-section ids OR a custom string for grouped views
-   *  (time/distance buckets surfaced by JobBoard). */
   id: string;
   label: string;
   caption: string;
   tone: "brand" | "green" | "amber" | "muted";
   Icon: typeof Sparkles;
   jobs: BoardJob[];
-  hero?: boolean; // render top picks with the elevated hero card
-}
-
-/** Ascending-distance comparator. Null distances sink to the bottom so an
- *  unresolved location can't claim a top slot inside any section. */
-function byDistanceAsc(a: BoardJob, b: BoardJob): number {
-  const aNull = a.distance_km == null;
-  const bNull = b.distance_km == null;
-  if (aNull && bNull) return 0;
-  if (aNull) return 1;
-  if (bNull) return -1;
-  return (a.distance_km as number) - (b.distance_km as number);
+  hero?: boolean;
 }
 
 function bucketJobs(jobs: BoardJob[]): FeedSection[] {
@@ -181,7 +40,6 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   const active = jobs.filter((j) => !j.applied_at && !j.dismissed_at);
   const placed = new Set<string>();
 
-  // Picks: rank by pickScore (today's best), then break ties by distance.
   const picks = [...active]
     .sort((a, b) => {
       const d = pickScore(b) - pickScore(a);
@@ -195,8 +53,6 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
     .sort(byDistanceAsc);
   closest.forEach((j) => placed.add(j.id));
 
-  // Every other section also sorts by distance ascending so the dashboard
-  // reads consistently top-to-bottom — closest first, unknown distance last.
   const fresh = active
     .filter((j) => !placed.has(j.id) && isPostedToday(j))
     .sort(byDistanceAsc);
@@ -218,57 +74,38 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   return out;
 }
 
-// ── component ───────────────────────────────────────────────────────────
+// ── bulk-select context ─────────────────────────────────────────────────
 
-// ── bulk-select (iOS/Google style) ───────────────────────────────────────
-// Checkboxes are HIDDEN by default and only appear when the user explicitly
-// enters "select mode" via contextual "Select" buttons — one per smart-section
-// heading (Today's picks, Closest to you, …) and one above the first card when
-// a sort/stage/ATS filter flattens the feed. Toolbar no longer hosts Select.
 interface JobSelectionCtx {
   selectMode: boolean;
   isSelected: (id: string) => boolean;
   toggle:     (id: string) => void;
-  /** Bulk add/remove a set of ids — backs the per-group "Select all" toggle. */
   setMany:    (ids: string[], selected: boolean) => void;
 }
 const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
 
+function useJobSelection(): JobSelectionCtx | null {
+  return useContext(JobSelectionContext);
+}
+
+// ── main component ──────────────────────────────────────────────────────
+
 export function SmartFeed({
-  jobs,
-  groups,
-  hasActiveFilter,
-  currentTab,
-  counts,
-  atsCounts,
-  homeAddress = null,
-  thresholds,
-  excludeKeywords,
+  jobs, groups, hasActiveFilter, currentTab, counts, atsCounts,
+  homeAddress = null, thresholds, excludeKeywords,
 }: {
-  /** Pre-filtered + pre-sorted by the parent board. */
   jobs:            BoardJob[];
-  /** When provided, render the flat list as labelled groups (time / distance
-   *  buckets) instead of a single sorted list. Total job count across groups
-   *  should match `jobs`; the same id should not appear twice. */
   groups?:         JobGroup[];
-  /** True when stage/triage/ATS view filters are active. Switches the feed
-   *  from smart-section mode to flat-list mode. */
   hasActiveFilter: boolean;
-  /** Current stage — passed to JobEditModal-aware children. */
   currentTab:      string;
-  /** Stage counts for the toolbar's chip badges. */
   counts:          FunnelCounts;
-  /** ATS-band counts derived from the *unfiltered* loaded set — drives the
-   *  toolbar chip badges so users see what they can filter to. */
   atsCounts:       Record<AtsBand, number>;
-  /** When set, the toolbar renders the "Within X km" distance select. */
   homeAddress?:    string | null;
   thresholds?:     AtsThresholds;
   excludeKeywords?: string;
 }) {
   const router = useRouter();
 
-  // ── selection state (iOS/Google style) ──────────────────────────────────
   const [activeSelectModes, setActiveSelectModes] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmAnalyse, setConfirmAnalyse] = useState(false);
@@ -305,7 +142,6 @@ export function SmartFeed({
       const next = new Set(prev);
       if (next.has(sectionId)) {
         next.delete(sectionId);
-        // Clear selected jobs specifically from this section when cancelling its select mode
         if (sectionJobs) {
           setSelected((selPrev) => {
             const selNext = new Set(selPrev);
@@ -330,21 +166,9 @@ export function SmartFeed({
   }
 
   const isAnySelectMode = activeSelectModes.size > 0;
-
   const [bulkPending, setBulkPending] = useState<"archive" | "star" | null>(null);
 
-  // Optimistically-hidden job ids — keeps the just-archived rows out of the
-  // rendered feed instantly, without waiting for router.refresh to bring back
-  // a server-side payload that excludes them. Cleared on the next mount /
-  // when `jobs` actually changes (i.e. the server roundtrip arrives).
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
-  // Reset hiddenIds when the upstream `jobs` array reference changes (server
-  // refresh completed). Without this, a job re-archived later would still
-  // appear briefly while the optimistic hide from a previous run lingers.
-  // Compared via state (not a ref) — React's own "adjusting state when a
-  // prop changes" pattern: a conditional setState call during render is
-  // safe under concurrent rendering (React can discard it along with a
-  // thrown-away render), whereas mutating a ref during render isn't.
   const [prevJobs, setPrevJobs] = useState(jobs);
   if (prevJobs !== jobs) {
     setPrevJobs(jobs);
@@ -355,8 +179,6 @@ export function SmartFeed({
     const ids = Array.from(selected);
     if (ids.length === 0 || bulkPending) return;
     setBulkPending("archive");
-    // Hide first, ask questions later — gives instant feedback. If the action
-    // fails we restore the hidden rows below.
     const idsSet = new Set(ids);
     setHiddenIds((prev) => new Set([...prev, ...ids]));
     try {
@@ -364,7 +186,6 @@ export function SmartFeed({
       exitAllSelectModes();
       router.refresh();
     } catch (e) {
-      // Reveal again on failure so the user can retry / sees the row.
       setHiddenIds((prev) => {
         const next = new Set(prev);
         idsSet.forEach((id) => next.delete(id));
@@ -400,16 +221,12 @@ export function SmartFeed({
       while (idx < ids.length && !cancelledRef.current) {
         const id = ids[idx++];
         try {
-          // override=all → bypass the initial gate + thin-JD precheck so every
-          // selected job is fully analysed regardless of cutoffs.
           await fetch(`/api/jobs/${id}/analyze?override=all`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    "{}",
           });
-        } catch {
-          /* best-effort — keep going */
-        }
+        } catch { /* best-effort */ }
         if (!cancelledRef.current) {
           done++;
           setProgress({ done, total: ids.length });
@@ -424,7 +241,6 @@ export function SmartFeed({
     }
   }
 
-  // Ref map per job id so the distance ribbon can scroll to a card.
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   function scrollToJob(id: string) {
@@ -435,10 +251,6 @@ export function SmartFeed({
     setTimeout(() => el.classList.remove("ring-2", "ring-[var(--brand)]"), 1500);
   }
 
-  // Apply the optimistic-hide filter before computing anything downstream.
-  // hiddenIds only contains ids the user just bulk-archived; once router
-  // .refresh delivers a `jobs` prop that already excludes them, the set is
-  // cleared (see the lastJobsRef compare above) and this becomes a no-op.
   const visibleJobs = useMemo(
     () => (hiddenIds.size === 0 ? jobs : jobs.filter((j) => !hiddenIds.has(j.id))),
     [jobs, hiddenIds],
@@ -450,16 +262,12 @@ export function SmartFeed({
       .filter((g) => g.jobs.length > 0);
   }, [groups, hiddenIds]);
 
-  // Distance ribbon — only render when at least one job has a resolved
-  // distance. The bucketing is profile-agnostic, but the chart still helps
-  // spot clusters.
   const distanceMax = useMemo(() => {
     let max = 0;
     for (const j of visibleJobs) if (j.distance_km != null && j.distance_km > max) max = j.distance_km;
     return max;
   }, [visibleJobs]);
 
-  // When no jobs, hide bulk actions toolbar and select options
   const hasJobs = visibleJobs.length > 0;
 
   return (
@@ -490,106 +298,23 @@ export function SmartFeed({
         </JobSelectionContext.Provider>
       )}
 
-      {/* Sticky bulk-action bar — appears once in select mode.
-          Shows count, Analyse, Stop (during run), and Cancel to exit. */}
-      {isAnySelectMode && (
-        <div className="sticky bottom-4 z-30 mx-auto max-w-2xl rounded-lg border border-[var(--border)] bg-surface shadow-lg px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          <span className="text-[13px] font-semibold text-text">
-            {selected.size > 0 ? `${selected.size} selected` : "Tap jobs to select"}
-          </span>
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            {progress ? (
-              <>
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-text-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Analysing {progress.done}/{progress.total}…
-                </span>
-                {/* Stop mid-run — prevents remaining queued requests from firing.
-                    Already-sent requests on the server will still complete. */}
-                <button
-                  onClick={exitAllSelectModes}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors"
-                  title="Stop queuing new analyses — already-sent requests will still complete"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Stop
-                </button>
-              </>
-            ) : confirmAnalyse ? (
-              <>
-                <span className="text-[12px] text-text-2">
-                  Uses {selected.size} credit{selected.size !== 1 ? "s" : ""}
-                </span>
-                <button
-                  onClick={runBulkAnalyse}
-                  className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Confirm — analyse {selected.size}
-                </button>
-                <button
-                  onClick={() => setConfirmAnalyse(false)}
-                  className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
-                >
-                  Back
-                </button>
-              </>
-            ) : (
-              <>
-                {selected.size > 0 && (
-                  <>
-                    <button
-                      onClick={runBulkStar}
-                      disabled={bulkPending !== null}
-                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
-                      title="Star selected jobs — adds to your favourites"
-                    >
-                      {bulkPending === "star"
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Star className="w-3.5 h-3.5" />}
-                      Star
-                    </button>
-                    <button
-                      onClick={runBulkArchive}
-                      disabled={bulkPending !== null}
-                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-2 hover:text-text border border-[var(--border)] hover:border-text-3 bg-[var(--surface-2)] hover:bg-[var(--surface)] rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
-                      title="Archive selected jobs — hides from the main view"
-                    >
-                      {bulkPending === "archive"
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Archive className="w-3.5 h-3.5" />}
-                      Archive
-                    </button>
-                    <button
-                      onClick={() => setConfirmAnalyse(true)}
-                      disabled={bulkPending !== null}
-                      className="gh-btn gh-btn-primary text-[12px] px-3 py-1 inline-flex items-center gap-1.5 disabled:opacity-50"
-                      title="Analyse selected jobs — bypasses the initial gate"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Analyse {selected.size}
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={exitAllSelectModes}
-                  className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
-                >
-                  Cancel
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <BulkActionBar
+        selectedCount={selected.size}
+        isAnySelectMode={isAnySelectMode}
+        progress={progress}
+        confirmAnalyse={confirmAnalyse}
+        bulkPending={bulkPending}
+        onStar={runBulkStar}
+        onArchive={runBulkArchive}
+        onConfirmAnalyse={runBulkAnalyse}
+        onSetConfirmAnalyse={setConfirmAnalyse}
+        onStop={exitAllSelectModes}
+      />
     </div>
   );
 }
 
-/** Hook for cards to reach the selection context (null when not inside a feed). */
-function useJobSelection(): JobSelectionCtx | null {
-  return useContext(JobSelectionContext);
-}
+// ── feed body ───────────────────────────────────────────────────────────
 
 function SmartFeedBody({
   jobs, groups, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
@@ -610,10 +335,6 @@ function SmartFeedBody({
   const pathname = usePathname();
   const parentSelection = useJobSelection()!;
 
-  // Three rendering modes, in priority order:
-  //   1. groups   → explicit time/distance bucketing (the parent decided)
-  //   2. !filter  → smart sections (Today's picks · Closest · …)
-  //   3. otherwise→ flat sorted list (the parent already sorted it)
   const groupSections: FeedSection[] | null = useMemo(() => {
     if (!groups || groups.length === 0) return null;
     return groups.map((g) => ({
@@ -631,12 +352,6 @@ function SmartFeedBody({
     [groupSections, hasActiveFilter, jobs],
   );
 
-  // Distance-range URL state for the ribbon's draggable handles. min_distance
-  // and max_distance are both read by jobFilters, so dragging filters the
-  // feed live without a server round-trip.
-  // Axis is fixed at 50 km — outlier jobs (e.g., 900 km away) pin to the right
-  // edge instead of stretching the tick scale into illegible overlap. Matches
-  // the beta /dashboard/beta/job-feed prototype.
   const ribbonMax = 50;
   const minDist   = clampInt(sp.get("min_distance"), 0, ribbonMax, 0);
   const maxDist   = clampInt(sp.get("max_distance"), 0, ribbonMax, ribbonMax);
@@ -780,176 +495,7 @@ function FeedSectionView({
   );
 }
 
-// ── distance ribbon ─────────────────────────────────────────────────────
-
-/** "Distance from home" ribbon. Dots coloured by visa status (matches the
- *  beta — Sponsored / Unknown / PR only / No sponsor). Hover for the job
- *  title; click jumps to the matching card. Range handles let you bracket
- *  by km, writing min_distance + max_distance URL params (shallow nav so
- *  the feed re-filters instantly). */
-function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
-  jobs: BoardJob[];
-  maxKm: number;
-  range: [number, number];
-  onRangeChange: (r: [number, number]) => void;
-  onJobClick: (id: string) => void;
-}) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [dragging, setDragging] = useState<"min" | "max" | null>(null);
-
-  // While dragging we keep the range in local state so the handles + dot-mute
-  // update at 60fps without pushing every mousemove into the URL (which would
-  // re-render every job card and could crash the tab). The URL is committed
-  // once on mouseup.
-  const [localRange, setLocalRange] = useState<[number, number]>(range);
-  const localRangeRef = useRef(localRange);
-  useEffect(() => { localRangeRef.current = localRange; }, [localRange]);
-
-  // Sync local state when the URL changes from somewhere else (e.g. "clear"),
-  // or when a drag just ended — same trigger condition as the effect this
-  // replaces ([range, dragging] deps), just checked during render instead:
-  // conditional setState during render is safe under concurrent rendering
-  // (React can discard it with a thrown-away render); mutating a ref isn't.
-  const [prevRange, setPrevRange]       = useState(range);
-  const [prevDragging, setPrevDragging] = useState(dragging);
-  if (prevRange !== range || prevDragging !== dragging) {
-    setPrevRange(range);
-    setPrevDragging(dragging);
-    if (!dragging) setLocalRange(range);
-  }
-
-  // Tick step adapts to the axis so we don't render 100 overlapping labels.
-  // At 50 km we get 0/10/20/30/40/50 — same as the beta.
-  const tickStep = maxKm <= 60 ? 10 : maxKm <= 200 ? 25 : 50;
-  const ticks = Array.from(
-    { length: Math.floor(maxKm / tickStep) + 1 },
-    (_, i) => i * tickStep,
-  );
-
-  useEffect(() => {
-    if (!dragging) return;
-    function onMove(e: MouseEvent | TouchEvent) {
-      if (!trackRef.current) return;
-      const rect = trackRef.current.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const km = Math.round(pct * maxKm);
-      const [lo, hi] = localRangeRef.current;
-      if (dragging === "min") setLocalRange([Math.min(km, hi - 1), hi]);
-      else                    setLocalRange([lo, Math.max(km, lo + 1)]);
-    }
-    function onUp() {
-      setDragging(null);
-      onRangeChange(localRangeRef.current);
-    }
-    window.addEventListener("mousemove",  onMove);
-    window.addEventListener("mouseup",    onUp);
-    window.addEventListener("touchmove",  onMove);
-    window.addEventListener("touchend",   onUp);
-    return () => {
-      window.removeEventListener("mousemove",  onMove);
-      window.removeEventListener("mouseup",    onUp);
-      window.removeEventListener("touchmove",  onMove);
-      window.removeEventListener("touchend",   onUp);
-    };
-  }, [dragging, maxKm, onRangeChange]);
-
-  const displayRange = dragging ? localRange : range;
-  const rangeActive  = displayRange[0] > 0 || displayRange[1] < maxKm;
-
-  return (
-    <div className="rounded-md border border-border bg-[var(--surface-2)] p-4">
-      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">
-          Distance from home
-          {rangeActive && (
-            <span className="text-text font-normal normal-case ml-1">
-              · {displayRange[0]}–{displayRange[1]} km
-              <button
-                onClick={() => onRangeChange([0, maxKm])}
-                className="ml-1 text-[var(--brand)] hover:underline"
-              >clear</button>
-            </span>
-          )}
-        </p>
-        <div className="flex items-center gap-3 text-[10px] text-text-2">
-          <Legend color={VISA_COLOR.yes}     label="Sponsored" />
-          <Legend color={VISA_COLOR.unknown} label="Unknown" />
-          <Legend color={VISA_COLOR.pr_only} label="PR only" />
-          <Legend color={VISA_COLOR.no}      label="No sponsor" />
-        </div>
-      </div>
-
-      <div ref={trackRef} className="relative h-14 select-none">
-        <div className="absolute left-0 right-0 top-7 h-px bg-border" />
-        <div
-          className="absolute top-[26px] h-[3px] bg-[var(--brand)]/40 rounded"
-          style={{
-            left:  `${(displayRange[0] / maxKm) * 100}%`,
-            width: `${((displayRange[1] - displayRange[0]) / maxKm) * 100}%`,
-          }}
-        />
-        {ticks.map((t) => (
-          <div key={t} className="absolute top-7" style={{ left: `${(t / maxKm) * 100}%` }}>
-            <div className="w-px h-1.5 bg-border" />
-            <div className="text-[9px] text-text-3 mt-1 -translate-x-1/2 whitespace-nowrap">{t} km</div>
-          </div>
-        ))}
-        {jobs.filter((j) => j.distance_km != null).map((j, i) => {
-          const km = j.distance_km as number;
-          const x = (Math.min(km, maxKm) / maxKm) * 100;
-          const y = 28 + ((i % 3) - 1) * 3;
-          const muted = km < displayRange[0] || km > displayRange[1];
-          const vk = visaKey(j);
-          return (
-            <button
-              key={j.id}
-              type="button"
-              onClick={() => onJobClick(j.id)}
-              title={`${j.title}\n${j.company ?? "—"} · ${j.location} · ${km.toFixed(1)} km · ${VISA_LABEL[vk]}`}
-              className="absolute w-2.5 h-2.5 rounded-full hover:scale-150 transition-all shadow-sm"
-              style={{
-                left: `calc(${x}% - 5px)`,
-                top:  `${y - 5}px`,
-                background: VISA_COLOR[vk],
-                borderColor: "white",
-                borderWidth: 1,
-                borderStyle: "solid",
-                opacity: muted ? 0.25 : 1,
-              }}
-            />
-          );
-        })}
-        <RangeHandle pos={(displayRange[0] / maxKm) * 100} onStart={() => setDragging("min")} label={`${displayRange[0]} km`} />
-        <RangeHandle pos={(displayRange[1] / maxKm) * 100} onStart={() => setDragging("max")} label={`${displayRange[1]} km`} />
-      </div>
-    </div>
-  );
-}
-
-function RangeHandle({ pos, onStart, label }: { pos: number; onStart: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      title={`Drag — ${label}`}
-      onMouseDown={onStart}
-      onTouchStart={onStart}
-      className="absolute top-[20px] w-3 h-3 rounded-sm bg-white border-2 border-[var(--brand)] cursor-ew-resize hover:scale-125 transition-transform shadow"
-      style={{ left: `calc(${pos}% - 6px)` }}
-    />
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
-  );
-}
-
-// ── hero card (Today's picks) ───────────────────────────────────────────
+// ── hero card ───────────────────────────────────────────────────────────
 
 function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
@@ -968,7 +514,6 @@ function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJ
 function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
     <CardShell job={job} currentTab={currentTab} refSetter={refSetter} excludeKeywords={excludeKeywords}>
-      {/* Mobile: stack title/meta on top, actions below. sm+: side-by-side. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3.5 min-w-0 gap-2">
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
           <span
@@ -993,7 +538,7 @@ function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJo
   );
 }
 
-// ── shared card chrome (handles flash/fade animations on apply/dismiss) ─
+// ── card shell ──────────────────────────────────────────────────────────
 
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
@@ -1001,8 +546,6 @@ function CardShell({
   job, refSetter, hero, children, excludeKeywords,
 }: {
   job: BoardJob;
-  // currentTab is still passed by every caller (HeroCard/JobCard) but unused
-  // here — kept in the type so callers don't need touching for this cleanup.
   currentTab: string;
   refSetter: (el: HTMLDivElement | null) => void;
   hero?: boolean;
@@ -1031,7 +574,7 @@ function CardShell({
   }
 
   const selection  = useJobSelection();
-  const selectable = selection?.selectMode ?? false;  // checkboxes only in select mode
+  const selectable = selection?.selectMode ?? false;
   const checked    = selection?.isSelected(job.id) ?? false;
 
   async function onDismiss() {
@@ -1061,8 +604,6 @@ function CardShell({
       }}
     >
       <div style={{ overflow: "hidden" }} className="relative">
-        {/* Selection checkbox overlay — top-left, mirrors the Applications pool.
-            Always reserves space (pl-10 below) so the title doesn't shift. */}
         {selectable && (
           <button
             type="button"
@@ -1105,13 +646,10 @@ function CardShell({
           excludeKeywords={excludeKeywords}
           onClose={() => setShowEdit(false)}
           onSaved={(patch) => {
-            // Flicker the card on the thin→filled JD flip so the user can see
-            // which job they just fixed (they often lose their place).
             const wasThin = job.jd_quality === "thin" || job.jd_quality === "unknown";
             const nowFilled = (patch.manual_jd_text?.trim().length ?? 0) >= MANUAL_JD_MIN_CHARS;
             if (wasThin && nowFilled) {
               setSavedFlicker(true);
-              // Keep the class on for the full 1.8s keyframe (globals.css).
               setTimeout(() => setSavedFlicker(false), 1900);
             }
             setManualJd(patch.manual_jd_text);
@@ -1125,7 +663,6 @@ function CardShell({
   );
 }
 
-// Context so HeroCard/JobCard children can reach the shell's handlers.
 const CardActionsContext = createContext<{
   onDismiss:    () => Promise<void>;
   onEdit:       () => void;
@@ -1135,34 +672,6 @@ const CardActionsContext = createContext<{
 }>({ onDismiss: async () => {}, onEdit: () => {}, onToggleStar: () => {}, starred: false, pending: false });
 
 // ── card sub-pieces ─────────────────────────────────────────────────────
-
-const EMPLOYMENT_CHIP_LABEL: Record<string, string> = {
-  full_time: "FT", part_time: "PT", casual: "Casual",
-  contract: "Contract", temporary: "Temp", internship: "Intern",
-};
-
-/** "$34.50–$42/hr" / "$85k–$95k" — null when the job has no salary data. */
-function formatSalary(job: BoardJob): string | null {
-  if (job.salary_min == null) return null;
-  const period = job.salary_period;
-  const fmt = (v: number) =>
-    period === "hour" || period === "day"
-      ? `$${v % 1 === 0 ? v : v.toFixed(2)}`
-      : v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`;
-  const range = job.salary_max != null && job.salary_max !== job.salary_min
-    ? `${fmt(job.salary_min)}–${fmt(job.salary_max)}`
-    : fmt(job.salary_min);
-  const suffix = period === "hour" ? "/hr" : period === "day" ? "/day"
-    : period === "week" ? "/wk" : period === "fortnight" ? "/fn" : "";
-  return `${range}${suffix}`;
-}
-
-/** Days until the closing date; null when absent/unparseable/past by >1d. */
-function daysUntilClose(job: BoardJob): number | null {
-  if (!job.closing_date) return null;
-  const d = Math.ceil((new Date(job.closing_date).getTime() - Date.now()) / 86_400_000);
-  return d >= 0 ? d : null;
-}
 
 function FactsChips({ job }: { job: BoardJob }) {
   const applyEmail = job.extracted_emails?.find((e) => e.kind === "application");
@@ -1245,9 +754,6 @@ function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) {
 }
 
 function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  // Show whichever dates we have. Posted date is the more relevant signal
-  // for "is this fresh?", added is "when did the pipeline pick it up?".
-  // Tooltips carry the absolute date so the user can hover for precision.
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
@@ -1347,102 +853,9 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
   );
 }
 
-// ── overflow menu ───────────────────────────────────────────────────────
-
-function CardMenu({
-  job, onDismiss, onEdit, pending,
-}: {
-  job:       BoardJob;
-  onDismiss: () => void;
-  onEdit:    () => void;
-  pending:   boolean;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
-  const [reanalysePending, setReanalysePending] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  function toggle(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
-    }
-    setOpen((v) => !v);
-  }
-  useEffect(() => {
-    if (!open) return;
-    function onAway(e: MouseEvent) {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      if (btnRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    }
-    document.addEventListener("mousedown", onAway);
-    return () => document.removeEventListener("mousedown", onAway);
-  }, [open]);
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        disabled={pending}
-        aria-label="More actions"
-        className="p-1 rounded hover:bg-[var(--surface-2)] text-text-3 disabled:opacity-40"
-      >
-        <MoreHorizontal className="w-3.5 h-3.5" />
-      </button>
-      {open && pos && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: "fixed", top: pos.top, right: pos.right }}
-          className="z-50 min-w-[160px] rounded-md border border-border bg-surface shadow-lg py-1 text-[12px]"
-        >
-          <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Edit JD…</MenuItem>
-          {job.progress.has_analysis && job.progress.latest_run_id && (
-            <MenuItem
-              onClick={async () => {
-                setOpen(false);
-                if (reanalysePending) return;
-                setReanalysePending(true);
-                try {
-                  const run_id = await triggerReanalyze(job.id);
-                  router.push(`/dashboard/jobs/${job.id}/analyze/${run_id}`);
-                } catch { /* ignore */ } finally { setReanalysePending(false); }
-              }}
-              disabled={reanalysePending}
-            >
-              {reanalysePending ? "Starting…" : "Re-analyze"}
-            </MenuItem>
-          )}
-          <MenuItem onClick={() => { setOpen(false); onDismiss(); }}>Dismiss</MenuItem>
-        </div>,
-        document.body,
-      )}
-    </>
-  );
-}
-
-function MenuItem({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="w-full text-left px-3 py-1.5 hover:bg-[var(--surface-2)] disabled:text-text-3 disabled:cursor-not-allowed transition-colors"
-    >
-      {children}
-    </button>
-  );
-}
-
 // ── tiny presentational primitives ──────────────────────────────────────
 
 function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
-  // Only show when we have a real ATS score from analysis.
   const atsScore = job.tailored_match_score ?? job.initial_ats_score ?? null;
   if (atsScore == null) return null;
 

@@ -10,16 +10,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
-import { createAdminClient }         from "@/lib/supabase/admin";
-import { ADMIN_ROLES }               from "@/lib/constants";
+import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
 
 const VALID_SOURCES = [
   "adzuna", "seek", "careerjet", "greenhouse", "lever",
   "agedcare", // Workday aged-care (working).
   "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
   "avature",  // Avature aged-care (Regis, inline-JD listing, working).
-  "agedcare_dayforce", // Dayforce aged-care (Uniting NSW/ACT, CSRF bootstrap, working).
+  "agedcare_dayforce", // Dayforce aged-care (Unifying NSW/ACT, CSRF bootstrap, working).
   "successfactors", // SuccessFactors CSB aged-care (Australian Unity, JSON-LD detail). UNVALIDATED.
   "adlogic",  // AdLogic aged-care (Moran Health Care, /api/search + __NEXT_DATA__ JD).
               // PageUp/Scout paused (no full JD yet) — not toggleable.
@@ -33,21 +31,14 @@ const TIER_DEFAULTS: Record<Tier, { enabled_sources: string[]; adzuna_method: st
   unlimited: { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
 };
 
-async function requireAdminUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const admin = createAdminClient();
-  const { data: me } = await admin.from("users").select("role").eq("id", user.id).single();
-  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) return null;
-  return { userId: user.id, admin };
-}
+export async function GET(_req: NextRequest) {
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
 
-export async function GET() {
-  const ctx = await requireAdminUser();
-  if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { admin, error: adminErr } = await requireAdmin(user!);
+  if (adminErr) return adminErr;
 
-  const { data: rows } = await ctx.admin
+  const { data: rows } = await admin
     .from("platform_source_tiers")
     .select("tier, enabled_sources, adzuna_method, seek_method");
 
@@ -64,33 +55,37 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireAdminUser();
-  if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
 
-  let body: { tier?: unknown; enabled_sources?: unknown; adzuna_method?: unknown; seek_method?: unknown };
-  try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const { userId, admin, error: adminErr } = await requireAdmin(user!);
+  if (adminErr) return adminErr;
 
-  const tier = body?.tier;
+  const { data: body, error: parseErr } = await parseJsonBody<{
+    tier?: unknown; enabled_sources?: unknown; adzuna_method?: unknown; seek_method?: unknown;
+  }>(req);
+  if (parseErr) return parseErr;
+
+  const tier = body!.tier;
   if (tier !== "weekly" && tier !== "monthly" && tier !== "unlimited") {
     return NextResponse.json({ error: "tier must be weekly, monthly, or unlimited" }, { status: 400 });
   }
 
   const update: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    updated_by: ctx.userId,
+    updated_by: userId,
   };
 
-  if (Array.isArray(body.enabled_sources)) {
-    const cleaned = body.enabled_sources.filter(
+  if (Array.isArray(body!.enabled_sources)) {
+    const cleaned = body!.enabled_sources.filter(
       (s): s is Source => typeof s === "string" && (VALID_SOURCES as readonly string[]).includes(s),
     );
     update.enabled_sources = Array.from(new Set(cleaned));
   }
-  if (body.adzuna_method === "api" || body.adzuna_method === "direct") update.adzuna_method = body.adzuna_method;
-  if (body.seek_method === "direct" || body.seek_method === "actor")   update.seek_method   = body.seek_method;
+  if (body!.adzuna_method === "api" || body!.adzuna_method === "direct") update.adzuna_method = body!.adzuna_method;
+  if (body!.seek_method === "direct" || body!.seek_method === "actor")   update.seek_method   = body!.seek_method;
 
-  const { data, error } = await ctx.admin
+  const { data, error } = await admin
     .from("platform_source_tiers")
     .upsert({ tier, ...update }, { onConflict: "tier" })
     .select("tier, enabled_sources, adzuna_method, seek_method")

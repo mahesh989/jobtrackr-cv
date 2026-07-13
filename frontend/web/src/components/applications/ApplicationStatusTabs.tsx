@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
+import { Tabs } from "@/components/ui";
 
 /**
  * 2-tab Applications flow:
@@ -40,34 +41,38 @@ export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCou
   }
 
   return (
-    <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-md p-0.5 w-fit">
-      {TABS.map((t) => {
-        const active = current === t.value;
-        const count  = counts[t.value];
-        return (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-all whitespace-nowrap ${
-              active
-                ? "bg-[var(--surface)] text-text shadow-sm border border-[var(--border)]"
-                : "text-text-2 hover:text-text"
-            }`}
-          >
-            {t.label}
-            {count > 0 && (
-              <span
-                className={
-                  "text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center " +
-                  (active ? "bg-text text-[var(--surface)]" : "bg-[var(--border)] text-text-2")
-                }
-              >
-                {count > 99 ? "99+" : count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
+    <Tabs.Root value={current} onValueChange={setTab as (v: string) => void}>
+      <Tabs.List className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-md p-0.5 w-fit">
+        {TABS.map((t) => {
+          const count = counts[t.value];
+          return (
+            <Tabs.Trigger
+              key={t.value}
+              value={t.value}
+              className={
+                "inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium whitespace-nowrap border-b-0 " +
+                (current === t.value
+                  ? "bg-[var(--surface)] text-text shadow-sm border border-[var(--border)]"
+                  : "text-text-2 hover:text-text border-transparent")
+              }
+            >
+              {t.label}
+              {count > 0 && (
+                <span
+                  className={
+                    "text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center " +
+                    (current === t.value
+                      ? "bg-text text-[var(--surface)]"
+                      : "bg-[var(--border)] text-text-2")
+                  }
+                >
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
+            </Tabs.Trigger>
+          );
+        })}
+      </Tabs.List>
+    </Tabs.Root>
   );
 }

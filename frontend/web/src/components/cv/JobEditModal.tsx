@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { Modal } from "@/components/ui";
 import { triggerReanalyze } from "@/components/cv/AnalyzeJobButton";
 import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
 import { matchedExclusions } from "@/lib/descExclusion";
 
 interface Props {
   jobId:              string;
-  jobUrl?:            string | null;             // jobs.url — link to the live posting
-  originalJd:         string;                    // jobs.description (raw scrape)
-  initialManual:      string | null;             // jobs.manual_jd_text
-  initialEmail:       string | null;             // jobs.contact_email
-  initialHiringMgr:   string | null;             // jobs.hiring_manager
-  initialCompanyAddress: string | null;          // jobs.company_address
-  excludeKeywords?:   string;                    // profile's adzuna_exclude_keywords
+  jobUrl?:            string | null;
+  originalJd:         string;
+  initialManual:      string | null;
+  initialEmail:       string | null;
+  initialHiringMgr:   string | null;
+  initialCompanyAddress: string | null;
+  excludeKeywords?:   string;
   onClose():          void;
   onSaved(patch: {
     manual_jd_text:  string | null;
@@ -30,8 +30,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function JobEditModal({
   jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, excludeKeywords, onClose, onSaved,
 }: Props) {
-  // The textarea starts with whatever the user previously set, falling back
-  // to the raw scraped description so they can edit-in-place.
   const [text, setText]       = useState<string>(initialManual ?? originalJd ?? "");
   const [email, setEmail]     = useState<string>(initialEmail ?? "");
   const [hiringMgr, setHiringMgr] = useState<string>(initialHiringMgr ?? "");
@@ -47,11 +45,9 @@ export function JobEditModal({
     [text, excludeKeywords],
   );
 
-  // Track whether the field has been edited so we know how to interpret it.
   const wasOriginallyEdited = initialManual !== null && initialManual !== "";
 
   useEffect(() => {
-    // Focus the textarea on open for keyboard-first UX.
     taRef.current?.focus();
   }, []);
 
@@ -156,35 +152,30 @@ export function JobEditModal({
   const charCount = text.length;
   const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => !busy && onClose()}
-      />
-      <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-        <div className="px-5 py-4 border-b border-[var(--border)]">
-          <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
-          <p className="text-[12px] text-text-2 mt-0.5 leading-snug">
-            Trim out the noise — company blurb, EEO statement, benefits — so the
-            AI focuses on responsibilities and skills. The original scrape is
-            preserved either way.
-          </p>
-          {jobUrl && (
-            <a
-              href={jobUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-medium text-[var(--brand)] hover:underline"
-              title="Open the live job posting in a new tab to copy the full description"
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              Open original job posting
-            </a>
-          )}
-        </div>
+  return (
+    <Modal open onClose={onClose} size="lg" className="max-h-[90vh]">
+      <div className="px-5 py-4 border-b border-[var(--border)]">
+        <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
+        <p className="text-[12px] text-text-2 mt-0.5 leading-snug">
+          Trim out the noise — company blurb, EEO statement, benefits — so the
+          AI focuses on responsibilities and skills. The original scrape is
+          preserved either way.
+        </p>
+        {jobUrl && (
+          <a
+            href={jobUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-medium text-[var(--brand)] hover:underline"
+            title="Open the live job posting in a new tab to copy the full description"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Open original job posting
+          </a>
+        )}
+      </div>
 
         <div className="px-5 py-4 overflow-y-auto space-y-5 flex-1">
           {/* JD text */}
@@ -342,8 +333,6 @@ export function JobEditModal({
             {busy ? "Saving…" : "Save"}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

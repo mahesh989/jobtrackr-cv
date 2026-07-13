@@ -8,25 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
-import { createAdminClient }         from "@/lib/supabase/admin";
-import { ADMIN_ROLES }               from "@/lib/constants";
+import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
 import { encryptApiKey }             from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { PROVIDER_ORDER, DEFAULT_MODELS, type AiProvider } from "@/lib/ai/models";
 
 const PROVIDERS = new Set<AiProvider>(PROVIDER_ORDER);
-
-async function requireAdminUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const admin = createAdminClient();
-  const { data: me } = await admin.from("users").select("role").eq("id", user.id).single();
-  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) return null;
-  return { userId: user.id, admin };
-}
 
 interface ValidationResult { valid: boolean; error?: string }
 
@@ -82,11 +69,14 @@ async function validateKey(provider: AiProvider, key: string): Promise<Validatio
 
 // ── GET — list all 3 provider rows (never the decrypted key) ────────────────
 
-export async function GET() {
-  const ctx = await requireAdminUser();
-  if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+export async function GET(_req: NextRequest) {
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
 
-  const { data, error } = await ctx.admin
+  const { admin, error: adminErr } = await requireAdmin(user!);
+  if (adminErr) return adminErr;
+
+  const { data, error } = await admin
     .from("platform_ai_settings")
     .select("provider, model, is_active, status, status_reason, last_validated_at, updated_at")
     .order("provider");
@@ -113,29 +103,30 @@ export async function GET() {
 // body: { provider, key?: string, model?: string, setActive?: boolean }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireAdminUser();
-  if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
 
-  let body: { provider?: string; key?: string; model?: string; setActive?: boolean };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  const { userId, admin, error: adminErr } = await requireAdmin(user!);
+  if (adminErr) return adminErr;
 
-  const provider = body.provider;
+  const { data: body, error: parseErr } = await parseJsonBody<{
+    provider?: string; key?: string; model?: string; setActive?: boolean;
+  }>(req);
+  if (parseErr) return parseErr;
+
+  const provider = body!.provider;
   if (!provider || !PROVIDERS.has(provider as AiProvider)) {
     return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
   }
   const p = provider as AiProvider;
 
-  const rl = await rateLimit(`admin-ai-settings:${ctx.userId}`, 20, 60);
+  const rl = await rateLimit(`admin-ai-settings:${userId}`, 20, 60);
   if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: ctx.userId };
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: userId };
 
-  if (typeof body.key === "string" && body.key.trim()) {
-    const key = body.key.trim();
+  if (typeof body!.key === "string" && body!.key.trim()) {
+    const key = body!.key.trim();
     const { valid, error } = await validateKey(p, key);
     if (!valid) return NextResponse.json({ valid: false, error }, { status: 422 });
     update.encrypted_api_key  = encryptApiKey(key);
@@ -144,11 +135,11 @@ export async function PATCH(req: NextRequest) {
     update.last_validated_at  = new Date().toISOString();
   }
 
-  if (typeof body.model === "string" && body.model.trim()) {
-    update.model = body.model.trim();
+  if (typeof body!.model === "string" && body!.model.trim()) {
+    update.model = body!.model.trim();
   }
 
-  const { error: upsertErr } = await ctx.admin
+  const { error: upsertErr } = await admin
     .from("platform_ai_settings")
     .upsert({ provider: p, ...update }, { onConflict: "provider" });
   if (upsertErr) {
@@ -156,9 +147,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 
-  if (body.setActive === true) {
+  if (body!.setActive === true) {
     // Require the provider to actually have a valid key before activating it.
-    const { data: row } = await ctx.admin
+    const { data: row } = await admin
       .from("platform_ai_settings")
       .select("status, encrypted_api_key")
       .eq("provider", p)
@@ -169,10 +160,10 @@ export async function PATCH(req: NextRequest) {
         { status: 422 },
       );
     }
-    await ctx.admin.from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
-    const { error: activateErr } = await ctx.admin
+    await admin.from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
+    const { error: activateErr } = await admin
       .from("platform_ai_settings")
-      .update({ is_active: true, updated_at: new Date().toISOString(), updated_by: ctx.userId })
+      .update({ is_active: true, updated_at: new Date().toISOString(), updated_by: userId })
       .eq("provider", p);
     if (activateErr) {
       console.error("[/api/admin/ai-settings PATCH] activate failed:", activateErr.message);

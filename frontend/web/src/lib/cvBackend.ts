@@ -157,7 +157,7 @@ export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCv
   );
 }
 
-export interface ExtractCvReferencesPayload extends CategoriseCvPayload {}
+export type ExtractCvReferencesPayload = CategoriseCvPayload;
 
 export interface ExtractedReferee {
   name:      string;

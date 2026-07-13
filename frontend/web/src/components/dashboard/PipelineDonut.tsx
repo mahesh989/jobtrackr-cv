@@ -1,63 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { shallowSetParams } from "../jobs/shallowNav";
-
-/**
- * Renders a donut filter target as an instant client-side filter (button +
- * History API) on the dashboard board, or a normal <Link> elsewhere / for
- * cross-route destinations.
- */
-function FilterAnchor({
-  href, shallow, apply, className, onClick, children,
-}: {
-  href: string;
-  shallow: boolean;
-  apply?: (href: string) => void;
-  className: string;
-  onClick?: () => void;
-  children: ReactNode;
-}) {
-  const internal = href.startsWith("/dashboard?");
-  if (shallow && internal && apply) {
-    return (
-      <button
-        type="button"
-        onClick={() => { onClick?.(); apply(href); }}
-        className={className}
-        style={{
-          background: "none",
-          border: "none",
-          padding: 0,
-          font: "inherit",
-          textAlign: "left",
-          width: "100%",
-          color: "inherit",
-          cursor: "pointer",
-        }}
-      >
-        {children}
-      </button>
-    );
-  }
-  return (
-    <Link
-      href={href}
-      scroll={!internal}
-      onClick={onClick}
-      className={className}
-      style={{
-        width: "100%",
-        color: "inherit",
-        textDecoration: "none",
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
+import { FilterAnchor } from "./FilterAnchor";
+import { CalloutStrip } from "./CalloutStrip";
 
 // View-filter params the donut can set; cleared before applying a new one so
 // the chosen slice is shown cleanly (dataset filters like location are kept).
@@ -577,33 +524,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
         </div>
       </div>
 
-      {/* Callout strip — wraps onto multiple lines on mobile so the counters
-          stack (no horizontal scroll for these); collapses to a single
-          scrolling row from sm up to keep them visually grouped on desktop. */}
-      {(data.callouts.thinJdCount > 0 || data.callouts.passedButNoLetter > 0 || data.callouts.readyToApply > 0) && (
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border sm:overflow-x-auto whitespace-nowrap">
-          {data.callouts.thinJdCount > 0 && (
-            <FilterAnchor href="/dashboard?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
-              ⚠ {data.callouts.thinJdCount} thin JD{data.callouts.thinJdCount > 1 ? "s" : ""} need attention
-            </FilterAnchor>
-          )}
-          {data.callouts.passedButNoLetter > 0 && (
-            // Routes to the dedicated triage filter that mirrors the count
-            // exactly (atsBand=above_final AND no cover letter AND not
-            // applied). Previously linked to stage=cvReady, which also
-            // surfaced 60–69 ATS jobs and jobs that already had a letter,
-            // so the count and the destination disagreed.
-            <FilterAnchor href="/dashboard?triage=passedNoLetter" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
-              → {data.callouts.passedButNoLetter} passed ATS, no letter yet
-            </FilterAnchor>
-          )}
-          {data.callouts.readyToApply > 0 && (
-            <Link href="/dashboard/applications" className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
-              ✓ {data.callouts.readyToApply} ready to apply
-            </Link>
-          )}
-        </div>
-      )}
+      <CalloutStrip callouts={data.callouts} shallow={shallow} applyFilter={applyFilter} />
 
       {popup !== null && (
         <DonutPopup mode={popup} lens={activeLens} data={data} shallow={shallow} apply={applyFilter} onClose={() => setPopup(null)} />
@@ -684,7 +605,7 @@ function DonutPopup({
                 const maxCount = Math.max(...profs.map((p) => p.counts[idx]), 1);
                 return [...profs]
                   .sort((a, b) => b.counts[idx] - a.counts[idx])
-                  .map((p) => <SingleBar key={p.profileId} profile={p} sliceIdx={idx} meta={meta} maxCount={maxCount} />);
+                  .map((p) => <AnimatedBar key={p.profileId} label={p.profileName} count={p.counts[idx]} color={meta.slices[idx].color} maxCount={maxCount} />);
               })()
           }
 
@@ -758,39 +679,24 @@ function StackedBar({ profile, meta, vis = 3 }: { profile: ProfileCount; meta: L
   );
 }
 
-function SingleBar({
-  profile, sliceIdx, meta, maxCount,
-}: { profile: ProfileCount; sliceIdx: number; meta: LensMeta; maxCount: number }) {
-  const count = profile.counts[sliceIdx];
-  const color = meta.slices[sliceIdx].color;
-  const pct   = maxCount > 0 ? (count / maxCount) * 100 : 0;
+function AnimatedBar({ label, count, color, maxCount, delay = 60 }: {
+  label: string;
+  count: number;
+  color: string;
+  maxCount: number;
+  delay?: number;
+}) {
+  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
   const [w, setW] = useState(0);
-  useEffect(() => { const t = window.setTimeout(() => setW(pct), 60); return () => window.clearTimeout(t); }, [pct]);
+  useEffect(() => { const t = window.setTimeout(() => setW(pct), delay); return () => window.clearTimeout(t); }, [pct, delay]);
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1">
-        <span className="text-[13px] font-medium text-text truncate pr-2">{profile.profileName}</span>
+        <span className="text-[13px] font-medium text-text truncate pr-2">{label}</span>
         <span className="text-[13px] font-semibold shrink-0" style={{ color }}>{count}</span>
       </div>
       <div className="h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${w}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
-function SourceBar({ src, n, max }: { src: string; n: number; max: number }) {
-  const pct = (n / max) * 100;
-  const [w, setW] = useState(0);
-  useEffect(() => { const t = window.setTimeout(() => setW(pct), 80); return () => window.clearTimeout(t); }, [pct]);
-  return (
-    <div>
-      <div className="flex justify-between items-baseline mb-1">
-        <span className="text-[12px] font-medium text-text capitalize">{src}</span>
-        <span className="text-[12px] font-semibold text-text">{n}</span>
-      </div>
-      <div className="h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${w}%`, background: "var(--chart-pos)" }} />
       </div>
     </div>
   );
@@ -817,7 +723,7 @@ function SourceBreakdown({ data, filter }: { data: PipelineLensData; filter: str
       <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wide mb-3">Saved by source</p>
       <div className="space-y-2.5">
         {entries.map(([src, n]) => (
-          <SourceBar key={src} src={src} n={n} max={max} />
+          <AnimatedBar key={src} label={src} count={n} color="var(--chart-pos)" maxCount={max} delay={80} />
         ))}
       </div>
     </div>

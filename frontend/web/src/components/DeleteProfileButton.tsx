@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createPortal } from "react-dom";
+import { Modal } from "@/components/ui";
 import { deleteProfile } from "@/lib/actions";
 
 export function DeleteProfileButton({
@@ -45,41 +45,38 @@ export function DeleteProfileButton({
         </button>
       )}
 
-      {showConfirm && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-text/40 backdrop-blur-sm"
-            onClick={() => !pending && setShowConfirm(false)}
-          />
-          <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
-            <h2 className="text-[16px] font-semibold text-text mb-2">Delete profile?</h2>
-            <p className="text-[13px] text-text-2 leading-relaxed mb-2">
-              This will permanently delete <strong className="text-text">{profileName}</strong> and all its associated jobs, run history, and settings.
-            </p>
-            <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
+      <Modal
+        open={showConfirm}
+        onClose={() => !pending && setShowConfirm(false)}
+        size="sm"
+      >
+        <div className="p-6">
+          <h2 className="text-[16px] font-semibold text-text mb-2">Delete profile?</h2>
+          <p className="text-[13px] text-text-2 leading-relaxed mb-2">
+            This will permanently delete <strong className="text-text">{profileName}</strong> and all its associated jobs, run history, and settings.
+          </p>
+          <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
 
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowConfirm(false)}
-                disabled={pending}
-                className="gh-btn text-[13px]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={pending}
-                className="gh-btn gh-btn-danger text-[13px]"
-              >
-                {pending ? "Deleting…" : "Yes, delete"}
-              </button>
-            </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              disabled={pending}
+              className="gh-btn text-[13px]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={pending}
+              className="gh-btn gh-btn-danger text-[13px]"
+            >
+              {pending ? "Deleting…" : "Yes, delete"}
+            </button>
           </div>
-        </div>,
-        document.body
-      )}
+        </div>
+      </Modal>
     </>
   );
 }

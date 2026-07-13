@@ -12,7 +12,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { Loader2, X, Copy, Check, Mail } from "lucide-react";
+import { Loader2, Copy, Check, Mail } from "lucide-react";
+import { Modal } from "@/components/ui";
 
 interface Props {
   letterId: string;
@@ -73,12 +74,6 @@ export function SentEmailModal({ letterId, jobLabel, onClose }: Props) {
     return () => { cancelled = true; };
   }, [letterId]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   async function handleCopy() {
     if (!draft) return;
     const payload = `Subject: ${draft.subject}\n\n${draft.body}`;
@@ -92,80 +87,67 @@ export function SentEmailModal({ letterId, jobLabel, onClose }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface border border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="px-5 py-3 border-b border-border flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[14px] font-semibold text-text flex items-center gap-1.5">
-              <Mail className="w-4 h-4 text-[var(--brand)]" /> Email message
-            </h2>
-            <p className="text-[11px] text-text-3 mt-0.5 truncate">{jobLabel}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleCopy}
-              disabled={loading || !draft}
-              className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
-            >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Copied" : "Copy email"}
-            </button>
-            <button onClick={onClose} className="text-text-3 hover:text-text px-1" aria-label="Close">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <Modal open onClose={onClose} size="lg">
+      <div className="px-5 py-3 border-b border-[var(--border)] flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[14px] font-semibold text-[var(--text)] flex items-center gap-1.5">
+            <Mail className="w-4 h-4 text-[var(--brand)]" /> Email message
+          </h2>
+          <p className="text-[11px] text-[var(--text-3)] mt-0.5 truncate">{jobLabel}</p>
         </div>
-
-        <div className="px-5 py-4 flex-1 overflow-y-auto space-y-3">
-          {loading ? (
-            <div className="py-10 flex items-center justify-center text-text-3 text-[12px]">
-              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
-            </div>
-          ) : draft ? (
-            <>
-              {draft.to_email && (
-                <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">To</label>
-                  <div className="text-[12px] font-mono px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
-                    {draft.to ?? draft.to_email}
-                  </div>
-                </div>
-              )}
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">Subject</label>
-                <div className="text-[13px] px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text">
-                  {draft.subject || <span className="italic text-text-3">(no subject)</span>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-3 mb-1">Message</label>
-                <pre className="text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-[var(--surface-2)] text-text whitespace-pre-wrap font-sans select-text">
-                  {draft.body || <span className="italic text-text-3">(no body)</span>}
-                </pre>
-              </div>
-              {!draft.to_email && (
-                <p className="text-[11px] text-text-3">
-                  No contact email was on file — this is the message you copied + sent manually.
-                </p>
-              )}
-            </>
-          ) : null}
-
-          {error && (
-            <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-3 py-2">
-              <p className="text-[12px] text-red-700 dark:text-red-400">{error}</p>
-            </div>
-          )}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleCopy}
+            disabled={loading || !draft}
+            className="inline-flex items-center gap-1 gh-btn gh-btn-primary text-[12px] px-3 py-1.5 disabled:opacity-40"
+          >
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? "Copied" : "Copy email"}
+          </button>
         </div>
       </div>
-    </div>
+
+      <div className="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+        {loading ? (
+          <div className="py-10 flex items-center justify-center text-[var(--text-3)] text-[12px]">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
+          </div>
+        ) : draft ? (
+          <>
+            {draft.to_email && (
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-3)] mb-1">To</label>
+                <div className="text-[12px] font-mono px-3 py-2 rounded border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)]">
+                  {draft.to ?? draft.to_email}
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-3)] mb-1">Subject</label>
+              <div className="text-[13px] px-3 py-2 rounded border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)]">
+                {draft.subject || <span className="italic text-[var(--text-3)]">(no subject)</span>}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-3)] mb-1">Message</label>
+              <pre className="text-[13px] leading-relaxed px-3 py-2 rounded border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] whitespace-pre-wrap font-sans select-text">
+                {draft.body || <span className="italic text-[var(--text-3)]">(no body)</span>}
+              </pre>
+            </div>
+            {!draft.to_email && (
+              <p className="text-[11px] text-[var(--text-3)]">
+                No contact email was on file — this is the message you copied + sent manually.
+              </p>
+            )}
+          </>
+        ) : null}
+
+        {error && (
+          <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-3 py-2">
+            <p className="text-[12px] text-red-700 dark:text-red-400">{error}</p>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

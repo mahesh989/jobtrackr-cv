@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { PlusCircle } from "lucide-react";
+import { Button } from "@/components/ui";
 import { AddJobModal } from "./AddJobModal";
 
 export function AddJobButton({ variant = "default" }: { variant?: "default" | "primary" }) {
@@ -14,19 +15,14 @@ export function AddJobButton({ variant = "default" }: { variant?: "default" | "p
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant={variant === "primary" ? "primary" : "default"}
+        icon={<PlusCircle className="w-3.5 h-3.5" />}
         onClick={() => setOpen(true)}
-        className={
-          variant === "primary"
-            ? "gh-btn gh-btn-primary text-[13px] inline-flex items-center gap-1.5"
-            : "gh-btn text-[13px] inline-flex items-center gap-1.5"
-        }
         title="Add a job you found elsewhere for analysis and tracking"
       >
-        <PlusCircle className="w-3.5 h-3.5" />
         Add job
-      </button>
+      </Button>
       {open && <AddJobModal onClose={() => setOpen(false)} />}
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui";
 import { getSavedJobsForRun } from "@/lib/actions";
 
 type SavedJob = Awaited<ReturnType<typeof getSavedJobsForRun>>[number];
@@ -65,19 +66,19 @@ export function RunJobsTable({
                 {((job.keywords_matched?.length ?? 0) > 0 || job.visa_likelihood !== null) && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
                     {job.keywords_matched?.map((kw: string) => (
-                      <span key={kw} className="badge badge-gray text-[10px] px-1.5 h-4">{kw}</span>
+                      <Badge key={kw} variant="gray" className="text-[10px] px-1.5 h-4">{kw}</Badge>
                     ))}
                     {job.sponsorship_status === "yes" && (
-                      <span className="badge badge-green text-[10px] px-1.5 h-4">✓ Sponsored</span>
+                      <Badge variant="green" className="text-[10px] px-1.5 h-4">✓ Sponsored</Badge>
                     )}
                     {job.sponsorship_status === "no" && (
-                      <span className="badge badge-red text-[10px] px-1.5 h-4">✗ No sponsor</span>
+                      <Badge variant="red" className="text-[10px] px-1.5 h-4">✗ No sponsor</Badge>
                     )}
                     {job.citizen_pr_only === true && (
-                      <span className="badge badge-amber text-[10px] px-1.5 h-4">PR/Citizen only</span>
+                      <Badge variant="amber" className="text-[10px] px-1.5 h-4">PR/Citizen only</Badge>
                     )}
                     {(!job.sponsorship_status || job.sponsorship_status === "not_mentioned") && job.citizen_pr_only !== true && (
-                      <span className="badge badge-gray text-[10px] px-1.5 h-4">? Check JD</span>
+                      <Badge variant="gray" className="text-[10px] px-1.5 h-4">? Check JD</Badge>
                     )}
                   </div>
                 )}

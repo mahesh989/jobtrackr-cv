@@ -8,8 +8,7 @@
  * Used by the /beta/skills-audit page.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
-import { ADMIN_ROLES }               from "@/lib/constants";
+import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
 import { callCvBackend }             from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
@@ -33,27 +32,23 @@ interface ClassifyResponse {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
 
-  const { data: me } = await supabase.from("users").select("role").eq("id", user.id).single();
-  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const { error: adminErr } = await requireAdmin(user!);
+  if (adminErr) return adminErr;
 
-  let body: ClassifyBody;
-  try { body = (await req.json()) as ClassifyBody; }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const { data: body, error: parseErr } = await parseJsonBody<ClassifyBody>(req);
+  if (parseErr) return parseErr;
 
-  if (!Array.isArray(body.items) || body.items.length === 0) {
+  if (!Array.isArray(body!.items) || body!.items.length === 0) {
     return NextResponse.json({ error: "items must be a non-empty array" }, { status: 422 });
   }
 
   try {
     const result = await callCvBackend<ClassifyResponse>("/internal/classify-skills", {
-      items:    body.items,
-      vertical: body.vertical ?? null,
+      items:    body!.items,
+      vertical: body!.vertical ?? null,
     });
     return NextResponse.json(result);
   } catch (err: unknown) {

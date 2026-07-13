@@ -14,8 +14,14 @@ import { useState, type ReactNode } from "react";
 import type { SetupStatus } from "@/lib/setupStatus";
 import { SetupCards } from "./SetupCards";
 import { SetupChecklist } from "./SetupChecklist";
+import { Tabs } from "@/components/ui";
 
 type Tab = "setup" | "howitworks";
+
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: "howitworks", label: "How it works" },
+  { key: "setup",      label: "Get set up" },
+];
 
 export function InstructionsTabs({
   defaultTab,
@@ -40,41 +46,31 @@ export function InstructionsTabs({
     window.history.replaceState(null, "", url);
   }
 
-  const TABS: Array<{ key: Tab; label: string }> = [
-    { key: "howitworks", label: "How it works" },
-    { key: "setup",      label: "Get set up" },
-  ];
-
   return (
-    <div>
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-border mb-6">
+    <Tabs.Root value={tab} onValueChange={select as (v: string) => void}>
+      <Tabs.List className="flex items-center gap-1 border-b border-border mb-6">
         {TABS.map((t) => (
-          <button
+          <Tabs.Trigger
             key={t.key}
-            onClick={() => select(t.key)}
-            className={
-              "relative px-4 py-2.5 text-[13px] font-semibold transition-colors -mb-px border-b-2 " +
-              (tab === t.key
-                ? "text-[var(--brand)] border-[var(--brand)]"
-                : "text-text-2 border-transparent hover:text-text")
-            }
+            value={t.key}
+            className="px-4 py-2.5 text-[13px] font-semibold -mb-px"
           >
             {t.label}
-          </button>
+          </Tabs.Trigger>
         ))}
-      </div>
+      </Tabs.List>
 
-      {/* Panels */}
-      {tab === "setup" ? (
+      <Tabs.Content value="setup">
         <section className="anim-in">
           {setupComplete
             ? <SetupChecklist status={status} />
             : <SetupCards status={status} initialStep={initialStep} />}
         </section>
-      ) : (
+      </Tabs.Content>
+
+      <Tabs.Content value="howitworks">
         <section className="anim-in">{howItWorks}</section>
-      )}
-    </div>
+      </Tabs.Content>
+    </Tabs.Root>
   );
 }
