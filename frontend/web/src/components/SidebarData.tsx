@@ -12,20 +12,19 @@ interface SidebarProfile {
 interface Props {
   userId: string;
   email: string;
-  profileIds: string[];
   role: string;
   userView: boolean;
 }
 
 /**
  * Fetches sidebar data (profiles, unseen counts, running status, pool count)
- * and renders both MobileNav and SidebarNav. Wrapped in Suspense by the layout
- * so the page content streams immediately while this loads.
+ * and renders the desktop SidebarNav. Wrapped in Suspense by the layout so
+ * the page content streams immediately while this loads.
  *
  * The pool count is the expensive part (3-step join). Profiles, unseen counts,
  * and running status are fast parallel queries.
  */
-export async function SidebarData({ userId, email, profileIds, role, userView }: Props) {
+export async function SidebarData({ userId, email, role, userView }: Props) {
   const supabase = await createClient();
 
   const [{ data: profileRows }, { data: userRow }] = await Promise.all([

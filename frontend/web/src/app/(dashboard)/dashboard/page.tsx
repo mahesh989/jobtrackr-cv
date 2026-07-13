@@ -26,10 +26,7 @@ import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
-import { SetupCards } from "@/components/onboarding/SetupCards";
 import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
-import { getSetupStatus, type SetupStatus } from "@/lib/setupStatus";
-import { firstIncompleteStep } from "@/lib/setupSteps";
 import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
 import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
@@ -121,8 +118,9 @@ export default async function DashboardPage({
   );
 
   // ── First-run gate ────────────────────────────────────────────────────────
-  // Show the setup wizard until the first pipeline run produces data. Covers both
-  // a brand-new user (no profiles) and a user with a profile that hasn't run.
+  // Show the "ready to scan" empty state until jobs exist. The setup wizard
+  // redirect is handled by SetupGateClient in the layout (client-side),
+  // so we only need to handle the no-jobs case here.
   let hasAnyJob = false;
   if (ids.length > 0) {
     const { count } = await supabase
@@ -130,16 +128,6 @@ export default async function DashboardPage({
     hasAnyJob = (count ?? 0) > 0;
   }
   if (!hasAnyJob) {
-    // billing=true: the dashboard layout's subscription gate already
-    // guarantees an active subscription for every page it wraps, including
-    // this one — no need to re-query it here.
-    const status = await getSetupStatus(user.id, ids, true);
-    // Mode A — core setup unfinished (personal profile + CV + AI key): guided wizard.
-    // Mode B — core done but no jobs yet (no search profile, or profiles/runs
-    //          deleted): "ready to scan" screen with a create-profile CTA + the
-    //          How-it-works deck so the empty dashboard still teaches.
-    const coreComplete = status.profile && status.cv && status.aiKey;
-    if (!coreComplete) return <FirstRunScreen status={status} />;
     return <ReadyToScanScreen hasProfiles={ids.length > 0} />;
   }
 
@@ -635,33 +623,6 @@ export default async function DashboardPage({
           <span>·</span>
           <Link href="/privacy" className="hover:text-text transition-colors">Privacy policy</Link>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * First-run screen — shown until the first pipeline run produces data. Drops
- * the user into the guided-setup wizard at the first incomplete step.
- */
-function FirstRunScreen({ status }: { status: SetupStatus }) {
-  return (
-    <div className="min-h-full">
-      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">Welcome to JobTrackr</h1>
-        <p className="text-[12px] text-text-2 mt-0.5">
-          Let&apos;s get you set up — your job feed appears here after your first run.
-        </p>
-      </div>
-
-      <div className="px-6 py-10">
-        <SetupCards status={status} initialStep={firstIncompleteStep(status)} />
-        <p className="text-center text-[12px] text-text-3 mt-5">
-          Want the full picture?{" "}
-          <Link href="/dashboard/instructions?tab=howitworks" className="text-[var(--brand)] hover:underline">
-            Read the instructions →
-          </Link>
-        </p>
       </div>
     </div>
   );
