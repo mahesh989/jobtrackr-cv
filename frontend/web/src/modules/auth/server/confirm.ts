@@ -86,6 +86,14 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     });
   }
 
+  // OAuth callbacks (Google) arrive here with `code` but no `type` param —
+  // the session is already valid from the OAuth exchange, so send the user
+  // straight to the dashboard. Magic-link / signup-confirmation links carry
+  // `type` and should land on the login screen for a deliberate sign-in.
+  if (!otpType) {
+    return NextResponse.redirect(`${origin}/dashboard`);
+  }
+
   // exchangeCodeForSession/verifyOtp above already established a session, but
   // we want the user to land on the login screen and sign in deliberately
   // (clearer than silently dropping them into the dashboard from an email
