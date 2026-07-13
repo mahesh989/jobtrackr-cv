@@ -16,7 +16,33 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
   const otpType = searchParams.get("type"); // 'invite' | 'magiclink' | 'signup' | 'recovery' | 'email'
 
   if (!code && !tokenHash) {
-    return NextResponse.redirect(`${origin}/auth/login?error=missing_code`);
+    // Some Supabase link types (password recovery in particular) deliver the
+    // session as a URL hash fragment (#access_token=...&type=recovery)
+    // instead of a query param. Hash fragments are never sent to the server
+    // — the browser strips them before the request even leaves — so a plain
+    // server redirect here would silently lose them and just bounce to
+    // login with no explanation. Instead, respond with a tiny client-side
+    // page that CAN read location.hash (it's the exact page the browser
+    // just navigated to) and forward it on as a real client-side
+    // navigation, which preserves the hash. lib/supabase/client.ts's
+    // browser client auto-consumes access_token/refresh_token from the URL
+    // hash on mount (detectSessionInUrl, the @supabase/ssr default), so the
+    // recovery session ends up established once we land there.
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body>
+<script>
+  var hash = window.location.hash || "";
+  if (hash.includes("access_token") && hash.includes("type=recovery")) {
+    window.location.replace("/auth/update-password" + hash);
+  } else if (hash.includes("access_token")) {
+    window.location.replace("/dashboard" + hash);
+  } else {
+    window.location.replace("/auth/login?error=missing_code");
+  }
+</script>
+</body></html>`;
+    return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
   const supabase = await createClient();
