@@ -15,7 +15,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/getUser";
+import { getAuthUser } from "@/modules/auth/server";
 import { redirect } from "next/navigation";
 import { resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";

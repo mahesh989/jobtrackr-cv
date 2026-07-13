@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/getUser";
+import { getAuthUser } from "@/modules/auth/server";
 import { SidebarNav } from "@/components/SidebarNav";
 import { MobileNav } from "@/components/MobileNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
