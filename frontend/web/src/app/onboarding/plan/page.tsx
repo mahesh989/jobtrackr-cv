@@ -25,6 +25,12 @@ export default async function OnboardingPlanPage({
     <div className="min-h-screen bg-bg px-4 sm:px-6 py-8">
       <div className="mx-auto max-w-4xl space-y-5">
 
+        <div className="flex justify-end">
+          <form action="/auth/signout" method="post">
+            <button className="text-xs gh-btn cursor-pointer">Sign out</button>
+          </form>
+        </div>
+
         <div className="text-center">
           <h1 className="text-xl font-bold text-text">Start your free trial</h1>
           <p className="mt-1 text-sm text-text-2">3 days free, then A$19.99/month — cancel anytime.</p>

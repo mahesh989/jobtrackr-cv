@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
@@ -14,7 +13,6 @@ import { ErrorNotice, Spinner, inputStyle } from "./brand";
  * same "sign in on purpose" pattern as email confirmation.
  */
 export function UpdatePasswordForm() {
-  const router = useRouter();
   const [password, setPassword]               = useState("");
   const [confirmPassword, setConfirmPassword]  = useState("");
   const [error, setError]     = useState<string | null>(null);
@@ -43,8 +41,9 @@ export function UpdatePasswordForm() {
     }
 
     await supabase.auth.signOut();
-    router.push("/auth/login?confirmed=1");
-    router.refresh();
+    // Full page navigation — see LoginForm.tsx for why (stale-RSC blank
+    // screen risk right after a session change with router.push+refresh).
+    window.location.href = "/auth/login?confirmed=1";
   }
 
   return (

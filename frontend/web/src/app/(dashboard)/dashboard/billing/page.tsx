@@ -154,7 +154,10 @@ export default async function BillingPage({
                   : "Upgrade anytime — your card is charged automatically when your trial ends."}
               </p>
             </div>
-            <PlanCards showTrial={ent.status !== "trialing"} currentPlan={ent.planId} />
+            {/* showTrial=false so buttons read "Choose this plan" instead of
+                repeating "Start free trial" on every card — the headline
+                above already explains the trial/upgrade context. */}
+            <PlanCards showTrial={false} currentPlan={ent.planId} />
           </div>
         )}
       </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
-import { ErrorNotice, Spinner, inputStyle } from "./brand";
+import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
+import { ErrorNotice, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -13,8 +14,13 @@ export function ForgotPasswordForm() {
   const [sent, setSent]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileBoxHandle>(null);
+
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading]   = useState(false);
+  const [resendCaptchaToken, setResendCaptchaToken] = useState<string | null>(null);
+  const resendTurnstileRef = useRef<TurnstileBoxHandle>(null);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -22,10 +28,14 @@ export function ForgotPasswordForm() {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  async function sendResetLink() {
+  // Supabase's captcha protection (when enabled) applies to
+  // resetPasswordForEmail the same as signUp/signInWithPassword — omitting
+  // captchaToken here fails with "captcha protection: request disallowed".
+  async function sendResetLink(token: string | null) {
     const supabase = createClient();
     return supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/confirm`,
+      captchaToken: token ?? undefined,
     });
   }
 
@@ -33,7 +43,9 @@ export function ForgotPasswordForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await sendResetLink();
+    const { error } = await sendResetLink(captchaToken);
+    turnstileRef.current?.reset();
+    setCaptchaToken(null);
     if (error) {
       setError(error.message);
       setLoading(false);
@@ -48,7 +60,9 @@ export function ForgotPasswordForm() {
     if (resendCooldown > 0 || resendLoading) return;
     setResendLoading(true);
     setError(null);
-    const { error } = await sendResetLink();
+    const { error } = await sendResetLink(resendCaptchaToken);
+    resendTurnstileRef.current?.reset();
+    setResendCaptchaToken(null);
     setResendLoading(false);
     if (error) {
       setError(error.message);
@@ -61,7 +75,11 @@ export function ForgotPasswordForm() {
     setSent(false);
     setEmail("");
     setError(null);
+    setCaptchaToken(null);
+    setResendCaptchaToken(null);
     setResendCooldown(0);
+    turnstileRef.current?.reset();
+    resendTurnstileRef.current?.reset();
   }
 
   return (
@@ -101,14 +119,21 @@ export function ForgotPasswordForm() {
                 Didn&apos;t get it? Resend in {resendCooldown}s
               </p>
             ) : (
-              <button
-                onClick={handleResend}
-                disabled={resendLoading}
-                className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ color: "#19E3C8" }}
-              >
-                {resendLoading ? "Resending…" : "Resend reset link"}
-              </button>
+              <>
+                {TURNSTILE_CONFIGURED && (
+                  <div className="mb-2">
+                    <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
+                  </div>
+                )}
+                <button
+                  onClick={handleResend}
+                  disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
+                  className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ color: "#19E3C8" }}
+                >
+                  {resendLoading ? "Resending…" : "Resend reset link"}
+                </button>
+              </>
             )}
           </div>
 
@@ -161,9 +186,11 @@ export function ForgotPasswordForm() {
 
             {error && <ErrorNotice message={error} />}
 
+            <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (TURNSTILE_CONFIGURED && !captchaToken)}
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{
                 background: "#19E3C8",

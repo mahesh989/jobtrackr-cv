@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -10,7 +10,6 @@ import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const confirmed = searchParams.get("confirmed");
   const [email, setEmail]       = useState("");
@@ -57,8 +56,12 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
+    // Full page navigation, not router.push+refresh — the dashboard layout's
+    // gates (entitlement, setup-wizard redirect) read fresh cookies/headers
+    // per request; a client-side transition right after establishing a new
+    // session could serve a stale RSC render and briefly show a blank
+    // screen until a manual reload.
+    window.location.href = "/dashboard";
   }
 
   return (
