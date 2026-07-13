@@ -1,7 +1,7 @@
 /**
  * Auth-link confirmation — Supabase redirects here after the user clicks a
- * magic/invite/signup link. Exchanges the code for a session, stamps the
- * invite code (when present), and emits a login event.
+ * magic-link, signup-confirmation, or password-recovery link. Exchanges the
+ * code for a session and emits a login event.
  */
 
 import { headers } from "next/headers";
@@ -14,7 +14,6 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const otpType = searchParams.get("type"); // 'invite' | 'magiclink' | 'signup' | 'recovery' | 'email'
-  const inviteCode = searchParams.get("invite");
 
   if (!code && !tokenHash) {
     return NextResponse.redirect(`${origin}/auth/login?error=missing_code`);
@@ -35,23 +34,13 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     return NextResponse.redirect(`${origin}/auth/login?error=exchange_failed`);
   }
 
-  // If this is a signup (invite code present), stamp who used the code.
-  // The code was already consumed (is_active=false) when /api/auth/signup
-  // claimed it, so match on used_by IS NULL to record the user id now.
-  if (inviteCode) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from("invite_codes")
-        .update({ used_by: user.id, used_at: new Date().toISOString(), is_active: false })
-        .eq("code", inviteCode)
-        .is("used_by", null);
-
-      await supabase
-        .from("users")
-        .update({ invite_code_used: inviteCode })
-        .eq("id", user.id);
-    }
+  // Password recovery is the one link type that must NOT end in a sign-out —
+  // the user doesn't know their old password (that's why they're here), so
+  // they need the session this link just established to actually set a new
+  // one. Send them straight to the update-password screen instead of the
+  // signup/login stamping-and-signout path below.
+  if (otpType === "recovery") {
+    return NextResponse.redirect(`${origin}/auth/update-password`);
   }
 
   // Emit login event for admin activity tracking (fire-and-forget).

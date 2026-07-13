@@ -104,7 +104,7 @@ export function LoginForm() {
       <button
         onClick={handleGoogleSignIn}
         disabled={googleLoading || loading}
-        className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity"
+        className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer"
         style={{ background: "#1A2030", border: "1.5px solid rgba(255,255,255,0.1)", fontSize: 14, fontWeight: 500, color: "#EAEEF6", opacity: googleLoading ? 0.7 : 1 }}
       >
         {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
@@ -139,9 +139,18 @@ export function LoginForm() {
         </div>
 
         <div>
-          <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="password" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
+              Password
+            </label>
+            <Link
+              href="/auth/forgot-password"
+              className="underline-offset-2 hover:underline"
+              style={{ fontSize: 12, color: "#8B93A5" }}
+            >
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="password"
             type="password"
@@ -164,7 +173,7 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
-            className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity"
+            className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
             style={{
               background: "#19E3C8",
               color: "#04231F",

@@ -58,7 +58,11 @@ export async function middleware(request: NextRequest) {
 
   // Redirect authenticated users away from auth pages.
   // /auth/signout must be excluded — it's the POST handler that actually clears the session.
-  if (user && isAuthRoute && pathname !== "/auth/callback" && pathname !== "/auth/confirm" && pathname !== "/auth/signout") {
+  // /auth/update-password must be excluded — reached via an authenticated
+  // password-recovery session (the user must stay signed in to set the new
+  // password there).
+  const AUTH_ROUTE_EXEMPT = new Set(["/auth/callback", "/auth/confirm", "/auth/signout", "/auth/update-password"]);
+  if (user && isAuthRoute && !AUTH_ROUTE_EXEMPT.has(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

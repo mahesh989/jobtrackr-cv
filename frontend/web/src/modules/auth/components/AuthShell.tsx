@@ -34,9 +34,11 @@ export function AuthShell({
   children,
 }: AuthShellProps) {
   const switchLink = (
-    <Link href={switchHref} className="text-[13px]" style={{ color: "#8B93A5" }}>
+    <Link href={switchHref} className="group text-[13px] cursor-pointer" style={{ color: "#8B93A5" }}>
       {switchPrompt}{" "}
-      <span style={{ color: "#19E3C8", fontWeight: 500 }}>{switchLabel}</span>
+      <span className="underline-offset-2 group-hover:underline" style={{ color: "#19E3C8", fontWeight: 500 }}>
+        {switchLabel}
+      </span>
     </Link>
   );
 

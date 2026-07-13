@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export function SignupForm() {
   const [email, setEmail]       = useState("");
@@ -18,6 +20,18 @@ export function SignupForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [captchaToken, setCaptchaToken]   = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileBoxHandle>(null);
+
+  // Resend flow (shown in the "Check your inbox" state).
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading]   = useState(false);
+  const [resendCaptchaToken, setResendCaptchaToken] = useState<string | null>(null);
+  const resendTurnstileRef = useRef<TurnstileBoxHandle>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   async function handleGoogleSignUp() {
     setGoogleLoading(true);
@@ -71,6 +85,43 @@ export function SignupForm() {
     }
     setSubmitted(true);
     setLoading(false);
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        captchaToken: resendCaptchaToken ?? undefined,
+      },
+    });
+    resendTurnstileRef.current?.reset();
+    setResendCaptchaToken(null);
+    setResendLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+  }
+
+  function handleTryDifferentEmail() {
+    setSubmitted(false);
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setError(null);
+    setCaptchaToken(null);
+    setResendCaptchaToken(null);
+    setResendCooldown(0);
+    turnstileRef.current?.reset();
+    resendTurnstileRef.current?.reset();
   }
 
   return (
@@ -103,9 +154,37 @@ export function SignupForm() {
             <span style={{ color: "#EAEEF6", fontWeight: 500 }}>{email}</span>.
             Click it to activate your account.
           </p>
+
+          {error && <div className="mt-4"><ErrorNotice message={error} /></div>}
+
+          {/* Resend */}
+          <div className="mt-5">
+            {resendCooldown > 0 ? (
+              <p style={{ fontSize: 12, color: "#5B6478" }}>
+                Didn&apos;t get it? Resend in {resendCooldown}s
+              </p>
+            ) : (
+              <>
+                {TURNSTILE_CONFIGURED && (
+                  <div className="mb-2">
+                    <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
+                  </div>
+                )}
+                <button
+                  onClick={handleResend}
+                  disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
+                  className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ color: "#19E3C8" }}
+                >
+                  {resendLoading ? "Resending…" : "Resend confirmation email"}
+                </button>
+              </>
+            )}
+          </div>
+
           <button
-            onClick={() => setSubmitted(false)}
-            className="mt-6 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
+            onClick={handleTryDifferentEmail}
+            className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
             style={{ color: "#8B93A5" }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "#19E3C8"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = "#8B93A5"; }}
@@ -128,7 +207,7 @@ export function SignupForm() {
           <button
             onClick={handleGoogleSignUp}
             disabled={googleLoading || loading}
-            className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity"
+            className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer"
             style={{ background: "#1A2030", border: "1.5px solid rgba(255,255,255,0.1)", fontSize: 14, fontWeight: 500, color: "#EAEEF6", opacity: googleLoading ? 0.7 : 1 }}
           >
             {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
@@ -203,7 +282,7 @@ export function SignupForm() {
                 !passwordMeetsAllRules(password) ||
                 password !== confirmPassword
               }
-              className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity"
+              className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{ background: "#19E3C8", color: "#04231F", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
             >
               {loading ? (
