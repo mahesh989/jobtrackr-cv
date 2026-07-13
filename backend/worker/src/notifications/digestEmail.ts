@@ -12,7 +12,7 @@ export interface DigestProfile {
   jobs: DigestJob[];
 }
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

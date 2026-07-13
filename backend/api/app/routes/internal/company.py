@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 
 from app.config import get_settings
+from app.enums import CompanyResearchStatus
 from app.services.ai.client import AIClientError, make_ai_client
 from app.services.company.researcher import CompanyResearchError, research_company
 from app.services.company.fact_selector import select_facts
@@ -74,7 +75,7 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
     research = CompanyResearch(**result_dict)
     return ResearchCompanyResponse(
         company_id=research.company_id,
-        status="completed",
+        status=CompanyResearchStatus.COMPLETED,
         research=research,
         search_skipped=research.search_skipped,
     )

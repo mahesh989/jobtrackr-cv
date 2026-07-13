@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ADMIN_ROLES } from "@/lib/constants";
 import { authedClient } from "./_helpers";
 
 async function requireAdminRole() {
   const { supabase, user } = await authedClient();
   const { data } = await supabase.from("users").select("role").eq("id", user.id).single();
-  if (!data || !["founder", "admin"].includes(data.role)) {
+  if (!data || !(ADMIN_ROLES as readonly string[]).includes(data.role)) {
     throw new Error("Forbidden");
   }
   return user;

@@ -157,12 +157,7 @@ export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCv
   );
 }
 
-export interface ExtractCvReferencesPayload {
-  cv_text:     string;
-  ai_provider: "anthropic" | "openai" | "deepseek";
-  ai_api_key:  string;
-  ai_model?:   string | null;
-}
+export interface ExtractCvReferencesPayload extends CategoriseCvPayload {}
 
 export interface ExtractedReferee {
   name:      string;

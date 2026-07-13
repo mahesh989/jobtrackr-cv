@@ -7,6 +7,7 @@
 // failure must never take down the caller (the gate or the sweep).
 
 import { createHmac } from "crypto";
+import { esc } from "./digestEmail.js";
 import { resend, fromEmail } from "./resendClient.js";
 import { db } from "../db/client.js";
 
@@ -17,14 +18,6 @@ import { db } from "../db/client.js";
 // if ever set as a Fly secret) with the same production fallback, so behavior
 // matches errorAlert.ts today and picks up an explicit override later.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://jobtrackr.app";
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function shell(opts: { preheader: string; heading: string; body: string; footer: string }): string {
   return `<!DOCTYPE html>

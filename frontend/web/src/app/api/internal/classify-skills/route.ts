@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
+import { ADMIN_ROLES }               from "@/lib/constants";
 import { callCvBackend }             from "@/lib/cvBackend";
 
 export const runtime     = "nodejs";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: me } = await supabase.from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) {
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

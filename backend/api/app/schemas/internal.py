@@ -2,17 +2,19 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.enums import Provider
+from app.schemas._byok import BYOK
 from app.schemas.stories import ExtractStoriesResponse  # noqa: F401 — re-exported
 from app.schemas.voice import VoiceFingerprint
 
 
 # ── /internal/analyze ─────────────────────────────────────────────────────────
 
-class AnalyzeRequest(BaseModel):
+class AnalyzeRequest(BYOK):
     """
     Triggers a pipeline run. JobTrackr pre-creates the analysis_runs row
     (status='pending') and passes the id here; cv-backend writes step results
@@ -30,13 +32,6 @@ class AnalyzeRequest(BaseModel):
 
     # Pre-extracted CV text (JobTrackr handles pypdf at upload time).
     cv_text:        str = Field(min_length=1)
-
-    # BYOK — per-request key, never persisted in cv-backend.
-    ai_provider:    Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:     str = Field(min_length=1)
-    # Optional model override (e.g. "claude-sonnet-4-6", "gpt-4o"). When null
-    # cv-backend falls back to _DEFAULT_MODELS[provider].
-    ai_model:       Optional[str] = None
 
     # Optional contact details (name, phone, email, urls, projects). When
     # present, stamp_contact_line() overwrites the contact line under the H1
@@ -128,15 +123,12 @@ class ScrapeJdResponse(BaseModel):
 
 # ── /internal/categorise-cv ──────────────────────────────────────────────────
 
-class CategoriseCvRequest(BaseModel):
+class CategoriseCvRequest(BYOK):
     """
     Categorise the skills in a CV. BYOK — JobTrackr passes the user's AI
     credentials per-request, cv-backend never persists them.
     """
-    cv_text:     str = Field(min_length=1)
-    ai_provider: Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:  str = Field(min_length=1)
-    ai_model:    Optional[str] = None
+    cv_text: str = Field(min_length=1)
 
 
 class CategoriseCvResponse(BaseModel):
@@ -147,12 +139,9 @@ class CategoriseCvResponse(BaseModel):
 
 # ── /internal/extract-cv-references ──────────────────────────────────────────
 
-class ExtractCvReferencesRequest(BaseModel):
+class ExtractCvReferencesRequest(BYOK):
     """Extract referee details from a CV (BYOK)."""
-    cv_text:     str = Field(min_length=1)
-    ai_provider: Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:  str = Field(min_length=1)
-    ai_model:    Optional[str] = None
+    cv_text: str = Field(min_length=1)
 
 
 class CvReferee(BaseModel):
@@ -168,16 +157,13 @@ class ExtractCvReferencesResponse(BaseModel):
 
 # ── /internal/structurize-cv ─────────────────────────────────────────────────
 
-class StructurizeCvRequest(BaseModel):
+class StructurizeCvRequest(BYOK):
     """Parse a CV into the normalised structured-CV object (BYOK).
 
     Single AI call — returns contact, summary, experience, education,
     certifications, skills (categorised), and references in one response.
     """
-    cv_text:     str = Field(min_length=1)
-    ai_provider: Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:  str = Field(min_length=1)
-    ai_model:    Optional[str] = None
+    cv_text: str = Field(min_length=1)
 
 
 class StructurizeCvResponse(BaseModel):
@@ -201,15 +187,12 @@ class RenderCanonicalCvResponse(BaseModel):
 
 # ── /internal/extract-voice-fingerprint ──────────────────────────────────────
 
-class ExtractVoiceFingerprintRequest(BaseModel):
+class ExtractVoiceFingerprintRequest(BYOK):
     """
     Extract a voice fingerprint from a writing sample. BYOK — key never
     persisted in cv-backend. voice_sample_text must not appear in logs.
     """
     voice_sample_text: str = Field(min_length=1)
-    ai_provider:       Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:        str = Field(min_length=1)
-    ai_model:          Optional[str] = None
 
 
 class ExtractVoiceFingerprintResponse(BaseModel):
@@ -222,19 +205,14 @@ class ExtractVoiceFingerprintResponse(BaseModel):
 
 # ── /internal/extract-stories ─────────────────────────────────────────────────
 
-class ExtractStoriesRequest(BaseModel):
+class ExtractStoriesRequest(BYOK):
     """
     Extract structured achievement stories from a master CV.
     BYOK — key never persisted in cv-backend.
     cv_text must not appear in logs (privacy boundary — see story_extractor.py).
     """
-    user_id:     uuid.UUID
-    cv_text:     str = Field(min_length=1)
-    ai_provider: Literal["anthropic", "openai", "deepseek"]
-    ai_api_key:  str = Field(min_length=1)
-    # Optional model override. When null, cv-backend falls back to
-    # _DEFAULT_MODELS[provider]. Never hardcode a model name here (BUG-2).
-    ai_model:    Optional[str] = None
+    user_id: uuid.UUID
+    cv_text: str = Field(min_length=1)
 
 
 # ── /internal/classify-skills ─────────────────────────────────────────────────

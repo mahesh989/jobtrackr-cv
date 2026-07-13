@@ -41,6 +41,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
+from app.db import COVER_LETTERS, supabase_update, utcnow_iso
+from app.enums import CoverLetterStatus, Provider
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.company_name import normalise_company_in_body
 from app.services.ai.client import (
@@ -116,8 +118,6 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
 
     return out.strip()
 
-_TABLE = "cover_letters"
-
 # Cap on cv_text passed into the prompt. Controls token cost across providers
 # and matches the cap used by the honesty gate so both calls see the same CV.
 _CV_TEXT_CAP = 8000
@@ -145,43 +145,14 @@ def _generation_temperature(model: str) -> float:
 # Fallback model per provider when the user's integration has no model set.
 # Chosen as the best generally-available model for each provider — the user's
 # integration choice always wins; this is the "they did not pick" branch.
-_PROVIDER_DEFAULT_MODEL: Dict[str, str] = {
-    "anthropic": "claude-opus-4-7",
-    "openai":    "gpt-4o",
-    "deepseek":  "deepseek-chat",
+_PROVIDER_DEFAULT_MODEL: Dict[Provider, str] = {
+    Provider.ANTHROPIC: "claude-opus-4-7",
+    Provider.OPENAI:    "gpt-4o",
+    Provider.DEEPSEEK:  "deepseek-chat",
 }
 
 
 # ── Supabase persistence ──────────────────────────────────────────────────────
-
-_PATCH_MAX_ATTEMPTS = 4
-_PATCH_BASE_DELAY_S = 0.5   # backoff doubles: 0.5s, 1s, 2s
-
-
-async def _patch(letter_id: str, patch: Dict[str, Any]) -> None:
-    """Persist a partial update to the cover_letters row. Supabase-py is sync.
-
-    Resilient to transient network blips (e.g. an h2 ConnectionTerminated to
-    PostgREST): retries a few times with backoff and NEVER raises. THIS is the
-    real root cause of the 'ConnectionTerminated -> letter failed' bug — a
-    transient failure on a *status* write was crashing a pipeline that had
-    already generated the letter body. A progress write must never do that; the
-    next successful write reconciles the row.
-    """
-    def _do() -> None:
-        get_supabase().table(_TABLE).update(patch).eq("id", letter_id).execute()
-    for i in range(_PATCH_MAX_ATTEMPTS):
-        try:
-            await asyncio.to_thread(_do)
-            return
-        except Exception as exc:  # noqa: BLE001 — a status write must never crash the pipeline
-            if i < _PATCH_MAX_ATTEMPTS - 1:
-                await asyncio.sleep(_PATCH_BASE_DELAY_S * (2 ** i))
-                continue
-            logger.warning(
-                "cover letter %s: _patch failed after %d attempts (%s) — continuing",
-                letter_id, _PATCH_MAX_ATTEMPTS, exc,
-            )
 
 
 async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:
@@ -193,7 +164,7 @@ async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:
     def _do() -> Any:
         return (
             get_supabase()
-            .table(_TABLE)
+            .table(COVER_LETTERS)
             .select("quality_flags")
             .eq("id", letter_id)
             .single()
@@ -207,12 +178,12 @@ async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:
         return {}
 
 
-def _now_iso() -> str:
+def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
 def _initial_status() -> Dict[str, str]:
-    return {"generate": "pending", "honesty": "pending"}
+    return {"generate": CoverLetterStatus.PENDING, "honesty": CoverLetterStatus.PENDING}
 
 
 # ── Honesty gate ──────────────────────────────────────────────────────────────
@@ -366,10 +337,10 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
     model = payload.ai_model or _PROVIDER_DEFAULT_MODEL.get(payload.ai_provider, "")
 
     if not model:
-        await _patch(letter_id, {
-            "status": "failed",
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "status": CoverLetterStatus.FAILED,
             "error_message": f"No model available for provider '{payload.ai_provider}'",
-            "completed_at": _now_iso(),
+            "completed_at": utcnow_iso(),
         })
         return
 
@@ -381,10 +352,10 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
         )
     except AIClientError as exc:
         logger.error("cover letter %s: AI client init failed: %s", letter_id, exc)
-        await _patch(letter_id, {
-            "status": "failed",
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "status": CoverLetterStatus.FAILED,
             "error_message": f"AI client initialisation failed: {exc}",
-            "completed_at": _now_iso(),
+            "completed_at": utcnow_iso(),
         })
         return
 
@@ -395,9 +366,9 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
 
     # Mark running. Record the actually-used model in all three model columns
     # so existing audit queries keep working regardless of which they read.
-    await _patch(letter_id, {
-        "status": "running",
-        "started_at": _now_iso(),
+    await supabase_update(COVER_LETTERS, letter_id, {
+        "status": CoverLetterStatus.RUNNING,
+        "started_at": utcnow_iso(),
         "generation_status": _initial_status(),
         "pass_1_model": model,
         "pass_2_model": model,
@@ -412,8 +383,8 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
 
     try:
         # ── Generate ──────────────────────────────────────────────────────
-        await _patch(letter_id, {
-            "generation_status": {"generate": "running", "honesty": "pending"},
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "generation_status": {"generate": CoverLetterStatus.RUNNING, "honesty": CoverLetterStatus.PENDING},
         })
 
         async def _attempt_generate() -> str:
@@ -442,14 +413,14 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
         body = normalise_company_in_body(body, payload.company_name)
         body = strip_vet_codes_from_cover_letter(body)
 
-        await _patch(letter_id, {
+        await supabase_update(COVER_LETTERS, letter_id, {
             "pass_3_final": body,
-            "generation_status": {"generate": "completed", "honesty": "pending"},
+            "generation_status": {"generate": CoverLetterStatus.COMPLETED, "honesty": CoverLetterStatus.PENDING},
         })
 
         # ── Honesty gate ──────────────────────────────────────────────────
-        await _patch(letter_id, {
-            "generation_status": {"generate": "completed", "honesty": "running"},
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "generation_status": {"generate": CoverLetterStatus.COMPLETED, "honesty": CoverLetterStatus.RUNNING},
         })
 
         passed, unsupported = await _run_honesty_gate(client, body, payload.cv_text)
@@ -483,7 +454,7 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                     )
                 body = normalise_company_in_body(body, payload.company_name)
                 body = strip_vet_codes_from_cover_letter(body)
-                await _patch(letter_id, {"pass_3_final": body})
+                await supabase_update(COVER_LETTERS, letter_id, {"pass_3_final": body})
                 passed_2, unsupported_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,
                 )
@@ -511,26 +482,26 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
         # Merge: web-layer warnings first, generator-side flags override
         # only if they share a key (they should not).
         merged_flags: Dict[str, Any] = {**pre_flags, **quality_flags}
-        await _patch(letter_id, {
-            "status": "completed",
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "status": CoverLetterStatus.COMPLETED,
             "honesty_ok": honesty_ok,
             "quality_flags": merged_flags,
-            "generation_status": {"generate": "completed", "honesty": "completed"},
-            "completed_at": _now_iso(),
+            "generation_status": {"generate": CoverLetterStatus.COMPLETED, "honesty": CoverLetterStatus.COMPLETED},
+            "completed_at": utcnow_iso(),
         })
         logger.info("cover letter %s: completed (honesty_ok=%s)", letter_id, honesty_ok)
 
     except AIClientError as exc:
         logger.error("cover letter %s: AI call failed: %s", letter_id, exc)
-        await _patch(letter_id, {
-            "status": "failed",
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "status": CoverLetterStatus.FAILED,
             "error_message": f"AI generation failed: {exc}",
-            "completed_at": _now_iso(),
+            "completed_at": utcnow_iso(),
         })
     except Exception as exc:  # noqa: BLE001 — top-level safety net
         logger.exception("cover letter %s: unexpected error", letter_id)
-        await _patch(letter_id, {
-            "status": "failed",
+        await supabase_update(COVER_LETTERS, letter_id, {
+            "status": CoverLetterStatus.FAILED,
             "error_message": f"Unexpected error: {exc}",
-            "completed_at": _now_iso(),
+            "completed_at": utcnow_iso(),
         })

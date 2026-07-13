@@ -41,17 +41,4 @@ export const SETTING_CATEGORY_META: SettingCategoryMeta[] = [
   },
 ];
 
-const META_BY_KEY = new Map(SETTING_CATEGORY_META.map((m) => [m.key, m]));
 
-export function settingLabel(cat: string | null | undefined): string | null {
-  if (!cat) return null;
-  return META_BY_KEY.get(cat as SettingCategory)?.label ?? null;
-}
-
-// Tailwind chip classes per category (kept here so cards + filters agree).
-export const SETTING_CHIP_CLASS: Record<SettingCategory, string> = {
-  hospital_clinical: "bg-sky-50 text-sky-700 ring-sky-600/20",
-  residential_aged_care: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  home_community: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  other: "bg-slate-100 text-slate-600 ring-slate-500/20",
-};

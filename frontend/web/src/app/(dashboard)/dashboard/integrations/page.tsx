@@ -1,5 +1,6 @@
 import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
+import { ADMIN_ROLES }         from "@/lib/constants";
 import { redirect }            from "next/navigation";
 import { ApifyIntegrationCard }  from "@/components/ApifyIntegrationCard";
 import { PlatformSourcesCard }   from "@/components/admin/PlatformSourcesCard";
@@ -15,7 +16,7 @@ export default async function IntegrationsPage() {
   // The user-facing email-account connect lives at My CV → Email account.
   const { data: me } = await supabase
     .from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard/cv");
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) redirect("/dashboard/cv");
 
   const admin = createAdminClient();
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ADMIN_ROLES } from "@/lib/constants";
 import {
   LayoutDashboard,
   Briefcase,
@@ -53,10 +54,6 @@ interface Props {
    *  admin nav. */
   userView?: boolean;
 }
-
-// Founder/admin-only items live behind this check. Mirrors ADMIN_ROLES in
-// lib/billing/entitlements.ts — keep these two in sync.
-const ADMIN_ROLES = new Set(["founder", "admin"]);
 
 /**
  * Sidebar nav. Visual structure adapted from cv-magic:
@@ -158,7 +155,7 @@ function Logo() {
 }
 
 export function SidebarNav({ email, poolCount = 0, role, userView = false }: Props) {
-  const isAdmin = ADMIN_ROLES.has(role ?? "");
+  const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
 
   // ── Admin nav ─────────────────────────────────────────────────────────────
   // Founders/admins only see operational and business pages — no user-product

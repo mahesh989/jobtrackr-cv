@@ -20,6 +20,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
 import { getCachedProfiles } from "@/lib/queryCache";
+import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
@@ -81,7 +82,7 @@ export default async function DashboardPage({
     .from("users").select("role").eq("id", user.id).single();
   const userRole = (userRoleRow as { role?: string } | null)?.role ?? "";
   const inUserView = (await cookies()).get("jt_user_view")?.value === "1";
-  if ((userRole === "founder" || userRole === "admin") && !inUserView) redirect("/dashboard/admin");
+  if ((ADMIN_ROLES as readonly string[]).includes(userRole) && !inUserView) redirect("/dashboard/admin");
 
   // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
   // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)

@@ -30,6 +30,7 @@ from typing import Any, Dict, Optional
 from postgrest.exceptions import APIError
 
 from app.database import get_supabase
+from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.generator import run_cover_letter_pipeline
 
@@ -38,10 +39,8 @@ logger = logging.getLogger(__name__)
 _COVER_LETTERS  = "cover_letters"
 _ANALYSIS_RUNS  = "analysis_runs"
 
-# Allowed status values per the cover_letters_status_check constraint
-# (migration 027). MUST stay in sync with that constraint.
-_ALLOWED_STATUSES   = frozenset({"pending", "running", "completed", "failed", "picking"})
-_INITIAL_STATUS     = "pending"
+_ALLOWED_STATUSES   = frozenset(CoverLetterStatus)
+_INITIAL_STATUS     = CoverLetterStatus.PENDING
 
 # Module-load-time assertion so a future regression (e.g. someone changing
 # _INITIAL_STATUS to a value not in the constraint) fails fast at import,
@@ -58,7 +57,7 @@ STUCK_LETTER_AGE_MIN = 15
 # Status values that block regeneration when RECENT (within
 # STUCK_LETTER_AGE_MIN minutes). Older rows in these states are treated
 # as dead and auto-stale-d.
-_BLOCKING_IF_RECENT = frozenset({"pending", "running", "picking"})
+_BLOCKING_IF_RECENT = frozenset({CoverLetterStatus.PENDING, CoverLetterStatus.RUNNING, CoverLetterStatus.PICKING})
 
 
 def _make_slug(name: str) -> str:
@@ -148,9 +147,9 @@ async def auto_generate_cover_letter(
         for r in (existing.data or []):
             status   = r.get("status")
             created  = _parse_ts(r.get("created_at"))
-            if status == "completed":
+            if status == CoverLetterStatus.COMPLETED:
                 to_retire.append(r)
-            elif status == "failed":
+            elif status == CoverLetterStatus.FAILED:
                 to_retire.append(r)
             elif status in _BLOCKING_IF_RECENT:
                 if created is not None and created < cutoff:

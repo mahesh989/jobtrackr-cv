@@ -34,6 +34,8 @@ import logging
 import os
 from typing import Optional
 
+from app.enums import Provider
+
 logger = logging.getLogger(__name__)
 
 # Feature flag — flip to 'true' in Fly secrets after applying migration 055.
@@ -109,7 +111,7 @@ def compute_cost_millicents(
     # Non-cached input tokens (input_tokens already includes cached reads).
     normal_input = max(0, input_tokens - cached_tokens)
 
-    if provider == "anthropic":
+    if provider == Provider.ANTHROPIC:
         cache_read_rate  = in_price * _ANTHROPIC_CACHE_READ
         cache_write_rate = in_price * _ANTHROPIC_CACHE_WRITE
     else:

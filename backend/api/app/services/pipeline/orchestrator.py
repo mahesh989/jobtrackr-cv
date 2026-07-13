@@ -18,6 +18,8 @@ import logging
 import asyncio
 
 from app.config import get_settings
+from app.db import ANALYSIS_RUNS, upload_or_update
+from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
 from app.schemas.internal import AnalyzeRequest
@@ -79,7 +81,7 @@ async def _check_cancelled(run_id) -> None:
     def _do() -> dict:
         resp = (
             get_supabase()
-            .table("analysis_runs")
+            .table(ANALYSIS_RUNS)
             .select("status, error_message")
             .eq("id", str(run_id))
             .limit(1)
@@ -107,7 +109,7 @@ async def _load_cached_results(run_id) -> dict:
     def _do() -> dict:
         resp = (
             get_supabase()
-            .table("analysis_runs")
+            .table(ANALYSIS_RUNS)
             .select("jd_analysis_result, cv_jd_matching_result, ats_scoring_result, match_score")
             .eq("id", str(run_id))
             .limit(1)
@@ -154,7 +156,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 f"Job appears to be closed: {expiry}. "
                 "Verify the listing is still accepting applications.",
                 step_status,
-                failed_step="jd_analysis",
+                failed_step=StepName.JD_ANALYSIS,
             )
             return
 
@@ -206,9 +208,9 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         jd_analysis = cached.get("jd_analysis_result")
         if jd_analysis is not None:
             logger.info("run %s: reusing cached JD analysis (resume)", run_id)
-            await mark_step(run_id, step_status, "jd_analysis", "completed")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "completed")
         else:
-            await mark_step(run_id, step_status, "jd_analysis", "running")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "running")
             # Phase 2 — pre-resolve the role's vertical from the cleaned JD
             # text so the LLM gets vertical-specific bucketing hints (e.g.
             # "CALD → soft skill, not domain"). This is a best-effort hint
@@ -230,7 +232,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 ai_client, jd_text_for_llm, vertical=_vertical_hint
             )
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
-            await mark_step(run_id, step_status, "jd_analysis", "completed")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "completed")
 
         # Attach the resolved role family + family-aware category labels so every
         # downstream step and the UI render category-1 as "Clinical Skills"
@@ -392,22 +394,22 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         matching = cached.get("cv_jd_matching_result")
         if matching is not None:
             logger.info("run %s: reusing cached CV↔JD matching (resume)", run_id)
-            await mark_step(run_id, step_status, "cv_jd_matching", "completed")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "completed")
         else:
-            await mark_step(run_id, step_status, "cv_jd_matching", "running")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "running")
             matching = await run_cv_jd_matching(
                 ai_client, payload.cv_text, jd_analysis,
                 contact_details=payload.contact_details,
             )
             await save_step_result(run_id, "cv_jd_matching_result", matching)
-            await mark_step(run_id, step_status, "cv_jd_matching", "completed")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "completed")
 
         # ── Step 3 — ATS scoring (deterministic) ───────────────────────────────
         ats = cached.get("ats_scoring_result")
         if ats is not None:
-            await mark_step(run_id, step_status, "ats_scoring", "completed")
+            await mark_step(run_id, step_status, StepName.ATS_SCORING, "completed")
         else:
-            await mark_step(run_id, step_status, "ats_scoring", "running")
+            await mark_step(run_id, step_status, StepName.ATS_SCORING, "running")
             ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
             await save_step_result(run_id, "ats_scoring_result", ats)
             await save_step_result(run_id, "match_score", ats.get("overall_score"))
@@ -421,7 +423,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             passed_initial_gate = initial_score >= payload.min_initial_ats
             await save_step_result(run_id, "initial_ats_score", initial_score)
             await save_step_result(run_id, "passed_initial_gate", passed_initial_gate)
-        await mark_step(run_id, step_status, "ats_scoring", "completed")
+        await mark_step(run_id, step_status, StepName.ATS_SCORING, "completed")
 
         # ── Phase C-3 early-stop: gate failed AND no override ─────────────────
         # Saves the tailored-CV + downstream AI calls (~3 calls per job).
@@ -436,34 +438,34 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             # Mark downstream steps as 'skipped' so the UI can distinguish
             # a deliberate skip from a pending/failed state.
             for skipped_step in (
-                "input_recommendations",
-                "keyword_feasibility",
-                "ai_recommendations",
-                "tailored_cv",
+                StepName.INPUT_RECOMMENDATIONS,
+                StepName.KEYWORD_FEASIBILITY,
+                StepName.AI_RECOMMENDATIONS,
+                StepName.TAILORED_CV,
             ):
-                step_status[skipped_step] = "skipped"
+                step_status[skipped_step] = StepState.SKIPPED
             await save_step_result(run_id, "step_status", step_status)
             await mark_run_completed(run_id)
             return
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
-        await mark_step(run_id, step_status, "input_recommendations", "running")
+        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, "running")
         input_recs = run_input_recommendations(payload.cv_text, jd_analysis, matching, ats)
         await save_step_result(run_id, "input_recommendations", input_recs)
-        await mark_step(run_id, step_status, "input_recommendations", "completed")
+        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, "completed")
 
         # ── Step 4.5 — Keyword feasibility classifier ──────────────────────────
         # Decides which missed JD keywords can be legitimately surfaced in the
         # tailored CV vs which are honest gaps. The tailored-CV writer below
         # only injects entries this step approves.
         await _check_cancelled(run_id)
-        await mark_step(run_id, step_status, "keyword_feasibility", "running")
+        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, "running")
         feasibility = await run_keyword_feasibility(
             ai_client, payload.cv_text, jd_analysis, matching, input_recs,
             contact_details=payload.contact_details,
         )
         await save_step_result(run_id, "keyword_feasibility", feasibility)
-        await mark_step(run_id, step_status, "keyword_feasibility", "completed")
+        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, "completed")
 
         # ── Step 5 — AI recommendations (markdown) ─────────────────────────────
         # The w8_verified writer composes from the feasibility plan directly and
@@ -473,15 +475,15 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         use_w8 = get_settings().TAILORED_CV_WRITER == "w8_verified"
         recs_md = ""
         if use_w8:
-            step_status["ai_recommendations"] = "skipped"
+            step_status[StepName.AI_RECOMMENDATIONS] = StepState.SKIPPED
             await save_step_result(run_id, "step_status", step_status)
         else:
-            await mark_step(run_id, step_status, "ai_recommendations", "running")
+            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, "running")
             recs_md = await run_ai_recommendations(
                 ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
             )
             await save_step_result(run_id, "ai_recommendations", recs_md)
-            await mark_step(run_id, step_status, "ai_recommendations", "completed")
+            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, "completed")
 
         # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
         # contact_details (when present) stamps the user's canonical contact
@@ -489,7 +491,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
         await _check_cancelled(run_id)
-        await mark_step(run_id, step_status, "tailored_cv", "running")
+        await mark_step(run_id, step_status, StepName.TAILORED_CV, "running")
         if use_w8:
             # Validated beta writer (role-family composition + deterministic
             # enforce + entailment verify). Reuses the upstream artifacts above
@@ -522,21 +524,13 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
 
             def _render_and_upload() -> None:
                 pdf_bytes = generate_pdf_from_markdown(tailored_md)
-                bucket = settings.SUPABASE_TAILORED_CV_BUCKET
-                try:
-                    supabase.storage.from_(bucket).upload(
-                        path=pdf_path,
-                        file=pdf_bytes,
-                        file_options={"content-type": "application/pdf", "upsert": "true"},
-                    )
-                except Exception as exc:
-                    # Object may exist from a previous run id collision — retry as update.
-                    logger.warning("Tailored PDF upload failed (%s) — retrying via update()", exc)
-                    supabase.storage.from_(bucket).update(
-                        path=pdf_path,
-                        file=pdf_bytes,
-                        file_options={"content-type": "application/pdf"},
-                    )
+                upload_or_update(
+                    settings.SUPABASE_TAILORED_CV_BUCKET,
+                    pdf_path,
+                    pdf_bytes,
+                    "application/pdf",
+                    supabase=supabase,
+                )
 
             await asyncio.to_thread(_render_and_upload)
             await save_step_result(run_id, "tailored_pdf_storage_path", pdf_path)
@@ -606,7 +600,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             "honest_gaps":           rescore["honest_gaps"],
             "fabricated":            rescore.get("fabricated_keywords") or [],
         })
-        await mark_step(run_id, step_status, "tailored_cv", "completed")
+        await mark_step(run_id, step_status, StepName.TAILORED_CV, "completed")
 
         await mark_run_completed(run_id)
         logger.info("run %s: pipeline completed (score=%s tailored=%s lift=%s)",
@@ -648,7 +642,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 run_id, final_score, payload.min_final_ats,
             )
             try:
-                get_supabase().table("analysis_runs").update(
+                get_supabase().table(ANALYSIS_RUNS).update(
                     {"cover_letter_status": "skipped:below_gate"}
                 ).eq("id", run_id).execute()
             except Exception as exc:  # noqa: BLE001 — best effort

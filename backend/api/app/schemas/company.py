@@ -23,9 +23,12 @@ Design notes:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
+
+from app.enums import CompanyResearchStatus, Provider
+from app.schemas._byok import BYOK
 
 
 # ── Sub-objects returned by the AI distillation call ─────────────────────────
@@ -85,7 +88,7 @@ class CompanyResearch(BaseModel):
 
 # ── Internal endpoint request / response ──────────────────────────────────────
 
-class ResearchCompanyRequest(BaseModel):
+class ResearchCompanyRequest(BYOK):
     company_name: str
     company_domain: Optional[str] = None
     # JD's job location (e.g. "Rouse Hill, Sydney NSW"). When supplied, used
@@ -93,14 +96,11 @@ class ResearchCompanyRequest(BaseModel):
     # distillation. Optional — omitting falls back to the geographically-
     # naive legacy path.
     jd_location: Optional[str] = None
-    ai_provider: Literal["anthropic", "openai", "deepseek"]
-    ai_api_key: str
-    ai_model: Optional[str] = None
 
 
 class ResearchCompanyResponse(BaseModel):
     company_id: str
-    status: Literal["completed", "cached", "running"]
+    status: CompanyResearchStatus
     research: Optional[CompanyResearch] = None
     search_skipped: bool = False
 

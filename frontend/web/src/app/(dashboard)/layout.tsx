@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
+import { ADMIN_ROLES } from "@/lib/constants";
 import { SidebarNav } from "@/components/SidebarNav";
 import { MobileNav } from "@/components/MobileNav";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -36,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // points), and grandfathered beta / founder / admin resolve to "full".
   if (ent.status === "none") redirect("/onboarding/plan");
 
-  const isAdmin = ent.role === "founder" || ent.role === "admin";
+  const isAdmin = (ADMIN_ROLES as readonly string[]).includes(ent.role);
 
   // First-run gate: required setup steps (profile, CV, a run search profile)
   // must be completed before the rest of the dashboard is usable. Admins

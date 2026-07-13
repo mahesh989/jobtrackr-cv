@@ -1,7 +1,6 @@
 from fastapi import APIRouter
-from sqlalchemy import text
 
-from app.database import AsyncSessionLocal
+from app.database import get_supabase
 
 router = APIRouter(tags=["health"])
 
@@ -14,7 +13,8 @@ async def health_check() -> dict:
 
 @router.get("/health/db")
 async def db_health_check() -> dict:
-    """Readiness probe — verifies DB connectivity."""
-    async with AsyncSessionLocal() as session:
-        await session.execute(text("SELECT 1"))
+    """Readiness probe — verifies Supabase connectivity."""
+    client = get_supabase()
+    # Lightweight check — confirms service-role key + network path work.
+    client.table("cv_versions").select("id").limit(1).execute()
     return {"status": "ok", "db": "connected"}

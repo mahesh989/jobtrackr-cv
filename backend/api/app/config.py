@@ -8,6 +8,8 @@ from typing import List
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.enums import Provider
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +27,6 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
-    SUPABASE_DB_URL: str  # postgresql+asyncpg://...
 
     # -------------------------------------------------------------------------
     # Supabase Storage buckets
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # AI defaults — actual key is BYOK, supplied by JobTrackr per-request in 2d.
     # -------------------------------------------------------------------------
-    DEFAULT_AI_PROVIDER: str = "anthropic"
+    DEFAULT_AI_PROVIDER: Provider = Provider.ANTHROPIC
     DEFAULT_AI_MODEL: str = "claude-3-5-sonnet-20241022"
 
     # -------------------------------------------------------------------------

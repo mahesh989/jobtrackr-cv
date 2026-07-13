@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -36,7 +37,7 @@ export default async function MetricsPage() {
   if (!user) redirect("/auth/login");
 
   const { data: me } = await supabase.from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard");
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) redirect("/dashboard");
 
   const admin = createAdminClient();
   // This is an async Server Component — it renders once per request on the

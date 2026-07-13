@@ -36,13 +36,6 @@ export const VISA_STATUS_LABELS: Record<UserVisaStatus, string> = {
   needs_sponsorship: "Overseas — need visa sponsorship",
 };
 
-export const REQUIREMENT_LABELS: Record<string, string> = {
-  citizen_only: "Citizens only",
-  pr_citizen: "PR/Citizen only",
-  full_unrestricted: "Unrestricted work rights required",
-  any_valid: "Work rights required",
-};
-
 export function isUserVisaStatus(v: unknown): v is UserVisaStatus {
   return typeof v === "string" && v in CAPABILITY;
 }
@@ -84,11 +77,4 @@ export function hoursCapConflict(
   return types.length > 0 && types.every((t) => t === "full_time");
 }
 
-export const EMPLOYMENT_LABELS: Record<string, string> = {
-  full_time: "Full-time",
-  part_time: "Part-time",
-  casual: "Casual",
-  contract: "Contract",
-  temporary: "Temp",
-  internship: "Internship",
-};
+

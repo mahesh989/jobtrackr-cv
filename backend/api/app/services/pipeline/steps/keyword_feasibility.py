@@ -49,9 +49,7 @@ from app.services.skills.classifier import is_noise as _lex_is_noise
 
 logger = logging.getLogger(__name__)
 
-
-_BUCKETS = ("required", "preferred")
-_CATEGORIES = ("technical", "soft_skills", "domain_knowledge")
+from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
 _FEASIBILITY_BUCKETS = (
     "inject_directly",
     "inject_as_extension",

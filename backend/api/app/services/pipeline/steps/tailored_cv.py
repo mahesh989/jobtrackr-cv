@@ -1512,27 +1512,18 @@ def _enforce_structure(
 
 
 def _upload_to_storage(user_id: uuid.UUID, run_id: uuid.UUID, markdown: str) -> str:
+    from app.db import upload_or_update
+
     settings = get_settings()
     supabase = get_supabase()
-
     storage_path = f"{user_id}/{run_id}.md"
-    bucket = settings.SUPABASE_TAILORED_CV_BUCKET
 
-    # supabase-py upload accepts bytes
-    payload = markdown.encode("utf-8")
-    try:
-        supabase.storage.from_(bucket).upload(
-            path=storage_path,
-            file=payload,
-            file_options={"content-type": "text/markdown", "upsert": "true"},
-        )
-    except Exception as exc:
-        # If the file already exists, try update instead
-        logger.warning("Tailored CV upload failed (%s) — retrying with update()", exc)
-        supabase.storage.from_(bucket).update(
-            path=storage_path,
-            file=payload,
-            file_options={"content-type": "text/markdown"},
-        )
+    upload_or_update(
+        settings.SUPABASE_TAILORED_CV_BUCKET,
+        storage_path,
+        markdown.encode("utf-8"),
+        "text/markdown",
+        supabase=supabase,
+    )
 
     return storage_path

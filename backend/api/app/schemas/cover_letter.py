@@ -25,11 +25,11 @@ Design notes:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-Provider = Literal["anthropic", "openai", "deepseek"]
+from app.enums import Provider
 
 
 class OpeningVariant(BaseModel):

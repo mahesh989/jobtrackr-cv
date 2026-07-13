@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { ADMIN_ROLES }               from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: me } = await admin.from("users").select("role").eq("id", user.id).single();
-  const isAdmin = !!me && ["founder", "admin"].includes(me.role as string);
+  const isAdmin = !!me && (ADMIN_ROLES as readonly string[]).includes(me.role as string);
   if (!isAdmin) return NextResponse.redirect(new URL("/dashboard", req.url));
 
   const mode = new URL(req.url).searchParams.get("mode");

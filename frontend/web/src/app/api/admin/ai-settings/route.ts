@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { ADMIN_ROLES }               from "@/lib/constants";
 import { encryptApiKey }             from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { PROVIDER_ORDER, DEFAULT_MODELS, type AiProvider } from "@/lib/ai/models";
@@ -23,7 +24,7 @@ async function requireAdminUser() {
 
   const admin = createAdminClient();
   const { data: me } = await admin.from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) return null;
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) return null;
   return { userId: user.id, admin };
 }
 

@@ -55,10 +55,7 @@ from app.services.pipeline.steps.cv_jd_matching import (
 
 logger = logging.getLogger(__name__)
 
-# Imported from registry so this is not another definition — same constant.
-from app.services.skills.registry import CATEGORIES as _CATEGORIES_TUPLE
-_BUCKETS = ("required", "preferred")
-_CATEGORIES = _CATEGORIES_TUPLE
+from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
 
 
 # ---------------------------------------------------------------------------

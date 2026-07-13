@@ -1,8 +1,7 @@
-"""Single source of truth for ATS keyword weights.
+"""Single source of truth for ATS keyword weights and pipeline constants.
 
-Import from here — never redefine in ats_scoring.py or keyword_feasibility.py.
-If the weights change, update once here; both scoring and lift-estimation stay
-in sync automatically.
+Import from here — never redefine in ats_scoring.py, keyword_feasibility.py,
+cv_jd_matching.py, or input_recommendations.py.
 """
 from __future__ import annotations
 
@@ -10,6 +9,10 @@ import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Canonical bucket and category tuples — used across pipeline steps.
+BUCKETS   = ("required", "preferred")
+CATEGORIES = ("technical", "soft_skills", "domain_knowledge")
 
 # Per-component max points (Category 1 totals 50 pts).
 DEFAULT_KEYWORD_WEIGHTS: dict[str, int] = {

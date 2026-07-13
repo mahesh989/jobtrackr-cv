@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { ADMIN_ROLES }               from "@/lib/constants";
 
 const VALID_SOURCES = [
   "adzuna", "seek", "careerjet", "greenhouse", "lever",
@@ -38,7 +39,7 @@ async function requireAdminUser() {
   if (!user) return null;
   const admin = createAdminClient();
   const { data: me } = await admin.from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) return null;
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) return null;
   return { userId: user.id, admin };
 }
 

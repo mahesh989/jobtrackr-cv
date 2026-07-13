@@ -94,6 +94,27 @@ interface UserIntegration {
 
 const SEEK_MONTHLY_BUDGET_USD = 5.0;   // Apify free tier
 
+/** Persist an incremental Apify spend on the shared integration row. */
+async function addApifySpend(
+  integrationId: string,
+  costUsd: number,
+  budgetUsd: number,
+  currentSpend: number,
+): Promise<void> {
+  // Re-read to avoid clobbering a concurrent increment in the same run.
+  const { data: fresh } = await db.from("user_integrations")
+    .select("quota_used_usd").eq("id", integrationId).single();
+  const baseSpend = fresh?.quota_used_usd ?? currentSpend;
+  const newSpend  = baseSpend + costUsd;
+  await db.from("user_integrations").update({
+    quota_used_usd: newSpend,
+    last_used_at:   new Date().toISOString(),
+    status:         newSpend >= budgetUsd ? "quota_exceeded" : "valid",
+    status_reason:  newSpend >= budgetUsd ? `Monthly budget of $${budgetUsd} reached` : null,
+    updated_at:     new Date().toISOString(),
+  }).eq("id", integrationId);
+}
+
 /**
  * Load an Apify integration row for the running profile.
  *
@@ -883,21 +904,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           await enrichCareerjetJDsViaActor(kept, seekToken);
         kept = enriched;
         console.log(`[pipeline] stage 7c — Careerjet JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
-        // Persist spend on the shared Apify integration (re-read to avoid
-        // clobbering the SEEK block's earlier increment in the same run).
         if (costUsd > 0) {
           try {
-            const { data: fresh } = await db.from("user_integrations")
-              .select("quota_used_usd").eq("id", seekIntegration.id).single();
-            const baseSpend = fresh?.quota_used_usd ?? seekIntegration.quota_used_usd;
-            const newSpend  = baseSpend + costUsd;
-            await db.from("user_integrations").update({
-              quota_used_usd: newSpend,
-              last_used_at:   new Date().toISOString(),
-              status:         newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid",
-              status_reason:  newSpend >= SEEK_MONTHLY_BUDGET_USD ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached` : null,
-              updated_at:     new Date().toISOString(),
-            }).eq("id", seekIntegration.id);
+            await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
           } catch (e) {
             console.warn(`[pipeline] careerjet spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
           }
@@ -934,17 +943,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         console.log(`[pipeline] stage 7d — Adzuna JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
         if (costUsd > 0) {
           try {
-            const { data: fresh } = await db.from("user_integrations")
-              .select("quota_used_usd").eq("id", seekIntegration.id).single();
-            const baseSpend = fresh?.quota_used_usd ?? seekIntegration.quota_used_usd;
-            const newSpend  = baseSpend + costUsd;
-            await db.from("user_integrations").update({
-              quota_used_usd: newSpend,
-              last_used_at:   new Date().toISOString(),
-              status:         newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid",
-              status_reason:  newSpend >= SEEK_MONTHLY_BUDGET_USD ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached` : null,
-              updated_at:     new Date().toISOString(),
-            }).eq("id", seekIntegration.id);
+            await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
           } catch (e) {
             console.warn(`[pipeline] adzuna spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
           }

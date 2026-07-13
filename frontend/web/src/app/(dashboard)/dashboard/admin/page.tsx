@@ -12,6 +12,7 @@
  *   5. Invite codes — manage (existing)
  */
 import { requireAdmin, formatCost, timeAgo } from "@/lib/admin/guard";
+import { ADMIN_ROLES } from "@/lib/constants";
 import Link from "next/link";
 import { generateInviteCode, revokeInviteCode } from "@/lib/actions";
 
@@ -240,7 +241,7 @@ export default async function AdminOverviewPage() {
             <StatCard label="New (30d)" value={String(users30d)}           sub="signups"                color="slate" />
             <StatCard label="Active"    value={String(activeUserIds.size)} sub="have active profile"    color="slate" />
             <StatCard label="Admin/founder"
-              value={String(users.filter((u) => ["founder","admin"].includes(u.role)).length)}
+              value={String(users.filter((u) => (ADMIN_ROLES as readonly string[]).includes(u.role)).length)}
               color="purple" />
           </div>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">

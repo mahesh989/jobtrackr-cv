@@ -10,10 +10,9 @@
  */
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ADMIN_ROLES }       from "@/lib/constants";
 import { redirect }          from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const ADMIN_ROLES = new Set(["founder", "admin"]);
 
 export async function requireAdmin(): Promise<{
   userId: string;
@@ -29,7 +28,7 @@ export async function requireAdmin(): Promise<{
   const { data: me } = await admin
     .from("users").select("role").eq("id", user.id).single();
 
-  if (!me || !ADMIN_ROLES.has(me.role as string)) redirect("/dashboard");
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) redirect("/dashboard");
 
   return { userId: user.id, email: user.email!, role: me.role as string, admin };
 }

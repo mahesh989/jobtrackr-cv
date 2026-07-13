@@ -22,6 +22,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
+import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
@@ -72,7 +73,7 @@ export default async function AnalyticsPage() {
   // would land here only by URL-hopping; bounce them to their dashboard.
   const { data: me } = await supabase
     .from("users").select("role").eq("id", user.id).single();
-  if (!me || !["founder", "admin"].includes(me.role as string)) redirect("/dashboard");
+  if (!me || !(ADMIN_ROLES as readonly string[]).includes(me.role as string)) redirect("/dashboard");
 
   const { data: profileRows } = await supabase
     .from("search_profiles")

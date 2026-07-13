@@ -41,8 +41,7 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-_BUCKETS = ("required", "preferred")
-_CATEGORIES = ("technical", "soft_skills", "domain_knowledge")
+from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
 
 # How many candidates to surface per "suggested addition" group.
 _SUGGEST_LIMIT_TECHNICAL = 10

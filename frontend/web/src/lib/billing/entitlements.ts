@@ -16,6 +16,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ADMIN_ROLES } from "@/lib/constants";
 import {
   PLAN_LIMITS,
   type PlanId,
@@ -46,8 +47,6 @@ export interface ConsumeResult {
   eventId?: string;
 }
 
-const ADMIN_ROLES = new Set(["founder", "admin"]);
-
 const UNLIMITED: PlanLimits = {
   maxProfiles: null, maxRuns: null,
   maxCvUnique: null, maxCvTotal: null, maxLetterUnique: null, maxLetterTotal: null,
@@ -62,7 +61,7 @@ export async function getEntitlement(userId: string): Promise<Entitlement> {
   const role = (userRow as { role?: string } | null)?.role ?? "beta";
 
   // Founder/admin bypass everything.
-  if (ADMIN_ROLES.has(role)) {
+  if ((ADMIN_ROLES as readonly string[]).includes(role)) {
     return {
       userId, role, planId: "comp", status: "comp", access: "full",
       unlimited: true, pastDue: false, limits: UNLIMITED,

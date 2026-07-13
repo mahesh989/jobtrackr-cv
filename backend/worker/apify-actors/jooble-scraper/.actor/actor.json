@@ -1,7 +1,0 @@
-{
-    "actorSpecification": 1,
-    "name": "jooble-au-scraper",
-    "title": "Jooble AU Job Scraper",
-    "description": "Renders Jooble Australia search results with Playwright/Chromium, extracts job listings with full descriptions from each job's detail page.",
-    "version": "0.1"
-}

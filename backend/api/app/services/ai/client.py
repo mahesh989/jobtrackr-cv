@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 
 import asyncio as _asyncio_mod
 import time as _time
@@ -24,6 +24,7 @@ import time as _time
 from json_repair import repair_json
 
 from app.config import get_settings
+from app.enums import Provider
 from app.services.ai import usage_tracker
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ class AIBillingError(AIClientError):
 
     `provider` and `top_up_url` are surfaced verbatim to the UI."""
 
-    _PROVIDER_DISPLAY = {"anthropic": "Anthropic", "openai": "OpenAI", "deepseek": "DeepSeek"}
+    _PROVIDER_DISPLAY = {Provider.ANTHROPIC: "Anthropic", Provider.OPENAI: "OpenAI", Provider.DEEPSEEK: "DeepSeek"}
 
     def __init__(self, provider: str, top_up_url: str, raw: str = ""):
         self.provider = provider
@@ -135,7 +136,7 @@ class AIRateLimitError(AIClientError):
     Distinct from AIClientError so the UI can say 'rate-limited' instead of
     'internal error'."""
 
-    _PROVIDER_DISPLAY = {"anthropic": "Anthropic", "openai": "OpenAI", "deepseek": "DeepSeek"}
+    _PROVIDER_DISPLAY = {Provider.ANTHROPIC: "Anthropic", Provider.OPENAI: "OpenAI", Provider.DEEPSEEK: "DeepSeek"}
 
     def __init__(self, provider: str, raw: str = ""):
         self.provider = provider
@@ -202,14 +203,12 @@ def _is_rate_limit_error(exc: BaseException) -> bool:
 def _classify_provider_error(provider: str, exc: BaseException) -> AIClientError:
     """Return the most specific AIClientError subclass for an SDK exception."""
     if _is_billing_error(exc):
-        top_up = _ANTHROPIC_TOP_UP_URL if provider == "anthropic" else _OPENAI_TOP_UP_URL
+        top_up = _ANTHROPIC_TOP_UP_URL if provider == Provider.ANTHROPIC else _OPENAI_TOP_UP_URL
         return AIBillingError(provider=provider, top_up_url=top_up, raw=str(exc))
     if _is_rate_limit_error(exc):
         return AIRateLimitError(provider=provider, raw=str(exc))
     return AIClientError(f"{provider.capitalize()} API error: {exc}")
 
-
-Provider = Literal["anthropic", "openai", "deepseek"]
 
 # DeepSeek exposes an OpenAI-compatible REST surface at a different host.
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
@@ -256,13 +255,13 @@ class AIClient:
         (e.g. "jd_analysis", "tailored_cv"). Falls back to self.operation.
         """
         op = operation or self.operation
-        if self.provider == "anthropic":
+        if self.provider == Provider.ANTHROPIC:
             return await self._anthropic_complete(
                 system=system, user=user, max_tokens=max_tokens,
                 temperature=temperature, no_training=no_training, operation=op,
             )
         # DeepSeek shares OpenAI's wire format; only the base URL differs.
-        base_url = DEEPSEEK_BASE_URL if self.provider == "deepseek" else None
+        base_url = DEEPSEEK_BASE_URL if self.provider == Provider.DEEPSEEK else None
         return await self._openai_complete(
             system=system, user=user, max_tokens=max_tokens, temperature=temperature,
             reasoning_effort=reasoning_effort, seed=seed,
@@ -395,7 +394,7 @@ class AIClient:
                     # won't make money appear. Surface immediately with a
                     # user-actionable message.
                     if _is_billing_error(exc):
-                        raise _classify_provider_error("anthropic", exc) from exc
+                        raise _classify_provider_error(Provider.ANTHROPIC, exc) from exc
                     # 429 from Anthropic is retryable transient — fall through
                     # to the standard retry path. _is_transient already covers
                     # most cases via APIConnectionError; explicitly retry rate
@@ -410,7 +409,7 @@ class AIClient:
                         )
                         last_exc = exc
                         usage_tracker.track(
-                            operation=operation, provider="anthropic", model=self.model,
+                            operation=operation, provider=Provider.ANTHROPIC, model=self.model,
                             input_tokens=0, output_tokens=0,
                             latency_ms=int((_time.monotonic() - _t0) * 1000),
                             retry_count=attempt, status="error",
@@ -419,9 +418,9 @@ class AIClient:
                         )
                         await _asyncio_mod.sleep(delay)
                         continue
-                    raise _classify_provider_error("anthropic", exc) from exc
+                    raise _classify_provider_error(Provider.ANTHROPIC, exc) from exc
             else:
-                raise _classify_provider_error("anthropic", last_exc) from last_exc
+                raise _classify_provider_error(Provider.ANTHROPIC, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget, never delays the caller.
             _latency_ms = int((_time.monotonic() - _t0) * 1000)
@@ -644,9 +643,9 @@ class AIClient:
 # Sensible default model per provider when JobTrackr does not specify one.
 # Mirrors frontend/web/src/lib/ai/models.ts DEFAULT_MODELS — keep in sync.
 _DEFAULT_MODELS: Dict[Provider, str] = {
-    "anthropic": "claude-sonnet-4-6",
-    "openai":    "gpt-5.1",
-    "deepseek":  "deepseek-chat",
+    Provider.ANTHROPIC: "claude-sonnet-4-6",
+    Provider.OPENAI:    "gpt-5.1",
+    Provider.DEEPSEEK:  "deepseek-chat",
 }
 
 
@@ -664,7 +663,7 @@ def make_ai_client(
     """
     if not api_key:
         raise AIClientError(f"api_key is empty for provider={provider}")
-    if provider not in ("anthropic", "openai", "deepseek"):
+    if provider not in (Provider.ANTHROPIC, Provider.OPENAI, Provider.DEEPSEEK):
         raise AIClientError(f"Unsupported AI provider: {provider}")
 
     chosen_model = model or _DEFAULT_MODELS[provider]
