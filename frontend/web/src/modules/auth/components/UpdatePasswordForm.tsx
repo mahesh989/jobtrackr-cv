@@ -48,7 +48,7 @@ export function UpdatePasswordForm() {
 
   return (
     <AuthShell
-      headline={<>Set a new<br /><em style={{ fontStyle: "italic", color: "#19E3C8" }}>password.</em></>}
+      headline={<>Set a new<br /><em style={{ fontStyle: "italic", color: "#0B7D74" }}>password.</em></>}
       tagline="Choose a strong password you haven't used elsewhere."
       switchPrompt="Changed your mind?"
       switchHref="/auth/login"
@@ -66,7 +66,7 @@ export function UpdatePasswordForm() {
       >
         Choose a new password.
       </h1>
-      <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+      <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
         You&apos;ll be signed in with this the next time you log in.
       </p>
 
@@ -85,8 +85,8 @@ export function UpdatePasswordForm() {
             autoFocus
             className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
             style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
+            onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
           />
           <PasswordRequirements password={password} />
         </div>
@@ -105,12 +105,12 @@ export function UpdatePasswordForm() {
             className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
             style={{
               ...inputStyle,
-              borderColor: confirmPassword && confirmPassword !== password ? "#cf222e" : "#232A36",
+              borderColor: confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0",
             }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
             onBlur={(e)  => {
-              e.currentTarget.style.borderColor = confirmPassword && confirmPassword !== password ? "#cf222e" : "#232A36";
-              e.currentTarget.style.background = "#171C26";
+              e.currentTarget.style.borderColor = confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0";
+              e.currentTarget.style.background = "#EEF2F7";
             }}
           />
           {confirmPassword.length > 0 && confirmPassword !== password && (
@@ -124,7 +124,7 @@ export function UpdatePasswordForm() {
           type="submit"
           disabled={loading || !passwordMeetsAllRules(password) || password !== confirmPassword}
           className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
-          style={{ background: "#19E3C8", color: "#04231F", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
+          style={{ background: "#0B7D74", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
         >
           {loading ? (
             <>

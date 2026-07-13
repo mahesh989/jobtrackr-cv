@@ -5,8 +5,8 @@ import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // ── "Default" theme fonts (original JobTrackr look) ───────────────────────
-// The user-facing default theme is 'notion' (see the FOUC guard below), which
-// uses the cv-magic fonts (Manrope / Noto Serif) declared further down. These
+// The user-facing default theme is 'aurora-light' (see the FOUC guard below),
+// which uses the cv-magic fonts (Manrope / Noto Serif) declared further down. These
 // two only apply when a user explicitly picks the "Default" theme, so we set
 // preload: false — the browser fetches them lazily on theme switch instead of
 // preloading them on every route (incl. the public marketing/login pages).
@@ -144,7 +144,7 @@ export default function RootLayout({
             __html: `
               try {
                 var d = document.documentElement;
-                var t = localStorage.getItem('jobtrackr-theme') || 'aurora-dark';
+                var t = localStorage.getItem('jobtrackr-theme') || 'aurora-light';
                 if (t !== 'default' && /^(aurora-dark|aurora-light|classic|gilded-noir|notion|clay)$/.test(t)) {
                   d.classList.add('theme-' + t);
                 }

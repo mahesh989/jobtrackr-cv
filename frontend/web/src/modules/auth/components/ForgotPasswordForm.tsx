@@ -87,7 +87,7 @@ export function ForgotPasswordForm() {
       headline={
         <>
           Forgot your<br />
-          <em style={{ fontStyle: "italic", color: "#19E3C8" }}>password?</em>
+          <em style={{ fontStyle: "italic", color: "#0B7D74" }}>password?</em>
         </>
       }
       tagline="No worries — we'll email you a link to set a new one."
@@ -98,24 +98,24 @@ export function ForgotPasswordForm() {
     >
       {sent ? (
         <div className="text-center">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(25, 227, 200, 0.12)", border: "1px solid rgba(25, 227, 200, 0.2)" }}>
-            <svg width="22" height="22" fill="none" stroke="#19E3C8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(11, 125, 116, 0.12)", border: "1px solid rgba(11, 125, 116, 0.2)" }}>
+            <svg width="22" height="22" fill="none" stroke="#0B7D74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
           <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
             Check your inbox
           </h1>
-          <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+          <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
             If an account exists for{" "}
-            <span style={{ color: "#EAEEF6", fontWeight: 500 }}>{email}</span>,
+            <span style={{ color: "#0E141B", fontWeight: 500 }}>{email}</span>,
             we sent a link to reset your password.
           </p>
           {error && <div className="mt-4"><ErrorNotice message={error} /></div>}
 
           <div className="mt-5">
             {resendCooldown > 0 ? (
-              <p style={{ fontSize: 12, color: "#5B6478" }}>
+              <p style={{ fontSize: 12, color: "#667085" }}>
                 Didn&apos;t get it? Resend in {resendCooldown}s
               </p>
             ) : (
@@ -129,7 +129,7 @@ export function ForgotPasswordForm() {
                   onClick={handleResend}
                   disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
                   className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ color: "#19E3C8" }}
+                  style={{ color: "#0B7D74" }}
                 >
                   {resendLoading ? "Resending…" : "Resend reset link"}
                 </button>
@@ -140,9 +140,9 @@ export function ForgotPasswordForm() {
           <button
             onClick={handleTryDifferentEmail}
             className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
-            style={{ color: "#8B93A5" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#19E3C8"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#8B93A5"; }}
+            style={{ color: "#475467" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}
           >
             Try a different email
           </button>
@@ -160,7 +160,7 @@ export function ForgotPasswordForm() {
           >
             Reset your password.
           </h1>
-          <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+          <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
             Enter the email on your account and we&apos;ll send you a reset link.
           </p>
 
@@ -179,8 +179,8 @@ export function ForgotPasswordForm() {
                 autoFocus
                 className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
                 style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
+                onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
               />
             </div>
 
@@ -193,8 +193,8 @@ export function ForgotPasswordForm() {
               disabled={loading || (TURNSTILE_CONFIGURED && !captchaToken)}
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{
-                background: "#19E3C8",
-                color: "#04231F",
+                background: "#0B7D74",
+                color: "#FFFFFF",
                 fontSize: 14,
                 fontWeight: 500,
                 opacity: loading ? 0.7 : 1,
@@ -211,8 +211,8 @@ export function ForgotPasswordForm() {
             </button>
           </form>
 
-          <p className="text-center mt-6" style={{ fontSize: 12, color: "#5B6478" }}>
-            <Link href="/auth/login" style={{ color: "#19E3C8", fontWeight: 500, textDecoration: "none" }}>
+          <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>
+            <Link href="/auth/login" style={{ color: "#0B7D74", fontWeight: 500, textDecoration: "none" }}>
               ← Back to sign in
             </Link>
           </p>

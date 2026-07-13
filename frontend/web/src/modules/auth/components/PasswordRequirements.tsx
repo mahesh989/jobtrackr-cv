@@ -35,7 +35,7 @@ export function PasswordRequirements({ password }: { password: string }) {
           <li
             key={rule.key}
             className="flex items-center gap-1.5 text-[12px] transition-colors"
-            style={{ color: met ? "#19E3C8" : "#5B6478" }}
+            style={{ color: met ? "#0B7D74" : "#667085" }}
           >
             {met ? (
               <Check className="w-3.5 h-3.5 shrink-0" />

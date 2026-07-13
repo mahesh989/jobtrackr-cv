@@ -1,8 +1,11 @@
 /**
  * Shared branding pieces for the auth screens (login / signup).
  *
- * These pages are deliberately hand-styled to the aurora-dark palette and do
- * NOT consume the app theme tokens — see graph.json css_theming.public_pages.
+ * These pages are deliberately hand-styled to match the Aurora Light theme's
+ * canonical palette (see :root.theme-aurora-light in globals.css) but do NOT
+ * consume the app theme tokens directly — they render the same way
+ * regardless of a logged-in user's own theme choice, since there's no theme
+ * preference yet at the pre-login stage.
  */
 
 export const TURNSTILE_CONFIGURED = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -27,11 +30,11 @@ export const GOOGLE_SVG = (
 );
 
 export const inputStyle = {
-  background: "#171C26",
-  border: "1px solid #232A36",
+  background: "#EEF2F7",
+  border: "1px solid #E2E8F0",
   fontSize: 14,
   fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-  color: "#EAEEF6",
+  color: "#0E141B",
 } as React.CSSProperties;
 
 export function Spinner({ size = 16 }: { size?: number }) {
