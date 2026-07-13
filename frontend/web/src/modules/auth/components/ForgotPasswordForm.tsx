@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
@@ -12,6 +11,10 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export function ForgotPasswordForm() {
   const [email, setEmail]     = useState("");
   const [sent, setSent]       = useState(false);
+  // Set only when the account exists and has no password identity (Google-
+  // only signup) — distinct from `sent` because there's genuinely nothing to
+  // wait for an inbox for in this case.
+  const [ssoOnly, setSsoOnly] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -28,31 +31,34 @@ export function ForgotPasswordForm() {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  // Supabase's captcha protection (when enabled) applies to
-  // resetPasswordForEmail the same as signUp/signInWithPassword — omitting
-  // captchaToken here fails with "captcha protection: request disallowed".
-  async function sendResetLink(token: string | null) {
-    const supabase = createClient();
-    return supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/confirm`,
-      captchaToken: token ?? undefined,
+  async function sendResetLink(token: string | null): Promise<{ ssoOnly: boolean; error: string | null }> {
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, captchaToken: token }),
     });
+    const data = await res.json();
+    if (!res.ok) return { ssoOnly: false, error: data.error ?? "Something went wrong." };
+    return { ssoOnly: !!data.ssoOnly, error: null };
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await sendResetLink(captchaToken);
+    const result = await sendResetLink(captchaToken);
     turnstileRef.current?.reset();
     setCaptchaToken(null);
-    if (error) {
-      setError(error.message);
-      setLoading(false);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    if (result.ssoOnly) {
+      setSsoOnly(true);
       return;
     }
     setSent(true);
-    setLoading(false);
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
   }
 
@@ -60,12 +66,12 @@ export function ForgotPasswordForm() {
     if (resendCooldown > 0 || resendLoading) return;
     setResendLoading(true);
     setError(null);
-    const { error } = await sendResetLink(resendCaptchaToken);
+    const result = await sendResetLink(resendCaptchaToken);
     resendTurnstileRef.current?.reset();
     setResendCaptchaToken(null);
     setResendLoading(false);
-    if (error) {
-      setError(error.message);
+    if (result.error) {
+      setError(result.error);
       return;
     }
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -73,6 +79,7 @@ export function ForgotPasswordForm() {
 
   function handleTryDifferentEmail() {
     setSent(false);
+    setSsoOnly(false);
     setEmail("");
     setError(null);
     setCaptchaToken(null);
@@ -96,7 +103,32 @@ export function ForgotPasswordForm() {
       switchLabel="Sign in"
       trustLabels={["5 AU sources", "AI-ranked feed", "Visa signal", "3-day trial"]}
     >
-      {sent ? (
+      {ssoOnly ? (
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "#EEF2F7", border: "1px solid #E2E8F0" }}>
+            <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+              <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
+            This account uses Google
+          </h1>
+          <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+            <span style={{ color: "#0E141B", fontWeight: 500 }}>{email}</span>{" "}
+            signs in with Google — there&apos;s no password to reset. Use &quot;Continue with Google&quot; on the sign-in page instead.
+          </p>
+          <Link
+            href="/auth/login"
+            className="mt-6 inline-block text-[13px] font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
+            style={{ background: "#0B7D74", color: "#FFFFFF" }}
+          >
+            Go to sign in
+          </Link>
+        </div>
+      ) : sent ? (
         <div className="text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(11, 125, 116, 0.12)", border: "1px solid rgba(11, 125, 116, 0.2)" }}>
             <svg width="22" height="22" fill="none" stroke="#0B7D74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
