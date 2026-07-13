@@ -10,6 +10,7 @@ import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } fr
 export function SignupForm() {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
@@ -38,8 +39,14 @@ export function SignupForm() {
 
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
+    setLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       email,
@@ -144,6 +151,18 @@ export function SignupForm() {
                 id="password" type="password" required minLength={8}
                 value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
+                className="w-full px-4 py-3 rounded-lg outline-none"
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
+                onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Confirm password</label>
+              <input
+                id="confirmPassword" type="password" required minLength={8}
+                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
                 className="w-full px-4 py-3 rounded-lg outline-none"
                 style={inputStyle}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
