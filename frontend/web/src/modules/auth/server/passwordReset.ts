@@ -1,18 +1,18 @@
 /**
- * Password-reset with SSO-only detection.
+ * SSO-only detection for forgot-password — the CHECK only, not the send.
  *
- * A user who signed up via Google has no email/password identity — sending
- * them a "reset your password" email is pointless, and Supabase silently
- * no-ops for it the same way it does for a non-existent email, leaving the
- * user staring at "check your inbox" forever with no way to know why.
- *
- * Identity is checked via check_user_auth_methods() (migration 081) — a
- * read-only Postgres function, NOT the Auth Admin API. An earlier attempt
- * used admin.auth.admin.generateLink({ type: "recovery" }) for this same
- * check; that shares GoTrue's per-identity recovery-token cooldown with
- * resetPasswordForEmail(), so every request was throttling itself on the
- * second call, permanently (production bug, reverted). The RPC never
- * touches GoTrue's recovery flow, so no such conflict is possible.
+ * The actual resetPasswordForEmail() call must run client-side (browser
+ * anon-key client), not here. Supabase's recovery flow is PKCE-based: it
+ * generates a code_verifier and stores it wherever the request originated,
+ * then the emailed link carries a `code` that must be exchanged by that same
+ * origin. A prior version called resetPasswordForEmail() from this
+ * server-side admin client — the code_verifier ended up in a throwaway
+ * server request context, never in the user's browser, so the link always
+ * failed exchange later ("invalid or expired") regardless of how fast the
+ * user clicked it. This function ONLY answers "does this email have a
+ * password identity" via a read-only DB function (migration 081) — no
+ * GoTrue call at all, so it can safely run server-side without touching
+ * either the recovery cooldown or PKCE state.
  *
  * Big-company products (Google, GitHub, Notion, ...) accept a small,
  * deliberate amount of account-existence leakage here: once we already know
@@ -25,38 +25,11 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export interface PasswordResetResult {
-  ssoOnly: boolean;
-  error?: string;
-}
-
-export async function sendPasswordReset(
-  email: string,
-  redirectTo: string,
-  captchaToken: string | null,
-): Promise<PasswordResetResult> {
+export async function checkSsoOnly(email: string): Promise<boolean> {
   const admin = createAdminClient();
-
-  const { data: methodsData } = await admin
+  const { data } = await admin
     .rpc("check_user_auth_methods", { p_email: email })
     .single();
-  const methods = methodsData as { user_exists: boolean; has_password: boolean } | null;
-
-  if (methods?.user_exists && !methods.has_password) {
-    // Account exists, no password identity — nothing to reset, and
-    // resetPasswordForEmail would no-op anyway. Don't bother sending.
-    return { ssoOnly: true };
-  }
-
-  // Covers both "account doesn't exist" and "account has a password" —
-  // identical code path so the two remain indistinguishable to the caller.
-  const { error } = await admin.auth.resetPasswordForEmail(email, {
-    redirectTo,
-    captchaToken: captchaToken ?? undefined,
-  });
-
-  if (error) {
-    return { ssoOnly: false, error: error.message };
-  }
-  return { ssoOnly: false };
+  const methods = data as { user_exists: boolean; has_password: boolean } | null;
+  return !!(methods?.user_exists && !methods.has_password);
 }

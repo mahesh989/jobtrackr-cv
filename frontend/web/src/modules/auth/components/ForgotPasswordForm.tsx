@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
@@ -32,14 +33,29 @@ export function ForgotPasswordForm() {
   }, [resendCooldown]);
 
   async function sendResetLink(token: string | null): Promise<{ ssoOnly: boolean; error: string | null }> {
-    const res = await fetch("/api/auth/forgot-password", {
+    // Check first (server-side, DB-only — no GoTrue call, safe to run here).
+    const checkRes = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, captchaToken: token }),
+      body: JSON.stringify({ email }),
     });
-    const data = await res.json();
-    if (!res.ok) return { ssoOnly: false, error: data.error ?? "Something went wrong." };
-    return { ssoOnly: !!data.ssoOnly, error: null };
+    const checkData = await checkRes.json();
+    if (!checkRes.ok) return { ssoOnly: false, error: checkData.error ?? "Something went wrong." };
+    if (checkData.ssoOnly) return { ssoOnly: true, error: null };
+
+    // The actual send MUST run client-side: Supabase's recovery flow is
+    // PKCE-based, and the code_verifier it generates has to land in the
+    // same browser that will later exchange the emailed link's `code` —
+    // calling this from our server (as a previous version did) stored the
+    // verifier in a throwaway server request context instead, so every
+    // link failed exchange later regardless of how fast the user clicked.
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/confirm`,
+      captchaToken: token ?? undefined,
+    });
+    if (error) return { ssoOnly: false, error: error.message };
+    return { ssoOnly: false, error: null };
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -31,7 +31,7 @@ const API_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "..", "src", 
 // to carry its own abuse mitigation (rate limit, signature, etc.).
 const PUBLIC_ALLOWLIST = {
   "billing/webhook/route.ts": "Stripe webhook — authenticated by Stripe signature, not user session",
-  "auth/forgot-password/route.ts": "public password-reset request — IP rate-limited (10/60s); the actual send is gated by Supabase's own native captcha check on resetPasswordForEmail",
+  "auth/forgot-password/route.ts": "public SSO-only identity check (read-only DB function, no GoTrue call) — IP rate-limited (10/60s); the actual password-reset send happens client-side, gated by Supabase's own native captcha check",
   "notifications/unsubscribe/route.ts": "one-click email unsubscribe link — must work unauthenticated by design; gated by an HMAC signature (verifySig, timing-safe compare) + per-uid rate limit, not a user session",
 };
 

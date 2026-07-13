@@ -6,4 +6,4 @@
 export { getAuthUser, requireUser } from "./guards";
 export { handleAuthConfirm } from "./confirm";
 export { handleSignOut } from "./signout";
-export { sendPasswordReset, type PasswordResetResult } from "./passwordReset";
+export { checkSsoOnly } from "./passwordReset";
