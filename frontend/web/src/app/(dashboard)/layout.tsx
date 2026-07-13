@@ -46,7 +46,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!isAdmin && !pathname.startsWith("/dashboard/instructions")) {
     const { data: gateProfileRows } = await supabase.from("search_profiles").select("id");
     const gateProfileIds = ((gateProfileRows ?? []) as { id: string }[]).map((p) => p.id);
-    const setupStatus = await getSetupStatus(user.id, gateProfileIds);
+    // billing=true: the subscription gate above already redirected away any
+    // user with ent.status === "none", so it's always true by this point —
+    // this just keeps SetupStatus consistent with the wizard's step count.
+    const setupStatus = await getSetupStatus(user.id, gateProfileIds, true);
     if (!isSetupComplete(setupStatus)) {
       const step = firstIncompleteStep(setupStatus) + 1; // SetupStepperBar's ?step= is 1-based
       redirect(`/dashboard/instructions?tab=setup&setup=1&step=${step}`);

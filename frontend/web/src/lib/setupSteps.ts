@@ -8,7 +8,7 @@
  */
 
 import {
-  UserCircle2, FileText, PenLine, Mail, Briefcase,
+  CreditCard, UserCircle2, FileText, PenLine, Mail, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 import type { SetupStatus, SetupStepKey } from "./setupStatus";
@@ -25,6 +25,11 @@ export interface SetupStep {
 }
 
 export const SETUP_STEPS: SetupStep[] = [
+  {
+    key: "billing", icon: CreditCard, title: "Choose your plan", tag: "required",
+    blurb: "Start with a free 3-day trial or subscribe directly — pick whichever plan fits how you want to search. You can switch plans anytime afterwards.",
+    href: "/onboarding/plan",
+  },
   {
     key: "profile", icon: UserCircle2, title: "Set up your details", tag: "required",
     blurb: "Your contact details are stamped onto every tailored CV. Name, address and contact number are required; LinkedIn, GitHub, portfolio and projects are optional but recommended. Set them at the top of My CV.",
@@ -55,7 +60,7 @@ export const SETUP_STEPS: SetupStep[] = [
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** Steps that gate "setup complete" — the recommended/optional ones don't. */
-const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["profile", "cv", "searchProfile"];
+const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "profile", "cv", "searchProfile"];
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",

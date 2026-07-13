@@ -18,6 +18,7 @@ import { InstructionsTabs } from "@/components/onboarding/InstructionsTabs";
 import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
 import { getSetupStatus } from "@/lib/setupStatus";
 import { clampStepIndex, firstIncompleteStep, isSetupComplete } from "@/lib/setupSteps";
+import { getEntitlement } from "@/lib/billing/entitlements";
 
 export const metadata = { title: "Instructions — JobTrackr" };
 
@@ -34,7 +35,8 @@ export default async function InstructionsPage({
     .from("search_profiles").select("id");
   const ids = ((profileRows ?? []) as Array<{ id: string }>).map((p) => p.id);
 
-  const status = await getSetupStatus(user.id, ids);
+  const ent = await getEntitlement(user.id);
+  const status = await getSetupStatus(user.id, ids, ent.status !== "none");
   const setupComplete = isSetupComplete(status);
 
   const sp = await searchParams;

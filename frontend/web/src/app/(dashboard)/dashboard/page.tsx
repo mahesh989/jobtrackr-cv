@@ -129,7 +129,10 @@ export default async function DashboardPage({
     hasAnyJob = (count ?? 0) > 0;
   }
   if (!hasAnyJob) {
-    const status = await getSetupStatus(user.id, ids);
+    // billing=true: the dashboard layout's subscription gate already
+    // guarantees an active subscription for every page it wraps, including
+    // this one — no need to re-query it here.
+    const status = await getSetupStatus(user.id, ids, true);
     // Mode A — core setup unfinished (personal profile + CV + AI key): guided wizard.
     // Mode B — core done but no jobs yet (no search profile, or profiles/runs
     //          deleted): "ready to scan" screen with a create-profile CTA + the

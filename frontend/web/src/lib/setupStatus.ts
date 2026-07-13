@@ -14,9 +14,10 @@ import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type SetupStepKey =
-  | "profile" | "cv" | "voice" | "aiKey" | "email" | "apify" | "searchProfile";
+  | "billing" | "profile" | "cv" | "voice" | "aiKey" | "email" | "apify" | "searchProfile";
 
 export interface SetupStatus {
+  billing:       boolean; // an active subscription row exists (status !== "none")
   profile:       boolean; // contact details: name + address + phone present
   cv:            boolean; // an active CV version exists
   voice:         boolean; // a writing-voice profile exists
@@ -30,6 +31,14 @@ export interface SetupStatus {
 export async function getSetupStatus(
   userId: string,
   profileIds: string[],
+  /**
+   * Whether the caller already has an active subscription (any status other
+   * than "none" — trialing/active/past_due/canceled all count, since the
+   * step is "did you pick a plan", not "are you currently paying"). Callers
+   * that already compute Entitlement should pass `ent.status !== "none"`
+   * rather than have this module re-query the subscriptions table.
+   */
+  hasBilling: boolean,
 ): Promise<SetupStatus> {
   const supabase = await createClient();
   const admin    = createAdminClient();
@@ -59,5 +68,5 @@ export async function getSetupStatus(
   const apify   = !!apifyRes.data;
   const hasAnyJob = (((jobRes as { count: number | null }).count) ?? 0) > 0;
 
-  return { profile, cv, voice, aiKey, email, apify, searchProfile: hasAnyJob, hasAnyJob };
+  return { billing: hasBilling, profile, cv, voice, aiKey, email, apify, searchProfile: hasAnyJob, hasAnyJob };
 }
