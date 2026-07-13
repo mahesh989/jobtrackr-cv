@@ -71,5 +71,13 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     });
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  // exchangeCodeForSession/verifyOtp above already established a session, but
+  // we want the user to land on the login screen and sign in deliberately
+  // (clearer than silently dropping them into the dashboard from an email
+  // click) — sign back out before redirecting. Middleware bounces logged-in
+  // users away from /auth/login, so this sign-out is required for the
+  // redirect target to actually be reachable.
+  await supabase.auth.signOut();
+
+  return NextResponse.redirect(`${origin}/auth/login?confirmed=1`);
 }

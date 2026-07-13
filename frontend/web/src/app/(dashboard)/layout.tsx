@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
 import { SidebarNav } from "@/components/SidebarNav";
@@ -9,6 +9,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { RunNotifier } from "@/components/RunNotifier";
 import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
+import { getSetupStatus } from "@/lib/setupStatus";
+import { isSetupComplete, firstIncompleteStep } from "@/lib/setupSteps";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // getAuthUser is React.cache() — deduplicated with the page's own getUser call.
@@ -35,6 +37,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (ent.status === "none") redirect("/onboarding/plan");
 
   const isAdmin = ent.role === "founder" || ent.role === "admin";
+
+  // First-run gate: required setup steps (profile, CV, a run search profile)
+  // must be completed before the rest of the dashboard is usable. Admins
+  // don't onboard, and the gate is skipped on the instructions page itself
+  // (that's where the wizard lives) to avoid a redirect loop.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  if (!isAdmin && !pathname.startsWith("/dashboard/instructions")) {
+    const { data: gateProfileRows } = await supabase.from("search_profiles").select("id");
+    const gateProfileIds = ((gateProfileRows ?? []) as { id: string }[]).map((p) => p.id);
+    const setupStatus = await getSetupStatus(user.id, gateProfileIds);
+    if (!isSetupComplete(setupStatus)) {
+      const step = firstIncompleteStep(setupStatus) + 1; // SetupStepperBar's ?step= is 1-based
+      redirect(`/dashboard/instructions?tab=setup&setup=1&step=${step}`);
+    }
+  }
 
   // "View as user" — an admin previewing the user-facing UI as themselves.
   // Set via /api/admin/view-as?mode=user (jt_user_view cookie). In this mode we

@@ -64,6 +64,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Server Components can't read the current pathname directly — stamp it on
+  // a response header so the dashboard layout can gate on it (e.g. skip the
+  // first-run setup redirect while already on the setup page itself).
+  supabaseResponse.headers.set("x-pathname", pathname);
+
   return supabaseResponse;
 }
 

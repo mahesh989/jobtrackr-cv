@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
+import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
 
 export function SignupForm() {
@@ -41,8 +42,12 @@ export function SignupForm() {
     e.preventDefault();
     setError(null);
 
+    if (!passwordMeetsAllRules(password)) {
+      setError("Your password doesn't meet all the requirements below yet.");
+      return;
+    }
     if (password !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError("Passwords do not match — please re-enter them.");
       return;
     }
 
@@ -98,7 +103,13 @@ export function SignupForm() {
             <span style={{ color: "#EAEEF6", fontWeight: 500 }}>{email}</span>.
             Click it to activate your account.
           </p>
-          <button onClick={() => setSubmitted(false)} className="mt-6 text-[13px]" style={{ color: "#5B6478" }}>
+          <button
+            onClick={() => setSubmitted(false)}
+            className="mt-6 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
+            style={{ color: "#8B93A5" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#19E3C8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#8B93A5"; }}
+          >
             Try a different email
           </button>
         </div>
@@ -148,26 +159,36 @@ export function SignupForm() {
             <div>
               <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Password</label>
               <input
-                id="password" type="password" required minLength={8}
+                id="password" type="password" required
                 value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
+                placeholder="Create a password"
                 className="w-full px-4 py-3 rounded-lg outline-none"
                 style={inputStyle}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
                 onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
               />
+              <PasswordRequirements password={password} />
             </div>
             <div>
               <label htmlFor="confirmPassword" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Confirm password</label>
               <input
-                id="confirmPassword" type="password" required minLength={8}
+                id="confirmPassword" type="password" required
                 value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
                 className="w-full px-4 py-3 rounded-lg outline-none"
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: confirmPassword && confirmPassword !== password ? "#cf222e" : "#232A36",
+                }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#19E3C8"; e.currentTarget.style.background = "#11151C"; }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = "#232A36"; e.currentTarget.style.background = "#171C26"; }}
+                onBlur={(e)  => {
+                  e.currentTarget.style.borderColor = confirmPassword && confirmPassword !== password ? "#cf222e" : "#232A36";
+                  e.currentTarget.style.background = "#171C26";
+                }}
               />
+              {confirmPassword.length > 0 && confirmPassword !== password && (
+                <p className="mt-1.5 text-[11px]" style={{ color: "#cf222e" }}>Passwords do not match.</p>
+              )}
             </div>
 
             {error && <ErrorNotice message={error} />}
@@ -175,7 +196,13 @@ export function SignupForm() {
             <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
             <button
-              type="submit" disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
+              type="submit"
+              disabled={
+                loading || googleLoading ||
+                (TURNSTILE_CONFIGURED && !captchaToken) ||
+                !passwordMeetsAllRules(password) ||
+                password !== confirmPassword
+              }
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity"
               style={{ background: "#19E3C8", color: "#04231F", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
             >

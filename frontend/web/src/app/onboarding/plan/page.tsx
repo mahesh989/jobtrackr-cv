@@ -40,12 +40,12 @@ export default async function OnboardingPlanPage({
         {/* Primary CTA — always Monthly */}
         <TrialHero />
 
-        {/* Plan comparison — informational only, no buttons */}
+        {/* Plan comparison — each card is directly selectable */}
         <div>
           <p className="mb-3 text-center text-xs text-text-2">
-            What&apos;s included in each plan — you can switch anytime after subscribing.
+            Or pick a different plan below — every plan starts with the same free trial.
           </p>
-          <PlanCards showTrial={false} currentPlan={null} hideButtons />
+          <PlanCards showTrial currentPlan={null} />
         </div>
 
       </div>

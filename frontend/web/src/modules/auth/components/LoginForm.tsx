@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
@@ -10,6 +11,8 @@ import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } fr
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const confirmed = searchParams.get("confirmed");
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
@@ -86,6 +89,16 @@ export function LoginForm() {
       <p style={{ color: "#8B93A5", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
         Sign in with your email and password.
       </p>
+
+      {confirmed && (
+        <div
+          className="flex items-center gap-2 px-3 py-2.5 rounded-md mb-5"
+          style={{ background: "rgba(25, 227, 200, 0.1)", border: "1px solid rgba(25, 227, 200, 0.25)" }}
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "#19E3C8" }} />
+          <p style={{ color: "#19E3C8", fontSize: 12.5 }}>Email confirmed — sign in to get started.</p>
+        </div>
+      )}
 
       {/* Google button */}
       <button
