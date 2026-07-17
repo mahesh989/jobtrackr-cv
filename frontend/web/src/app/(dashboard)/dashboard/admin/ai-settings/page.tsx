@@ -8,7 +8,7 @@
  * effect on the very next request, for every user.
  */
 import { requireAdmin }       from "@/lib/admin/guard";
-import { PlatformAiSettings } from "@/components/admin/PlatformAiSettings";
+import { PlatformAiSettings } from "@/features/admin/PlatformAiSettings";
 import { PROVIDER_ORDER, DEFAULT_MODELS } from "@/lib/ai/models";
 
 export const metadata  = { title: "AI provider — Admin — JobTrackr" };

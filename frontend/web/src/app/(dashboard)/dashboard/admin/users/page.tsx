@@ -14,6 +14,7 @@
  */
 import { requireAdmin, formatCost, timeAgo } from "@/lib/admin/guard";
 import Link from "next/link";
+import { Badge } from "@/ui";
 
 export const metadata = { title: "Users — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -158,19 +159,19 @@ export default async function AdminUsersPage() {
                       )}
                     </td>
                     <td>
-                      <span className={`badge text-[10px] ${
-                        u.role === "founder" ? "badge-amber"
-                        : u.role === "admin" ? "badge-purple"
-                        : "badge-gray"
-                      }`}>{u.role}</span>
+                      <Badge variant={
+                        u.role === "founder" ? "amber"
+                        : u.role === "admin" ? "purple"
+                        : "gray"
+                      } className="text-[10px]">{u.role}</Badge>
                     </td>
                     <td>
                       {sub ? (
-                        <span className={`badge text-[10px] ${
-                          sub.status === "active"   ? "badge-green"
-                          : sub.status === "trialing" ? "badge-amber"
-                          : "badge-gray"
-                        }`}>{sub.plan_id}</span>
+                        <Badge variant={
+                          sub.status === "active"   ? "green"
+                          : sub.status === "trialing" ? "amber"
+                          : "gray"
+                        } className="text-[10px]">{sub.plan_id}</Badge>
                       ) : (
                         <span className="text-text-3 text-[11px]">—</span>
                       )}

@@ -1,18 +1,18 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { CvLibraryClient }    from "@/components/cv/CvLibraryClient";
+import { CvLibraryClient }    from "@/features/cv/library/CvLibraryClient";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
 import {
   ProfileDetailsProvider, ContactSection, VerticalsSection,
   CredentialsSection, AvailabilitySection, ReferencesSubSection, ProfileSaveBar,
-} from "@/components/cv/ProfileDetailsClient";
-import { EmailIntegrationCard } from "@/components/email/EmailIntegrationCard";
-import { NotificationsToggle } from "@/components/NotificationsToggle";
-import { VisaStatusSelect } from "@/components/VisaStatusSelect";
+} from "@/features/cv/profile/ProfileDetailsClient";
+import { EmailIntegrationCard } from "@/features/email/EmailIntegrationCard";
+import { NotificationsToggle } from "@/features/cv/NotificationsToggle";
+import { VisaStatusSelect } from "@/features/cv/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
-import type { ContactDetails } from "@/components/cv/ProfileSettingsClient";
+import type { ContactDetails } from "@/features/cv/profile/ProfileSettingsClient";
 
 export const metadata = { title: "My CV — JobTrackr" };
 

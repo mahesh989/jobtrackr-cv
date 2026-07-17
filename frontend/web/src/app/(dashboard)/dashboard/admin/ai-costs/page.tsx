@@ -11,7 +11,7 @@
  * Shows a "no data yet" state gracefully if the table is empty.
  */
 import { requireAdmin, formatCost, formatTokens, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/components/admin/AdminRangeFilter";
+import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
 import Link from "next/link";
 
 export const metadata = { title: "AI Costs — Admin — JobTrackr" };

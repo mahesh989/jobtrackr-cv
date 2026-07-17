@@ -4,13 +4,14 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
 import { ADMIN_ROLES } from "@/lib/constants";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { RunNotifier } from "@/components/RunNotifier";
-import { SetupStepperBar } from "@/components/onboarding/SetupStepperBar";
+import { ThemeProvider } from "@/layout/ThemeProvider";
+import { RunNotifier } from "@/layout/RunNotifier";
+import { SetupStepperBar } from "@/features/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
-import { SidebarData } from "@/components/SidebarData";
-import { MobileMenuButton } from "@/components/MobileMenuButton";
-import { SetupGateClient } from "@/components/SetupGateClient";
+import { SidebarData } from "@/layout/SidebarData";
+import { MobileMenuButton } from "@/layout/MobileMenuButton";
+import { SetupGateClient } from "@/layout/SetupGateClient";
+import { Button } from "@/ui";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
@@ -54,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <img src="/logo-wordmark.png" alt="JobTrackr" className="h-6 w-auto object-contain" />
           <div className="ml-auto flex items-center gap-2">
             <form action="/auth/signout" method="post">
-              <button className="text-xs gh-btn">Sign out</button>
+              <Button size="sm">Sign out</Button>
             </form>
           </div>
         </div>

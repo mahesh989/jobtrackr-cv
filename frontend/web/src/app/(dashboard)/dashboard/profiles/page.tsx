@@ -10,11 +10,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/components/profiles/ProfilesTable";
-import { ResumePausedBanner } from "@/components/profiles/ResumePausedBanner";
-import { BackButton } from "@/components/dashboard/BackButton";
-import { AddJobButton } from "@/components/jobs/AddJobButton";
+import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/features/profiles/ProfilesTable";
+import { ResumePausedBanner } from "@/features/profiles/ResumePausedBanner";
+import { BackButton } from "@/features/dashboard/BackButton";
+import { AddJobButton } from "@/features/jobs/AddJobButton";
 import { Inbox } from "lucide-react";
+import { Button } from "@/ui";
 
 export default async function ProfilesListPage() {
   const supabase = await createClient();
@@ -93,11 +94,13 @@ export default async function ProfilesListPage() {
           </div>
           <div className="flex items-center gap-2">
             <AddJobButton variant="primary" />
-            <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px]">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-              </svg>
-              New search
+            <Link href="/dashboard/profiles/new" className="inline-flex">
+              <Button variant="blue" className="text-[13px]">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+                New search
+              </Button>
             </Link>
           </div>
         </div>
@@ -132,8 +135,10 @@ function EmptyState() {
           <p className="text-[13px] text-text-2 leading-relaxed mb-6">
             Create a search profile to start collecting matching jobs across boards.
           </p>
-          <Link href="/dashboard/profiles/new" className="gh-btn gh-btn-blue text-[13px] px-4 py-2">
-            Create your first profile →
+          <Link href="/dashboard/profiles/new" className="inline-flex">
+            <Button variant="blue" className="px-4 py-2">
+              Create your first profile →
+            </Button>
           </Link>
         </div>
       </div>

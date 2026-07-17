@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import { PlanCards } from "@/components/billing/PlanCards";
+import { PlanCards } from "@/features/billing/PlanCards";
 
 export const metadata = { title: "Pricing — JobTrackr" };
 

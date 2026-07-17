@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { ThemePickerClient } from "@/components/ThemePickerClient";
-import { DensityPickerClient } from "@/components/DensityPickerClient";
+import { ThemePickerClient } from "@/layout/ThemePickerClient";
+import { DensityPickerClient } from "@/layout/DensityPickerClient";
 
 export const metadata = { title: "Theme — JobTrackr" };
 

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, Spinner, inputStyle } from "./brand";
+import { Button } from "@/ui";
 
 type SessionState = "checking" | "ready" | "missing";
 
@@ -173,21 +174,15 @@ export function UpdatePasswordForm() {
 
         {error && <ErrorNotice message={error} />}
 
-        <button
+        <Button
           type="submit"
+          isLoading={loading}
           disabled={loading || !passwordMeetsAllRules(password) || password !== confirmPassword}
           className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "#0B7D74", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
         >
-          {loading ? (
-            <>
-              <Spinner />
-              Updating…
-            </>
-          ) : (
-            "Update password"
-          )}
-        </button>
+          {loading ? "Updating…" : "Update password"}
+        </Button>
       </form>
         </>
       )}

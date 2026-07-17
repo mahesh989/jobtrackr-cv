@@ -18,23 +18,25 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/modules/auth/server";
 import { redirect } from "next/navigation";
 import { resolveThresholds } from "@/lib/atsThresholds";
+import { Badge } from "@/ui";
 import { Suspense } from "react";
 import Link from "next/link";
-import { RunNowButton } from "@/components/RunNowButton";
-import { DeleteProfileButton } from "@/components/DeleteProfileButton";
-import { MarkSeenOnLoad } from "@/components/MarkSeenOnLoad";
-import { LiveRunStatus } from "@/components/LiveRunStatus";
-import { LiveLogConsole } from "@/components/LiveLogConsole";
-import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
-import { ProfileJobBoard } from "@/components/jobs/ProfileJobBoard";
-import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
+import { RunNowButton } from "@/features/profiles/RunNowButton";
+import { DeleteProfileButton } from "@/features/profiles/DeleteProfileButton";
+import { MarkSeenOnLoad } from "@/features/profiles/MarkSeenOnLoad";
+import { LiveRunStatus } from "@/features/profiles/LiveRunStatus";
+import { LiveLogConsole } from "@/features/profiles/LiveLogConsole";
+import { type FunnelCounts } from "@/features/jobs/PipelineFunnel";
+import { ProfileJobBoard } from "@/features/jobs/ProfileJobBoard";
+import { Button } from "@/ui";
+import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
-} from "@/components/jobs/progressFlags";
-import { derivePipelineState, recomputeGates } from "@/components/jobs/pipelineState";
+} from "@/features/jobs/progressFlags";
+import { derivePipelineState, recomputeGates } from "@/features/jobs/pipelineState";
 import { computeEligibility, hoursCapConflict, isUserVisaStatus } from "@/lib/eligibility";
 
 interface SearchParams {
@@ -346,10 +348,10 @@ export default async function JobsPage({
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-[16px] font-semibold text-text">{p.name}</h1>
               {newCount > 0 && (
-                <span className="badge badge-blue font-bold">{newCount} new</span>
+                <Badge variant="blue" className="font-bold">{newCount} new</Badge>
               )}
               {tabAppliedCount > 0 && (
-                <span className="badge badge-green">{tabAppliedCount} applied</span>
+                <Badge variant="green">{tabAppliedCount} applied</Badge>
               )}
               <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}
@@ -370,18 +372,20 @@ export default async function JobsPage({
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
             <Link
               href={`/api/profiles/${id}/jobs/export?${exportParams.toString()}`}
-              className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap"
+              className="shrink-0 whitespace-nowrap"
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Export CSV
+              <Button size="sm" className="px-2.5 py-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Export CSV
+              </Button>
             </Link>
-            <Link href={`/dashboard/profiles/${id}/runs`} className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap">
-              Run history
+            <Link href={`/dashboard/profiles/${id}/runs`} className="shrink-0 whitespace-nowrap">
+              <Button size="sm" className="px-2.5 py-1">Run history</Button>
             </Link>
-            <Link href={`/dashboard/profiles/${id}/edit`} className="gh-btn text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap">
-              Edit
+            <Link href={`/dashboard/profiles/${id}/edit`} className="shrink-0 whitespace-nowrap">
+              <Button size="sm" className="px-2.5 py-1">Edit</Button>
             </Link>
             <RunNowButton profileId={id} initialIsRunning={isRunning} />
             <DeleteProfileButton profileId={id} profileName={p.name} compact />

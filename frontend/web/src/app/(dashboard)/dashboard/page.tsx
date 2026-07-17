@@ -26,20 +26,21 @@ import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
-import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
-import { DashboardStatCards } from "@/components/dashboard/DashboardStatCards";
-import { PipelineDonut, type PipelineLensData } from "@/components/dashboard/PipelineDonut";
-import { type FunnelCounts } from "@/components/jobs/PipelineFunnel";
-import { ScrollToJobsOnFilter } from "@/components/jobs/ScrollToJobsOnFilter";
-import { JobBoard } from "@/components/jobs/JobBoard";
-import { atsBandFor, jobNeedsJd, type BoardJob } from "@/components/jobs/jobFilters";
+import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
+import { DashboardStatCards } from "@/features/dashboard/DashboardStatCards";
+import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/PipelineDonut";
+import { type FunnelCounts } from "@/features/jobs/PipelineFunnel";
+import { ScrollToJobsOnFilter } from "@/features/jobs/ScrollToJobsOnFilter";
+import { JobBoard } from "@/features/jobs/JobBoard";
+import { Button } from "@/ui";
+import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
-} from "@/components/jobs/progressFlags";
-import { derivePipelineState, recomputeGates } from "@/components/jobs/pipelineState";
+} from "@/features/jobs/progressFlags";
+import { derivePipelineState, recomputeGates } from "@/features/jobs/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -659,9 +660,11 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
           </p>
           <Link
             href={hasProfiles ? "/dashboard/profiles" : "/dashboard/profiles/new"}
-            className="gh-btn gh-btn-blue text-[14px] px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold"
+            className="inline-flex"
           >
-            {hasProfiles ? "Go to your profiles" : "Create a search profile"}
+            <Button variant="blue" className="px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold">
+              {hasProfiles ? "Go to your profiles" : "Create a search profile"}
+            </Button>
           </Link>
           <p className="text-[12px] text-text-3 mt-4">
             Need to change your details?{" "}

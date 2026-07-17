@@ -5,7 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
-import { ErrorNotice, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
+import { ErrorNotice, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
+import { Button } from "@/ui";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -173,19 +174,19 @@ export function ForgotPasswordForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <button
+                <Button
                   onClick={handleResend}
                   disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
                   className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   style={{ color: "#0B7D74" }}
                 >
                   {resendLoading ? "Resending…" : "Resend reset link"}
-                </button>
+                </Button>
               </>
             )}
           </div>
 
-          <button
+          <Button
             onClick={handleTryDifferentEmail}
             className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
             style={{ color: "#475467" }}
@@ -193,7 +194,7 @@ export function ForgotPasswordForm() {
             onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}
           >
             Try a different email
-          </button>
+          </Button>
         </div>
       ) : (
         <>
@@ -236,8 +237,9 @@ export function ForgotPasswordForm() {
 
             <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
-            <button
+            <Button
               type="submit"
+              isLoading={loading}
               disabled={loading || (TURNSTILE_CONFIGURED && !captchaToken)}
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{
@@ -248,15 +250,8 @@ export function ForgotPasswordForm() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? (
-                <>
-                  <Spinner />
-                  Sending…
-                </>
-              ) : (
-                "Send reset link"
-              )}
-            </button>
+              {loading ? "Sending…" : "Send reset link"}
+            </Button>
           </form>
 
           <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>

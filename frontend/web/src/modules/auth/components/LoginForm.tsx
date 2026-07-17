@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
+import { Button } from "@/ui";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -104,7 +105,7 @@ export function LoginForm() {
       )}
 
       {/* Google button */}
-      <button
+      <Button
         onClick={handleGoogleSignIn}
         disabled={googleLoading || loading}
         className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer"
@@ -112,7 +113,7 @@ export function LoginForm() {
       >
         {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
         Continue with Google
-      </button>
+      </Button>
 
       {/* Divider */}
       <div className="flex items-center gap-3 mb-5">
@@ -173,8 +174,9 @@ export function LoginForm() {
         <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
         <div style={{ marginTop: 28 }}>
-          <button
+          <Button
             type="submit"
+            isLoading={loading}
             disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
             className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
             style={{
@@ -185,12 +187,7 @@ export function LoginForm() {
               opacity: loading ? 0.7 : 1,
             }}
           >
-            {loading ? (
-              <>
-                <Spinner />
-                Signing in…
-              </>
-            ) : (
+            {loading ? "Signing in…" : (
               <>
                 Sign in
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -198,7 +195,7 @@ export function LoginForm() {
                 </svg>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </form>
 

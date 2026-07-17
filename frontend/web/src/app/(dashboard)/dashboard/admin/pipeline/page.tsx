@@ -9,8 +9,9 @@
  *   - What's the ATS uplift distribution across all runs?
  */
 import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/components/admin/AdminRangeFilter";
+import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
 import { adminForceCancelRun } from "@/lib/admin/actions";
+import { Button } from "@/ui";
 import Link from "next/link";
 
 export const metadata = { title: "Pipeline Health — Admin — JobTrackr" };
@@ -217,12 +218,14 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                         </td>
                         <td>
                           <form action={adminForceCancelRun.bind(null, r.id)}>
-                            <button
+                            <Button
+                              variant="danger"
+                              size="sm"
                               type="submit"
-                              className="text-[11px] text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
+                              className="text-[11px] font-semibold"
                             >
                               Force cancel
-                            </button>
+                            </Button>
                           </form>
                         </td>
                       </tr>

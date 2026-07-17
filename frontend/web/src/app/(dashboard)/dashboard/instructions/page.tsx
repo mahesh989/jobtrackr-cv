@@ -14,8 +14,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { InstructionsTabs } from "@/components/onboarding/InstructionsTabs";
-import { HowItWorksDeck } from "@/components/onboarding/HowItWorksDeck";
+import { InstructionsTabs } from "@/features/onboarding/InstructionsTabs";
+import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
 import { getSetupStatus } from "@/lib/setupStatus";
 import { clampStepIndex, firstIncompleteStep, isSetupComplete } from "@/lib/setupSteps";
 import { getEntitlement } from "@/lib/billing/entitlements";

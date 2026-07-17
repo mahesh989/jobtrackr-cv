@@ -15,6 +15,7 @@
 import { requireAdmin, timeAgo } from "@/lib/admin/guard";
 import Link from "next/link";
 import { DUMMY_MRR_TREND, DUMMY_BILLING_EVENTS } from "@/lib/admin/dummyData";
+import { Badge } from "@/ui";
 
 export const metadata = { title: "Revenue — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -31,12 +32,12 @@ function Kpi({ label, value, sub, color = "text-text" }: {
   );
 }
 
-const PLAN_COLOR: Record<string, string> = {
-  trial:     "badge-amber",
-  weekly:    "badge-blue",
-  monthly:   "badge-green",
-  unlimited: "badge-purple",
-  comp:      "badge-gray",
+const PLAN_VARIANT: Record<string, "amber" | "blue" | "green" | "purple" | "gray"> = {
+  trial:     "amber",
+  weekly:    "blue",
+  monthly:   "green",
+  unlimited: "purple",
+  comp:      "gray",
 };
 
 const EVENT_COLOR: Record<string, string> = {
@@ -233,7 +234,7 @@ export default async function AdminRevenuePage() {
                   return (
                     <tr key={plan.id}>
                       <td>
-                        <span className={`badge text-[10px] ${PLAN_COLOR[plan.id] ?? "badge-gray"}`}>{plan.display_name}</span>
+                        <Badge variant={PLAN_VARIANT[plan.id] ?? "gray"} className="text-[10px]">{plan.display_name}</Badge>
                       </td>
                       <td className="tabular-nums">{d.count}</td>
                       <td className="font-mono text-text-2">{plan.price_cents > 0 ? fmt(plan.price_cents) : "Free"}</td>
@@ -267,8 +268,8 @@ export default async function AdminRevenuePage() {
                         {emailById[s.user_id] ?? s.user_id.slice(0, 12) + "…"}
                       </Link>
                     </td>
-                    <td><span className={`badge text-[10px] ${PLAN_COLOR[s.plan_id] ?? "badge-gray"}`}>{planById[s.plan_id]?.display_name ?? s.plan_id}</span></td>
-                    <td><span className={`badge text-[10px] ${s.status === "active" ? "badge-green" : s.status === "trialing" ? "badge-amber" : s.status === "canceled" ? "badge-red" : "badge-gray"}`}>{s.status}</span></td>
+                    <td><Badge variant={PLAN_VARIANT[s.plan_id] ?? "gray"} className="text-[10px]">{planById[s.plan_id]?.display_name ?? s.plan_id}</Badge></td>
+                    <td><Badge variant={s.status === "active" ? "green" : s.status === "trialing" ? "amber" : s.status === "canceled" ? "red" : "gray"} className="text-[10px]">{s.status}</Badge></td>
                     <td className="text-text-3 tabular-nums">{s.current_period_end ? new Date(s.current_period_end).toLocaleDateString("en-AU") : "—"}</td>
                     <td className="text-text-3">{timeAgo(s.created_at)}</td>
                   </tr>
@@ -291,9 +292,9 @@ export default async function AdminRevenuePage() {
                   {e.type.replace(/\./g, " ")}
                 </span>
                 <span className="text-[12px] text-text font-medium truncate flex-1">{e.user}</span>
-                <span className={`badge text-[10px] ${PLAN_COLOR[e.plan] ?? "badge-gray"}`}>{e.plan}</span>
+                <Badge variant={PLAN_VARIANT[e.plan] ?? "gray"} className="text-[10px]">{e.plan}</Badge>
                 {e.amount > 0 && <span className="text-[12px] font-mono text-text-2">${(e.amount / 100).toFixed(2)}</span>}
-                {e.status === "failed" && <span className="badge badge-red text-[10px]">failed</span>}
+                {e.status === "failed" && <Badge variant="red" className="text-[10px]">failed</Badge>}
                 <span className="text-[11px] text-text-3 tabular-nums shrink-0">{timeAgo(e.ts)}</span>
               </div>
             ))}

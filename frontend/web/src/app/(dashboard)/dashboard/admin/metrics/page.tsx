@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Badge } from "@/ui";
 
 const HEALTHCARE_SOURCES = new Set([
   "pageup", "elmo", "jobadder", "mercury_roubler", "scout_talent",
@@ -15,10 +16,10 @@ function MetricRow({
   index: number; label: string; target: string; value: string; pass: boolean | null; manual?: boolean;
 }) {
   const status = manual
-    ? <span className="badge badge-gray text-[10px]">Manual</span>
-    : pass === true  ? <span className="badge badge-green text-[10px]">Pass</span>
-    : pass === false ? <span className="badge badge-red text-[10px]">Fail</span>
-    : <span className="badge badge-gray text-[10px]">N/A</span>;
+    ? <Badge variant="gray" className="text-[10px]">Manual</Badge>
+    : pass === true  ? <Badge variant="green" className="text-[10px]">Pass</Badge>
+    : pass === false ? <Badge variant="red" className="text-[10px]">Fail</Badge>
+    : <Badge variant="gray" className="text-[10px]">N/A</Badge>;
 
   return (
     <tr>

@@ -2,9 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cancelRun } from "@/lib/actions";
-import { RunJobsTable } from "@/components/RunJobsTable";
-import { LiveRunStatus } from "@/components/LiveRunStatus";
-import { LiveLogConsole } from "@/components/LiveLogConsole";
+import { RunJobsTable } from "@/features/profiles/RunJobsTable";
+import { LiveRunStatus } from "@/features/profiles/LiveRunStatus";
+import { LiveLogConsole } from "@/features/profiles/LiveLogConsole";
+import { Badge, Button } from "@/ui";
 
 export default async function RunHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -74,8 +75,8 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
             </div>
             <h1 className="text-[16px] font-semibold text-text">Run history</h1>
           </div>
-          <Link href={`/dashboard/profiles/${id}/jobs`} className="gh-btn text-[12px] px-2.5 py-1">
-            ← Back to jobs
+          <Link href={`/dashboard/profiles/${id}/jobs`}>
+            <Button size="sm" className="px-2.5 py-1">← Back to jobs</Button>
           </Link>
         </div>
       </div>
@@ -153,13 +154,13 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     {/* Status */}
                     <div className="col-span-1 flex items-center justify-center">
                       {isRunning ? (
-                        <span className="badge badge-blue text-[10px]">Running</span>
+                        <Badge variant="blue" className="text-[10px]">Running</Badge>
                       ) : isFailed ? (
-                        <span className="badge badge-red text-[10px]">Failed</span>
+                        <Badge variant="red" className="text-[10px]">Failed</Badge>
                       ) : isDone ? (
-                        <span className="badge badge-green text-[10px]">Done</span>
+                        <Badge variant="green" className="text-[10px]">Done</Badge>
                       ) : (
-                        <span className="badge badge-gray text-[10px]">{run.status}</span>
+                        <Badge variant="gray" className="text-[10px]">{run.status}</Badge>
                       )}
                     </div>
 
@@ -202,9 +203,9 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     <div className="col-span-1 flex items-center justify-end">
                       {isRunning && (
                         <form action={cancelRun.bind(null, run.id, id)}>
-                          <button type="submit" className="gh-btn text-[11px] px-2 py-1 text-[#CF222E] hover:bg-[#FFEBE9] hover:border-[#CF222E]/30">
+                          <Button type="submit" size="sm" className="px-2 py-1 text-[#CF222E] hover:bg-[#FFEBE9] hover:border-[#CF222E]/30">
                             Cancel
-                          </button>
+                          </Button>
                         </form>
                       )}
                     </div>

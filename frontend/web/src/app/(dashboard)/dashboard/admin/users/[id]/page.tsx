@@ -16,6 +16,7 @@ import { requireAdmin, formatCost, timeAgo, fmtDateTime } from "@/lib/admin/guar
 import { adminGrantUnlimitedAccess } from "@/lib/admin/actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Badge, Button } from "@/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -180,13 +181,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <div>
             <h1 className="text-[16px] font-semibold text-text">{user.email}</h1>
             <div className="flex items-center gap-2 mt-1">
-              <span className={`badge text-[10px] ${user.role === "founder" ? "badge-amber" : user.role === "admin" ? "badge-purple" : "badge-gray"}`}>
+              <Badge variant={user.role === "founder" ? "amber" : user.role === "admin" ? "purple" : "gray"} className="text-[10px]">
                 {user.role}
-              </span>
+              </Badge>
               {sub && (
-                <span className={`badge text-[10px] ${sub.status === "active" ? "badge-green" : sub.status === "trialing" ? "badge-amber" : "badge-gray"}`}>
+                <Badge variant={sub.status === "active" ? "green" : sub.status === "trialing" ? "amber" : "gray"} className="text-[10px]">
                   {sub.status}
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -237,12 +238,14 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               }}
               className="mt-2"
             >
-              <button
+              <Button
+                variant="default"
+                size="sm"
                 type="submit"
-                className="text-[11px] px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-2 transition-colors"
+                className="text-[11px]"
               >
                 Grant unlimited access (10 yr)
-              </button>
+              </Button>
             </form>
           )}
         </Section>
@@ -293,7 +296,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   {cvs.map((cv) => (
                     <tr key={cv.id}>
                       <td className="font-medium text-text">{cv.label}</td>
-                      <td>{cv.is_active ? <span className="badge badge-green text-[10px]">Active</span> : <span className="text-text-3 text-[11px]">—</span>}</td>
+                      <td>{cv.is_active ? <Badge variant="green" className="text-[10px]">Active</Badge> : <span className="text-text-3 text-[11px]">—</span>}</td>
                       <td className="text-text-3 text-[11px]">{timeAgo(cv.created_at)}</td>
                       <td>
                         {signedUrls[cv.id] ? (
@@ -354,7 +357,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   {profiles.map((p) => (
                     <tr key={p.id}>
                       <td className="font-medium text-text">{p.name}</td>
-                      <td>{p.is_active ? <span className="badge badge-green text-[10px]">Active</span> : <span className="text-text-3 text-[11px]">Paused</span>}</td>
+                      <td>{p.is_active ? <Badge variant="green" className="text-[10px]">Active</Badge> : <span className="text-text-3 text-[11px]">Paused</span>}</td>
                       <td className="font-mono text-[11px] text-text-3">{p.schedule_cron ?? "manual"}</td>
                       <td className="text-text-3 text-[11px]">{timeAgo(p.created_at)}</td>
                     </tr>
@@ -412,9 +415,9 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <tr key={r.id}>
                       <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
                       <td>
-                        <span className={`badge text-[10px] ${r.status === "completed" ? "badge-green" : r.status === "failed" ? "badge-red" : r.status === "running" ? "badge-blue" : "badge-gray"}`}>
+                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-[10px]">
                           {r.status}
-                        </span>
+                        </Badge>
                       </td>
                       <td className="tabular-nums text-[12px]">{r.match_score ?? "—"}</td>
                       <td className="tabular-nums font-semibold text-[12px]">{r.tailored_match_score ?? "—"}</td>

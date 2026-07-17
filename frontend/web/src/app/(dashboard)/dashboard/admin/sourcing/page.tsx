@@ -15,9 +15,10 @@
  *             See lib/admin/dummyData.ts for removal instructions.
  */
 import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/components/admin/AdminRangeFilter";
+import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
 import Link from "next/link";
 import { DUMMY_SOURCE_STATUS } from "@/lib/admin/dummyData";
+import { Badge } from "@/ui";
 
 export const metadata = { title: "Sourcing Health — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -490,9 +491,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                     <tr key={r.id}>
                       <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
                       <td>
-                        <span className={`badge text-[10px] ${r.status === "completed" ? "badge-green" : r.status === "failed" ? "badge-red" : r.status === "running" ? "badge-blue" : "badge-gray"}`}>
+                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-[10px]">
                           {r.status}
-                        </span>
+                        </Badge>
                       </td>
                       <td className="text-[11px] text-text-3 tabular-nums">{sm?.tier ?? "—"}</td>
                       <td className="text-[10px] space-x-1">

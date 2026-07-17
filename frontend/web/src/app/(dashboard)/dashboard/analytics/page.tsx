@@ -26,6 +26,7 @@ import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
+import { Button } from "@/ui";
 
 interface Funnel {
   scraped:  number;
@@ -356,8 +357,10 @@ function EmptyState() {
             Once your profiles have run and saved jobs, you&apos;ll see the pipeline funnel
             broken down by source and profile here.
           </p>
-          <Link href="/dashboard" className="gh-btn gh-btn-blue text-[13px] px-4 py-2">
-            Go to the job board →
+          <Link href="/dashboard" className="inline-flex">
+            <Button variant="blue" className="px-4 py-2">
+              Go to the job board →
+            </Button>
           </Link>
         </div>
       </div>

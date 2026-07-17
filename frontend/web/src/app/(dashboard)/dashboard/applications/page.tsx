@@ -24,13 +24,14 @@ import {
   ApplicationStatusTabs,
   type ApplicationStatusCounts,
   type ApplicationStatusKey,
-} from "@/components/applications/ApplicationStatusTabs";
-import { type ApplicationRowV2 } from "@/components/applications/ApplicationCardV2";
-import { ApplicationCardListV2 } from "@/components/applications/ApplicationCardListV2";
-import { PoolHowItWorks } from "@/components/applications/PoolHowItWorks";
-import { ApplicationPoolSort, type PoolSortKey } from "@/components/applications/ApplicationPoolSort";
-import { BackButton } from "@/components/dashboard/BackButton";
-import { MarkApplicationsSeenOnLoad } from "@/components/applications/MarkApplicationsSeenOnLoad";
+} from "@/features/applications/ApplicationStatusTabs";
+import { type ApplicationRowV2 } from "@/features/applications/ApplicationCardV2";
+import { ApplicationCardListV2 } from "@/features/applications/ApplicationCardListV2";
+import { PoolHowItWorks } from "@/features/applications/PoolHowItWorks";
+import { ApplicationPoolSort, type PoolSortKey } from "@/features/applications/ApplicationPoolSort";
+import { BackButton } from "@/features/dashboard/BackButton";
+import { MarkApplicationsSeenOnLoad } from "@/features/applications/MarkApplicationsSeenOnLoad";
+import { Button } from "@/ui";
 
 type JobRow = {
   id:              string;
@@ -350,8 +351,10 @@ function EmptyState() {
           <p className="text-[13px] text-text-2 leading-relaxed mb-6">
             Generate a cover letter from any job&apos;s analysis page and it&apos;ll show up here ready for review.
           </p>
-          <Link href="/dashboard" className="gh-btn gh-btn-blue text-[13px] px-4 py-2">
-            Go to the job board →
+          <Link href="/dashboard" className="inline-flex">
+            <Button variant="blue" className="px-4 py-2">
+              Go to the job board →
+            </Button>
           </Link>
         </div>
       </div>

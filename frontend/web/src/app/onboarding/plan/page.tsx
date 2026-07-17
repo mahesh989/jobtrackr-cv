@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { getEntitlement } from "@/lib/billing/entitlements";
-import { TrialHero } from "@/components/billing/TrialHero";
-import { PlanCards } from "@/components/billing/PlanCards";
+import { TrialHero } from "@/features/billing/TrialHero";
+import { PlanCards } from "@/features/billing/PlanCards";
+import { Button } from "@/ui";
 
 export const metadata = { title: "Start your free trial — JobTrackr" };
 
@@ -27,7 +28,7 @@ export default async function OnboardingPlanPage({
 
         <div className="flex justify-end">
           <form action="/auth/signout" method="post">
-            <button className="text-xs gh-btn cursor-pointer">Sign out</button>
+            <Button size="sm">Sign out</Button>
           </form>
         </div>
 

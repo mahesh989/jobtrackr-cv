@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ProfileForm } from "@/components/ProfileForm";
+import { ProfileForm } from "@/features/profiles/ProfileForm";
 
 export default async function NewProfilePage() {
   // Work-setting filter is only relevant to healthcare/nursing users — gate the

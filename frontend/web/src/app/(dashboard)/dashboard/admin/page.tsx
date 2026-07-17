@@ -15,6 +15,7 @@ import { requireAdmin, formatCost, timeAgo } from "@/lib/admin/guard";
 import { ADMIN_ROLES } from "@/lib/constants";
 import Link from "next/link";
 import { generateInviteCode, revokeInviteCode } from "@/lib/actions";
+import { Badge, Button } from "@/ui";
 
 export const metadata = { title: "Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -254,9 +255,9 @@ export default async function AdminOverviewPage() {
                       <Link href={`/dashboard/admin/users/${u.id}`} className="hover:underline">{u.email}</Link>
                     </td>
                     <td>
-                      <span className={`badge text-[10px] ${u.role === "founder" ? "badge-amber" : u.role === "admin" ? "badge-purple" : "badge-gray"}`}>
+                      <Badge variant={u.role === "founder" ? "amber" : u.role === "admin" ? "purple" : "gray"} className="text-[10px]">
                         {u.role}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="text-text-2">{(profilesByUser[u.id] ?? []).length}</td>
                     <td className="text-text-3">{new Date(u.created_at).toLocaleDateString("en-AU")}</td>
@@ -322,7 +323,7 @@ export default async function AdminOverviewPage() {
               Invite codes <span className="text-text-2 font-normal">({invites.length})</span>
             </h2>
             <form action={generateInviteCode}>
-              <button type="submit" className="gh-btn gh-btn-blue text-[12px] px-3 py-1">+ Generate</button>
+              <Button type="submit" variant="blue" size="sm" className="px-3 py-1">+ Generate</Button>
             </form>
           </div>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
@@ -336,16 +337,16 @@ export default async function AdminOverviewPage() {
                   <tr key={inv.code}>
                     <td className="font-mono text-[13px] text-text">{inv.code}</td>
                     <td>
-                      <span className={`badge text-[10px] ${!inv.is_active ? "badge-gray" : inv.used_by ? "badge-gray" : "badge-green"}`}>
+                      <Badge variant={!inv.is_active ? "gray" : inv.used_by ? "gray" : "green"} className="text-[10px]">
                         {!inv.is_active ? "revoked" : inv.used_by ? "used" : "available"}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="text-text-2">{inv.used_by ? (userEmailById[inv.used_by] ?? inv.used_by.slice(0, 8) + "…") : "—"}</td>
                     <td className="text-text-3">{new Date(inv.created_at).toLocaleDateString("en-AU")}</td>
                     <td>
                       {inv.is_active && !inv.used_by && (
                         <form action={revokeInviteCode.bind(null, inv.code)}>
-                          <button type="submit" className="text-[11px] text-red-600 hover:underline font-medium">Revoke</button>
+                          <Button type="submit" variant="danger" size="sm" className="text-[11px] hover:underline font-medium">Revoke</Button>
                         </form>
                       )}
                     </td>

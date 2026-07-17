@@ -1,7 +1,7 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
-import { CvReviewClient }    from "@/components/cv/CvReviewClient";
+import { CvReviewClient }    from "@/features/cv/library/CvReviewClient";
 import { STRUCTURED_CV_VERSION, type StructuredCv } from "@/lib/cvBackend";
 import { structurizeAndPersist }   from "@/lib/cv/structurizeAndCategorise";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";

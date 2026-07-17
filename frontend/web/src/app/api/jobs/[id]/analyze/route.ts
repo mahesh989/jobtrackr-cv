@@ -24,7 +24,7 @@ import type { StructuredCv } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE }            from "@/lib/rateLimit";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { resolveThresholds } from "@/lib/atsThresholds";
-import { MANUAL_JD_MIN_CHARS } from "@/components/jobs/jobFilters";
+import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/jobFilters";
 import { emitEvent } from "@/lib/admin/events";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask

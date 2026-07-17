@@ -1,9 +1,9 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { VoiceCaptureClient } from "@/components/cv/VoiceCaptureClient";
-import { StoriesClient }      from "@/components/cv/StoriesClient";
-import type { StoredStory }   from "@/components/cv/StoriesClient";
+import { VoiceCaptureClient } from "@/features/cv/voice/VoiceCaptureClient";
+import { StoriesClient }      from "@/features/cv/voice/StoriesClient";
+import type { StoredStory }   from "@/features/cv/voice/StoriesClient";
 
 export const metadata = { title: "Writing voice — JobTrackr" };
 

@@ -2,8 +2,8 @@ import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { ADMIN_ROLES }         from "@/lib/constants";
 import { redirect }            from "next/navigation";
-import { ApifyIntegrationCard }  from "@/components/ApifyIntegrationCard";
-import { PlatformSourcesCard }   from "@/components/admin/PlatformSourcesCard";
+import { ApifyIntegrationCard }  from "@/features/integrations/ApifyIntegrationCard";
+import { PlatformSourcesCard }   from "@/features/admin/PlatformSourcesCard";
 
 export const metadata = { title: "Integrations — JobTrackr" };
 

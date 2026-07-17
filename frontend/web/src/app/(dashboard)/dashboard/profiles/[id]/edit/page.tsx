@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ProfileForm } from "@/components/ProfileForm";
-import { DeleteProfileButton } from "@/components/DeleteProfileButton";
-import { CopyProfileButton } from "@/components/CopyProfileButton";
+import { ProfileForm } from "@/features/profiles/ProfileForm";
+import { DeleteProfileButton } from "@/features/profiles/DeleteProfileButton";
+import { CopyProfileButton } from "@/features/profiles/CopyProfileButton";
 
 export default async function EditProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

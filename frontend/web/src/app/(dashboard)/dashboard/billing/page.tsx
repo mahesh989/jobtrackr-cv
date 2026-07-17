@@ -3,10 +3,10 @@ import { redirect } from "next/navigation";
 import { CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
 import { getEntitlement, getUsageSummary } from "@/lib/billing/entitlements";
 import { DENY_COPY, type DenyReason } from "@/lib/billing/plans";
-import { UsageMeter } from "@/components/billing/UsageMeter";
-import { PlanCards } from "@/components/billing/PlanCards";
-import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
-import { UpgradeOptions } from "@/components/billing/UpgradeOptions";
+import { UsageMeter } from "@/features/billing/UsageMeter";
+import { PlanCards } from "@/features/billing/PlanCards";
+import { ManageSubscriptionButton } from "@/features/billing/ManageSubscriptionButton";
+import { UpgradeOptions } from "@/features/billing/UpgradeOptions";
 
 export const metadata = { title: "Billing — JobTrackr" };
 
