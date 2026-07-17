@@ -22,37 +22,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidateTag }             from "next/cache";
-
-interface Project {
-  name?:        string;
-  url?:         string;
-  description?: string;
-}
-
-interface ProfileCredentials {
-  ahpra_number?:         string;
-  drivers_licence?:      string;
-  work_rights?:          string;
-  work_rights_hours?:    string;
-  wwcc_state?:           string;
-  forklift_licence?:     string;
-  wwcc?:                 boolean;
-  police_check?:         boolean;
-  ndis_screening?:       boolean;
-  first_aid?:            boolean;
-  cpr?:                  boolean;
-  medication_competency?: boolean;
-  own_car?:              boolean;
-  car_insurance?:        boolean;
-  flu_vaccination?:      boolean;
-  covid_vaccination?:    boolean;
-  white_card?:           boolean;
-  availability?:         string[];  // subset of ["Full Time","Part Time","Casual"]
-  show_availability?:    boolean;   // opt-in: surface availability on the CV
-}
-
-type RoleFamily = "tech" | "nursing" | "manual" | "general";
-const ROLE_FAMILY_VALUES: readonly RoleFamily[] = ["tech", "nursing", "manual", "general"] as const;
+import type {
+  Project,
+  ProfileCredentials,
+  RoleFamily,
+  ContactDetails as BaseContactDetails,
+} from "@/lib/types";
 
 interface Referee {
   name?:      string;
@@ -67,24 +42,11 @@ interface References {
   referees?:             Referee[];
 }
 
-interface ContactDetails {
-  name?:          string;
-  phone?:         string;
-  email?:         string;
-  address?:       string;
-  suburb?:        string;
-  postcode?:      string;
-  linkedin?:      string;
-  github?:        string;
-  website?:       string;
-  portfolio?:     string;
-  other_label?:   string;
-  other_url?:     string;
-  projects?:      Project[];
-  role_families?: RoleFamily[];
-  credentials?:   ProfileCredentials;
-  references?:    References;
+interface ContactDetails extends BaseContactDetails {
+  references?: References;
 }
+
+const ROLE_FAMILY_VALUES: readonly RoleFamily[] = ["tech", "nursing", "manual", "general"] as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const URL_RE   = /^https?:\/\/[^\s]+$/i;

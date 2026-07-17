@@ -1,6 +1,6 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
-import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
+import type { ContactDetails } from "@/lib/types";
 
 interface DownloadBundleParams {
   jobId: string;

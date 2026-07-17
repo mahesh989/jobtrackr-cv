@@ -27,7 +27,7 @@ import { Badge } from "@/ui";
 import { markJobApplied, markJobDismissed, markJobUnapplied } from "@/lib/actions";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
-import type { ContactDetails } from "@/lib/cvMarkdownHelpers";
+import type { ContactDetails } from "@/lib/types";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 import { CvInlinePreview } from "./CvInlinePreview";
 import { SentEmailModal } from "./SentEmailModal";

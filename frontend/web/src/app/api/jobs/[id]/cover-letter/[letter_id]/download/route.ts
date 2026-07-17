@@ -19,7 +19,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { createClient }        from "@/lib/supabase/server";
-import { assembleLetter, type ContactDetails } from "@/lib/coverLetterTemplate";
+import { assembleLetter } from "@/lib/coverLetterTemplate";
+import type { ContactDetails } from "@/lib/types";
 import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
 
 export async function GET(

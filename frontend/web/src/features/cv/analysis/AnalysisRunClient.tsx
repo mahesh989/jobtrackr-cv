@@ -580,13 +580,12 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
 // ── CV skills summary (independent of JD) ───────────────────────────────────
 
-const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
-type Cat = (typeof CAT_ORDER)[number];
-const CAT_LABEL: Record<Cat, string> = {
-  technical:        "Technical",
-  soft_skills:      "Soft skills",
-  domain_knowledge: "Domain knowledge",
-};
+import type { SkillCategory } from "@/lib/types";
+import { SKILL_CATEGORY_ORDER, SKILL_CATEGORY_LABELS } from "@/lib/types";
+
+const CAT_ORDER = SKILL_CATEGORY_ORDER;
+type Cat = SkillCategory;
+const CAT_LABEL: Record<Cat, string> = SKILL_CATEGORY_LABELS;
 
 // Merge the role-family-aware labels persisted on jd_analysis_result over the
 // generic defaults. Runs analysed before the enrichment landed have no

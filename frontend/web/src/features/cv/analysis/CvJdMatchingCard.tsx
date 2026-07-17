@@ -10,6 +10,9 @@
  * Restyled with JobTrackr tokens; data shape unchanged from cv-magic.
  */
 
+import type { SkillCategory } from "@/lib/types";
+import { SKILL_CATEGORY_ORDER, SKILL_CATEGORY_LABELS } from "@/lib/types";
+
 interface CatCount         { matched: number; total: number }
 interface BucketCounts     { technical?: CatCount; soft_skills?: CatCount; domain_knowledge?: CatCount }
 interface MatchingCounts   { required?: BucketCounts; preferred?: BucketCounts; overall?: CatCount }
@@ -38,13 +41,9 @@ interface MatchingData {
   match_summary?:  string;
 }
 
-const CAT_ORDER = ["technical", "soft_skills", "domain_knowledge"] as const;
-type Cat = (typeof CAT_ORDER)[number];
-const CAT_LABEL: Record<Cat, string> = {
-  technical:        "Technical",
-  soft_skills:      "Soft skills",
-  domain_knowledge: "Domain knowledge",
-};
+const CAT_ORDER = SKILL_CATEGORY_ORDER;
+type Cat = SkillCategory;
+const CAT_LABEL: Record<Cat, string> = SKILL_CATEGORY_LABELS;
 
 function rateBadgeCls(pct: number) {
   if (pct >= 70) return "bg-green-light text-green border-green/30";

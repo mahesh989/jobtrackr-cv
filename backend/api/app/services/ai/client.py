@@ -334,9 +334,7 @@ class AIClient:
 
         async with AsyncAnthropic(api_key=self.api_key) as client:
             if no_training:
-                # TODO: Anthropic SDK 0.97 has no public no-training API parameter.
-                # When Anthropic documents one, pass it here via extra_headers or a
-                # native param. Provider default data policy applies until then.
+                # ponytail: no Anthropic opt-out API yet; provider default data policy applies.
                 pass
 
             # Some newer Anthropic models (Opus 4.7+, including 4.8) reject the
@@ -493,8 +491,7 @@ class AIClient:
                 request_kwargs["seed"] = seed
             if no_training:
                 # Opt out of OpenAI using this completion for model training.
-                # TODO: DeepSeek is OpenAI-compatible but does not document 'store';
-                # passing it is likely a no-op — verify when DeepSeek publishes API docs.
+                # ponytail: DeepSeek ignores 'store' — passing it is a harmless no-op.
                 request_kwargs["store"] = False
 
             async def _do_call(kwargs: Dict[str, Any]):

@@ -6,12 +6,8 @@
  */
 
 import { AlertTriangle } from "lucide-react";
-
-interface CategorisedSkills {
-  technical?:         string[];
-  soft_skills?:       string[];
-  domain_knowledge?:  string[];
-}
+import type { CategorisedSkills, SkillCategory } from "@/lib/types";
+import { SKILL_CATEGORY_ORDER, SKILL_CATEGORY_LABELS } from "@/lib/types";
 
 interface Credentials {
   required?:    string[];
@@ -38,13 +34,8 @@ interface JDAnalysisData {
   job_context?:               JobContext;
 }
 
-const CAT_LABEL: Record<string, string> = {
-  technical:         "Technical",
-  soft_skills:       "Soft skills",
-  domain_knowledge:  "Domain knowledge",
-};
-type Cat = "technical" | "soft_skills" | "domain_knowledge";
-const DEFAULT_CAT_ORDER: Cat[] = ["technical", "soft_skills", "domain_knowledge"];
+const CAT_LABEL: Record<string, string> = SKILL_CATEGORY_LABELS;
+const DEFAULT_CAT_ORDER: SkillCategory[] = [...SKILL_CATEGORY_ORDER];
 
 function resolveCatLabels(data: Record<string, unknown>): Record<string, string> {
   const raw = (data as { category_labels?: Record<string, string> }).category_labels;
@@ -52,11 +43,11 @@ function resolveCatLabels(data: Record<string, unknown>): Record<string, string>
   return { ...CAT_LABEL, ...raw };
 }
 
-function resolveCatOrder(data: Record<string, unknown>): Cat[] {
+function resolveCatOrder(data: Record<string, unknown>): SkillCategory[] {
   const raw = (data as { category_order?: string[] }).category_order;
   if (!Array.isArray(raw)) return DEFAULT_CAT_ORDER;
   const valid = raw.filter(
-    (k): k is Cat => k === "technical" || k === "soft_skills" || k === "domain_knowledge",
+    (k): k is SkillCategory => SKILL_CATEGORY_ORDER.includes(k as SkillCategory),
   );
   return valid.length === 3 ? valid : DEFAULT_CAT_ORDER;
 }
@@ -188,7 +179,7 @@ function SkillBlock({
   categorised: boolean;
   variant: "required" | "preferred";
   catLabels: Record<string, string>;
-  catOrder: Cat[];
+  catOrder: SkillCategory[];
 }) {
   return (
     <div>
@@ -208,9 +199,9 @@ function CategorisedSkillGrid({
   skills: CategorisedSkills;
   variant: "required" | "preferred";
   catLabels: Record<string, string>;
-  catOrder: Cat[];
+  catOrder: SkillCategory[];
 }) {
-  const hasAny = catOrder.some((k) => (skills[k]?.length ?? 0) > 0);
+  const hasAny = catOrder.some((k) => ((skills as Record<string, unknown[]>)[k]?.length ?? 0) > 0);
   if (!hasAny) return null;
 
   return (

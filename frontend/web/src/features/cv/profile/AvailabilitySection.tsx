@@ -3,8 +3,7 @@
 import { Clock } from "lucide-react";
 import { useProfile } from "./context";
 import { SectionCard, CheckBox, Pill } from "./primitives";
-
-const AVAILABILITY_OPTIONS = ["Full Time", "Part Time", "Casual"] as const;
+import { AVAILABILITY_OPTIONS } from "@/lib/types";
 
 export function AvailabilitySection() {
   const { creds, setCred } = useProfile();

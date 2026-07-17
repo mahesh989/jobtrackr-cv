@@ -12,13 +12,9 @@ import {
   BookOpen,
 } from "lucide-react";
 import { Button, Input } from "@/ui";
+import type { StoryNumber } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface StoryNumber {
-  metric: string;
-  value:  string;
-}
 
 export interface StoredStory {
   id:                   string;

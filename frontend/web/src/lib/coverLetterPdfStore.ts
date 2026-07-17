@@ -13,7 +13,8 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { assembleLetter, type ContactDetails } from "@/lib/coverLetterTemplate";
+import { assembleLetter } from "@/lib/coverLetterTemplate";
+import type { ContactDetails } from "@/lib/types";
 import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
 
 const COVER_LETTER_BUCKET = "cover-letters";

@@ -68,8 +68,7 @@ VERTICALS["master"] = VERTICALS["general"]
 # of truth that replace the four duplicated local literals.
 ROLE_FAMILIES = {pack.profile.id: pack.profile for pack in VERTICALS.values()}
 
-# family_id → lexicon vertical string (or None).  Replace all four local
-# _FAMILY_TO_VERTICAL / _ROLE_FAMILY_TO_VERTICAL dicts with this.
+# family_id → lexicon vertical string (or None).
 FAMILY_TO_LEXICON: Dict[str, Optional[str]] = {
     pack.profile.id: pack.lexicon_vertical
     for pack in VERTICALS.values()

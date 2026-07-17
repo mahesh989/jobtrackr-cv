@@ -19,13 +19,12 @@ import { sendViaOutlook }             from "@/lib/email/outlook";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { emitEvent }                 from "@/lib/admin/events";
+import type { ContactDetails }       from "@/lib/types";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 const MAX_SUBJECT_LEN = 300;
 const MAX_BODY_LEN    = 20_000;
 const MAX_CV_PDF_BYTES = 4 * 1024 * 1024;  // 4 MB — generous; a typical CV is ~80-200KB
-
-interface ContactDetails { name?: string }
 
 export async function POST(
   req: NextRequest,

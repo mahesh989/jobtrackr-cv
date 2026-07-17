@@ -8,13 +8,8 @@ import { Button } from "@/ui";
 import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil, X } from "lucide-react";
 import { CvReviewClient } from "@/features/cv/library/CvReviewClient";
 import type { StructuredCv } from "@/lib/cvBackend";
+import type { CategorisedSkills } from "@/lib/types";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-
-interface CategorisedSkills {
-  technical?:        string[];
-  soft_skills?:      string[];
-  domain_knowledge?: string[];
-}
 
 interface CvRow {
   id:                    string;

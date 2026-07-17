@@ -135,18 +135,7 @@ export function padPipesAndCleanArtifacts(md: string): string {
 
 // ─── NEW: client-side contact-line stamp ───────────────────────────────────
 
-export interface ContactDetails {
-  name?:        string;
-  phone?:       string;
-  email?:       string;
-  address?:     string;
-  linkedin?:    string;
-  github?:      string;
-  website?:     string;
-  portfolio?:   string;
-  other_label?: string;
-  other_url?:   string;
-}
+import type { ContactDetails } from "@/lib/types";
 
 /**
  * Mirrors cv-backend's stamp_contact_line — replaces everything between H1

@@ -5,14 +5,7 @@
  * AU-standard letter body that the client renders as a PDF.
  */
 
-export interface ContactDetails {
-  name?:     string;
-  address?:  string;
-  suburb?:   string;
-  postcode?: string;
-  phone?:    string;
-  email?:    string;
-}
+import type { ContactDetails } from "@/lib/types";
 
 export interface AssembleLetterInput {
   contactDetails:   ContactDetails;

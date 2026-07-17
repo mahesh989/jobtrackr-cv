@@ -26,8 +26,8 @@ import {
   padPipesAndCleanArtifacts,
   stampContactClient,
   tidyContactLine,
-  type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
+import type { ContactDetails } from "@/lib/types";
 
 interface Props {
   storagePath: string | null;

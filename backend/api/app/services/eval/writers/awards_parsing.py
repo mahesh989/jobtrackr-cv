@@ -470,7 +470,7 @@ def _format_award_entry(name: str, org: str, date: str, description: str = "") -
     return lines
 
 
-# Keep the old name as an alias so any external callers are not broken.
+# Legacy alias used by _impl.py; prefer _format_award_entry in new code.
 def _format_award_bullet(name: str, org: str, date: str) -> str:
     return "\n".join(_format_award_entry(name, org, date))
 

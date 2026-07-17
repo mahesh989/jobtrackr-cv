@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import { isUserVisaStatus } from "@/lib/eligibility";
 
 /**
@@ -71,5 +72,6 @@ export async function PATCH(request: NextRequest) {
     .eq("user_id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidatePath("/dashboard");
   return NextResponse.json({ visa_status: visaStatus });
 }

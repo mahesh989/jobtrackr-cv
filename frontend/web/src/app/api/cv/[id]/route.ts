@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { revalidatePath }            from "next/cache";
 import { ensureSomeoneActive }       from "@/lib/cv/ensureActive";
 
 const SIGNED_URL_TTL_SECONDS = 300;
@@ -116,6 +117,7 @@ export async function PATCH(
   // still exist in their library.
   if (!body.is_active) await ensureSomeoneActive(admin, user.id);
 
+  revalidatePath("/dashboard/cv");
   return NextResponse.json({ id, is_active: body.is_active });
 }
 
@@ -161,5 +163,6 @@ export async function DELETE(
   // any CVs exist.
   await ensureSomeoneActive(admin, user.id);
 
+  revalidatePath("/dashboard/cv");
   return NextResponse.json({ deleted: true });
 }

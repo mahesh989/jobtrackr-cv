@@ -112,13 +112,7 @@ export async function POST(
     .select("contact_details")
     .eq("user_id", user.id)
     .maybeSingle();
-  interface ContactDetails {
-    name?: string; phone?: string; email?: string; address?: string;
-    linkedin?: string; github?: string; website?: string; portfolio?: string;
-    other_label?: string; other_url?: string;
-    role_families?: string[] | null;
-  }
-  const contactDetails    = (prefRow?.contact_details as ContactDetails | null) ?? null;
+  const contactDetails    = (prefRow?.contact_details as import("@/lib/types").ContactDetails | null) ?? null;
   const cvTextForAnalysis = cv.cv_text;
   const contactForBackend = (contactDetails as Record<string, unknown> | null) ?? null;
   const myCvFamilies         = (contactDetails?.role_families ?? []).filter(Boolean);

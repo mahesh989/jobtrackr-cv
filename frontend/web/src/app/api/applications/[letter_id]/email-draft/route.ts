@@ -15,19 +15,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cvBackend";
-
-interface ContactDetails {
-  name?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  linkedin?: string;
-  github?: string;
-  website?: string;
-  portfolio?: string;
-  other_label?: string;
-  other_url?: string;
-}
+import type { ContactDetails }       from "@/lib/types";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 

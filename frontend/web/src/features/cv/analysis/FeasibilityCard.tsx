@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/ui";
+import type { SkillCategory } from "@/lib/types";
+import { SKILL_CATEGORY_LABELS } from "@/lib/types";
 
 /**
  * Faithful port of cv-magic's FeasibilityCard with four buckets:
@@ -13,13 +15,9 @@ import { Button } from "@/ui";
  * Summary tiles at top mirror cv-magic exactly.
  */
 
-type FeasibilityCategory = "technical" | "soft_skills" | "domain_knowledge";
+type FeasibilityCategory = SkillCategory;
 
-const CATEGORY_LABEL: Record<FeasibilityCategory, string> = {
-  technical:        "Technical",
-  soft_skills:      "Soft skill",
-  domain_knowledge: "Domain knowledge",
-};
+const CATEGORY_LABEL: Record<FeasibilityCategory, string> = SKILL_CATEGORY_LABELS;
 
 interface BaseEntry {
   keyword:    string;

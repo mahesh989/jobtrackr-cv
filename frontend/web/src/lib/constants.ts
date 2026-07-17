@@ -3,15 +3,9 @@
  *
  * Uses `as const` objects (idiomatic TS, not enums) so values are
  * directly comparable to strings and usable as union types.
+ *
+ * SkillCategory lives in @/lib/types — it's a domain type, not a constant.
  */
-
-export const SkillCategory = {
-  TECHNICAL: "technical",
-  SOFT_SKILLS: "soft_skills",
-  DOMAIN_KNOWLEDGE: "domain_knowledge",
-} as const;
-
-export type SkillCategory = (typeof SkillCategory)[keyof typeof SkillCategory];
 
 export const RunStatus = {
   PENDING: "pending",

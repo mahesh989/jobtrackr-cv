@@ -23,8 +23,8 @@ import {
   padPipesAndCleanArtifacts,
   stampContactClient,
   tidyContactLine,
-  type ContactDetails,
 } from "@/lib/cvMarkdownHelpers";
+import type { ContactDetails } from "@/lib/types";
 import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
 import { fitCvToPage } from "@/lib/cvPdfFit";
 

@@ -12,7 +12,8 @@
  * OPS-16 about importing values from "use client" modules into server code.
  */
 
-export type RoleFamily = "tech" | "nursing" | "manual" | "general";
+import type { RoleFamily } from "@/lib/types";
+export type { RoleFamily } from "@/lib/types";
 
 export interface SkillLabels {
   domain_knowledge: string;

@@ -8,6 +8,8 @@
  * Only Next.js API routes (server-only) call this — never the browser.
  */
 import crypto from "node:crypto";
+import type { StoryNumber } from "@/lib/types";
+export type { StoryNumber } from "@/lib/types";
 
 const BASE_URL = process.env.CV_BACKEND_URL;
 const SECRET   = process.env.JOBTRACKR_HMAC_SECRET;
@@ -390,11 +392,6 @@ export function extractVoiceFingerprint(
     payload,
     { timeoutMs: 60_000 },
   );
-}
-
-interface StoryNumber {
-  metric: string;
-  value:  string;
 }
 
 /** A single validated story returned by cv-backend. */

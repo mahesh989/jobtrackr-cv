@@ -142,7 +142,7 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
     try:
         ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
     except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     try:
         result = await categorise_cv_skills(ai_client, body.cv_text)
@@ -150,9 +150,9 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI categorisation failed: {exc}",
-        )
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     return CategoriseCvResponse(
         technical=        result.get("technical", []),
@@ -175,7 +175,7 @@ async def extract_cv_references_route(
     try:
         ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
     except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     try:
         referees = await extract_cv_references(ai_client, body.cv_text)
@@ -183,9 +183,9 @@ async def extract_cv_references_route(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI extraction failed: {exc}",
-        )
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     return ExtractCvReferencesResponse(
         referees=[CvReferee(**r) for r in referees],
@@ -206,7 +206,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     try:
         ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
     except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     try:
         structured = await structurize_cv(ai_client, body.cv_text)
@@ -214,9 +214,9 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI structurization failed: {exc}",
-        )
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     return StructurizeCvResponse(
         structured_cv=     structured,
