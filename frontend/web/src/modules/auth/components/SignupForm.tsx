@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
-import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
-import { Button } from "@/ui";
+import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
+import { Button, Input } from "@/ui";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -224,52 +224,34 @@ export function SignupForm() {
 
           {/* Email + password form */}
           <form onSubmit={handleEmailSignUp} className="space-y-4">
+            <Input
+              label="Email address"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
             <div>
-              <label htmlFor="email" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Email address</label>
-              <input
-                id="email" type="email" required
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full px-4 py-3 rounded-lg outline-none"
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Password</label>
-              <input
-                id="password" type="password" required
-                value={password} onChange={(e) => setPassword(e.target.value)}
+              <Input
+                label="Password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Create a password"
-                className="w-full px-4 py-3 rounded-lg outline-none"
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
               />
               <PasswordRequirements password={password} />
             </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>Confirm password</label>
-              <input
-                id="confirmPassword" type="password" required
-                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your password"
-                className="w-full px-4 py-3 rounded-lg outline-none"
-                style={{
-                  ...inputStyle,
-                  borderColor: confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0",
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-                onBlur={(e)  => {
-                  e.currentTarget.style.borderColor = confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0";
-                  e.currentTarget.style.background = "#EEF2F7";
-                }}
-              />
-              {confirmPassword.length > 0 && confirmPassword !== password && (
-                <p className="mt-1.5 text-[11px]" style={{ color: "#cf222e" }}>Passwords do not match.</p>
-              )}
-            </div>
+            <Input
+              label="Confirm password"
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
+              error={confirmPassword.length > 0 && confirmPassword !== password ? "Passwords do not match." : undefined}
+            />
 
             {error && <ErrorNotice message={error} />}
 

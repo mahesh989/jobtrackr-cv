@@ -5,8 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
-import { ErrorNotice, TURNSTILE_CONFIGURED, inputStyle } from "./brand";
-import { Button } from "@/ui";
+import { ErrorNotice, TURNSTILE_CONFIGURED } from "./brand";
+import { Button, Input } from "@/ui";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -214,24 +214,15 @@ export function ForgotPasswordForm() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoFocus
-                className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
-              />
-            </div>
+            <Input
+              label="Email address"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoFocus
+            />
 
             {error && <ErrorNotice message={error} />}
 

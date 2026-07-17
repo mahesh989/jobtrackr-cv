@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Textarea } from "@/ui";
+import { Modal, Button, Textarea, Input } from "@/ui";
 import { triggerReanalyze } from "@/features/cv/analysis/AnalyzeJobButton";
 import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/jobFilters";
 import { matchedExclusions } from "@/lib/descExclusion";
@@ -216,10 +216,8 @@ export function JobEditModal({
 
           {/* Email */}
           <div>
-            <label htmlFor="job-email" className="block text-[12px] font-medium text-text mb-1.5">
-              Recruiter / contact email <span className="text-text-3 font-normal">(optional)</span>
-            </label>
-            <input
+            <Input
+              label="Recruiter / contact email (optional)"
               id="job-email"
               type="email"
               autoComplete="off"
@@ -227,7 +225,6 @@ export function JobEditModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jane.recruiter@company.com"
-              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Used later for sending your tailored CV via email — kept private on your account.
@@ -236,10 +233,8 @@ export function JobEditModal({
 
           {/* Hiring Manager */}
           <div>
-            <label htmlFor="hiring-manager" className="block text-[12px] font-medium text-text mb-1.5">
-              Hiring manager name <span className="text-text-3 font-normal">(optional)</span>
-            </label>
-            <input
+            <Input
+              label="Hiring manager name (optional)"
               id="hiring-manager"
               type="text"
               autoComplete="off"
@@ -247,7 +242,6 @@ export function JobEditModal({
               value={hiringMgr}
               onChange={(e) => setHiringMgr(e.target.value)}
               placeholder="John Smith"
-              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-md px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
             />
             <p className="text-[11px] text-text-2 mt-1.5">
               Used in the cover letter salutation (e.g., &ldquo;Dear John Smith,&rdquo;).

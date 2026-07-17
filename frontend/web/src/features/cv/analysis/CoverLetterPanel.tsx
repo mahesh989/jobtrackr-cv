@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button, Textarea } from "@/ui";
+import { Button, Textarea, Input } from "@/ui";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 interface GenerationStatus {
@@ -791,17 +791,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             </div>
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label htmlFor="dl-hiring-mgr" className="text-[12px] font-medium text-text-2 mb-2 block">
-                  Hiring manager name (optional)
-                </label>
-                <input
+                <Input
+                  label="Hiring manager name (optional)"
                   id="dl-hiring-mgr"
                   type="text"
                   autoFocus
                   value={downloadHiringMgr}
                   onChange={(e) => setDownloadHiringMgr(e.target.value)}
                   placeholder="e.g., John Smith"
-                  className="w-full rounded border border-border bg-surface-2 px-3 py-2 text-[13px] text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                 />
                 <p className="text-[11px] text-text-3 mt-1">
                   Used in the salutation line. Leave blank to use the job default or &ldquo;Hiring Manager&rdquo;.

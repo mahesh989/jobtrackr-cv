@@ -11,7 +11,7 @@ import {
   Check,
   BookOpen,
 } from "lucide-react";
-import { Button } from "@/ui";
+import { Button, Input } from "@/ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -113,16 +113,14 @@ function StoryCard({
       <div className="space-y-1.5">
         {editing ? (
           <div className="space-y-2">
-            <input
+            <Input
               type="text"
               value={pendingTags}
               onChange={(e) => onPendingTagsChange(e.target.value)}
               placeholder="leadership, technical, delivery…"
-              className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-1.5 text-xs text-black placeholder:text-[var(--sidebar-text-dim)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+              error={tagError ?? undefined}
+              aria-label="Tags"
             />
-            {tagError && (
-              <p className="text-[11px] text-red-600">{tagError}</p>
-            )}
             <div className="flex items-center gap-2">
               <Button
                 variant="primary"

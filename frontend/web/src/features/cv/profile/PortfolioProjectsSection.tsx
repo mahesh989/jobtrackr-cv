@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, ExternalLink } from "lucide-react";
-import { Button } from "@/ui";
+import { Button, Input } from "@/ui";
 import type { Project } from "./types";
 
 export function PortfolioProjectsSection({
@@ -40,24 +40,22 @@ export function PortfolioProjectsSection({
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-text-2">Name</label>
-                <input
+                <Input
+                  label="Name"
                   type="text"
                   value={proj.name ?? ""}
                   onChange={(e) => patchProject(i, "name", e.target.value)}
                   placeholder="e.g. CV Magic"
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-text-2">URL</label>
                 <div className="flex items-center gap-1.5">
-                  <input
+                  <Input
+                    label="URL"
                     type="url"
                     value={proj.url ?? ""}
                     onChange={(e) => patchProject(i, "url", e.target.value)}
                     placeholder="https://github.com/you/project"
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                   />
                   {proj.url && (
                     <a
@@ -74,15 +72,12 @@ export function PortfolioProjectsSection({
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-text-2">
-                One-line description <span className="font-normal text-text-3">(optional)</span>
-              </label>
-              <input
+              <Input
+                label="One-line description (optional)"
                 type="text"
                 value={proj.description ?? ""}
                 onChange={(e) => patchProject(i, "description", e.target.value)}
                 placeholder="e.g. AI-powered CV tailoring tool built with Next.js and FastAPI"
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
               />
             </div>
           </div>

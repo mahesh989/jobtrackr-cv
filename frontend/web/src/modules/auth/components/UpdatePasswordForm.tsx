@@ -5,8 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AuthShell } from "./AuthShell";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
-import { ErrorNotice, Spinner, inputStyle } from "./brand";
-import { Button } from "@/ui";
+import { ErrorNotice, Spinner } from "./brand";
+import { Button, Input } from "@/ui";
 
 type SessionState = "checking" | "ready" | "missing";
 
@@ -126,51 +126,27 @@ export function UpdatePasswordForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="password" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-            New password
-          </label>
-          <input
-            id="password"
+          <Input
+            label="New password"
             type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Create a password"
             autoFocus
-            className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
-            style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#EEF2F7"; }}
           />
           <PasswordRequirements password={password} />
         </div>
 
-        <div>
-          <label htmlFor="confirmPassword" className="block mb-2" style={{ fontSize: 12, fontWeight: 500, letterSpacing: 0.2 }}>
-            Confirm new password
-          </label>
-          <input
-            id="confirmPassword"
-            type="password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Re-enter your password"
-            className="w-full px-4 py-3 rounded-lg outline-none transition-colors"
-            style={{
-              ...inputStyle,
-              borderColor: confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0",
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#0B7D74"; e.currentTarget.style.background = "#FFFFFF"; }}
-            onBlur={(e)  => {
-              e.currentTarget.style.borderColor = confirmPassword && confirmPassword !== password ? "#cf222e" : "#E2E8F0";
-              e.currentTarget.style.background = "#EEF2F7";
-            }}
-          />
-          {confirmPassword.length > 0 && confirmPassword !== password && (
-            <p className="mt-1.5 text-[11px]" style={{ color: "#cf222e" }}>Passwords do not match.</p>
-          )}
-        </div>
+        <Input
+          label="Confirm new password"
+          type="password"
+          required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Re-enter your password"
+          error={confirmPassword.length > 0 && confirmPassword !== password ? "Passwords do not match." : undefined}
+        />
 
         {error && <ErrorNotice message={error} />}
 

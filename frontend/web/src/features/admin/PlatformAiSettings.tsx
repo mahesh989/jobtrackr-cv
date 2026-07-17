@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PROVIDER_META, PROVIDER_ORDER, type AiProvider } from "@/lib/ai/models";
-import { Button } from "@/ui";
+import { Button, Input } from "@/ui";
 
 export interface AdminProviderRow {
   provider:         AiProvider;
@@ -235,7 +235,8 @@ export function PlatformAiSettings({ initialProviders }: { initialProviders: Adm
                         Get key <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                    <input
+                    <Input
+                      label=""
                       type="password"
                       autoComplete="off"
                       spellCheck={false}
@@ -243,7 +244,7 @@ export function PlatformAiSettings({ initialProviders }: { initialProviders: Adm
                       onChange={(e) => setKeyInputs((prev) => ({ ...prev, [id]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && handleConnect(id)}
                       placeholder={meta.placeholder}
-                      className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[13px] font-mono text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]"
+                      className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-[13px] font-mono placeholder:text-text-3 focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]"
                     />
                     <p className="text-[11px] text-text-3">
                       Stored encrypted (AES-256-GCM). Used for every user&apos;s analyses while this provider is active.

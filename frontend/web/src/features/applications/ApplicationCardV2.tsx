@@ -398,10 +398,11 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                   <Mail className="w-3.5 h-3.5 text-[var(--brand)]" />
                   <span className="font-medium">To:</span>
                   {contact.editing ? (
-                    <input autoFocus type="email" value={contact.draft}
+                    <Input autoFocus type="email" value={contact.draft}
                       onChange={(e) => contact.setDraft(e.target.value)}
                       onBlur={() => contact.commit(contact.draft)}
                       onKeyDown={(e) => { if (e.key === "Enter") contact.commit(contact.draft); }}
+                      aria-label="Contact email"
                       className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
                   ) : (
                     <Button onClick={() => { contact.setDraft(contact.email ?? ""); contact.setEditing(true); }}
@@ -421,10 +422,11 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                 </span>
               )}
               {!hasEmail && contact.editing && (
-                <input autoFocus type="email" placeholder="hr@company.com" value={contact.draft}
+                <Input autoFocus type="email" placeholder="hr@company.com" value={contact.draft}
                   onChange={(e) => contact.setDraft(e.target.value)}
                   onBlur={() => contact.commit(contact.draft)}
                   onKeyDown={(e) => { if (e.key === "Enter") contact.commit(contact.draft); }}
+                  aria-label="Contact email"
                   className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
               )}
               {email.voiceRewritten && (

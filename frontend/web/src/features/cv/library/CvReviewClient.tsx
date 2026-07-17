@@ -30,7 +30,7 @@ import type {
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-import { Button } from "@/ui";
+import { Button, Input } from "@/ui";
 
 const AUTOSAVE_MS = 10_000;
 
@@ -834,7 +834,7 @@ export function CvReviewClient({
               {/* Custom section — inline name input */}
               {addingCustom ? (
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     autoFocus
                     placeholder="Section name…"
@@ -845,6 +845,7 @@ export function CvReviewClient({
                       if (e.key === "Escape") { setAddingCustom(false); setNewSectName(""); }
                     }}
                     className="text-[12.5px] h-7 rounded-full border border-[var(--brand)]/60 bg-[var(--surface)] px-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 w-44 transition-colors"
+                    aria-label="Section name"
                   />
                   <Button
                     variant="default"
@@ -1009,19 +1010,14 @@ function GhostField({
     ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
     : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
   return (
-    <label className="block">
-      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-        {invalid && <span className="normal-case tracking-normal text-red-600 font-semibold ml-1.5">· required</span>}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className={`block w-full ${sized} text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
-      />
-    </label>
+    <Input
+      label={required ? `${label} *` : label}
+      error={invalid ? "required" : undefined}
+      type="text"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className={`${sized} ${border}`}
+    />
   );
 }
 
@@ -1052,19 +1048,21 @@ function DatesField({ start, end, onStart, onEnd, invalid = false }: {
         Dates {(blank || invalid) && <span className="normal-case tracking-normal text-red-600 font-semibold">· {invalid ? "required" : "missing"}</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
-        <input
+        <Input
           type="text"
           value={start}
           onChange={e => onStart(e.target.value)}
           placeholder="Start"
-          className={`text-[13px] text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
+          aria-label="Start date"
+          className={`text-[13px] py-1.5 ${border}`}
         />
-        <input
+        <Input
           type="text"
           value={end}
           onChange={e => onEnd(e.target.value)}
           placeholder="End or Present"
-          className={`text-[13px] text-text bg-[var(--surface-2)]/30 border ${border} rounded-md px-2.5 py-1.5 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:outline-none focus:ring-2 transition-colors`}
+          aria-label="End date"
+          className={`text-[13px] py-1.5 ${border}`}
         />
       </div>
     </div>
@@ -1137,7 +1135,7 @@ function SkillsBucket({
             </Button>
           </span>
         ))}
-        <input
+        <Input
           type="text"
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -1146,6 +1144,7 @@ function SkillsBucket({
           }}
           placeholder="add…"
           className="text-[12px] h-6 w-24 rounded-full border border-dashed border-[var(--border)] bg-transparent px-2.5 placeholder:text-text-3 focus:outline-none focus:border-[var(--brand)]/70 focus:bg-[var(--surface-2)]/40 transition-colors"
+          aria-label={`Add ${label}`}
         />
       </div>
     </div>
