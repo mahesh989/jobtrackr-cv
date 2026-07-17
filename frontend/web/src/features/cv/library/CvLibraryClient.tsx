@@ -5,8 +5,9 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/ui";
-import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil, X } from "lucide-react";
+import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
 import { CvReviewClient } from "@/features/cv/library/CvReviewClient";
+import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/CvLibraryModals";
 import type { StructuredCv } from "@/lib/cvBackend";
 import type { CategorisedSkills } from "@/lib/types";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
@@ -45,14 +46,7 @@ const EXT_FROM_MIME: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
-// Rotating status lines shown in the upload progress modal. The message
-// advances on a timer while the real work runs in the background — the last
-// line stays put until the upload actually finishes.
-const UPLOAD_MESSAGES = [
-  "Uploading your CV…",
-  "Analysing the sections…",
-  "Almost there — tidying things up…",
-];
+
 
 // Extract a useful error string from a fetch response, even when the body
 // isn't JSON (e.g. Vercel's edge-level rejection for over-limit bodies).
@@ -109,7 +103,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
   useEffect(() => {
     if (uploadPhase !== "uploading") return;
     const id = window.setInterval(() => {
-      setUploadStep((s) => Math.min(s + 1, UPLOAD_MESSAGES.length - 1));
+      setUploadStep((s) => Math.min(s + 1, 2));
     }, 2600);
     return () => window.clearInterval(id);
   }, [uploadPhase]);
@@ -518,56 +512,13 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
 
       {/* Upload progress modal — spinner + rotating status, then success + OK.
           The X only closes the box; the upload keeps running in the background. */}
-      {uploadPhase && typeof window !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="relative w-full max-w-sm rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl"
-          >
-            <Button
-              variant="default"
-              size="sm"
-              type="button"
-              onClick={dismissUploadModal}
-              aria-label="Close"
-              className="absolute right-3 top-3 rounded-full p-1.5"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-
-            <div className="flex flex-col items-center text-center pt-3">
-              {uploadPhase === "uploading" ? (
-                <>
-                  <Loader2 className="h-11 w-11 animate-spin text-[var(--brand)]" aria-hidden="true" />
-                  <p className="mt-4 text-[15px] font-semibold text-text" aria-live="polite">
-                    {UPLOAD_MESSAGES[uploadStep]}
-                  </p>
-                  <p className="mt-1 text-[13px] text-text-2">
-                    This may take a moment — please wait.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-11 w-11 text-green-500" aria-hidden="true" />
-                  <p className="mt-4 text-[15px] font-semibold text-text">CV uploaded successfully</p>
-                  <p className="mt-1 text-[13px] text-text-2">Taking you to review your CV…</p>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    type="button"
-                    onClick={proceedAfterUpload}
-                    className="mt-5 rounded-full px-7 py-2 text-[13px] font-medium"
-                  >
-                    OK
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body,
+      {uploadPhase && typeof window !== "undefined" && (
+        <UploadProgressModal
+          phase={uploadPhase}
+          step={uploadStep}
+          onDismiss={dismissUploadModal}
+          onProceed={proceedAfterUpload}
+        />
       )}
 
       {/* Success flash — shown when the user closed the modal before the
@@ -580,40 +531,13 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
       )}
 
       {/* Delete confirm modal — same pattern as DeleteProfileButton */}
-      {deleteTarget && typeof window !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-text/40 backdrop-blur-sm"
-            onClick={() => !deleting && setDeleteTarget(null)}
-          />
-          <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
-            <h2 className="text-[16px] font-semibold text-text mb-2">Delete this CV?</h2>
-            <p className="text-[13px] text-text-2 leading-relaxed mb-2">
-              This removes <strong className="text-text">{deleteTarget.label}</strong>{" "}
-              from your library and deletes the file from storage.
-              {deleteTarget.is_active && (
-                <> It is currently your <strong>active</strong> CV — after deletion you will need to set another active before running an analysis.</>
-              )}
-            </p>
-            <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
-            <div className="flex gap-2 justify-end">
-              <Button
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                onClick={confirmDelete}
-                disabled={deleting}
-              >
-                {deleting ? "Deleting…" : "Yes, delete"}
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body,
+      {typeof window !== "undefined" && (
+        <DeleteConfirmModal
+          target={deleteTarget}
+          deleting={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );
