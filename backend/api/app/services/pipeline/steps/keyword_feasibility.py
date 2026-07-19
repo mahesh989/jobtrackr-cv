@@ -268,7 +268,10 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if not contact_details:
         return False
     creds = contact_details.get("credentials") or {}
-    if not isinstance(creds, dict) or not creds:
+    if not isinstance(creds, dict):
+        creds = {}
+    has_visa_status = bool(str(contact_details.get("visa_status") or "").strip())
+    if not creds and not has_visa_status:
         return False
 
     import re
@@ -279,6 +282,13 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         if isinstance(val, str):
             return bool(val.strip())
         return bool(val)
+
+    def has_work_rights() -> bool:
+        # contact_details.visa_status is the single source of truth. Any
+        # value except "needs_sponsorship" (or missing) means the candidate
+        # holds work rights.
+        status = str(contact_details.get("visa_status") or "").strip()
+        return bool(status) and status != "needs_sponsorship"
 
     # 1. Car insurance
     if "insurance" in kw and ("car" in kw or "vehicle" in kw or "motor" in kw or "auto" in kw):
@@ -346,7 +356,7 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
 
     # 16. Work rights
     if "work rights" in kw or "visa" in kw or "citizenship" in kw or "right to work" in kw or "australian citizen" in kw:
-        return has("work_rights")
+        return has_work_rights()
 
     # 17. AHPRA / nursing registration — satisfied by a saved AHPRA number.
     #     Covers "AHPRA registration", "registered nurse", "current registration",

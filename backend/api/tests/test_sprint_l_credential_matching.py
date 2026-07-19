@@ -11,16 +11,16 @@ from app.services.pipeline.steps.cv_jd_matching import _promote_profile_credenti
 from app.services.pipeline.steps.keyword_feasibility import user_has_credential
 
 _CONTACT_WITH_CREDS = {
+    "visa_status": "temp_unrestricted",
     "credentials": {
         "police_check": "National Police Check",
-        "work_rights": "Visa with work rights",
         "first_aid": "HLTAID011",
         "flu_vaccination": "Yes",
         "covid_vaccination": "Yes",
         "medication_competency": "Yes",
         "drivers_licence": "Open",
         "own_car": True,
-    }
+    },
 }
 
 _CONTACT_NO_CREDS = {}

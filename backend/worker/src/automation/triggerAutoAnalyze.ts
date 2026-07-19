@@ -58,6 +58,31 @@ const JD_MIN_USABLE = 1000;  // chars — below this, JD is too thin for reliabl
 const JD_RICH_MIN   = 600;   // chars — matches Migration 032 jd_quality='rich' threshold
 const AUTO_ANALYZE_MAX_KM = 30;  // auto-analyze only jobs within this distance of home; farther = manual-only
 
+// Referees are single-sourced from the ACTIVE CV's structured_cv (the review
+// form is the only referee editor — see Fix 2, docs/design.md). The profile
+// store (user_preferences.contact_details.references) keeps only `mode`.
+// Mirror of this splice also lives in
+// frontend/web/src/app/api/jobs/[id]/analyze/route.ts (separate package, no
+// shared import) — keep both in sync.
+function spliceStructuredReferees(
+  contactDetails: Record<string, unknown> | null,
+  structuredCv: unknown,
+): Record<string, unknown> | null {
+  const refs = (structuredCv as { references?: unknown[] } | null)?.references;
+  if (!Array.isArray(refs) || refs.length === 0) return contactDetails; // legacy fallback — leave untouched
+  const existingMode = (contactDetails?.references as { mode?: string } | undefined)?.mode ?? "details";
+  const referees = refs.slice(0, 3).map((r) => {
+    const rec = (r ?? {}) as Record<string, unknown>;
+    return {
+      name:      typeof rec.name === "string" ? rec.name : "",
+      job_title: typeof rec.job_title === "string" ? rec.job_title : "",
+      company:   typeof rec.company === "string" ? rec.company : "",
+      email:     typeof rec.email === "string" ? rec.email : "",
+    };
+  });
+  return { ...(contactDetails ?? {}), references: { mode: existingMode, referees } };
+}
+
 interface ProfileThresholds {
   user_id: string;
   // Per-vertical ATS cutoffs: healthcare/nursing profiles get 40/60, everything
@@ -339,8 +364,12 @@ export async function triggerAutoAnalyze(
       // user's profile, same as the manual route. cv-backend uses
       // payload.contact_details ONLY (no DB fallback) — passing null here left
       // auto-analyzed CVs with no contact line, credentials, or availability.
-      // Reuses prefRow loaded above for the vertical.
-      contact_details:   (prefRow?.contact_details as Record<string, unknown> | null) ?? null,
+      // Reuses prefRow loaded above for the vertical. Referees are spliced in
+      // from the active CV's structured_cv (single source of truth — Fix 2).
+      contact_details:   spliceStructuredReferees(
+        (prefRow?.contact_details as Record<string, unknown> | null) ?? null,
+        (cv as { structured_cv?: unknown } | null)?.structured_cv,
+      ),
       // Explicit role vertical from My CV — drives the role-family pack so
       // auto-analyze matches the user's selection instead of JD auto-detection.
       target_vertical:   effectiveVerticals[0] ?? null,

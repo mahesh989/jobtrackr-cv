@@ -256,10 +256,29 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, name, user_id, keywords, location, visa_filter_mode, working_rights, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_contract_type, adzuna_hours, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
+    .select("id, name, user_id, keywords, location, visa_filter_mode, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
+}
+
+// Canonical work-type tags (mirrors lib/constants.ts ALL_EMPLOYMENT_TYPES on
+// the web side + jdFacts.ts EmploymentType here) — validated so a stale
+// client value can't leak into the filter. Also accepts the 3 legacy
+// Title-Case values written before Fix 3.
+const WORK_TYPE_TAGS = new Set(["full_time", "part_time", "casual", "contract", "temporary", "internship"]);
+const LEGACY_WORK_TYPE: Record<string, string> = {
+  "Full Time": "full_time", "Part Time": "part_time", "Casual": "casual",
+};
+function normalizeWorkTypes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Set<string>();
+  for (const v of raw) {
+    if (typeof v !== "string") continue;
+    const tag = LEGACY_WORK_TYPE[v] ?? v;
+    if (WORK_TYPE_TAGS.has(tag)) out.add(tag);
+  }
+  return [...out];
 }
 
 async function checkCancellation(runLogId: string): Promise<void> {
@@ -282,31 +301,24 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
   profile.is_manual_run = trigger === "manual";
 
-  // Per-profile employment filter (migration 080) — fetched separately and
-  // best-effort so the pipeline keeps running before the migration is applied
-  // (an unknown column in the main loadProfile select would fail the run).
-  try {
-    const { data: ef } = await db
-      .from("search_profiles")
-      .select("employment_filter")
-      .eq("id", profileId)
-      .single();
-    profile.employment_filter = (ef as { employment_filter?: string[] } | null)?.employment_filter ?? [];
-  } catch {
-    profile.employment_filter = [];
-  }
-
-  // User-level visa status (My CV → user_preferences.contact_details.visa_status,
-  // same identity-level home as role_families). Drives the stage-10b eligibility
-  // filter; absent → legacy behaviour (working_rights only).
+  // User-level visa status + work types (My CV → user_preferences
+  // .contact_details.visa_status / .credentials.availability — same
+  // identity-level home as role_families, one control for all profiles).
+  // Drives the stage-10b eligibility filter and the stage-10b++ work-type
+  // filter — single source of truth; absent → no filtering. Replaces the
+  // old per-profile search_profiles.employment_filter (migration 080 column
+  // stays in the DB, unread — additive-only schema policy).
   try {
     const { data: prefRow } = await db
       .from("user_preferences")
       .select("contact_details")
       .eq("user_id", profile.user_id)
       .maybeSingle();
-    const vs = (prefRow?.contact_details as { visa_status?: string } | null)?.visa_status;
+    const contactDetails = prefRow?.contact_details as
+      { visa_status?: string; credentials?: { availability?: unknown } } | null;
+    const vs = contactDetails?.visa_status;
     if (isUserVisaStatus(vs)) profile.user_visa_status = vs;
+    profile.user_work_types = normalizeWorkTypes(contactDetails?.credentials?.availability);
   } catch {
     /* no prefs row / pre-migration — legacy behaviour */
   }
@@ -567,6 +579,32 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const STAGE2_CONCURRENCY = 6;
     const stage2Limit = pLimit(STAGE2_CONCURRENCY);
     const rawJobs: RawJob[] = [];
+
+    // Hard wall-clock deadline around every adapter fetch. The inner layers
+    // (curlFetch 35s SIGKILL, per-request timeouts, loop breaks) each have
+    // their own guards, but a live incident (2026-07-18, run 00626807) showed
+    // a seek-direct fetch going silent for 9 minutes with none of them firing
+    // — pages 4-7 never logged, run stuck at "Fetching from SEEK" until the
+    // user cancelled. This orchestrator-level race is the guarantee that no
+    // single source can hang a run regardless of WHERE inside it wedges.
+    // Deadlines are deliberately generous (only true hangs trip them, not
+    // slow-but-working fetches). On timeout the underlying work is orphaned,
+    // not killed — its own inner timeouts / process exit clean it up.
+    const withDeadline = <T>(p: Promise<T>, ms: number, label: string): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout>;
+      return Promise.race([
+        p.finally(() => clearTimeout(timer)),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s deadline — abandoned`)),
+            ms,
+          );
+        }),
+      ]);
+    };
+    const ADAPTER_DEADLINE_MS = 5 * 60_000;   // parallel tier-1..3 adapters
+    const SEEK_DEADLINE_MS    = 6 * 60_000;   // multi-keyword × 7 pages, worst-case legit ~4-5 min
+    const ACTOR_DEADLINE_MS   = 8 * 60_000;   // Apify actor runs are minutes-long by nature
     if (bucketSkipScrape) {
       console.log(`[pipeline] stage 2 — skipped entirely (bucket fresh/locked); serving from bucket`);
     } else {
@@ -607,7 +645,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
           toRun.map((adapter) =>
             stage2Limit(async () => {
               try {
-                const results = await adapter.fetchJobs(profile);
+                const results = await withDeadline(
+                  adapter.fetchJobs(profile), ADAPTER_DEADLINE_MS, `${adapter.name} fetch`,
+                );
                 rawJobs.push(...results);
                 sourcesRun.push(adapter.name);
                 coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
@@ -652,7 +692,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         }
       } else {
         try {
-          const seekJobs = await seekDirectAdapter.fetchJobs(profile);
+          const seekJobs = await withDeadline(
+            seekDirectAdapter.fetchJobs(profile), SEEK_DEADLINE_MS, "seek-direct fetch",
+          );
           rawJobs.push(...seekJobs);
           seekRawCount += seekJobs.length;
           sourcesRun.push("seek");
@@ -681,7 +723,9 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       await checkCancellation(runLogId);
       await setStage(runLogId, useActor ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
       try {
-        const { jobs: seekJobs, costUsd } = await seekAdapter.fetchJobs(profile);
+        const { jobs: seekJobs, costUsd } = await withDeadline(
+          seekAdapter.fetchJobs(profile), ACTOR_DEADLINE_MS, "seek actor fetch",
+        );
         rawJobs.push(...seekJobs);
         seekRawCount += seekJobs.length;
         if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
@@ -737,15 +781,33 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       return { job, hash: createHash("sha256").update(canonicalUrl(job.url)).digest("hex") };
     });
     
-    // Batch query DB for these hashes
+    // Batch query DB for these hashes — CHUNKED. A single .in() with ~1000
+    // 64-char hashes builds a ~64KB GET querystring, past PostgREST/proxy URL
+    // limits; the request degraded into a multi-minute stall and then failed
+    // silently (data=null → "0 duplicates removed" even when dupes existed).
+    // 150 hashes/chunk keeps each URL ~10KB; chunks run in parallel.
+    const t3 = Date.now();
     const urlHashesToQuery = hashedRawJobs.map(h => h.hash);
-    const { data: existingJobs } = await db
-      .from("jobs")
-      .select("url_hash")
-      .eq("profile_id", profileId)
-      .in("url_hash", urlHashesToQuery);
-
-    const existingHashSet = new Set((existingJobs || []).map(j => j.url_hash));
+    const HASH_CHUNK = 150;
+    const chunks: string[][] = [];
+    for (let i = 0; i < urlHashesToQuery.length; i += HASH_CHUNK) {
+      chunks.push(urlHashesToQuery.slice(i, i + HASH_CHUNK));
+    }
+    const existingHashSet = new Set<string>();
+    const chunkResults = await Promise.all(
+      chunks.map((chunk) =>
+        db.from("jobs").select("url_hash").eq("profile_id", profileId).in("url_hash", chunk),
+      ),
+    );
+    for (const { data, error } of chunkResults) {
+      if (error) {
+        // Non-fatal: missing early dedup just means L2 catches the dupes later.
+        console.warn(`[pipeline] stage 3 — L1 hash lookup chunk failed: ${error.message}`);
+        continue;
+      }
+      for (const row of data ?? []) existingHashSet.add((row as { url_hash: string }).url_hash);
+    }
+    console.log(`[pipeline] stage 3 — L1 hash lookup: ${chunks.length} chunk(s) in ${Date.now() - t3}ms`);
 
     let earlyL1Dropped = 0;
     for (const { job, hash } of hashedRawJobs) {
@@ -1082,21 +1144,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.log(`[pipeline] stage 10e — JD facts: ${withEmp}/${settingReady.length} employment-typed, ${withEmail} with emails`);
     }
 
-    // Stage 10b: working rights filter
-    // Drop jobs that conflict with the user's working rights situation.
-    // "needs_sponsorship" → drop jobs that explicitly say no sponsorship or citizens/PR only.
-    // "pr_citizen" and "any" → no filtering, all jobs saved (just different labels shown).
+    // Working rights: single source of truth is My CV's visa_status via the
+    // eligibility matrix below. The old per-profile working_rights filter was
+    // removed — it contradicted the matrix (e.g. a citizen with a stale
+    // "needs sponsorship" profile lost citizens/PR-only jobs), and for
+    // needs_sponsorship users the matrix drops a strict superset anyway.
     let toSave = settingReady;
-    if (profile.working_rights === "needs_sponsorship") {
-      const beforeWR = toSave.length;
-      toSave = toSave.filter((j) =>
-        j.sponsorship_status !== "no" && j.citizen_pr_only !== true
-      );
-      const droppedWR = beforeWR - toSave.length;
-      console.log(`[pipeline] stage 10b — working rights filter: ${droppedWR} dropped (explicit no-sponsorship / PR-citizen-only), ${toSave.length} remaining`);
-    } else {
-      console.log(`[pipeline] stage 10b — working rights: "${profile.working_rights ?? "any"}" — no filter applied`);
-    }
 
     // Stage 10b+: eligibility matrix (migration 080) — hard-drop jobs the
     // user's declared visa status (My CV) makes them ineligible for, e.g. a
@@ -1112,18 +1165,18 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     }
 
-    // Stage 10b++: employment-type filter (migration 080). Same legacy-only
-    // gating. A job with no extracted types always passes — never hide jobs
-    // we couldn't classify.
-    if (!bucketEnabled() && (profile.employment_filter?.length ?? 0) > 0) {
-      const keep = new Set(profile.employment_filter);
+    // Stage 10b++: work-type filter. User-level (My CV → Details tab "Work
+    // types"), same legacy-only gating. A job with no extracted types always
+    // passes — never hide jobs we couldn't classify.
+    if (!bucketEnabled() && (profile.user_work_types?.length ?? 0) > 0) {
+      const keep = new Set(profile.user_work_types);
       const before = toSave.length;
       toSave = toSave.filter((j) => {
         const types = j.employment_types ?? [];
         return types.length === 0 || types.some((t) => keep.has(t));
       });
       if (before !== toSave.length) {
-        console.log(`[pipeline] stage 10b++ — employment filter [${profile.employment_filter!.join(",")}]: ${before - toSave.length} dropped, ${toSave.length} remaining`);
+        console.log(`[pipeline] stage 10b++ — work-type filter [${profile.user_work_types!.join(",")}]: ${before - toSave.length} dropped, ${toSave.length} remaining`);
       }
     }
 

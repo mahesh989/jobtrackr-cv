@@ -214,11 +214,13 @@ async def auto_generate_cover_letter(
             logger.warning("auto-cover-letter: stories fetch failed: %s", exc)
             _record_outcome(run_id, f"failed:stories_fetch:{exc.code or '?'}")
             return
-        if not story_row.data:
-            logger.info("auto-cover-letter: job %s — no stories, skipping", job_id)
-            _record_outcome(run_id, "skipped:no_story")
-            return
-        story: Dict[str, Any] = story_row.data[0]
+        # No stories is NOT a blocker — the generator handles story=None
+        # (format_story renders "(none available)"; the letter draws its
+        # substance from the CV text). Duty-based CVs (care/trades) often
+        # yield zero metric-backed stories; their letters must still generate.
+        story: Optional[Dict[str, Any]] = story_row.data[0] if story_row.data else None
+        if story is None:
+            logger.info("auto-cover-letter: job %s — no stories, generating without one", job_id)
 
         # ── 5. Company hook (best available, generic fallback) ───────────────
         company_hook = (

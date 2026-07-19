@@ -163,9 +163,35 @@ _CREDENTIALS_HEADING = "## Registration & Licences"
 # the unified credentials JSON via build_credentials_line(family_id=...).
 _CREDENTIAL_FAMILIES = frozenset({"nursing", "manual"})
 
-# Canonical display order for the opt-in availability chip. Values match the
-# checkbox labels stored by the profile UI.
-_AVAILABILITY_ORDER = ["Full Time", "Part Time", "Casual"]
+# Canonical display order for the opt-in availability chip, keyed by the
+# snake_case tag the profile UI stores post-Fix-3 (mirrors frontend
+# lib/constants.ts ALL_EMPLOYMENT_TYPES / worker ai/jdFacts.ts EmploymentType).
+# Legacy Title-Case values ("Full Time"/"Part Time"/"Casual", pre-Fix-3) are
+# normalized to the same tags before lookup so old saved data still renders.
+_AVAILABILITY_ORDER = ["full_time", "part_time", "casual", "contract", "temporary", "internship"]
+_AVAILABILITY_LABELS = {
+    "full_time":  "Full Time",
+    "part_time":  "Part Time",
+    "casual":     "Casual",
+    "contract":   "Contract",
+    "temporary":  "Temporary",
+    "internship": "Internship",
+}
+_LEGACY_AVAILABILITY_TAG = {
+    "Full Time": "full_time",
+    "Part Time": "part_time",
+    "Casual":    "casual",
+}
+
+# Maps contact_details.visa_status (single source of truth, set via
+# VisaStatusSelect / PATCH /api/user/visa-status) to the CV status label.
+# "needs_sponsorship" is deliberately absent — never printed on a CV.
+_VISA_STATUS_LABELS = {
+    "citizen":             "Citizenship",
+    "pr":                  "PR",
+    "temp_unrestricted":   "Work Rights",
+    "student_capped":      "Work Rights (Part Time)",
+}
 
 
 def build_credentials_line(
@@ -178,10 +204,10 @@ def build_credentials_line(
     Family subsets:
       nursing — AHPRA registration, clinical clearances (police/NDIS/WWCC),
                 healthcare certs (First Aid/CPR/Medication Competency),
-                vehicle (driver licence/car/insurance), status (work rights,
+                vehicle (driver licence/car/insurance), status (visa_status,
                 flu/COVID vaccination).
       manual  — trade certs (White Card/Forklift), basic clearances (police/
-                WWCC), vehicle, status (work rights).
+                WWCC), vehicle, status (visa_status).
 
     Empty / false / missing fields are skipped; the line never advertises
     what the candidate doesn't hold.
@@ -189,7 +215,10 @@ def build_credentials_line(
     if not contact_details:
         return ""
     creds = contact_details.get("credentials") or {}
-    if not isinstance(creds, dict) or not creds:
+    if not isinstance(creds, dict):
+        creds = {}
+    visa_status = _clean(contact_details.get("visa_status"))
+    if not creds and not visa_status:
         return ""
 
     parts: List[str] = []
@@ -237,25 +266,12 @@ def build_credentials_line(
     if creds.get("own_car"):
         parts.append("Own a car")
 
-    # 5. Status — shared. Maps the profile's work_rights enum
-    # ("" | "Citizen" | "PR" | "Visa with work rights") to a clean label:
-    #   Citizen → "Citizenship"
-    #   PR      → "PR"
-    #   Visa    → "Work Rights (Full Time/Part Time)" when hours are known,
-    #             else a bare "Work Rights" (never the ugly self-referential
-    #             "Work Rights (Visa with work rights)").
-    rights = _clean(creds.get("work_rights"))
-    hours = _clean(creds.get("work_rights_hours"))
-    if rights:
-        rl = rights.lower()
-        if "citizen" in rl:
-            parts.append("Citizenship")
-        elif rl == "pr" or "permanent resident" in rl:
-            parts.append("PR")
-        elif "visa" in rl or "work right" in rl:
-            parts.append(f"Work Rights ({hours})" if hours else "Work Rights")
-        else:
-            parts.append(f"Work Rights ({rights})")
+    # 5. Status — shared. Maps contact_details.visa_status to a clean label.
+    # needs_sponsorship (or missing) never prints — a CV should never
+    # advertise that the candidate needs sponsorship.
+    status_label = _VISA_STATUS_LABELS.get(visa_status)
+    if status_label:
+        parts.append(status_label)
     if family == "nursing":
         if creds.get("flu_vaccination"):
             parts.append("Influenza Vaccination")
@@ -269,8 +285,12 @@ def build_availability_line(contact_details: Optional[Dict[str, Any]]) -> str:
     """Compose the opt-in availability text (without italic markers), e.g.
     ``Available: Full Time, Part Time, Casual``.
 
+    Accepts the canonical snake_case work-type tags (full_time/part_time/
+    casual/contract/temporary/internship — Fix 3) AND the 3 legacy Title-Case
+    values saved before that change; both render the same display labels.
+
     Returns "" unless the user flipped ``show_availability`` AND ticked at
-    least one shift type. Family-agnostic — the caller (stamp_credentials)
+    least one work type. Family-agnostic — the caller (stamp_credentials)
     applies the role-family gate. Rendered on its OWN line, in italics, by
     stamp_credentials so it reads as a soft note rather than a hard licence.
     """
@@ -284,13 +304,13 @@ def build_availability_line(contact_details: Optional[Dict[str, Any]]) -> str:
     avail = creds.get("availability")
     if not isinstance(avail, list):
         return ""
-    picked = {_clean(a) for a in avail if _clean(a)}
-    ordered = [a for a in _AVAILABILITY_ORDER if a in picked]
+    tags = {_LEGACY_AVAILABILITY_TAG.get(_clean(a), _clean(a)) for a in avail if _clean(a)}
+    ordered = [_AVAILABILITY_LABELS[t] for t in _AVAILABILITY_ORDER if t in tags]
     # Preserve any non-standard values the UI didn't constrain to, in input
     # order, after the canonical ones.
     ordered += [
         _clean(a) for a in avail
-        if _clean(a) and _clean(a) not in _AVAILABILITY_ORDER
+        if _clean(a) and _LEGACY_AVAILABILITY_TAG.get(_clean(a), _clean(a)) not in _AVAILABILITY_ORDER
     ]
     if not ordered:
         return ""

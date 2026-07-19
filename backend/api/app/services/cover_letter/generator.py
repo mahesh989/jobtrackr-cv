@@ -37,7 +37,6 @@ import asyncio
 import logging
 import random
 import re
-from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
@@ -176,10 +175,6 @@ async def _read_quality_flags(letter_id: str) -> Dict[str, Any]:
         return existing if isinstance(existing, dict) else {}
     except Exception:
         return {}
-
-
-def utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _initial_status() -> Dict[str, str]:

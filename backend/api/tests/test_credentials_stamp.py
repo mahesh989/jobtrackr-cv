@@ -26,22 +26,24 @@ def test_empty_or_missing_returns_empty_string():
 
 
 def test_only_truthy_credentials_surface():
-    cd = {"credentials": {
-        "police_check":          True,
-        "ndis_screening":        False,   # explicit false → omitted
-        "wwcc":                  True,
-        "wwcc_state":            "NSW",
-        "first_aid":             True,
-        "cpr":                   False,
-        "drivers_licence":       "Open",
-        "own_car":               True,
-        "car_insurance":         False,
-        "work_rights":           "Citizen",
-        "flu_vaccination":       True,
-        "covid_vaccination":     True,
-        "medication_competency": True,
-        "ahpra_number":          "",     # blank → omitted
-    }}
+    cd = {
+        "visa_status": "citizen",
+        "credentials": {
+            "police_check":          True,
+            "ndis_screening":        False,   # explicit false → omitted
+            "wwcc":                  True,
+            "wwcc_state":            "NSW",
+            "first_aid":             True,
+            "cpr":                   False,
+            "drivers_licence":       "Open",
+            "own_car":               True,
+            "car_insurance":         False,
+            "flu_vaccination":       True,
+            "covid_vaccination":     True,
+            "medication_competency": True,
+            "ahpra_number":          "",     # blank → omitted
+        },
+    }
     line = build_credentials_line(cd)
     # Order: registrations → clearances → certs → practical → status
     assert line == (
@@ -80,6 +82,28 @@ def test_availability_is_opt_in_and_separate_from_credentials_line():
     assert build_availability_line({"credentials": {
         "availability": [], "show_availability": True,
     }}) == ""
+
+
+def test_availability_snake_case_matches_legacy_title_case():
+    """Fix 3 — canonical snake_case tags render the identical line as the
+    legacy Title-Case values they replace, plus the 3 new tags."""
+    cd_snake = {"credentials": {
+        "availability": ["casual", "full_time", "part_time"],
+        "show_availability": True,
+    }}
+    cd_legacy = {"credentials": {
+        "availability": ["Casual", "Full Time", "Part Time"],
+        "show_availability": True,
+    }}
+    assert build_availability_line(cd_snake) == build_availability_line(cd_legacy)
+    assert build_availability_line(cd_snake) == "Available: Full Time, Part Time, Casual"
+
+    # New tags (contract/temporary/internship) render in canonical order.
+    cd_new = {"credentials": {
+        "availability": ["internship", "contract", "temporary"],
+        "show_availability": True,
+    }}
+    assert build_availability_line(cd_new) == "Available: Contract, Temporary, Internship"
 
 
 def test_availability_not_in_credentials_section():
@@ -219,25 +243,27 @@ def test_manual_family_renders_trade_certs_and_drops_clinical():
     """Manual / Service CVs surface trade certs (White Card, Forklift) and
     basic clearances/transport — NOT AHPRA, NDIS, First Aid, CPR, or
     Medication Competency (those are nursing-only)."""
-    cd = {"credentials": {
-        "white_card":         True,
-        "forklift_licence":   "LF",
-        "police_check":       True,
-        "wwcc":               True,
-        "wwcc_state":         "NSW",
-        "drivers_licence":    "Open",
-        "own_car":            True,
-        "work_rights":        "PR",
-        # Nursing-only fields supplied but MUST be excluded:
-        "ahpra_number":       "NMW0001234567",
-        "ndis_screening":     True,
-        "first_aid":          True,
-        "cpr":                True,
-        "medication_competency": True,
-        "car_insurance":      True,
-        "flu_vaccination":    True,
-        "covid_vaccination":  True,
-    }}
+    cd = {
+        "visa_status": "pr",
+        "credentials": {
+            "white_card":         True,
+            "forklift_licence":   "LF",
+            "police_check":       True,
+            "wwcc":               True,
+            "wwcc_state":         "NSW",
+            "drivers_licence":    "Open",
+            "own_car":            True,
+            # Nursing-only fields supplied but MUST be excluded:
+            "ahpra_number":       "NMW0001234567",
+            "ndis_screening":     True,
+            "first_aid":          True,
+            "cpr":                True,
+            "medication_competency": True,
+            "car_insurance":      True,
+            "flu_vaccination":    True,
+            "covid_vaccination":  True,
+        },
+    }
     line = build_credentials_line(cd, family_id="manual")
     assert line == (
         "White Card · "
@@ -274,7 +300,7 @@ def test_stamp_noop_when_all_creds_false():
         "first_aid": False, "cpr": False, "own_car": False,
         "car_insurance": False, "flu_vaccination": False,
         "medication_competency": False,
-        "drivers_licence": "", "work_rights": "", "ahpra_number": "",
+        "drivers_licence": "", "ahpra_number": "",
     }}
     out = stamp_credentials(_BASE_MD, cd, "nursing")
     assert "## Registration & Licences" not in out
@@ -291,47 +317,34 @@ def test_drivers_licence_yes_no():
     assert line_no == ""
 
 
-def test_work_rights_visa_with_hours():
-    # Visa with work rights + hours -> "Work Rights (Full Time)"
-    cd = {
-        "credentials": {
-            "work_rights": "Visa with work rights",
-            "work_rights_hours": "Full Time",
-        }
-    }
-    assert build_credentials_line(cd) == "Work Rights (Full Time)"
-
-    cd_pt = {
-        "credentials": {
-            "work_rights": "Visa with work rights",
-            "work_rights_hours": "Part Time",
-        }
-    }
-    assert build_credentials_line(cd_pt) == "Work Rights (Part Time)"
+def test_visa_status_temp_unrestricted_renders_work_rights():
+    cd = {"visa_status": "temp_unrestricted", "credentials": {}}
+    assert build_credentials_line(cd) == "Work Rights"
 
 
-def test_work_rights_visa_without_hours():
-    # Visa with work rights but no hours -> bare "Work Rights"
-    # (never the self-referential "Work Rights (Visa with work rights)")
-    cd_no_hours = {
-        "credentials": {
-            "work_rights": "Visa with work rights",
-            "work_rights_hours": "",
-        }
-    }
-    line = build_credentials_line(cd_no_hours)
-    assert line == "Work Rights"
-    assert "Visa with work rights" not in line
+def test_visa_status_student_capped_renders_work_rights_part_time():
+    # The hours cap is the substantive fact — always renders "(Part Time)".
+    cd = {"visa_status": "student_capped", "credentials": {}}
+    assert build_credentials_line(cd) == "Work Rights (Part Time)"
 
 
-def test_work_rights_citizen_renders_citizenship():
-    # Citizen -> "Citizenship" (hours ignored)
-    cd = {"credentials": {"work_rights": "Citizen", "work_rights_hours": "Part Time"}}
+def test_visa_status_citizen_renders_citizenship():
+    cd = {"visa_status": "citizen", "credentials": {}}
     assert build_credentials_line(cd) == "Citizenship"
 
 
-def test_work_rights_pr_renders_pr():
-    # PR -> "PR" (hours ignored)
-    cd = {"credentials": {"work_rights": "PR", "work_rights_hours": "Full Time"}}
+def test_visa_status_pr_renders_pr():
+    cd = {"visa_status": "pr", "credentials": {}}
     assert build_credentials_line(cd) == "PR"
+
+
+def test_visa_status_needs_sponsorship_omitted():
+    # Never advertise a sponsorship need on a CV.
+    cd = {"visa_status": "needs_sponsorship", "credentials": {"police_check": True}}
+    assert build_credentials_line(cd) == "National Police Check"
+
+
+def test_visa_status_missing_omitted():
+    cd = {"credentials": {"police_check": True}}
+    assert build_credentials_line(cd) == "National Police Check"
 

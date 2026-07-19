@@ -533,9 +533,9 @@ export async function serveProfileFromBucket(
     // Replay the profile's filters (same passes as the scrape path).
     let kept = applyKeywordFilter(mapped, profile);
     kept = postFetchFilter(kept, profile).kept;
-    if (profile.working_rights === "needs_sponsorship") {
-      kept = kept.filter((j) => j.sponsorship_status !== "no" && j.citizen_pr_only !== true);
-    }
+    // Working rights: My CV visa_status via the eligibility matrix below is
+    // the single source of truth (the per-profile working_rights filter that
+    // used to run here contradicted it — see orchestrator stage 10b note).
     // Eligibility matrix (080) — per-user, so it runs HERE after the shared
     // bucket read, mirroring the setting filter below. Hard-drops only
     // not_eligible; unclear/eligible pass through for the UI badge to explain.
@@ -547,16 +547,17 @@ export async function serveProfileFromBucket(
         console.log(`[bucket] eligibility (${userVisa}): ${before - kept.length} dropped, ${kept.length} remain`);
       }
     }
-    // Employment-type filter (080) — per-profile. Unclassified jobs always pass.
-    if ((profile.employment_filter?.length ?? 0) > 0) {
-      const keep = new Set(profile.employment_filter);
+    // Work-type filter — user-level (My CV → Details tab). Unclassified jobs
+    // always pass.
+    if ((profile.user_work_types?.length ?? 0) > 0) {
+      const keep = new Set(profile.user_work_types);
       const before = kept.length;
       kept = kept.filter((j) => {
         const types = j.employment_types ?? [];
         return types.length === 0 || types.some((t) => keep.has(t));
       });
       if (before !== kept.length) {
-        console.log(`[bucket] employment filter: ${before - kept.length} dropped, ${kept.length} remain`);
+        console.log(`[bucket] work-type filter: ${before - kept.length} dropped, ${kept.length} remain`);
       }
     }
     // Work-setting filter (Migration 078) — the per-profile final gate. Runs

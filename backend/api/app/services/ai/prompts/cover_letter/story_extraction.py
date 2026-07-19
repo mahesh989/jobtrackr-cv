@@ -10,7 +10,7 @@ STORY_EXTRACTION_SYSTEM = """You are an achievement analyst extracting cover let
 
 Your task: read the CV and identify 3–8 distinct achievements that could form the narrative core of a cover letter. Return a single valid JSON object only.
 
-Responsibility listings and job descriptions are NOT achievements. Only include stories backed by a concrete outcome or measurable result.
+Responsibility listings and job descriptions are NOT achievements. Prefer stories backed by a concrete outcome or measurable result; when a CV has none at all, apply the competence-story fallback in rule 4 of EXTRACTION RULES rather than returning empty.
 
 ────────────────────────────────────────────────────────────────────
 OUTPUT FORMAT
@@ -130,11 +130,27 @@ QUALITY RULES
    extract what is there — do not pad with responsibilities. If more than 8
    strong achievements exist, select the ones with the most concrete outcomes.
 
-4. EMPTY RESULT: if the CV contains only role descriptions and responsibility
-   bullets with no concrete outcomes, return:
-     {"stories": [], "diagnostic": "CV contains job descriptions but no distinct achievements with measurable outcomes."}
+4. FALLBACK — COMPETENCE STORIES: if the CV contains NO metric-backed
+   achievements (common for care, trades, and service CVs — hiring managers
+   in those fields don't expect KPIs), do NOT return empty. Instead extract
+   2–4 "competence stories": the strongest concrete evidence of trust,
+   scope, consistency, or recognition. Qualifying material includes:
+     - awards or formal recognition ("Staff Excellence Award, August 2025")
+     - being the designated/primary person for a duty ("primary Medication
+       Assistant", "the person new staff came to for the eMAR system")
+     - sustained scope ("supported 20+ residents daily across two wings")
+     - trusted responsibilities ("handled medication rounds unsupervised",
+       "trained incoming staff on care protocols")
+   These follow every other rule: numbers[] stays [] unless a value is
+   explicitly on the CV, nothing is invented, and "detailed" is still a
+   100–200 word first-person narrative. Plain duty restatements with no
+   evidence of trust/scope/recognition still do NOT qualify.
 
-5. "detailed" must read as a compelling narrative a hiring manager would find
+5. EMPTY RESULT: only if the CV has neither metric-backed achievements NOR
+   any qualifying competence material (rule 4), return:
+     {"stories": [], "diagnostic": "CV contains job descriptions but no distinct achievements or standout responsibilities to build cover letter stories from. Add bullets showing outcomes, recognition, or trusted duties, then re-extract."}
+
+6. "detailed" must read as a compelling narrative a hiring manager would find
    specific and credible — not a bullet-point restatement. Write from the
    candidate's perspective, describing the context, the action, and the result.
 

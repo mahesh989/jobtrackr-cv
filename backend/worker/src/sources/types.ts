@@ -6,30 +6,31 @@ export interface SearchProfile {
   keywords: string[];
   location: string;
   visa_filter_mode: string;
-  working_rights?: "any" | "pr_citizen" | "needs_sponsorship";
   target_verticals?: string[];
   // Work-setting filter (Migration 078). Category keys the user wants to keep:
   // 'hospital_clinical' | 'residential_aged_care' | 'home_community' | 'other'.
   // Empty/undefined = no filtering (opt-in). See pipeline/settingFilter.ts.
   setting_filter?: string[];
-  // Employment-type filter (Migration 080). Canonical tags to keep
-  // (full_time/part_time/casual/contract/temporary/internship); a job passes
-  // when its employment_types intersect, or when it has none extracted
-  // (never hide jobs we couldn't classify). Empty/undefined = no filtering.
-  employment_filter?: string[];
   // User-level visa status resolved from user_preferences.contact_details
   // (set by the orchestrator per run, not a search_profiles column):
   // citizen | pr | temp_unrestricted | student_capped | needs_sponsorship.
   // Drives the stage-10b eligibility filter; undefined = legacy behaviour.
   user_visa_status?: string;
+  // User-level work-type filter (My CV → Details tab "Work types"; replaces
+  // the old per-profile search_profiles.employment_filter, Migration 080 —
+  // that column stays in the DB, additive-only, just unread now). Canonical
+  // tags to keep (full_time/part_time/casual/contract/temporary/internship);
+  // a job passes when its employment_types intersect, or when it has none
+  // extracted (never hide jobs we couldn't classify). Empty/undefined = no
+  // filtering. Set by the orchestrator per run, same pattern as
+  // user_visa_status.
+  user_work_types?: string[];
   adzuna_title_keywords?: string;
   adzuna_exact_phrase?: string;
   adzuna_any_keywords?: string;
   adzuna_exclude_keywords?: string;
   adzuna_salary_min?: number;
   adzuna_salary_max?: number;
-  adzuna_contract_type?: string;
-  adzuna_hours?: string;
   adzuna_distance_km?: number;
   adzuna_max_days_old?: number;
   exclude_title_keywords?: string[];

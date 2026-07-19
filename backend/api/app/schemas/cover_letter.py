@@ -25,7 +25,7 @@ Design notes:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -75,11 +75,14 @@ class GenerateCoverLetterRequest(BaseModel):
     )
 
     # ── Story input ────────────────────────────────────────────────────────────
-    story: Dict[str, Any] = Field(
+    story: Optional[Dict[str, Any]] = Field(
+        default=None,
         description=(
             "Serialised Story dict: title, domain, year, one_line, detailed, numbers, tags. "
-            "The web route selects the top-scoring story from the match endpoint."
-        )
+            "The web route selects the top-scoring story from the match endpoint. "
+            "None when the CV yielded no stories — the generator falls back to "
+            "CV text as the letter's substance (format_story renders '(none available)')."
+        ),
     )
 
     # ── Company fact ───────────────────────────────────────────────────────────
@@ -149,7 +152,10 @@ class GenerateOpeningVariantsRequest(BaseModel):
     fingerprint:       Dict[str, Any] = Field(description="14-key VoiceFingerprint dict")
 
     # ── Story input ────────────────────────────────────────────────────────────
-    story: Dict[str, Any] = Field(description="Top-scored story dict (title, one_line, detailed, numbers)")
+    story: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Top-scored story dict (title, one_line, detailed, numbers); None when the CV has no stories",
+    )
 
     # ── Company fact ───────────────────────────────────────────────────────────
     company_hook_text: str = Field(min_length=1, description="The selected company fact for paragraph 2")
