@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     <h1 style="font-size:20px;">You've been unsubscribed</h1>
     <p style="font-size:14px;line-height:1.6;">
       You've been unsubscribed from new-job notifications. You can re-enable them any time in
-      <a href="/dashboard/cv" style="color:#2563eb;">Settings</a>.
+      <a href="/cv" style="color:#2563eb;">Settings</a>.
     </p>
   `);
 }

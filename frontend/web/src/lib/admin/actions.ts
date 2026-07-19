@@ -22,7 +22,7 @@ export async function adminForceCancelRun(runId: string) {
     .eq("status", "running");
 
   if (error) throw new Error(error.message);
-  revalidatePath("/dashboard/admin/pipeline");
+  revalidatePath("/admin/pipeline");
 }
 
 /**
@@ -54,5 +54,5 @@ export async function adminGrantUnlimitedAccess(userId: string) {
     );
 
   if (error) throw new Error(error.message);
-  revalidatePath(`/dashboard/admin/users/${userId}`);
+  revalidatePath(`/admin/users/${userId}`);
 }

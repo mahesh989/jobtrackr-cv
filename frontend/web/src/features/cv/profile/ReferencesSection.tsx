@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2, Save, UserCheck, Sparkles } from "lucide-react";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 
 export interface Referee {
   name:      string;

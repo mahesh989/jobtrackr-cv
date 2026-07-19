@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     },
     client_reference_id: user.id,
     allow_promotion_codes: true,
-    success_url: `${origin}/dashboard/billing?checkout=success`,
+    success_url: `${origin}/billing?checkout=success`,
     cancel_url:  `${origin}/onboarding/plan?checkout=cancelled`,
   });
 

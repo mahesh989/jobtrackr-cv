@@ -11,7 +11,7 @@ import {
   Check,
   BookOpen,
 } from "lucide-react";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 import type { StoryNumber } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

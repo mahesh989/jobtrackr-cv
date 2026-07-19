@@ -17,16 +17,16 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.redirect(new URL("/auth/login", req.url));
 
   const { error } = await requireAdmin(user, supabase);
-  if (error) return NextResponse.redirect(new URL("/dashboard", req.url));
+  if (error) return NextResponse.redirect(new URL("/", req.url));
 
   const mode = new URL(req.url).searchParams.get("mode");
   if (mode === "user") {
-    const res = NextResponse.redirect(new URL("/dashboard", req.url));
+    const res = NextResponse.redirect(new URL("/", req.url));
     res.cookies.set("jt_user_view", "1", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 8 });
     return res;
   }
   // Exit user-view → back to admin.
-  const res = NextResponse.redirect(new URL("/dashboard/admin", req.url));
+  const res = NextResponse.redirect(new URL("/admin", req.url));
   res.cookies.delete("jt_user_view");
   return res;
 }

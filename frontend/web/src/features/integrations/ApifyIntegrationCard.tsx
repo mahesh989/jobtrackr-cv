@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Badge, Button, Input } from "@/ui";
+import { Badge, Button, Input } from "@/components/ui";
 
 interface IntegrationData {
   connected:           boolean;

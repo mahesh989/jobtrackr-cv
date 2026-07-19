@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { getEntitlement } from "@/lib/billing/entitlements";
 import { TrialHero } from "@/features/billing/TrialHero";
 import { PlanCards } from "@/features/billing/PlanCards";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export const metadata = { title: "Start your free trial — JobTrackr" };
 

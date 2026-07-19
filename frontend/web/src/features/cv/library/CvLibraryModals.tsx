@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { CheckCircle2, Loader2, X } from "lucide-react";
 
 const UPLOAD_MESSAGES = [

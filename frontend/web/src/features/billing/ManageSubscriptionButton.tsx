@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, ExternalLink } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 /**
  * Opens the Stripe Billing Portal (POST /api/billing/portal → { url }).

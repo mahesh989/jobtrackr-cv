@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import {
   applyCvSectionLayout,

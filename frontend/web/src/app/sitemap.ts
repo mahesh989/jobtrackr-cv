@@ -3,7 +3,7 @@ import { SITE_URL } from "@/lib/site";
 
 // Lists ONLY the genuinely public, indexable routes — the same set the
 // middleware allows through without auth (see src/middleware.ts). Auth pages,
-// the onboarding gate, and every /dashboard + /api route are intentionally
+// the onboarding gate, and every / + /api route are intentionally
 // excluded: they're gated (or non-content) and must not be advertised to
 // crawlers.
 export default function sitemap(): MetadataRoute.Sitemap {

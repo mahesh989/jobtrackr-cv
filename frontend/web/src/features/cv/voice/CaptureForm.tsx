@@ -1,5 +1,5 @@
 import { AlertCircle, Loader2, PenLine } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { WORD_MIN, type SourceTag } from "./types";
 
 interface Props {

@@ -150,7 +150,7 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
                   <div className="min-w-0 flex items-center gap-2 flex-wrap">
                     <Building2 className="h-4 w-4 shrink-0 text-text-3" />
                     <Link
-                      href={`/dashboard/jobs/${jobId}/analyze/${runs[0].id}`}
+                      href={`/jobs/${jobId}/analyze/${runs[0].id}`}
                       className="text-sm font-semibold text-text hover:text-[var(--brand)] truncate"
                     >
                       {job?.company ?? job?.title ?? "Unknown job"}
@@ -187,7 +187,7 @@ function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
   return (
     <li>
       <Link
-        href={`/dashboard/jobs/${run.job_id}/analyze/${run.id}`}
+        href={`/jobs/${run.job_id}/analyze/${run.id}`}
         className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--surface-2)]/60 transition-colors"
       >
         <StatusIcon status={run.status} />

@@ -11,7 +11,7 @@
 
 import { useRef, useState, type ReactNode, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export interface DeckCard {
   id: string;

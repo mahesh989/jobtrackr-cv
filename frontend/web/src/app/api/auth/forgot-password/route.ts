@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { checkSsoOnly } from "@/modules/auth/server";
+import { checkSsoOnly } from "@/features/auth/server";
 
 // Identity CHECK only — the actual resetPasswordForEmail() send must happen
 // client-side (see ForgotPasswordForm.tsx) so Supabase's PKCE code_verifier

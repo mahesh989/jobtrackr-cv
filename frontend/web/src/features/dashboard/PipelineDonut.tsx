@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { shallowSetParams } from "../jobs/shallowNav";
+import { shallowSetParams } from "../jobs/lib/shallowNav";
 import { FilterAnchor } from "./FilterAnchor";
 import { CalloutStrip } from "./CalloutStrip";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 // View-filter params the donut can set; cleared before applying a new one so
 // the chosen slice is shown cleanly (dataset filters like location are kept).
@@ -62,8 +62,8 @@ function resolveLensMeta(lens: LensKey, t: { initial: number; final: number }): 
     ...LENS_META.ats,
     slices: [
       { label: `Above final (≥ ${t.final})`, color: "var(--chart-pos)" },
-      { label: `Below final (${t.initial}–${t.final - 1})`, color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
-      { label: `Below initial (< ${t.initial})`, color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
+      { label: `Below final (${t.initial}–${t.final - 1})`, color: "var(--chart-amber)", href: "/?triage=belowThreshold" },
+      { label: `Below initial (< ${t.initial})`, color: "var(--chart-danger)", href: "/?triage=belowThreshold" },
     ],
   };
 }
@@ -99,8 +99,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "JD readiness",
     centerLabel: "jobs",
     slices: [
-      { label: "Full JD",      color: "var(--chart-pos)", href: "/dashboard?triage=richJd" },
-      { label: "Thin JD",      color: "var(--chart-warn)", href: "/dashboard?triage=thinJd" },
+      { label: "Full JD",      color: "var(--chart-pos)", href: "/?triage=richJd" },
+      { label: "Thin JD",      color: "var(--chart-warn)", href: "/?triage=thinJd" },
       { label: "Unclassified", color: "var(--chart-neutral)" },
     ],
   },
@@ -108,8 +108,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "Analysis",
     centerLabel: "saved",
     slices: [
-      { label: "Complete",     color: "var(--chart-pos)", href: "/dashboard?stage=letterReady" },
-      { label: "CV only",      color: "var(--chart-info)", href: "/dashboard?stage=cvReady" },
+      { label: "Complete",     color: "var(--chart-pos)", href: "/?stage=letterReady" },
+      { label: "CV only",      color: "var(--chart-info)", href: "/?stage=cvReady" },
       { label: "Not tailored", color: "var(--chart-neutral)" },
     ],
   },
@@ -120,8 +120,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     // actual thresholds at render time.
     slices: [
       { label: "Above final",  color: "var(--chart-pos)" },
-      { label: "Below final",  color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
-      { label: "Below initial", color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
+      { label: "Below final",  color: "var(--chart-amber)", href: "/?triage=belowThreshold" },
+      { label: "Below initial", color: "var(--chart-danger)", href: "/?triage=belowThreshold" },
     ],
   },
   applied: {
@@ -129,8 +129,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     centerLabel: "applied",
     visibleSlices: 2,
     slices: [
-      { label: "Applied",        color: "var(--chart-applied)", href: "/dashboard/applications?status=sent" },
-      { label: "Ready to apply", color: "var(--chart-info)", href: "/dashboard/applications" },
+      { label: "Applied",        color: "var(--chart-applied)", href: "/applications?status=sent" },
+      { label: "Ready to apply", color: "var(--chart-info)", href: "/applications" },
       { label: "Not yet",        color: "var(--chart-neutral)" },
     ],
   },
@@ -513,7 +513,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           {/* Thin JD nudge — JD lens */}
           {activeLens === "jd" && counts[1] > 0 && (
             <FilterAnchor
-              href="/dashboard?triage=thinJd"
+              href="/?triage=thinJd"
               shallow={shallow}
               apply={applyFilter}
               className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-amber-600 hover:text-amber-700 transition-colors"
@@ -621,23 +621,23 @@ function DonutPopup({
           let href = "";
           let label = "";
           if (lens === "jd" && mode === 0 && data.jd.totals[0] > 0)
-            { href = "/dashboard?triage=richJd"; label = "View full-JD jobs →"; }
+            { href = "/?triage=richJd"; label = "View full-JD jobs →"; }
           else if (lens === "jd" && mode === 1 && data.jd.totals[1] > 0)
-            { href = "/dashboard?triage=thinJd"; label = `View ${data.jd.totals[1]} thin JD job${data.jd.totals[1] > 1 ? "s" : ""} →`; }
+            { href = "/?triage=thinJd"; label = `View ${data.jd.totals[1]} thin JD job${data.jd.totals[1] > 1 ? "s" : ""} →`; }
           else if (lens === "analysis" && mode === 0)
-            { href = "/dashboard?stage=letterReady"; label = "View letter-ready jobs →"; }
+            { href = "/?stage=letterReady"; label = "View letter-ready jobs →"; }
           else if (lens === "analysis" && mode === 1)
-            { href = "/dashboard?stage=cvReady"; label = "View CV-ready jobs →"; }
+            { href = "/?stage=cvReady"; label = "View CV-ready jobs →"; }
           else if (lens === "analysis" && mode === 2 && data.analysis.totals[2] > 0)
-            { href = "/dashboard?triage=notTailored"; label = "View not-tailored jobs →"; }
+            { href = "/?triage=notTailored"; label = "View not-tailored jobs →"; }
           else if (lens === "ats" && mode === 0 && data.ats.totals[0] > 0)
-            { href = "/dashboard?ats=above_final"; label = "View above-threshold jobs →"; }
+            { href = "/?ats=above_final"; label = "View above-threshold jobs →"; }
           else if (lens === "ats" && (mode === 1 || mode === 2))
-            { href = "/dashboard?triage=belowThreshold"; label = "View below-threshold jobs →"; }
+            { href = "/?triage=belowThreshold"; label = "View below-threshold jobs →"; }
           else if (lens === "applied" && (mode === 0 || mode === "center"))
-            { href = "/dashboard/applications?status=sent"; label = "View applied jobs →"; }
+            { href = "/applications?status=sent"; label = "View applied jobs →"; }
           else if (lens === "applied" && mode === 1)
-            { href = "/dashboard/applications"; label = "View ready to apply →"; }
+            { href = "/applications"; label = "View ready to apply →"; }
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">

@@ -70,6 +70,6 @@ export async function POST(
   }
 
   // Refresh the applications listing so the card moves tabs immediately.
-  revalidatePath("/dashboard/applications");
+  revalidatePath("/applications");
   return NextResponse.json({ reviewed: true });
 }

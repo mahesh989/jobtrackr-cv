@@ -2,7 +2,7 @@
  * POST /api/cv/[id]/extract-references
  *
  * On-demand referee extraction from an existing CV's text. Used by the
- * References section under /dashboard/cv → "Extract from CV" button.
+ * References section under /cv → "Extract from CV" button.
  *
  * Result is cached on `cv_versions.extracted_references` and returned to
  * the client. NEVER auto-writes to user_preferences — the UI offers a

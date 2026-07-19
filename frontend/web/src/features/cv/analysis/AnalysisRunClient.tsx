@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import { cancelAnalysisRun }    from "@/lib/actions";
@@ -394,7 +394,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
             const trailing = cl.state === "completed" && coverLetter
               ? (
                 <a
-                  href="/dashboard/applications?status=email"
+                  href="/applications?status=email"
                   className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
                 >
                   View letter →

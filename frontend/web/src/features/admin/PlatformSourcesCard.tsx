@@ -5,7 +5,7 @@
 // Each column is independently saveable.
 
 import { useState } from "react";
-import { Radio, Button } from "@/ui";
+import { Radio, Button } from "@/components/ui";
 
 type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever" | "agedcare" | "radancy" | "avature" | "agedcare_dayforce" | "successfactors" | "adlogic";
 type Tier    = "weekly" | "monthly" | "unlimited";

@@ -20,7 +20,7 @@ export async function generateInviteCode() {
   const code = "JT" + crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
   const { error } = await adminClient.from("invite_codes").insert({ code, created_by: user.id });
   if (error) throw new Error(error.message);
-  revalidatePath("/dashboard/admin");
+  revalidatePath("/admin");
 }
 
 export async function revokeInviteCode(code: string) {
@@ -31,6 +31,6 @@ export async function revokeInviteCode(code: string) {
     .update({ is_active: false })
     .eq("code", code)
     .is("used_by", null); // only revoke unused codes
-  revalidatePath("/dashboard/admin");
+  revalidatePath("/admin");
 }
 

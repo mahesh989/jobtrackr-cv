@@ -4,7 +4,7 @@ import {
   Trophy, BadgeCheck, FolderGit2,
   type LucideIcon,
 } from "lucide-react";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 

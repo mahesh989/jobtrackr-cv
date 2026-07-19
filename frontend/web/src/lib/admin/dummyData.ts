@@ -5,10 +5,10 @@
  * instrumentation is not yet wired (Stripe webhooks, cohort tracking, etc.).
  *
  * Pages importing this module:
- *   • /dashboard/admin/revenue   — MRR trend, billing events log
- *   • /dashboard/admin/retention — cohort retention grid, DAU/WAU/MAU
- *   • /dashboard/admin/sourcing  — per-source availability badges
- *   • /dashboard/admin/audit     — sample audit log rows
+ *   • /admin/revenue   — MRR trend, billing events log
+ *   • /admin/retention — cohort retention grid, DAU/WAU/MAU
+ *   • /admin/sourcing  — per-source availability badges
+ *   • /admin/audit     — sample audit log rows
  *
  * How to remove per-section:
  *   Revenue trend     → replace with real Stripe webhook history from stripe_events

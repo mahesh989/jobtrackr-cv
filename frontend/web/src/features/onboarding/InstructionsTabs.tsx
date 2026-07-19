@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * InstructionsTabs — two sub-tabs on /dashboard/instructions:
+ * InstructionsTabs — two sub-tabs on /instructions:
  *   • Get set up   — the guided wizard (cards while in progress, checklist once done)
  *   • How it works — key terms + the end-to-end pipeline explanation
  *
@@ -14,7 +14,7 @@ import { useState, type ReactNode } from "react";
 import type { SetupStatus } from "@/lib/setupStatus";
 import { SetupCards } from "./SetupCards";
 import { SetupChecklist } from "./SetupChecklist";
-import { Tabs } from "@/ui";
+import { Tabs } from "@/components/ui";
 
 type Tab = "setup" | "howitworks";
 

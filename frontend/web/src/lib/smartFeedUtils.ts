@@ -1,4 +1,4 @@
-import { matchScore, type BoardJob, type AtsBand } from "@/features/jobs/jobFilters";
+import { matchScore, type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
 
 export function relativeDate(d: string | null): string | null {
   if (!d) return null;

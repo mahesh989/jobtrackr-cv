@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Eye, Plus, Pencil } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { TrustBadge } from "./TrustBadge";
 import { sourceLabel, type VoiceProfile } from "./types";
 

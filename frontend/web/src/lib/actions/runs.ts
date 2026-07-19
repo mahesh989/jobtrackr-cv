@@ -53,8 +53,8 @@ export async function cancelRun(runId: string, profileId: string) {
     .eq("id", runId)
     .eq("status", "running");
 
-  revalidatePath(`/dashboard/profiles/${profileId}/runs`);
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath(`/profiles/${profileId}/runs`);
+  revalidatePath(`/profiles/${profileId}/jobs`);
 }
 
 export async function getSavedJobsForRun(profileId: string, startedAt: string, finishedAt: string | null) {

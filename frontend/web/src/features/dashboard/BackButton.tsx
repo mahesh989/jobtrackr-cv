@@ -8,7 +8,7 @@
  */
 
 import { useRouter } from "next/navigation";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export function BackButton() {
   const router = useRouter();

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Textarea, Input } from "@/ui";
+import { Modal, Button, Textarea, Input } from "@/components/ui";
 import { triggerReanalyze } from "@/features/cv/analysis/AnalyzeJobButton";
-import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/jobFilters";
+import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/lib/jobFilters";
 import { matchedExclusions } from "@/lib/descExclusion";
 
 interface Props {

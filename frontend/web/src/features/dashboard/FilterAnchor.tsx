@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 import Link from "next/link";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export function FilterAnchor({
   href, shallow, apply, className, onClick, children,

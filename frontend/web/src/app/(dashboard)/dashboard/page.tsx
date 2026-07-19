@@ -18,7 +18,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/modules/auth/server";
+import { getAuthUser } from "@/features/auth/server";
 import { getCachedProfiles } from "@/lib/queryCache";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
@@ -29,18 +29,18 @@ import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
 import { DashboardStatCards } from "@/features/dashboard/DashboardStatCards";
 import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/PipelineDonut";
-import { type FunnelCounts } from "@/features/jobs/PipelineFunnel";
-import { ScrollToJobsOnFilter } from "@/features/jobs/ScrollToJobsOnFilter";
-import { JobBoard } from "@/features/jobs/JobBoard";
-import { Button } from "@/ui";
-import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/jobFilters";
+import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
+import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
+import { JobBoard } from "@/features/jobs/components/JobBoard";
+import { Button } from "@/components/ui";
+import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
-} from "@/features/jobs/progressFlags";
-import { derivePipelineState, recomputeGates } from "@/features/jobs/pipelineState";
+} from "@/features/jobs/lib/progressFlags";
+import { derivePipelineState, recomputeGates } from "@/features/jobs/lib/pipelineState";
 
 interface SearchParams {
   sort?:          string;
@@ -80,7 +80,7 @@ export default async function DashboardPage({
     .from("users").select("role").eq("id", user.id).single();
   const userRole = (userRoleRow as { role?: string } | null)?.role ?? "";
   const inUserView = (await cookies()).get("jt_user_view")?.value === "1";
-  if ((ADMIN_ROLES as readonly string[]).includes(userRole) && !inUserView) redirect("/dashboard/admin");
+  if ((ADMIN_ROLES as readonly string[]).includes(userRole) && !inUserView) redirect("/admin");
 
   // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
   // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)
@@ -554,7 +554,7 @@ export default async function DashboardPage({
     ats:      { totals: atsTotals, byProfile: mkProfiles(atsMap), thresholds: atsThresholds },
     applied:  { totals: appliedTotals, byProfile: mkProfiles(appliedMap) },
     callouts: {
-      // Use the SAME bar as the Thin JD chip + the /dashboard?triage=thinJd
+      // Use the SAME bar as the Thin JD chip + the /?triage=thinJd
       // filter the callout links to (jobNeedsJd: thin AND no usable manual
       // JD ≥ MANUAL_JD_MIN_CHARS). jdTotals[1] counts every job classified
       // 'thin' by the analyser, even when the user has already pasted a
@@ -659,7 +659,7 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
               : "Your job radar: keywords + location + schedule. Save it, then run it — your first AI-scored results land in a minute or two."}
           </p>
           <Link
-            href={hasProfiles ? "/dashboard/profiles" : "/dashboard/profiles/new"}
+            href={hasProfiles ? "/profiles" : "/profiles/new"}
             className="inline-flex"
           >
             <Button variant="blue" className="px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold">
@@ -668,7 +668,7 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
           </Link>
           <p className="text-[12px] text-text-3 mt-4">
             Need to change your details?{" "}
-            <Link href="/dashboard/instructions?tab=setup" className="text-[var(--brand)] hover:underline">
+            <Link href="/instructions?tab=setup" className="text-[var(--brand)] hover:underline">
               Revisit setup →
             </Link>
           </p>

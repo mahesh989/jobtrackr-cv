@@ -6,8 +6,8 @@
  * Replaces the old status tab bar — each card is now a navigation trigger:
  *   Total jobs     → scroll to (or pulse) the jobs board, highlight while in view
  *   New · unseen   → filter the board to unseen jobs (inactive when count is 0)
- *   Applied        → /dashboard/applications
- *   Auto-scheduled → /dashboard/profiles?autoScheduled=true
+ *   Applied        → /applications
+ *   Auto-scheduled → /profiles?autoScheduled=true
  *
  * The jobs board is server-rendered; this client component targets it by the
  * `jobs-board` id rather than owning it.
@@ -77,7 +77,7 @@ export function DashboardStatCards({
 
   function rememberOrigin() {
     try {
-      sessionStorage.setItem("lastDashboardTab", "/dashboard");
+      sessionStorage.setItem("lastDashboardTab", "/");
     } catch {
       /* sessionStorage unavailable — back button falls back to router.back() */
     }
@@ -85,12 +85,12 @@ export function DashboardStatCards({
 
   function handleAppliedClick() {
     rememberOrigin();
-    router.push("/dashboard/applications?status=sent");
+    router.push("/applications?status=sent");
   }
 
   function handleAutoScheduledClick() {
     rememberOrigin();
-    router.push("/dashboard/profiles?autoScheduled=true");
+    router.push("/profiles?autoScheduled=true");
   }
 
   const cardBase =

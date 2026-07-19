@@ -13,7 +13,7 @@ export default function PrivacyPage() {
 
       <article className="max-w-2xl mx-auto px-6 py-12 space-y-8 text-base leading-relaxed">
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center gap-1 text-sm text-text-3 hover:text-text transition-colors"
         >
           ← Back to dashboard
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-text">6. Your rights (APP 12 &amp; 13)</h2>
           <ul className="list-disc list-inside space-y-1.5 text-text-2">
-            <li><strong className="text-text">Access</strong> — export all your data as JSON from <Link href="/dashboard" className="text-brand hover:text-text transition-colors">Account Settings</Link>.</li>
+            <li><strong className="text-text">Access</strong> — export all your data as JSON from <Link href="/" className="text-brand hover:text-text transition-colors">Account Settings</Link>.</li>
             <li><strong className="text-text">Correction</strong> — edit your search preferences in the dashboard at any time.</li>
             <li><strong className="text-text">Deletion</strong> — delete your account and all data from Account Settings or by emailing us.</li>
           </ul>

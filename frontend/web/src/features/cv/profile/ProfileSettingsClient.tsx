@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { ContactDetails, Project, ProfileCredentials, RoleFamily } from "./types";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { ContactDetailsSection } from "./ContactDetailsSection";
 import { RoleFamilyPicker } from "./RoleFamilyPicker";
 import { TechLinksSection } from "./TechLinksSection";

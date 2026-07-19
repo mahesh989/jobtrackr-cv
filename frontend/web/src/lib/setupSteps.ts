@@ -33,27 +33,27 @@ export const SETUP_STEPS: SetupStep[] = [
   {
     key: "profile", icon: UserCircle2, title: "Set up your details", tag: "required",
     blurb: "Your contact details are stamped onto every tailored CV. Name, address and contact number are required; LinkedIn, GitHub, portfolio and projects are optional but recommended. Set them at the top of My CV.",
-    href: "/dashboard/cv",
+    href: "/cv",
   },
   {
     key: "cv", icon: FileText, title: "Add your CV", tag: "required",
     blurb: "The AI tailors this to each job and scores how well you match. Upload a PDF/DOCX or build one from scratch, then set one version as active.",
-    href: "/dashboard/cv",
+    href: "/cv",
   },
   {
     key: "voice", icon: PenLine, title: "Set up your writing voice", tag: "recommended",
     blurb: "Makes your cover letters read like a human — like you, not generic AI. Paste a short writing sample or pick a tone; it's used whenever a letter is drafted.",
-    href: "/dashboard/voice",
+    href: "/voice",
   },
   {
     key: "email", icon: Mail, title: "Connect your email", tag: "optional",
     blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under My CV → Email account.",
-    href: "/dashboard/cv",
+    href: "/cv",
   },
   {
     key: "searchProfile", icon: Briefcase, title: "Create a search profile & run it", tag: "required",
     blurb: "Your job radar: keywords + location + schedule. Save it, then hit Run now — your first AI-scored results land in a minute or two.",
-    href: "/dashboard/profiles/new",
+    href: "/profiles/new",
   },
 ];
 

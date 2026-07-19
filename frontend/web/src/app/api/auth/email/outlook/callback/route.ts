@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   if (error || !code) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/profile?email_error=${encodeURIComponent(error ?? "no_code")}`,
+      `${appUrl}/settings/profile?email_error=${encodeURIComponent(error ?? "no_code")}`,
     );
   }
 
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   if (!storedState || storedState !== state) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/profile?email_error=invalid_state`,
+      `${appUrl}/settings/profile?email_error=invalid_state`,
     );
   }
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
   if (!tokenRes.ok) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/profile?email_error=token_exchange_failed`,
+      `${appUrl}/settings/profile?email_error=token_exchange_failed`,
     );
   }
 
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
   const { access_token, refresh_token, expires_in } = tokenJson;
   if (!access_token || !refresh_token) {
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/profile?email_error=missing_tokens`,
+      `${appUrl}/settings/profile?email_error=missing_tokens`,
     );
   }
 
@@ -90,11 +90,11 @@ export async function GET(req: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[outlook/callback] saveTokens failed:", msg);
     return NextResponse.redirect(
-      `${appUrl}/dashboard/settings/profile?email_error=${encodeURIComponent("save_failed:" + msg.slice(0, 120))}`,
+      `${appUrl}/settings/profile?email_error=${encodeURIComponent("save_failed:" + msg.slice(0, 120))}`,
     );
   }
 
   return NextResponse.redirect(
-    `${appUrl}/dashboard/settings/profile?email_connected=outlook`,
+    `${appUrl}/settings/profile?email_connected=outlook`,
   );
 }

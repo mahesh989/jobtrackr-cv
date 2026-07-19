@@ -7,7 +7,7 @@
  * review page when the stored `_version` is below STRUCTURED_CV_VERSION.
  *
  * Returns { ok: true } on success — the caller then routes to
- * /dashboard/cv/{id}/review.
+ * /cv/{id}/review.
  */
 
 import { NextRequest, NextResponse } from "next/server";

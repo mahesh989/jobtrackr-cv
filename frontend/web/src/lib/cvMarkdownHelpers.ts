@@ -140,7 +140,7 @@ import type { ContactDetails } from "@/lib/types";
 /**
  * Mirrors cv-backend's stamp_contact_line — replaces everything between H1
  * and the first H2 with a freshly-built contact line. Runs at PREVIEW time
- * so updates to /dashboard/settings/profile show up immediately without
+ * so updates to /settings/profile show up immediately without
  * re-running the analysis.
  *
  * Returns md unchanged when contact details are empty.

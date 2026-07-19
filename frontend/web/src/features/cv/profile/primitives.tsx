@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { Checkbox } from "@/ui";
+import { Checkbox } from "@/components/ui";
 
 export function SectionCard({
   icon: Icon, title, subtitle, children,

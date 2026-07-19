@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { Sparkles, Loader2, Zap, AlertTriangle, X, FileText } from "lucide-react";
 
 interface Props {
@@ -102,17 +102,17 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
       if (res.status === 402) {
         // Billing cap hit — point the user at the billing page with the reason.
         const reason = (json.reason as string | undefined) ?? "cv_unique_cap";
-        setErr({ message, action, cta: { label: "Upgrade", href: `/dashboard/billing?denied=${reason}` } });
+        setErr({ message, action, cta: { label: "Upgrade", href: `/billing?denied=${reason}` } });
       } else if (/active CV/i.test(message)) {
-        setErr({ message, action, cta: { label: "Upload CV", href: "/dashboard/cv" } });
+        setErr({ message, action, cta: { label: "Upload CV", href: "/cv" } });
       } else if (/AI key/i.test(message)) {
-        setErr({ message, action, cta: { label: "Add AI key", href: "/dashboard/integrations" } });
+        setErr({ message, action, cta: { label: "Add AI key", href: "/integrations" } });
       } else {
         setErr({ message, action });
       }
       return;
     }
-    router.push(`/dashboard/jobs/${jobId}/analyze/${json.run_id}`);
+    router.push(`/jobs/${jobId}/analyze/${json.run_id}`);
   }
 
   function handleClick(e: React.MouseEvent) {

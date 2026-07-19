@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import type { SkillCategory } from "@/lib/types";
 import { SKILL_CATEGORY_LABELS } from "@/lib/types";
 

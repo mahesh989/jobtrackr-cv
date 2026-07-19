@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export function Field({
   label, value, onChange, type = "text", placeholder,

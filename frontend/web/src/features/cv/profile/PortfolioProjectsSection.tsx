@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, ExternalLink } from "lucide-react";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 import type { Project } from "./types";
 
 export function PortfolioProjectsSection({

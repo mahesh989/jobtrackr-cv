@@ -15,6 +15,6 @@ export async function markApplicationsSeen() {
     .from("users")
     .update({ applications_seen_at: new Date().toISOString() })
     .eq("id", user.id);
-  revalidatePath("/dashboard", "layout");
+  revalidatePath("/", "layout");
 }
 

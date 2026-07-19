@@ -62,15 +62,31 @@ frontend/web/src/
     (dashboard)/    # Authenticated dashboard pages
     api/            # Next.js API routes (BFF layer)
     auth/           # Login, signup, forgot/reset password
+  components/       # Shared UI components
+    ui/             # Reusable primitives (Button, Card, Input, Modal, etc.)
+    providers/      # ThemeProvider, RunNotifier, SetupGateClient
+    navigation/     # SidebarNav, MobileNav, ThemePicker
   features/         # Domain modules (one folder per feature)
     applications/   # Job applications, cover letters, emails
+      components/   # ApplicationCard, StatusTabs, etc.
+      hooks/        # useContactEmail, useCoverLetter, useEmailDraft
+    auth/           # Auth components (AuthShell, LoginForm, SignupForm, etc.)
+      components/   # LoginForm, SignupForm, etc.
+      server/       # getAuthUser, handleSignOut, guards
     cv/             # CV library, review editor, tailoring, voice/stories
+      analysis/     # AnalysisRun, CoverLetter, Feasibility
+      library/      # CvLibrary, CvReview
+      profile/      # ProfileForm, sections, primitives
+      voice/        # VoiceCapture, Stories
     jobs/           # Job boards, search, scraping
+      components/   # JobBoard, SmartFeed, SmartToolbar, etc.
+      lib/          # jobFilters, pipelineState, progressFlags
+    profiles/       # CV profiles (multi-CV support)
+      components/   # ProfileForm, ProfilesTable, RunJobsTable
     admin/          # Admin dashboards (metrics, users, pipeline, etc.)
     billing/        # Stripe billing
     dashboard/      # Dashboard home page
     integrations/   # Third-party integrations
-    profiles/       # CV profiles (multi-CV support)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
     api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()
@@ -79,10 +95,6 @@ frontend/web/src/
     cv/             # CV-specific helpers (skillLabels, etc.)
     ai/             # AI client helpers
     billing/        # Billing helpers
-  modules/          # Cross-feature modules
-    auth/           # Auth components (AuthShell, LoginForm, SignupForm, etc.)
-  ui/               # Shared UI components (Button, Card, Input, etc.)
-  layout/           # PageSkeleton, ContentSkeleton (loading states)
 
 backend/api/app/
   routes/           # FastAPI route handlers
@@ -116,7 +128,7 @@ backend/api/app/
 - Never define duplicate types — always import from canonical source
 
 ### Loading States
-- `loading.tsx` files use `PageSkeleton` (table pages) or `ContentSkeleton` (form/content pages) from `layout/PageSkeleton.tsx`
+- `loading.tsx` files use `PageSkeleton` (table pages) or `ContentSkeleton` (form/content pages) from `components/layout/PageSkeleton.tsx`
 - `error.tsx` boundaries exist at root, dashboard, and admin levels
 
 ### Backend API Conventions

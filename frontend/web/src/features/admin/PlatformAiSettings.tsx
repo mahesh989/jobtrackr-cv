@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PROVIDER_META, PROVIDER_ORDER, type AiProvider } from "@/lib/ai/models";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 
 export interface AdminProviderRow {
   provider:         AiProvider;

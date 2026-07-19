@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { PUBLIC_PLANS, formatAud, TRIAL_DAYS, type PlanId } from "@/lib/billing/plans";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 /**
  * Plan-selection grid. Shared by /pricing and /onboarding/plan.

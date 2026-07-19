@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export default function DashboardError({
   error,

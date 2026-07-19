@@ -4,7 +4,7 @@
  * Usage (in any admin page.tsx):
  *   const { user, admin } = await requireAdmin();
  *
- * Redirects to /dashboard if the user is not founder/admin.
+ * Redirects to / if the user is not founder/admin.
  * Returns both the auth user and a pre-constructed admin Supabase client
  * so pages don't need to reconstruct both.
  */

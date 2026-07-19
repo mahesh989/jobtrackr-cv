@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { TrustBadge } from "./TrustBadge";
 import { WORD_MIN, formalityLabel, type SubmitResult } from "./types";
 

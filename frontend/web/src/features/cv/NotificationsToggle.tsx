@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 /**
  * "Email me when new jobs are found" switch — backed by

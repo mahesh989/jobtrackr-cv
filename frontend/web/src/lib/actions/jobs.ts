@@ -68,8 +68,8 @@ export async function addManualJob(input: {
 
   if (error || !job) throw new Error(error?.message ?? "Failed to add job");
   revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard/profiles");
+  revalidatePath(`/profiles/${profileId}/jobs`);
+  revalidatePath("/profiles");
   return { jobId: job.id, alreadyExisted: false };
 }
 
@@ -84,9 +84,9 @@ export async function markJobApplied(jobId: string, profileId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
 
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath(`/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard"); // dashboard hosts a unified jobs board too
-  revalidatePath("/dashboard/applications"); // outbox bucket may change
+  revalidatePath("/applications"); // outbox bucket may change
 }
 
 /**
@@ -105,9 +105,9 @@ export async function markJobUnapplied(jobId: string, profileId: string) {
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
 
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
+  revalidatePath(`/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/applications");
+  revalidatePath("/applications");
 }
 
 export async function markJobDismissed(jobId: string, profileId: string) {
@@ -154,8 +154,8 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
 
-  revalidatePath(`/dashboard/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard/applications");
+  revalidatePath(`/profiles/${profileId}/jobs`);
+  revalidatePath("/applications");
 }
 
 /**
@@ -213,17 +213,17 @@ export async function bulkArchiveJobs(jobIds: string[]) {
   // — without this, ProfileJobBoard would still serve cached rows including
   // the just-archived items (router.refresh on the client revalidates the
   // current route only, and the action ran on the server). Falling back to
-  // a full /dashboard/profiles revalidation covers the dashboard sidebar
+  // a full /profiles revalidation covers the dashboard sidebar
   // counts and the profile list view.
   const profileIds = Array.from(new Set(
     ((data ?? []) as Array<{ id: string; profile_id: string }>).map((r) => r.profile_id),
   ));
   for (const pid of profileIds) {
-    revalidatePath(`/dashboard/profiles/${pid}/jobs`);
-    revalidatePath(`/dashboard/profiles/${pid}/runs`);
+    revalidatePath(`/profiles/${pid}/jobs`);
+    revalidatePath(`/profiles/${pid}/runs`);
   }
-  revalidatePath("/dashboard/profiles");
-  revalidatePath("/dashboard/applications");
+  revalidatePath("/profiles");
+  revalidatePath("/applications");
   revalidatePath("/dashboard");
   return { updated: data?.length ?? 0 };
 }

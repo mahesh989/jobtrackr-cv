@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
   // Forced redirect: a freshly-parsed CV must be reviewed before it's used.
   // When structurization failed (no key, AI error), skip the review and behave
   // like the legacy flow — analysis still works against the raw cv_text.
-  const redirect_to = structuredCv ? `/dashboard/cv/${cv_id}/review` : null;
+  const redirect_to = structuredCv ? `/cv/${cv_id}/review` : null;
 
   const responseRow = row as Record<string, unknown>;
   return NextResponse.json({

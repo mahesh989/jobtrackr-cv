@@ -2,16 +2,14 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/modules/auth/server";
+import { getAuthUser } from "@/features/auth/server";
 import { ADMIN_ROLES } from "@/lib/constants";
-import { ThemeProvider } from "@/layout/ThemeProvider";
-import { RunNotifier } from "@/layout/RunNotifier";
+import { ThemeProvider, RunNotifier, SetupGateClient } from "@/components/providers";
 import { SetupStepperBar } from "@/features/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
-import { SidebarData } from "@/layout/SidebarData";
-import { MobileMenuButton } from "@/layout/MobileMenuButton";
-import { SetupGateClient } from "@/layout/SetupGateClient";
-import { Button } from "@/ui";
+import { SidebarData } from "@/components/navigation/SidebarData";
+import { MobileMenuButton } from "@/components/navigation/MobileMenuButton";
+import { Button } from "@/components/ui";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();

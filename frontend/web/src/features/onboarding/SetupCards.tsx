@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { SetupStatus } from "@/lib/setupStatus";
 import { SETUP_STEPS, SETUP_STEP_COUNT, TAG_LABEL, type SetupTag } from "@/lib/setupSteps";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 const TAG_CLASS: Record<SetupTag, string> = {
   required:    "text-[var(--brand)] bg-[var(--brand)]/10 border-[var(--brand)]/20",

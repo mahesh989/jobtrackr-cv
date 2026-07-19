@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Select } from "@/ui";
+import { Select } from "@/components/ui";
 import { VISA_STATUS_LABELS, isUserVisaStatus } from "@/lib/eligibility";
 
 /**

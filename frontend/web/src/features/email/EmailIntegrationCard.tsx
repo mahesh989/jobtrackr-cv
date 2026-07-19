@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Mail, CheckCircle2, Loader2, LogOut } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 interface Props {
   /** null = no email integration connected */

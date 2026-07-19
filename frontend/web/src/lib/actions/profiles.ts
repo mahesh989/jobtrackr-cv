@@ -43,7 +43,7 @@ export async function getOrCreateManualProfile(): Promise<string> {
     .single();
 
   if (error || !created) throw new Error(error?.message ?? "Failed to create Saved Jobs profile");
-  revalidatePath("/dashboard/profiles");
+  revalidatePath("/profiles");
   return created.id;
 }
 
@@ -54,7 +54,7 @@ export async function createProfile(formData: FormData) {
   // to billing. The profile form also pre-checks, so this is the hard backstop.
   const gate = await assertCanCreateProfile(user.id);
   if (!gate.allowed) {
-    redirect(`/dashboard/billing?denied=${gate.reason ?? "profile_cap"}`);
+    redirect(`/billing?denied=${gate.reason ?? "profile_cap"}`);
   }
 
   const keywords = (formData.get("keywords") as string)
@@ -99,8 +99,8 @@ export async function createProfile(formData: FormData) {
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/profiles");
-  redirect("/dashboard/profiles");
+  revalidatePath("/profiles");
+  redirect("/profiles");
 }
 
 export async function updateProfile(profileId: string, formData: FormData) {
@@ -169,8 +169,8 @@ export async function updateProfile(profileId: string, formData: FormData) {
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/profiles");
-  redirect("/dashboard/profiles");
+  revalidatePath("/profiles");
+  redirect("/profiles");
 }
 
 export async function copyProfile(profileId: string) {
@@ -179,7 +179,7 @@ export async function copyProfile(profileId: string) {
   // Copying creates a new profile — same billing gate as createProfile.
   const gate = await assertCanCreateProfile(user.id);
   if (!gate.allowed) {
-    redirect(`/dashboard/billing?denied=${gate.reason ?? "profile_cap"}`);
+    redirect(`/billing?denied=${gate.reason ?? "profile_cap"}`);
   }
 
   // Fetch original (verify ownership)
@@ -210,7 +210,7 @@ export async function copyProfile(profileId: string) {
     .limit(1)
     .maybeSingle();
   if (recentCopy) {
-    redirect(`/dashboard/profiles/${recentCopy.id}/edit`);
+    redirect(`/profiles/${recentCopy.id}/edit`);
   }
 
   const { data: newProfile, error } = await supabase
@@ -248,7 +248,7 @@ export async function copyProfile(profileId: string) {
   if (error) throw new Error(error.message);
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  redirect(`/dashboard/profiles/${newProfile.id}/edit`);
+  redirect(`/profiles/${newProfile.id}/edit`);
 }
 
 export async function deleteProfile(profileId: string) {
@@ -261,7 +261,7 @@ export async function deleteProfile(profileId: string) {
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/profiles");
-  redirect("/dashboard/profiles");
+  revalidatePath("/profiles");
+  redirect("/profiles");
 }
 

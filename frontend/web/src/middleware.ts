@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   // Public marketing routes never gate on auth here and never redirect based on
   // `user`, so skip the Supabase auth.getUser() network round-trip entirely for
   // them. Pages that genuinely need the session (e.g. the landing page's
-  // logged-in → /dashboard redirect) resolve it server-side themselves, and a
+  // logged-in → / redirect) resolve it server-side themselves, and a
   // logged-in user's token still refreshes on their next protected navigation.
   // This shaves a round-trip off every anonymous landing/pricing/privacy hit.
   const isPublicRoute =

@@ -30,7 +30,7 @@ import type {
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-import { Button, Input } from "@/ui";
+import { Button, Input } from "@/components/ui";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
@@ -159,7 +159,7 @@ export function CvReviewClient({
   );
 
   // Return to My CV scrolled to this CV's card (both flows land here on save).
-  const returnToCard = () => router.push(`/dashboard/cv#cv-${cvId}`);
+  const returnToCard = () => router.push(`/cv#cv-${cvId}`);
 
   // Create mode: save as draft — no validation, stays unverified. User can
   // come back and finish later.
@@ -195,7 +195,7 @@ export function CvReviewClient({
         /* best-effort — even if the delete fails, don't trap the user here */
       }
     }
-    router.push("/dashboard/cv");
+    router.push("/cv");
   }
 
   const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
@@ -367,7 +367,7 @@ export function CvReviewClient({
         <div className="flex-1 min-w-0">
           <Button
             type="button"
-            onClick={() => router.push("/dashboard/cv")}
+            onClick={() => router.push("/cv")}
             icon={<ArrowLeft className="h-3.5 w-3.5" />}
             className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"
           >

@@ -5,7 +5,7 @@ import { Plus, Trash2, Sparkles, UserCheck } from "lucide-react";
 import type { Referee, ReferencesMode } from "@/features/cv/profile/ReferencesSection";
 import { useProfile, MAX_REFEREES } from "./context";
 import { SectionCard, Field } from "./primitives";
-import { Radio, Button } from "@/ui";
+import { Radio, Button } from "@/components/ui";
 
 const REF_MODES: { value: ReferencesMode; label: string; description: string }[] = [
   { value: "details",    label: "Include referee details", description: "Referee names, titles, and emails are printed on your CV." },

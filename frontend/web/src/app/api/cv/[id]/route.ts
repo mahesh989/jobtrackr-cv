@@ -117,7 +117,7 @@ export async function PATCH(
   // still exist in their library.
   if (!body.is_active) await ensureSomeoneActive(admin, user.id);
 
-  revalidatePath("/dashboard/cv");
+  revalidatePath("/cv");
   return NextResponse.json({ id, is_active: body.is_active });
 }
 
@@ -163,6 +163,6 @@ export async function DELETE(
   // any CVs exist.
   await ensureSomeoneActive(admin, user.id);
 
-  revalidatePath("/dashboard/cv");
+  revalidatePath("/cv");
   return NextResponse.json({ deleted: true });
 }

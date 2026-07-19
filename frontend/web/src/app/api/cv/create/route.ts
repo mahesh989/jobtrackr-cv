@@ -109,6 +109,6 @@ export async function POST() {
 
   return NextResponse.json({
     id:          row.id,
-    redirect_to: `/dashboard/cv/${row.id}/review`,
+    redirect_to: `/cv/${row.id}/review`,
   });
 }

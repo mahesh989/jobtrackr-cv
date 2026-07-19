@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button, Textarea, Input } from "@/ui";
+import { Button, Textarea, Input } from "@/components/ui";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 interface GenerationStatus {
@@ -548,7 +548,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
           <span className="font-medium">{paywall.message}</span>
           <a
-            href={`/dashboard/billing?denied=${paywall.reason}`}
+            href={`/billing?denied=${paywall.reason}`}
             className="shrink-0 rounded-md bg-[var(--brand)] px-2.5 py-1 text-[11px] font-semibold text-[var(--brand-fg)] hover:opacity-90"
           >
             Upgrade
@@ -752,7 +752,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             {/* Jump to the Applications "Application pool" tab so the user
                 can queue this letter for review without hunting through the nav. */}
             <Link
-              href="/dashboard/applications"
+              href="/applications"
               className="ml-auto inline-flex items-center gap-1 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"
             >
               Apply now

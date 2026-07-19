@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Loader2, ArrowUpCircle } from "lucide-react";
 import { PUBLIC_PLANS, formatAud } from "@/lib/billing/plans";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 const PLAN_RANK: Record<string, number> = { weekly: 1, monthly: 2, unlimited: 3 };
 
@@ -36,7 +36,7 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Upgrade failed.");
-      window.location.assign("/dashboard/billing?upgraded=1");
+      window.location.assign("/billing?upgraded=1");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(null);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, CreditCard, Check } from "lucide-react";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 const TRIAL_PERKS = [
   "3 tailored CVs",

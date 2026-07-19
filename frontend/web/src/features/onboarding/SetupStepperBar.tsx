@@ -15,9 +15,9 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { SETUP_STEPS, SETUP_STEP_COUNT } from "@/lib/setupSteps";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
-const SETUP_TAB = "/dashboard/instructions?tab=setup";
+const SETUP_TAB = "/instructions?tab=setup";
 
 export function SetupStepperBar() {
   const params = useSearchParams();

@@ -10,7 +10,7 @@
  * Used by:
  *   - DELETE /api/cv/[id]              — after removing a row.
  *   - PATCH  /api/cv/[id]              — after a deactivate.
- *   - /dashboard/cv server page        — on every page load, so users land
+ *   - /cv server page        — on every page load, so users land
  *                                         on a clean state even if no mutate
  *                                         happened to trigger the promote.
  *

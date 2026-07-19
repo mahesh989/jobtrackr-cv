@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 
 export default function RootError({
   error,
@@ -27,7 +27,7 @@ export default function RootError({
         <Button onClick={reset} variant="default">
           Try again
         </Button>
-        <Link href="/">
+        <Link href="/dashboard">
           <Button variant="default">Go home</Button>
         </Link>
       </div>

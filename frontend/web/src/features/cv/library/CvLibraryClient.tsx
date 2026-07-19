@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/ui";
+import { Button } from "@/components/ui";
 import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
 import { CvReviewClient } from "@/features/cv/library/CvReviewClient";
 import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/CvLibraryModals";
@@ -73,7 +73,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
   const [deleteTarget, setDeleteTarget] = useState<CvRow | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
-  // Arrive-at-card: the review page returns here as /dashboard/cv#cv-<id>
+  // Arrive-at-card: the review page returns here as /cv#cv-<id>
   // after a save. Scroll that CV into view and pulse a highlight so the user
   // lands on the CV they just edited, not the top of the list.
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -491,7 +491,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
                 pending={pendingId === cv.id}
                 expanded={expandedId === cv.id}
                 onToggleExpand={() => setExpandedId(prev => prev === cv.id ? null : cv.id)}
-                onEdit={() => router.push(`/dashboard/cv/${cv.id}/review`)}
+                onEdit={() => router.push(`/cv/${cv.id}/review`)}
                 onActivate={() => handleSetActive(cv.id)}
                 onDelete={() => setDeleteTarget(cv)}
                 onStatusChange={(newStatus) =>
