@@ -5,19 +5,18 @@ import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { triggerReanalyze } from "@/features/cv/analysis/AnalyzeJobButton";
-import { Button } from "@/components/ui";
 import type { BoardJob } from "../lib/jobFilters";
 
 function MenuItem({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
-    <Button
+    <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className="w-full text-left px-3 py-1.5 hover:bg-[var(--surface-2)] disabled:text-text-3 disabled:cursor-not-allowed transition-colors"
     >
       {children}
-    </Button>
+    </button>
   );
 }
 
@@ -57,7 +56,7 @@ export function CardMenu({
 
   return (
     <>
-      <Button
+      <button
         ref={btnRef}
         type="button"
         onClick={toggle}
@@ -66,7 +65,7 @@ export function CardMenu({
         className="p-1 rounded hover:bg-[var(--surface-2)] text-text-3 disabled:opacity-40"
       >
         <MoreHorizontal className="w-3.5 h-3.5" />
-      </Button>
+      </button>
       {open && pos && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}

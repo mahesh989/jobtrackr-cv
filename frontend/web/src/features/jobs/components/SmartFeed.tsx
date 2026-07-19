@@ -9,7 +9,6 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobDismissed, bulkArchiveJobs, bulkStarJobs, toggleStarJob } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/features/cv/analysis/AnalyzeJobButton";
 import { JobEditModal } from "@/features/cv/JobEditModal";
-import { Button } from "@/components/ui";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "../lib/jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
@@ -609,10 +608,10 @@ function CardShell({
     >
       <div style={{ overflow: "hidden" }} className="relative">
         {selectable && (
-          <Button
+          <button
             type="button"
             onClick={() => selection!.toggle(job.id)}
-            className={`absolute top-3 left-2.5 z-10 w-5 h-5 rounded border flex items-center justify-center transition-colors p-0 ${
+            className={`absolute top-3 left-2.5 z-10 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
               checked
                 ? "bg-[var(--brand)] border-[var(--brand)]"
                 : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--brand)]"
@@ -620,7 +619,7 @@ function CardShell({
             aria-label={checked ? "Deselect job" : "Select job"}
           >
             {checked && <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-          </Button>
+          </button>
         )}
         <div
           ref={refSetter}
@@ -838,7 +837,7 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
       {!compact && <ProgressDots progress={job.progress} />}
       <div className="flex items-center gap-1.5">
         {compact && <ProgressDots progress={job.progress} />}
-        <Button
+        <button
           type="button"
           onClick={onToggleStar}
           title={starred ? "Remove from favourites" : "Add to favourites"}
@@ -848,20 +847,20 @@ function CardActions({ job, compact }: { job: BoardJob; compact?: boolean }) {
             className={`w-3.5 h-3.5 transition-colors ${starred ? "text-amber-400 fill-amber-400" : "text-text-3"}`}
             strokeWidth={starred ? 0 : 1.5}
           />
-        </Button>
+        </button>
         {job.progress.latest_run_id ? (
           <FullAnalysisButton
             jobId={job.id}
             analysisHref={`/jobs/${job.id}/analyze/${job.progress.latest_run_id}`}
           />
         ) : job.applied_at ? (
-          <Button
+          <button
             disabled
             className="flex items-center gap-1.5 rounded-md bg-[var(--surface-2)] border border-border px-2.5 py-1 text-xs font-medium text-text-3 cursor-not-allowed"
             title="This job was manually marked as applied and has no analysis run."
           >
             No Analysis
-          </Button>
+          </button>
         ) : (
           <AnalyzeJobButton jobId={job.id} hasAnalysis={job.progress.has_analysis} />
         )}
