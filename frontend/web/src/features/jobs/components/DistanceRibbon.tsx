@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { visaKey, VISA_COLOR, VISA_LABEL } from "@/lib/smartFeedUtils";
-import { Button } from "@/components/ui";
 import type { BoardJob } from "../lib/jobFilters";
 
 export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {
@@ -72,10 +71,10 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
           {rangeActive && (
             <span className="text-text font-normal normal-case ml-1">
               · {displayRange[0]}–{displayRange[1]} km
-              <Button
+              <button
                 onClick={() => onRangeChange([0, maxKm])}
                 className="ml-1 text-[var(--brand)] hover:underline"
-              >clear</Button>
+              >clear</button>
             </span>
           )}
         </p>
@@ -109,7 +108,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
           const muted = km < displayRange[0] || km > displayRange[1];
           const vk = visaKey(j);
           return (
-            <Button
+            <button
               key={j.id}
               type="button"
               onClick={() => onJobClick(j.id)}
@@ -136,7 +135,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
 
 function RangeHandle({ pos, onStart, label }: { pos: number; onStart: () => void; label: string }) {
   return (
-    <Button
+    <button
       type="button"
       title={`Drag — ${label}`}
       onMouseDown={onStart}
