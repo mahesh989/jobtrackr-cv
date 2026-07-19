@@ -26,7 +26,7 @@ const TABS: Array<{ value: ApplicationStatusKey; label: string }> = [
   { value: "sent", label: "Sent / Applied"   },
 ];
 
-export function ApplicationStatusTabs({ counts }: { counts: ApplicationStatusCounts }) {
+export function StatusTabs({ counts }: { counts: ApplicationStatusCounts }) {
   const router   = useRouter();
   const pathname = usePathname();
   const sp       = useSearchParams();

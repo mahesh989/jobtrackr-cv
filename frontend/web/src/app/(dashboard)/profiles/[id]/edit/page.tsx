@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfileForm } from "@/features/profiles/components/ProfileForm";
-import { DeleteProfileButton } from "@/features/profiles/components/DeleteProfileButton";
-import { CopyProfileButton } from "@/features/profiles/components/CopyProfileButton";
+import { DeleteButton } from "@/features/profiles/components/DeleteButton";
+import { CopyButton } from "@/features/profiles/components/CopyButton";
 
 export default async function EditProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -80,8 +80,8 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
             <h1 className="text-[16px] font-semibold text-text">Edit profile</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <CopyProfileButton profileId={id} />
-            <DeleteProfileButton profileId={id} profileName={profile.name} />
+            <CopyButton profileId={id} />
+            <DeleteButton profileId={id} profileName={profile.name} />
           </div>
         </div>
       </div>

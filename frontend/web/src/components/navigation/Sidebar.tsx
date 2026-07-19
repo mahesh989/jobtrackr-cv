@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { SidebarNav } from "@/components/navigation/SidebarNav";
+import { SidebarLinks } from "@/components/navigation/SidebarLinks";
 import { MobileNav } from "@/components/navigation/MobileNav";
 
 interface SidebarProfile {
@@ -18,13 +18,13 @@ interface Props {
 
 /**
  * Fetches sidebar data (profiles, unseen counts, running status, pool count)
- * and renders the desktop SidebarNav. Wrapped in Suspense by the layout so
+ * and renders the desktop SidebarLinks. Wrapped in Suspense by the layout so
  * the page content streams immediately while this loads.
  *
  * The pool count is the expensive part (3-step join). Profiles, unseen counts,
  * and running status are fast parallel queries.
  */
-export async function SidebarData({ userId, email, role, userView }: Props) {
+export async function Sidebar({ userId, email, role, userView }: Props) {
   const supabase = await createClient();
 
   const [{ data: profileRows }, { data: userRow }] = await Promise.all([
@@ -125,7 +125,7 @@ export async function SidebarData({ userId, email, role, userView }: Props) {
         className="shrink-0 hidden md:flex flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
         style={{ width: "var(--sidebar-width)" }}
       >
-        <SidebarNav
+        <SidebarLinks
           email={email}
           profiles={sidebarProfiles}
           poolCount={poolCount ?? 0}

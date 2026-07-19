@@ -1,7 +1,7 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { VoiceCaptureClient } from "@/features/cv/voice/VoiceCaptureClient";
+import { CaptureClient } from "@/features/cv/voice/CaptureClient";
 import { StoriesClient }      from "@/features/cv/voice/StoriesClient";
 import type { StoredStory }   from "@/features/cv/voice/StoriesClient";
 
@@ -60,7 +60,7 @@ export default async function VoicePage() {
               metrics from your CV live in the <em>Stories</em> section below — different thing.
             </p>
           </div>
-          <VoiceCaptureClient initialProfile={profile ?? null} />
+          <CaptureClient initialProfile={profile ?? null} />
         </div>
 
         <hr className="border-[var(--card-border)]" />

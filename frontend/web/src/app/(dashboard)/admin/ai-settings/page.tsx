@@ -8,7 +8,7 @@
  * effect on the very next request, for every user.
  */
 import { requireAdmin }       from "@/lib/admin/guard";
-import { PlatformAiSettings } from "@/features/admin/PlatformAiSettings";
+import { AiSettings } from "@/features/admin/AiSettings";
 import { PROVIDER_ORDER, DEFAULT_MODELS } from "@/lib/ai/models";
 
 export const metadata  = { title: "AI provider — Admin — JobTrackr" };
@@ -43,7 +43,7 @@ export default async function AdminAiSettingsPage() {
             the change applies to all analyses, cover letters and research on the next request.
           </p>
         </div>
-        <PlatformAiSettings initialProviders={providers} />
+        <AiSettings initialProviders={providers} />
       </div>
     </div>
   );

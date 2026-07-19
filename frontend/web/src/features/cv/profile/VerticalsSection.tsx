@@ -1,7 +1,7 @@
 "use client";
 
 import { Layers, ChevronDown } from "lucide-react";
-import type { RoleFamily } from "@/features/cv/profile/ProfileSettingsClient";
+import type { RoleFamily } from "@/features/cv/profile/SettingsClient";
 import { useProfile } from "./context";
 import { SectionCard } from "./primitives";
 

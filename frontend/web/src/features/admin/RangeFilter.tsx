@@ -15,7 +15,7 @@ const RANGES: { value: RangeKey; label: string }[] = [
  *
  * Pass `extraParams` to preserve other query params (e.g. "action=invite.generate").
  */
-export function AdminRangeFilter({
+export function RangeFilter({
   current,
   path,
   extraParams = "",

@@ -1,7 +1,7 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
-import { CvReviewClient }    from "@/features/cv/library/CvReviewClient";
+import { ReviewClient }    from "@/features/cv/library/ReviewClient";
 import { STRUCTURED_CV_VERSION, type StructuredCv } from "@/lib/cvBackend";
 import { structurizeAndPersist }   from "@/lib/cv/structurizeAndCategorise";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
@@ -77,7 +77,7 @@ export default async function CvReviewPage(
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <CvReviewClient
+      <ReviewClient
         cvId={cv.id as string}
         label={(cv.label as string) ?? "Your CV"}
         initialStructuredCv={cv.structured_cv as unknown as StructuredCv}

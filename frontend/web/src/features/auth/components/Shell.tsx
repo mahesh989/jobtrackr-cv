@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { BRAND_PANEL_FEATURES, LOGO_SVG } from "./brand";
 
-interface AuthShellProps {
+interface ShellProps {
   /** Serif headline in the brand panel, e.g. <>Find your next role<br /><em>…</em></> */
   headline: React.ReactNode;
   /** Paragraph under the headline in the brand panel. */
@@ -24,7 +24,7 @@ interface AuthShellProps {
   children: React.ReactNode;
 }
 
-export function AuthShell({
+export function Shell({
   headline,
   tagline,
   switchPrompt,
@@ -32,7 +32,7 @@ export function AuthShell({
   switchLabel,
   trustLabels,
   children,
-}: AuthShellProps) {
+}: ShellProps) {
   const switchLink = (
     <Link href={switchHref} className="group text-[13px] cursor-pointer" style={{ color: "#475467" }}>
       {switchPrompt}{" "}

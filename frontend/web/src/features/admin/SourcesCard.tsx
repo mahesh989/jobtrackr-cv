@@ -48,7 +48,7 @@ function MethodRadio({ name, value, checked, onChange, label }: {
   return <Radio name={name} value={value} checked={checked} onChange={onChange} label={label} />;
 }
 
-export function PlatformSourcesCard({ initial }: Props) {
+export function SourcesCard({ initial }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {TIERS.map((t) => (

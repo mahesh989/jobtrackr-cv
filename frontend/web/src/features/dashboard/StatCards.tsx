@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 
 const JOBS_BOARD_ID = "jobs-board";
 
-export function DashboardStatCards({
+export function StatCards({
   totalJobs,
   totalNew,
   totalApplied,

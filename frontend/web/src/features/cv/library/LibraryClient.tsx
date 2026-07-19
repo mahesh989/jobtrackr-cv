@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui";
 import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
-import { CvReviewClient } from "@/features/cv/library/CvReviewClient";
-import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/CvLibraryModals";
+import { ReviewClient } from "@/features/cv/library/ReviewClient";
+import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/LibraryModals";
 import type { StructuredCv } from "@/lib/cvBackend";
 import type { CategorisedSkills } from "@/lib/types";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
@@ -60,7 +60,7 @@ async function readError(res: Response): Promise<string> {
   return text.slice(0, 200) || `Upload failed (HTTP ${res.status})`;
 }
 
-export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: Props) {
+export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cvs, setCvs]             = useState<CvRow[]>(initial);
@@ -161,7 +161,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
 
   /**
    * Create a blank "built in app" CV and jump straight into the builder
-   * (CvReviewClient create mode). No file, no AI — just an empty structured CV
+   * (ReviewClient create mode). No file, no AI — just an empty structured CV
    * the user fills in by hand.
    */
   async function handleCreate() {
@@ -530,7 +530,7 @@ export function CvLibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }:
         document.body,
       )}
 
-      {/* Delete confirm modal — same pattern as DeleteProfileButton */}
+      {/* Delete confirm modal — same pattern as DeleteButton */}
       {typeof window !== "undefined" && (
         <DeleteConfirmModal
           target={deleteTarget}
@@ -829,7 +829,7 @@ function InlineCvReview({
     );
   }
   return (
-    <CvReviewClient
+    <ReviewClient
       cvId={cvId}
       label={initialLabel}
       initialStructuredCv={data.structured_cv}

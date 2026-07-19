@@ -6,4 +6,4 @@ export { VerticalsSection } from "./VerticalsSection";
 export { CredentialsSection } from "./CredentialsSection";
 export { AvailabilitySection } from "./AvailabilitySection";
 export { ReferencesSubSection } from "./ReferencesSubSection";
-export { ProfileSaveBar } from "./ProfileSaveBar";
+export { SaveBar } from "./SaveBar";

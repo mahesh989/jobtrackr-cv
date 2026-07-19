@@ -11,7 +11,7 @@
  * Shows a "no data yet" state gracefully if the table is empty.
  */
 import { requireAdmin, formatCost, formatTokens, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import Link from "next/link";
 
 export const metadata = { title: "AI Costs — Admin — JobTrackr" };
@@ -153,7 +153,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
               {noData && <span className="text-amber-700 font-medium">No data yet — apply migration 055 and set TRACK_AI_USAGE=true on cv-backend.</span>}
             </p>
           </div>
-          <AdminRangeFilter current={range} path="/admin/ai-costs" />
+          <RangeFilter current={range} path="/admin/ai-costs" />
         </div>
       </div>
 

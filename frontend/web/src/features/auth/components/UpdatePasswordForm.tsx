@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { AuthShell } from "./AuthShell";
+import { Shell } from "./Shell";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, Spinner } from "./brand";
 import { Button, Input } from "@/components/ui";
@@ -67,7 +67,7 @@ export function UpdatePasswordForm() {
   }
 
   return (
-    <AuthShell
+    <Shell
       headline={<>Set a new<br /><em style={{ fontStyle: "italic", color: "#0B7D74" }}>password.</em></>}
       tagline="Choose a strong password you haven't used elsewhere."
       switchPrompt="Changed your mind?"
@@ -162,6 +162,6 @@ export function UpdatePasswordForm() {
       </form>
         </>
       )}
-    </AuthShell>
+    </Shell>
   );
 }

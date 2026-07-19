@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { SidebarNav } from "@/components/navigation/SidebarNav";
+import { SidebarLinks } from "@/components/navigation/SidebarLinks";
 import { Button } from "@/components/ui";
 
 interface Profile {
@@ -92,7 +92,7 @@ export function MobileNav({
           className="absolute top-4 right-3 z-10 p-1.5 rounded-md text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-active-bg)] transition-colors"
           aria-label="Close navigation menu"
         />
-        <SidebarNav
+        <SidebarLinks
           email={email}
           profiles={profiles}
           poolCount={poolCount}

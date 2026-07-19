@@ -17,7 +17,7 @@ const OPTIONS: Array<{ value: PoolSortKey; label: string }> = [
   { value: "distance", label: "Distance (nearest)" },
 ];
 
-export function ApplicationPoolSort({ current }: { current: PoolSortKey }) {
+export function PoolSort({ current }: { current: PoolSortKey }) {
   const router   = useRouter();
   const pathname = usePathname();
   const sp       = useSearchParams();

@@ -1,18 +1,18 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { CvLibraryClient }    from "@/features/cv/library/CvLibraryClient";
+import { LibraryClient }    from "@/features/cv/library/LibraryClient";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
 import {
   ProfileDetailsProvider, ContactSection, VerticalsSection,
-  CredentialsSection, AvailabilitySection, ReferencesSubSection, ProfileSaveBar,
-} from "@/features/cv/profile/ProfileDetailsClient";
-import { EmailIntegrationCard } from "@/features/email/EmailIntegrationCard";
+  CredentialsSection, AvailabilitySection, ReferencesSubSection, SaveBar,
+} from "@/features/cv/profile/DetailsClient";
+import { IntegrationCard } from "@/features/email/IntegrationCard";
 import { NotificationsToggle } from "@/features/cv/NotificationsToggle";
 import { VisaStatusSelect } from "@/features/cv/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
-import type { ContactDetails } from "@/features/cv/profile/ProfileSettingsClient";
+import type { ContactDetails } from "@/features/cv/profile/SettingsClient";
 
 export const metadata = { title: "My CV — JobTrackr" };
 
@@ -126,13 +126,13 @@ export default async function CvPage({ searchParams }: PageProps) {
               AI tailors for each job.
             </p>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <CvLibraryClient initial={(cvs ?? []) as any} skillLabels={skillLabels} />
+            <LibraryClient initial={(cvs ?? []) as any} skillLabels={skillLabels} />
           </div>
 
           <CredentialsSection />
           <AvailabilitySection />
           <ReferencesSubSection />
-          <ProfileSaveBar />
+          <SaveBar />
         </ProfileDetailsProvider>
 
         {/* Email account — per-user OAuth, separate from the profile overlay. */}
@@ -144,7 +144,7 @@ export default async function CvPage({ searchParams }: PageProps) {
               tailored CV directly from the Applications page.
             </p>
           </div>
-          <EmailIntegrationCard
+          <IntegrationCard
             connected={emailConnected}
             googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
             microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}

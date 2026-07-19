@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
  * Opens the Stripe Billing Portal (POST /api/billing/portal → { url }).
  * Used to update card, switch plan, view invoices, or cancel.
  */
-export function ManageSubscriptionButton({
+export function ManageButton({
   label = "Manage subscription",
   className = "",
 }: {

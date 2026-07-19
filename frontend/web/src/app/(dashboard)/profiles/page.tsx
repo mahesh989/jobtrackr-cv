@@ -13,7 +13,7 @@ import Link from "next/link";
 import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/features/profiles/components/ProfilesTable";
 import { ResumePausedBanner } from "@/features/profiles/components/ResumePausedBanner";
 import { BackButton } from "@/features/dashboard/BackButton";
-import { AddJobButton } from "@/features/jobs/components/AddJobButton";
+import { AddButton } from "@/features/jobs/components/AddButton";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui";
 
@@ -93,7 +93,7 @@ export default async function ProfilesListPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <AddJobButton variant="primary" />
+            <AddButton variant="primary" />
             <Link href="/profiles/new" className="inline-flex">
               <Button variant="blue" className="text-[13px]">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">

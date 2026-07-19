@@ -15,7 +15,7 @@
  *             See lib/admin/dummyData.ts for removal instructions.
  */
 import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import Link from "next/link";
 import { DUMMY_SOURCE_STATUS } from "@/lib/admin/dummyData";
 import { Badge } from "@/components/ui";
@@ -232,7 +232,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
             <h1 className="text-[16px] font-semibold text-text">Job sourcing health</h1>
             <p className="text-[12px] text-text-3 mt-0.5">Worker pipeline — fetching, dedup, JD quality, locations. Source availability badges use placeholder data.</p>
           </div>
-          <AdminRangeFilter current={range} path="/admin/sourcing" />
+          <RangeFilter current={range} path="/admin/sourcing" />
         </div>
       </div>
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { AuthShell } from "./AuthShell";
+import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
@@ -126,7 +126,7 @@ export function SignupForm() {
   }
 
   return (
-    <AuthShell
+    <Shell
       headline={
         <>
           Stop hunting.<br />
@@ -286,6 +286,6 @@ export function SignupForm() {
           </p>
         </>
       )}
-    </AuthShell>
+    </Shell>
   );
 }

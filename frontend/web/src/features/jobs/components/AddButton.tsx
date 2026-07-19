@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * AddJobButton — thin client wrapper that opens the AddJobModal.
+ * AddButton — thin client wrapper that opens the AddModal.
  * Placed in server-component pages (profiles list, dashboard header).
  */
 
 import { useState } from "react";
 import { PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui";
-import { AddJobModal } from "./AddJobModal";
+import { AddModal } from "./AddModal";
 
-export function AddJobButton({ variant = "default" }: { variant?: "default" | "primary" }) {
+export function AddButton({ variant = "default" }: { variant?: "default" | "primary" }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -23,7 +23,7 @@ export function AddJobButton({ variant = "default" }: { variant?: "default" | "p
       >
         Add job
       </Button>
-      {open && <AddJobModal onClose={() => setOpen(false)} />}
+      {open && <AddModal onClose={() => setOpen(false)} />}
     </>
   );
 }

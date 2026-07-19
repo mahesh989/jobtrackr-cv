@@ -12,8 +12,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import { RunNowButton }       from "@/features/profiles/components/RunNowButton";
-import { DeleteProfileButton } from "@/features/profiles/components/DeleteProfileButton";
-import { CopyProfileButton }   from "@/features/profiles/components/CopyProfileButton";
+import { DeleteButton } from "@/features/profiles/components/DeleteButton";
+import { CopyButton }   from "@/features/profiles/components/CopyButton";
 import { Badge } from "@/components/ui";
 
 export interface ProfileRow {
@@ -181,8 +181,8 @@ export function ProfilesTable({
                       {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
                     </Link>
                   </Button>
-                  <CopyProfileButton profileId={p.id} compact />
-                  <DeleteProfileButton profileId={p.id} profileName={p.name} compact />
+                  <CopyButton profileId={p.id} compact />
+                  <DeleteButton profileId={p.id} profileName={p.name} compact />
                 </>
               )}
             </div>

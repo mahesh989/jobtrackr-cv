@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ApplicationCardV2 — the redesigned card used by the new 2-tab Applications
+ * CardV2 — the redesigned card used by the new 2-tab Applications
  * screen. Two variants behind one component:
  *
  *   Pool variant  (tab="pool") — expandable big card. Click to open, then use
@@ -211,7 +211,7 @@ function TailoredCvButton({ cvPdf }: { cvPdf: ReturnType<typeof useTailoredCvPdf
 
 // ── Entry point ─────────────────────────────────────────────────────────
 
-export function ApplicationCardV2({
+export function CardV2({
   row, tab, onActioned,
 }: {
   row: ApplicationRowV2;

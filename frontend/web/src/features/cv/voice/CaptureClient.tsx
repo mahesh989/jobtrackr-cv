@@ -10,7 +10,7 @@ interface Props {
   initialProfile: VoiceProfile | null;
 }
 
-export function VoiceCaptureClient({ initialProfile }: Props) {
+export function CaptureClient({ initialProfile }: Props) {
   const [activeTab,  setActiveTab]  = useState<SourceTag>("in_app_capture");
   const [writtenText, setWrittenText] = useState("");
   const [pastedText,  setPastedText]  = useState("");

@@ -21,16 +21,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Inbox } from "lucide-react";
 import {
-  ApplicationStatusTabs,
+  StatusTabs,
   type ApplicationStatusCounts,
   type ApplicationStatusKey,
-} from "@/features/applications/components/ApplicationStatusTabs";
-import { type ApplicationRowV2 } from "@/features/applications/components/ApplicationCardV2";
-import { ApplicationCardListV2 } from "@/features/applications/components/ApplicationCardListV2";
+} from "@/features/applications/components/StatusTabs";
+import { type ApplicationRowV2 } from "@/features/applications/components/CardV2";
+import { CardListV2 } from "@/features/applications/components/CardListV2";
 import { PoolHowItWorks } from "@/features/applications/components/PoolHowItWorks";
-import { ApplicationPoolSort, type PoolSortKey } from "@/features/applications/components/ApplicationPoolSort";
+import { PoolSort, type PoolSortKey } from "@/features/applications/components/PoolSort";
 import { BackButton } from "@/features/dashboard/BackButton";
-import { MarkApplicationsSeenOnLoad } from "@/features/applications/components/MarkApplicationsSeenOnLoad";
+import { MarkSeenOnLoad } from "@/features/applications/components/MarkSeenOnLoad";
 import { Button } from "@/components/ui";
 
 type JobRow = {
@@ -277,7 +277,7 @@ export default async function ApplicationsPage({
 
   return (
     <div className="min-h-full">
-      <MarkApplicationsSeenOnLoad />
+      <MarkSeenOnLoad />
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -305,7 +305,7 @@ export default async function ApplicationsPage({
       <div className="px-4 sm:px-6 py-5 space-y-4 max-w-5xl mx-auto w-full">
         <div className="anim-in">
           <Suspense>
-            <ApplicationStatusTabs counts={counts} />
+            <StatusTabs counts={counts} />
           </Suspense>
         </div>
 
@@ -324,12 +324,12 @@ export default async function ApplicationsPage({
             <span className="text-[11px] text-text-3">
               {visible.length} in pool
             </span>
-            <ApplicationPoolSort current={sortKey} />
+            <PoolSort current={sortKey} />
           </div>
         )}
 
         <div className="anim-in anim-delay-2">
-          <ApplicationCardListV2 rows={visible} tab={validTab} empty={tabEmpty} />
+          <CardListV2 rows={visible} tab={validTab} empty={tabEmpty} />
         </div>
       </div>
     </div>

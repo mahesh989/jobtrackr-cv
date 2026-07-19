@@ -21,7 +21,7 @@ interface Props {
 
 const EMPTY: ContactDetails = {};
 
-export function ProfileSettingsClient({ initial }: Props) {
+export function SettingsClient({ initial }: Props) {
   const router = useRouter();
   const [cd, setCd]             = useState<ContactDetails>(initial ?? EMPTY);
   const [projects, setProjects] = useState<Project[]>(initial?.projects ?? []);

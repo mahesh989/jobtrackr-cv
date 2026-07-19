@@ -66,7 +66,7 @@ function QuotaBar({ used, total }: { used: number; total: number }) {
 }
 
 // ── Main card ─────────────────────────────────────────────────────────────────
-export function ApifyIntegrationCard({ initialData }: Props) {
+export function ApifyCard({ initialData }: Props) {
   const [data, setData]             = useState<IntegrationData | null>(initialData);
   const [token, setToken]           = useState("");
   const [showToken, setShowToken]   = useState(false);

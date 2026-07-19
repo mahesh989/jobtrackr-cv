@@ -4,7 +4,7 @@ import { useRef, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { copyProfile } from "@/lib/actions";
 
-export function CopyProfileButton({
+export function CopyButton({
   profileId,
   compact = false,
 }: {

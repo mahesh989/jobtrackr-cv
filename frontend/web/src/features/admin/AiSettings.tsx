@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * PlatformAiSettings — admin-only accordion for the single platform-wide AI
+ * AiSettings — admin-only accordion for the single platform-wide AI
  * provider (migration 060). Structurally mirrors the old per-user
  * ProviderPicker, but the radio dot now means "active for every user" (only
  * one provider can be active — enforced server-side by a partial unique
@@ -45,7 +45,7 @@ interface RowState {
   isActive:        boolean;
 }
 
-export function PlatformAiSettings({ initialProviders }: { initialProviders: AdminProviderRow[] }) {
+export function AiSettings({ initialProviders }: { initialProviders: AdminProviderRow[] }) {
   const router = useRouter();
 
   const initStates = () => {

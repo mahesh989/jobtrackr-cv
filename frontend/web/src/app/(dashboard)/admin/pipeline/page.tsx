@@ -9,7 +9,7 @@
  *   - What's the ATS uplift distribution across all runs?
  */
 import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { AdminRangeFilter } from "@/features/admin/AdminRangeFilter";
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import { adminForceCancelRun } from "@/lib/admin/actions";
 import { Button } from "@/components/ui";
 import Link from "next/link";
@@ -177,7 +177,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
               </span>
             )}
           </div>
-          <AdminRangeFilter current={range} path="/admin/pipeline" />
+          <RangeFilter current={range} path="/admin/pipeline" />
         </div>
       </div>
 

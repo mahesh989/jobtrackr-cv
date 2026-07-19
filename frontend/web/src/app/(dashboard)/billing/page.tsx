@@ -5,7 +5,7 @@ import { getEntitlement, getUsageSummary } from "@/lib/billing/entitlements";
 import { DENY_COPY, type DenyReason } from "@/lib/billing/plans";
 import { UsageMeter } from "@/features/billing/UsageMeter";
 import { PlanCards } from "@/features/billing/PlanCards";
-import { ManageSubscriptionButton } from "@/features/billing/ManageSubscriptionButton";
+import { ManageButton } from "@/features/billing/ManageButton";
 import { UpgradeOptions } from "@/features/billing/UpgradeOptions";
 
 export const metadata = { title: "Billing — JobTrackr" };
@@ -124,7 +124,7 @@ export default async function BillingPage({
           {!isComp && ent.status !== "none" && (
             <div className="mt-5">
               <div className="flex flex-wrap gap-2">
-                <ManageSubscriptionButton />
+                <ManageButton />
               </div>
               <p className="mt-1.5 text-[11px] text-text-3">
                 Opens Stripe&apos;s secure billing portal — update your card, switch plans, view past invoices, or cancel.

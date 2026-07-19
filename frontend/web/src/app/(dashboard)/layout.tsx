@@ -7,9 +7,8 @@ import { ADMIN_ROLES } from "@/lib/constants";
 import { ThemeProvider, RunNotifier, SetupGateClient } from "@/components/providers";
 import { SetupStepperBar } from "@/features/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
-import { SidebarData } from "@/components/navigation/SidebarData";
-import { MobileMenuButton } from "@/components/navigation/MobileMenuButton";
-import { Button } from "@/components/ui";
+import { Sidebar } from "@/components/navigation/Sidebar";
+import { Header } from "@/components/navigation/Header";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
@@ -34,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           Content streams in via Suspense while page renders immediately. */}
       <div className="shrink-0 hidden md:block" style={{ minWidth: "var(--sidebar-width)" }}>
         <Suspense fallback={null}>
-          <SidebarData
+          <Sidebar
             userId={user.id}
             email={user.email!}
             role={ent.role}
@@ -45,18 +44,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg overflow-y-auto">
-        {/* Mobile top bar — MobileMenuButton renders immediately (no Suspense),
-            preventing CLS from the hamburger popping in after sidebar data loads. */}
-        <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-border bg-surface shrink-0">
-          <MobileMenuButton />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-wordmark.png" alt="JobTrackr" className="h-6 w-auto object-contain" />
-          <div className="ml-auto flex items-center gap-2">
-            <form action="/auth/signout" method="post">
-              <Button size="sm">Sign out</Button>
-            </form>
-          </div>
-        </div>
+        <Header />
 
         <Suspense fallback={null}>
           <SetupStepperBar />

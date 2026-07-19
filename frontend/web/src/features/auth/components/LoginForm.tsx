@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { AuthShell } from "./AuthShell";
+import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
 import { Button, Input } from "@/components/ui";
@@ -66,7 +66,7 @@ export function LoginForm() {
   }
 
   return (
-    <AuthShell
+    <Shell
       headline={
         <>
           Find your next role<br />
@@ -193,6 +193,6 @@ export function LoginForm() {
           Sign up free
         </Link>
       </p>
-    </AuthShell>
+    </Shell>
   );
 }

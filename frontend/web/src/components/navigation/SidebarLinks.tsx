@@ -155,7 +155,7 @@ function Logo() {
   );
 }
 
-export function SidebarNav({ email, poolCount = 0, role, userView = false }: Props) {
+export function SidebarLinks({ email, poolCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
 
   // ── Admin nav ─────────────────────────────────────────────────────────────

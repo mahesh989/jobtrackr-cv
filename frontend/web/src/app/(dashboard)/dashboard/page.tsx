@@ -27,7 +27,7 @@ import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThre
 import { Suspense } from "react";
 import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
-import { DashboardStatCards } from "@/features/dashboard/DashboardStatCards";
+import { StatCards } from "@/features/dashboard/StatCards";
 import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/PipelineDonut";
 import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
@@ -581,7 +581,7 @@ export default async function DashboardPage({
 
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* ── KPI bar (interactive) ── */}
-        <DashboardStatCards
+        <StatCards
           totalJobs={totalJobs}
           totalNew={totalNew}
           totalApplied={totalApplied}

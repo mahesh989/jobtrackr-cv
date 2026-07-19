@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * AddJobModal — lets the user add a job they found anywhere on the web.
+ * AddModal — lets the user add a job they found anywhere on the web.
  *
  * Two paths:
  *   1. Paste a URL → we fetch + parse the page, pre-fill all fields
@@ -27,7 +27,7 @@ interface Prefilled {
   source_url:  string;
 }
 
-export function AddJobModal({ onClose }: { onClose: () => void }) {
+export function AddModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [tab, setTab]       = useState<Tab>("url");
 

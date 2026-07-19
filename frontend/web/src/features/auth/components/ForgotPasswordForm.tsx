@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { AuthShell } from "./AuthShell";
+import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, TURNSTILE_CONFIGURED } from "./brand";
 import { Button, Input } from "@/components/ui";
@@ -107,7 +107,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <AuthShell
+    <Shell
       headline={
         <>
           Forgot your<br />
@@ -252,6 +252,6 @@ export function ForgotPasswordForm() {
           </p>
         </>
       )}
-    </AuthShell>
+    </Shell>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Provider/model metadata shared between the admin AI-settings UI
- * (components/admin/PlatformAiSettings.tsx) and the server-side default
+ * (components/admin/AiSettings.tsx) and the server-side default
  * resolution (lib/ai/activeProvider.ts). Single source of truth so the
  * "recommended" model shown to the admin always matches the fallback used
  * when platform_ai_settings.model is empty.

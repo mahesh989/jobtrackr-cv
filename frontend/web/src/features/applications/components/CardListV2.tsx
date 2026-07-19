@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * ApplicationCardListV2 — client wrapper around the V2 cards. Manages local
+ * CardListV2 — client wrapper around the V2 cards. Manages local
  * row removal so the empty state renders instantly when the last card actions
  * out (instead of waiting for the server round-trip).
  */
 
 import { useState } from "react";
-import { ApplicationCardV2, type ApplicationRowV2, type CardTabV2 } from "./ApplicationCardV2";
+import { CardV2, type ApplicationRowV2, type CardTabV2 } from "./CardV2";
 
-export function ApplicationCardListV2({
+export function CardListV2({
   rows, tab, empty,
 }: {
   rows:  ApplicationRowV2[];
@@ -26,7 +26,7 @@ export function ApplicationCardListV2({
   return (
     <div className="space-y-3">
       {visible.map((row) => (
-        <ApplicationCardV2
+        <CardV2
           key={row.job_id}
           row={row}
           tab={tab}

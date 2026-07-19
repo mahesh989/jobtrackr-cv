@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CvReviewClient — post-upload review form + create-from-scratch editor.
+ * ReviewClient — post-upload review form + create-from-scratch editor.
  *
  * Review mode  ("review"): post-upload tidy form; autosave on edit; Save
  *   button collapses all sections and marks the CV verified.
@@ -35,7 +35,7 @@ import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
   type SaveStatus, type OptionalKey,
-} from "./CvReviewComponents";
+} from "./ReviewComponents";
 
 const AUTOSAVE_MS = 10_000;
 
@@ -52,7 +52,7 @@ interface Props {
   skillLabels?:        SkillLabels;
 }
 
-export function CvReviewClient({
+export function ReviewClient({
   cvId, label, initialStructuredCv, initialStatus,
   mode = "review", skillLabels = DEFAULT_SKILL_LABELS,
 }: Props) {

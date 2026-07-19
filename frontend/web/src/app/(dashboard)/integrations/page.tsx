@@ -2,8 +2,8 @@ import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
 import { ADMIN_ROLES }         from "@/lib/constants";
 import { redirect }            from "next/navigation";
-import { ApifyIntegrationCard }  from "@/features/integrations/ApifyIntegrationCard";
-import { PlatformSourcesCard }   from "@/features/admin/PlatformSourcesCard";
+import { ApifyCard }  from "@/features/integrations/ApifyCard";
+import { SourcesCard }   from "@/features/admin/SourcesCard";
 
 export const metadata = { title: "Integrations — JobTrackr" };
 
@@ -93,7 +93,7 @@ export default async function IntegrationsPage() {
             separately for each <strong className="text-text-2">subscription tier</strong>.
             Users on higher tiers get richer JDs (Adzuna direct via actor).
           </p>
-          <PlatformSourcesCard initial={sources as Parameters<typeof PlatformSourcesCard>[0]["initial"]} />
+          <SourcesCard initial={sources as Parameters<typeof SourcesCard>[0]["initial"]} />
         </section>
 
         {/* Apify quota */}
@@ -102,7 +102,7 @@ export default async function IntegrationsPage() {
           <p className="text-[12px] text-text-3 mb-3">
             Residential-proxy + actor usage for SEEK / Adzuna / Careerjet full-JD enrichment.
           </p>
-          <ApifyIntegrationCard initialData={apifyInitial} />
+          <ApifyCard initialData={apifyInitial} />
         </section>
       </div>
     </div>

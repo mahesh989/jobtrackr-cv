@@ -72,30 +72,31 @@ frontend/web/src/
     auth/           # Login, signup, forgot/reset password (public)
     page.tsx        # Landing page (/)
   components/       # Shared UI components
-    ui/             # Reusable primitives (Button, Card, Input, Modal, PageSkeleton, etc.)
+    ui/             # Reusable primitives (Button, Card, Input, Modal, PageLoader, ContentLoader, etc.)
     providers/      # ThemeProvider, RunNotifier, SetupGateClient
-    navigation/     # SidebarNav, MobileNav, ThemePicker
+    navigation/     # Sidebar, SidebarLinks, Header, MobileNav, ThemePicker
   features/         # Domain modules (one folder per feature)
     applications/   # Job applications, cover letters, emails
-      components/   # ApplicationCard, StatusTabs, etc.
+      components/   # CardListV2, StatusTabs, etc.
       hooks/        # useContactEmail, useCoverLetter, useEmailDraft
-    auth/           # Auth components (AuthShell, LoginForm, SignupForm, etc.)
+    auth/           # Auth components (Shell, LoginForm, SignupForm, etc.)
       components/   # LoginForm, SignupForm, etc.
       server/       # getAuthUser, handleSignOut, guards
     cv/             # CV library, review editor, tailoring, voice/stories
       analysis/     # AnalysisRun, CoverLetter, Feasibility
-      library/      # CvLibrary, CvReview
+      library/      # LibraryClient, ReviewClient
       profile/      # ProfileForm, sections, primitives
-      voice/        # VoiceCapture, Stories
+      voice/        # CaptureClient, Stories
     jobs/           # Job boards, search, scraping
       components/   # JobBoard, SmartFeed, SmartToolbar, etc.
       lib/          # jobFilters, pipelineState, progressFlags
     profiles/       # CV profiles (multi-CV support)
       components/   # ProfileForm, ProfilesTable, RunJobsTable
-    admin/          # Admin dashboards (metrics, users, pipeline, etc.)
-    billing/        # Stripe billing
-    dashboard/      # Dashboard home page
-    integrations/   # Third-party integrations
+    admin/          # Admin dashboards (RangeFilter, AiSettings, SourcesCard)
+    billing/        # Stripe billing (ManageButton, PlanCards, UsageMeter)
+    dashboard/      # Dashboard home page (StatCards, PipelineDonut)
+    email/          # Email integration (IntegrationCard)
+    integrations/   # Third-party integrations (ApifyCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
     api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()
@@ -137,7 +138,7 @@ backend/api/app/
 - Never define duplicate types — always import from canonical source
 
 ### Loading States
-- `loading.tsx` files use `PageSkeleton` (table pages) or `ContentSkeleton` (form/content pages) from `components/layout/PageSkeleton.tsx`
+- `loading.tsx` files use `PageLoader` (table pages) or `ContentLoader` (form/content pages) from `components/ui/PageLoader.tsx`
 - `error.tsx` boundaries exist at root, dashboard, and admin levels
 
 ### Backend API Conventions

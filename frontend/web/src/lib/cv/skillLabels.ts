@@ -8,7 +8,7 @@
  * never changes, only the label.
  *
  * Plain module (NO "use client") so both server components (which fetch
- * role_families) and client components (CvReviewClient) can import it — see
+ * role_families) and client components (ReviewClient) can import it — see
  * OPS-16 about importing values from "use client" modules into server code.
  */
 

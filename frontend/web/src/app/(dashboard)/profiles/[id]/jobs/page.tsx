@@ -11,7 +11,7 @@
  *   5. Attach atsBand to each job (needed for the shared filterJobs helper).
  *
  * Everything else (stage / triage / sort / keywords) is now handled
- * client-side in ProfileJobBoard — clicking a funnel tab is instant.
+ * client-side in ProfileBoard — clicking a funnel tab is instant.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -22,12 +22,12 @@ import { Badge } from "@/components/ui";
 import { Suspense } from "react";
 import Link from "next/link";
 import { RunNowButton } from "@/features/profiles/components/RunNowButton";
-import { DeleteProfileButton } from "@/features/profiles/components/DeleteProfileButton";
+import { DeleteButton } from "@/features/profiles/components/DeleteButton";
 import { MarkSeenOnLoad } from "@/features/profiles/components/MarkSeenOnLoad";
 import { LiveRunStatus } from "@/features/profiles/components/LiveRunStatus";
 import { LiveLogConsole } from "@/features/profiles/components/LiveLogConsole";
 import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
-import { ProfileJobBoard } from "@/features/jobs/components/ProfileJobBoard";
+import { ProfileBoard } from "@/features/jobs/components/ProfileBoard";
 import { Button } from "@/components/ui";
 import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
@@ -388,7 +388,7 @@ export default async function JobsPage({
               <Button size="sm" className="px-2.5 py-1">Edit</Button>
             </Link>
             <RunNowButton profileId={id} initialIsRunning={isRunning} />
-            <DeleteProfileButton profileId={id} profileName={p.name} compact />
+            <DeleteButton profileId={id} profileName={p.name} compact />
           </div>
         </div>
       </div>
@@ -412,7 +412,7 @@ export default async function JobsPage({
 
         {/* Client-side board — instant stage/triage/sort/keyword filtering */}
         <Suspense>
-          <ProfileJobBoard
+          <ProfileBoard
             jobs={visibleBoardJobs}
             counts={funnelCounts}
             homeAddress={p.home_address}
