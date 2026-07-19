@@ -168,13 +168,6 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 // (the dedup in sendWorkerRestartAlert collapses that into one email, not two).
 const CRASH_ALERT_TIMEOUT_MS = 5_000;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timed-out"> {
-  return Promise.race([
-    promise,
-    new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), ms)),
-  ]);
-}
-
 async function attemptCrashAlert(kind: string, message: string): Promise<void> {
   const lastKnownRun = await getLastKnownRun();
   await sendWorkerRestartAlert(`${kind}: ${message}`, lastKnownRun);
@@ -194,7 +187,10 @@ function crashHandler(kind: string) {
     // never exits is worse than one that does: Fly's restart_policy only
     // fires on actual process exit, not on a hung-but-technically-alive one.
     try {
-      const outcome = await withTimeout(attemptCrashAlert(kind, message), CRASH_ALERT_TIMEOUT_MS);
+      const outcome = await Promise.race([
+        attemptCrashAlert(kind, message),
+        new Promise<"timed-out">((r) => setTimeout(() => r("timed-out"), CRASH_ALERT_TIMEOUT_MS)),
+      ]);
       if (outcome === "timed-out") {
         console.error(`[worker] crash alert send timed out after ${CRASH_ALERT_TIMEOUT_MS}ms — exiting anyway`);
       }

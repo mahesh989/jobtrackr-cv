@@ -39,46 +39,23 @@ except ImportError:
     sys.exit(2)
 
 
+def _parse_header(raw: str) -> tuple[str, str]:
+    k, _, v = raw.partition(":")
+    return k.strip(), v.strip()
+
+
 def parse_args() -> tuple[str, Optional[str], bool, str, Optional[str], dict]:
-    args = sys.argv[1:]
-    if not args:
-        print(
-            "Usage: fetch_jd.py <url> [--proxy <proxy_url>] [--no-redirect] "
-            "[--method POST] [--data <body>] [--header 'K: V' ...]",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    from argparse import ArgumentParser
 
-    url = args[0]
-    proxy: Optional[str] = None
-    no_redirect = False
-    method = "GET"
-    data: Optional[str] = None
-    headers: dict = {}
-    i = 1
-    while i < len(args):
-        if args[i] == "--proxy" and i + 1 < len(args):
-            proxy = args[i + 1]
-            i += 2
-        elif args[i] == "--no-redirect":
-            no_redirect = True
-            i += 1
-        elif args[i] == "--method" and i + 1 < len(args):
-            method = args[i + 1].upper()
-            i += 2
-        elif args[i] == "--data" and i + 1 < len(args):
-            data = args[i + 1]
-            i += 2
-        elif args[i] == "--header" and i + 1 < len(args):
-            raw = args[i + 1]
-            if ":" in raw:
-                k, v = raw.split(":", 1)
-                headers[k.strip()] = v.strip()
-            i += 2
-        else:
-            i += 1
-
-    return url, proxy, no_redirect, method, data, headers
+    p = ArgumentParser(description="Fetch a URL via curl_cffi (Chrome 124 TLS impersonation).")
+    p.add_argument("url")
+    p.add_argument("--proxy", default=None)
+    p.add_argument("--no-redirect", action="store_true")
+    p.add_argument("--method", default="GET")
+    p.add_argument("--data", default=None)
+    p.add_argument("--header", action="append", default=[])
+    a = p.parse_args()
+    return a.url, a.proxy, a.no_redirect, a.method.upper(), a.data, dict(_parse_header(h) for h in a.header)
 
 
 def main() -> None:
