@@ -1,23 +1,12 @@
 /**
  * /admin/sourcing — Job sourcing pipeline health
  *
- * Answers:
- *   - How many jobs are we fetching and saving per run? (by source)
- *   - Is each scraper working right now?
- *   - What's the JD quality ratio — full vs thin descriptions?
- *   - What's the dedup rate and is it stable?
- *   - Where does keyword filtering drop the most jobs?
- *
- * Real data:  run_logs (jobs_fetched, jobs_saved, jobs_deduped, sources_run,
- *             sources_saved), jobs table (jd_quality, dedup_status).
- * Dummy data: per-source last-seen status badges — replace with a real
- *             max(started_at) per source query from run_logs.
- *             See lib/admin/dummyData.ts for removal instructions.
+ * Real data: run_logs, jobs table, global_jobs, search_coverage.
+ * Source availability badges are placeholder — replace with real max(started_at) query.
  */
 import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
 import { RangeFilter } from "@/features/admin/RangeFilter";
 import Link from "next/link";
-import { DUMMY_SOURCE_STATUS } from "@/lib/admin/dummyData";
 import { Badge } from "@/components/ui";
 
 export const metadata = { title: "Sourcing Health — Admin — JobTrackr" };
@@ -236,12 +225,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* DUMMY_DATA banner */}
       <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
-        <span><span className="font-semibold">Partial dummy data</span> — Source availability badges (last-seen timestamps and status) use placeholder values.
-        Replace with a real <code className="font-mono text-[11px]">SELECT source, max(started_at)</code> query from <code className="font-mono text-[11px]">run_logs</code>.
-        See <code className="font-mono text-[11px]">lib/admin/dummyData.ts</code>.</span>
+        <span><span className="font-semibold">Partial data</span> — Source availability badges are not yet wired. Replace with real max(started_at) per source query.</span>
       </div>
 
       <div className="px-6 py-5 space-y-6 max-w-5xl">
@@ -274,27 +260,11 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
           )}
         </section>
 
-        {/* Source availability — DUMMY_DATA */}
+        {/* Source availability — not yet wired */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-[12px] font-semibold text-text">Source availability</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">DUMMY DATA</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {DUMMY_SOURCE_STATUS.map((s) => (
-              <div key={s.source} className="border border-border bg-surface rounded-md px-4 py-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${
-                    s.status === "ok" ? "bg-emerald-500" : s.status === "degraded" ? "bg-amber-400" : "bg-red-500"
-                  }`} />
-                  <span className="text-[13px] font-semibold text-text capitalize">{s.source}</span>
-                  <span className={`ml-auto text-[10px] font-medium ${
-                    s.status === "ok" ? "text-emerald-700" : s.status === "degraded" ? "text-amber-700" : "text-red-700"
-                  }`}>{s.status}</span>
-                </div>
-                <p className="text-[11px] text-text-3">Last seen: {timeAgo(s.lastSeen)}</p>
-              </div>
-            ))}
+          <h2 className="text-[12px] font-semibold text-text mb-3">Source availability</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+            Not yet wired — connect to run_logs to populate.
           </div>
         </section>
 

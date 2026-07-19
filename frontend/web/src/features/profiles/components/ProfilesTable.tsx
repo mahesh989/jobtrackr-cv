@@ -11,6 +11,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui";
+import { relativeDate } from "@/lib/dates";
 import { RunNowButton }       from "@/features/profiles/components/RunNowButton";
 import { DeleteButton } from "@/features/profiles/components/DeleteButton";
 import { CopyButton }   from "@/features/profiles/components/CopyButton";
@@ -52,18 +53,6 @@ function scheduleLabel(cron: string) {
   if (cron.includes("* * 3")) return "Weekly Wed";
   if (cron.includes("* * 5")) return "Weekly Fri";
   return "Scheduled";
-}
-
-function timeAgo(dateStr: string) {
-  const diff  = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (mins < 2)  return "just now";
-  if (hours < 1) return `${mins}m ago`;
-  if (days < 1)  return `${hours}h ago`;
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
 }
 
 export function ProfilesTable({
@@ -162,7 +151,7 @@ export function ProfilesTable({
                 <span className="text-[12px] text-[#CF222E]">✗ Failed</span>
               ) : (
                 <div className="whitespace-nowrap">
-                  <span className="text-[12px] text-text-2">{timeAgo(run.started_at)}</span>
+                  <span className="text-[12px] text-text-2">{relativeDate(run.started_at)}</span>
                   {run.jobs_saved > 0 && (
                     <span className="text-[11px] text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
                   )}

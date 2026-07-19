@@ -12,7 +12,7 @@ import { IntegrationCard } from "@/features/email/IntegrationCard";
 import { NotificationsToggle } from "@/features/cv/NotificationsToggle";
 import { VisaStatusSelect } from "@/features/cv/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
-import type { ContactDetails } from "@/features/cv/profile/SettingsClient";
+import type { ContactDetails } from "@/lib/types";
 
 export const metadata = { title: "My CV — JobTrackr" };
 

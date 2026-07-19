@@ -4,7 +4,7 @@ import {
   createContext, useContext, useState, useMemo, type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/features/cv/profile/SettingsClient";
+import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/lib/types";
 import type { Referee, ReferencesMode, ReferencesData } from "@/features/cv/profile/ReferencesSection";
 
 export const MAX_REFEREES = 3;

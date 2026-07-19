@@ -16,9 +16,10 @@ import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { shallowSetParams } from "../lib/shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
+import { matchScore } from "../lib/jobFilters";
 import {
   relativeDate, clampInt, isPostedToday, getAtsMeta, visaKey, VISA_COLOR, VISA_LABEL,
-  sourcePillTone, pickScore, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, formatSalary, daysUntilClose,
+  sourcePillTone, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, formatSalary, daysUntilClose,
 } from "@/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 import { DistanceRibbon } from "./DistanceRibbon";
@@ -44,7 +45,7 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
   const picks = [...active]
     .sort((a, b) => {
-      const d = pickScore(b) - pickScore(a);
+      const d = matchScore(b) - matchScore(a);
       return d !== 0 ? d : byDistanceAsc(a, b);
     })
     .slice(0, 3);

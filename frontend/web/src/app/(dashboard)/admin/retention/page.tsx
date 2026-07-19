@@ -1,18 +1,11 @@
 /**
  * /admin/retention — User retention & engagement
  *
- * Answers:
- *   - Are users coming back? (DAU/WAU/MAU, cohort retention)
- *   - Where do users drop off in the product? (feature adoption funnel)
- *   - Who is at risk of churning? (active last month, quiet this week)
- *
- * Real data:  users, analysis_runs, cover_letters, user_events.
- * Dummy data: DAU/WAU/MAU, cohort grid (not enough time-series data yet).
- *             See lib/admin/dummyData.ts for removal instructions.
+ * Real data: users, analysis_runs, cover_letters, user_events.
+ * DAU/WAU/MAU and cohort grid are placeholder — not enough time-series data yet.
  */
 import { requireAdmin, timeAgo } from "@/lib/admin/guard";
 import Link from "next/link";
-import { DUMMY_COHORT, DUMMY_DAU_WAU_MAU } from "@/lib/admin/dummyData";
 
 export const metadata = { title: "Retention — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -27,15 +20,6 @@ function Kpi({ label, value, sub, color = "text-text" }: {
       {sub && <p className="text-[11px] text-text-3 mt-0.5">{sub}</p>}
     </div>
   );
-}
-
-// Cohort cell colour based on retention %
-function cohortColor(pct: number): string {
-  if (pct >= 80) return "bg-emerald-600 text-white";
-  if (pct >= 60) return "bg-emerald-400 text-white";
-  if (pct >= 40) return "bg-amber-400 text-white";
-  if (pct >= 20) return "bg-orange-400 text-white";
-  return "bg-red-400 text-white";
 }
 
 export default async function AdminRetentionPage() {
@@ -164,26 +148,17 @@ export default async function AdminRetentionPage() {
         <p className="text-[12px] text-text-3 mt-0.5">Adoption funnel and churn signals. DAU/WAU/MAU and cohort grid use placeholder values until more data accumulates.</p>
       </div>
 
-      {/* DUMMY_DATA banner */}
       <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
-        <span><span className="font-semibold">Partial dummy data</span> — DAU/WAU/MAU and cohort grid use placeholder values.
-        Replace with real distinct-user counts from <code className="font-mono text-[11px]">user_events</code> once sufficient history exists.
-        See <code className="font-mono text-[11px]">lib/admin/dummyData.ts</code>.</span>
+        <span><span className="font-semibold">Partial data</span> — DAU/WAU/MAU and cohort grid are not yet wired. More time-series data needed.</span>
       </div>
 
       <div className="px-6 py-5 space-y-6 max-w-5xl">
 
-        {/* DAU / WAU / MAU — DUMMY_DATA */}
+        {/* Active users */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest">Active users</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">DUMMY DATA</span>
-          </div>
+          <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">Active users</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="DAU (daily)" value={String(DUMMY_DAU_WAU_MAU.dau)} sub="avg unique users / day" color="text-blue-700" />
-            <Kpi label="WAU (weekly)" value={String(DUMMY_DAU_WAU_MAU.wau)} sub="unique this week" color="text-blue-700" />
-            <Kpi label="MAU (monthly)" value={String(DUMMY_DAU_WAU_MAU.mau)} sub="unique this month" color="text-blue-700" />
             <Kpi label="New this week" value={String(newUsersThisWeek)} sub="signups" />
           </div>
         </section>
@@ -223,45 +198,12 @@ export default async function AdminRetentionPage() {
           </div>
         </section>
 
-        {/* Cohort retention grid — DUMMY_DATA */}
+        {/* Cohort retention — not yet wired */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-[12px] font-semibold text-text">Cohort retention</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">DUMMY DATA</span>
+          <h2 className="text-[12px] font-semibold text-text mb-3">Cohort retention</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+            Not yet wired — needs more months of user data.
           </div>
-          <div className="bg-surface border border-border rounded-md overflow-x-auto">
-            <table className="text-[11px] w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-4 py-2.5 text-text-3 font-semibold w-20">Cohort</th>
-                  <th className="text-center px-2 py-2.5 text-text-3 font-semibold w-14">Users</th>
-                  {["M+0","M+1","M+2","M+3","M+4","M+5"].map((h) => (
-                    <th key={h} className="text-center px-2 py-2.5 text-text-3 font-semibold w-14">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {DUMMY_COHORT.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 font-medium text-text">{row.label}</td>
-                    <td className="text-center px-2 py-2 text-text-2 tabular-nums">{row.users}</td>
-                    {row.retention.map((pct, i) => (
-                      <td key={i} className="text-center px-2 py-2">
-                        {pct === -1 ? (
-                          <span className="text-text-3">—</span>
-                        ) : (
-                          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${cohortColor(pct)}`}>
-                            {pct}%
-                          </span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[11px] text-text-3 mt-2">% of cohort still active (≥1 analysis or event) in each subsequent month.</p>
         </section>
 
         {/* Signup trend */}

@@ -1,15 +1,5 @@
 import { matchScore, type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
-
-export function relativeDate(d: string | null): string | null {
-  if (!d) return null;
-  const diff = Date.now() - new Date(d).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7)   return `${days}d ago`;
-  if (days < 30)  return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
+export { relativeDate } from "@/lib/dates";
 
 export function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
   if (raw == null) return fallback;
@@ -70,10 +60,6 @@ export function sourcePillTone(source: string): string {
     indeed:     "bg-[var(--amber)]/12 text-[var(--amber)] border border-[var(--amber)]/25",
   };
   return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2 border border-border";
-}
-
-export function pickScore(j: BoardJob): number {
-  return matchScore(j);
 }
 
 export function byDistanceAsc(a: BoardJob, b: BoardJob): number {

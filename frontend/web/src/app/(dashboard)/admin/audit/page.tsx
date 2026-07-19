@@ -1,23 +1,11 @@
 /**
  * /admin/audit — Admin audit log
  *
- * A tamper-evident record of every privileged action taken by a founder/admin:
- * invite generation/revocation, role changes, subscription comps, run cancels.
- *
- * Real data:  admin_audit_log table (exists after migration 055).
- * Dummy data: the table is empty because nothing writes to it yet.
- *             Add insert calls wherever admin actions happen (invite generation,
- *             role changes in the users page, etc.) to replace dummy rows.
- *             See lib/admin/dummyData.ts for removal instructions.
- *
- * TODO (DUMMY_DATA): wire admin_audit_log inserts at:
- *   - lib/actions.ts → generateInviteCode(), revokeInviteCode()
- *   - admin/users page → role change action (not yet built)
- *   - admin/revenue  → comp subscription action (not yet built)
+ * A tamper-evident record of every privileged action taken by a founder/admin.
+ * The admin_audit_log table exists (migration 055) but nothing writes to it yet.
  */
 import { requireAdmin, timeAgo, fmtDateTime } from "@/lib/admin/guard";
 import Link from "next/link";
-import { DUMMY_AUDIT_ROWS } from "@/lib/admin/dummyData";
 
 export const metadata = { title: "Audit Log — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
@@ -45,7 +33,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
   const users  = (usersRaw ?? []) as { id: string; email: string }[];
   const emailById = users.reduce<Record<string, string>>((a, u) => { a[u.id] = u.email; return a; }, {});
 
-  // Optional: admin_audit_log exists after migration 055 but nothing writes to it yet.
+  // admin_audit_log exists after migration 055 but nothing writes to it yet.
   const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
     Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
 
@@ -56,23 +44,18 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
       .limit(200)
   ) as { id: string; admin_id: string; action: string; target_type: string | null; target_id: string | null; metadata: Record<string, unknown>; created_at: string }[];
 
-  // Use real rows if available, otherwise fall through to dummy.
-  const useDummy = realRows.length === 0;
-
   type DisplayRow = {
     id: string; admin: string; action: string;
     targetType: string; targetId: string;
     metadata: Record<string, unknown>; ts: string;
   };
 
-  const rows: DisplayRow[] = useDummy
-    ? DUMMY_AUDIT_ROWS
-    : realRows.map((r) => ({
-        id: r.id, admin: emailById[r.admin_id] ?? r.admin_id.slice(0, 12),
-        action: r.action,
-        targetType: r.target_type ?? "", targetId: r.target_id ?? "",
-        metadata: r.metadata ?? {}, ts: r.created_at,
-      }));
+  const rows: DisplayRow[] = realRows.map((r) => ({
+    id: r.id, admin: emailById[r.admin_id] ?? r.admin_id.slice(0, 12),
+    action: r.action,
+    targetType: r.target_type ?? "", targetId: r.target_id ?? "",
+    metadata: r.metadata ?? {}, ts: r.created_at,
+  }));
 
   const allActions = [...new Set(rows.map((r) => r.action))].sort();
   const filtered   = filterAction ? rows.filter((r) => r.action === filterAction) : rows;
@@ -92,23 +75,6 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
           <span className="text-[12px] text-text-3">{filtered.length} entries</span>
         </div>
       </div>
-
-      {/* DUMMY_DATA banner */}
-      {useDummy && (
-        <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
-          <span className="text-base leading-none mt-0.5">⚠</span>
-          <div>
-            <span className="font-semibold">All dummy data</span> — <code className="font-mono text-[11px]">admin_audit_log</code> is empty.
-            Wire insert calls to admin actions to replace these placeholder rows:
-            <ul className="mt-1.5 space-y-0.5 list-disc pl-4">
-              <li><code className="font-mono text-[11px]">lib/actions.ts</code> → <code className="font-mono text-[11px]">generateInviteCode()</code>, <code className="font-mono text-[11px]">revokeInviteCode()</code></li>
-              <li>Admin users page → role change action</li>
-              <li>Admin revenue page → comp subscription action</li>
-            </ul>
-            See <code className="font-mono text-[11px]">lib/admin/dummyData.ts</code> for full removal steps.
-          </div>
-        </div>
-      )}
 
       <div className="px-6 py-5 max-w-6xl">
 

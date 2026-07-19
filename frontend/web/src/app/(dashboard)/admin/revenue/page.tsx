@@ -1,20 +1,11 @@
 /**
  * /admin/revenue — Revenue & billing health
  *
- * Answers:
- *   - What is our MRR/ARR right now?
- *   - How many users are on each plan?
- *   - What is the trial-to-paid conversion rate?
- *   - Who churned this period?
- *   - Are any payments failing?
- *
- * Real data:  subscriptions + plans tables (always exist after migration 051).
- * Dummy data: MRR trend, billing events feed — replace when Stripe webhooks land.
- *             See lib/admin/dummyData.ts for removal instructions.
+ * Real data: subscriptions + plans tables (always exist after migration 051).
+ * MRR trend and billing events are placeholder — replace when Stripe webhooks land.
  */
 import { requireAdmin, timeAgo } from "@/lib/admin/guard";
 import Link from "next/link";
-import { DUMMY_MRR_TREND, DUMMY_BILLING_EVENTS } from "@/lib/admin/dummyData";
 import { Badge } from "@/components/ui";
 
 export const metadata = { title: "Revenue — Admin — JobTrackr" };
@@ -38,15 +29,6 @@ const PLAN_VARIANT: Record<string, "amber" | "blue" | "green" | "purple" | "gray
   monthly:   "green",
   unlimited: "purple",
   comp:      "gray",
-};
-
-const EVENT_COLOR: Record<string, string> = {
-  "subscription.created":  "bg-emerald-100 text-emerald-700",
-  "subscription.canceled": "bg-red-100 text-red-700",
-  "subscription.updated":  "bg-blue-100 text-blue-700",
-  "payment.succeeded":     "bg-emerald-100 text-emerald-700",
-  "payment.failed":        "bg-red-100 text-red-700",
-  "trial_will_end":        "bg-amber-100 text-amber-700",
 };
 
 export default async function AdminRevenuePage() {
@@ -124,9 +106,6 @@ export default async function AdminRevenuePage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 10);
 
-  // MRR trend max for sparkline
-  const maxMrr = Math.max(...DUMMY_MRR_TREND.map((d) => d.mrr), 1);
-
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\.00$/, "")}`;
   const fmtK = (cents: number) => cents >= 100_000 ? `$${(cents / 100_000).toFixed(1)}k` : fmt(cents);
 
@@ -141,12 +120,9 @@ export default async function AdminRevenuePage() {
         <p className="text-[12px] text-text-3 mt-0.5">Live from the <code className="font-mono text-[11px]">subscriptions</code> table. MRR trend and billing events are placeholder data.</p>
       </div>
 
-      {/* DUMMY_DATA banner */}
       <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
-        <span><span className="font-semibold">Partial dummy data</span> — MRR trend chart and billing events feed use placeholder values.
-        Replace with real Stripe webhook data (<code className="font-mono text-[11px]">stripe_events</code> table).
-        See <code className="font-mono text-[11px]">lib/admin/dummyData.ts</code> for removal steps.</span>
+        <span><span className="font-semibold">Partial data</span> — MRR trend chart and billing events feed are not yet wired to Stripe webhooks.</span>
       </div>
 
       <div className="px-6 py-5 space-y-6 max-w-5xl">
@@ -191,33 +167,11 @@ export default async function AdminRevenuePage() {
           </section>
         )}
 
-        {/* MRR trend sparkline — DUMMY_DATA */}
+        {/* MRR trend — not yet wired */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-[12px] font-semibold text-text">MRR trend — last 12 months</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">DUMMY DATA</span>
-          </div>
-          <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-1.5">
-            {DUMMY_MRR_TREND.map((d) => (
-              <div key={d.month} className="flex items-center gap-3">
-                <span className="text-[11px] text-text-3 tabular-nums w-14">{d.month}</span>
-                <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
-                  <div
-                    className="bg-emerald-500 h-2 rounded-full transition-all"
-                    style={{ width: d.mrr > 0 ? `${Math.max(2, (d.mrr / maxMrr) * 100)}%` : "0%" }}
-                  />
-                </div>
-                <span className="text-[11px] font-mono text-text-2 shrink-0 w-16 text-right">
-                  {d.mrr > 0 ? `$${(d.mrr / 100).toFixed(0)}` : "—"}
-                </span>
-                {d.newMrr > 0 && (
-                  <span className="text-[10px] text-emerald-600 tabular-nums w-14 text-right">+${(d.newMrr / 100).toFixed(0)}</span>
-                )}
-                {d.churnedMrr > 0 && (
-                  <span className="text-[10px] text-red-500 tabular-nums w-14 text-right">−${(d.churnedMrr / 100).toFixed(0)}</span>
-                )}
-              </div>
-            ))}
+          <h2 className="text-[12px] font-semibold text-text mb-3">MRR trend — last 12 months</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+            Not yet wired — connect Stripe webhooks to populate.
           </div>
         </section>
 
@@ -279,25 +233,11 @@ export default async function AdminRevenuePage() {
           </div>
         </section>
 
-        {/* Billing events feed — DUMMY_DATA */}
+        {/* Billing events — not yet wired */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-[12px] font-semibold text-text">Billing events feed</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">DUMMY DATA</span>
-          </div>
-          <div className="bg-surface border border-border rounded-md divide-y divide-border">
-            {DUMMY_BILLING_EVENTS.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className={`shrink-0 inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${EVENT_COLOR[e.type] ?? "bg-slate-100 text-slate-700"}`}>
-                  {e.type.replace(/\./g, " ")}
-                </span>
-                <span className="text-[12px] text-text font-medium truncate flex-1">{e.user}</span>
-                <Badge variant={PLAN_VARIANT[e.plan] ?? "gray"} className="text-[10px]">{e.plan}</Badge>
-                {e.amount > 0 && <span className="text-[12px] font-mono text-text-2">${(e.amount / 100).toFixed(2)}</span>}
-                {e.status === "failed" && <Badge variant="red" className="text-[10px]">failed</Badge>}
-                <span className="text-[11px] text-text-3 tabular-nums shrink-0">{timeAgo(e.ts)}</span>
-              </div>
-            ))}
+          <h2 className="text-[12px] font-semibold text-text mb-3">Billing events feed</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+            Not yet wired — connect Stripe webhooks to populate.
           </div>
         </section>
       </div>

@@ -6,6 +6,5 @@ export { Textarea, type TextareaProps } from "./Textarea";
 export { Select, type SelectProps } from "./Select";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { Radio, type RadioProps } from "./Radio";
-export { TableScroll } from "./TableScroll";
 export { Modal, type ModalProps } from "./Modal";
 export * as Tabs from "./Tabs";

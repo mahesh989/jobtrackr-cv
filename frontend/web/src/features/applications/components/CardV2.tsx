@@ -33,6 +33,7 @@ import { CvInlinePreview } from "./CvInlinePreview";
 import { SentEmailModal } from "./SentEmailModal";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button, Input, Textarea } from "@/components/ui";
+import { relativeDate } from "@/lib/dates";
 import { useCoverLetter } from "../hooks/useCoverLetter";
 import { useEmailDraft } from "../hooks/useEmailDraft";
 import { useContactEmail } from "../hooks/useContactEmail";
@@ -116,17 +117,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
     document.body.removeChild(ta);
     return ok;
   } catch { return false; }
-}
-
-function relativeDate(d: string | null) {
-  if (!d) return null;
-  const diff = Date.now() - new Date(d).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7)  return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
 }
 
 function scoreColor(n: number | null) {
