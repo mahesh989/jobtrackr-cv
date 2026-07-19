@@ -89,22 +89,16 @@ describe("sources/index — deleted adapters are gone", () => {
 
 // ── 3. Deleted AI modules are gone ───────────────────────────────────────────
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 describe("deleted AI modules — scorer, cache, costCap, linkValidator", () => {
-  it("scorer.ts no longer exists", async () => {
-    await expect(import("./ai/scorer.js")).rejects.toThrow();
-  });
-
-  it("cache.ts no longer exists", async () => {
-    await expect(import("./ai/cache.js")).rejects.toThrow();
-  });
-
-  it("costCap.ts no longer exists", async () => {
-    await expect(import("./ai/costCap.js")).rejects.toThrow();
-  });
-
-  it("linkValidator.ts no longer exists", async () => {
-    await expect(import("./ai/linkValidator.js")).rejects.toThrow();
-  });
+  const deleted = ["scorer.ts", "cache.ts", "costCap.ts", "linkValidator.ts"];
+  for (const file of deleted) {
+    it(`${file} no longer exists`, () => {
+      expect(existsSync(resolve(__dirname, "ai", file))).toBe(false);
+    });
+  }
 });
 
 // ── 4. Deleted source adapter files are gone ─────────────────────────────────

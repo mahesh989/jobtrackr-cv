@@ -38,10 +38,10 @@ export async function GET() {
   ]);
 
   const cd = (prefRes.data?.contact_details ?? {}) as Record<string, unknown>;
+  const hasCv = (cvRes.data?.length ?? 0) > 0;
   const status: SetupStatus = {
     billing: true, // subscription gate in layout already handles this
-    profile: !!(cd.name && cd.address && cd.phone),
-    cv: (cvRes.data?.length ?? 0) > 0,
+    profile: !!(cd.name && cd.address && cd.phone) && hasCv,
     voice: false,
     aiKey: (aiRes.data as { status: string | null } | null)?.status === "valid",
     email: false,

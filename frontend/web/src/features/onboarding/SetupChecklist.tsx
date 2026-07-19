@@ -50,7 +50,7 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
               </span>
 
               <Link
-                href={`${step.href}?setup=1&step=${idx + 1}`}
+                href={`${step.href}?setup=1&step=${idx + 1}${step.tab ? `&tab=${step.tab}` : ""}`}
                 className="group flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)] transition-colors"
               >
                 <span className="flex-1 min-w-0">

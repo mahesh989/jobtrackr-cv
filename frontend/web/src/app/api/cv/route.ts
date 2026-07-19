@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
-import { extractCvText, CvBackendError, type StructuredCv, type CategoriseCvResponse } from "@/lib/cvBackend";
+import { extractCvText, extractStories, CvBackendError, type StructuredCv, type CategoriseCvResponse, type Story } from "@/lib/cvBackend";
 import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
@@ -214,6 +214,33 @@ export async function POST(req: NextRequest) {
       { error: "Failed to save CV record" },
       { status: 500 },
     );
+  }
+
+  // ── 6. Fire-and-forget story extraction — populates the stories tab automatically.
+  //      Non-fatal: if it fails the user can click "Re-extract from CV" on the
+  //      stories page.
+  if (creds && cvText.trim()) {
+    void (async () => {
+      try {
+        const result = await extractStories({
+          user_id:     user.id,
+          cv_text:     cvText,
+          ai_provider: creds.provider,
+          ai_api_key:  creds.apiKey,
+          ai_model:    creds.model ?? null,
+        });
+        if (result.stories.length > 0) {
+          const rows = result.stories.map((s) => {
+            const { id: _id, ...rest } = s as Story & { id?: unknown };
+            void _id;
+            return rest;
+          });
+          await admin.rpc("replace_stories", { p_user_id: user.id, p_rows: rows });
+        }
+      } catch (err) {
+        console.warn("[/api/cv POST] auto story extraction failed (non-fatal):", (err as Error).message);
+      }
+    })();
   }
 
   // Forced redirect: a freshly-parsed CV must be reviewed before it's used.

@@ -8,7 +8,7 @@
  */
 
 import {
-  CreditCard, UserCircle2, FileText, PenLine, Mail, Briefcase,
+  CreditCard, UserCircle2, PenLine, Mail, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 import type { SetupStatus, SetupStepKey } from "./setupStatus";
@@ -22,6 +22,7 @@ export interface SetupStep {
   tag:   SetupTag;
   blurb: string;
   href:  string;
+  tab?:  string; // optional sub-tab param (e.g. "details" → ?tab=details)
 }
 
 export const SETUP_STEPS: SetupStep[] = [
@@ -31,14 +32,9 @@ export const SETUP_STEPS: SetupStep[] = [
     href: "/onboarding/plan",
   },
   {
-    key: "profile", icon: UserCircle2, title: "Set up your details", tag: "required",
-    blurb: "Your contact details are stamped onto every tailored CV. Name, address and contact number are required; LinkedIn, GitHub, portfolio and projects are optional but recommended. Set them at the top of My CV.",
-    href: "/cv",
-  },
-  {
-    key: "cv", icon: FileText, title: "Add your CV", tag: "required",
-    blurb: "The AI tailors this to each job and scores how well you match. Upload a PDF/DOCX or build one from scratch, then set one version as active.",
-    href: "/cv",
+    key: "profile", icon: UserCircle2, title: "Set up your Profile", tag: "required",
+    blurb: "Fill in your contact details (Details tab), then upload or build your CV (CVs tab). Both are needed before your first analysis.",
+    href: "/dashboard/cv", tab: "details",
   },
   {
     key: "voice", icon: PenLine, title: "Set up your writing voice", tag: "recommended",
@@ -60,7 +56,7 @@ export const SETUP_STEPS: SetupStep[] = [
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** Steps that gate "setup complete" — the recommended/optional ones don't. */
-const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "profile", "cv", "searchProfile"];
+const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "profile", "searchProfile"];
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",
