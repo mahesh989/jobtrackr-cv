@@ -100,8 +100,10 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
           )}
           {!googleConfigured && !microsoftConfigured && (
             <p className="text-[12px] text-amber-600 dark:text-amber-400">
-              Email provider not configured. Add <code className="font-mono text-[11px]">GOOGLE_CLIENT_ID</code> or{" "}
-              <code className="font-mono text-[11px]">MICROSOFT_CLIENT_ID</code> to your environment.
+              Not configured — set <code className="font-mono text-[11px]">GOOGLE_CLIENT_ID</code>{" "}
+              + <code className="font-mono text-[11px]">GOOGLE_CLIENT_SECRET</code> (or{" "}
+              <code className="font-mono text-[11px]">MICROSOFT_CLIENT_ID</code>{" "}
+              + <code className="font-mono text-[11px]">MICROSOFT_CLIENT_SECRET</code>) in your environment.
             </p>
           )}
         </div>

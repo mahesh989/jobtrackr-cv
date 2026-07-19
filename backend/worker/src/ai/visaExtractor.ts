@@ -98,6 +98,8 @@ function matchSponsorship(text: string): "yes" | "no" | null {
   // "authorised to work without sponsorship" = explicit statement that no sponsorship offered
   if (/\bwork authoris.{0,10} without.{0,20}sponsorship\b/i.test(text)) return "no";
   if (/\bwithout.{0,20}(need(ing)?|requiring|the need for).{0,20}sponsorship\b/i.test(text)) return "no";
+  // "We don't provide sponsorships" / "cannot offer sponsorship" etc.
+  if (/\b(don't|doesn't|do not|does not|cannot|can't|won't|will not)\b.{0,20}\b(provide|offer|support)\b.{0,20}\bsponsorships?\b/i.test(text)) return "no";
 
   // ── Explicit YES ──
   if (/\bvisa sponsorship\b.{0,80}\b(available|provided|offered|supported|can be|will be|is included|included)\b/i.test(text)) return "yes";
@@ -106,7 +108,8 @@ function matchSponsorship(text: string): "yes" | "no" | null {
   if (/\bsponsorship\b.{0,30}\b(is |are |will be )?(available|provided|offered|supported|on offer)\b/i.test(text)) return "yes";
   if (/\bopen to international (applicants?|candidates?)\b/i.test(text)) return "yes";
   if (/\binternational (applicants?|candidates?).{0,50}(welcome|encouraged|considered|invited|apply)\b/i.test(text)) return "yes";
-  if (/\bwork(ing)? rights?.{0,40}(assist|support|provid|help|facilitat|arrange)/i.test(text)) return "yes";
+  if (/\bwork(ing)? rights?.{0,40}(assist|support|help|facilitat|arrange)\b.{0,10}\b(visa|sponsor)\b/i.test(text)) return "yes";
+  if (/\bwork(ing)? rights?.{0,10}(assist|support|help|facilitat|arrange)\b.{0,30}provid.{0,10}\b(visa|sponsor)\b/i.test(text)) return "yes";
   if (/\bglobal mobility\b/i.test(text)) return "yes";
   // Relocation YES — but only when "no relocation" hasn't already been excluded above
   if (/\brelocation\b.{0,40}\b(package|assistance|allowance|support|provided|available|offered)\b/i.test(text)) return "yes";
