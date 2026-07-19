@@ -1,4 +1,4 @@
-import { forwardRef, type TextareaHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, type TextareaHTMLAttributes, type ReactNode } from "react";
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id"> {
   label: string;
@@ -6,11 +6,10 @@ export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaE
   id?: string;
 }
 
-let nextId = 0;
-
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, id, className = "", ...rest }, ref) => {
-    const textareaId = id ?? `field-${++nextId}`;
+    const autoId = useId();
+    const textareaId = id ?? autoId;
     return (
       <div className="w-full">
         <label htmlFor={textareaId} className="block text-sm font-medium text-[var(--text-2)] mb-1">

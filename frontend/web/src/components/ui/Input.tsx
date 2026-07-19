@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id"> {
   label?: string;
@@ -7,11 +7,10 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   id?: string;
 }
 
-let nextId = 0;
-
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, id, className = "", ...rest }, ref) => {
-    const inputId = id ?? `field-${++nextId}`;
+    const autoId = useId();
+    const inputId = id ?? autoId;
     return (
       <div className="w-full">
         {label ? (

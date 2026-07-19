@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
   label: ReactNode;
@@ -6,11 +6,10 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   id?: string;
 }
 
-let nextId = 0;
-
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   ({ label, error, id, className = "", ...rest }, ref) => {
-    const checkboxId = id ?? `chk-${++nextId}`;
+    const autoId = useId();
+    const checkboxId = id ?? autoId;
     return (
       <label htmlFor={checkboxId} className="flex items-center gap-2 cursor-pointer select-none">
         <input

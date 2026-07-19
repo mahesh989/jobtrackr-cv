@@ -1,4 +1,4 @@
-import { forwardRef, type SelectHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, type SelectHTMLAttributes, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> {
@@ -7,11 +7,10 @@ export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement
   id?: string;
 }
 
-let nextId = 0;
-
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, id, className = "", children, ...rest }, ref) => {
-    const selectId = id ?? `field-${++nextId}`;
+    const autoId = useId();
+    const selectId = id ?? autoId;
     return (
       <div className="w-full">
         <label htmlFor={selectId} className="block text-sm font-medium text-[var(--text-2)] mb-1">
