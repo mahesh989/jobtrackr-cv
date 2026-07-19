@@ -32,6 +32,7 @@ import {
   ScrollText,
   Eye,
   ArrowLeft,
+  Mail,
 } from "lucide-react";
 
 interface Profile {
@@ -165,7 +166,7 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
   // the regular user nav below (with a "Back to admin" link).
   if (isAdmin && !userView) {
     return (
-      <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
+      <aside className="flex flex-col h-full min-h-0 w-full overflow-y-auto select-none">
         <Logo />
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
@@ -188,8 +189,9 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
           <SectionLabel>System</SectionLabel>
           <NavItem href="/admin/ai-settings"  icon={Sparkles}>AI provider</NavItem>
           <NavItem href="/integrations"      icon={Plug}>Integrations</NavItem>
-          <NavItem href="/cv"                icon={UserCircle2}>My CV</NavItem>
+          <NavItem href="/cv"                icon={UserCircle2}>Profile</NavItem>
           <NavItem href="/settings/theme"    icon={Palette}>Theme</NavItem>
+          <NavItem href="/settings/account"  icon={Mail}>Account</NavItem>
           <NavItem href="/privacy"                     icon={Lock}>Privacy policy</NavItem>
 
           <SectionLabel>Preview</SectionLabel>
@@ -236,10 +238,11 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
         <NavItem href="/analyses" icon={History}>Analyses</NavItem>
 
         <SectionLabel>Tools</SectionLabel>
-        <NavItem href="/cv" icon={FileText}>My CV</NavItem>
+        <NavItem href="/cv" icon={FileText}>Profile</NavItem>
         <NavItem href="/voice" icon={PenLine}>Writing voice</NavItem>
         <NavItem href="/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/settings/theme" icon={Palette}>Theme</NavItem>
+        <NavItem href="/settings/account" icon={Mail}>Account</NavItem>
         <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
 
       </nav>

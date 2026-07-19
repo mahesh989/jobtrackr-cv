@@ -88,17 +88,6 @@ const ANALYSIS_CHIPS: StageChip[] = [
 // Dataset narrowers (location / posted_within / source) hit the real router.
 const SHALLOW_KEYS = new Set(["stage", "triage", "ats", "sort", "dir", "min_keywords", "max_distance", "min_distance", "employment", "eligible"]);
 
-// Employment-type dropdown (080). Single-select keeps the toolbar compact;
-// the URL param is a comma list so a power user can hand-craft multi-type.
-const EMPLOYMENT_OPTIONS = [
-  { value: "",                    label: "Any work type" },
-  { value: "full_time",           label: "Full-time" },
-  { value: "part_time",           label: "Part-time" },
-  { value: "casual",              label: "Casual" },
-  { value: "part_time,casual",    label: "Part-time or casual" },
-  { value: "contract,temporary",  label: "Contract / temp" },
-];
-
 export function SmartToolbar({
   counts,
   atsCounts,
@@ -276,34 +265,6 @@ export function SmartToolbar({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-        </label>
-
-        <label className="flex items-center gap-1.5 text-[11px] text-text-2 w-full sm:w-auto">
-          Type
-          {/* ponytail: toolbar inline select — same reason as Distance */}
-          <select
-            value={sp.get("employment") || ""}
-            onChange={(e) => setOne("employment", e.target.value)}
-            className="field text-[12px] py-1 pr-7 flex-1 sm:flex-none"
-            title="Work type extracted from the JD/source — jobs without a detected type always show"
-          >
-            {EMPLOYMENT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label
-          className="flex items-center gap-1.5 text-[11px] text-text-2 cursor-pointer select-none"
-          title="Hide jobs whose stated work-rights requirement rules you out (set your visa status in My CV)"
-        >
-          <input
-            type="checkbox"
-            checked={sp.get("eligible") === "1"}
-            onChange={(e) => setOne("eligible", e.target.checked ? "1" : "")}
-            className="w-3.5 h-3.5 accent-[var(--brand)]"
-          />
-          Eligible only
         </label>
 
         <div className="w-full sm:flex-1 flex justify-start sm:justify-center">

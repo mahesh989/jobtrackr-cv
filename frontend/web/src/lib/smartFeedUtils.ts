@@ -1,4 +1,5 @@
-import { matchScore, type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
+import { type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
+import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
 export { relativeDate } from "@/lib/dates";
 
 export function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
@@ -71,10 +72,7 @@ export function byDistanceAsc(a: BoardJob, b: BoardJob): number {
   return (a.distance_km as number) - (b.distance_km as number);
 }
 
-export const EMPLOYMENT_CHIP_LABEL: Record<string, string> = {
-  full_time: "FT", part_time: "PT", casual: "Casual",
-  contract: "Contract", temporary: "Temp", internship: "Intern",
-};
+export const EMPLOYMENT_CHIP_LABEL = EMPLOYMENT_TYPE_LABELS;
 
 export function formatSalary(job: BoardJob): string | null {
   if (job.salary_min == null) return null;

@@ -33,7 +33,7 @@ import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
 import { JobBoard } from "@/features/jobs/components/JobBoard";
 import { Button } from "@/components/ui";
-import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/lib/jobFilters";
+import { atsBandFor, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -141,6 +141,7 @@ export default async function DashboardPage({
     dismissed_at: string | null; starred_at: string | null; profile_id: string;
     jd_quality: string | null; manual_jd_text: string | null;
     role_match: string | null; has_email: boolean | null;
+    employment_types?: string[] | null;
   }
   interface DonutRunRow {
     job_id: string; initial_ats_score: number | null; tailored_match_score: number | null;
@@ -150,7 +151,7 @@ export default async function DashboardPage({
   }
   interface DonutLetterRow { job_id: string }
 
-  const JOB_SELECT = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method";
+  const JOB_SELECT = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
 
   // Active jobs (non-dismissed). location/source/posted_within narrow the dataset.
   let q = supabase.from("jobs").select(JOB_SELECT)
@@ -192,7 +193,7 @@ export default async function DashboardPage({
     dq,
     supabase
       .from("jobs")
-      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
       .in("profile_id", ids)
       .eq("is_expired", false)
       .eq("is_dead_link", false),
@@ -248,11 +249,26 @@ export default async function DashboardPage({
 
   // ── Derive secondary IDs (sync) ───────────────────────────────────────────
   // Merge active + dismissed into one list so JobBoard can filter client-side.
-  const jobList = [...activeJobs, ...(dismissedJobs ?? [])] as Array<{
+  const jobListAll = [...activeJobs, ...(dismissedJobs ?? [])] as Array<{
     id: string; profile_id: string; applied_at: string | null; [k: string]: unknown;
   }>;
+  // Work-type preference filter (Profile → Details "Work types") — board-read
+  // mirror of the worker's fetch filter: hide classified jobs that don't
+  // intersect the selection; unclassified always show. Applied/starred rows
+  // stay visible — the user acted on them.
+  const userWorkTypes = normalizeWorkTypes(
+    (prefRow?.contact_details as { credentials?: { availability?: string[] } } | null)
+      ?.credentials?.availability,
+  );
+  const jobList = jobListAll.filter((j) =>
+    j.applied_at || j.starred_at ||
+    passesWorkTypes(j as { employment_types?: string[] | null }, userWorkTypes),
+  );
   const jobIds          = jobList.map((j) => j.id);
-  const allRows         = (countRows ?? []) as AllCountRow[];
+  // Same work-type predicate as the board list so funnel counts agree.
+  const allRows         = ((countRows ?? []) as AllCountRow[]).filter((r) =>
+    r.applied_at || r.starred_at || passesWorkTypes(r, userWorkTypes),
+  );
   const jobIdsForCounts = allRows.map((r) => r.id);
   const activeJobRows   = allRows.filter((j) => !j.dismissed_at);
   const allActiveJobIds = activeJobRows.map((j) => j.id);

@@ -37,15 +37,36 @@ export const VisaStatus = {
 
 export type VisaStatus = (typeof VisaStatus)[keyof typeof VisaStatus];
 
+// Mirrors backend/worker/src/ai/jdFacts.ts (EmploymentType / ALL_EMPLOYMENT_TYPES) —
+// keep the two in sync, same mirror discipline as lib/eligibility.ts.
 export const EmploymentType = {
   FULL_TIME: "full_time",
   PART_TIME: "part_time",
-  CONTRACT: "contract",
   CASUAL: "casual",
+  CONTRACT: "contract",
   TEMPORARY: "temporary",
+  INTERNSHIP: "internship",
 } as const;
 
 export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
+
+export const ALL_EMPLOYMENT_TYPES = [
+  "full_time",
+  "part_time",
+  "casual",
+  "contract",
+  "temporary",
+  "internship",
+] as const;
+
+export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  full_time: "Full-time",
+  part_time: "Part-time",
+  casual: "Casual",
+  contract: "Contract",
+  temporary: "Temp",
+  internship: "Intern",
+};
 
 export const JOB_SOURCES = [
   "adzuna", "seek", "careerjet", "greenhouse", "lever",

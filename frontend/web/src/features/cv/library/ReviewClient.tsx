@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown, ChevronRight, Plus, X,
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
@@ -94,11 +94,24 @@ export function ReviewClient({
 
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
     skills: true, summary: true, experience: true, education: true,
-    projects: true, languages: true, awards: true, certifications: true, references: false,
+    projects: true, languages: true, awards: true, certifications: true, references: true,
   });
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({});
 
   const toggle     = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
+
+  // Deep-link support — Profile > Details links here with ?section=references
+  // so the referee note's "Review form" link lands the user on an already-
+  // open, scrolled-to References block instead of a collapsed one at the top.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const target = searchParams.get("section");
+    if (target !== "references") return;
+    const t = setTimeout(() => {
+      document.getElementById("references")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [searchParams]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -269,6 +282,7 @@ export function ReviewClient({
   const addCertification = () => setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
   const removeCertification = (i: number) => setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
   const addReferee = () => setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
+  const removeReferee = (i: number) => setDoc(d => ({ ...d, references: (d.references ?? []).filter((_, idx) => idx !== i) }));
   const patchProject = (i: number, next: Partial<StructuredCvProject>) =>
     setDoc(d => ({ ...d, projects: (d.projects ?? []).map((p, idx) => idx === i ? { ...p, ...next } : p) }));
   const addProject = () =>
@@ -371,7 +385,7 @@ export function ReviewClient({
             icon={<ArrowLeft className="h-3.5 w-3.5" />}
             className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"
           >
-            Back to My CV
+            Back to Profile
           </Button>
           {isCreate ? (
             <>
@@ -487,7 +501,7 @@ export function ReviewClient({
                     <div className="flex-1 min-w-0">
                       <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" required={isCreate} invalid={expFieldErr(i, "employer")} />
                     </div>
-                    {isCreate && doc.experience.length > 1 && (
+                    {doc.experience.length > 1 && (
                       <RemoveBtn label="Remove role" onClick={() => removeExperience(i)} />
                     )}
                   </div>
@@ -531,7 +545,7 @@ export function ReviewClient({
               ))}
             </ol>
           )}
-          {isCreate && <AddBtn label="Add role" onClick={addExperience} />}
+          <AddBtn label="Add role" onClick={addExperience} />
         </Section>
 
         {/* EDUCATION */}
@@ -556,7 +570,7 @@ export function ReviewClient({
                 <div className="flex-1 min-w-0">
                   <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" required={isCreate} invalid={eduFieldErr(i, "institution")} />
                 </div>
-                {isCreate && doc.education.length > 1 && (
+                {doc.education.length > 1 && (
                   <RemoveBtn label="Remove education" onClick={() => removeEducation(i)} />
                 )}
               </div>
@@ -580,7 +594,7 @@ export function ReviewClient({
               </label>
             </div>
           ))}
-          {isCreate && <AddBtn label="Add education" onClick={addEducation} />}
+          <AddBtn label="Add education" onClick={addEducation} />
         </Section>
 
         {/* PROJECTS — opt-in when building */}
@@ -713,7 +727,7 @@ export function ReviewClient({
                   <div className="flex-1 min-w-0">
                     <GhostField label="Name" value={c.name} onChange={v => patchCert(i, { name: v })} size="lg" />
                   </div>
-                  {isCreate && <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />}
+                  <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />
                 </div>
                 <Grid cols={3} mt>
                   <GhostField label="Issuer" value={c.issuer}      onChange={v => patchCert(i, { issuer: v })} />
@@ -722,13 +736,14 @@ export function ReviewClient({
                 </Grid>
               </div>
             ))}
-            {isCreate && <AddBtn label="Add certification" onClick={addCertification} />}
+            <AddBtn label="Add certification" onClick={addCertification} />
           </Section>
         )}
 
         {/* REFERENCES — review mode only */}
         {!isCreate && (
           <Section
+            id="references"
             icon={Users}
             title="References"
             meta={doc.references.length === 0 ? "none" : `${doc.references.length} referee${doc.references.length === 1 ? "" : "s"}`}
@@ -738,16 +753,19 @@ export function ReviewClient({
             {doc.references.length === 0 ? (
               <EmptyState icon={Users} text="No referees on the CV — referees can stay on a separate sheet." />
             ) : doc.references.map((r, i) => (
-              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-                <Grid cols={2}>
-                  <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
-                  <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
-                  <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
-                  <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
-                </Grid>
+              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""} flex items-start gap-2`}>
+                <div className="flex-1">
+                  <Grid cols={2}>
+                    <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
+                    <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
+                    <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
+                    <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
+                  </Grid>
+                </div>
+                <RemoveBtn label="Remove referee" onClick={() => removeReferee(i)} />
               </div>
             ))}
-            {isCreate && <AddBtn label="Add referee" onClick={addReferee} />}
+            <AddBtn label="Add referee" onClick={addReferee} />
           </Section>
         )}
 
@@ -809,8 +827,9 @@ export function ReviewClient({
 // ─── sub-components ──────────────────────────────────────────────────────────
 
 function Section({
-  icon: Icon, title, subtitle, meta, open, onToggle, onClose, children,
+  id, icon: Icon, title, subtitle, meta, open, onToggle, onClose, children,
 }: {
+  id?:       string;
   icon:      LucideIcon;
   title:     string;
   subtitle?: string;
@@ -821,7 +840,7 @@ function Section({
   children:  React.ReactNode;
 }) {
   return (
-    <section className={`group relative rounded-xl border bg-[var(--surface)] transition-all ${open ? "border-[var(--border)] shadow-sm" : "border-[var(--border)]/70 hover:border-[var(--border)] hover:shadow-sm"}`}>
+    <section id={id} className={`group relative rounded-xl border bg-[var(--surface)] transition-all ${open ? "border-[var(--border)] shadow-sm" : "border-[var(--border)]/70 hover:border-[var(--border)] hover:shadow-sm"}`}>
       {open && <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--brand)]/70" />}
       <div className="flex w-full items-center gap-3 px-4 py-3">
         <Button

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 
 /**
- * The former "My Details" page has been merged into the unified "My CV" page at
- * /cv. This route now just redirects there, preserving the email
- * OAuth result params (the Gmail/Outlook callbacks still land here).
+ * The former "My Details" page has been merged into the Profile page at
+ * /cv, and the email/notifications sections now live at
+ * /settings/account. This route just redirects there, preserving
+ * the email OAuth result params (in case anything still links here).
  */
 export default async function ProfileSettingsRedirect({
   searchParams,
@@ -17,5 +18,5 @@ export default async function ProfileSettingsRedirect({
   if (typeof connected === "string") qs.set("email_connected", connected);
   if (typeof error === "string")     qs.set("email_error", error);
   const q = qs.toString();
-  redirect(`/cv${q ? `?${q}` : ""}`);
+  redirect(`/settings/account${q ? `?${q}` : ""}`);
 }

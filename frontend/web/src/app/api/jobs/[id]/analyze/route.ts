@@ -35,6 +35,31 @@ export const maxDuration = 30;
 const JD_FULL_THRESHOLD  = 1000;   // chars — below this we try a fresh scrape. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
 
+// Referees are single-sourced from the ACTIVE CV's structured_cv (the review
+// form is the only referee editor — see Fix 2, docs/design.md). The profile
+// store (user_preferences.contact_details.references) keeps only `mode`.
+// Mirror of this splice also lives in
+// backend/worker/src/automation/triggerAutoAnalyze.ts (separate package, no
+// shared import) — keep both in sync.
+function spliceStructuredReferees(
+  contactDetails: Record<string, unknown> | null,
+  structuredCv: unknown,
+): Record<string, unknown> | null {
+  const refs = (structuredCv as { references?: unknown[] } | null)?.references;
+  if (!Array.isArray(refs) || refs.length === 0) return contactDetails; // legacy fallback — leave untouched
+  const existingMode = (contactDetails?.references as { mode?: string } | undefined)?.mode ?? "details";
+  const referees = refs.slice(0, 3).map((r) => {
+    const rec = (r ?? {}) as Record<string, unknown>;
+    return {
+      name:      typeof rec.name === "string" ? rec.name : "",
+      job_title: typeof rec.job_title === "string" ? rec.job_title : "",
+      company:   typeof rec.company === "string" ? rec.company : "",
+      email:     typeof rec.email === "string" ? rec.email : "",
+    };
+  });
+  return { ...(contactDetails ?? {}), references: { mode: existingMode, referees } };
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -121,7 +146,7 @@ export async function POST(
   const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : profileVerticals;
   if (effectiveVerticals.length === 0) {
     return NextResponse.json(
-      { error: "No role type selected. Open My CV and choose a role type (e.g. Healthcare / Nursing, Tech) before running analysis." },
+      { error: "No role type selected. Open Profile and choose a role type (e.g. Healthcare / Nursing, Tech) before running analysis." },
       { status: 422 },
     );
   }
@@ -324,7 +349,13 @@ export async function POST(
   const cvTextForAnalysis = cvTextSource;
 
   // cv-backend only uses contact_details for the contact-line stamp.
-  const contactForBackend = (contactDetails as Record<string, unknown> | null) ?? null;
+  // Splice in the active CV's structured referees (single source of truth —
+  // Fix 2); falls back to the legacy profile-store referees when the
+  // structured_cv has none.
+  const contactForBackend = spliceStructuredReferees(
+    (contactDetails as Record<string, unknown> | null) ?? null,
+    cv.structured_cv,
+  );
 
   // ── 5–6. Hand off to cv-backend (HMAC-signed) ────────────────────────────
   try {

@@ -19,7 +19,7 @@ import { type AtsThresholds } from "@/lib/atsThresholds";
 import { matchScore } from "../lib/jobFilters";
 import {
   relativeDate, clampInt, isPostedToday, getAtsMeta, visaKey, VISA_COLOR, VISA_LABEL,
-  sourcePillTone, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, formatSalary, daysUntilClose,
+  sourcePillTone, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, daysUntilClose,
 } from "@/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 import { DistanceRibbon } from "./DistanceRibbon";
@@ -528,6 +528,7 @@ function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJo
               <CardTitle job={job} inline />
               <SourcePill source={job.source} />
               {job.profile_name && <ProfileChip name={job.profile_name} />}
+              <FactsChips job={job} />
               {jobNeedsJd(job) && <ChipWarn label="thin JD" tooltip="JD too short to analyse" />}
               {job.dedup_status === "possible_duplicate" && <ChipWarn label="dup?" tooltip="Possible duplicate" />}
             </div>
@@ -676,10 +677,22 @@ const CardActionsContext = createContext<{
 
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
+// Work-rights requirement stated in the JD → chip label. Only genuinely
+// stated requirements render (not_stated / unknown values show nothing).
+const WORK_RIGHTS_CHIP_LABEL: Record<string, string> = {
+  citizen_only:      "Citizens only",
+  pr_citizen:        "PR / Citizen",
+  full_unrestricted: "Full work rights",
+  any_valid:         "Any work visa",
+};
+
 function FactsChips({ job }: { job: BoardJob }) {
   const applyEmail = job.extracted_emails?.find((e) => e.kind === "application");
   const anyEmail = applyEmail ?? job.extracted_emails?.[0];
   const closeDays = daysUntilClose(job);
+  const workRights = job.work_rights_requirement
+    ? WORK_RIGHTS_CHIP_LABEL[job.work_rights_requirement]
+    : undefined;
   return (
     <>
       {(job.employment_types ?? []).map((t) => (
@@ -687,6 +700,19 @@ function FactsChips({ job }: { job: BoardJob }) {
           {EMPLOYMENT_CHIP_LABEL[t] ?? t}
         </Badge>
       ))}
+      {workRights && (
+        <span
+          className="badge badge-purple text-[10px] px-1.5 h-4"
+          title={job.visa_extracted_text ?? "Work-rights requirement stated in the JD"}
+        >
+          {workRights}
+        </span>
+      )}
+      {job.sponsorship_status === "yes" && (
+        <span className="badge badge-green text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "The JD states visa sponsorship is available"}>
+          Sponsorship
+        </span>
+      )}
       {anyEmail && (
         <Badge
           variant="gray"
@@ -711,7 +737,7 @@ function FactsChips({ job }: { job: BoardJob }) {
         </Badge>
       )}
       {job.eligibility === "not_eligible" && (
-        <Badge variant="red" className="text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "Based on the JD's stated work-rights requirement vs your visa status (My CV)"}>
+        <Badge variant="red" className="text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "Based on the JD's stated work-rights requirement vs your visa status (Profile)"}>
           Not eligible
         </Badge>
       )}
@@ -762,7 +788,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2 sm:truncate`}>
+    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}
@@ -770,14 +796,6 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
         <>
           <span className="text-text-3"> · </span>
           <Distance km={job.distance_km} method={job.distance_method ?? null} />
-        </>
-      )}
-      {formatSalary(job) && (
-        <>
-          <span className="text-text-3"> · </span>
-          <span className="text-emerald-700" title="Salary — from the source or extracted from the JD">
-            {formatSalary(job)}
-          </span>
         </>
       )}
       {postedRel && (

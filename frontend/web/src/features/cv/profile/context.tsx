@@ -1,11 +1,13 @@
 "use client";
 
 import {
-  createContext, useContext, useState, useMemo, type ReactNode,
+  createContext, useContext, useState, useMemo, useEffect, useRef, type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/lib/types";
 import type { Referee, ReferencesMode, ReferencesData } from "@/features/cv/profile/ReferencesSection";
+
+export type { Referee, ReferencesMode, ReferencesData };
 
 export const MAX_REFEREES = 3;
 export const CONTACT_KEYS = [
@@ -88,6 +90,41 @@ export function ProfileDetailsProvider({
   const [showErrors, setShowErrors] = useState(false);
   const touch = () => { setDirty(true); setSaved(false); };
 
+  const buildPayload = () => ({
+    ...cd,
+    role_families: family ? [family] : [],
+    credentials:   creds,
+    references:    {
+      mode: refMode,
+      referees: referees
+        .filter((r) => r.name?.trim() || r.job_title?.trim() || r.company?.trim() || r.email?.trim())
+        .slice(0, MAX_REFEREES),
+    },
+  });
+
+  // Autosave — the CV upload flow navigates away to the review form
+  // (router.push), unmounting this provider and discarding unsaved state.
+  // Persist edits automatically after a quiet period so nothing typed is
+  // ever lost to navigation. No validation gate here (the PATCH endpoint
+  // accepts partial contact_details); the Save button keeps the
+  // required-field check for explicit "profile complete" confirmation.
+  const payloadRef = useRef(buildPayload);
+  useEffect(() => {
+    payloadRef.current = buildPayload;
+  });
+  useEffect(() => {
+    if (!dirty) return;
+    const t = setTimeout(() => {
+      void fetch("/api/user/preferences", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ contact_details: payloadRef.current() }),
+      }).then((res) => { if (res.ok) setDirty(false); })
+        .catch(() => {}); // silent — manual save surfaces errors
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [dirty, cd, family, creds, refMode, referees]);
+
   const ctx: Ctx = {
     cd,
     setField: (k, v) => { setCd((p) => ({ ...p, [k]: v })); touch(); },
@@ -124,12 +161,7 @@ export function ProfileDetailsProvider({
       setShowErrors(false);
       setSaving(true); setError(null); setSaved(false);
       const cleanedRefs = referees.filter((r) => r.name?.trim() || r.job_title?.trim() || r.company?.trim() || r.email?.trim());
-      const payload = {
-        ...cd,
-        role_families: family ? [family] : [],
-        credentials:   creds,
-        references:    { mode: refMode, referees: cleanedRefs.slice(0, MAX_REFEREES) },
-      };
+      const payload = buildPayload();
       try {
         const res = await fetch("/api/user/preferences", {
           method:  "PATCH",

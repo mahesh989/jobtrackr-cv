@@ -34,7 +34,7 @@ export const SETUP_STEPS: SetupStep[] = [
   {
     key: "profile", icon: UserCircle2, title: "Set up your Profile", tag: "required",
     blurb: "Fill in your contact details (Details tab), then upload or build your CV (CVs tab). Both are needed before your first analysis.",
-    href: "/dashboard/cv", tab: "details",
+    href: "/cv", tab: "details",
   },
   {
     key: "voice", icon: PenLine, title: "Set up your writing voice", tag: "recommended",
@@ -43,8 +43,8 @@ export const SETUP_STEPS: SetupStep[] = [
   },
   {
     key: "email", icon: Mail, title: "Connect your email", tag: "optional",
-    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under My CV → Email account.",
-    href: "/cv",
+    blurb: "Optional — lets you send cover-letter emails to hiring contacts straight from JobTrackr via Gmail or Outlook. Connect under Settings → Account.",
+    href: "/settings/account",
   },
   {
     key: "searchProfile", icon: Briefcase, title: "Create a search profile & run it", tag: "required",

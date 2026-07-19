@@ -11,7 +11,7 @@
  *     other_label, other_url,
  *     projects:    [ { name, url, description }, ... ],
  *     credentials: {              // surfaces on nursing/care CVs only
- *       ahpra_number, drivers_licence, work_rights, wwcc_state,
+ *       ahpra_number, drivers_licence, wwcc_state,
  *       wwcc, police_check, ndis_screening, first_aid, cpr,
  *       medication_competency, own_car, car_insurance, flu_vaccination,
  *     },
@@ -109,13 +109,19 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     for (const k of credBool) {
       if (c[k] === true) creds[k] = true;
     }
-    // Availability — constrain to the known shift types; drop anything else.
+    // Availability — canonical snake_case work-type tags (Fix 3). Also accepts
+    // the 3 legacy Title-Case values (pre-Fix-3 client) and normalizes them, so
+    // a stale client version can't break saves. Output is always snake_case.
     if (Array.isArray(c.availability)) {
-      const AVAIL = ["Full Time", "Part Time", "Casual"];
+      const CANONICAL = new Set(["full_time", "part_time", "casual", "contract", "temporary", "internship"]);
+      const LEGACY_TO_CANONICAL: Record<string, string> = {
+        "Full Time": "full_time", "Part Time": "part_time", "Casual": "casual",
+      };
       const picked = c.availability
         .filter((v): v is string => typeof v === "string")
         .map((v) => v.trim())
-        .filter((v) => AVAIL.includes(v));
+        .map((v) => LEGACY_TO_CANONICAL[v] ?? v)
+        .filter((v) => CANONICAL.has(v));
       if (picked.length > 0) creds.availability = [...new Set(picked)];
     }
     // Only attach when at least one credential was supplied — keeps the

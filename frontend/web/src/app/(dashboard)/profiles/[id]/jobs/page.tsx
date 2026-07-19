@@ -29,7 +29,7 @@ import { LiveLogConsole } from "@/features/profiles/components/LiveLogConsole";
 import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import { ProfileBoard } from "@/features/jobs/components/ProfileBoard";
 import { Button } from "@/components/ui";
-import { atsBandFor, jobNeedsJd, type BoardJob } from "@/features/jobs/lib/jobFilters";
+import { atsBandFor, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
   deriveProgress,
   indexLatestByJob,
@@ -91,6 +91,14 @@ export default async function JobsPage({
   // User-level visa status (080) — same contact_details home as role_families.
   const rawVisaStatus = (prefRow?.contact_details as { visa_status?: string } | null)?.visa_status;
   const userVisaStatus = isUserVisaStatus(rawVisaStatus) ? rawVisaStatus : null;
+  // User-level work-type preference (Profile → Details "Work types") — hides
+  // jobs whose EXTRACTED types don't intersect the selection; unclassified
+  // jobs always show. Mirrors the worker's fetch-time filter, applied here so
+  // pre-existing / bucket-served rows obey it too.
+  const userWorkTypes = normalizeWorkTypes(
+    (prefRow?.contact_details as { credentials?: { availability?: string[] } } | null)
+      ?.credentials?.availability,
+  );
   const th = resolveThresholds(
     myCvVerticals.length > 0
       ? myCvVerticals
@@ -108,6 +116,7 @@ export default async function JobsPage({
     dismissed_at: string | null; profile_id: string; starred_at: string | null;
     jd_quality: string | null; manual_jd_text: string | null;
     role_match: string | null; has_email: boolean | null;
+    employment_types?: string[] | null;
   }
 
   const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
@@ -157,7 +166,7 @@ export default async function JobsPage({
     query,
     supabase
       .from("jobs")
-      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
       .eq("profile_id", id)
       .eq("is_expired", false)
       .eq("is_dead_link", false),
@@ -173,9 +182,19 @@ export default async function JobsPage({
   ]);
 
   const isRunning     = !!activeRunData;
-  const jobList       = (jobs ?? []) as unknown as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  const jobListRaw    = (jobs ?? []) as unknown as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  // Work-type preference filter (board-read mirror of the worker's fetch
+  // filter). Applied/starred jobs stay visible regardless — the user acted
+  // on them; hiding them would orphan tracked applications.
+  const jobList       = jobListRaw.filter((j) =>
+    j.applied_at || j.starred_at ||
+    passesWorkTypes(j as { employment_types?: string[] | null }, userWorkTypes),
+  );
   const jobIds        = jobList.map((j) => j.id);
-  const allRows       = (countRows ?? []) as AllCountRow[];
+  // Same work-type predicate as the board list so funnel counts agree.
+  const allRows       = ((countRows ?? []) as AllCountRow[]).filter((r) =>
+    r.applied_at || r.starred_at || passesWorkTypes(r, userWorkTypes),
+  );
   const jobIdsForCounts = allRows.map((r) => r.id);
 
   // ── BATCH 2 — four parallel queries (need job IDs from BATCH 1) ───────────
