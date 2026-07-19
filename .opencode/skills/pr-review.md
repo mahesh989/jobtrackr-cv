@@ -40,7 +40,27 @@ Identify which services are touched:
 - `supabase/migrations/` → database changes
 - `.opencode/skills/` → AI skill changes
 
-### Step 2 — Run CI Checks
+### Step 2 — Post Review to GitHub
+
+Load the GitHub PAT from `~/.github-token` and post the review as a PR comment:
+
+```bash
+TOKEN=$(cat ~/.github-token 2>/dev/null)
+```
+
+If the token exists, post via GitHub API:
+```bash
+curl -s -X POST \
+  -H "Authorization: token $TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  -H "Content-Type: application/json" \
+  "https://api.github.com/repos/mahesh989/jobtrackr-cv/issues/${PR_NUMBER}/comments" \
+  -d "{\"body\": \"$(echo "$REVIEW_BODY" | jq -Rs .)\"}"
+```
+
+If no token, present the review for the user to copy-paste manually.
+
+### Step 3 — Run CI Checks
 
 Run only the checks relevant to the changed services:
 
