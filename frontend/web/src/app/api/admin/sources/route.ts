@@ -11,25 +11,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
+import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
+import type { JobSource, SourceTier } from "@/lib/constants";
 
-const VALID_SOURCES = [
-  "adzuna", "seek", "careerjet", "greenhouse", "lever",
-  "agedcare", // Workday aged-care (working).
-  "radancy",  // Radancy/TalentBrew aged-care (Bupa AU, working).
-  "avature",  // Avature aged-care (Regis, inline-JD listing, working).
-  "agedcare_dayforce", // Dayforce aged-care (Unifying NSW/ACT, CSRF bootstrap, working).
-  "successfactors", // SuccessFactors CSB aged-care (Australian Unity, JSON-LD detail). UNVALIDATED.
-  "adlogic",  // AdLogic aged-care (Moran Health Care, /api/search + __NEXT_DATA__ JD).
-              // PageUp/Scout paused (no full JD yet) — not toggleable.
-] as const;
-type Source = (typeof VALID_SOURCES)[number];
-type Tier   = "weekly" | "monthly" | "unlimited";
-
-const TIER_DEFAULTS: Record<Tier, { enabled_sources: string[]; adzuna_method: string; seek_method: string }> = {
-  weekly:    { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-  monthly:   { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-  unlimited: { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
-};
+type Tier = SourceTier;
 
 export async function GET(_req: NextRequest) {
   const { user, error: authErr } = await requireUser();
@@ -78,7 +63,7 @@ export async function PATCH(req: NextRequest) {
 
   if (Array.isArray(body!.enabled_sources)) {
     const cleaned = body!.enabled_sources.filter(
-      (s): s is Source => typeof s === "string" && (VALID_SOURCES as readonly string[]).includes(s),
+      (s): s is JobSource => typeof s === "string" && (JOB_SOURCES as readonly string[]).includes(s),
     );
     update.enabled_sources = Array.from(new Set(cleaned));
   }

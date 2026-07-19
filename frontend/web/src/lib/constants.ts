@@ -55,3 +55,27 @@ export const EmploymentType = {
 } as const;
 
 export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
+
+export const JOB_SOURCES = [
+  "adzuna", "seek", "careerjet", "greenhouse", "lever",
+  "agedcare", "radancy", "avature", "agedcare_dayforce", "successfactors", "adlogic",
+] as const;
+
+export type JobSource = (typeof JOB_SOURCES)[number];
+
+export type SourceTier = "weekly" | "monthly" | "unlimited";
+
+export type AdzunaMethod = "api" | "direct";
+export type SeekMethod = "direct" | "actor";
+
+export interface TierConfig {
+  enabled_sources: string[];
+  adzuna_method: AdzunaMethod;
+  seek_method: SeekMethod;
+}
+
+export const TIER_DEFAULTS: Record<SourceTier, TierConfig> = {
+  weekly:    { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+  monthly:   { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
+  unlimited: { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
+};

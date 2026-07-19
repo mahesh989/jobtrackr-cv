@@ -6,29 +6,20 @@
 
 import { useState } from "react";
 import { Radio, Button } from "@/components/ui";
-
-type Source  = "adzuna" | "seek" | "careerjet" | "greenhouse" | "lever" | "agedcare" | "radancy" | "avature" | "agedcare_dayforce" | "successfactors" | "adlogic";
-type Tier    = "weekly" | "monthly" | "unlimited";
-type AdzunaM = "api" | "direct";
-type SeekM   = "direct" | "actor";
-
-interface TierConfig {
-  enabled_sources: string[];
-  adzuna_method:   AdzunaM;
-  seek_method:     SeekM;
-}
+import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
+import type { JobSource, SourceTier, TierConfig, AdzunaMethod, SeekMethod } from "@/lib/constants";
 
 interface Props {
-  initial: Record<Tier, TierConfig>;
+  initial: Record<SourceTier, TierConfig>;
 }
 
-const TIERS: { id: Tier; label: string; badge?: string }[] = [
+const TIERS: { id: SourceTier; label: string; badge?: string }[] = [
   { id: "weekly",    label: "Weekly",    badge: "A$9.99/wk" },
   { id: "monthly",   label: "Monthly",   badge: "A$19.99/mo" },
   { id: "unlimited", label: "Unlimited", badge: "A$29.99/mo" },
 ];
 
-const SOURCES: { id: Source; label: string; tag: string }[] = [
+const SOURCES: { id: JobSource; label: string; tag: string }[] = [
   { id: "adzuna",     label: "Adzuna",     tag: "API + actor" },
   { id: "seek",       label: "SEEK",       tag: "direct + actor" },
   { id: "careerjet",  label: "Careerjet",  tag: "v4 API" },
@@ -62,12 +53,12 @@ function TierColumn({
   tier,
   initial,
 }: {
-  tier: { id: Tier; label: string; badge?: string };
+  tier: { id: SourceTier; label: string; badge?: string };
   initial: TierConfig;
 }) {
-  const [enabled, setEnabled] = useState<Set<Source>>(new Set(initial.enabled_sources as Source[]));
-  const [adzunaM, setAdzunaM] = useState<AdzunaM>(initial.adzuna_method);
-  const [seekM,   setSeekM]   = useState<SeekM>(initial.seek_method);
+  const [enabled, setEnabled] = useState<Set<JobSource>>(new Set(initial.enabled_sources as JobSource[]));
+  const [adzunaM, setAdzunaM] = useState<AdzunaMethod>(initial.adzuna_method);
+  const [seekM,   setSeekM]   = useState<SeekMethod>(initial.seek_method);
   const [dirty,   setDirty]   = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -75,7 +66,7 @@ function TierColumn({
 
   const touch = () => { setDirty(true); setSaved(false); };
 
-  const toggle = (id: Source) => {
+  const toggle = (id: JobSource) => {
     setEnabled((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id); else n.add(id);
