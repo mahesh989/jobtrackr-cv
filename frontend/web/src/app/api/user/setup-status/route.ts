@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  isSetupComplete,
-  firstIncompleteStep,
-} from "@/lib/setupSteps";
-import type { SetupStatus } from "@/lib/setupStatus";
+import { getSetupStatus } from "@/lib/setupStatus";
+import { isSetupComplete, firstIncompleteStep } from "@/lib/setupSteps";
 
 /**
  * Lightweight setup-status check for the client-side setup gate.
@@ -19,36 +15,13 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ complete: true, step: 1 });
 
-  const [prefRes, cvRes, aiRes] = await Promise.all([
-    supabase
-      .from("user_preferences")
-      .select("contact_details")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("cv_versions")
-      .select("id")
-      .eq("user_id", user.id)
-      .limit(1),
-    createAdminClient()
-      .from("platform_ai_settings")
-      .select("status")
-      .eq("is_active", true)
-      .maybeSingle(),
-  ]);
+  const { data: profileRows } = await supabase
+    .from("search_profiles").select("id");
+  const ids = ((profileRows ?? []) as Array<{ id: string }>).map((p) => p.id);
 
-  const cd = (prefRes.data?.contact_details ?? {}) as Record<string, unknown>;
-  const hasCv = (cvRes.data?.length ?? 0) > 0;
-  const status: SetupStatus = {
-    billing: true, // subscription gate in layout already handles this
-    profile: !!(cd.name && cd.address && cd.phone) && hasCv,
-    voice: false,
-    aiKey: (aiRes.data as { status: string | null } | null)?.status === "valid",
-    email: false,
-    apify: false,
-    searchProfile: false,
-    hasAnyJob: false,
-  };
+  // Billing gate is already enforced by the layout — pass true here so this
+  // lightweight check doesn't have to re-query subscriptions.
+  const status = await getSetupStatus(user.id, ids, true);
 
   const complete = isSetupComplete(status);
   // firstIncompleteStep returns 0-based; API returns 1-based for the URL param.
