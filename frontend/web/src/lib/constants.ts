@@ -37,15 +37,6 @@ export const VisaStatus = {
 
 export type VisaStatus = (typeof VisaStatus)[keyof typeof VisaStatus];
 
-export const Eligibility = {
-  ELIGIBLE: "eligible",
-  NOT_ELIGIBLE: "not_eligible",
-  SPONSORSHIP_REQUIRED: "sponsorship_required",
-  UNKNOWN: "unknown",
-} as const;
-
-export type Eligibility = (typeof Eligibility)[keyof typeof Eligibility];
-
 export const EmploymentType = {
   FULL_TIME: "full_time",
   PART_TIME: "part_time",

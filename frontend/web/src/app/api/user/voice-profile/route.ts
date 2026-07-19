@@ -21,6 +21,7 @@ import { createClient }                                        from "@/lib/supab
 import { createAdminClient }                                   from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cvBackend";
+import type { SourceTag }                                      from "@/features/cv/voice/types";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
@@ -62,8 +63,7 @@ export async function POST(req: NextRequest) {
 
   // Normalise the source tag. Defaults to in_app_capture so legacy clients
   // that don't send a source keep working unchanged.
-  const ALLOWED_SOURCES = ["in_app_capture", "pasted_cover_letter"] as const;
-  type SourceTag = (typeof ALLOWED_SOURCES)[number];
+  const ALLOWED_SOURCES: readonly SourceTag[] = ["in_app_capture", "pasted_cover_letter"];
   const sourceRaw = typeof body.source === "string" ? body.source : null;
   const source: SourceTag = sourceRaw && (ALLOWED_SOURCES as readonly string[]).includes(sourceRaw)
     ? (sourceRaw as SourceTag)

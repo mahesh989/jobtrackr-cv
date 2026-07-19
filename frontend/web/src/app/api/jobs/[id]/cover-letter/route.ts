@@ -45,6 +45,7 @@ import {
 } from "@/lib/cvBackend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
+import type { ToneTarget } from "@/lib/types";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
@@ -97,8 +98,8 @@ export async function POST(
   const regenerate  = body.regenerate === true;
   const toneRaw     = typeof body.tone_target === "string" ? body.tone_target : "professional";
   const toneTarget  = (["professional", "warm", "direct"] as const).includes(
-    toneRaw as "professional" | "warm" | "direct",
-  ) ? toneRaw as "professional" | "warm" | "direct" : "professional";
+    toneRaw as ToneTarget,
+  ) ? toneRaw as ToneTarget : "professional";
 
   const admin = createAdminClient();
 

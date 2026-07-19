@@ -14,12 +14,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { structurizeAndPersist }     from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { PROVIDER_ORDER }           from "@/lib/ai/models";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
 
-const PROVIDER_PRIORITY = ["anthropic", "openai", "deepseek"] as const;
-type Provider = (typeof PROVIDER_PRIORITY)[number];
+type Provider = (typeof PROVIDER_ORDER)[number];
 
 export async function POST(
   req: NextRequest,
@@ -38,7 +38,7 @@ export async function POST(
 
   const { searchParams } = new URL(req.url);
   const raw = searchParams.get("provider");
-  const preferred: Provider | null = (raw && (PROVIDER_PRIORITY as readonly string[]).includes(raw))
+  const preferred: Provider | null = (raw && (PROVIDER_ORDER as readonly string[]).includes(raw))
     ? (raw as Provider)
     : null;
 

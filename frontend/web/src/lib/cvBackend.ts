@@ -8,7 +8,8 @@
  * Only Next.js API routes (server-only) call this — never the browser.
  */
 import crypto from "node:crypto";
-import type { StoryNumber } from "@/lib/types";
+import type { StoryNumber, ToneTarget } from "@/lib/types";
+import type { AiProvider } from "@/lib/ai/models";
 export type { StoryNumber } from "@/lib/types";
 
 const BASE_URL = process.env.CV_BACKEND_URL;
@@ -140,7 +141,7 @@ export function scrapeJd(url: string): Promise<ScrapeJdResponse> {
 
 export interface CategoriseCvPayload {
   cv_text:     string;
-  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_provider: AiProvider;
   ai_api_key:  string;
   ai_model?:   string | null;
 }
@@ -186,7 +187,7 @@ export function extractCvReferences(
 
 export interface StructurizeCvPayload {
   cv_text:     string;
-  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_provider: AiProvider;
   ai_api_key:  string;
   ai_model?:   string | null;
 }
@@ -410,7 +411,7 @@ export interface Story {
 export interface ExtractStoriesPayload {
   user_id:     string;
   cv_text:     string;
-  ai_provider: "anthropic" | "openai" | "deepseek";
+  ai_provider: AiProvider;
   ai_api_key:  string;
   ai_model?:   string | null;
 }
@@ -636,7 +637,7 @@ export interface GenerateCoverLetterPayload {
   fingerprint:       Record<string, unknown>;
   story:             Record<string, unknown>;
   company_hook_text: string;
-  tone_target:       "professional" | "warm" | "direct";
+  tone_target:       ToneTarget;
   word_count_target: number;
   ai_provider:       "anthropic" | "openai" | "deepseek";
   ai_api_key:        string;

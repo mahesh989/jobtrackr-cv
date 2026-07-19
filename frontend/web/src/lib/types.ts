@@ -96,3 +96,5 @@ export interface StoryNumber {
   metric: string;
   value:  string;
 }
+
+export type ToneTarget = "professional" | "warm" | "direct";

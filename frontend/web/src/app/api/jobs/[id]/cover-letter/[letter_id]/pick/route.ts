@@ -27,6 +27,7 @@ import { createClient }                  from "@/lib/supabase/server";
 import { createAdminClient }             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }        from "@/lib/ai/activeProvider";
 import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cvBackend";
+import type { ToneTarget }              from "@/lib/types";
 
 // Local type for the cover_letters columns we read in this route.
 // opening_variants is not yet in the generated Supabase types (migration 027
@@ -250,7 +251,7 @@ export async function POST(
       fingerprint:       voiceRow.fingerprint as Record<string, unknown>,
       story:             topStory,
       company_hook_text: (letter.company_hook_text ?? "") as string,
-      tone_target:       (letter.tone_target as "professional" | "warm" | "direct") ?? "professional",
+      tone_target:       (letter.tone_target as ToneTarget) ?? "professional",
       word_count_target: 170,
       ai_provider:       aiProvider,
       ai_api_key:        aiApiKey,

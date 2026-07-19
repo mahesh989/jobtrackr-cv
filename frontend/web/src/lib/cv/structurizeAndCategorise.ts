@@ -18,10 +18,8 @@ import {
 } from "@/lib/cvBackend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptApiKey }     from "@/lib/integrations/crypto";
-
-type Provider = "anthropic" | "openai" | "deepseek";
-
-const PROVIDER_PRIORITY: readonly Provider[] = ["anthropic", "openai", "deepseek"];
+import { PROVIDER_ORDER }    from "@/lib/ai/models";
+import type { AiProvider }   from "@/lib/ai/models";
 
 export interface StructurizeAndCategoriseResult {
   structured_cv:      StructuredCv;
@@ -45,7 +43,7 @@ async function withModelRetry<T>(
 
 export async function runStructurizeAndCategorise(
   cvText:      string,
-  provider:    Provider,
+  provider:    AiProvider,
   apiKey:      string,
   storedModel: string | null,
 ): Promise<StructurizeAndCategoriseResult> {
@@ -102,7 +100,7 @@ export type StructurizeAndPersistResult =
 export async function structurizeAndPersist(
   userId: string,
   cvId:   string,
-  preferredProvider: Provider | null = null,
+  preferredAiProvider: AiProvider | null = null,
 ): Promise<StructurizeAndPersistResult> {
   const admin = createAdminClient();
 
@@ -123,18 +121,18 @@ export async function structurizeAndPersist(
     .eq("user_id", userId)
     .eq("status", "valid")
     .eq("is_enabled", true)
-    .in("provider", PROVIDER_PRIORITY as unknown as string[]);
+    .in("provider", PROVIDER_ORDER as unknown as string[]);
 
-  type KeyRow = { provider: Provider; encrypted_api_key: string; config: { model?: string } | null };
-  const keyByProvider = new Map<Provider, KeyRow>();
-  for (const row of (keyRows ?? []) as KeyRow[]) keyByProvider.set(row.provider, row);
+  type KeyRow = { provider: AiProvider; encrypted_api_key: string; config: { model?: string } | null };
+  const keyByAiProvider = new Map<AiProvider, KeyRow>();
+  for (const row of (keyRows ?? []) as KeyRow[]) keyByAiProvider.set(row.provider, row);
 
-  const chosen = (preferredProvider && keyByProvider.has(preferredProvider))
-    ? preferredProvider
-    : PROVIDER_PRIORITY.find((p) => keyByProvider.has(p));
+  const chosen = (preferredAiProvider && keyByAiProvider.has(preferredAiProvider))
+    ? preferredAiProvider
+    : PROVIDER_ORDER.find((p) => keyByAiProvider.has(p));
   if (!chosen) return { ok: false, error: { kind: "no_ai_key" } };
 
-  const k = keyByProvider.get(chosen)!;
+  const k = keyByAiProvider.get(chosen)!;
   let apiKey: string;
   try { apiKey = decryptApiKey(k.encrypted_api_key); }
   catch { return { ok: false, error: { kind: "decrypt_failed" } }; }

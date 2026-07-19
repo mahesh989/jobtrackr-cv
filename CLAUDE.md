@@ -100,11 +100,12 @@ frontend/web/src/
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
     api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()
-    constants.ts    # RunStatus, StepState, ADMIN_ROLES, VisaStatus, Eligibility
+    constants.ts    # RunStatus, StepState, ADMIN_ROLES, VisaStatus, JOB_SOURCES, TIER_DEFAULTS
     supabase/       # Supabase client creation (browser + server)
     cv/             # CV-specific helpers (skillLabels, etc.)
-    ai/             # AI client helpers
+    ai/             # AI client helpers (AiProvider, PROVIDER_ORDER, PROVIDER_META)
     billing/        # Billing helpers
+    eligibility.ts  # Eligibility, UserVisaStatus, computeEligibility (mirror of backend/worker)
 
 backend/api/app/
   routes/           # FastAPI route handlers
@@ -132,9 +133,11 @@ backend/api/app/
 - Realtime: frontend subscribes to Supabase `postgres_changes` on `analysis_runs` for live step status
 
 ### Type System
-- Canonical types live in `lib/types.ts` (ContactDetails, SkillCategory, ProfileCredentials, etc.)
+- Canonical types live in `lib/types.ts` (ContactDetails, SkillCategory, ProfileCredentials, ToneTarget, etc.)
 - Feature-local types in `features/*/types.ts` — re-export from `@/lib/types` when shared
-- `lib/constants.ts` for enums and constants (RunStatus, StepState, etc.)
+- `lib/constants.ts` for enums and constants (RunStatus, StepState, JOB_SOURCES, TIER_DEFAULTS, etc.)
+- `lib/ai/models.ts` for AiProvider, PROVIDER_ORDER, PROVIDER_META
+- `lib/eligibility.ts` for Eligibility, UserVisaStatus, computeEligibility (mirror of backend/worker)
 - Never define duplicate types — always import from canonical source
 
 ### Loading States
