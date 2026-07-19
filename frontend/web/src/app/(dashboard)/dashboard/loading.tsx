@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 export default function DashboardLoading() {
-  return <PageSkeleton rows={8} />;
+  return <PageLoader rows={8} />;
 }

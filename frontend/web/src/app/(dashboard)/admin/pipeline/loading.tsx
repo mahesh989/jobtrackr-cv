@@ -1,4 +1,4 @@
-import { ContentSkeleton } from "@/components/ui/PageSkeleton";
+import { ContentLoader } from "@/components/ui/PageLoader";
 export default function AdminPipelineLoading() {
-  return <ContentSkeleton />;
+  return <ContentLoader />;
 }

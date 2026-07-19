@@ -6,7 +6,7 @@
  * complete with no visual feedback.
  */
 
-export function PageSkeleton({ rows = 6 }: { rows?: number }) {
+export function PageLoader({ rows = 6 }: { rows?: number }) {
   return (
     <div className="animate-pulse">
       {/* Simulated header bar */}
@@ -47,8 +47,8 @@ export function PageSkeleton({ rows = 6 }: { rows?: number }) {
   );
 }
 
-/** Minimal single-column content skeleton (instructions, settings pages). */
-export function ContentSkeleton() {
+/** Minimal single-column content loader (instructions, settings pages). */
+export function ContentLoader() {
   return (
     <div className="animate-pulse px-6 py-8 space-y-6 max-w-3xl">
       <div className="h-7 w-48 rounded bg-[var(--surface-2)]" />

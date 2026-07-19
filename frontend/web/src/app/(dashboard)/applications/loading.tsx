@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 export default function ApplicationsLoading() {
-  return <PageSkeleton rows={6} />;
+  return <PageLoader rows={6} />;
 }

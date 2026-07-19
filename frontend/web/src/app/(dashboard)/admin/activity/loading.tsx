@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 export default function AdminActivityLoading() {
-  return <PageSkeleton rows={10} />;
+  return <PageLoader rows={10} />;
 }

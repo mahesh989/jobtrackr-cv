@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 export default function ProfileRunsLoading() {
-  return <PageSkeleton rows={5} />;
+  return <PageLoader rows={5} />;
 }
