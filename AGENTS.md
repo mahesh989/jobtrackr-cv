@@ -34,11 +34,20 @@ cd backend/worker && npm run dev
 ```
 frontend/web/src/
   app/              # Next.js App Router pages + API routes
-    (dashboard)/    # Authenticated dashboard pages
+    (dashboard)/    # Auth-protected route group (sidebar + auth check)
+      dashboard/    # Main dashboard page (/dashboard)
+      admin/        # /admin, /admin/users, /admin/metrics, etc.
+      billing/      # /billing
+      cv/           # /cv, /cv/[id]/review
+      profiles/     # /profiles, /profiles/new, /profiles/[id]/edit
+      settings/     # /settings/ai-keys, /settings/theme
+      jobs/         # /jobs/[id]/analyze/[run_id]
+      ...           # analytics, applications, analyses, integrations, voice, instructions
     api/            # Next.js API routes (BFF layer)
-    auth/           # Login, signup, forgot/reset password
+    auth/           # Login, signup, forgot/reset password (public)
+    page.tsx        # Landing page (/)
   components/       # Shared UI components
-    ui/             # Reusable primitives (Button, Card, Input, Modal, etc.)
+    ui/             # Reusable primitives (Button, Card, Input, Modal, PageSkeleton, etc.)
     providers/      # ThemeProvider, RunNotifier, SetupGateClient
     navigation/     # SidebarNav, MobileNav, ThemePicker
   features/         # Domain modules (one folder per feature)
