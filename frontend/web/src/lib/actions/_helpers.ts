@@ -111,19 +111,6 @@ export function extractSettingFilter(formData: FormData) {
 }
 
 /**
- * Work-type filter (Migration 080). Multi-checkbox of canonical employment
- * tags to keep; empty = no filtering (opt-in), matching setting_filter.
- */
-const EMPLOYMENT_KEYS = new Set(["full_time", "part_time", "casual", "contract", "temporary", "internship"]);
-export function extractEmploymentFilter(formData: FormData) {
-  const selected = formData
-    .getAll("employment_filter")
-    .map(String)
-    .filter((v) => EMPLOYMENT_KEYS.has(v));
-  return { employment_filter: Array.from(new Set(selected)) };
-}
-
-/**
  * Per-profile source selection (Migration 041). enabled_sources holds the
  * adapter names the user ticked; null = all active sources. seek_method picks
  * the free direct scrape vs the paid Apify actor.

@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest) {
     .maybeSingle();
   if (!row) {
     return NextResponse.json(
-      { error: "Complete My CV setup first — no preferences row exists yet" },
+      { error: "Complete your Profile setup first — no preferences row exists yet" },
       { status: 409 }
     );
   }

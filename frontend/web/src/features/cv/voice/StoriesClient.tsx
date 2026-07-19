@@ -184,6 +184,10 @@ export function StoriesClient({ initialStories }: Props) {
   const [stories,     setStories]     = useState<StoredStory[]>(initialStories);
   const [extracting,  setExtracting]  = useState(false);
   const [extractErr,  setExtractErr]  = useState<string | null>(null);
+  // Zero-story extractions return HTTP 200 with a `diagnostic` explaining why
+  // (e.g. no quantified achievements on the CV). Must be surfaced — silently
+  // showing "No stories yet" again reads as the button doing nothing.
+  const [diagnostic,  setDiagnostic]  = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingId,   setEditingId]   = useState<string | null>(null);
   const [pendingTags, setPendingTags] = useState("");
@@ -245,6 +249,7 @@ export function StoriesClient({ initialStories }: Props) {
   async function handleReExtract() {
     setExtracting(true);
     setExtractErr(null);
+    setDiagnostic(null);
 
     try {
       const res  = await fetch("/api/user/stories/extract", {
@@ -257,7 +262,14 @@ export function StoriesClient({ initialStories }: Props) {
         setExtractErr((data as { error?: string }).error ?? "Extraction failed. Please try again.");
         return;
       }
-      setStories((data as { stories: StoredStory[] }).stories ?? []);
+      const payload = data as { stories: StoredStory[]; diagnostic?: string | null };
+      setStories(payload.stories ?? []);
+      if ((payload.stories ?? []).length === 0) {
+        setDiagnostic(
+          payload.diagnostic
+            ?? "Extraction ran but found no achievement stories on your CV. Stories need concrete outcomes — try adding bullets with numbers or results, then re-extract.",
+        );
+      }
       setExpandedIds(new Set());
       setEditingId(null);
     } catch {
@@ -299,6 +311,14 @@ export function StoriesClient({ initialStories }: Props) {
         <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{extractErr}</span>
+        </div>
+      )}
+
+      {/* Zero-story diagnostic — extraction ran fine but found nothing */}
+      {diagnostic && !extracting && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{diagnostic}</span>
         </div>
       )}
 

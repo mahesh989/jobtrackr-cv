@@ -186,12 +186,8 @@ export async function POST(
       if (storyRows && storyRows.length > 0) topStory = storyRows[0] as Record<string, unknown>;
     }
   }
-  if (!topStory) {
-    return NextResponse.json(
-      { error: "No story found — re-extract stories from your CV and try again." },
-      { status: 422 },
-    );
-  }
+  // topStory may legitimately stay null (CV yielded no stories) — cv-backend
+  // accepts story: null and draws the letter's substance from the CV text.
 
   // Resolve JD text: prefer job.manual_jd_text, fall back to latest completed run.
   const { data: jobRow } = await admin

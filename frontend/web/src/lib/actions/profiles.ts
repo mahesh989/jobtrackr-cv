@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertCanCreateProfile } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields, extractSettingFilter, extractEmploymentFilter } from "./_helpers";
+import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields, extractSettingFilter } from "./_helpers";
 
 /**
  * Get the user's "Saved Jobs" profile, creating it if it doesn't exist yet.
@@ -92,7 +92,6 @@ export async function createProfile(formData: FormData) {
     ...extractAutomationFields(formData),
     ...extractSourceFields(formData),
     ...extractSettingFilter(formData),
-    ...extractEmploymentFilter(formData),
   });
 
   if (error) throw new Error(error.message);
@@ -150,7 +149,6 @@ export async function updateProfile(profileId: string, formData: FormData) {
       ...extractAutomationFields(formData),
       ...extractSourceFields(formData),
       ...extractSettingFilter(formData),
-      ...extractEmploymentFilter(formData),
     })
     .eq("id", profileId)
     .eq("user_id", user.id);

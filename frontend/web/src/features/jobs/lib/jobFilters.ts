@@ -46,6 +46,40 @@ export interface ViewFilters {
 export const MANUAL_JD_MIN_CHARS = 1000;
 
 /**
+ * User-level work-type preference vs a job's extracted employment types.
+ * MIRRORS the worker's fetch-time filter (orchestrator stage 10b++ /
+ * bucket serve — user_work_types): a classified job passes only when its
+ * types intersect the user's selection; an UNCLASSIFIED job always passes
+ * (never hide what we couldn't classify). Applied server-side at board
+ * read time so rows saved before the preference was set (or served from
+ * the shared bucket) obey it too — keep the two in sync.
+ * Accepts legacy Title-Case stored values ("Full Time") via normalization.
+ */
+const LEGACY_WORK_TYPE: Record<string, string> = {
+  "Full Time": "full_time",
+  "Part Time": "part_time",
+  "Casual":    "casual",
+};
+
+export function normalizeWorkTypes(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => LEGACY_WORK_TYPE[v] ?? v);
+}
+
+export function passesWorkTypes(
+  job: { employment_types?: string[] | null },
+  selected: string[],
+): boolean {
+  if (selected.length === 0) return true;
+  const types = job.employment_types ?? [];
+  if (types.length === 0) return true;
+  const keep = new Set(selected);
+  return types.some((t) => keep.has(t));
+}
+
+/**
  * Whether a job still needs a JD pasted: it's classified 'thin' AND the user
  * hasn't already pasted a usable manual JD. Single source of truth shared by
  * the filter, the card badges, the "Needs attention" bucket, and the funnel

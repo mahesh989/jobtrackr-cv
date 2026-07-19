@@ -38,7 +38,6 @@ interface Props {
     visa_filter_mode: string;
     working_rights?: string;
     setting_filter?: string[];
-    employment_filter?: string[];
     schedule_cron: string;
     is_active: boolean;
     target_verticals?: string[];
@@ -198,37 +197,9 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
         />
         <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
 
-          {/* Working rights — 2 options. Legacy 'pr_citizen' folds into 'any'
-              since they were functionally identical (both show all jobs). */}
-          <div>
-            <label className="block text-[12px] font-semibold text-text mb-2">Working rights</label>
-            <div className="flex flex-col gap-2">
-              {[
-                { value: "any",                label: "I can apply anywhere",   desc: "Show all jobs. Visa status shown as a label per job." },
-                { value: "needs_sponsorship",  label: "I need visa sponsorship", desc: 'Drop jobs that say "no sponsorship" or "citizens/PR only". Unmentioned jobs kept — most employers will sponsor.' },
-              ].map((opt) => {
-                const current = defaults?.working_rights ?? "any";
-                const checked = opt.value === "needs_sponsorship"
-                  ? current === "needs_sponsorship"
-                  : current !== "needs_sponsorship"; // 'any' OR legacy 'pr_citizen'
-                return (
-                  <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="working_rights"
-                      value={opt.value}
-                      defaultChecked={checked}
-                      className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
-                    />
-                    <span>
-                      <span className="block text-[13px] font-medium text-text">{opt.label}</span>
-                      <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          {/* Working rights lives in My CV (visa status) — the single source of
+              truth. The eligibility matrix flags/drops per that setting; the
+              old per-profile radio contradicted it and was removed. */}
 
           {/* Work setting (Migration 078) — only for healthcare/nursing CV users
               (My CV role_families includes "nursing"). Tick the settings you
@@ -267,36 +238,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               </div>
             </>
           )}
-
-          <div className="border-t border-border" />
-
-          {/* Work type filter (Migration 080) — serve-time, like setting_filter. */}
-          <div>
-            <label className="block text-[12px] font-semibold text-text mb-1.5">
-              Work type
-              <Hint text="Full-time / part-time / casual / contract, read from the job board or the JD text. Tick the types you want; leave all unticked for everything. Jobs whose type we can't detect are always shown." />
-            </label>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {[
-                { key: "full_time", label: "Full-time" },
-                { key: "part_time", label: "Part-time" },
-                { key: "casual",    label: "Casual" },
-                { key: "contract",  label: "Contract" },
-                { key: "temporary", label: "Temp" },
-              ].map((opt) => (
-                <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="employment_filter"
-                    value={opt.key}
-                    defaultChecked={defaults?.employment_filter?.includes(opt.key) ?? false}
-                    className="w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
-                  />
-                  <span className="text-[13px] text-text">{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
 
           <div className="border-t border-border" />
 

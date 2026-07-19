@@ -103,14 +103,25 @@ wasShutdownExpected().then(async (expected) => {
 });
 
 // ── Graceful shutdown — mark any in-flight run_logs as failed ─────────────────
-// Fly.io and Docker send SIGTERM before killing the process (default 10s grace).
-// This ensures a crash/deploy never leaves a run stuck in "running" indefinitely.
-// The next run will still auto-expire stale locks, but this is cleaner.
+// Fly.io and Docker send SIGTERM before killing the process (default ~5s grace
+// after SIGTERM; SIGINT is sent first, so the real window is a bit longer but
+// still short). This ensures a crash/deploy never leaves a run stuck in
+// "running" indefinitely. The next run will still auto-expire stale locks,
+// but this is cleaner.
+//
+// ORDERING IS LOAD-BEARING: worker.close() waits for the CURRENTLY PROCESSING
+// job to finish (BullMQ's default close() behaviour with concurrency 1) —
+// which for a multi-source fetch or a long auto-analyze loop can easily run
+// past Fly's kill window, so the process gets SIGKILLed before close()
+// resolves. Everything after that await never runs. The DB cleanup (the part
+// that actually matters — it's what stops a run_logs row being orphaned in
+// "running" forever) must happen FIRST and fast, not gated behind a close()
+// that might never return in time. worker.close() is still attempted for a
+// clean BullMQ disconnect, but only as best-effort with its own short budget.
 async function shutdown(signal: string) {
   console.log(`[worker] ${signal} received — closing gracefully`);
   try {
     await heartbeat.stop();
-    await worker.close();
     // Mark any "running" run_logs as failed — the stale auto-expire catches these
     // too, but doing it here means the next run sees clean state immediately.
     const { data: stuck } = await db
@@ -127,7 +138,16 @@ async function shutdown(signal: string) {
     }
     // Mark this shutdown as expected — SIGTERM/SIGINT are how Fly stops a
     // machine for a deploy, so the next startup shouldn't alert about it.
+    // Done before worker.close() for the same reason: guaranteed to run
+    // within the kill window even if close() doesn't.
     await markExpectedShutdown();
+    // Best-effort only — race against a short timeout so a job that won't
+    // finish in time can't block us past Fly's actual kill deadline (the
+    // cleanup above already happened regardless of how this settles).
+    await Promise.race([
+      worker.close(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
   } catch (err) {
     console.error("[worker] shutdown error:", err);
   }

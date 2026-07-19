@@ -325,13 +325,10 @@ export async function POST(
     }
   }
 
-  if (!topStory) {
-    await release();
-    return NextResponse.json(
-      { error: "No stories extracted yet. Run story extraction on your CV first." },
-      { status: 422 },
-    );
-  }
+  // No stories is NOT a blocker — cv-backend accepts story: null and the
+  // letter draws its substance from the CV text instead (format_story
+  // renders "(none available)"). Duty-based CVs often yield zero stories;
+  // their cover letters must still generate.
 
   // ── 9. Resolve company hook ───────────────────────────────────────────────────
   const companyName = (job.company ?? "").trim() || "the company";

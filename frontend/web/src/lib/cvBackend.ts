@@ -598,7 +598,7 @@ export interface GenerateOpeningVariantsPayload {
   /** Verbatim writing sample. Never log this field. */
   voice_sample_text: string;
   fingerprint:       Record<string, unknown>;
-  story:             Record<string, unknown>;
+  story:             Record<string, unknown> | null;
   company_hook_text: string;
   ai_provider:       "anthropic" | "openai" | "deepseek";
   ai_api_key:        string;
@@ -635,7 +635,7 @@ export interface GenerateCoverLetterPayload {
   /** Verbatim writing sample. Never log this field. */
   voice_sample_text: string;
   fingerprint:       Record<string, unknown>;
-  story:             Record<string, unknown>;
+  story:             Record<string, unknown> | null;
   company_hook_text: string;
   tone_target:       ToneTarget;
   word_count_target: number;

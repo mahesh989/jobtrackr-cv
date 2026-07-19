@@ -29,8 +29,6 @@ export interface ProfileCredentials {
   police_check?:          boolean;
   wwcc?:                  boolean;
   wwcc_state?:            string;
-  work_rights?:           string;
-  work_rights_hours?:     string;
   availability?:          string[];
   show_availability?:     boolean;
 }

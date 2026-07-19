@@ -94,7 +94,7 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   if (i.credentials && typeof i.credentials === "object") {
     const c = i.credentials as Record<string, unknown>;
     const creds: ProfileCredentials = {};
-    const credStr = ["ahpra_number", "drivers_licence", "work_rights", "work_rights_hours", "wwcc_state", "forklift_licence"] as const;
+    const credStr = ["ahpra_number", "drivers_licence", "wwcc_state", "forklift_licence"] as const;
     for (const k of credStr) {
       if (typeof c[k] === "string") {
         const v = (c[k] as string).trim();

@@ -85,3 +85,4 @@ backend/worker/apify-actors/*/storage/
 # empty postman/ scaffold folder it also creates.
 .postman/resources.yaml
 postman/
+references/*

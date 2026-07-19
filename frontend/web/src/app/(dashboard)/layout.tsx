@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-screen overflow-hidden bg-[var(--sidebar-bg)]">
       {/* Sidebar — width reserved via min-width to prevent CLS.
           Content streams in via Suspense while page renders immediately. */}
-      <div className="shrink-0 hidden md:block" style={{ minWidth: "var(--sidebar-width)" }}>
+      <div className="shrink-0 hidden md:flex md:flex-col" style={{ minWidth: "var(--sidebar-width)" }}>
         <Suspense fallback={null}>
           <Sidebar
             userId={user.id}

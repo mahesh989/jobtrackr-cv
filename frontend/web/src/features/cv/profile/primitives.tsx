@@ -53,10 +53,11 @@ export function Select({ label, value, onChange, options }: { label: string; val
   );
 }
 
-export function CheckBox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function CheckBox({ label, checked, onChange, detected }: { label: string; checked: boolean; onChange: (v: boolean) => void; detected?: boolean }) {
   return (
-    <div className="rounded-md px-2 py-1.5 hover:bg-[var(--surface-2)] transition-colors">
+    <div className="rounded-md px-2 py-1.5 hover:bg-[var(--surface-2)] transition-colors flex items-center gap-2">
       <Checkbox checked={checked} onChange={(e) => onChange(e.target.checked)} label={label} />
+      {detected && <span className="text-[10px] text-[var(--brand)] font-medium bg-[var(--brand)]/10 rounded px-1.5 py-0.5">on your CV</span>}
     </div>
   );
 }

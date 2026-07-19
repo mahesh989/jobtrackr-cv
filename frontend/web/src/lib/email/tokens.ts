@@ -95,7 +95,7 @@ export async function getValidAccessToken(
     // of a confusing "token refresh failed" error on every action.
     if ((err as { shouldDisconnect?: boolean }).shouldDisconnect) {
       await deleteTokens(userId).catch(() => {});
-      throw new Error("Your Gmail connection has expired — please reconnect it in My CV → Email account.");
+      throw new Error("Your Gmail connection has expired — please reconnect it in Settings → Account.");
     }
     throw err;
   }

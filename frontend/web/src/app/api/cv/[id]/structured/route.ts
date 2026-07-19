@@ -126,6 +126,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Save failed" }, { status: 500 });
   }
 
+  // No profile-store referee seed here — referees are single-sourced from
+  // this CV's structured_cv.references at analyze time (see the splice in
+  // /api/jobs/[id]/analyze and triggerAutoAnalyze.ts). The profile store only
+  // keeps the display `mode` now.
+
   return NextResponse.json({
     ok:                   true,
     structured_cv_status: newStatus,
