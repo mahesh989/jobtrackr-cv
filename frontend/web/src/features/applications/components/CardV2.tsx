@@ -23,7 +23,7 @@ import {
   Copy, Check, CheckCircle2, Archive, Loader2, Send, Save, Download,
   Sparkles, MoreHorizontal,
 } from "lucide-react";
-import { Badge } from "@/components/ui";
+import { Badge, MenuItem, menuItemClass, SegmentedControl } from "@/components/ui";
 import { markJobApplied, markJobDismissed, markJobUnapplied } from "@/lib/actions";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
@@ -432,22 +432,24 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
           {/* Section toggle */}
           <div className="px-4 pt-2 pb-1 overflow-x-auto">
-            <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded p-0.5 w-fit">
-              {([
-                ["cv",    "Tailored CV",    FileText],
-                ["cover", "Cover letter",   FileType],
-                ["email", "Email message",  Mail],
-              ] as const).map(([k, label, Icon]) => (
-                <button key={k} onClick={() => setSection(k)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-all shrink-0 whitespace-nowrap ${
-                    section === k ? "bg-[var(--surface)] text-text shadow-sm" : "text-text-2 hover:text-text"
-                  }`}>
-                  <Icon className="w-3 h-3" /> {label}
-                  {k === "cover" && cover.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}
-                  {k === "email" && email.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              size="sm"
+              value={section}
+              onChange={setSection}
+              options={[
+                {
+                  id: "cv", label: "Tailored CV", icon: <FileText className="w-3 h-3" />,
+                },
+                {
+                  id: "cover", icon: <FileType className="w-3 h-3" />,
+                  label: <>Cover letter{cover.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}</>,
+                },
+                {
+                  id: "email", icon: <Mail className="w-3 h-3" />,
+                  label: <>Email message{email.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}</>,
+                },
+              ]}
+            />
           </div>
 
           {/* Section body */}
@@ -599,19 +601,17 @@ function PoolOverflowMenu({ row, analysisHref, sending, onArchive }: {
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 bottom-full mb-1 w-48 bg-surface border border-border rounded-md shadow-lg py-1 z-20">
             {analysisHref && (
-              <Link href={analysisHref} className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-2 hover:bg-[var(--surface-2)] hover:text-text">
+              <Link href={analysisHref} className={menuItemClass()}>
                 <FileText className="w-3.5 h-3.5" /> Full analysis
               </Link>
             )}
-            <a href={row.job_url} target="_blank" rel="noopener noreferrer"
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-2 hover:bg-[var(--surface-2)] hover:text-text">
+            <a href={row.job_url} target="_blank" rel="noopener noreferrer" className={menuItemClass()}>
               <ExternalLink className="w-3.5 h-3.5" /> Open job posting
             </a>
             <div className="border-t border-border my-1" />
-            <button onClick={() => { setOpen(false); onArchive(); }} disabled={sending}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-3 hover:bg-[var(--surface-2)] hover:text-text text-left disabled:opacity-40">
+            <MenuItem danger onClick={() => { setOpen(false); onArchive(); }} disabled={sending}>
               <Archive className="w-3.5 h-3.5" /> Archive
-            </button>
+            </MenuItem>
           </div>
         </>
       )}

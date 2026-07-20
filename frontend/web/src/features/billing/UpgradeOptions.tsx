@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Loader2, ArrowUpCircle } from "lucide-react";
 import { PUBLIC_PLANS, formatAud } from "@/lib/billing/plans";
+import { Button } from "@/components/ui";
 
 const PLAN_RANK: Record<string, number> = { weekly: 1, monthly: 2, unlimited: 3 };
 
@@ -99,19 +100,16 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
                     You&apos;ll be charged <strong>{formatAud(plan.priceCents)}</strong> immediately. Your current plan ends now.
                   </p>
                   <div className="flex gap-2">
-                    <button
+                    <Button
+                      variant={featured ? "brand" : "default"}
+                      size="lg"
                       onClick={() => confirm(plan.id)}
                       disabled={isLoading}
-                      className={
-                        "flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                        (featured
-                          ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                          : "gh-btn")
-                      }
+                      className="flex-1 justify-center"
                     >
                       {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                       {isLoading ? "Upgrading…" : "Confirm upgrade"}
-                    </button>
+                    </Button>
                     <button
                       onClick={() => setArmed(null)}
                       disabled={isLoading}
@@ -122,18 +120,15 @@ export function UpgradeOptions({ currentPlanId }: { currentPlanId: string }) {
                   </div>
                 </div>
               ) : (
-                <button
+                <Button
+                  variant={featured ? "brand" : "default"}
+                  size="lg"
                   onClick={() => arm(plan.id)}
                   disabled={loading !== null}
-                  className={
-                    "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                    (featured
-                      ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                      : "gh-btn")
-                  }
+                  className="mt-5 w-full justify-center"
                 >
                   {`Upgrade to ${plan.displayName}`}
-                </button>
+                </Button>
               )}
             </div>
           );

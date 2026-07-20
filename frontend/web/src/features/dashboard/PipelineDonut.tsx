@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { shallowSetParams } from "../jobs/lib/shallowNav";
 import { FilterAnchor } from "./FilterAnchor";
 import { CalloutStrip } from "./CalloutStrip";
-import { Button } from "@/components/ui";
+import { Button, Chip, IconButton } from "@/components/ui";
 
 // View-filter params the donut can set; cleared before applying a new one so
 // the chosen slice is shown cleanly (dataset filters like location are kept).
@@ -433,12 +433,12 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           const cnt = pillCount(data, lens);
           const on  = activeLens === lens;
           return (
-            <button key={lens} onClick={() => switchLens(lens)} className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${ on ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] border border-[var(--border)] text-text-2 hover:text-text" }`}>
+            <Chip key={lens} active={on} onClick={() => switchLens(lens)}>
               {lm.label}
               <span className={`text-[10px] min-w-[16px] h-4 px-1 rounded-full inline-flex items-center justify-center font-bold ${
                 on ? "bg-white/20 text-[var(--brand-fg)]" : "bg-[var(--border)] text-text-3"
               }`}>{cnt}</span>
-            </button>
+            </Chip>
           );
         })}
       </div>
@@ -560,7 +560,12 @@ function DonutPopup({
             <p className="text-[10px] text-text-3 uppercase tracking-wide">{meta.label}</p>
             <h3 className="text-[15px] font-semibold text-text">{title}</h3>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-full flex items-center justify-center text-text-2 hover:text-text hover:bg-[var(--surface-2)] transition-colors text-[18px] leading-none">×</button>
+          <IconButton
+            onClick={onClose}
+            aria-label="Close"
+            shape="circle"
+            icon={<span className="text-[18px] leading-none">×</span>}
+          />
         </div>
 
         {/* Profile filter — only on Sourcing. Other lenses show the All view
@@ -568,9 +573,9 @@ function DonutPopup({
         {lens === "sourcing" && allProfs.length > 1 && (
           <div className="flex gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto shrink-0">
             {([{ profileId: null, profileName: "All" }, ...allProfs] as Array<{ profileId: string | null; profileName: string }>).map((p) => (
-              <button key={p.profileId ?? "_all"} onClick={() => setFilter(p.profileId)} className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors ${ filter === p.profileId ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] border border-[var(--border)] text-text-2 hover:text-text" }`}>
+              <Chip key={p.profileId ?? "_all"} active={filter === p.profileId} size="sm" onClick={() => setFilter(p.profileId)}>
                 {p.profileName}
-              </button>
+              </Chip>
             ))}
           </div>
         )}

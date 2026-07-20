@@ -1,19 +1,22 @@
 "use client";
 
 import { useProfile } from "./context";
+import { Button } from "@/components/ui";
 
 export function SaveBar() {
   const { dirty, saving, saved, error, save } = useProfile();
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-3">
-      <button
+      <Button
         type="button"
+        variant="brand"
+        size="lg"
         onClick={save}
         disabled={saving}
-        className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-fg)] transition-shadow hover:opacity-90 hover:glow-gold disabled:opacity-50"
+        className="transition-shadow hover:glow-gold"
       >
         {saving ? "Saving…" : "Save details"}
-      </button>
+      </Button>
       <span className="text-[12px] text-text-2">
         {error ? <span className="text-red">{error}</span>
           : saved ? <span className="text-green-600 font-medium">✓ Saved</span>

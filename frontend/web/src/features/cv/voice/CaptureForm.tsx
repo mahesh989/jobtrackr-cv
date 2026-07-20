@@ -1,4 +1,5 @@
 import { AlertCircle, Loader2, PenLine } from "lucide-react";
+import { Button } from "@/components/ui";
 import { WORD_MIN, type SourceTag } from "./types";
 
 interface Props {
@@ -108,10 +109,11 @@ export function CaptureForm({
       )}
 
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="submit"
+          variant="brand"
+          size="lg"
           disabled={!canSubmit}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
         >
           {status === "submitting" ? (
             <>
@@ -124,7 +126,7 @@ export function CaptureForm({
               {isEditing ? "Save changes" : "Save writing voice"}
             </>
           )}
-        </button>
+        </Button>
 
         {showCancel && (
           <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors">

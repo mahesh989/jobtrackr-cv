@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { Sparkles, Loader2, Zap, AlertTriangle, X, FileText } from "lucide-react";
+import { Sparkles, Loader2, Zap, AlertTriangle, X } from "lucide-react";
 
 interface Props {
   jobId: string;
@@ -181,23 +181,25 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
           {pending ? "…" : "Force"}
         </button>
       ) : analysisHref && hasAnalysis ? (
-        <a
-          href={analysisHref}
-          className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
-          title="View the full tailored analysis"
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Full Analysis
-        </a>
+        <Button asChild variant="brand" size="xs">
+          <a href={analysisHref} title="View the full tailored analysis">
+            <Sparkles className="h-3.5 w-3.5" />
+            Full Analysis
+          </a>
+        </Button>
       ) : (
         /* Primary Analyze / Re-analyze button — brand-filled with Sparkles.
            Spins when an analysis is in-flight (either started locally or
-           triggered by the JobEditModal's auto-analyse on save). */
-        <button
+           triggered by the JobEditModal's auto-analyse on save). No isLoading
+           prop — the spin/label logic below already covers the pending
+           state, and Button's own isLoading spinner would render a second,
+           redundant one on top of it. */
+        <Button
           ref={btnRef}
+          variant="brand"
+          size="xs"
           disabled={pending || externalPending}
           onClick={handleClick}
-          className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 transition-opacity"
           title={
             externalPending
               ? "Analysis running — this button will become \"Full Analysis\" when it finishes"
@@ -216,7 +218,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
               ? "…"
               : hasAnalysis ? "Re-analyze" : "Analyze"}
           </span>
-        </button>
+        </Button>
       )}
       {typeof document !== "undefined" && toast && createPortal(toast, document.body)}
     </>
@@ -234,15 +236,16 @@ export function FullAnalysisButton({
   analysisHref: string;
 }) {
   return (
-    <a
-      href={analysisHref}
-      className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
-      title="View the full tailored CV analysis"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <Sparkles className="h-3.5 w-3.5" />
-      <span>Full Analysis</span>
-    </a>
+    <Button asChild variant="brand" size="xs">
+      <a
+        href={analysisHref}
+        title="View the full tailored CV analysis"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        <span>Full Analysis</span>
+      </a>
+    </Button>
   );
 }
 

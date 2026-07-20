@@ -16,6 +16,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
+import { IconButton } from "@/components/ui";
 import type { JobProgress } from "../lib/progressFlags";
 import { nextAction } from "../lib/progressFlags";
 
@@ -82,9 +83,7 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
           <span className="text-[12px] font-semibold text-text">Continue where you left off</span>
           <span className="text-[10px] text-text-3 ml-1">({jobs.length})</span>
         </div>
-        <button onClick={dismiss} title="Hide this rail" className="inline-flex items-center justify-center w-6 h-6 rounded text-text-3 hover:text-text hover:bg-[var(--surface-2)] transition-colors">
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <IconButton onClick={dismiss} title="Hide this rail" aria-label="Hide this rail" size="sm" icon={<X className="w-3.5 h-3.5" />} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">

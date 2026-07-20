@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { applyDensity, getStoredDensity, DENSITIES, type Density } from "@/lib/density";
+import { SegmentedControl } from "@/components/ui";
 
 /**
  * Text-size / density control. Segmented control — clicking applies instantly
@@ -27,26 +28,11 @@ export function DensityPickerClient() {
   }
 
   return (
-    <div className="inline-flex rounded-xl border border-border bg-[var(--surface-2)] p-1">
-      {DENSITIES.map((d) => {
-        const on = current === d.id;
-        return (
-          <button
-            key={d.id}
-            type="button"
-            onClick={() => pick(d.id)}
-            aria-pressed={on}
-            title={d.hint}
-            className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-              on
-                ? "bg-[var(--surface)] text-[var(--brand)] shadow-sm"
-                : "text-text-2 hover:text-text"
-            }`}
-          >
-            {d.name}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      options={DENSITIES.map((d) => ({ id: d.id, label: d.name, title: d.hint }))}
+      value={current}
+      onChange={pick}
+      brandActive
+    />
   );
 }

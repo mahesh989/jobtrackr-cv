@@ -11,7 +11,7 @@ import {
   Check,
   BookOpen,
 } from "lucide-react";
-import { Input } from "@/components/ui";
+import { Input, Button, IconButton } from "@/components/ui";
 import type { StoryNumber } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -77,9 +77,13 @@ function StoryCard({
             )}
           </div>
         </div>
-        <button onClick={onToggleExpand} className="shrink-0 p-1 rounded hover:bg-[var(--surface-2)] text-[var(--sidebar-text-dim)] transition-colors" title={expanded ? "Collapse" : "Expand"}>
-          <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </button>
+        <IconButton
+          onClick={onToggleExpand}
+          size="sm"
+          title={expanded ? "Collapse" : "Expand"}
+          aria-label={expanded ? "Collapse" : "Expand"}
+          icon={<ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />}
+        />
       </div>
 
       {/* One-line summary */}
@@ -112,10 +116,10 @@ function StoryCard({
               aria-label="Tags"
             />
             <div className="flex items-center gap-2">
-              <button onClick={onSaveTags} disabled={saving} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-xs font-semibold disabled:opacity-50 transition-opacity">
+              <Button variant="brand" size="xs" onClick={onSaveTags} disabled={saving}>
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                 Save
-              </button>
+              </Button>
               <button onClick={onEditCancel} disabled={saving} className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--card-border)] text-xs text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50">
                 <X className="w-3 h-3" />
                 Cancel

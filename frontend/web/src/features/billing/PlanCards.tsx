@@ -93,14 +93,11 @@ export function PlanCards({
 
               {!hideButtons && (
                 <Button
+                  variant={featured ? "brand" : "default"}
+                  size="lg"
                   onClick={() => subscribe(plan.id)}
                   disabled={loading !== null || isCurrent}
-                  className={
-                    "mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
-                    (featured
-                      ? "bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90"
-                      : "")
-                  }
+                  className="mt-5 w-full justify-center"
                 >
                   {loading === plan.id && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : showTrial ? "Start free trial" : "Choose this plan"}

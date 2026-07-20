@@ -302,11 +302,11 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
 
                 <div className="flex items-center gap-2 pt-1">
                   {(!state.hasKey || replaceMode[id]) && (
-                    <button disabled={isBusy} onClick={() => handleConnect(id)} className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:opacity-50 transition-opacity">
+                    <Button variant="brand" size="sm" disabled={isBusy} onClick={() => handleConnect(id)}>
                       {connecting === id
                         ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Validating…</>
                         : state.hasKey ? "Save new key" : "Connect"}
-                    </button>
+                    </Button>
                   )}
 
                   {state.hasKey && replaceMode[id] && (

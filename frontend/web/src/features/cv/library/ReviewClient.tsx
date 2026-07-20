@@ -30,7 +30,7 @@ import type {
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-import { Input } from "@/components/ui";
+import { Input, IconButton } from "@/components/ui";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
@@ -851,14 +851,11 @@ function Section({
             : <ChevronRight className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />}
         </button>
         {onClose && (
-          <button
-            type="button"
+          <IconButton
             onClick={onClose}
             aria-label={`Remove ${title} section`}
-            className="shrink-0 p-1.5 rounded-lg text-text-3 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+            icon={<X className="h-3.5 w-3.5" />}
+          />
         )}
       </div>
       {open && <div className="px-4 pb-4 pt-1 space-y-3">{children}</div>}
@@ -1063,14 +1060,14 @@ function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
 
 function RemoveBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={onClick}
       aria-label={label}
-      className="mt-5 text-text-3 hover:text-red-500 rounded-md p-1 hover:bg-[var(--surface-2)]/60 transition-colors shrink-0"
-    >
-      <X className="h-3.5 w-3.5" />
-    </button>
+      variant="danger"
+      size="sm"
+      icon={<X className="h-3.5 w-3.5" />}
+      className="mt-5"
+    />
   );
 }
 

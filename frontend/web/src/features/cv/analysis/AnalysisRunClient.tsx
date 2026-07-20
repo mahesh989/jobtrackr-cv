@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
+import { DisclosureButton } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import { cancelAnalysisRun }    from "@/lib/actions";
@@ -457,30 +458,24 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
       {/* Run details — exactly what the AI saw. Useful for debugging quality. */}
       <div className="bg-surface border border-border rounded-md overflow-hidden">
-        <button
-          onClick={() => setShowInput((v) => !v)}
-          className="w-full px-5 py-3 flex items-center justify-between gap-3 border-b border-border bg-surface-2 hover:bg-surface"
-        >
-          <div className="flex items-center gap-2">
-            <svg
-              className={`w-3 h-3 text-text-3 transition-transform ${showInput ? "rotate-90" : ""}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-            </svg>
-            <span className="text-[14px] font-semibold text-text">Run details</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-text-3 tabular-nums">
-            {run.ai_provider && <span>{run.ai_provider}</span>}
-            {run.ai_model && <span className="font-mono">{run.ai_model}</span>}
-            {typeof run.jd_text === "string" && (
-              <span>JD: {run.jd_text.length.toLocaleString()} chars</span>
-            )}
-            {typeof cvCharLen === "number" && (
-              <span>CV: {cvCharLen.toLocaleString()} chars</span>
-            )}
-          </div>
-        </button>
+        <DisclosureButton
+          open={showInput}
+          onToggle={() => setShowInput((v) => !v)}
+          title="Run details"
+          className="border-b border-border bg-surface-2 hover:bg-surface"
+          meta={
+            <span className="contents tabular-nums">
+              {run.ai_provider && <span>{run.ai_provider}</span>}
+              {run.ai_model && <span className="font-mono">{run.ai_model}</span>}
+              {typeof run.jd_text === "string" && (
+                <span>JD: {run.jd_text.length.toLocaleString()} chars</span>
+              )}
+              {typeof cvCharLen === "number" && (
+                <span>CV: {cvCharLen.toLocaleString()} chars</span>
+              )}
+            </span>
+          }
+        />
 
         {showInput && (
           <div className="px-5 py-4 space-y-4 text-[12px]">

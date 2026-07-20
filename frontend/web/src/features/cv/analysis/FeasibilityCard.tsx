@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SkillCategory } from "@/lib/types";
 import { SKILL_CATEGORY_LABELS } from "@/lib/types";
+import { DisclosureButton } from "@/components/ui";
 
 /**
  * Faithful port of cv-magic's FeasibilityCard with four buckets:
@@ -189,24 +190,13 @@ function Bucket({
   const [open, setOpen] = useState(defaultOpen ?? (count > 0 && tone !== "violet"));
   return (
     <div className="border border-border rounded-md">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/50"
-      >
-        <svg
-          className={`w-3 h-3 text-text-3 transition-transform ${open ? "rotate-90" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-        </svg>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-text">{title}</span>
-            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${TONE_CHIP[tone]}`}>{count}</span>
-          </div>
-          <p className="text-[11px] text-text-3 mt-0.5 leading-snug">{subtitle}</p>
-        </div>
-      </button>
+      <DisclosureButton
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        className="hover:bg-surface-2/50"
+        title={<>{title} <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${TONE_CHIP[tone]}`}>{count}</span></>}
+        subtitle={subtitle}
+      />
       {open && count > 0 && (
         <div className="border-t border-border bg-surface-2/30 p-2.5 space-y-2">
           {children}

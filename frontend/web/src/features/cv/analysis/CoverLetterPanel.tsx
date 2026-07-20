@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Textarea, Input } from "@/components/ui";
+import { Textarea, Input, Button } from "@/components/ui";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 interface GenerationStatus {
@@ -527,12 +527,9 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {paywall && (
         <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
           <span className="font-medium">{paywall.message}</span>
-          <a
-            href={`/billing?denied=${paywall.reason}`}
-            className="shrink-0 rounded-md bg-[var(--brand)] px-2.5 py-1 text-[11px] font-semibold text-[var(--brand-fg)] hover:opacity-90"
-          >
-            Upgrade
-          </a>
+          <Button asChild variant="brand" size="xs" className="shrink-0">
+            <a href={`/billing?denied=${paywall.reason}`}>Upgrade</a>
+          </Button>
         </div>
       )}
 

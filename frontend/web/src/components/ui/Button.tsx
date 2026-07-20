@@ -7,11 +7,22 @@ const variantClass = {
   primary: "gh-btn gh-btn-primary",
   blue: "gh-btn gh-btn-blue",
   danger: "gh-btn gh-btn-danger",
+  /** The app's primary-CTA look (Analyze, Save, Send, Apply, Upload…) — always
+   *  matches the active theme's --brand, unlike `primary` (hardcoded green). */
+  brand: "gh-btn gh-btn-brand",
 } as const;
 
+/** .gh-btn intentionally carries no padding/font-size (see globals.css) — this
+ *  map is the single source of truth for Button sizing across every variant.
+ *  Pick the closest tier instead of overriding padding/text size in
+ *  className — two Tailwind utilities for the same property (one from here,
+ *  one hand-typed) have no guaranteed winner, so redundant per-instance
+ *  overrides silently reopen the same bug this map exists to close. */
 const sizeClass = {
+  xs: "text-[11px] px-2.5 py-1",
   sm: "text-[12px] px-3 py-1.5",
-  md: "text-[13px]",
+  md: "text-[13px] px-3 py-[5px]",
+  lg: "text-sm px-4 py-2",
 } as const;
 
 /** ponytail: minimal Slot — merges props onto a single child element. No dependency needed. */

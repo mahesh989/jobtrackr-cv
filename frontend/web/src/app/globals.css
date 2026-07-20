@@ -410,14 +410,20 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 
 /* ─── Component classes ─────────────────────────────────────── */
 
-/* GitHub-style button */
+/* GitHub-style button.
+   NOTE: padding/font-size are deliberately NOT set here — this file loads
+   outside Tailwind's cascade layers (@layer), so unlayered rules always beat
+   layered Tailwind utilities regardless of source order or specificity. If
+   this class set padding/font-size, no Tailwind size utility passed via
+   className could ever override it. Sizing is owned entirely by the
+   component consuming this class (see Button.tsx's sizeClass map) — every
+   consumer of .gh-btn* (component or hand-typed) must bring its own
+   text-[..]/px-../py-.. classes. Keep this class limited to shape/color. */
 .gh-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 5px 12px;
-  font-size: 13px;
   font-weight: 500;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -454,6 +460,21 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   color: #fff;
   font-weight: 600;
 }
+
+/* The app's actual primary-CTA look (Analyze, Full Analysis, Save, Generate,
+   Send, Apply, Upload) — every theme defines --brand/--brand-fg, so unlike
+   .gh-btn-primary (hardcoded GitHub green) this always matches the active
+   theme's accent color. Single source of truth for that CTA family: change
+   --brand per theme, or this rule for the shape, and every variant="brand"
+   Button (and every hand-typed "gh-btn gh-btn-brand") updates together. */
+.gh-btn-brand {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-fg);
+  font-weight: 600;
+}
+.gh-btn-brand:hover  { opacity: 0.9; }
+.gh-btn-brand:active { opacity: 0.85; }
 
 /* Table */
 .data-table {
@@ -934,11 +955,12 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 }
 
 /* ---------- Buttons ---------- */
+/* padding intentionally omitted — see the note on the base .gh-btn rule;
+   sizing stays owned by the component/consumer on every theme. */
 :root.theme-aurora-dark  .gh-btn,
 :root.theme-aurora-light .gh-btn {
   border-radius: 10px;
   font-weight: 600;
-  padding: 7px 14px;
   transition: transform .12s, box-shadow .15s, background .15s, border-color .15s;
 }
 :root.theme-aurora-dark  .gh-btn:hover,

@@ -11,6 +11,7 @@
 
 import { useRef, useState, type ReactNode, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { IconButton } from "@/components/ui";
 
 export interface DeckCard {
   id: string;
@@ -50,9 +51,16 @@ export function SwipeDeck({ cards }: { cards: DeckCard[] }) {
 
       {/* Card with flanking arrows */}
       <div className="flex items-stretch gap-2 sm:gap-3 outline-none" tabIndex={0} onKeyDown={onKeyDown}>
-        <button onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous card" className="shrink-0 self-center w-9 h-9 rounded-full border border-border bg-surface flex items-center justify-center text-text-2 hover:text-text hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
+        <IconButton
+          onClick={() => go(i - 1)}
+          disabled={i === 0}
+          aria-label="Previous card"
+          variant="outline"
+          size="lg"
+          shape="circle"
+          className="self-center"
+          icon={<ChevronLeft className="w-5 h-5" />}
+        />
 
         <div
           className="flex-1 min-w-0 overflow-hidden"
@@ -69,9 +77,16 @@ export function SwipeDeck({ cards }: { cards: DeckCard[] }) {
           </div>
         </div>
 
-        <button onClick={() => go(i + 1)} disabled={i === n - 1} aria-label="Next card" className="shrink-0 self-center w-9 h-9 rounded-full border border-border bg-surface flex items-center justify-center text-text-2 hover:text-text hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <IconButton
+          onClick={() => go(i + 1)}
+          disabled={i === n - 1}
+          aria-label="Next card"
+          variant="outline"
+          size="lg"
+          shape="circle"
+          className="self-center"
+          icon={<ChevronRight className="w-5 h-5" />}
+        />
       </div>
 
       {/* Dots */}

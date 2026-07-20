@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import { IconButton } from "@/components/ui";
 
 /**
  * Mobile hamburger button — renders immediately without waiting for sidebar
@@ -9,16 +10,14 @@ import { Menu } from "lucide-react";
  */
 export function MobileMenuButton() {
   return (
-    <button
-      type="button"
-      className="p-1.5 -ml-1.5 rounded-md text-text-2 hover:text-text hover:bg-[var(--surface-2)] transition-colors md:hidden"
+    <IconButton
+      icon={<Menu className="w-5 h-5" />}
       aria-label="Open navigation menu"
+      className="-ml-1.5 md:hidden"
       onClick={() => {
         // Dispatch a custom event that MobileNavDrawer listens for.
         window.dispatchEvent(new CustomEvent("open-mobile-nav"));
       }}
-    >
-      <Menu className="w-5 h-5" />
-    </button>
+    />
   );
 }
