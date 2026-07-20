@@ -196,16 +196,9 @@ export function JobEditModal({
               className="bg-[var(--surface-2)] border-[var(--border)] rounded-md px-3 py-2 text-[12px] placeholder:text-text-3 leading-relaxed font-mono focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
             <div className="flex items-center gap-3 mt-1.5">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={resetToOriginal}
-                disabled={busy}
-                className="text-[11px] text-[var(--brand)] hover:underline"
-                title="Replace the editor contents with the original scraped description"
-              >
+              <button onClick={resetToOriginal} disabled={busy} className="text-[11px] text-[var(--brand)] hover:underline" title="Replace the editor contents with the original scraped description">
                 Reset to original scrape
-              </Button>
+              </button>
               {wasOriginallyEdited && (
                 <span className="text-[11px] text-[var(--amber)] bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-1.5 py-0.5 rounded">
                   Edited JD active

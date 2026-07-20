@@ -5,7 +5,7 @@
 // Each column is independently saveable.
 
 import { useState } from "react";
-import { Radio, Button } from "@/components/ui";
+import { Radio } from "@/components/ui";
 import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
 import type { JobSource, SourceTier, TierConfig, AdzunaMethod, SeekMethod } from "@/lib/constants";
 
@@ -146,14 +146,9 @@ function TierColumn({
 
       {/* Save row */}
       <div className="flex items-center gap-2 pt-0.5">
-        <Button
-          type="button"
-          onClick={save}
-          disabled={saving || !dirty}
-          className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
+        <button type="button" onClick={save} disabled={saving || !dirty} className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50">
           {saving ? "Saving…" : "Save"}
-        </Button>
+        </button>
         <span className="text-[11px]">
           {error  ? <span className="text-red-500">{error}</span>
             : saved  ? <span className="text-green-600 font-medium">✓ Saved</span>

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
-import { Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import { cancelAnalysisRun }    from "@/lib/actions";
@@ -349,12 +348,9 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 completed steps are spent; this prevents remaining steps
                 (tailoring, cover-letter) from firing. */}
             {isActive && (
-              <Button
-                variant="danger"
-                size="sm"
+              <button
                 onClick={() => startCancel(async () => { await cancelAnalysisRun(runId); })}
                 disabled={cancelPending}
-                isLoading={cancelPending}
                 className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
                 title="Stop this analysis — prevents remaining AI steps from running"
               >
@@ -363,7 +359,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                   : <StopCircle className="w-3.5 h-3.5" />
                 }
                 Stop
-              </Button>
+              </button>
             )}
             {/* Re-analyse — only once the current run is terminal so we never
                 spawn a second pipeline over a live one. Reuses AnalyzeJobButton,
@@ -443,18 +439,15 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 You can continue from here — it picks up where it left off and tailors the CV anyway.
               </p>
               <div className="mt-3 flex items-center gap-3">
-                <Button
-                  variant="default"
-                  size="sm"
+                <button
                   onClick={handleResume}
                   disabled={resuming}
-                  isLoading={resuming}
                   className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
                   title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
                 >
                   {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                   {resuming ? "Resuming…" : "Continue & tailor anyway"}
-                </Button>
+                </button>
                 {resumeErr && <span className="text-[11px] text-red">{resumeErr}</span>}
               </div>
             </div>
@@ -464,9 +457,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
       {/* Run details — exactly what the AI saw. Useful for debugging quality. */}
       <div className="bg-surface border border-border rounded-md overflow-hidden">
-        <Button
-          variant="default"
-          size="sm"
+        <button
           onClick={() => setShowInput((v) => !v)}
           className="w-full px-5 py-3 flex items-center justify-between gap-3 border-b border-border bg-surface-2 hover:bg-surface"
         >
@@ -489,7 +480,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
               <span>CV: {cvCharLen.toLocaleString()} chars</span>
             )}
           </div>
-          </Button>
+        </button>
 
         {showInput && (
           <div className="px-5 py-4 space-y-4 text-[12px]">

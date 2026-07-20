@@ -5,8 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
-import { ErrorNotice, TURNSTILE_CONFIGURED } from "./brand";
-import { Button, Input } from "@/components/ui";
+import { ErrorNotice, Spinner, TURNSTILE_CONFIGURED } from "./brand";
+import { Input } from "@/components/ui";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -174,27 +174,16 @@ export function ForgotPasswordForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <Button
-                  onClick={handleResend}
-                  disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
-                  className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ color: "#0B7D74" }}
-                >
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
                   {resendLoading ? "Resending…" : "Resend reset link"}
-                </Button>
+                </button>
               </>
             )}
           </div>
 
-          <Button
-            onClick={handleTryDifferentEmail}
-            className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
-            style={{ color: "#475467" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}
-          >
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
             Try a different email
-          </Button>
+          </button>
         </div>
       ) : (
         <>
@@ -228,9 +217,8 @@ export function ForgotPasswordForm() {
 
             <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
-            <Button
+            <button
               type="submit"
-              isLoading={loading}
               disabled={loading || (TURNSTILE_CONFIGURED && !captchaToken)}
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{
@@ -241,8 +229,15 @@ export function ForgotPasswordForm() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "Sending…" : "Send reset link"}
-            </Button>
+              {loading ? (
+                <>
+                  <Spinner />
+                  Sending…
+                </>
+              ) : (
+                "Send reset link"
+              )}
+            </button>
           </form>
 
           <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>

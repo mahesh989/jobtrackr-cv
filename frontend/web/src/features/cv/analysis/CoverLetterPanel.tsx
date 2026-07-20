@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button, Textarea, Input } from "@/components/ui";
+import { Textarea, Input } from "@/components/ui";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 
 interface GenerationStatus {
@@ -471,26 +471,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             </span>
           )}
           {letter?.status === "completed" && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => handleGenerate(true)}
-              disabled={loading}
-              className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40"
-            >
+            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40">
               Regenerate
-            </Button>
+            </button>
           )}
           {!letter && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => handleGenerate(false)}
-              disabled={loading}
-              className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
+            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50">
               {loading ? "Generating options…" : "Generate cover letter"}
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -512,24 +500,16 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 A cover letter built on a low tailored score rarely wins interviews — consider improving the CV first, or generate the letter anyway if you want to send it as-is.
               </p>
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
+            <button
               onClick={() => handleGenerate(true)}
               disabled={loading}
-              isLoading={loading}
               className="mt-3 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Starting…" : "Try again"}
-            </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setBelowFinalGate(null)}
-                  className="px-2 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors"
-                >
+            </button>
+                <button onClick={() => setBelowFinalGate(null)} className="px-2 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors">
                   Dismiss
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -575,16 +555,13 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           <p className="mt-1 text-[11px] text-text-3">
             Requires: active CV · writing voice · extracted stories · JD text
           </p>
-            <Button
-              variant="primary"
-              size="sm"
+            <button
               onClick={() => handleGenerate(false)}
               disabled={loading}
-              isLoading={loading}
               className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Generating options…" : "Generate cover letter"}
-            </Button>
+            </button>
         </div>
       )}
 
@@ -606,16 +583,13 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 <p className="text-[13px] text-text leading-relaxed mb-3">
                   {variant.text}
                 </p>
-                <Button
-                  variant="primary"
-                  size="sm"
+                <button
                   onClick={() => handlePick(variant.id)}
                   disabled={pickingId !== null}
-                  isLoading={pickingId === variant.id}
                   className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   {pickingId === variant.id ? "Confirming…" : "Use this opener"}
-                </Button>
+                </button>
               </div>
             ))}
           </div>
@@ -643,15 +617,9 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           {letter.error_message && (
             <p className="mt-1 text-[11px] text-text-3 font-mono">{letter.error_message}</p>
           )}
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => handleGenerate(true)}
-              disabled={loading}
-              className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40"
-            >
+            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40">
               Regenerate
-            </Button>
+            </button>
         </div>
       )}
 
@@ -720,34 +688,21 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleCopy}
-              className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
-            >
+            <button onClick={handleCopy} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors">
               {copied ? "Copied!" : "Copy text"}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowDownloadModal(true)}
-              className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors"
-            >
+            </button>
+            <button onClick={() => setShowDownloadModal(true)} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors">
               Download PDF
-            </Button>
+            </button>
             {cvStoragePath && (
-              <Button
-                variant="default"
-                size="sm"
+              <button
                 onClick={handleDownloadZip}
                 disabled={downloadingZip}
-                isLoading={downloadingZip}
                 className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors disabled:opacity-40 flex items-center gap-1.5"
               >
                 {downloadingZip && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {downloadingZip ? "Preparing ZIP…" : "Download ZIP"}
-              </Button>
+              </button>
             )}
             {/* Jump to the Applications "Application pool" tab so the user
                 can queue this letter for review without hunting through the nav. */}
@@ -806,25 +761,16 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
               </div>
             </div>
             <div className="px-5 py-3 border-t border-border flex gap-2 justify-end bg-surface-2">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setShowDownloadModal(false)}
-                disabled={downloading}
-                className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text transition-colors disabled:opacity-40"
-              >
+              <button onClick={() => setShowDownloadModal(false)} disabled={downloading} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text transition-colors disabled:opacity-40">
                 Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
+              </button>
+              <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                isLoading={downloading}
                 className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {downloading ? "Generating…" : "Download"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>

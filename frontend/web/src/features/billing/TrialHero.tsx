@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Loader2, CreditCard, Check } from "lucide-react";
-import { Button } from "@/components/ui";
 
 const TRIAL_PERKS = [
   "3 tailored CVs",
@@ -53,15 +52,10 @@ export function TrialHero() {
           </p>
         </div>
 
-        <Button
-          onClick={startTrial}
-          disabled={loading}
-          className="shrink-0 flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-          style={{ background: "var(--brand)", color: "var(--brand-fg)" }}
-        >
+        <button onClick={startTrial} disabled={loading} className="shrink-0 flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed" style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
           {loading ? "Redirecting…" : "Start free trial"}
-        </Button>
+        </button>
       </div>
 
       {/* Perks row */}

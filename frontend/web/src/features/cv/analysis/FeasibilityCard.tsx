@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui";
 import type { SkillCategory } from "@/lib/types";
 import { SKILL_CATEGORY_LABELS } from "@/lib/types";
 
@@ -190,9 +189,7 @@ function Bucket({
   const [open, setOpen] = useState(defaultOpen ?? (count > 0 && tone !== "violet"));
   return (
     <div className="border border-border rounded-md">
-      <Button
-        variant="default"
-        size="sm"
+      <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/50"
       >
@@ -209,7 +206,7 @@ function Bucket({
           </div>
           <p className="text-[11px] text-text-3 mt-0.5 leading-snug">{subtitle}</p>
         </div>
-      </Button>
+      </button>
       {open && count > 0 && (
         <div className="border-t border-border bg-surface-2/30 p-2.5 space-y-2">
           {children}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui";
 
 interface QualityFlags {
   honesty_guard_notes?: string[];
@@ -29,12 +28,7 @@ export function QualityFlagsCard({ flags }: Props) {
 
   return (
     <div className="rounded-lg border border-border bg-surface-2 p-4">
-      <Button
-        variant="default"
-        size="sm"
-        onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center justify-between text-left cursor-pointer"
-      >
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between text-left cursor-pointer">
         <div className="flex items-center gap-2 text-sm font-medium text-text">
           <span className="text-amber" aria-hidden>✎</span>
           <span>We adjusted {total} item{total === 1 ? "" : "s"} to keep the CV honest</span>
@@ -42,7 +36,7 @@ export function QualityFlagsCard({ flags }: Props) {
         <span className="text-xs text-text-3 font-medium hover:text-brand transition-colors">
           {open ? "Hide" : "Show"}
         </span>
-      </Button>
+      </button>
       {open && (
         <ul className="mt-3 space-y-1.5 text-xs text-text-2 list-disc pl-5">
           {notes.map((n, i) => <li key={`n${i}`}>{n}</li>)}

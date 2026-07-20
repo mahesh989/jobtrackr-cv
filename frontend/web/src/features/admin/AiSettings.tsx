@@ -283,22 +283,12 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                     {meta.models.map((m) => {
                       const on = state.model === m.value;
                       return (
-                        <Button
-                          key={m.value}
-                          disabled={savingModel === id}
-                          onClick={() => {
-                            if (state.hasKey) handleSaveModel(id, m.value);
-                            else setStates((prev) => ({ ...prev, [id]: { ...prev[id], model: m.value } }));
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all disabled:opacity-50 ${
-                            on ? "bg-text text-[var(--surface)] border-text" : "bg-[var(--surface-2)] border-[var(--border)] text-text-2 hover:text-text"
-                          }`}
-                        >
+                        <button key={m.value} disabled={savingModel === id} onClick={() => { if (state.hasKey) handleSaveModel(id, m.value); else setStates((prev) => ({ ...prev, [id]: { ...prev[id], model: m.value } })); }} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all disabled:opacity-50 ${ on ? "bg-text text-[var(--surface)] border-text" : "bg-[var(--surface-2)] border-[var(--border)] text-text-2 hover:text-text" }`}>
                           {m.label}
                           <span className={`text-[9px] px-1 py-0.5 rounded border font-semibold ${on ? "bg-white/20 text-white border-white/20" : TAG_CLS[m.tag]}`}>
                             {m.tag}
                           </span>
-                        </Button>
+                        </button>
                       );
                     })}
                   </div>
@@ -312,15 +302,11 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
 
                 <div className="flex items-center gap-2 pt-1">
                   {(!state.hasKey || replaceMode[id]) && (
-                    <Button
-                      disabled={isBusy}
-                      onClick={() => handleConnect(id)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
-                    >
+                    <button disabled={isBusy} onClick={() => handleConnect(id)} className="inline-flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:opacity-50 transition-opacity">
                       {connecting === id
                         ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Validating…</>
                         : state.hasKey ? "Save new key" : "Connect"}
-                    </Button>
+                    </button>
                   )}
 
                   {state.hasKey && replaceMode[id] && (

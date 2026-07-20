@@ -6,7 +6,6 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
 import { SmartFeed } from "./SmartFeed";
-import { Button } from "@/components/ui";
 import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "../lib/jobFilters";
 import { shallowSetParams } from "../lib/shallowNav";
 import { ThinJdBanner } from "./ThinJdBanner";
@@ -177,16 +176,11 @@ export function ProfileBoard({
               </span>
             )}
             {showSuggestion && (
-              <Button
-                type="button"
-                onClick={applySuggestion}
-                title={`Recommended sort for ${activeFilters[0]}`}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-0.5 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors"
-              >
+              <button type="button" onClick={applySuggestion} title={`Recommended sort for ${activeFilters[0]}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-0.5 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors">
                 <Sparkles className="w-3 h-3" />
                 Suggest sort: {suggestion!.label}
                 <ArrowRight className="w-3 h-3" />
-              </Button>
+              </button>
             )}
             <Link
               href="?"

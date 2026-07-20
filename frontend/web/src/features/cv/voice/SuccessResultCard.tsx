@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui";
 import { TrustBadge } from "./TrustBadge";
 import { WORD_MIN, formalityLabel, type SubmitResult } from "./types";
 
@@ -38,25 +37,15 @@ export function SuccessResultCard({ result, onReset }: Props) {
           Sample is short ({result.word_count} words). Add more detail for a richer fingerprint.
         </p>
       )}
-      <Button
-        variant="default"
-        size="sm"
-        onClick={onReset}
-        className="text-xs text-emerald-700 underline hover:no-underline"
-      >
+      <button onClick={onReset} className="text-xs text-emerald-700 underline hover:no-underline">
         Submit another sample
-      </Button>
+      </button>
 
       <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => setShowDetails((v) => !v)}
-          className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors"
-        >
+        <button onClick={() => setShowDetails((v) => !v)} className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors">
           <span>View what we learned about your writing</span>
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDetails ? "rotate-180" : ""}`} />
-        </Button>
+        </button>
 
         {showDetails && (() => {
           const fp = result.fingerprint as Record<string, unknown>;

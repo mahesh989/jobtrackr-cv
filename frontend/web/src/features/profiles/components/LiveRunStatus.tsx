@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui";
 
 type BannerState = "running" | "stopping" | "stopped" | "hidden";
 
@@ -146,12 +145,7 @@ export function LiveRunStatus({
 
         {/* Right: stop button */}
         <div className="flex items-center gap-3">
-          <Button
-            onClick={handleStop}
-            disabled={stopping}
-            title="Stop this run"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border border-[#CF222E]/30 text-[#CF222E] bg-white hover:bg-[#FFEBE9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button onClick={handleStop} disabled={stopping} title="Stop this run" className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border border-[#CF222E]/30 text-[#CF222E] bg-white hover:bg-[#FFEBE9] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {stopping ? (
               <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -163,7 +157,7 @@ export function LiveRunStatus({
               </svg>
             )}
             {stopping ? "Stopping" : "Stop"}
-          </Button>
+          </button>
         </div>
       </div>
     </div>

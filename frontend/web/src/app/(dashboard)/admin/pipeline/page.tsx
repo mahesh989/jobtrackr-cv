@@ -11,7 +11,6 @@
 import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
 import { RangeFilter } from "@/features/admin/RangeFilter";
 import { adminForceCancelRun } from "@/lib/admin/actions";
-import { Button } from "@/components/ui";
 import Link from "next/link";
 
 export const metadata = { title: "Pipeline Health — Admin — JobTrackr" };
@@ -218,14 +217,12 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                         </td>
                         <td>
                           <form action={adminForceCancelRun.bind(null, r.id)}>
-                            <Button
-                              variant="danger"
-                              size="sm"
+                            <button
                               type="submit"
-                              className="text-[11px] font-semibold"
+                              className="text-[11px] text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
                             >
                               Force cancel
-                            </Button>
+                            </button>
                           </form>
                         </td>
                       </tr>

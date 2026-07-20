@@ -54,17 +54,13 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
                 </p>
               </div>
             </div>
-            <Button
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="inline-flex items-center gap-1 text-[11px] text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
-            >
+            <button onClick={handleDisconnect} disabled={disconnecting} className="inline-flex items-center gap-1 text-[11px] text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40">
               {disconnecting
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <LogOut  className="w-3 h-3" />
               }
               Disconnect
-            </Button>
+            </button>
           </div>
         </div>
       ) : (

@@ -1,5 +1,4 @@
 import { AlertCircle, Loader2, PenLine } from "lucide-react";
-import { Button } from "@/components/ui";
 import { WORD_MIN, type SourceTag } from "./types";
 
 interface Props {
@@ -37,34 +36,12 @@ export function CaptureForm({
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <div className="flex border-b border-[var(--card-border)]" role="tablist">
-        <Button
-          variant="default"
-          size="sm"
-          role="tab"
-          aria-selected={activeTab === "in_app_capture"}
-          onClick={() => onTabChange("in_app_capture")}
-          className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${
-            activeTab === "in_app_capture"
-              ? "border-[var(--brand)] text-[var(--brand)]"
-              : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]"
-          }`}
-        >
+        <button role="tab" aria-selected={activeTab === "in_app_capture"} onClick={() => onTabChange("in_app_capture")} className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${ activeTab === "in_app_capture" ? "border-[var(--brand)] text-[var(--brand)]" : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]" }`}>
           Write a sample
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          role="tab"
-          aria-selected={activeTab === "pasted_cover_letter"}
-          onClick={() => onTabChange("pasted_cover_letter")}
-          className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${
-            activeTab === "pasted_cover_letter"
-              ? "border-[var(--brand)] text-[var(--brand)]"
-              : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]"
-          }`}
-        >
+        </button>
+        <button role="tab" aria-selected={activeTab === "pasted_cover_letter"} onClick={() => onTabChange("pasted_cover_letter")} className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${ activeTab === "pasted_cover_letter" ? "border-[var(--brand)] text-[var(--brand)]" : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]" }`}>
           Paste a cover letter
-        </Button>
+        </button>
         <span className="ml-auto px-2 text-[11px] text-[var(--sidebar-text-dim)] self-center">
           Use whichever feels easier — you only need one.
         </span>
@@ -131,12 +108,9 @@ export function CaptureForm({
       )}
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
+        <button
           type="submit"
           disabled={!canSubmit}
-          isLoading={status === "submitting"}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
         >
           {status === "submitting" ? (
@@ -150,17 +124,12 @@ export function CaptureForm({
               {isEditing ? "Save changes" : "Save writing voice"}
             </>
           )}
-        </Button>
+        </button>
 
         {showCancel && (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onCancel}
-            className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
-          >
+          <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors">
             Cancel
-          </Button>
+          </button>
         )}
       </div>
     </form>

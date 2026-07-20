@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui";
 
 interface Props {
   name:          string;
@@ -117,16 +116,9 @@ export function LocationAutocomplete({ name, defaultValue = "", placeholder }: P
         <ul className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-surface shadow-lg">
           {suggestions.map((s, i) => (
             <li key={s}>
-              <Button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); select(s); }}
-                onMouseEnter={() => setActive(i)}
-                className={`block w-full px-3 py-2 text-left text-[13px] text-text ${
-                  i === active ? "bg-brand/10" : ""
-                }`}
-              >
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); select(s); }} onMouseEnter={() => setActive(i)} className={`block w-full px-3 py-2 text-left text-[13px] text-text ${ i === active ? "bg-brand/10" : "" }`}>
                 {s}
-              </Button>
+              </button>
             </li>
           ))}
         </ul>

@@ -346,7 +346,7 @@ export default async function AdminOverviewPage() {
                     <td>
                       {inv.is_active && !inv.used_by && (
                         <form action={revokeInviteCode.bind(null, inv.code)}>
-                          <Button type="submit" variant="danger" size="sm" className="text-[11px] hover:underline font-medium">Revoke</Button>
+                          <button type="submit" className="text-[11px] text-red-600 hover:underline font-medium">Revoke</button>
                         </form>
                       )}
                     </td>

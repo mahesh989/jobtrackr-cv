@@ -138,25 +138,18 @@ export function AddModal({ onClose }: { onClose: () => void }) {
               Found a job elsewhere? Add it here to analyse and track it.
             </p>
           </div>
-          <Button onClick={onClose} disabled={saving} className="text-text-3 hover:text-text mt-0.5" icon={<X className="w-4 h-4" />} />
+          <button onClick={onClose} disabled={saving} className="text-text-3 hover:text-text mt-0.5">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Tab switcher */}
         <div className="px-5 pt-3 flex gap-1">
           {([["url", Link2, "Fetch from URL"], ["paste", FileText, "Paste JD"]] as const).map(([t, Icon, label]) => (
-            <Button
-              key={t}
-              type="button"
-              onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
-                tab === t
-                  ? "bg-[var(--brand)] text-white"
-                  : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text"
-              }`}
-            >
+            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-white" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
               <Icon className="w-3.5 h-3.5" />
               {label}
-            </Button>
+            </button>
           ))}
         </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { getSavedJobsForRun } from "@/lib/actions";
 
 type SavedJob = Awaited<ReturnType<typeof getSavedJobsForRun>>[number];
@@ -32,10 +32,7 @@ export function RunJobsTable({
 
   return (
     <div className="mt-3 pt-3 border-t border-[var(--border)]">
-      <Button
-        onClick={handleToggle}
-        className="text-[12px] text-[var(--brand)] hover:text-[#0550AE] font-medium flex items-center gap-1.5 transition-colors"
-      >
+      <button onClick={handleToggle} className="text-[12px] text-[var(--brand)] hover:text-[#0550AE] font-medium flex items-center gap-1.5 transition-colors">
         <svg
           className={`w-3 h-3 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
@@ -43,7 +40,7 @@ export function RunJobsTable({
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
         </svg>
         {isOpen ? "Hide jobs" : `View ${jobsSaved} saved job${jobsSaved === 1 ? "" : "s"}`}
-      </Button>
+      </button>
 
       {isOpen && (
         <div className="mt-3 space-y-2">

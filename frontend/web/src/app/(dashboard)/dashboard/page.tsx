@@ -32,7 +32,6 @@ import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/Pipel
 import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
 import { JobBoard } from "@/features/jobs/components/JobBoard";
-import { Button } from "@/components/ui";
 import { atsBandFor, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
   deriveProgress,
@@ -676,11 +675,9 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
           </p>
           <Link
             href={hasProfiles ? "/profiles" : "/profiles/new"}
-            className="inline-flex"
+            className="gh-btn gh-btn-blue text-[14px] px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold"
           >
-            <Button variant="blue" className="px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold">
-              {hasProfiles ? "Go to your profiles" : "Create a search profile"}
-            </Button>
+            {hasProfiles ? "Go to your profiles" : "Create a search profile"}
           </Link>
           <p className="text-[12px] text-text-3 mt-4">
             Need to change your details?{" "}

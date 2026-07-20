@@ -11,7 +11,7 @@ import {
   Check,
   BookOpen,
 } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { Input } from "@/components/ui";
 import type { StoryNumber } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -77,15 +77,9 @@ function StoryCard({
             )}
           </div>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onToggleExpand}
-          className="shrink-0 p-1 rounded hover:bg-[var(--surface-2)] text-[var(--sidebar-text-dim)] transition-colors"
-          title={expanded ? "Collapse" : "Expand"}
-        >
+        <button onClick={onToggleExpand} className="shrink-0 p-1 rounded hover:bg-[var(--surface-2)] text-[var(--sidebar-text-dim)] transition-colors" title={expanded ? "Collapse" : "Expand"}>
           <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </Button>
+        </button>
       </div>
 
       {/* One-line summary */}
@@ -118,26 +112,14 @@ function StoryCard({
               aria-label="Tags"
             />
             <div className="flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={onSaveTags}
-                disabled={saving}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-xs font-semibold disabled:opacity-50 transition-opacity"
-              >
+              <button onClick={onSaveTags} disabled={saving} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--brand)] text-[var(--brand-fg)] text-xs font-semibold disabled:opacity-50 transition-opacity">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                 Save
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={onEditCancel}
-                disabled={saving}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--card-border)] text-xs text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
-              >
+              </button>
+              <button onClick={onEditCancel} disabled={saving} className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--card-border)] text-xs text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50">
                 <X className="w-3 h-3" />
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         ) : (
@@ -153,15 +135,9 @@ function StoryCard({
                 ))
               : <span className="text-[11px] text-[var(--sidebar-text-dim)] italic">No tags</span>
             }
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onEditStart}
-              className="p-0.5 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--text)] transition-colors"
-              title="Edit tags"
-            >
+            <button onClick={onEditStart} className="p-0.5 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--text)] transition-colors" title="Edit tags">
               <Pencil className="w-3 h-3" />
-            </Button>
+            </button>
           </div>
         )}
       </div>
@@ -292,18 +268,12 @@ export function StoriesClient({ initialStories }: Props) {
               : "No stories yet"}
           </span>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={handleReExtract}
-          disabled={extracting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-xs font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
+        <button onClick={handleReExtract} disabled={extracting} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-xs font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
           {extracting
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <RefreshCw className="w-3.5 h-3.5" />}
           {extracting ? "Extracting… (up to 90s)" : "Re-extract from CV"}
-        </Button>
+        </button>
       </div>
 
       {/* Extraction error */}

@@ -142,18 +142,15 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
           {/* Action row — varies by error type */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {err.action === "paste_jd" && (
-              <Button
-                variant="default"
-                size="sm"
+              <button
                 onClick={handleRunAnyway}
                 disabled={pending}
-                isLoading={pending}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded border border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-40"
                 title="Run the full pipeline despite the thin job description"
               >
                 {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                 Run analysis anyway
-              </Button>
+              </button>
             )}
             {err.cta && (
               <Button
@@ -165,15 +162,10 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
                 {err.cta.label}
               </Button>
             )}
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setErr(null)}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-1 py-1"
-            >
+            <button onClick={() => setErr(null)} className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-1 py-1">
               <X className="w-3 h-3" />
               Dismiss
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -184,24 +176,10 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
     <>
       {compact ? (
         /* Compact override link — used inline next to a Below-initial badge. */
-        <Button
-          variant="default"
-          size="sm"
-          ref={btnRef}
-          disabled={pending}
-          onClick={handleClick}
-          className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-40 transition-colors"
-          title={
-            override === "initial_gate"
-              ? "Force the pipeline to tailor the CV anyway, despite low initial ATS score"
-              : override === "thin_jd"
-              ? "Run analysis anyway, despite a thin job description"
-              : "Force analysis (override gate)"
-          }
-        >
+        <button ref={btnRef} disabled={pending} onClick={handleClick} className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-40 transition-colors" title={ override === "initial_gate" ? "Force the pipeline to tailor the CV anyway, despite low initial ATS score" : override === "thin_jd" ? "Run analysis anyway, despite a thin job description" : "Force analysis (override gate)" }>
           {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Zap className="h-2.5 w-2.5" />}
           {pending ? "…" : "Force"}
-        </Button>
+        </button>
       ) : analysisHref && hasAnalysis ? (
         <a
           href={analysisHref}
@@ -215,12 +193,9 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
         /* Primary Analyze / Re-analyze button — brand-filled with Sparkles.
            Spins when an analysis is in-flight (either started locally or
            triggered by the JobEditModal's auto-analyse on save). */
-        <Button
-          variant="primary"
-          size="sm"
+        <button
           ref={btnRef}
           disabled={pending || externalPending}
-          isLoading={pending || externalPending}
           onClick={handleClick}
           className="flex items-center gap-1.5 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand-fg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 transition-opacity"
           title={
@@ -241,7 +216,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
               ? "…"
               : hasAnalysis ? "Re-analyze" : "Analyze"}
           </span>
-        </Button>
+        </button>
       )}
       {typeof document !== "undefined" && toast && createPortal(toast, document.body)}
     </>

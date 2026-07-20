@@ -101,36 +101,19 @@ export function SetupCards({
 
       {/* Footer nav — Back to the previous card, dot row to jump */}
       <div className="flex items-center justify-between mt-4">
-        <Button
-          onClick={() => setI((n) => Math.max(0, n - 1))}
-          disabled={i === 0}
-          className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
+        <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0} className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           <ChevronLeft className="w-4 h-4" /> Back
-        </Button>
+        </button>
 
         <div className="flex items-center gap-1.5">
           {SETUP_STEPS.map((s, idx) => (
-            <Button
-              key={s.key}
-              onClick={() => setI(idx)}
-              aria-label={`Go to step ${idx + 1}: ${s.title}`}
-              className={
-                "h-2 rounded-full transition-all " +
-                (idx === i ? "w-5 bg-[var(--brand)]" : "w-2 ") +
-                (idx !== i ? (status[s.key] ? "bg-[var(--green)]" : "bg-border hover:bg-text-3") : "")
-              }
-            />
+            <button key={s.key} onClick={() => setI(idx)} aria-label={`Go to step ${idx + 1}: ${s.title}`} className={ "h-2 rounded-full transition-all " + (idx === i ? "w-5 bg-[var(--brand)]" : "w-2 ") + (idx !== i ? (status[s.key] ? "bg-[var(--green)]" : "bg-border hover:bg-text-3") : "") } />
           ))}
         </div>
 
-        <Button
-          onClick={() => setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))}
-          disabled={i === SETUP_STEP_COUNT - 1}
-          className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
+        <button onClick={() => setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))} disabled={i === SETUP_STEP_COUNT - 1} className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           Skip <ChevronRight className="w-4 h-4" />
-        </Button>
+        </button>
       </div>
     </div>
   );

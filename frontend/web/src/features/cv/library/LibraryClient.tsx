@@ -876,14 +876,13 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
           Skills not yet categorised. Make sure an AI key is connected, then click below.
         </p>
         {reCatError && <p className="text-[11px] text-red mb-1">{reCatError}</p>}
-        <Button
-          variant="default"
-          size="sm"
+        <button
           onClick={(e) => { e.stopPropagation(); handleRecategorise(); }}
           disabled={reCatLoading}
+          className="text-[11px] font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
         >
           {reCatLoading ? "Categorising…" : "↺ Categorise skills now"}
-        </Button>
+        </button>
       </div>
     );
   }
@@ -896,16 +895,14 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
 
   return (
     <div className="mt-2" onClick={e => e.stopPropagation()}>
-      <Button
-        variant="default"
-        size="sm"
+      <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="text-xs"
+        className="text-xs text-text-2 hover:text-[var(--brand)] inline-flex items-center gap-1 transition-colors"
       >
         <ChevronRight className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} />
         Show AI-extracted skills ({total})
-      </Button>
+      </button>
 
       {open && (
         <div className="mt-2 space-y-2 bg-surface-2/40 border border-border rounded p-3">

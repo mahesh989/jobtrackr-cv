@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
-import { Button, Input } from "@/components/ui";
+import { Input } from "@/components/ui";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -105,15 +105,10 @@ export function LoginForm() {
       )}
 
       {/* Google button */}
-      <Button
-        onClick={handleGoogleSignIn}
-        disabled={googleLoading || loading}
-        className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer"
-        style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0E141B", opacity: googleLoading ? 0.7 : 1 }}
-      >
+      <button onClick={handleGoogleSignIn} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0E141B", opacity: googleLoading ? 0.7 : 1 }}>
         {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
         Continue with Google
-      </Button>
+      </button>
 
       {/* Divider */}
       <div className="flex items-center gap-3 mb-5">
@@ -162,9 +157,8 @@ export function LoginForm() {
         <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
         <div style={{ marginTop: 28 }}>
-          <Button
+          <button
             type="submit"
-            isLoading={loading}
             disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
             className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
             style={{
@@ -175,7 +169,12 @@ export function LoginForm() {
               opacity: loading ? 0.7 : 1,
             }}
           >
-            {loading ? "Signing in…" : (
+            {loading ? (
+              <>
+                <Spinner />
+                Signing in…
+              </>
+            ) : (
               <>
                 Sign in
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -183,7 +182,7 @@ export function LoginForm() {
                 </svg>
               </>
             )}
-          </Button>
+          </button>
         </div>
       </form>
 

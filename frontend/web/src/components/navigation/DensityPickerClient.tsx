@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { applyDensity, getStoredDensity, DENSITIES, type Density } from "@/lib/density";
-import { Button } from "@/components/ui";
 
 /**
  * Text-size / density control. Segmented control — clicking applies instantly
@@ -32,7 +31,7 @@ export function DensityPickerClient() {
       {DENSITIES.map((d) => {
         const on = current === d.id;
         return (
-          <Button
+          <button
             key={d.id}
             type="button"
             onClick={() => pick(d.id)}
@@ -45,7 +44,7 @@ export function DensityPickerClient() {
             }`}
           >
             {d.name}
-          </Button>
+          </button>
         );
       })}
     </div>

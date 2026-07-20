@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FileWarning, X } from "lucide-react";
-import { Button } from "@/components/ui";
 
 /**
  * Dismissible inline banner shown whenever the current job board view
@@ -33,14 +32,9 @@ export function ThinJdBanner({ count }: { count: number }) {
           <li>Hit <span className="font-medium text-text">Save</span> — analysis starts automatically</li>
         </ol>
       </div>
-      <Button
-        type="button"
-        onClick={() => setDismissed(true)}
-        className="shrink-0 p-0.5 rounded hover:bg-[var(--surface-2)] transition-colors text-text-3 hover:text-text"
-        aria-label="Dismiss"
-      >
+      <button type="button" onClick={() => setDismissed(true)} className="shrink-0 p-0.5 rounded hover:bg-[var(--surface-2)] transition-colors text-text-3 hover:text-text" aria-label="Dismiss">
         <X className="w-3.5 h-3.5" />
-      </Button>
+      </button>
     </div>
   );
 }

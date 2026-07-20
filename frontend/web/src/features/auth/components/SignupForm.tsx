@@ -7,7 +7,7 @@ import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { PasswordRequirements, passwordMeetsAllRules } from "./PasswordRequirements";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
-import { Button, Input } from "@/components/ui";
+import { Input } from "@/components/ui";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -171,27 +171,16 @@ export function SignupForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <Button
-                  onClick={handleResend}
-                  disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)}
-                  className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ color: "#0B7D74" }}
-                >
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
                   {resendLoading ? "Resending…" : "Resend confirmation email"}
-                </Button>
+                </button>
               </>
             )}
           </div>
 
-          <Button
-            onClick={handleTryDifferentEmail}
-            className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors"
-            style={{ color: "#475467" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}
-          >
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
             Try a different email
-          </Button>
+          </button>
         </div>
       ) : (
         <>
@@ -205,15 +194,10 @@ export function SignupForm() {
           </div>
 
           {/* Google button */}
-          <Button
-            onClick={handleGoogleSignUp}
-            disabled={googleLoading || loading}
-            className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer"
-            style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0E141B", opacity: googleLoading ? 0.7 : 1 }}
-          >
+          <button onClick={handleGoogleSignUp} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0E141B", opacity: googleLoading ? 0.7 : 1 }}>
             {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
             Continue with Google
-          </Button>
+          </button>
 
           {/* Divider */}
           <div className="flex items-center gap-3 mb-5">
@@ -257,9 +241,8 @@ export function SignupForm() {
 
             <TurnstileBox ref={turnstileRef} onToken={setCaptchaToken} />
 
-            <Button
+            <button
               type="submit"
-              isLoading={loading}
               disabled={
                 loading || googleLoading ||
                 (TURNSTILE_CONFIGURED && !captchaToken) ||
@@ -269,7 +252,12 @@ export function SignupForm() {
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
               style={{ background: "#0B7D74", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? "Creating account…" : (
+              {loading ? (
+                <>
+                  <Spinner />
+                  Creating account…
+                </>
+              ) : (
                 <>
                   Create account
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -277,7 +265,7 @@ export function SignupForm() {
                   </svg>
                 </>
               )}
-            </Button>
+            </button>
           </form>
 
           <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>

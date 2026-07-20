@@ -30,7 +30,7 @@ import type {
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-import { Button, Input } from "@/components/ui";
+import { Input } from "@/components/ui";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
@@ -379,14 +379,9 @@ export function ReviewClient({
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <Button
-            type="button"
-            onClick={() => router.push("/cv")}
-            icon={<ArrowLeft className="h-3.5 w-3.5" />}
-            className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"
-          >
+          <button type="button" onClick={() => router.push("/cv")} className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"><ArrowLeft className="h-3.5 w-3.5" /> 
             Back to Profile
-          </Button>
+          </button>
           {isCreate ? (
             <>
               <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
@@ -438,19 +433,17 @@ export function ReviewClient({
             {/* Create mode: AI extraction from experience bullets */}
             {isCreate && (
               <div className="pt-2 border-t border-[var(--border)]/50 flex items-center gap-3 flex-wrap">
-                <Button
-                  variant="default"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={handleExtractSkills}
                   disabled={extractingSkills}
-                  isLoading={extractingSkills}
                   className="inline-flex items-center gap-1.5 text-[12px] text-[var(--brand)] hover:underline disabled:opacity-50 disabled:no-underline"
                 >
                   {extractingSkills
                     ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Extracting…</>
                     : <><Sparkles className="h-3.5 w-3.5" /> Suggest from experience</>
                   }
-                </Button>
+                </button>
                 <span className="text-[11px] text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
                 {extractSkillsErr && (
                   <p className="w-full text-[11px] text-red-600">{extractSkillsErr}</p>
@@ -532,14 +525,9 @@ export function ReviewClient({
                         />
                       ))}
                     </div>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => addBullet(i)}
-                      className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-2.5 rounded px-1.5 py-1 hover:bg-[var(--surface-2)]/60 transition-colors"
-                    >
+                    <button onClick={() => addBullet(i)} className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-2.5 rounded px-1.5 py-1 hover:bg-[var(--surface-2)]/60 transition-colors">
                       <Plus className="h-3.5 w-3.5" /> Add bullet
-                    </Button>
+                    </button>
                   </div>
                 </TimelineEntry>
               ))}
@@ -843,14 +831,7 @@ function Section({
     <section id={id} className={`group relative rounded-xl border bg-[var(--surface)] transition-all ${open ? "border-[var(--border)] shadow-sm" : "border-[var(--border)]/70 hover:border-[var(--border)] hover:shadow-sm"}`}>
       {open && <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--brand)]/70" />}
       <div className="flex w-full items-center gap-3 px-4 py-3">
-        <Button
-          variant="default"
-          size="sm"
-          type="button"
-          onClick={onToggle}
-          className="flex flex-1 items-center gap-3 text-left min-w-0"
-          aria-expanded={open}
-        >
+        <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-3 text-left min-w-0" aria-expanded={open}>
           <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${open ? "bg-[var(--brand)]/10 text-[var(--brand)]" : "bg-[var(--surface-2)]/60 text-text-3 group-hover:bg-[var(--brand)]/10 group-hover:text-[var(--brand)]"}`}>
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
@@ -868,18 +849,16 @@ function Section({
           {open
             ? <ChevronDown  className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />
             : <ChevronRight className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />}
-        </Button>
+        </button>
         {onClose && (
-          <Button
-            variant="default"
-            size="sm"
+          <button
             type="button"
             onClick={onClose}
             aria-label={`Remove ${title} section`}
-            className="shrink-0 p-1.5 rounded-lg"
+            className="shrink-0 p-1.5 rounded-lg text-text-3 hover:text-text hover:bg-[var(--surface-2)]/60 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         )}
       </div>
       {open && <div className="px-4 pb-4 pt-1 space-y-3">{children}</div>}
@@ -971,16 +950,9 @@ function BulletRow({ value, onChange, onRemove }: {
         value={value}
         onChange={e => onChange(e.target.value)}
       />
-      <Button
-        variant="default"
-        size="sm"
-        type="button"
-        onClick={onRemove}
-        aria-label="Remove bullet"
-        className="mt-1 p-1 opacity-0 group-hover/bullet:opacity-100 focus:opacity-100 transition-opacity"
-      >
+      <button type="button" onClick={onRemove} aria-label="Remove bullet" className="mt-1 p-1 opacity-0 group-hover/bullet:opacity-100 focus:opacity-100 transition-opacity">
         <X className="h-3.5 w-3.5" />
-      </Button>
+      </button>
     </div>
   );
 }
@@ -1013,16 +985,14 @@ function SkillsBucket({
         {items.map(s => (
           <span key={s} className="group/chip inline-flex items-center gap-1 text-[12px] pl-2 pr-1 py-0.5 rounded-full bg-[var(--surface-2)]/80 border border-[var(--border)]/60 hover:border-[var(--border)] transition-colors">
             <span className="text-text">{s}</span>
-            <Button
-              variant="default"
-              size="sm"
+            <button
               type="button"
               onClick={() => onRemove(bucket, s)}
               aria-label={`Remove ${s}`}
-              className="rounded-full p-0.5"
+              className="text-text-3 hover:text-text rounded-full p-0.5"
             >
               <X className="h-3 w-3" />
-            </Button>
+            </button>
           </span>
         ))}
         <Input
@@ -1071,9 +1041,9 @@ function EmptyState({ icon: Icon, text, actionLabel, onAction }: {
       </span>
       <p className="text-[13px] text-text-3 max-w-xs">{text}</p>
       {actionLabel && onAction && (
-        <Button onClick={onAction} className="mt-3" icon={<Plus className="h-3.5 w-3.5" />}>
-          {actionLabel}
-        </Button>
+        <button type="button" onClick={onAction} className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--brand)] hover:underline">
+          <Plus className="h-3.5 w-3.5" /> {actionLabel}
+        </button>
       )}
     </div>
   );
@@ -1081,30 +1051,26 @@ function EmptyState({ icon: Icon, text, actionLabel, onAction }: {
 
 function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button
-      variant="default"
-      size="sm"
+    <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 text-xs mt-3 -ml-2"
+      className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-3 rounded-md px-2 py-1 -ml-2 hover:bg-[var(--surface-2)]/60 transition-colors"
     >
       <Plus className="h-3.5 w-3.5" /> {label}
-    </Button>
+    </button>
   );
 }
 
 function RemoveBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button
-      variant="default"
-      size="sm"
+    <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="mt-5 p-1 shrink-0"
+      className="mt-5 text-text-3 hover:text-red-500 rounded-md p-1 hover:bg-[var(--surface-2)]/60 transition-colors shrink-0"
     >
       <X className="h-3.5 w-3.5" />
-    </Button>
+    </button>
   );
 }
 

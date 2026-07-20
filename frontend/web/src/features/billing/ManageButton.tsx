@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Loader2, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui";
 
 /**
  * Opens the Stripe Billing Portal (POST /api/billing/portal → { url }).
@@ -35,14 +34,10 @@ export function ManageButton({
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
-      <Button
-        onClick={openPortal}
-        disabled={loading}
-        className={"inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-60 " + className}
-      >
+      <button onClick={openPortal} disabled={loading} className={"inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-60 " + className}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
         {label}
-      </Button>
+      </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
   );

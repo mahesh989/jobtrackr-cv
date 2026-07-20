@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui";
 
 /**
  * "Email me when new jobs are found" switch — backed by
@@ -30,9 +29,8 @@ export function NotificationsToggle({ initial }: { initial: boolean }) {
   }
 
   return (
-    <Button
-      variant="default"
-      size="sm"
+    <button
+      type="button"
       role="switch"
       aria-checked={enabled}
       onClick={handleToggle}
@@ -46,6 +44,6 @@ export function NotificationsToggle({ initial }: { initial: boolean }) {
           enabled ? "translate-x-[18px]" : "translate-x-[3px]"
         }`}
       />
-    </Button>
+    </button>
   );
 }

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { SidebarLinks } from "@/components/navigation/SidebarLinks";
-import { Button } from "@/components/ui";
 
 interface Profile {
   id: string;
@@ -85,13 +84,14 @@ export function MobileNav({
         aria-label="Navigation menu"
       >
         {/* Close button floated over the drawer's own logo row */}
-        <Button
+        <button
           type="button"
           onClick={() => setOpen(false)}
-          icon={<X className="w-4 h-4" />}
           className="absolute top-4 right-3 z-10 p-1.5 rounded-md text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-active-bg)] transition-colors"
           aria-label="Close navigation menu"
-        />
+        >
+          <X className="w-4 h-4" />
+        </button>
         <SidebarLinks
           email={email}
           profiles={profiles}

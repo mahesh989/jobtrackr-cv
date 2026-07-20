@@ -16,7 +16,7 @@ import { requireAdmin, formatCost, timeAgo, fmtDateTime } from "@/lib/admin/guar
 import { adminGrantUnlimitedAccess } from "@/lib/admin/actions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -238,14 +238,12 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               }}
               className="mt-2"
             >
-              <Button
-                variant="default"
-                size="sm"
+              <button
                 type="submit"
-                className="text-[11px]"
+                className="text-[11px] px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-2 transition-colors"
               >
                 Grant unlimited access (10 yr)
-              </Button>
+              </button>
             </form>
           )}
         </Section>

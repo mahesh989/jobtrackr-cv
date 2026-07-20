@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
-import { Button } from "@/components/ui";
 
 /**
  * Collapsible "How does Application Pool work?" panel.
@@ -23,11 +22,7 @@ export function PoolHowItWorks() {
 
   return (
     <div className="rounded-lg border border-border bg-surface overflow-hidden">
-      <Button
-        type="button"
-        onClick={toggle}
-        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-[var(--surface-2)] transition-colors"
-      >
+      <button type="button" onClick={toggle} className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-[var(--surface-2)] transition-colors">
         <span className="flex items-center gap-2 text-[12px] font-medium text-text-2">
           <HelpCircle className="w-3.5 h-3.5 shrink-0 text-[var(--brand)]" />
           How does Application Pool work?
@@ -36,7 +31,7 @@ export function PoolHowItWorks() {
           ? <ChevronUp className="w-3.5 h-3.5 shrink-0 text-text-3" />
           : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-text-3" />
         }
-      </Button>
+      </button>
 
       {open && (
         <div className="px-4 pb-4 pt-1 border-t border-border space-y-3">

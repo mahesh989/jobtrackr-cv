@@ -8,7 +8,6 @@
  */
 
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui";
 
 export function BackButton() {
   const router = useRouter();
@@ -26,11 +25,8 @@ export function BackButton() {
   }
 
   return (
-    <Button
-      onClick={handleBack}
-      className="inline-flex items-center gap-1 text-[12px] text-text-2 hover:text-text transition-colors"
-    >
+    <button onClick={handleBack} className="inline-flex items-center gap-1 text-[12px] text-text-2 hover:text-text transition-colors">
       ← Back
-    </Button>
+    </button>
   );
 }

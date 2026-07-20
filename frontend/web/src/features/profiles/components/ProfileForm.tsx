@@ -299,7 +299,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               <option value="21">Past 21 days</option>
               <option value="28">Past 28 days</option>
             </Select>
-            <Hint text="Only applies to the first run. Auto-runs after that fetch only what's new since the previous run (+1 day buffer)." />
           </div>
 
           <div>

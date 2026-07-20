@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ChevronDown, Eye, Plus, Pencil } from "lucide-react";
-import { Button } from "@/components/ui";
 import { TrustBadge } from "./TrustBadge";
 import { sourceLabel, type VoiceProfile } from "./types";
 
@@ -33,18 +32,13 @@ export function CurrentProfileCard({ profile, onEdit, onReplace }: Props) {
 
       {profile.voice_sample_raw && (
         <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setShowSample((v) => !v)}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors"
-          >
+          <button onClick={() => setShowSample((v) => !v)} className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors">
             <span className="inline-flex items-center gap-1.5">
               <Eye className="w-3.5 h-3.5" />
               {showSample ? "Hide saved sample" : "View saved sample"}
             </span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showSample ? "rotate-180" : ""}`} />
-          </Button>
+          </button>
           {showSample && (
             <div className="border-t border-[var(--card-border)] px-3 py-3 bg-[var(--surface-2)]">
               <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-[var(--text-2)] font-sans">
@@ -56,24 +50,14 @@ export function CurrentProfileCard({ profile, onEdit, onReplace }: Props) {
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => onEdit(profile.voice_sample_raw ?? "")}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--brand)] text-[var(--brand)] text-xs font-semibold hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors"
-        >
+        <button onClick={() => onEdit(profile.voice_sample_raw ?? "")} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--brand)] text-[var(--brand)] text-xs font-semibold hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors">
           <Pencil className="w-3.5 h-3.5" />
           Edit current sample
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onReplace}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-[var(--text-2)] text-xs font-semibold hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors"
-        >
+        </button>
+        <button onClick={onReplace} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-[var(--text-2)] text-xs font-semibold hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors">
           <Plus className="w-3.5 h-3.5" />
           Replace with a new sample
-        </Button>
+        </button>
         <span className="text-[11px] text-[var(--sidebar-text-dim)] ml-auto">
           Saving any new text replaces the current sample.
         </span>

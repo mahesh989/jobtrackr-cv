@@ -341,7 +341,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
     <div className="bg-surface border border-border rounded-md anim-in hover:border-[var(--text-3)] transition-colors">
       {/* Collapsed summary */}
       <div className="flex items-center gap-1 pr-3">
-        <Button onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 flex items-center gap-3 pl-4 pr-1 py-3 text-left">
+        <button onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 flex items-center gap-3 pl-4 pr-1 py-3 text-left">
           {open ? <ChevronDown className="w-4 h-4 text-text-3 shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />}
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold text-text truncate">{row.job_title}</p>
@@ -371,7 +371,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
               </p>
             </div>
           </div>
-        </Button>
+        </button>
         <a href={row.job_url} target="_blank" rel="noopener noreferrer" title="Open job posting"
           className="p-1.5 rounded-md text-text-3 hover:text-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors shrink-0">
           <ExternalLink className="w-4 h-4" />
@@ -395,10 +395,10 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                       aria-label="Contact email"
                       className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
                   ) : (
-                    <Button onClick={() => { contact.setDraft(contact.email ?? ""); contact.setEditing(true); }}
+                    <button onClick={() => { contact.setDraft(contact.email ?? ""); contact.setEditing(true); }}
                       className="font-mono text-[11px] hover:text-text underline decoration-dotted">
                       {contact.email}
-                    </Button>
+                    </button>
                   )}
                 </span>
               ) : (
@@ -406,8 +406,8 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                   <ExternalLink className="w-3.5 h-3.5" />
                   No contact email — copy the message and apply via the job link
                   {!contact.editing && (
-                    <Button onClick={() => { contact.setDraft(""); contact.setEditing(true); }}
-                      className="text-[var(--brand)] hover:underline ml-1">add email</Button>
+                    <button onClick={() => { contact.setDraft(""); contact.setEditing(true); }}
+                      className="text-[var(--brand)] hover:underline ml-1">add email</button>
                   )}
                 </span>
               )}
@@ -438,15 +438,14 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                 ["cover", "Cover letter",   FileType],
                 ["email", "Email message",  Mail],
               ] as const).map(([k, label, Icon]) => (
-                <Button key={k} onClick={() => setSection(k)}
-                  icon={<Icon className="w-3 h-3" />}
+                <button key={k} onClick={() => setSection(k)}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-all shrink-0 whitespace-nowrap ${
                     section === k ? "bg-[var(--surface)] text-text shadow-sm" : "text-text-2 hover:text-text"
                   }`}>
-                  {label}
+                  <Icon className="w-3 h-3" /> {label}
                   {k === "cover" && cover.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}
                   {k === "email" && email.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Unsaved changes" />}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
@@ -529,7 +528,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                 className="w-full text-[11px] font-mono text-text bg-surface border border-[var(--border)] rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                 value={`Subject: ${emailFallback.subject}\n\n${emailFallback.body}`}
                 onFocus={(e) => e.currentTarget.select()} />
-              <Button onClick={() => setEmailFallback(null)} className="mt-1 text-[11px] text-text-3 hover:text-text">Dismiss</Button>
+              <button onClick={() => setEmailFallback(null)} className="mt-1 text-[11px] text-text-3 hover:text-text">Dismiss</button>
             </div>
           )}
 
@@ -609,11 +608,10 @@ function PoolOverflowMenu({ row, analysisHref, sending, onArchive }: {
               <ExternalLink className="w-3.5 h-3.5" /> Open job posting
             </a>
             <div className="border-t border-border my-1" />
-            <Button onClick={() => { setOpen(false); onArchive(); }} disabled={sending}
-              icon={<Archive className="w-3.5 h-3.5" />}
+            <button onClick={() => { setOpen(false); onArchive(); }} disabled={sending}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-text-3 hover:bg-[var(--surface-2)] hover:text-text text-left disabled:opacity-40">
-              Archive
-            </Button>
+              <Archive className="w-3.5 h-3.5" /> Archive
+            </button>
           </div>
         </>
       )}
@@ -766,19 +764,18 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         )}
         <div className="flex items-center gap-2 ml-auto">
           {isApplied && (
-            <Button onClick={handleMoveBackToPool} disabled={movingBack} isLoading={movingBack}
-              icon={<ChevronRight className="w-3 h-3 rotate-180" />}
-              className="text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40"
+            <button onClick={handleMoveBackToPool} disabled={movingBack}
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40"
               title="Didn't actually apply? Move it back to the pool">
+              {movingBack ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 rotate-180" />}
               Move back to pool
-            </Button>
+            </button>
           )}
           {isApplied && (
-            <Button onClick={handleArchive}
-              icon={<Archive className="w-3 h-3" />}
-              className="text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors">
-              Archive
-            </Button>
+            <button onClick={handleArchive}
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors">
+              <Archive className="w-3 h-3" /> Archive
+            </button>
           )}
         </div>
       </div>

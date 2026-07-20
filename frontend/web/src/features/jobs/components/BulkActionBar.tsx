@@ -32,14 +32,10 @@ export function BulkActionBar({
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Analysing {progress.done}/{progress.total}…
             </span>
-            <Button
-              onClick={onStop}
-              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors"
-              title="Stop queuing new analyses — already-sent requests will still complete"
-            >
+            <button onClick={onStop} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors" title="Stop queuing new analyses — already-sent requests will still complete">
               <X className="w-3.5 h-3.5" />
               Stop
-            </Button>
+            </button>
           </>
         ) : confirmAnalyse ? (
           <>
@@ -55,39 +51,26 @@ export function BulkActionBar({
               <Sparkles className="w-3.5 h-3.5" />
               Confirm — analyse {selectedCount}
             </Button>
-            <Button
-              onClick={() => onSetConfirmAnalyse(false)}
-              className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
-            >
+            <button onClick={() => onSetConfirmAnalyse(false)} className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors">
               Back
-            </Button>
+            </button>
           </>
         ) : (
           <>
             {selectedCount > 0 && (
               <>
-                <Button
-                  onClick={onStar}
-                  disabled={bulkPending !== null}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
-                  title="Star selected jobs — adds to your favourites"
-                >
+                <button onClick={onStar} disabled={bulkPending !== null} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50" title="Star selected jobs — adds to your favourites">
                   {bulkPending === "star"
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Star className="w-3.5 h-3.5" />}
                   Star
-                </Button>
-                <Button
-                  onClick={onArchive}
-                  disabled={bulkPending !== null}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-2 hover:text-text border border-[var(--border)] hover:border-text-3 bg-[var(--surface-2)] hover:bg-[var(--surface)] rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
-                  title="Archive selected jobs — hides from the main view"
-                >
+                </button>
+                <button onClick={onArchive} disabled={bulkPending !== null} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-2 hover:text-text border border-[var(--border)] hover:border-text-3 bg-[var(--surface-2)] hover:bg-[var(--surface)] rounded-md px-2.5 py-1 transition-colors disabled:opacity-50" title="Archive selected jobs — hides from the main view">
                   {bulkPending === "archive"
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Archive className="w-3.5 h-3.5" />}
                   Archive
-                </Button>
+                </button>
                 <Button
                   variant="primary"
                   size="sm"
@@ -101,12 +84,9 @@ export function BulkActionBar({
                 </Button>
               </>
             )}
-            <Button
-              onClick={onStop}
-              className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors"
-            >
+            <button onClick={onStop} className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors">
               Cancel
-            </Button>
+            </button>
           </>
         )}
       </div>

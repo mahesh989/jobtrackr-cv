@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { applyTheme, getStoredTheme, THEMES, type Theme } from "@/lib/themes";
-import { Button } from "@/components/ui";
 
 /**
  * Visual theme picker. Renders a 2x2 grid of preview cards — clicking a
@@ -31,7 +30,7 @@ export function ThemePickerClient() {
       {THEMES.map((t) => {
         const isActive = current === t.id;
         return (
-          <Button
+          <button
             key={t.id}
             type="button"
             onClick={() => pick(t.id)}
@@ -106,7 +105,7 @@ export function ThemePickerClient() {
                 </span>
               )}
             </div>
-          </Button>
+          </button>
         );
       })}
     </div>
