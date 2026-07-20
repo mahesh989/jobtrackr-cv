@@ -463,7 +463,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           {meta.slices.slice(0, vis).map((s, i) => {
             const n   = counts[i];
             const pct = total > 0 ? Math.round((n / total) * 100) : 0;
-            const cls = "flex items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors";
+            const cls = "flex w-full items-center gap-2 cursor-pointer group rounded px-1 py-0.5 hover:bg-[var(--surface-2)] transition-colors";
             const inner = (
               <>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
