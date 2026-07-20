@@ -49,6 +49,7 @@
   --blue-dark:  #0550AE;
   --blue-light: #DDF4FF;
   --blue-muted: #54AEFF;
+  --blue-fg:    #FFFFFF;
 
   /* Status */
   --green:       #1A7F37;
@@ -104,6 +105,7 @@
   --blue-dark:  #2563EB;
   --blue-light: #DBEAFE;
   --blue-muted: #93C5FD;
+  --blue-fg:    #FFFFFF;
 
   --pipeline-grad: linear-gradient(90deg,
     #3B82F6 0%, #6366F1 33%, #0EA5E9 66%, #3B82F6 100%);
@@ -145,6 +147,8 @@
   --blue-dark:  #D4AF37;
   --blue-light: #3C2F00;
   --blue-muted: #A88B2E;
+  /* --blue == --brand on this theme (both gold) — needs the same dark fg. */
+  --blue-fg:    #3C2F00;
 
   --green:       #4ADE80;
   --green-light: #14361F;
@@ -198,6 +202,7 @@
   --blue-dark:  #4335B8;
   --blue-light: #E5E1F8;
   --blue-muted: #8C81E0;
+  --blue-fg:    #FFFFFF;
 
   --pipeline-grad: linear-gradient(90deg,
     #5645D4 0%, #8250DF 33%, #5645D4 66%, #4335B8 100%);
@@ -241,6 +246,7 @@
   --blue-dark:  #E03B75;
   --blue-light: #FFE4EE;
   --blue-muted: #FF87B0;
+  --blue-fg:    #FFFFFF;
 
   --pipeline-grad: linear-gradient(90deg,
     #FF4D8B 0%, #FF87B0 33%, #FF4D8B 66%, #E03B75 100%);
@@ -410,6 +416,18 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 
 /* ─── Component classes ─────────────────────────────────────── */
 
+/* Native form controls tint with the active theme's brand accent.
+   The Checkbox/Radio components only set text-[var(--brand)] (i.e. the
+   `color` property), which does NOT color a native checkbox/radio glyph —
+   that's `accent-color`, and there's no @tailwindcss/forms plugin here to
+   bridge the two. Without this rule non-Aurora themes fall back to the
+   browser-default blue tick. Aurora themes override checkbox appearance
+   entirely further down, so this is a no-op there. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--brand);
+}
+
 /* GitHub-style button.
    NOTE: padding/font-size are deliberately NOT set here — this file loads
    outside Tailwind's cascade layers (@layer), so unlayered rules always beat
@@ -437,19 +455,10 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 .gh-btn:active { background: #EAEEF2; }
 .gh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.gh-btn-primary {
-  background: #1F883D;
-  border-color: rgba(31,136,61,0.4);
-  color: #fff;
-  font-weight: 600;
-}
-.gh-btn-primary:hover  { background: #1a7f37; }
-.gh-btn-primary:active { background: #166b2d; }
-
 .gh-btn-blue {
   background: var(--blue);
   border-color: rgba(9,105,218,0.4);
-  color: #fff;
+  color: var(--blue-fg, #fff);
   font-weight: 600;
 }
 .gh-btn-blue:hover  { background: var(--blue-dark); }
@@ -461,12 +470,12 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   font-weight: 600;
 }
 
-/* The app's actual primary-CTA look (Analyze, Full Analysis, Save, Generate,
-   Send, Apply, Upload) — every theme defines --brand/--brand-fg, so unlike
-   .gh-btn-primary (hardcoded GitHub green) this always matches the active
-   theme's accent color. Single source of truth for that CTA family: change
-   --brand per theme, or this rule for the shape, and every variant="brand"
-   Button (and every hand-typed "gh-btn gh-btn-brand") updates together. */
+/* The app's primary-CTA look (Analyze, Full Analysis, Save, Generate, Send,
+   Apply, Upload). Every theme defines --brand/--brand-fg, so this always
+   matches the active theme's accent color. Single source of truth for that
+   CTA family: change --brand per theme, or this rule for the shape, and every
+   variant="brand" (or the deprecated variant="primary", now an alias) Button
+   plus every hand-typed "gh-btn gh-btn-brand" updates together. */
 .gh-btn-brand {
   background: var(--brand);
   border-color: transparent;
@@ -849,6 +858,8 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   --blue-dark:  #3FF0D8;
   --blue-light: #0E2B28;
   --blue-muted: #2DD4BF;
+  /* --blue == --brand on this theme — needs the same dark fg. */
+  --blue-fg:    #04231F;
 
   --green:       #34D399; --green-light: #0E2B24;
   --red:         #FB7185; --red-light:   #2C1620;
@@ -906,6 +917,7 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   --blue-dark:  #0A6E66;
   --blue-light: #D9F5EF;
   --blue-muted: #5EBcb4;
+  --blue-fg:    #FFFFFF;
 
   --green:       #047857; --green-light: #D9F5EC;
   --red:         #DC2626; --red-light:   #FCE7E7;
@@ -972,16 +984,18 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 :root.theme-aurora-light .gh-btn:active { background: var(--surface-3); }
 
 /* SOLID teal (consistent with the Analyze / Save buttons which use
-   bg-[var(--brand)]). No gradient — per user preference. */
-:root.theme-aurora-dark  .gh-btn-primary,
-:root.theme-aurora-light .gh-btn-primary {
+   bg-[var(--brand)]). No gradient — per user preference. On Aurora, brand CTAs
+   brighten to --brand-strong on hover rather than the default opacity dim. */
+:root.theme-aurora-dark  .gh-btn-brand,
+:root.theme-aurora-light .gh-btn-brand {
   background: var(--brand);
   border-color: transparent;
   color: var(--brand-fg);
 }
-:root.theme-aurora-dark  .gh-btn-primary:hover,
-:root.theme-aurora-light .gh-btn-primary:hover {
+:root.theme-aurora-dark  .gh-btn-brand:hover,
+:root.theme-aurora-light .gh-btn-brand:hover {
   background: var(--brand-strong);
+  opacity: 1;
 }
 :root.theme-aurora-dark  .gh-btn-blue,
 :root.theme-aurora-light .gh-btn-blue {

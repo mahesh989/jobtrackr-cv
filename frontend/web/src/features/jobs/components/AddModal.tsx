@@ -146,7 +146,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
         {/* Tab switcher */}
         <div className="px-5 pt-3 flex gap-1">
           {([["url", Link2, "Fetch from URL"], ["paste", FileText, "Paste JD"]] as const).map(([t, Icon, label]) => (
-            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-white" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
+            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
               <Icon className="w-3.5 h-3.5" />
               {label}
             </button>

@@ -176,7 +176,7 @@ export function ProfileBoard({
               </span>
             )}
             {showSuggestion && (
-              <button type="button" onClick={applySuggestion} title={`Recommended sort for ${activeFilters[0]}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-0.5 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition-colors">
+              <button type="button" onClick={applySuggestion} title={`Recommended sort for ${activeFilters[0]}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-0.5 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors">
                 <Sparkles className="w-3 h-3" />
                 Suggest sort: {suggestion!.label}
                 <ArrowRight className="w-3 h-3" />

@@ -283,7 +283,7 @@ export function JobEditModal({
               </p>
               <div className="flex gap-2">
                 <Button
-                  variant="primary"
+                  variant="brand"
                   size="sm"
                   onClick={() => void save()}
                 >
@@ -309,7 +309,7 @@ export function JobEditModal({
         <div className="px-5 py-3 border-t border-[var(--border)] flex gap-2 justify-end bg-[var(--surface-2)] rounded-b-lg">
           <Button onClick={onClose} disabled={busy}>Cancel</Button>
           <Button
-            variant="primary"
+            variant="brand"
             onClick={handleSave}
             disabled={busy}
           >

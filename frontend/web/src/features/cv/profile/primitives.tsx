@@ -65,12 +65,17 @@ export function CheckBox({ label, checked, onChange, detected = false }: { label
 }
 
 export function Pill({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  // Both states keep the same box model (a border is always present, no
+  // checkmark is added on select) so the pill — and the wrap around it —
+  // never resizes or reflows when toggled. Selection is shown by the brand
+  // fill alone.
   return (
     <button type="button" onClick={onClick} aria-pressed={selected}
-      className={selected
-        ? "inline-flex items-center gap-1 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-sm font-medium text-[var(--brand-fg)] shadow-sm transition-shadow hover:glow-gold"
-        : "inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-sm font-medium text-text-2 hover:border-[var(--brand)]/40 hover:text-[var(--brand)] transition-colors"}>
-      {selected && <span aria-hidden>✓</span>}
+      className={`inline-flex items-center gap-1 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+        selected
+          ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-fg)]"
+          : "border-[var(--border)] bg-[var(--surface)] text-text-2 hover:border-[var(--brand)]/40 hover:text-[var(--brand)]"
+      }`}>
       {label}
     </button>
   );

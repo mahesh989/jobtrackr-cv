@@ -23,7 +23,7 @@ import {
   Copy, Check, CheckCircle2, Archive, Loader2, Send, Save, Download,
   Sparkles, MoreHorizontal,
 } from "lucide-react";
-import { Badge, MenuItem, menuItemClass, SegmentedControl } from "@/components/ui";
+import { Badge, MenuItem, menuItemClass, SegmentedControl, IconButton } from "@/components/ui";
 import { markJobApplied, markJobDismissed, markJobUnapplied } from "@/lib/actions";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
@@ -171,7 +171,7 @@ function TailoredCvButton({ cvPdf }: { cvPdf: ReturnType<typeof useTailoredCvPdf
 
   if (state === "ready") {
     return (
-      <Button asChild variant="default" className="text-[11px] px-2.5 py-1">
+      <Button asChild variant="default" size="xs">
         <a href={url} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-1"
           title="Open tailored CV PDF in new tab">
@@ -183,8 +183,8 @@ function TailoredCvButton({ cvPdf }: { cvPdf: ReturnType<typeof useTailoredCvPdf
   if (state === "error") {
     return (
       <Button onClick={ensure}
+        size="xs"
         icon={<FileText className="w-3 h-3" />}
-        className="text-[11px] px-2.5 py-1"
         title="Preparing the CV PDF failed — click to retry">
         Tailored CV
       </Button>
@@ -192,7 +192,7 @@ function TailoredCvButton({ cvPdf }: { cvPdf: ReturnType<typeof useTailoredCvPdf
   }
   return (
     <Button disabled isLoading
-      className="text-[11px] px-2.5 py-1 disabled:opacity-40"
+      size="xs"
       title="Preparing tailored CV PDF…">
       Tailored CV
     </Button>
@@ -471,9 +471,9 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                         {cover.text.length} chars{cover.dirty && " · unsaved changes"}
                       </span>
                       {cover.dirty && (
-                        <Button variant="primary" onClick={cover.save} disabled={cover.saving} isLoading={cover.saving}
+                        <Button variant="brand" size="xs" onClick={cover.save} disabled={cover.saving} isLoading={cover.saving}
                           icon={<Save className="w-3 h-3" />}
-                          className="text-[11px] px-2.5 py-1 ml-auto disabled:opacity-40">
+                          className="ml-auto">
                           {cover.saving ? "Saving…" : "Save changes"}
                         </Button>
                       )}
@@ -505,9 +505,9 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-text-3">{email.dirty ? "Unsaved changes" : "Saved"}</span>
                       {email.dirty && (
-                        <Button variant="primary" onClick={email.save} disabled={email.saving} isLoading={email.saving}
+                        <Button variant="brand" size="xs" onClick={email.save} disabled={email.saving} isLoading={email.saving}
                           icon={<Save className="w-3 h-3" />}
-                          className="text-[11px] px-2.5 py-1 ml-auto disabled:opacity-40">
+                          className="ml-auto">
                           {email.saving ? "Saving…" : "Save changes"}
                         </Button>
                       )}
@@ -536,7 +536,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
           {/* Action bar */}
           <div className="px-4 py-3 border-t border-border flex items-center gap-2 flex-wrap">
-            <Button asChild variant="default" className="text-[11px] px-2.5 py-1">
+            <Button asChild variant="default" size="xs">
               <a href={`/api/applications/${row.letter_id}/cover-letter-pdf`} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1" title="Open cover letter PDF in new tab">
                 <FileType className="w-3 h-3" /> Cover letter
@@ -545,30 +545,28 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             {row.tailored_cv_storage_path && <TailoredCvButton cvPdf={cvPdf} />}
             {row.tailored_cv_storage_path && (
               <Button onClick={handleDownloadZip} disabled={zipping} isLoading={zipping}
+                size="xs"
                 icon={<Download className="w-3 h-3" />}
-                className="text-[11px] px-2.5 py-1 disabled:opacity-40" title="Download CV + cover letter as a ZIP">
+                title="Download CV + cover letter as a ZIP">
                 Download ZIP
               </Button>
             )}
             <div className="w-px h-5 bg-[var(--border)] mx-1" />
             {hasEmail ? (
-              <Button variant="primary" onClick={handleSendEmail} disabled={sending || email.dirty} isLoading={sending}
+              <Button variant="brand" size="sm" onClick={handleSendEmail} disabled={sending || email.dirty} isLoading={sending}
                 icon={<Send className="w-3.5 h-3.5" />}
-                className="text-[12px] px-3 py-1.5 disabled:opacity-40"
                 title={email.dirty ? "Save your email changes first" : "Send the email with the attached CV"}>
                 {sending ? "Sending…" : "Send email"}
               </Button>
             ) : (
               <>
-                <Button onClick={handleCopyEmail} disabled={!email.loaded || email.dirty}
+                <Button size="sm" onClick={handleCopyEmail} disabled={!email.loaded || email.dirty}
                   icon={copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  className="text-[12px] px-3 py-1.5 disabled:opacity-40"
                   title={email.dirty ? "Save your email changes first" : "Copy subject + body to clipboard"}>
                   {copied ? "Copied" : "Copy email"}
                 </Button>
-                <Button variant="primary" onClick={handleApplyNow} disabled={sending}
+                <Button variant="brand" size="sm" onClick={handleApplyNow} disabled={sending}
                   icon={<ExternalLink className="w-3.5 h-3.5" />}
-                  className="text-[12px] px-3 py-1.5 disabled:opacity-40"
                   title="Open the job posting and mark this as applied">
                   Apply now
                 </Button>
@@ -594,8 +592,8 @@ function PoolOverflowMenu({ row, analysisHref, sending, onArchive }: {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative ml-auto">
-      <Button onClick={() => setOpen((m) => !m)} icon={<MoreHorizontal className="w-4 h-4" />}
-        className="text-[12px] px-2 py-1.5" title="More actions" />
+      <IconButton onClick={() => setOpen((m) => !m)} icon={<MoreHorizontal className="w-4 h-4" />}
+        aria-label="More actions" title="More actions" />
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
@@ -731,13 +729,13 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         {row.letter_id && (
-          <Button onClick={() => setShowEmail(true)} icon={<Mail className="w-3 h-3" />}
-            className="text-[11px] px-2.5 py-1" title="View the email message">
+          <Button onClick={() => setShowEmail(true)} size="xs" icon={<Mail className="w-3 h-3" />}
+            title="View the email message">
             Email message
           </Button>
         )}
         {row.letter_id && (
-          <Button asChild variant="default" className="text-[11px] px-2.5 py-1">
+          <Button asChild variant="default" size="xs">
             <a href={`/api/applications/${row.letter_id}/cover-letter-pdf`} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1">
               <FileType className="w-3 h-3" /> Cover letter
@@ -749,16 +747,17 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             ? <TailoredCvButton cvPdf={cvPdf} />
             : (
               <Button onClick={previewTailoredCv} disabled={cvPreviewing} isLoading={cvPreviewing}
+                size="xs"
                 icon={<FileText className="w-3 h-3" />}
-                className="text-[11px] px-2.5 py-1 disabled:opacity-40" title="Open tailored CV PDF in new tab">
+                title="Open tailored CV PDF in new tab">
                 Tailored CV
               </Button>
             )
         )}
         {row.tailored_cv_storage_path && row.letter_id && (
           <Button onClick={handleDownloadZip} disabled={zipping} isLoading={zipping}
-            icon={<Download className="w-3 h-3" />}
-            className="text-[11px] px-2.5 py-1 disabled:opacity-40">
+            size="xs"
+            icon={<Download className="w-3 h-3" />}>
             Download ZIP
           </Button>
         )}

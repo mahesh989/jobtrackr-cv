@@ -61,22 +61,10 @@ interface Props {
   };
 }
 
-
-function Hint({ text }: { text: string }) {
-  return (
-    <span
-      title={text}
-      className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full border border-border text-[9px] font-bold text-text-2 cursor-help align-middle"
-    >
-      ?
-    </span>
-  );
-}
-
 function SectionHeader({ step, title, subtitle }: { step: number; title: string; subtitle?: string }) {
   return (
     <div className="flex items-baseline gap-3 mb-3">
-      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--brand)] text-white text-[11px] font-semibold shrink-0">
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-[11px] font-semibold shrink-0">
         {step}
       </span>
       <div>
@@ -183,7 +171,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               defaultValue={defaults?.home_address ?? ""}
               placeholder="e.g. 123 Pitt Street, Sydney NSW 2000"
             />
-            <Hint text="When set, each job shows driving distance from here to the listing's suburb. Free public geocoding (Nominatim) + routing (OSRM). Leave empty to hide distance." />
           </div>
         </div>
       </section>
@@ -210,7 +197,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               <div>
                 <label className="block text-[12px] font-semibold text-text mb-1.5">
                   Work setting
-                  <Hint text="For nursing / aged-care / care roles. We classify each job by WHERE the work happens and keep only the settings you tick. Leave all unticked to show every setting. Jobs we can't confidently classify are always shown." />
                 </label>
                 <div className="flex flex-col gap-2">
                   {SETTING_CATEGORY_META.map((opt) => {
@@ -249,7 +235,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               defaultValue={defaults?.must_include_phrases?.join(", ")}
               placeholder="analyst, business analyst, data analyst"
             />
-            <Hint text="Keeps a job only if its title contains at least one of these. Also runs a rescue check on the first 500 chars of the description so legit variants like 'Business Analyst (Data & Reporting)' aren't dropped." />
             <p className="text-[11px] text-text-2 mt-1">
               Leave empty to keep every title and rely on your search keywords above.
             </p>
@@ -263,7 +248,6 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               defaultValue={defaults?.exclude_title_keywords?.join(", ")}
               placeholder="senior, lead, principal"
             />
-            <Hint text="Drops any job whose title contains one of these. Great for stripping seniority levels (senior, lead, principal) or adjacent roles." />
           </div>
 
           {/* Exclude — description */}

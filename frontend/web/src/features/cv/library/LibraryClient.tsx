@@ -414,11 +414,10 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
             {creating ? "Creating…" : "Build from scratch"}
           </Button>
           <Button
-            variant="primary"
+            variant="brand"
             size="md"
             onClick={openFilePicker}
             disabled={uploading}
-            className="transition-shadow hover:glow-gold"
           >
             <Upload className="h-4 w-4" />
             {uploading ? "Uploading…" : "Upload CV"}
@@ -451,11 +450,10 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
               {creating ? "Creating…" : "Build from scratch"}
             </Button>
             <Button
-              variant="primary"
+              variant="brand"
               size="md"
               onClick={openFilePicker}
               disabled={uploading}
-              className="transition-shadow hover:glow-gold"
             >
               <Upload className="h-4 w-4" />
               {uploading ? "Uploading…" : "Upload CV"}

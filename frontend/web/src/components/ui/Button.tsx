@@ -4,12 +4,16 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type ReactElemen
 
 const variantClass = {
   default: "gh-btn",
-  primary: "gh-btn gh-btn-primary",
+  /** The app's primary-CTA look (Analyze, Save, Send, Apply, Upload…) — always
+   *  matches the active theme's --brand. */
+  brand: "gh-btn gh-btn-brand",
+  /** @deprecated alias of `brand`. `primary` used to be a hardcoded GitHub
+   *  green that stayed green on every non-Aurora theme, which is why CTAs
+   *  looked inconsistent; it now resolves to the same theme-brand look.
+   *  Prefer `variant="brand"` in new code. */
+  primary: "gh-btn gh-btn-brand",
   blue: "gh-btn gh-btn-blue",
   danger: "gh-btn gh-btn-danger",
-  /** The app's primary-CTA look (Analyze, Save, Send, Apply, Upload…) — always
-   *  matches the active theme's --brand, unlike `primary` (hardcoded green). */
-  brand: "gh-btn gh-btn-brand",
 } as const;
 
 /** .gh-btn intentionally carries no padding/font-size (see globals.css) — this

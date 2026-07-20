@@ -13,7 +13,6 @@ export function SaveBar() {
         size="lg"
         onClick={save}
         disabled={saving}
-        className="transition-shadow hover:glow-gold"
       >
         {saving ? "Saving…" : "Save details"}
       </Button>
