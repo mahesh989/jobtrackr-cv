@@ -105,7 +105,7 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
               <span className="text-[14px] font-semibold text-text">{d.job_title}</span>
             )}
             {d.seniority_level && d.seniority_level !== "unknown" && (
-              <span className="text-[11px] uppercase tracking-wide bg-[#DDF4FF] text-[var(--brand)] border border-[var(--brand)]/20 px-1.5 py-0.5 rounded">
+              <span className="text-[11px] uppercase tracking-wide bg-[var(--blue-light)] text-[var(--brand)] border border-[var(--brand)]/20 px-1.5 py-0.5 rounded">
                 {d.seniority_level}
               </span>
             )}
@@ -262,7 +262,7 @@ function FlatChips({ items, variant }: { items: string[]; variant: "required" | 
 
 function Chip({ label, variant }: { label: string; variant: "required" | "preferred" }) {
   const cls = variant === "required"
-    ? "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/20"
+    ? "bg-[var(--blue-light)] text-[var(--brand)] border-[var(--brand)]/20"
     : "bg-surface-2 text-text-2 border-border";
   return (
     <span className={`text-[11px] px-1.5 py-0.5 rounded border ${cls}`}>{label}</span>

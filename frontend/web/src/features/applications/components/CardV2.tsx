@@ -553,20 +553,20 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             )}
             <div className="w-px h-5 bg-[var(--border)] mx-1" />
             {hasEmail ? (
-              <Button variant="brand" size="sm" onClick={handleSendEmail} disabled={sending || email.dirty} isLoading={sending}
-                icon={<Send className="w-3.5 h-3.5" />}
+              <Button variant="brand" size="xs" onClick={handleSendEmail} disabled={sending || email.dirty} isLoading={sending}
+                icon={<Send className="w-3 h-3" />}
                 title={email.dirty ? "Save your email changes first" : "Send the email with the attached CV"}>
                 {sending ? "Sending…" : "Send email"}
               </Button>
             ) : (
               <>
-                <Button size="sm" onClick={handleCopyEmail} disabled={!email.loaded || email.dirty}
-                  icon={copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <Button size="xs" onClick={handleCopyEmail} disabled={!email.loaded || email.dirty}
+                  icon={copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                   title={email.dirty ? "Save your email changes first" : "Copy subject + body to clipboard"}>
                   {copied ? "Copied" : "Copy email"}
                 </Button>
-                <Button variant="brand" size="sm" onClick={handleApplyNow} disabled={sending}
-                  icon={<ExternalLink className="w-3.5 h-3.5" />}
+                <Button variant="brand" size="xs" onClick={handleApplyNow} disabled={sending}
+                  icon={<ExternalLink className="w-3 h-3" />}
                   title="Open the job posting and mark this as applied">
                   Apply now
                 </Button>

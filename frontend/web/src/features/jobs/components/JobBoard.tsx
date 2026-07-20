@@ -225,11 +225,11 @@ export function JobBoard({
       {/* Card-based smart feed with embedded SmartToolbar (location search,
           sort dropdown, stage chips, ATS band chips — replaces the old
           PipelineFunnel + SmartFilterBar). When no view filter is active,
-          renders smart sections (Today's picks · Closest · Fresh · Needs
+          renders smart sections (Closest · Fresh · Needs
           attention · Everything else). When filtered, renders a flat card
           list sorted by the toolbar's sort dropdown. */}
       {/* When the user picks any sort other than the default "Date posted",
-          skip the smart-section grouping (Today's picks / Closest / Fresh /
+          skip the smart-section grouping (Closest / Fresh /
           …) and just render a single sorted list — the chosen sort order
           is the whole point. */}
       <SmartFeed

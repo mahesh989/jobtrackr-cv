@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Textarea, Input, Button } from "@/components/ui";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
@@ -685,33 +684,27 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={handleCopy} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors">
+            <Button size="xs" onClick={handleCopy}>
               {copied ? "Copied!" : "Copy text"}
-            </button>
-            <button onClick={() => setShowDownloadModal(true)} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors">
+            </Button>
+            <Button size="xs" onClick={() => setShowDownloadModal(true)}>
               Download PDF
-            </button>
+            </Button>
             {cvStoragePath && (
-              <button
-                onClick={handleDownloadZip}
-                disabled={downloadingZip}
-                className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text hover:border-text-3 transition-colors disabled:opacity-40 flex items-center gap-1.5"
-              >
-                {downloadingZip && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <Button size="xs" onClick={handleDownloadZip} disabled={downloadingZip} isLoading={downloadingZip}>
                 {downloadingZip ? "Preparing ZIP…" : "Download ZIP"}
-              </button>
+              </Button>
             )}
             {/* Jump to the Applications "Application pool" tab so the user
                 can queue this letter for review without hunting through the nav. */}
-            <Link
-              href="/applications"
-              className="ml-auto inline-flex items-center gap-1 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 transition-colors"
-            >
-              Apply now
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-            </Link>
+            <Button asChild variant="brand" size="xs" className="ml-auto">
+              <Link href="/applications" className="inline-flex items-center gap-1">
+                Apply now
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </Link>
+            </Button>
           </div>
 
           {/* Model provenance */}

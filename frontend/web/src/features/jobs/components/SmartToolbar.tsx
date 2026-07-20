@@ -20,7 +20,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { X } from "lucide-react";
+import { X, Star } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "../lib/jobFilters";
 import { shallowSetParams } from "../lib/shallowNav";
@@ -62,9 +62,13 @@ interface StageChip {
   countKey: keyof FunnelCounts;
 }
 
+// Favourite is rendered as its own star toggle (not a text pill) — see
+// FAVOURITE_CHIP usage in the Jobs row.
+const FAVOURITE_CHIP: StageChip =
+  { id: "favourite", label: "Favourite", kind: "stage", value: "favourite", countKey: "favourite" as keyof FunnelCounts };
+
 const JOBS_CHIPS: StageChip[] = [
-  { id: "favourite", label: "Favourite", kind: "stage", value: "favourite", countKey: "favourite" as keyof FunnelCounts },
-  { id: "dismissed", label: "Archive",   kind: "stage", value: "dismissed", countKey: "dismissed" as keyof FunnelCounts },
+  { id: "dismissed", label: "Archive", kind: "stage", value: "dismissed", countKey: "dismissed" as keyof FunnelCounts },
 ];
 
 // Two complementary analysed views:
@@ -313,6 +317,27 @@ export function SmartToolbar({
           {/* Jobs Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Jobs</span>
+            {(() => {
+              const favActive = isStageActive(FAVOURITE_CHIP);
+              const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
+              return (
+                <button
+                  type="button"
+                  onClick={() => selectStageChip(FAVOURITE_CHIP)}
+                  disabled={favCount === 0 && !favActive}
+                  title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
+                  aria-pressed={favActive}
+                  aria-label="Favourite jobs"
+                  className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ${
+                    favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <Star
+                    className={`w-5 h-5 ${favActive ? "fill-[var(--brand)] text-[var(--brand)]" : "text-text-3"}`}
+                  />
+                </button>
+              );
+            })()}
             <button type="button" onClick={clearStageAndTriage} title="Clear stage filter — show everything" className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ allJobsActive ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
               All jobs
               <span className={`tabular-nums ${allJobsActive ? "text-white/80" : "text-text-3"}`}>

@@ -922,7 +922,7 @@ function SkillRow({
 }) {
   if (items.length === 0) return null;
   const chipCls = variant === "primary"
-    ? "bg-[#DDF4FF] text-[var(--brand)] border-[var(--brand)]/20"
+    ? "bg-[var(--blue-light)] text-[var(--brand)] border-[var(--brand)]/20"
     : "bg-surface text-text-2 border-border";
   return (
     <div className="flex flex-col gap-1.5">

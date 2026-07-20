@@ -205,7 +205,7 @@ export function ProfileBoard({
       <ThinJdBanner count={counts.thinJd} />
 
       {/* When the user picks any sort other than the default "Date posted",
-          skip the smart-section grouping (Today's picks / Closest / Fresh /
+          skip the smart-section grouping (Closest / Fresh /
           …) and just render a single sorted list — the chosen sort order
           is the whole point. */}
       <SmartFeed

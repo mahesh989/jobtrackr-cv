@@ -15,7 +15,6 @@ import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { shallowSetParams } from "../lib/shallowNav";
 import { type AtsThresholds } from "@/lib/atsThresholds";
-import { matchScore } from "../lib/jobFilters";
 import {
   relativeDate, clampInt, isPostedToday, getAtsMeta, visaKey, VISA_COLOR, VISA_LABEL,
   sourcePillTone, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, daysUntilClose,
@@ -42,14 +41,6 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   const active = jobs.filter((j) => !j.applied_at && !j.dismissed_at);
   const placed = new Set<string>();
 
-  const picks = [...active]
-    .sort((a, b) => {
-      const d = matchScore(b) - matchScore(a);
-      return d !== 0 ? d : byDistanceAsc(a, b);
-    })
-    .slice(0, 3);
-  picks.forEach((j) => placed.add(j.id));
-
   const closest = active
     .filter((j) => !placed.has(j.id) && j.distance_km != null && j.distance_km <= 15)
     .sort(byDistanceAsc);
@@ -68,7 +59,6 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
   const rest = jobs.filter((j) => !placed.has(j.id)).sort(byDistanceAsc);
 
   const out: FeedSection[] = [];
-  if (picks.length     > 0) out.push({ id: "picks",     label: "Today's picks",   caption: "Best matches across distance, ATS band, and freshness", tone: "brand", Icon: Sparkles,      jobs: picks, hero: true });
   if (closest.length   > 0) out.push({ id: "closest",   label: "Closest to you",  caption: "Within 15 km of a profile's home address",               tone: "green", Icon: MapPin,        jobs: closest });
   if (fresh.length     > 0) out.push({ id: "fresh",     label: "Fresh today",     caption: "Posted in the last 24 hours",                            tone: "brand", Icon: Clock,         jobs: fresh });
   if (attention.length > 0) out.push({ id: "attention", label: "Needs attention", caption: "Thin JDs — open and paste the full description",         tone: "amber", Icon: AlertTriangle, jobs: attention });
@@ -107,6 +97,8 @@ export function SmartFeed({
   excludeKeywords?: string;
 }) {
   const router = useRouter();
+  const sp     = useSearchParams();
+  const isFavouriteFilter = sp.get("stage") === "favourite";
 
   const [activeSelectModes, setActiveSelectModes] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -282,7 +274,7 @@ export function SmartFeed({
       />
 
       {visibleJobs.length === 0 ? (
-        <EmptyState />
+        <EmptyState favourite={isFavouriteFilter} />
       ) : (
         <JobSelectionContext.Provider value={selectionValue}>
           <SmartFeedBody
@@ -982,15 +974,26 @@ function Distance({ km, method }: { km: number; method: "driving" | "haversine" 
   );
 }
 
-function EmptyState() {
+function EmptyState({ favourite = false }: { favourite?: boolean }) {
   return (
     <div className="bg-surface border border-border rounded-md">
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="w-12 h-12 rounded-lg bg-[var(--surface-2)] border border-border flex items-center justify-center mb-4">
-          <Inbox className="w-5 h-5 text-text-3" />
+          {favourite
+            ? <Star className="w-5 h-5 text-text-3" />
+            : <Inbox className="w-5 h-5 text-text-3" />}
         </div>
-        <p className="text-[14px] font-semibold text-text mb-1">No jobs match your filters</p>
-        <p className="text-[12px] text-text-2">Adjust the filters above or run the pipeline to fetch new listings.</p>
+        {favourite ? (
+          <>
+            <p className="text-[14px] font-semibold text-text mb-1">No favourite jobs</p>
+            <p className="text-[12px] text-text-2">Star a job to shortlist it here.</p>
+          </>
+        ) : (
+          <>
+            <p className="text-[14px] font-semibold text-text mb-1">No jobs match your filters</p>
+            <p className="text-[12px] text-text-2">Adjust the filters above or run the pipeline to fetch new listings.</p>
+          </>
+        )}
       </div>
     </div>
   );

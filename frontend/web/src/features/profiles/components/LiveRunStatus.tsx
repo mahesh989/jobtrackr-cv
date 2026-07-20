@@ -108,11 +108,11 @@ export function LiveRunStatus({
   if (banner === "stopped") {
     return (
       <div className="mb-4 anim-in">
-        <div className="border border-[#1A7F37]/20 bg-[#DAFBE1]/60 rounded-md px-4 py-3 flex items-center gap-3">
-          <svg className="w-4 h-4 text-[#1A7F37] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+        <div className="border border-[var(--green)]/20 bg-[var(--green-light)]/60 rounded-md px-4 py-3 flex items-center gap-3">
+          <svg className="w-4 h-4 text-[var(--green)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
           </svg>
-          <p className="text-[13px] font-semibold text-[#1A7F37]">Pipeline complete — feed updated</p>
+          <p className="text-[13px] font-semibold text-[var(--green)]">Pipeline complete — feed updated</p>
         </div>
       </div>
     );
@@ -124,7 +124,7 @@ export function LiveRunStatus({
       {/* Animated gradient bar — freezes grey while stopping */}
       <div className={`h-0.5 rounded-t-md ${stopping ? "bg-[var(--border)]" : "pipeline-bar"}`} />
 
-      <div className="border border-t-0 border-[var(--brand)]/20 bg-[#DDF4FF]/60 rounded-b-md px-4 py-3 flex items-center justify-between gap-4">
+      <div className="border border-t-0 border-[var(--brand)]/20 bg-[var(--blue-light)]/60 rounded-b-md px-4 py-3 flex items-center justify-between gap-4">
         {/* Left: status text */}
         <div className="flex items-center gap-3">
           <span className="relative flex h-2.5 w-2.5 shrink-0">

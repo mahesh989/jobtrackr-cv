@@ -12,7 +12,7 @@ export function CalloutStrip({ callouts, shallow, applyFilter }: {
   if (callouts.thinJdCount === 0 && callouts.passedButNoLetter === 0 && callouts.readyToApply === 0) return null;
 
   return (
-    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border sm:overflow-x-auto whitespace-nowrap">
+    <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 px-5 pb-4 pt-1 border-t border-border overflow-x-auto sm:overflow-visible whitespace-nowrap sm:whitespace-normal">
       {callouts.thinJdCount > 0 && (
         <FilterAnchor href="/?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
           ⚠ {callouts.thinJdCount} thin JD{callouts.thinJdCount > 1 ? "s" : ""} need attention

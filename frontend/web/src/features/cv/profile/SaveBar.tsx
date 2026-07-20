@@ -10,7 +10,7 @@ export function SaveBar() {
       <Button
         type="button"
         variant="brand"
-        size="lg"
+        size="sm"
         onClick={save}
         disabled={saving}
       >
