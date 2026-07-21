@@ -20,7 +20,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
-import { Button, Input, Select, Textarea } from "@/components/ui";
+import { Button, Input, Select, Textarea, Form, FormActions } from "@/components/ui";
 import { createProfile, updateProfile } from "@/lib/actions";
 import { LocationAutocomplete } from "@/features/profiles/components/LocationAutocomplete";
 import { SETTING_CATEGORY_META } from "@/lib/settingCategories";
@@ -108,7 +108,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
   const sendDetail = sendMode === "auto" ? "no review" : sendMode === "after_review" ? "after verify" : "off";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <Form onSubmit={handleSubmit} className="space-y-6">
 
       {/* The unified "Title must include" field below writes to
           must_include_phrases instead — retire the single-word filter. */}
@@ -228,37 +228,29 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
           <div className="border-t border-border" />
 
           {/* Title must include — unified (writes to must_include_phrases) */}
-          <div>
-            <Input
-              label="Title must include any of (comma-separated)"
-              name="must_include_phrases"
-              defaultValue={defaults?.must_include_phrases?.join(", ")}
-              placeholder="analyst, business analyst, data analyst"
-            />
-            <p className="text-[11px] text-text-2 mt-1">
-              Leave empty to keep every title and rely on your search keywords above.
-            </p>
-          </div>
+          <Input
+            label="Title must include any of (comma-separated)"
+            name="must_include_phrases"
+            defaultValue={defaults?.must_include_phrases?.join(", ")}
+            placeholder="analyst, business analyst, data analyst"
+            hint="Leave empty to keep every title and rely on your search keywords above."
+          />
 
           {/* Exclude — title */}
-          <div>
-            <Input
-              label="Title must NOT contain (comma-separated)"
-              name="exclude_title_keywords"
-              defaultValue={defaults?.exclude_title_keywords?.join(", ")}
-              placeholder="senior, lead, principal"
-            />
-          </div>
+          <Input
+            label="Title must NOT contain (comma-separated)"
+            name="exclude_title_keywords"
+            defaultValue={defaults?.exclude_title_keywords?.join(", ")}
+            placeholder="senior, lead, principal"
+          />
 
           {/* Exclude — description */}
-          <div>
-            <Input
-              label="Description must NOT contain (comma-separated)"
-              name="adzuna_exclude_keywords"
-              defaultValue={defaults?.adzuna_exclude_keywords}
-              placeholder="unpaid, volunteer, internship"
-            />
-          </div>
+          <Input
+            label="Description must NOT contain (comma-separated)"
+            name="adzuna_exclude_keywords"
+            defaultValue={defaults?.adzuna_exclude_keywords}
+            placeholder="unpaid, volunteer, internship"
+          />
         </div>
       </section>
 
@@ -406,25 +398,21 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
       </section>
 
       {/* ───── Submit ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 pt-2">
+      <FormActions>
         <Button
-          variant="blue"
+          variant="brand"
+          size="sm"
           type="submit"
           disabled={pending}
-          className="py-2 px-5"
+          isLoading={pending}
         >
           {pending ? "Saving…" : mode === "create" ? "Create profile" : "Save changes"}
         </Button>
-        <Link
-          href="/dashboard"
-          className="inline-flex"
-        >
-          <Button className="py-2 px-5">
-            Cancel
-          </Button>
-        </Link>
-      </div>
-    </form>
+        <Button asChild size="sm">
+          <Link href="/dashboard">Cancel</Link>
+        </Button>
+      </FormActions>
+    </Form>
   );
 }
 
