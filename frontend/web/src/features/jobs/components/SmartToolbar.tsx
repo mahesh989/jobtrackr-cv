@@ -417,13 +417,13 @@ export function SmartToolbar({
             })}
           </div>
 
-          {[null, null, true, null, null, null, null, null, null, null].map((keep, i) => {
-            if (!keep) return <div key={i} className="w-10" />;
+          <div className="w-10" />
+          <div className="w-10" />
+          {(() => {
             const favActive = isStageActive(FAVOURITE_CHIP);
             const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
             return (
               <button
-                key={i}
                 type="button"
                 onClick={() => selectStageChip(FAVOURITE_CHIP)}
                 disabled={favCount === 0 && !favActive}
@@ -439,10 +439,10 @@ export function SmartToolbar({
                 />
               </button>
             );
-          })}
+          })()}
 
           {/* JDs Group */}
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0 md:ml-auto">
             <span className="text-[10px] font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
             {JDS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
