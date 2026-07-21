@@ -871,18 +871,19 @@ function Grid({ cols = 2, mt, children }: { cols?: number; mt?: boolean; childre
 function GhostField({
   label, value, onChange, size = "md", invalid = false, required = false,
 }: { label: string; value: string; onChange: (v: string) => void; size?: "md" | "lg"; invalid?: boolean; required?: boolean }) {
-  const sized = size === "lg" ? "text-[14.5px] font-semibold py-1.5" : "text-[13px] py-1.5";
-  const border = invalid
-    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-    : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
+  // Leans on the shared Input's field SSOT: `required` renders the red
+  // asterisk, `error` renders the red invalid border — no bespoke border /
+  // focus-ring override (that stacked a second ring on top of .field's).
+  const sized = size === "lg" ? "text-[14.5px] font-semibold" : "";
   return (
     <Input
-      label={required ? `${label} *` : label}
+      label={label}
+      required={required}
       error={invalid ? "required" : undefined}
       type="text"
       value={value}
       onChange={e => onChange(e.target.value)}
-      className={`${sized} ${border}`}
+      className={sized}
     />
   );
 }
