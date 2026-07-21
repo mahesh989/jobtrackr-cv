@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui";
+import { FieldLabel } from "@/lib/field-utils";
 
 export function SectionCard({
   icon: Icon, title, subtitle, children,
@@ -22,29 +23,26 @@ export function SectionCard({
 }
 
 export function Field({ label, value, onChange, type = "text", placeholder, required = false, invalid = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; required?: boolean; invalid?: boolean }) {
-  const border = invalid
-    ? "border-red-500 focus:ring-red-500/20"
-    : "border-[var(--border)] focus:ring-[var(--brand)]/30";
+  // Routes through the shared field SSOT (.field + FieldLabel) so these
+  // Details/Credentials fields match every other form in the app.
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-text-2">
+    <div>
+      <FieldLabel required={required}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-        {invalid && <span className="text-red-600 font-semibold ml-1.5">· required</span>}
-      </label>
+        {invalid && <span className="text-[var(--red)] font-semibold ml-1.5">· required</span>}
+      </FieldLabel>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className={`w-full rounded-md border ${border} bg-[var(--surface)] px-3 py-2 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2`} />
+        className={`field ${invalid ? "border-[var(--red)]" : ""}`} />
     </div>
   );
 }
 
 export function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-text-2">{label}</label>
+    <div>
+      <FieldLabel>{label}</FieldLabel>
       <div className="select-chevron-wrap">
-        <select value={value} onChange={(e) => onChange(e.target.value)}
-          className="select-chevron w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30">
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="field select-chevron">
           {options.map((opt) => <option key={opt} value={opt}>{opt || "—"}</option>)}
         </select>
         <ChevronDown className="h-4 w-4 text-text-2" />
