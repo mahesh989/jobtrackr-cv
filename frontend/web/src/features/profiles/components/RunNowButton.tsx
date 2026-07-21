@@ -90,7 +90,7 @@ export function RunNowButton({
         onClick={handleStop}
         title="Stop this run"
         variant="danger"
-        className={`border-[#CF222E]/30 text-[#CF222E] bg-white hover:bg-[#FFEBE9] transition-colors ${
+        className={`border-[var(--red)]/30 text-[var(--red)] bg-[var(--surface)] hover:bg-[var(--red-light)] transition-colors ${
           compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
         }`}
       >
@@ -130,7 +130,7 @@ export function RunNowButton({
       <Button
         onClick={() => handleRun(false)}
         variant="danger"
-        className={`text-[#CF222E] border-[#CF222E]/30 bg-[#FFEBE9] ${
+        className={`text-[var(--red)] border-[var(--red)]/30 bg-[var(--red-light)] ${
           compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
         }`}
       >

@@ -32,7 +32,7 @@ export function RunJobsTable({
 
   return (
     <div className="mt-3 pt-3 border-t border-[var(--border)]">
-      <button onClick={handleToggle} className="text-[12px] text-[var(--brand)] hover:text-[#0550AE] font-medium flex items-center gap-1.5 transition-colors">
+      <button onClick={handleToggle} className="text-[12px] text-[var(--brand)] hover:opacity-70 font-medium flex items-center gap-1.5 transition-colors">
         <svg
           className={`w-3 h-3 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"

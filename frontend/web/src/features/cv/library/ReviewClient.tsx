@@ -30,7 +30,7 @@ import type {
   CustomCvSection,
 } from "@/lib/cvBackend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
-import { Input, IconButton } from "@/components/ui";
+import { Input, Textarea, IconButton } from "@/components/ui";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
@@ -525,9 +525,7 @@ export function ReviewClient({
                         />
                       ))}
                     </div>
-                    <button onClick={() => addBullet(i)} className="inline-flex items-center gap-1.5 text-xs text-text-2 hover:text-text mt-2.5 rounded px-1.5 py-1 hover:bg-[var(--surface-2)]/60 transition-colors">
-                      <Plus className="h-3.5 w-3.5" /> Add bullet
-                    </button>
+                    <AddBtn label="Add bullet" onClick={() => addBullet(i)} />
                   </div>
                 </TimelineEntry>
               ))}
@@ -891,13 +889,16 @@ function GhostField({
 function GhostTextarea({
   rows, value, onChange, placeholder,
 }: { rows: number; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  // Shared Textarea (field SSOT) + autoGrow so it matches every other field
+  // and expands to fit content instead of scrolling / needing a drag handle.
   return (
-    <textarea
+    <Textarea
+      autoGrow
       rows={rows}
       placeholder={placeholder}
-      className="block w-full text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-lg px-3 py-2 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
       value={value}
       onChange={e => onChange(e.target.value)}
+      className="leading-relaxed"
     />
   );
 }
@@ -951,15 +952,15 @@ function BulletRow({ value, onChange, onRemove }: {
   useEffect(autoGrow, [value, autoGrow]);
   return (
     <div className="group/bullet flex items-start gap-2 py-1 rounded-md hover:bg-[var(--surface-2)]/30 transition-colors">
-      <span className="mt-[6px] select-none text-[var(--brand)]/60 leading-none text-[10px] shrink-0" aria-hidden="true">●</span>
+      <span className="mt-[13px] select-none text-[var(--brand)]/60 leading-none text-[10px] shrink-0" aria-hidden="true">●</span>
       <textarea
         ref={ref}
         rows={1}
-        className="flex-1 min-h-[28px] text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2 py-1 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-none overflow-hidden leading-relaxed"
+        className="field min-w-0 resize-none overflow-hidden leading-relaxed"
         value={value}
         onChange={e => onChange(e.target.value)}
       />
-      <button type="button" onClick={onRemove} aria-label="Remove bullet" className="mt-1 p-1 opacity-0 group-hover/bullet:opacity-100 focus:opacity-100 transition-opacity">
+      <button type="button" onClick={onRemove} aria-label="Remove bullet" className="mt-2 p-1 opacity-0 group-hover/bullet:opacity-100 focus:opacity-100 transition-opacity">
         <X className="h-3.5 w-3.5" />
       </button>
     </div>

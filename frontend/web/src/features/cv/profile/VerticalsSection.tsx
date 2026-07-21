@@ -22,7 +22,7 @@ export function VerticalsSection() {
         <select
           value={family ?? ""}
           onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
-          className={`select-chevron w-full rounded-md border bg-[var(--surface)] px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 ${invalid ? "border-red-500" : "border-[var(--border)]"}`}
+          className={`field select-chevron ${invalid ? "border-[var(--red)]" : ""}`}
         >
           <option value="">— Select a role type —</option>
           {FAMILY_OPTIONS.map((o) => (
@@ -31,7 +31,7 @@ export function VerticalsSection() {
         </select>
         <ChevronDown className="h-4 w-4 text-text-2" />
         </div>
-        {invalid && <p className="text-xs text-red-600 font-medium">Select a role type to continue.</p>}
+        {invalid && <p className="text-xs text-[var(--red)] font-medium">Select a role type to continue.</p>}
       </div>
     </SectionCard>
   );

@@ -16,7 +16,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           ref={ref}
           id={checkboxId}
           type="checkbox"
-          className={`h-4 w-4 rounded border-[var(--border)] text-[var(--brand)] focus:ring-[var(--brand)]/30 ${className}`}
+          className={`h-4 w-4 rounded border-[var(--border)] accent-[var(--brand)] focus:ring-[var(--brand)]/30 ${className}`}
           aria-invalid={!!error || undefined}
           {...rest}
         />
