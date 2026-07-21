@@ -98,7 +98,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
         {ticks.map((t) => (
           <div key={t} className="absolute top-7" style={{ left: `${(t / maxKm) * 100}%` }}>
             <div className="w-px h-1.5 bg-border" />
-            <div className="text-[9px] text-text-3 mt-1 -translate-x-1/2 whitespace-nowrap">{t} km</div>
+            <div className="text-micro text-text-3 mt-1 -translate-x-1/2 whitespace-nowrap">{t} km</div>
           </div>
         ))}
         {jobs.filter((j) => j.distance_km != null).map((j, i) => {

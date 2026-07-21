@@ -285,7 +285,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                       return (
                         <button key={m.value} disabled={savingModel === id} onClick={() => { if (state.hasKey) handleSaveModel(id, m.value); else setStates((prev) => ({ ...prev, [id]: { ...prev[id], model: m.value } })); }} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-caption font-medium transition-all disabled:opacity-50 ${ on ? "bg-text text-[var(--surface)] border-text" : "bg-[var(--surface-2)] border-[var(--border)] text-text-2 hover:text-text" }`}>
                           {m.label}
-                          <span className={`text-[9px] px-1 py-0.5 rounded border font-semibold ${on ? "bg-white/20 text-white border-white/20" : TAG_CLS[m.tag]}`}>
+                          <span className={`text-micro px-1 py-0.5 rounded border font-semibold ${on ? "bg-white/20 text-white border-white/20" : TAG_CLS[m.tag]}`}>
                             {m.tag}
                           </span>
                         </button>

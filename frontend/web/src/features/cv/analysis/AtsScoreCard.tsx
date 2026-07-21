@@ -43,7 +43,7 @@ export function AtsScoreCard({ data }: { data: Record<string, unknown> }) {
         {overall !== null && (
           <div>
             <div className="flex items-baseline gap-3">
-              <span className={`text-[28px] font-bold tabular-nums px-3 py-1 rounded border ${scoreColor(overall)}`}>
+              <span className={`text-display font-bold tabular-nums px-3 py-1 rounded border ${scoreColor(overall)}`}>
                 {Math.round(overall)}
               </span>
               <div>

@@ -76,7 +76,7 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
         {/* Email account — per-user OAuth, separate from the profile overlay. */}
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
           <div>
-            <h2 className="text-[14.5px] font-semibold text-text">Email account</h2>
+            <h2 className="text-title font-semibold text-text">Email account</h2>
             <p className="text-label text-text-3 mt-0.5">
               Connect Gmail or Outlook to send application emails with your cover letter and
               tailored CV directly from the Applications page.
@@ -92,7 +92,7 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
         {/* Notifications — per-user email preferences. */}
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
           <div>
-            <h2 className="text-[14.5px] font-semibold text-text">Notifications</h2>
+            <h2 className="text-title font-semibold text-text">Notifications</h2>
             <p className="text-label text-text-3 mt-0.5">
               Control which emails JobTrackr sends you.
             </p>

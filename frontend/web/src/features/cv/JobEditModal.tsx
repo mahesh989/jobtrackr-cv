@@ -155,7 +155,7 @@ export function JobEditModal({
   return (
     <Modal open onClose={onClose} size="lg" className="max-h-[90vh]">
       <div className="px-5 py-4 border-b border-[var(--border)]">
-        <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
+        <h2 className="text-lead font-semibold text-text">Edit job inputs</h2>
         <p className="text-label text-text-2 mt-0.5 leading-snug">
           Trim out the noise — company blurb, EEO statement, benefits — so the
           AI focuses on responsibilities and skills. The original scrape is

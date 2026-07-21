@@ -91,7 +91,7 @@ export default async function CvPage({ searchParams }: PageProps) {
                 {/* The CV library sits between the profile overlay sections (per the
                     chosen layout). It does not consume the profile context. */}
                 <div className="pt-2">
-                  <h2 className="text-[14.5px] font-semibold text-text">Your CVs</h2>
+                  <h2 className="text-title font-semibold text-text">Your CVs</h2>
                   <p className="text-label text-text-3 mt-0.5 mb-3">
                     Upload or build a CV from scratch, then set one active. The active CV is what the
                     AI tailors for each job.
@@ -110,7 +110,7 @@ export default async function CvPage({ searchParams }: PageProps) {
                     eligibility badge on job cards and the pipeline's fetch filter. */}
                 <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
                   <div>
-                    <h2 className="text-[14.5px] font-semibold text-text">Working rights</h2>
+                    <h2 className="text-title font-semibold text-text">Working rights</h2>
                     <p className="text-label text-text-3 mt-0.5">
                       Your visa situation in Australia. Jobs whose description rules you out
                       (e.g. &ldquo;PR/citizens only&rdquo;, &ldquo;unrestricted working rights required&rdquo;)

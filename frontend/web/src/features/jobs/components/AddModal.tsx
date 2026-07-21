@@ -133,7 +133,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
     <Modal open onClose={onClose} size="md">
         <div className="px-5 py-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-[15px] font-semibold text-text">Add a job</h2>
+            <h2 className="text-lead font-semibold text-text">Add a job</h2>
             <p className="text-label text-text-2 mt-0.5">
               Found a job elsewhere? Add it here to analyse and track it.
             </p>

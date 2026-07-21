@@ -835,7 +835,7 @@ function Section({
           </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[14.5px] font-semibold text-text">{title}</span>
+              <span className="text-title font-semibold text-text">{title}</span>
               {meta && (
                 <span className="text-caption text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
                   {meta}
@@ -872,7 +872,7 @@ function GhostField({
   // Leans on the shared Input's field SSOT: `required` renders the red
   // asterisk, `error` renders the red invalid border — no bespoke border /
   // focus-ring override (that stacked a second ring on top of .field's).
-  const sized = size === "lg" ? "text-[14.5px] font-semibold" : "";
+  const sized = size === "lg" ? "text-title font-semibold" : "";
   return (
     <Input
       label={label}

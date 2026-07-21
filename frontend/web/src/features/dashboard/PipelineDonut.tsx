@@ -558,7 +558,7 @@ function DonutPopup({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
             <p className="text-micro text-text-3 uppercase tracking-wide">{meta.label}</p>
-            <h3 className="text-[15px] font-semibold text-text">{title}</h3>
+            <h3 className="text-lead font-semibold text-text">{title}</h3>
           </div>
           <IconButton
             onClick={onClose}

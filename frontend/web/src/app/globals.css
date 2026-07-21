@@ -294,6 +294,7 @@
   --text-h3:      18px;
   --text-h2:      20px;
   --text-h1:      22px;
+  --text-display: 28px;   /* big stat numbers, hero headings           */
 }
 
 /* ─── Reset / base ──────────────────────────────────────────── */

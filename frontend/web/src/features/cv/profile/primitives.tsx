@@ -13,7 +13,7 @@ export function SectionCard({
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-[14.5px] font-semibold text-text">{title}</h2>
+          <h2 className="text-title font-semibold text-text">{title}</h2>
           {subtitle && <p className="text-label text-text-3 mt-0.5">{subtitle}</p>}
         </div>
       </div>

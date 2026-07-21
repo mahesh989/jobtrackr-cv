@@ -99,7 +99,7 @@ export function Modal({
       >
         {title && (
           <div className="px-5 py-4 border-b border-[var(--border)]">
-            <h2 id="modal-title" className="text-[15px] font-semibold text-[var(--text)]">
+            <h2 id="modal-title" className="text-lead font-semibold text-[var(--text)]">
               {title}
             </h2>
           </div>

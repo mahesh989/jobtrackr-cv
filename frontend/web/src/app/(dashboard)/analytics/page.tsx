@@ -322,7 +322,7 @@ function FunnelRow({ row, isTotal = false }: { row: FunnelRowData; isTotal?: boo
         return (
           <td key={s.key} className="py-3 px-3 align-top">
             <div className="flex flex-col items-end">
-              <span className={`text-[15px] tabular-nums ${isTotal ? "font-bold" : "font-semibold"} text-text`}>
+              <span className={`text-lead tabular-nums ${isTotal ? "font-bold" : "font-semibold"} text-text`}>
                 {count}
               </span>
               {s.prev && (

@@ -449,7 +449,7 @@ function FeedSectionView({
       <div className="flex items-baseline justify-between gap-3 mb-2.5">
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
-          <h3 className="text-[15px] font-semibold text-text">{section.label}</h3>
+          <h3 className="text-lead font-semibold text-text">{section.label}</h3>
           <span className="text-label font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
           {section.caption ? (
             <span className="text-caption text-text-3 truncate">— {section.caption}</span>
@@ -779,7 +779,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-caption"} text-text-2`}>
+    <p className={`${compact ? "mt-1 text-label" : "text-caption"} text-text-2`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}
@@ -880,7 +880,7 @@ function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
   return (
     <div className="flex items-center gap-1.5" title={tip}>
       {!compact && (
-        <span className="text-[9px] font-semibold text-text-3 shrink-0 uppercase tracking-wide w-7 text-right">
+        <span className="text-micro font-semibold text-text-3 shrink-0 uppercase tracking-wide w-7 text-right">
           ATS
         </span>
       )}
@@ -929,7 +929,7 @@ function ProfileChip({ name }: { name: string }) {
 function SourcePill({ source }: { source: string }) {
   return (
     <span
-      className={`text-[9px] uppercase font-semibold tracking-wide px-1.5 py-px rounded shrink-0 ${sourcePillTone(source)}`}
+      className={`text-micro uppercase font-semibold tracking-wide px-1.5 py-px rounded shrink-0 ${sourcePillTone(source)}`}
       title={`Source: ${source}`}
     >
       {source}

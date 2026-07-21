@@ -113,7 +113,7 @@ export function LiveLogConsole({ profileId }: { profileId: string }) {
 
       <div
         ref={scrollRef}
-        className="font-mono text-[11.5px] leading-[1.55] bg-[#0d1117] text-[#c9d1d9] px-4 py-3 max-h-72 overflow-y-auto border-t border-border rounded-b-md"
+        className="font-mono text-label leading-[1.55] bg-[#0d1117] text-[#c9d1d9] px-4 py-3 max-h-72 overflow-y-auto border-t border-border rounded-b-md"
       >
         {lines.length === 0 ? (
           <div className="text-[#6e7681]">waiting for output…</div>

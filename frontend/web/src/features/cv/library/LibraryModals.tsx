@@ -41,7 +41,7 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
           {phase === "uploading" ? (
             <>
               <Loader2 className="h-11 w-11 animate-spin text-[var(--brand)]" aria-hidden="true" />
-              <p className="mt-4 text-[15px] font-semibold text-text" aria-live="polite">
+              <p className="mt-4 text-lead font-semibold text-text" aria-live="polite">
                 {UPLOAD_MESSAGES[step]}
               </p>
               <p className="mt-1 text-body text-text-2">
@@ -51,7 +51,7 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
           ) : (
             <>
               <CheckCircle2 className="h-11 w-11 text-green-500" aria-hidden="true" />
-              <p className="mt-4 text-[15px] font-semibold text-text">CV uploaded successfully</p>
+              <p className="mt-4 text-lead font-semibold text-text">CV uploaded successfully</p>
               <p className="mt-1 text-body text-text-2">Taking you to review your CV…</p>
               <Button
                 variant="primary"

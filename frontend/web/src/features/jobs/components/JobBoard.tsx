@@ -170,7 +170,7 @@ export function JobBoard({
               {StageIcon && (
                 <StageIcon className="w-6 h-6 self-center" style={{ color: "var(--brand)" }} strokeWidth={2.5} />
               )}
-              <h2 className="text-h1 sm:text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
+              <h2 className="text-h1 sm:text-display font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
                 {activeFilters.join(" · ")}
               </h2>
               <span className="text-h3 sm:text-h1 font-bold tabular-nums" style={{ color: "var(--brand)" }}>
