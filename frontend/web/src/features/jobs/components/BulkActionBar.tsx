@@ -51,7 +51,7 @@ export function BulkActionBar({
               <Sparkles className="w-3.5 h-3.5" />
               Confirm — analyse {selectedCount}
             </Button>
-            <button onClick={() => onSetConfirmAnalyse(false)} className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors">
+            <button onClick={() => onSetConfirmAnalyse(false)} className="text-[12px] text-text-3 hover:text-text px-2.5 py-1 transition-colors">
               Back
             </button>
           </>
@@ -84,7 +84,7 @@ export function BulkActionBar({
                 </Button>
               </>
             )}
-            <button onClick={onStop} className="text-[12px] text-text-3 hover:text-text px-2 py-1 transition-colors">
+            <button onClick={onStop} className="text-[12px] text-text-3 hover:text-text px-2.5 py-1 transition-colors">
               Cancel
             </button>
           </>

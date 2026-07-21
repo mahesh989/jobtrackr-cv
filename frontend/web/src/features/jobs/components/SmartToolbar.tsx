@@ -403,7 +403,7 @@ export function SmartToolbar({
           {/* Stages Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Stages</span>
-            {STAGES_CHIPS.filter(c => c.id !== "applied").map((chip) => {
+            {STAGES_CHIPS.map((chip) => {
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;
               return (
@@ -415,44 +415,32 @@ export function SmartToolbar({
                 </button>
               );
             })}
-            {(() => {
-              const favActive = isStageActive(FAVOURITE_CHIP);
-              const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
-              return (
-                <button
-                  type="button"
-                  onClick={() => selectStageChip(FAVOURITE_CHIP)}
-                  disabled={favCount === 0 && !favActive}
-                  title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
-                  aria-pressed={favActive}
-                  aria-label="Favourite jobs"
-                  className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ${
-                    favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  <Star
-                    className={`w-10 h-10 ${favActive ? "fill-[var(--brand)] text-[var(--brand)]" : "text-text-3"}`}
-                  />
-                </button>
-              );
-            })()}
-            {(() => {
-              const chip = STAGES_CHIPS.find(c => c.id === "applied")!;
-              const active = isStageActive(chip);
-              const count  = counts[chip.countKey] ?? 0;
-              return (
-                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
-                  {chip.label}
-                  {count > 0 && (
-                    <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
-                  )}
-                </button>
-              );
-            })()}
           </div>
 
+          {(() => {
+            const favActive = isStageActive(FAVOURITE_CHIP);
+            const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
+            return (
+              <button
+                type="button"
+                onClick={() => selectStageChip(FAVOURITE_CHIP)}
+                disabled={favCount === 0 && !favActive}
+                title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
+                aria-pressed={favActive}
+                aria-label="Favourite jobs"
+                className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ml-auto ${
+                  favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
+                }`}
+              >
+                <Star
+                  className={`w-10 h-10 ${favActive ? "fill-[var(--brand)] text-[var(--brand)]" : "text-text-3"}`}
+                />
+              </button>
+            );
+          })()}
+
           {/* JDs Group */}
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0 md:ml-auto">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <span className="text-[10px] font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
             {JDS_CHIPS.map((chip) => {
               const active = isStageActive(chip);

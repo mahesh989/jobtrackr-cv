@@ -764,7 +764,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         <div className="flex items-center gap-2 ml-auto">
           {isApplied && (
             <button onClick={handleMoveBackToPool} disabled={movingBack}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors disabled:opacity-40"
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2.5 py-1 transition-colors disabled:opacity-40"
               title="Didn't actually apply? Move it back to the pool">
               {movingBack ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 rotate-180" />}
               Move back to pool
@@ -772,7 +772,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
           )}
           {isApplied && (
             <button onClick={handleArchive}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2 py-1 transition-colors">
+              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2.5 py-1 transition-colors">
               <Archive className="w-3 h-3" /> Archive
             </button>
           )}

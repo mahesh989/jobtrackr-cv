@@ -506,7 +506,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             >
               {loading ? "Starting…" : "Try again"}
             </button>
-                <button onClick={() => setBelowFinalGate(null)} className="px-2 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors">
+                <button onClick={() => setBelowFinalGate(null)} className="px-2.5 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors">
                   Dismiss
                 </button>
               </div>
