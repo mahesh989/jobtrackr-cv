@@ -417,7 +417,8 @@ export function SmartToolbar({
             })}
           </div>
 
-          {Array.from({ length: 10 }).map((_, i) => {
+          {[null, null, true, null, null, null, null, null, null, null].map((keep, i) => {
+            if (!keep) return <div key={i} className="w-10" />;
             const favActive = isStageActive(FAVOURITE_CHIP);
             const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
             return (
@@ -428,7 +429,7 @@ export function SmartToolbar({
                 disabled={favCount === 0 && !favActive}
                 title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
                 aria-pressed={favActive}
-                aria-label={`Favourite jobs ${i + 1}`}
+                aria-label="Favourite jobs"
                 className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ${
                   favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
                 }`}
