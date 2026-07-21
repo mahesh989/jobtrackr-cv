@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { ICON_BUTTON_SIZE } from "@/lib/button-sizes";
 
 /**
  * Icon-only action button — star/favourite toggles, "×" close/dismiss,
@@ -23,11 +24,7 @@ const variantClass = {
   danger:  "text-text-3 hover:text-red-500 hover:bg-[var(--surface-2)]",
 } as const;
 
-const sizeClass = {
-  sm: "w-6 h-6",
-  md: "w-7 h-7",
-  lg: "w-9 h-9",
-} as const;
+const sizeClass = ICON_BUTTON_SIZE;
 
 const shapeClass = {
   rounded: "rounded-md",

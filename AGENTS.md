@@ -133,3 +133,21 @@ backend/api/app/
 - **BYOK** — Users supply their own AI keys (Anthropic/OpenAI). Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`
 - **Additive DB changes only** — Never ALTER existing tables. Only INSERT new tables and extend value sets.
+
+### Button System
+
+Canonical sizing defined in `lib/button-sizes.ts`:
+
+| Token | Classes | Used By |
+|-------|---------|---------|
+| `BUTTON_SIZE.xs` | `text-[11px] px-2.5 py-1` | Button, Chip(sm), SegmentedControl(sm) |
+| `BUTTON_SIZE.sm` | `text-[12px] px-3 py-1.5` | Button, Chip(md) |
+| `BUTTON_SIZE.md` | `text-[13px] px-3 py-[5px]` | Button |
+| `BUTTON_SIZE.lg` | `text-sm px-4 py-2` | Button |
+| `ICON_BUTTON_SIZE.sm` | `w-6 h-6` | IconButton |
+| `ICON_BUTTON_SIZE.md` | `w-7 h-7` | IconButton |
+| `ICON_BUTTON_SIZE.lg` | `w-9 h-9` | IconButton |
+
+`Button.tsx` and `IconButton.tsx` import these maps directly — sizing change in `button-sizes.ts` propagates everywhere they're used.
+`Chip.tsx` sizes are intentionally aligned to `BUTTON_SIZE` values.
+Inline `<button>` elements in feature code should use a `Button` component variant when possible; when a raw `<button>` is necessary (distinct visual like filter chips, dismiss links), use matching Tailwind classes from the table above.
