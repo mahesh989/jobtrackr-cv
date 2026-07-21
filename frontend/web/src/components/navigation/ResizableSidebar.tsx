@@ -20,7 +20,10 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
   const draggingRef = useRef(false);
 
   useEffect(() => {
+    // One-time hydrate from localStorage (an external store) on mount — the
+    // canonical "sync with external system" case, not a render-derived value.
     const saved = Number(localStorage.getItem(KEY));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate persisted width once on mount
     if (saved >= MIN && saved <= MAX) setWidth(saved);
   }, []);
 
