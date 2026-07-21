@@ -203,7 +203,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     <div className="col-span-1 flex items-center justify-end">
                       {isRunning && (
                         <form action={cancelRun.bind(null, run.id, id)}>
-                          <Button type="submit" size="sm" className="px-2 py-1 text-[#CF222E] hover:bg-[#FFEBE9] hover:border-[#CF222E]/30">
+                          <Button type="submit" size="sm" className="text-[var(--red)] hover:bg-[var(--red-light)] hover:border-[var(--red)]/30">
                             Cancel
                           </Button>
                         </form>

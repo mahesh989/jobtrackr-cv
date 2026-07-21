@@ -1,5 +1,5 @@
-import { AlertCircle, Loader2, PenLine } from "lucide-react";
-import { Button } from "@/components/ui";
+import { AlertCircle, PenLine } from "lucide-react";
+import { Button, Form, Textarea } from "@/components/ui";
 import { WORD_MIN, type SourceTag } from "./types";
 
 interface Props {
@@ -35,7 +35,7 @@ export function CaptureForm({
   const tooShort = words > 0 && words < WORD_MIN;
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <Form onSubmit={onSubmit} className="space-y-3">
       <div className="flex border-b border-[var(--card-border)]" role="tablist">
         <button role="tab" aria-selected={activeTab === "in_app_capture"} onClick={() => onTabChange("in_app_capture")} className={`px-3 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${ activeTab === "in_app_capture" ? "border-[var(--brand)] text-[var(--brand)]" : "border-transparent text-[var(--text-2)] hover:text-[var(--text)]" }`}>
           Write a sample
@@ -73,7 +73,7 @@ export function CaptureForm({
         </div>
       )}
 
-      <textarea
+      <Textarea
         key={activeTab}
         id="voice-sample"
         value={text}
@@ -83,7 +83,7 @@ export function CaptureForm({
           ? "Start typing here…"
           : "Paste your cover letter here…"}
         rows={10}
-        className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2.5 text-sm text-text placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)] resize-y"
+        className="resize-y"
       />
 
       <div className="flex items-center justify-between">
@@ -112,28 +112,22 @@ export function CaptureForm({
         <Button
           type="submit"
           variant="brand"
-          size="lg"
+          size="sm"
           disabled={!canSubmit}
+          isLoading={status === "submitting"}
+          icon={status === "submitting" ? undefined : <PenLine className="w-4 h-4" />}
         >
-          {status === "submitting" ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analysing…
-            </>
-          ) : (
-            <>
-              <PenLine className="w-4 h-4" />
-              {isEditing ? "Save changes" : "Save writing voice"}
-            </>
-          )}
+          {status === "submitting"
+            ? "Analysing…"
+            : isEditing ? "Save changes" : "Save writing voice"}
         </Button>
 
         {showCancel && (
-          <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors">
+          <Button type="button" size="sm" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
       </div>
-    </form>
+    </Form>
   );
 }
