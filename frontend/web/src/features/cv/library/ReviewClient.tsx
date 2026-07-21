@@ -939,12 +939,23 @@ function DatesField({ start, end, onStart, onEnd, invalid = false }: {
 function BulletRow({ value, onChange, onRemove }: {
   value: string; onChange: (v: string) => void; onRemove: () => void;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Auto-grow: the box height tracks the content (no scrollbar, no manual
+  // drag handle) — resets to auto so it can shrink as well as grow.
+  const autoGrow = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+  useEffect(autoGrow, [value, autoGrow]);
   return (
     <div className="group/bullet flex items-start gap-2 py-1 rounded-md hover:bg-[var(--surface-2)]/30 transition-colors">
       <span className="mt-[6px] select-none text-[var(--brand)]/60 leading-none text-[10px] shrink-0" aria-hidden="true">●</span>
       <textarea
+        ref={ref}
         rows={1}
-        className="flex-1 min-h-[28px] text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2 py-1 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-y leading-relaxed"
+        className="flex-1 min-h-[28px] text-[13px] text-text bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-md px-2 py-1 hover:bg-[var(--surface-2)]/50 focus:bg-[var(--surface)] focus:border-[var(--brand)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/15 transition-colors resize-none overflow-hidden leading-relaxed"
         value={value}
         onChange={e => onChange(e.target.value)}
       />
