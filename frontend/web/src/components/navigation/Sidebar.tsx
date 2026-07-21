@@ -122,8 +122,7 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         userView={userView}
       />
       <div
-        className="shrink-0 hidden md:flex flex-col h-full min-h-0 border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
-        style={{ width: "var(--sidebar-width)" }}
+        className="w-full hidden md:flex flex-col h-full min-h-0 border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
       >
         <SidebarLinks
           email={email}

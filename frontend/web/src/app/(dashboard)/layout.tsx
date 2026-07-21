@@ -8,6 +8,7 @@ import { ThemeProvider, RunNotifier, SetupGateClient } from "@/components/provid
 import { SetupStepperBar } from "@/features/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
 import { Sidebar } from "@/components/navigation/Sidebar";
+import { ResizableSidebar } from "@/components/navigation/ResizableSidebar";
 import { Header } from "@/components/navigation/Header";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -29,9 +30,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <ThemeProvider>
     <div className="flex h-screen overflow-hidden bg-[var(--sidebar-bg)]">
-      {/* Sidebar — width reserved via min-width to prevent CLS.
-          Content streams in via Suspense while page renders immediately. */}
-      <div className="shrink-0 hidden md:flex md:flex-col" style={{ minWidth: "var(--sidebar-width)" }}>
+      {/* Sidebar — desktop width is user-resizable (ResizableSidebar owns the
+          width; the main column flexes via flex-1). Content streams in via
+          Suspense while the page renders immediately. */}
+      <ResizableSidebar>
         <Suspense fallback={null}>
           <Sidebar
             userId={user.id}
@@ -40,7 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             userView={userView}
           />
         </Suspense>
-      </div>
+      </ResizableSidebar>
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 bg-sidebar-bg overflow-y-auto">
