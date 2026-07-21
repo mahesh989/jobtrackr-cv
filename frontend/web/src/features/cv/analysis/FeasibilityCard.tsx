@@ -74,7 +74,7 @@ export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2">
-        <h2 className="text-[14px] font-semibold text-text">Keyword feasibility plan</h2>
+        <h2 className="text-title font-semibold text-text">Keyword feasibility plan</h2>
       </div>
       <div className="px-5 py-4 space-y-4">
         {summaryObj && (
@@ -93,7 +93,7 @@ export function FeasibilityCard({ data }: { data: Record<string, unknown> }) {
           </div>
         )}
         {summaryStr && (
-          <p className="text-[13px] text-text-2 italic leading-relaxed">{summaryStr}</p>
+          <p className="text-body text-text-2 italic leading-relaxed">{summaryStr}</p>
         )}
 
         <Bucket
@@ -169,8 +169,8 @@ function SummaryStat({
 }) {
   return (
     <div className="bg-surface-2 border border-border rounded p-2">
-      <div className="text-[10px] uppercase tracking-wide text-text-3">{label}</div>
-      <div className={`mt-1 inline-block text-[14px] font-bold tabular-nums px-2 py-0.5 rounded border ${TONE_CHIP[tone]}`}>
+      <div className="text-micro uppercase tracking-wide text-text-3">{label}</div>
+      <div className={`mt-1 inline-block text-title font-bold tabular-nums px-2 py-0.5 rounded border ${TONE_CHIP[tone]}`}>
         {value}
       </div>
     </div>
@@ -194,7 +194,7 @@ function Bucket({
         open={open}
         onToggle={() => setOpen((v) => !v)}
         className="hover:bg-surface-2/50"
-        title={<>{title} <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${TONE_CHIP[tone]}`}>{count}</span></>}
+        title={<>{title} <span className={`text-caption font-semibold px-1.5 py-0.5 rounded border ${TONE_CHIP[tone]}`}>{count}</span></>}
         subtitle={subtitle}
       />
       {open && count > 0 && (
@@ -203,7 +203,7 @@ function Bucket({
         </div>
       )}
       {open && count === 0 && (
-        <div className="border-t border-border px-3 py-2 text-[11px] italic text-text-3">None.</div>
+        <div className="border-t border-border px-3 py-2 text-caption italic text-text-3">None.</div>
       )}
     </div>
   );
@@ -212,12 +212,12 @@ function Bucket({
 function HeaderRow({ entry, extras }: { entry: BaseEntry; extras?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[12px] font-semibold font-mono text-text">{entry.keyword}</span>
-      <span className="text-[10px] uppercase tracking-wide text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
+      <span className="text-label font-semibold font-mono text-text">{entry.keyword}</span>
+      <span className="text-micro uppercase tracking-wide text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
         {CATEGORY_LABEL[entry.category]}
       </span>
       {entry.bucket === "preferred" && (
-        <span className="text-[10px] uppercase tracking-wide text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
+        <span className="text-micro uppercase tracking-wide text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
           Preferred
         </span>
       )}
@@ -231,13 +231,13 @@ function DirectEntry({ e }: { e: InjectDirectlyEntry }) {
     <div className="border border-border bg-surface rounded p-2.5">
       <HeaderRow entry={e} />
       {e.evidence && (
-        <p className="mt-1.5 text-[11px] text-text-3">
+        <p className="mt-1.5 text-caption text-text-3">
           <span className="font-medium text-text">Evidence:</span>{" "}
           <span className="italic">&ldquo;{e.evidence}&rdquo;</span>
         </p>
       )}
       {e.rationale && (
-        <p className="mt-1 text-[11px] text-text-3 leading-snug">{e.rationale}</p>
+        <p className="mt-1 text-caption text-text-3 leading-snug">{e.rationale}</p>
       )}
     </div>
   );
@@ -248,13 +248,13 @@ function ExtensionEntry({ e }: { e: InjectExtensionEntry }) {
     <div className="border border-border bg-surface rounded p-2.5">
       <HeaderRow entry={e} />
       {e.evidence && (
-        <p className="mt-1.5 text-[11px] text-text-3">
+        <p className="mt-1.5 text-caption text-text-3">
           <span className="font-medium text-text">Evidence:</span>{" "}
           <span className="italic">&ldquo;{e.evidence}&rdquo;</span>
         </p>
       )}
       {e.suggested_rewrite && (
-        <p className={`mt-2 rounded p-2 text-[11px] leading-snug ${TONE_REWRITE.blue}`}>
+        <p className={`mt-2 rounded p-2 text-caption leading-snug ${TONE_REWRITE.blue}`}>
           <span className="font-medium">Suggested rewrite:</span>{" "}
           {e.suggested_rewrite}
         </p>
@@ -270,7 +270,7 @@ function InferenceEntry({ e }: { e: InjectInferenceEntry }) {
         entry={e}
         extras={
           e.confidence && (
-            <span className={`text-[10px] uppercase tracking-wide font-semibold rounded px-1.5 py-0.5 border ${
+            <span className={`text-micro uppercase tracking-wide font-semibold rounded px-1.5 py-0.5 border ${
               e.confidence === "high"
                 ? "bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/30"
                 : "bg-[var(--purple)]/8 text-[var(--purple)]/80 border-[var(--purple)]/20"
@@ -281,29 +281,29 @@ function InferenceEntry({ e }: { e: InjectInferenceEntry }) {
         }
       />
       {e.evidence && (
-        <p className="mt-1.5 text-[11px] text-text-3">
+        <p className="mt-1.5 text-caption text-text-3">
           <span className="font-medium text-text">Evidence:</span>{" "}
           <span className="italic">&ldquo;{e.evidence}&rdquo;</span>
         </p>
       )}
       {e.inferred_from && e.inferred_from.length > 0 && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <span className="text-[11px] font-medium text-text">Inferred from:</span>
+          <span className="text-caption font-medium text-text">Inferred from:</span>
           {e.inferred_from.map((src, i) => (
-            <span key={`${src}-${i}`} className="text-[10px] px-1.5 py-0.5 rounded border bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/25">
+            <span key={`${src}-${i}`} className="text-micro px-1.5 py-0.5 rounded border bg-[var(--purple)]/12 text-[var(--purple)] border-[var(--purple)]/25">
               {src}
             </span>
           ))}
         </div>
       )}
       {e.inference_chain && (
-        <p className="mt-1.5 text-[11px] text-text-3 leading-snug">
+        <p className="mt-1.5 text-caption text-text-3 leading-snug">
           <span className="font-medium text-text">Reasoning:</span>{" "}
           {e.inference_chain}
         </p>
       )}
       {e.suggested_rewrite && (
-        <p className={`mt-2 rounded p-2 text-[11px] leading-snug ${TONE_REWRITE.violet}`}>
+        <p className={`mt-2 rounded p-2 text-caption leading-snug ${TONE_REWRITE.violet}`}>
           <span className="font-medium">Suggested rewrite:</span>{" "}
           {e.suggested_rewrite}
         </p>
@@ -317,7 +317,7 @@ function GapEntry({ e }: { e: CannotInjectEntry }) {
     <div className="border border-border bg-surface rounded p-2.5">
       <HeaderRow entry={e} />
       {e.reason && (
-        <p className="mt-1.5 text-[11px] text-text-3 leading-snug">{e.reason}</p>
+        <p className="mt-1.5 text-caption text-text-3 leading-snug">{e.reason}</p>
       )}
     </div>
   );

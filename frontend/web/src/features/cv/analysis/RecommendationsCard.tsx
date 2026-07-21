@@ -12,8 +12,8 @@ export function RecommendationsCard({ markdown }: Props) {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2">
-        <h2 className="text-[14px] font-semibold text-text">AI recommendations</h2>
-        <p className="text-[12px] text-text-3 mt-0.5">
+        <h2 className="text-title font-semibold text-text">AI recommendations</h2>
+        <p className="text-label text-text-3 mt-0.5">
           Concrete suggestions to strengthen your CV for this specific role.
         </p>
       </div>

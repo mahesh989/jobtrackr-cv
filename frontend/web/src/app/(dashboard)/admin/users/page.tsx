@@ -102,12 +102,12 @@ export default async function AdminUsersPage() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Users</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Users
-          <span className="text-[13px] font-normal text-text-3 ml-2">({users.length} total)</span>
+        <h1 className="text-lead font-semibold text-text">Users
+          <span className="text-body font-normal text-text-3 ml-2">({users.length} total)</span>
         </h1>
       </div>
 
@@ -149,7 +149,7 @@ export default async function AdminUsersPage() {
                         {u.email}
                       </Link>
                       {latestRunLog && (
-                        <span className={`ml-2 text-[10px] font-medium ${
+                        <span className={`ml-2 text-micro font-medium ${
                           latestRunLog.status === "completed" ? "text-emerald-600"
                           : latestRunLog.status === "failed" ? "text-red-600"
                           : "text-amber-600"
@@ -163,7 +163,7 @@ export default async function AdminUsersPage() {
                         u.role === "founder" ? "amber"
                         : u.role === "admin" ? "purple"
                         : "gray"
-                      } className="text-[10px]">{u.role}</Badge>
+                      } className="text-micro">{u.role}</Badge>
                     </td>
                     <td>
                       {sub ? (
@@ -171,9 +171,9 @@ export default async function AdminUsersPage() {
                           sub.status === "active"   ? "green"
                           : sub.status === "trialing" ? "amber"
                           : "gray"
-                        } className="text-[10px]">{sub.plan_id}</Badge>
+                        } className="text-micro">{sub.plan_id}</Badge>
                       ) : (
-                        <span className="text-text-3 text-[11px]">—</span>
+                        <span className="text-text-3 text-caption">—</span>
                       )}
                     </td>
                     <td className="text-text-2 tabular-nums">{userProfiles.length}</td>

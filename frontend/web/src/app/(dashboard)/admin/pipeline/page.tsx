@@ -23,7 +23,7 @@ function PctBar({ pct, color = "blue" }: { pct: number; color?: "green"|"red"|"a
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
         <div className={`${cls} h-1.5 rounded-full`} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
-      <span className="text-[11px] text-text-3 w-10 text-right">{pct.toFixed(1)}%</span>
+      <span className="text-caption text-text-3 w-10 text-right">{pct.toFixed(1)}%</span>
     </div>
   );
 }
@@ -163,15 +163,15 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Pipeline health</span>
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-[16px] font-semibold text-text">Pipeline health</h1>
+            <h1 className="text-lead font-semibold text-text">Pipeline health</h1>
             {stuck.length > 0 && (
-              <span className="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-semibold animate-pulse">
+              <span className="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-caption font-semibold animate-pulse">
                 {stuck.length} STUCK
               </span>
             )}
@@ -186,8 +186,8 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {stuck.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-[12px] font-semibold text-red-700">Stuck runs</h2>
-              <span className="text-[11px] text-red-600">status=running for &gt;20 min — likely hung</span>
+              <h2 className="text-label font-semibold text-red-700">Stuck runs</h2>
+              <span className="text-caption text-red-600">status=running for &gt;20 min — likely hung</span>
             </div>
             <div className="bg-red-50 border border-red-200 rounded-md overflow-x-auto">
               <table className="data-table">
@@ -209,17 +209,17 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                       : null;
                     return (
                       <tr key={r.id}>
-                        <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
-                        <td className="text-[12px] text-text-2">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
-                        <td className="text-[12px] text-text-3">{lastStep?.replace(/_/g, " ") ?? "—"}</td>
-                        <td className={`tabular-nums font-semibold text-[12px] ${stuckMins > 60 ? "text-red-700" : "text-amber-700"}`}>
+                        <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
+                        <td className="text-label text-text-2">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
+                        <td className="text-label text-text-3">{lastStep?.replace(/_/g, " ") ?? "—"}</td>
+                        <td className={`tabular-nums font-semibold text-label ${stuckMins > 60 ? "text-red-700" : "text-amber-700"}`}>
                           {stuckMins}m
                         </td>
                         <td>
                           <form action={adminForceCancelRun.bind(null, r.id)}>
                             <button
                               type="submit"
-                              className="text-[11px] text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
+                              className="text-caption text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
                             >
                               Force cancel
                             </button>
@@ -244,25 +244,25 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
             { label: "Currently running", value: String(running), color: running > 0 ? "text-blue-700" : "text-text-3" },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-              <p className="text-[11px] text-text-3 mb-0.5">{s.label}</p>
-              <p className={`text-[20px] font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
+              <p className={`text-h2 font-bold ${s.color}`}>{s.value}</p>
             </div>
           ))}
         </div>
 
         {/* Success / fail rate bars */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Success rate</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Success rate</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-3">
-            <div><p className="text-[11px] text-text-3 mb-1">Completed</p><PctBar pct={successPct} color="green" /></div>
-            <div><p className="text-[11px] text-text-3 mb-1">Failed (non-cancelled)</p><PctBar pct={failPct} color="red" /></div>
+            <div><p className="text-caption text-text-3 mb-1">Completed</p><PctBar pct={successPct} color="green" /></div>
+            <div><p className="text-caption text-text-3 mb-1">Failed (non-cancelled)</p><PctBar pct={failPct} color="red" /></div>
           </div>
         </section>
 
         {/* Latency */}
         {(p50 !== null || aiP95 !== null) && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Latency</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Latency</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { label: "Pipeline p50",       value: p50  !== null ? formatLatency(p50)  : "—" },
@@ -271,22 +271,22 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                 { label: "AI retry rate",      value: totalCalls > 0 ? `${((retryCalls / totalCalls) * 100).toFixed(1)}%` : "—" },
               ].map((s) => (
                 <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-                  <p className="text-[11px] text-text-3 mb-0.5">{s.label}</p>
-                  <p className="text-[18px] font-bold text-text">{s.value}</p>
+                  <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
+                  <p className="text-h3 font-bold text-text">{s.value}</p>
                 </div>
               ))}
             </div>
 
             {stepLatency.length > 0 && (
               <div className="mt-3 bg-surface border border-border rounded-md px-4 py-4 space-y-2">
-                <p className="text-[11px] font-semibold text-text-3 mb-2">Median duration per pipeline step</p>
+                <p className="text-caption font-semibold text-text-3 mb-2">Median duration per pipeline step</p>
                 {stepLatency.map(({ step, p50: sp50 }) => (
                   <div key={step} className="flex items-center gap-3">
-                    <span className="text-[12px] text-text-2 w-44 truncate">{step.replace(/_/g, " ")}</span>
+                    <span className="text-label text-text-2 w-44 truncate">{step.replace(/_/g, " ")}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                       <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${Math.min(100, (sp50 / (p95 ?? sp50)) * 100)}%` }} />
                     </div>
-                    <span className="text-[11px] font-mono text-text-3 w-16 text-right">{formatLatency(sp50)}</span>
+                    <span className="text-caption font-mono text-text-3 w-16 text-right">{formatLatency(sp50)}</span>
                   </div>
                 ))}
               </div>
@@ -296,7 +296,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
 
         {/* AI reliability */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">AI call reliability ({RANGE_LABELS[range]})</h2>
+          <h2 className="text-label font-semibold text-text mb-3">AI call reliability ({RANGE_LABELS[range]})</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
               { label: "Total AI calls",  value: String(totalCalls) },
@@ -304,8 +304,8 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
               { label: "Calls with retry",value: `${retryCalls} (${totalCalls > 0 ? ((retryCalls / totalCalls) * 100).toFixed(1) : 0}%)` },
             ].map((s) => (
               <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">{s.label}</p>
-                <p className={`text-[18px] font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
+                <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
+                <p className={`text-h3 font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -314,23 +314,23 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {/* ATS uplift distribution */}
         {completedWithScores.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">ATS uplift distribution (completed runs)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">ATS uplift distribution (completed runs)</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Avg lift</p>
-                <p className="text-[18px] font-bold text-emerald-700">{avgLift !== null ? `+${avgLift.toFixed(1)}` : "—"}</p>
+                <p className="text-caption text-text-3 mb-0.5">Avg lift</p>
+                <p className="text-h3 font-bold text-emerald-700">{avgLift !== null ? `+${avgLift.toFixed(1)}` : "—"}</p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Avg tailored score</p>
-                <p className="text-[18px] font-bold text-text">{avgTailored !== null ? avgTailored.toFixed(1) : "—"}</p>
+                <p className="text-caption text-text-3 mb-0.5">Avg tailored score</p>
+                <p className="text-h3 font-bold text-text">{avgTailored !== null ? avgTailored.toFixed(1) : "—"}</p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Runs scored</p>
-                <p className="text-[18px] font-bold text-text">{completedWithScores.length}</p>
+                <p className="text-caption text-text-3 mb-0.5">Runs scored</p>
+                <p className="text-h3 font-bold text-text">{completedWithScores.length}</p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Negative lift</p>
-                <p className={`text-[18px] font-bold ${liftBuckets.negative > 0 ? "text-red-700" : "text-text-3"}`}>{liftBuckets.negative}</p>
+                <p className="text-caption text-text-3 mb-0.5">Negative lift</p>
+                <p className={`text-h3 font-bold ${liftBuckets.negative > 0 ? "text-red-700" : "text-text-3"}`}>{liftBuckets.negative}</p>
               </div>
             </div>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
@@ -338,12 +338,12 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                 const pct = completedWithScores.length > 0 ? (count / completedWithScores.length) * 100 : 0;
                 return (
                   <div key={bucket} className="flex items-center gap-3">
-                    <span className="text-[12px] text-text-2 w-24">{bucket === "negative" ? "< 0" : bucket} pts</span>
+                    <span className="text-label text-text-2 w-24">{bucket === "negative" ? "< 0" : bucket} pts</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                       <div className={`h-1.5 rounded-full ${bucket === "negative" ? "bg-red-400" : "bg-emerald-500"}`}
                         style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-[11px] text-text-3 w-20 text-right">{count} ({pct.toFixed(0)}%)</span>
+                    <span className="text-caption text-text-3 w-20 text-right">{count} ({pct.toFixed(0)}%)</span>
                   </div>
                 );
               })}
@@ -354,14 +354,14 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {/* Failure taxonomy */}
         {errRanked.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Failure causes (30d)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Failure causes (30d)</h2>
             <div className="bg-surface border border-red-200 rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Error message</th><th className="w-16">Count</th></tr></thead>
                 <tbody>
                   {errRanked.map(([msg, count]) => (
                     <tr key={msg}>
-                      <td className="text-red-700 text-[12px] font-mono">{msg}</td>
+                      <td className="text-red-700 text-label font-mono">{msg}</td>
                       <td className="tabular-nums font-semibold text-red-700">{count}</td>
                     </tr>
                   ))}
@@ -374,16 +374,16 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {/* Step failures */}
         {stepRanked.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Failures by pipeline step (30d)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Failures by pipeline step (30d)</h2>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
               {stepRanked.map(([step, count]) => (
                 <div key={step} className="flex items-center gap-3">
-                  <span className="text-[12px] text-text-2 w-44">{step.replace(/_/g, " ")}</span>
+                  <span className="text-label text-text-2 w-44">{step.replace(/_/g, " ")}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                     <div className="bg-red-400 h-1.5 rounded-full"
                       style={{ width: `${Math.min(100, (count / (stepRanked[0][1])) * 100)}%` }} />
                   </div>
-                  <span className="text-[11px] text-text-3 w-8 text-right">{count}</span>
+                  <span className="text-caption text-text-3 w-8 text-right">{count}</span>
                 </div>
               ))}
             </div>
@@ -393,16 +393,16 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {/* Recent failures */}
         {lastFailures.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Recent failures</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Recent failures</h2>
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Run</th><th>User</th><th>Error</th><th>When</th></tr></thead>
                 <tbody>
                   {lastFailures.map((r) => (
                     <tr key={r.id}>
-                      <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
-                      <td className="text-text-2 text-[12px]">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
-                      <td className="text-red-700 text-[12px] max-w-sm truncate">{r.error_message ?? "—"}</td>
+                      <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
+                      <td className="text-text-2 text-label">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
+                      <td className="text-red-700 text-label max-w-sm truncate">{r.error_message ?? "—"}</td>
                       <td className="text-text-3 tabular-nums">{timeAgo(r.created_at)}</td>
                     </tr>
                   ))}

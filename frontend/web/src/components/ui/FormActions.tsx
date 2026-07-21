@@ -18,7 +18,7 @@ export function FormActions({
   return (
     <div className={`flex flex-wrap items-center gap-3 mt-6 pt-4 border-t border-border ${className}`}>
       {children}
-      {status ? <span className="text-[12px] text-text-3">{status}</span> : null}
+      {status ? <span className="text-label text-text-3">{status}</span> : null}
     </div>
   );
 }

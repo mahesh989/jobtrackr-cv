@@ -80,22 +80,22 @@ export default async function ProfilesListPage() {
             <div className="mb-1.5">
               <BackButton />
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+            <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
               <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
               <span className="text-text-2">Job Searches</span>
             </div>
-            <h1 className="text-[16px] font-semibold text-text">Job Searches</h1>
-            <p className="text-[12px] text-text-2 mt-0.5">
+            <h1 className="text-lead font-semibold text-text">Job Searches</h1>
+            <p className="text-label text-text-2 mt-0.5">
               {profiles.length} search{profiles.length !== 1 ? "es" : ""} · {activeCount} auto-scheduled
             </p>
           </div>
           <div className="flex items-center gap-2">
             <AddButton variant="primary" />
             <Link href="/profiles/new" className="inline-flex">
-              <Button variant="blue" className="text-[13px]">
+              <Button variant="blue" className="text-body">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
                 </svg>
@@ -124,15 +124,15 @@ function EmptyState() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">Job Searches</h1>
+        <h1 className="text-lead font-semibold text-text">Job Searches</h1>
       </div>
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="text-center max-w-md anim-in">
           <div className="w-14 h-14 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-4">
             <Inbox className="w-7 h-7 text-[var(--brand)]" />
           </div>
-          <h2 className="text-[16px] font-semibold text-text mb-2">No profiles yet</h2>
-          <p className="text-[13px] text-text-2 leading-relaxed mb-6">
+          <h2 className="text-lead font-semibold text-text mb-2">No profiles yet</h2>
+          <p className="text-body text-text-2 leading-relaxed mb-6">
             Create a search profile to start collecting matching jobs across boards.
           </p>
           <Link href="/profiles/new" className="inline-flex">

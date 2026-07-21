@@ -90,7 +90,7 @@ export function LiveLogConsole({ profileId }: { profileId: string }) {
       onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
       className="mb-4 rounded-md border border-border bg-surface anim-in"
     >
-      <summary className="cursor-pointer select-none px-4 py-2.5 text-[12px] font-medium text-text-2 flex items-center gap-2 hover:bg-[var(--surface-2)] transition-colors rounded-md">
+      <summary className="cursor-pointer select-none px-4 py-2.5 text-label font-medium text-text-2 flex items-center gap-2 hover:bg-[var(--surface-2)] transition-colors rounded-md">
         <svg
           className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
@@ -99,9 +99,9 @@ export function LiveLogConsole({ profileId }: { profileId: string }) {
         </svg>
         <span>Pipeline console</span>
         <span className="text-text-3">·</span>
-        <span className="text-text-3 font-mono text-[11px]">{lines.length} lines</span>
+        <span className="text-text-3 font-mono text-caption">{lines.length} lines</span>
         {active && (
-          <span className="ml-auto flex items-center gap-1.5 text-[var(--brand)] text-[11px]">
+          <span className="ml-auto flex items-center gap-1.5 text-[var(--brand)] text-caption">
             <span className="relative flex h-1.5 w-1.5">
               <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75"/>
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[var(--brand)]"/>

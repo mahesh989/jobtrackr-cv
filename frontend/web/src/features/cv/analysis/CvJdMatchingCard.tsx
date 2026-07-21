@@ -64,8 +64,8 @@ export function CvJdMatchingCard({
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2">
-        <h2 className="text-[14px] font-semibold text-text">CV ↔ JD matching</h2>
-        <p className="text-[12px] text-text-3 mt-0.5">
+        <h2 className="text-title font-semibold text-text">CV ↔ JD matching</h2>
+        <p className="text-label text-text-3 mt-0.5">
           Which JD requirements your CV already covers, and which are gaps.
         </p>
       </div>
@@ -87,12 +87,12 @@ function CategorisedView({ d, catLabels, catOrder }: { d: MatchingData; catLabel
     <>
       {overall && overall.total > 0 && (
         <div className="flex items-center gap-3 rounded border border-border bg-surface-2/50 p-3">
-          <div className="text-[22px] font-bold tabular-nums text-text">
+          <div className="text-h1 font-bold tabular-nums text-text">
             {overall.matched}
-            <span className="text-[14px] font-normal text-text-3">/{overall.total}</span>
+            <span className="text-title font-normal text-text-3">/{overall.total}</span>
           </div>
           <div className="flex-1">
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-caption mb-1">
               <span className="font-medium text-text">Overall keyword coverage</span>
               <span className="text-text-3 tabular-nums">
                 {(rates.overall_pct ?? Math.round((overall.matched / overall.total) * 100))}%
@@ -128,7 +128,7 @@ function CredentialGapBlock({ creds }: { creds?: CredentialsGap }) {
   const chip = (kw: string, color: "green" | "red") => (
     <span
       key={kw}
-      className={`text-[11px] px-1.5 py-0.5 rounded border font-mono ${
+      className={`text-caption px-1.5 py-0.5 rounded border font-mono ${
         color === "green"
           ? "bg-green-light text-green border-green/30"
           : "bg-red-light text-red border-red/30"
@@ -140,16 +140,16 @@ function CredentialGapBlock({ creds }: { creds?: CredentialsGap }) {
 
   return (
     <div>
-      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+      <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-2">
         Credentials &amp; eligibility
       </h3>
-      <p className="text-[11px] text-text-3 mb-2">
+      <p className="text-caption text-text-3 mb-2">
         Matched against your CV and saved profile credentials.
       </p>
       <div className="space-y-2">
         {present.length > 0 && (
           <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-green bg-green-light border border-green/30 rounded px-1.5 py-0.5">
+            <span className="mt-0.5 shrink-0 text-micro font-semibold uppercase tracking-widest text-green bg-green-light border border-green/30 rounded px-1.5 py-0.5">
               Present
             </span>
             <div className="flex flex-wrap gap-1">{present.map((kw) => chip(kw, "green"))}</div>
@@ -157,7 +157,7 @@ function CredentialGapBlock({ creds }: { creds?: CredentialsGap }) {
         )}
         {missing.length > 0 && (
           <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-red bg-red-light border border-red/30 rounded px-1.5 py-0.5">
+            <span className="mt-0.5 shrink-0 text-micro font-semibold uppercase tracking-widest text-red bg-red-light border border-red/30 rounded px-1.5 py-0.5">
               Missing
             </span>
             <div className="flex flex-wrap gap-1">{missing.map((kw) => chip(kw, "red"))}</div>
@@ -189,13 +189,13 @@ function BreakdownTable({
 
   return (
     <div>
-      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+      <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-2">
         Match breakdown by category
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-[12px]">
+        <table className="w-full text-label">
           <thead>
-            <tr className="border-b border-border text-left text-[11px] text-text-3">
+            <tr className="border-b border-border text-left text-caption text-text-3">
               <th className="pb-2 pr-3 font-medium">Category</th>
               <th className="pb-2 pr-3 text-center font-medium">Required</th>
               <th className="pb-2 pr-3 text-center font-medium">Preferred</th>
@@ -222,7 +222,7 @@ function BreakdownTable({
                   </td>
                   <td className="py-2 text-right">
                     {catPct != null ? (
-                      <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${rateBadgeCls(catPct)}`}>
+                      <span className={`inline-block rounded px-2 py-0.5 text-caption font-semibold tabular-nums border ${rateBadgeCls(catPct)}`}>
                         {catPct}%
                       </span>
                     ) : <span className="text-text-3">—</span>}
@@ -233,26 +233,26 @@ function BreakdownTable({
             {(rates.required_pct != null || rates.preferred_pct != null) && (
               <>
                 <tr className="bg-surface-2/40 font-medium">
-                  <td className="py-2 pr-3 text-[11px] text-text-3">Required total</td>
-                  <td colSpan={2} className="py-2 pr-3 text-center text-[11px] text-text-3">
+                  <td className="py-2 pr-3 text-caption text-text-3">Required total</td>
+                  <td colSpan={2} className="py-2 pr-3 text-center text-caption text-text-3">
                     {requiredTotal > 0 ? "all categories combined" : "no required keywords in JD"}
                   </td>
                   <td className="py-2 text-right">
                     {requiredTotal > 0 && rates.required_pct != null ? (
-                      <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${rateBadgeCls(rates.required_pct)}`}>
+                      <span className={`inline-block rounded px-2 py-0.5 text-caption font-semibold tabular-nums border ${rateBadgeCls(rates.required_pct)}`}>
                         {rates.required_pct}%
                       </span>
                     ) : <span className="text-text-3">—</span>}
                   </td>
                 </tr>
                 <tr className="bg-surface-2/40 font-medium">
-                  <td className="py-2 pr-3 text-[11px] text-text-3">Preferred total</td>
-                  <td colSpan={2} className="py-2 pr-3 text-center text-[11px] text-text-3">
+                  <td className="py-2 pr-3 text-caption text-text-3">Preferred total</td>
+                  <td colSpan={2} className="py-2 pr-3 text-center text-caption text-text-3">
                     {preferredTotal > 0 ? "all categories combined" : "no preferred keywords in JD"}
                   </td>
                   <td className="py-2 text-right">
                     {preferredTotal > 0 && rates.preferred_pct != null ? (
-                      <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${rateBadgeCls(rates.preferred_pct)}`}>
+                      <span className={`inline-block rounded px-2 py-0.5 text-caption font-semibold tabular-nums border ${rateBadgeCls(rates.preferred_pct)}`}>
                         {rates.preferred_pct}%
                       </span>
                     ) : <span className="text-text-3">—</span>}
@@ -270,7 +270,7 @@ function BreakdownTable({
 function MatchCell({ matched, total }: { matched: number; total: number }) {
   const missed = total - matched;
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] tabular-nums">
+    <span className="inline-flex items-center gap-1.5 text-caption tabular-nums">
       <span className="font-semibold text-green">{matched}✓</span>
       {missed > 0 && <span className="text-red">{missed}✗</span>}
       <span className="text-text-3">/{total}</span>
@@ -348,19 +348,19 @@ function ChipBlock({
     : "bg-red-light text-red border-red/30";
   return (
     <div>
-      <h3 className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${titleCls}`}>{title}</h3>
+      <h3 className={`text-micro font-semibold uppercase tracking-widest mb-2 ${titleCls}`}>{title}</h3>
       <div className="space-y-2">
         {catOrder.map((cat) => {
           const kws = buckets[cat];
           if (!kws.length) return null;
           return (
             <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1">
-              <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
+              <span className="mt-0.5 shrink-0 text-micro font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
                 {catLabels[cat]}
               </span>
               <div className="flex flex-wrap gap-1">
                 {kws.map((kw) => (
-                  <span key={kw} className={`text-[11px] px-1.5 py-0.5 rounded border font-mono ${chipCls}`}>
+                  <span key={kw} className={`text-caption px-1.5 py-0.5 rounded border font-mono ${chipCls}`}>
                     {kw}
                   </span>
                 ))}
@@ -379,7 +379,7 @@ function LegacyFlatView({ d }: { d: MatchingData }) {
   return (
     <div className="space-y-4">
       {d.match_summary && (
-        <p className="text-[13px] text-text-2 italic leading-relaxed">{d.match_summary}</p>
+        <p className="text-body text-text-2 italic leading-relaxed">{d.match_summary}</p>
       )}
       {d.matched_skills && d.matched_skills.length > 0 && (
         <FlatList label="Matched" items={d.matched_skills} color="green" />
@@ -397,10 +397,10 @@ function FlatList({ label, items, color }: { label: string; items: string[]; col
     : "bg-red-light text-red border-red/30";
   return (
     <div>
-      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1.5">{label}</h3>
+      <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-1.5">{label}</h3>
       <div className="flex flex-wrap gap-1">
         {items.map((s) => (
-          <span key={s} className={`text-[11px] px-1.5 py-0.5 rounded border font-mono ${chipCls}`}>
+          <span key={s} className={`text-caption px-1.5 py-0.5 rounded border font-mono ${chipCls}`}>
             {s}
           </span>
         ))}

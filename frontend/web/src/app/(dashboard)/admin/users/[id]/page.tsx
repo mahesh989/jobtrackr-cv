@@ -27,7 +27,7 @@ interface PageProps {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">{title}</h2>
+      <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest mb-3">{title}</h2>
       {children}
     </section>
   );
@@ -36,8 +36,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Kv({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-border last:border-0">
-      <span className="text-[11px] text-text-3 w-36 shrink-0">{label}</span>
-      <span className={`text-[12px] text-text ${mono ? "font-mono" : ""}`}>{value ?? "—"}</span>
+      <span className="text-caption text-text-3 w-36 shrink-0">{label}</span>
+      <span className={`text-label text-text ${mono ? "font-mono" : ""}`}>{value ?? "—"}</span>
     </div>
   );
 }
@@ -170,7 +170,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     <div className="min-h-full">
       {/* Header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span>
           <Link href="/admin/users" className="hover:text-text">Users</Link>
@@ -179,21 +179,21 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[16px] font-semibold text-text">{user.email}</h1>
+            <h1 className="text-lead font-semibold text-text">{user.email}</h1>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant={user.role === "founder" ? "amber" : user.role === "admin" ? "purple" : "gray"} className="text-[10px]">
+              <Badge variant={user.role === "founder" ? "amber" : user.role === "admin" ? "purple" : "gray"} className="text-micro">
                 {user.role}
               </Badge>
               {sub && (
-                <Badge variant={sub.status === "active" ? "green" : sub.status === "trialing" ? "amber" : "gray"} className="text-[10px]">
+                <Badge variant={sub.status === "active" ? "green" : sub.status === "trialing" ? "amber" : "gray"} className="text-micro">
                   {sub.status}
                 </Badge>
               )}
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[12px] text-text-3">Joined {new Date(user.created_at).toLocaleDateString("en-AU")}</p>
-            {totalCost > 0 && <p className="text-[11px] text-text-3 mt-0.5">Lifetime AI cost: {formatCost(totalCost)}</p>}
+            <p className="text-label text-text-3">Joined {new Date(user.created_at).toLocaleDateString("en-AU")}</p>
+            {totalCost > 0 && <p className="text-caption text-text-3 mt-0.5">Lifetime AI cost: {formatCost(totalCost)}</p>}
           </div>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               <Kv label="Subscribed"     value={fmtDateTime(sub.created_at)} />
             </div>
           ) : (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No subscription record.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No subscription record.</p>
           )}
           {/* Grant unlimited — fixes expired comp, trialing, or wrong-plan subs */}
           {user.role !== "founder" && user.role !== "admin" && (
@@ -240,7 +240,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             >
               <button
                 type="submit"
-                className="text-[11px] px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-2 transition-colors"
+                className="text-caption px-3 py-1.5 rounded-md border border-border bg-surface hover:bg-surface-2 text-text-2 transition-colors"
               >
                 Grant unlimited access (10 yr)
               </button>
@@ -259,8 +259,8 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               <Kv label="Device"  value={lastLogin.device}  />
             </div>
           ) : (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">
-              No login events yet — wire <code className="font-mono text-[11px]">user_events</code> inserts on auth in the web layer (see migration 055).
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">
+              No login events yet — wire <code className="font-mono text-caption">user_events</code> inserts on auth in the web layer (see migration 055).
             </p>
           )}
           {logins.length > 1 && (
@@ -270,10 +270,10 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 <tbody>
                   {logins.map((l, i) => (
                     <tr key={i}>
-                      <td className="text-text-3 text-[11px]">{timeAgo(l.created_at)}</td>
-                      <td className="font-mono text-[11px]">{l.ip ?? "—"}</td>
-                      <td className="text-[12px]">{l.country ?? "—"}{l.city ? `, ${l.city}` : ""}</td>
-                      <td className="text-[12px]">{l.device ?? "—"}</td>
+                      <td className="text-text-3 text-caption">{timeAgo(l.created_at)}</td>
+                      <td className="font-mono text-caption">{l.ip ?? "—"}</td>
+                      <td className="text-label">{l.country ?? "—"}{l.city ? `, ${l.city}` : ""}</td>
+                      <td className="text-label">{l.device ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -285,7 +285,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         {/* CV library */}
         <Section title={`CV library (${cvs.length})`}>
           {cvs.length === 0 ? (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No CVs uploaded.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No CVs uploaded.</p>
           ) : (
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
@@ -294,15 +294,15 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   {cvs.map((cv) => (
                     <tr key={cv.id}>
                       <td className="font-medium text-text">{cv.label}</td>
-                      <td>{cv.is_active ? <Badge variant="green" className="text-[10px]">Active</Badge> : <span className="text-text-3 text-[11px]">—</span>}</td>
-                      <td className="text-text-3 text-[11px]">{timeAgo(cv.created_at)}</td>
+                      <td>{cv.is_active ? <Badge variant="green" className="text-micro">Active</Badge> : <span className="text-text-3 text-caption">—</span>}</td>
+                      <td className="text-text-3 text-caption">{timeAgo(cv.created_at)}</td>
                       <td>
                         {signedUrls[cv.id] ? (
                           <a href={signedUrls[cv.id]} target="_blank" rel="noopener noreferrer"
-                            className="text-[11px] text-blue-600 hover:underline font-medium">
+                            className="text-caption text-blue-600 hover:underline font-medium">
                             PDF ↗
                           </a>
-                        ) : <span className="text-text-3 text-[11px]">—</span>}
+                        ) : <span className="text-text-3 text-caption">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -317,16 +317,16 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           {voice ? (
             <div className="bg-surface border border-border rounded-md px-4 py-3">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-[11px] text-text-3">Source: {voice.voice_sample_source}</span>
-                <span className="text-[11px] text-text-3">Trust: {(voice.voice_sample_trust_score * 100).toFixed(0)}%</span>
-                <span className="text-[11px] text-text-3">Set {timeAgo(voice.created_at)}</span>
+                <span className="text-caption text-text-3">Source: {voice.voice_sample_source}</span>
+                <span className="text-caption text-text-3">Trust: {(voice.voice_sample_trust_score * 100).toFixed(0)}%</span>
+                <span className="text-caption text-text-3">Set {timeAgo(voice.created_at)}</span>
               </div>
-              <p className="text-[12px] text-text leading-relaxed line-clamp-4">
+              <p className="text-label text-text leading-relaxed line-clamp-4">
                 {voice.voice_sample_raw.slice(0, 400)}{voice.voice_sample_raw.length > 400 ? "…" : ""}
               </p>
             </div>
           ) : (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No writing voice set.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No writing voice set.</p>
           )}
         </Section>
 
@@ -339,14 +339,14 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               <Kv label="Connected"   value={fmtDateTime(emailInt.created_at)} />
             </div>
           ) : (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No email account connected.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No email account connected.</p>
           )}
         </Section>
 
         {/* Search profiles */}
         <Section title={`Job search profiles (${profiles.length})`}>
           {profiles.length === 0 ? (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No profiles.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No profiles.</p>
           ) : (
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
@@ -355,9 +355,9 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   {profiles.map((p) => (
                     <tr key={p.id}>
                       <td className="font-medium text-text">{p.name}</td>
-                      <td>{p.is_active ? <Badge variant="green" className="text-[10px]">Active</Badge> : <span className="text-text-3 text-[11px]">Paused</span>}</td>
-                      <td className="font-mono text-[11px] text-text-3">{p.schedule_cron ?? "manual"}</td>
-                      <td className="text-text-3 text-[11px]">{timeAgo(p.created_at)}</td>
+                      <td>{p.is_active ? <Badge variant="green" className="text-micro">Active</Badge> : <span className="text-text-3 text-caption">Paused</span>}</td>
+                      <td className="font-mono text-caption text-text-3">{p.schedule_cron ?? "manual"}</td>
+                      <td className="text-text-3 text-caption">{timeAgo(p.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -392,18 +392,18 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <div className="flex items-center gap-4 mb-3">
             {completedRuns.length > 0 && (
               <>
-                <span className="text-[12px] text-text-3">{completedRuns.length} completed</span>
+                <span className="text-label text-text-3">{completedRuns.length} completed</span>
                 {avgScore !== null && (
-                  <span className="text-[12px] text-text-3">Avg tailored score: <strong className="text-text">{avgScore.toFixed(1)}</strong></span>
+                  <span className="text-label text-text-3">Avg tailored score: <strong className="text-text">{avgScore.toFixed(1)}</strong></span>
                 )}
               </>
             )}
             {totalCost > 0 && (
-              <span className="text-[12px] text-text-3">Total AI cost: <strong className="text-text">{formatCost(totalCost)}</strong></span>
+              <span className="text-label text-text-3">Total AI cost: <strong className="text-text">{formatCost(totalCost)}</strong></span>
             )}
           </div>
           {runs.length === 0 ? (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-3">No analyses yet.</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-3">No analyses yet.</p>
           ) : (
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
@@ -411,18 +411,18 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 <tbody>
                   {runs.map((r) => (
                     <tr key={r.id}>
-                      <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
+                      <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                       <td>
-                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-[10px]">
+                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-micro">
                           {r.status}
                         </Badge>
                       </td>
-                      <td className="tabular-nums text-[12px]">{r.match_score ?? "—"}</td>
-                      <td className="tabular-nums font-semibold text-[12px]">{r.tailored_match_score ?? "—"}</td>
-                      <td className={`tabular-nums text-[12px] ${(r.ats_lift ?? 0) > 0 ? "text-emerald-700" : ""}`}>
+                      <td className="tabular-nums text-label">{r.match_score ?? "—"}</td>
+                      <td className="tabular-nums font-semibold text-label">{r.tailored_match_score ?? "—"}</td>
+                      <td className={`tabular-nums text-label ${(r.ats_lift ?? 0) > 0 ? "text-emerald-700" : ""}`}>
                         {r.ats_lift != null ? `+${r.ats_lift}` : "—"}
                       </td>
-                      <td className="text-text-3 text-[11px]" title={r.error_message ?? ""}>{timeAgo(r.created_at)}</td>
+                      <td className="text-text-3 text-caption" title={r.error_message ?? ""}>{timeAgo(r.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -18,13 +18,13 @@ export function ThinJdBanner({ count }: { count: number }) {
     <div className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/8 px-4 py-3 flex gap-3 items-start">
       <FileWarning className="w-4 h-4 shrink-0 mt-0.5 text-[var(--amber)]" />
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-text mb-1">
+        <p className="text-body font-semibold text-text mb-1">
           {count} job{count !== 1 ? "s have" : " has"} an incomplete job description
         </p>
-        <p className="text-[12px] text-text-2 mb-2">
+        <p className="text-label text-text-2 mb-2">
           Jobs without a full description can&apos;t be analysed. Here&apos;s how to fix them:
         </p>
-        <ol className="text-[12px] text-text-2 space-y-1 list-decimal list-inside">
+        <ol className="text-label text-text-2 space-y-1 list-decimal list-inside">
           <li>Click <span className="font-medium text-text">···</span> on the job card → <span className="font-medium text-text">Edit JD</span></li>
           <li>Open the job posting link shown in the editor</li>
           <li>Copy and paste the full job description into the text box</li>

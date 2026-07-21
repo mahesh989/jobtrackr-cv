@@ -164,19 +164,19 @@ export function ProfileBoard({
             {StageIcon && (
               <StageIcon className="w-6 h-6 self-center" style={{ color: "var(--brand)" }} strokeWidth={2.5} />
             )}
-            <h2 className="text-[22px] sm:text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
+            <h2 className="text-h1 sm:text-[28px] font-bold leading-tight tracking-tight" style={{ color: "var(--brand)" }}>
               {activeFilters.join(" · ")}
             </h2>
-            <span className="text-[18px] sm:text-[22px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>
+            <span className="text-h3 sm:text-h1 font-bold tabular-nums" style={{ color: "var(--brand)" }}>
               {filtered.length}
             </span>
             {sortLabel && (
-              <span className="text-[12px] text-text-2 font-medium">
+              <span className="text-label text-text-2 font-medium">
                 · sorted by <span className="text-text">{sortLabel}</span>
               </span>
             )}
             {showSuggestion && (
-              <button type="button" onClick={applySuggestion} title={`Recommended sort for ${activeFilters[0]}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-1 text-[11px] font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors">
+              <button type="button" onClick={applySuggestion} title={`Recommended sort for ${activeFilters[0]}`} className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] border border-[var(--brand)]/40 px-2.5 py-1 text-caption font-medium text-[var(--brand)] hover:bg-[var(--brand)] hover:text-[var(--brand-fg)] transition-colors">
                 <Sparkles className="w-3 h-3" />
                 Suggest sort: {suggestion!.label}
                 <ArrowRight className="w-3 h-3" />
@@ -184,7 +184,7 @@ export function ProfileBoard({
             )}
             <Link
               href="?"
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/40 px-2.5 py-1 text-[12px] font-medium hover:bg-[var(--surface-2)] transition-colors"
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/40 px-2.5 py-1 text-label font-medium hover:bg-[var(--surface-2)] transition-colors"
               style={{ color: "var(--brand)" }}
             >
               <span>Clear filter</span>
@@ -193,10 +193,10 @@ export function ProfileBoard({
           </>
         ) : (
           <>
-            <span className="text-[14px] font-semibold text-text">All jobs</span>
-            <span className="text-[12px] text-text-3">{filtered.length}</span>
+            <span className="text-title font-semibold text-text">All jobs</span>
+            <span className="text-label text-text-3">{filtered.length}</span>
             {sortLabel && (
-              <span className="text-[11px] text-text-3">· sorted by {sortLabel}</span>
+              <span className="text-caption text-text-3">· sorted by {sortLabel}</span>
             )}
           </>
         )}

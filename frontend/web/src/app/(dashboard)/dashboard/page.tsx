@@ -586,8 +586,8 @@ export default async function DashboardPage({
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[16px] font-semibold text-text">Dashboard</h1>
-            <p className="text-[12px] text-text-2 mt-0.5">
+            <h1 className="text-lead font-semibold text-text">Dashboard</h1>
+            <p className="text-label text-text-2 mt-0.5">
               {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · {activeCount} auto-scheduled
             </p>
           </div>
@@ -613,7 +613,7 @@ export default async function DashboardPage({
 
           {/* ?status=new banner — each profile's latest fetched batch */}
           {isNewView && (
-            <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-[12px]">
+            <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-label">
               <span className="text-text">
                 <span className="font-semibold text-[var(--brand)]">Latest fetch</span>
                 {" — "}showing each profile&apos;s most recent batch of new jobs. Your usual sort and filters apply.
@@ -634,7 +634,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Quick links */}
-        <div className="flex items-center gap-3 text-[12px] text-text-3 anim-in anim-delay-3">
+        <div className="flex items-center gap-3 text-label text-text-3 anim-in anim-delay-3">
           <a href="/api/user/export" className="hover:text-text transition-colors">Export all data</a>
           <span>·</span>
           <Link href="/privacy" className="hover:text-text transition-colors">Privacy policy</Link>
@@ -654,8 +654,8 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">Ready to scan</h1>
-        <p className="text-[12px] text-text-2 mt-0.5">
+        <h1 className="text-lead font-semibold text-text">Ready to scan</h1>
+        <p className="text-label text-text-2 mt-0.5">
           {hasProfiles
             ? "Your setup is done — run a search profile and your AI-ranked feed appears here."
             : "Your setup is done — create a search profile and your AI-ranked feed appears here."}
@@ -665,21 +665,21 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
       <div className="px-6 py-8 max-w-5xl mx-auto space-y-8">
         {/* Primary action */}
         <div className="bg-surface border border-border rounded-xl p-6 sm:p-8 text-center anim-in">
-          <h2 className="text-[18px] font-semibold text-text mb-1.5">
+          <h2 className="text-h3 font-semibold text-text mb-1.5">
             {hasProfiles ? "Run a scan to fill your feed" : "Create your first search profile"}
           </h2>
-          <p className="text-[13px] text-text-2 leading-relaxed mb-5 max-w-md mx-auto">
+          <p className="text-body text-text-2 leading-relaxed mb-5 max-w-md mx-auto">
             {hasProfiles
               ? "You have a search profile but no jobs yet. Run it to pull listings from every source for your keywords + location."
               : "Your job radar: keywords + location + schedule. Save it, then run it — your first AI-scored results land in a minute or two."}
           </p>
           <Link
             href={hasProfiles ? "/profiles" : "/profiles/new"}
-            className="gh-btn gh-btn-blue text-[14px] px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold"
+            className="gh-btn gh-btn-blue text-title px-5 py-2.5 inline-flex items-center gap-1.5 font-semibold"
           >
             {hasProfiles ? "Go to your profiles" : "Create a search profile"}
           </Link>
-          <p className="text-[12px] text-text-3 mt-4">
+          <p className="text-label text-text-3 mt-4">
             Need to change your details?{" "}
             <Link href="/instructions?tab=setup" className="text-[var(--brand)] hover:underline">
               Revisit setup →
@@ -689,7 +689,7 @@ function ReadyToScanScreen({ hasProfiles }: { hasProfiles: boolean }) {
 
         {/* Educational deck */}
         <div>
-          <h2 className="text-[13px] font-semibold text-text mb-3 text-center">How it works</h2>
+          <h2 className="text-body font-semibold text-text mb-3 text-center">How it works</h2>
           <HowItWorksDeck />
         </div>
       </div>

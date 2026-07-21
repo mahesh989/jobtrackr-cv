@@ -98,7 +98,7 @@ export default async function BillingPage({
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-[var(--brand)]" />
               <span className="text-lg font-semibold capitalize text-text">{ent.planId}</span>
-              <span className={"rounded-full px-2 py-0.5 text-[11px] font-semibold " + status.cls}>{status.text}</span>
+              <span className={"rounded-full px-2 py-0.5 text-caption font-semibold " + status.cls}>{status.text}</span>
             </div>
           </div>
 
@@ -126,7 +126,7 @@ export default async function BillingPage({
               <div className="flex flex-wrap gap-2">
                 <ManageButton />
               </div>
-              <p className="mt-1.5 text-[11px] text-text-3">
+              <p className="mt-1.5 text-caption text-text-3">
                 Opens Stripe&apos;s secure billing portal — update your card, switch plans, view past invoices, or cancel.
               </p>
             </div>

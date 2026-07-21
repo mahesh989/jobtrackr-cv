@@ -34,7 +34,7 @@ export function Shell({
   children,
 }: ShellProps) {
   const switchLink = (
-    <Link href={switchHref} className="group text-[13px] cursor-pointer" style={{ color: "#475467" }}>
+    <Link href={switchHref} className="group text-body cursor-pointer" style={{ color: "#475467" }}>
       {switchPrompt}{" "}
       <span className="underline-offset-2 group-hover:underline" style={{ color: "#0B7D74", fontWeight: 500 }}>
         {switchLabel}

@@ -203,22 +203,22 @@ export default async function AnalyticsPage() {
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
           <span className="text-text-2">Analytics</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Pipeline analytics</h1>
-        <p className="text-[12px] text-text-2 mt-0.5">
+        <h1 className="text-lead font-semibold text-text">Pipeline analytics</h1>
+        <p className="text-label text-text-2 mt-0.5">
           Funnel by source and by profile
           {overallConv !== null && <> · {overallConv}% scraped → applied overall</>}
         </p>
       </div>
 
       <div className="px-6 py-5 space-y-7">
-        <p className="text-[12px] text-text-2 anim-in max-w-3xl">
+        <p className="text-label text-text-2 anim-in max-w-3xl">
           Each row tracks jobs through the pipeline. The small percentage under a count is
           its conversion from the previous step. Cover Letter and Applied are manual,
           ungated steps, so a column can exceed the one before it.
@@ -264,18 +264,18 @@ function FunnelTable({
 
   return (
     <section className="anim-in anim-delay-1 space-y-2">
-      <h2 className="text-[13px] font-semibold text-text">{title}</h2>
+      <h2 className="text-body font-semibold text-text">{title}</h2>
       <div className="bg-surface border border-border rounded-md overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[720px]">
           <thead>
             <tr className="border-b border-border">
-              <th className="py-2.5 px-4 text-[11px] font-semibold text-text-3 uppercase tracking-wider">
+              <th className="py-2.5 px-4 text-caption font-semibold text-text-3 uppercase tracking-wider">
                 {title.replace("By ", "")}
               </th>
               {STAGES.map((s) => (
                 <th
                   key={s.key}
-                  className="py-2.5 px-3 text-[11px] font-semibold text-text-3 uppercase tracking-wider text-right whitespace-nowrap"
+                  className="py-2.5 px-3 text-caption font-semibold text-text-3 uppercase tracking-wider text-right whitespace-nowrap"
                 >
                   {s.label}
                 </th>
@@ -305,11 +305,11 @@ function FunnelRow({ row, isTotal = false }: { row: FunnelRowData; isTotal?: boo
     >
       <td className="py-3 px-4 align-middle whitespace-nowrap">
         {isTotal || !row.href ? (
-          <span className="text-[13px] font-semibold text-text">{row.label}</span>
+          <span className="text-body font-semibold text-text">{row.label}</span>
         ) : (
           <Link
             href={row.href}
-            className={`text-[13px] font-medium text-[var(--brand)] hover:underline ${row.capitalize ? "capitalize" : ""}`}
+            className={`text-body font-medium text-[var(--brand)] hover:underline ${row.capitalize ? "capitalize" : ""}`}
           >
             {row.label}
           </Link>
@@ -326,7 +326,7 @@ function FunnelRow({ row, isTotal = false }: { row: FunnelRowData; isTotal?: boo
                 {count}
               </span>
               {s.prev && (
-                <span className="text-[11px] text-text-3 tabular-nums mt-0.5">
+                <span className="text-caption text-text-3 tabular-nums mt-0.5">
                   {conv === null ? "—" : `${conv}%`}
                 </span>
               )}
@@ -345,15 +345,15 @@ function EmptyState() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <h1 className="text-[16px] font-semibold text-text">Pipeline analytics</h1>
+        <h1 className="text-lead font-semibold text-text">Pipeline analytics</h1>
       </div>
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="text-center max-w-md anim-in">
           <div className="w-14 h-14 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-7 h-7 text-[var(--brand)]" />
           </div>
-          <h2 className="text-[16px] font-semibold text-text mb-2">No pipeline data yet</h2>
-          <p className="text-[13px] text-text-2 leading-relaxed mb-6">
+          <h2 className="text-lead font-semibold text-text mb-2">No pipeline data yet</h2>
+          <p className="text-body text-text-2 leading-relaxed mb-6">
             Once your profiles have run and saved jobs, you&apos;ll see the pipeline funnel
             broken down by source and profile here.
           </p>

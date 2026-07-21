@@ -143,8 +143,8 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-[14px] font-semibold text-text">Tailored CV</h2>
-          <p className="text-[12px] text-text-3 mt-0.5">
+          <h2 className="text-title font-semibold text-text">Tailored CV</h2>
+          <p className="text-label text-text-3 mt-0.5">
             Preview or download as PDF.
           </p>
         </div>
@@ -171,12 +171,12 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
 
       <div className="px-5 py-4">
         {err && (
-          <div className="rounded-md bg-red-light border border-red/20 px-3 py-2 text-[12px] text-red mb-3">
+          <div className="rounded-md bg-red-light border border-red/20 px-3 py-2 text-label text-red mb-3">
             {err}
           </div>
         )}
         {!formattedMd && !err && (
-          <p className="text-[12px] text-text-3 italic">Loading…</p>
+          <p className="text-label text-text-3 italic">Loading…</p>
         )}
 
         {showPreview && formattedMd && (
@@ -209,7 +209,7 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
           </div>
         )}
         {!showPreview && formattedMd && (
-          <p className="text-[12px] text-text-3">
+          <p className="text-label text-text-3">
             Your tailored CV is ready. Preview to inspect, download as Markdown,
             or render to PDF.
           </p>

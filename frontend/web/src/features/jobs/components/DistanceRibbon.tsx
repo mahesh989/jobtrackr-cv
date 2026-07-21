@@ -66,7 +66,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
   return (
     <div className="rounded-md border border-border bg-[var(--surface-2)] p-4">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+        <p className="text-caption font-semibold text-text-2 uppercase tracking-wider">
           Distance from home
           {rangeActive && (
             <span className="text-text font-normal normal-case ml-1">
@@ -78,7 +78,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
             </span>
           )}
         </p>
-        <div className="flex items-center gap-3 text-[10px] text-text-2">
+        <div className="flex items-center gap-3 text-micro text-text-2">
           <Legend color={VISA_COLOR.yes}     label="Sponsored" />
           <Legend color={VISA_COLOR.unknown} label="Unknown" />
           <Legend color={VISA_COLOR.pr_only} label="PR only" />

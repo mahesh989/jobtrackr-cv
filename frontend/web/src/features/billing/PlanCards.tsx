@@ -70,7 +70,7 @@ export function PlanCards({
               }
             >
               {featured && (
-                <span className="absolute -top-2.5 left-5 rounded-full bg-[var(--brand)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--brand-fg)]">
+                <span className="absolute -top-2.5 left-5 rounded-full bg-[var(--brand)] px-2 py-0.5 text-micro font-bold uppercase tracking-wide text-[var(--brand-fg)]">
                   Best value
                 </span>
               )}

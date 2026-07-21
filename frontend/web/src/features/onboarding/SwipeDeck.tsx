@@ -45,8 +45,8 @@ export function SwipeDeck({ cards }: { cards: DeckCard[] }) {
     <div className="w-full max-w-2xl mx-auto" role="group" aria-roledescription="carousel" aria-label="How it works">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[14px] font-semibold text-text">{card.title}</h2>
-        <span className="text-[12px] text-text-3 tabular-nums">{i + 1} / {n}</span>
+        <h2 className="text-title font-semibold text-text">{card.title}</h2>
+        <span className="text-label text-text-3 tabular-nums">{i + 1} / {n}</span>
       </div>
 
       {/* Card with flanking arrows */}
@@ -96,7 +96,7 @@ export function SwipeDeck({ cards }: { cards: DeckCard[] }) {
         ))}
       </div>
 
-      <p className="text-center text-[11px] text-text-3 mt-2">Swipe, use the arrows, or press ← →</p>
+      <p className="text-center text-caption text-text-3 mt-2">Swipe, use the arrows, or press ← →</p>
     </div>
   );
 }

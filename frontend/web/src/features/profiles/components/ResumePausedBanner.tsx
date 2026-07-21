@@ -31,7 +31,7 @@ export function ResumePausedBanner({ count }: { count: number }) {
 
   return (
     <div className="mb-4 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-      <p className="text-[13px] text-amber-900 dark:text-amber-200">
+      <p className="text-body text-amber-900 dark:text-amber-200">
         Automatic job fetching was paused for {count} profile{count === 1 ? "" : "s"} while you were away.
       </p>
       <Button

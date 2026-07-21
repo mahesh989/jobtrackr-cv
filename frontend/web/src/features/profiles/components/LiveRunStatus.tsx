@@ -112,7 +112,7 @@ export function LiveRunStatus({
           <svg className="w-4 h-4 text-[var(--green)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
           </svg>
-          <p className="text-[13px] font-semibold text-[var(--green)]">Pipeline complete — feed updated</p>
+          <p className="text-body font-semibold text-[var(--green)]">Pipeline complete — feed updated</p>
         </div>
       </div>
     );
@@ -132,10 +132,10 @@ export function LiveRunStatus({
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--brand)]" />
           </span>
           <div>
-            <p className="text-[13px] font-semibold text-[var(--brand)]">
+            <p className="text-body font-semibold text-[var(--brand)]">
               {stopping ? "Stopping…" : "Pipeline running"}
             </p>
-            <p className="text-[11px] text-text-2 mt-0.5">
+            <p className="text-caption text-text-2 mt-0.5">
               {stopping
                 ? "Finishing current stage, then stopping"
                 : `${run?.current_stage ?? "Starting"}${elapsed > 0 ? ` · ${elapsed}s` : "…"}`}
@@ -145,7 +145,7 @@ export function LiveRunStatus({
 
         {/* Right: stop button */}
         <div className="flex items-center gap-3">
-          <button onClick={handleStop} disabled={stopping} title="Stop this run" className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border border-[var(--red)]/30 text-[var(--red)] bg-[var(--surface)] hover:bg-[var(--red-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={handleStop} disabled={stopping} title="Stop this run" className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-label font-medium border border-[var(--red)]/30 text-[var(--red)] bg-[var(--surface)] hover:bg-[var(--red-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {stopping ? (
               <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>

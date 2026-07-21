@@ -38,9 +38,9 @@ function StatCard({ label, value, sub, href, color = "blue" }: {
   };
   const inner = (
     <div className={`rounded-md border px-4 py-3 ${colors[color]}`}>
-      <p className="text-[11px] font-medium text-text-3 mb-0.5">{label}</p>
-      <p className={`text-[22px] font-bold ${textColors[color]}`}>{value}</p>
-      {sub && <p className="text-[11px] text-text-3 mt-0.5">{sub}</p>}
+      <p className="text-caption font-medium text-text-3 mb-0.5">{label}</p>
+      <p className={`text-h1 font-bold ${textColors[color]}`}>{value}</p>
+      {sub && <p className="text-caption text-text-3 mt-0.5">{sub}</p>}
     </div>
   );
   return href ? <Link href={href}>{inner}</Link> : inner;
@@ -175,10 +175,10 @@ export default async function AdminOverviewPage() {
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] text-text-3 mb-0.5">Admin</p>
-            <h1 className="text-[16px] font-semibold text-text">Overview</h1>
+            <p className="text-caption text-text-3 mb-0.5">Admin</p>
+            <h1 className="text-lead font-semibold text-text">Overview</h1>
           </div>
-          <span className="text-[11px] text-text-3">
+          <span className="text-caption text-text-3">
             {now.toLocaleString("en-AU", { timeZone: "Australia/Sydney", dateStyle: "medium", timeStyle: "short" })} AEST
           </span>
         </div>
@@ -188,7 +188,7 @@ export default async function AdminOverviewPage() {
 
         {/* Golden signals */}
         <section>
-          <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">Golden signals</h2>
+          <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest mb-3">Golden signals</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Today's AI cost" value={formatCost(todayCost)}
               sub={`${costRows.length} calls`} href="/admin/ai-costs"
@@ -211,7 +211,7 @@ export default async function AdminOverviewPage() {
 
         {/* Business signals */}
         <section>
-          <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">Business signals</h2>
+          <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest mb-3">Business signals</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="MRR" href="/admin/revenue"
               value={mrrCents > 0 ? `$${(mrrCents / 100).toFixed(0)}` : "$0"}
@@ -234,8 +234,8 @@ export default async function AdminOverviewPage() {
         {/* Users */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest">Users</h2>
-            <Link href="/admin/users" className="text-[12px] text-blue-600 hover:underline">View all →</Link>
+            <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest">Users</h2>
+            <Link href="/admin/users" className="text-label text-blue-600 hover:underline">View all →</Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <StatCard label="Total"     value={String(users.length)}       sub={`+${users7d} this week`} color="slate" />
@@ -255,7 +255,7 @@ export default async function AdminOverviewPage() {
                       <Link href={`/admin/users/${u.id}`} className="hover:underline">{u.email}</Link>
                     </td>
                     <td>
-                      <Badge variant={u.role === "founder" ? "amber" : u.role === "admin" ? "purple" : "gray"} className="text-[10px]">
+                      <Badge variant={u.role === "founder" ? "amber" : u.role === "admin" ? "purple" : "gray"} className="text-micro">
                         {u.role}
                       </Badge>
                     </td>
@@ -272,8 +272,8 @@ export default async function AdminOverviewPage() {
         {failures.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[11px] font-semibold text-red-600 uppercase tracking-widest">Recent failures (7d)</h2>
-              <Link href="/admin/pipeline" className="text-[12px] text-blue-600 hover:underline">Pipeline →</Link>
+              <h2 className="text-caption font-semibold text-red-600 uppercase tracking-widest">Recent failures (7d)</h2>
+              <Link href="/admin/pipeline" className="text-label text-blue-600 hover:underline">Pipeline →</Link>
             </div>
             <div className="bg-surface border border-red-200 rounded-md overflow-x-auto">
               <table className="data-table">
@@ -281,9 +281,9 @@ export default async function AdminOverviewPage() {
                 <tbody>
                   {failures.map((r) => (
                     <tr key={r.id}>
-                      <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
+                      <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                       <td className="text-text-2">{userEmailById[r.user_id] ?? r.user_id.slice(0, 8)}</td>
-                      <td className="text-red-700 text-[12px] max-w-xs truncate">{r.error_message ?? "—"}</td>
+                      <td className="text-red-700 text-label max-w-xs truncate">{r.error_message ?? "—"}</td>
                       <td className="text-text-3">{timeAgo(r.created_at)}</td>
                     </tr>
                   ))}
@@ -296,20 +296,20 @@ export default async function AdminOverviewPage() {
         {/* Activity feed */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest">Recent activity</h2>
-            <Link href="/admin/activity" className="text-[12px] text-blue-600 hover:underline">Full feed →</Link>
+            <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest">Recent activity</h2>
+            <Link href="/admin/activity" className="text-label text-blue-600 hover:underline">Full feed →</Link>
           </div>
           {events.length === 0 ? (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-6 text-center">
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-6 text-center">
               No activity events yet — they populate as users interact with the app.
             </p>
           ) : (
             <div className="bg-surface border border-border rounded-md divide-y divide-border">
               {events.map((e, i) => (
                 <div key={i} className="flex items-start gap-3 px-4 py-2">
-                  <span className="text-[11px] text-text-3 tabular-nums shrink-0 w-20 mt-0.5">{timeAgo(e.created_at)}</span>
-                  <span className="text-[12px] font-medium text-blue-700 shrink-0 truncate max-w-[160px]">{userEmailById[e.user_id] ?? e.user_id.slice(0, 8)}</span>
-                  <span className="text-[12px] text-text">{e.event_type.replace(/_/g, " ")}</span>
+                  <span className="text-caption text-text-3 tabular-nums shrink-0 w-20 mt-0.5">{timeAgo(e.created_at)}</span>
+                  <span className="text-label font-medium text-blue-700 shrink-0 truncate max-w-[160px]">{userEmailById[e.user_id] ?? e.user_id.slice(0, 8)}</span>
+                  <span className="text-label text-text">{e.event_type.replace(/_/g, " ")}</span>
                 </div>
               ))}
             </div>
@@ -319,7 +319,7 @@ export default async function AdminOverviewPage() {
         {/* Invite codes */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[13px] font-semibold text-text">
+            <h2 className="text-body font-semibold text-text">
               Invite codes <span className="text-text-2 font-normal">({invites.length})</span>
             </h2>
             <form action={generateInviteCode}>
@@ -335,9 +335,9 @@ export default async function AdminOverviewPage() {
                 )}
                 {invites.map((inv) => (
                   <tr key={inv.code}>
-                    <td className="font-mono text-[13px] text-text">{inv.code}</td>
+                    <td className="font-mono text-body text-text">{inv.code}</td>
                     <td>
-                      <Badge variant={!inv.is_active ? "gray" : inv.used_by ? "gray" : "green"} className="text-[10px]">
+                      <Badge variant={!inv.is_active ? "gray" : inv.used_by ? "gray" : "green"} className="text-micro">
                         {!inv.is_active ? "revoked" : inv.used_by ? "used" : "available"}
                       </Badge>
                     </td>
@@ -346,7 +346,7 @@ export default async function AdminOverviewPage() {
                     <td>
                       {inv.is_active && !inv.used_by && (
                         <form action={revokeInviteCode.bind(null, inv.code)}>
-                          <button type="submit" className="text-[11px] text-red-600 hover:underline font-medium">Revoke</button>
+                          <button type="submit" className="text-caption text-red-600 hover:underline font-medium">Revoke</button>
                         </form>
                       )}
                     </td>

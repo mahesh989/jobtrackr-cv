@@ -89,7 +89,7 @@ function NavItem({
       href={href}
       className={
         "sidebar-item flex items-center justify-between gap-2 px-3 rounded-[var(--sidebar-item-radius)] " +
-        "text-[13px] font-semibold transition-colors group " +
+        "text-body font-semibold transition-colors group " +
         (active
           ? "sidebar-item-active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
           : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]")
@@ -103,7 +103,7 @@ function NavItem({
       {/* Hide the badge once the user is on the page — the "unread" cue is
           no longer useful when they're already looking at the content. */}
       {badge !== undefined && badge > 0 && !active && (
-        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-[10px] font-bold flex items-center justify-center">
+        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-micro font-bold flex items-center justify-center">
           {badge > 99 ? "99+" : badge}
         </span>
       )}
@@ -114,7 +114,7 @@ function NavItem({
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-1 pt-4 pb-1">
-      <p className="text-[10px] font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
+      <p className="text-micro font-semibold text-[var(--sidebar-text-dim)] uppercase tracking-widest mb-1">
         {children}
       </p>
     </div>
@@ -126,15 +126,15 @@ function UserFooter({ email }: { email: string }) {
     <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
       <div className="flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
-          <span className="text-[11px] font-bold text-[var(--sidebar-text)]">
+          <span className="text-caption font-bold text-[var(--sidebar-text)]">
             {email[0]?.toUpperCase()}
           </span>
         </div>
-        <span className="text-[12px] text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
+        <span className="text-label text-[var(--sidebar-text)] truncate flex-1 min-w-0">{email}</span>
         <form action="/auth/signout" method="post">
           <Button
             icon={<LogOut className="w-3.5 h-3.5" />}
-            className="flex items-center gap-1 text-[11px] font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
+            className="flex items-center gap-1 text-caption font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
             title="Sign out"
             aria-label="Sign out"
           >
@@ -198,7 +198,7 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
           {/* Plain anchor — hits a route handler that sets the cookie + redirects. */}
           <a
             href="/api/admin/view-as?mode=user"
-            className="sidebar-item flex items-center gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] text-[13px] font-semibold text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)] transition-colors"
+            className="sidebar-item flex items-center gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] text-body font-semibold text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)] transition-colors"
             style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
           >
             <Eye className="h-4 w-4 shrink-0" />
@@ -223,7 +223,7 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
         {userView && (
           <a
             href="/api/admin/view-as?mode=admin"
-            className="mb-2 flex items-center gap-2 rounded-md border border-[var(--brand)]/40 bg-[var(--brand)]/10 px-3 py-2 text-[12px] font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/20 transition-colors"
+            className="mb-2 flex items-center gap-2 rounded-md border border-[var(--brand)]/40 bg-[var(--brand)]/10 px-3 py-2 text-label font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/20 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
             <span>Viewing as user · Back to admin</span>

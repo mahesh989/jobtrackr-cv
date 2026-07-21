@@ -344,12 +344,12 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         <button onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 flex items-center gap-3 pl-4 pr-1 py-3 text-left">
           {open ? <ChevronDown className="w-4 h-4 text-text-3 shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />}
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold text-text truncate">{row.job_title}</p>
-            <p className="text-[12px] text-text-2 truncate mt-0.5">
+            <p className="text-title font-semibold text-text truncate">{row.job_title}</p>
+            <p className="text-label text-text-2 truncate mt-0.5">
               {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
             </p>
             {(row.job_distance_km != null || row.job_posted_at) && (
-              <p className="text-[11px] text-text-3 mt-0.5">
+              <p className="text-caption text-text-3 mt-0.5">
                 {[
                   row.job_distance_km != null ? `${Math.round(row.job_distance_km)} km away` : null,
                   row.job_posted_at ? `Posted ${relativeDate(row.job_posted_at)}` : null,
@@ -359,15 +359,15 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {hasEmail && (
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-text-3">
+              <span className="hidden sm:inline-flex items-center gap-1 text-caption text-text-3">
                 <Mail className="w-3 h-3 text-[var(--brand)]" /> Email ready
               </span>
             )}
             <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-text-3">Tailored</p>
-              <p className={`text-[18px] font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
+              <p className="text-micro uppercase tracking-wider text-text-3">Tailored</p>
+              <p className={`text-h3 font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
                 {row.tailored_match_score == null ? "—" : Math.round(row.tailored_match_score)}
-                {row.tailored_match_score != null && <span className="text-[11px] text-text-3 font-medium">/100</span>}
+                {row.tailored_match_score != null && <span className="text-caption text-text-3 font-medium">/100</span>}
               </p>
             </div>
           </div>
@@ -382,7 +382,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         <>
           {/* Channel chip */}
           <div className="px-4 pb-2 border-t border-border pt-3">
-            <div className="flex items-center gap-2 flex-wrap text-[12px]">
+            <div className="flex items-center gap-2 flex-wrap text-label">
               {hasEmail ? (
                 <span className="inline-flex items-center gap-1.5 text-text-2">
                   <Mail className="w-3.5 h-3.5 text-[var(--brand)]" />
@@ -393,10 +393,10 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                       onBlur={() => contact.commit(contact.draft)}
                       onKeyDown={(e) => { if (e.key === "Enter") contact.commit(contact.draft); }}
                       aria-label="Contact email"
-                      className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
+                      className="text-caption font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
                   ) : (
                     <button onClick={() => { contact.setDraft(contact.email ?? ""); contact.setEditing(true); }}
-                      className="font-mono text-[11px] hover:text-text underline decoration-dotted">
+                      className="font-mono text-caption hover:text-text underline decoration-dotted">
                       {contact.email}
                     </button>
                   )}
@@ -417,14 +417,14 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                   onBlur={() => contact.commit(contact.draft)}
                   onKeyDown={(e) => { if (e.key === "Enter") contact.commit(contact.draft); }}
                   aria-label="Contact email"
-                  className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
+                  className="text-caption font-mono px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] w-56" />
               )}
               {email.voiceRewritten && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                <span className="inline-flex items-center gap-1 text-micro font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
                   <Sparkles className="w-3 h-3" /> Personalised in your voice
                 </span>
               )}
-              <span className="text-[11px] text-text-3 ml-auto">
+              <span className="text-caption text-text-3 ml-auto">
                 Cover letter generated {relativeDate(row.letter_completed_at) ?? "—"}
               </span>
             </div>
@@ -459,15 +459,15 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             {section === "cover" && (
               <div className="space-y-2">
                 {cover.loading ? (
-                  <div className="py-8 flex items-center justify-center text-text-3 text-[12px]">
+                  <div className="py-8 flex items-center justify-center text-text-3 text-label">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading cover letter…
                   </div>
                 ) : (
                   <>
                     <Textarea label="Cover letter" value={cover.text} onChange={(e) => cover.setText(e.target.value)} disabled={cover.saving} rows={14}
-                      className="text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60" spellCheck />
+                      className="text-body leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60" spellCheck />
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-text-3">
+                      <span className="text-caption text-text-3">
                         {cover.text.length} chars{cover.dirty && " · unsaved changes"}
                       </span>
                       {cover.dirty && (
@@ -478,7 +478,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                         </Button>
                       )}
                     </div>
-                    <p className="text-[10px] text-text-3">
+                    <p className="text-micro text-text-3">
                       Changes update the letter body, the downloadable PDF, and what gets attached to emails.
                     </p>
                   </>
@@ -489,21 +489,21 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
             {section === "email" && (
               <div className="space-y-2">
                 {email.loading ? (
-                  <div className="py-8 flex items-center justify-center text-text-3 text-[12px]">
+                  <div className="py-8 flex items-center justify-center text-text-3 text-label">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading email draft…
                   </div>
                 ) : (
                   <>
                     <div>
                       <Input label="Subject" value={email.subject} onChange={(e) => email.setSubject(e.target.value)} disabled={email.saving} maxLength={300}
-                        className="text-[13px]" />
+                        className="text-body" />
                     </div>
                     <div>
                       <Textarea label="Message to the employer" value={email.body} onChange={(e) => email.setBody(e.target.value)} disabled={email.saving} rows={7} maxLength={20_000}
-                        className="text-[13px] leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60" spellCheck />
+                        className="text-body leading-relaxed px-3 py-2 rounded border border-border bg-surface text-text resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60" spellCheck />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-text-3">{email.dirty ? "Unsaved changes" : "Saved"}</span>
+                      <span className="text-caption text-text-3">{email.dirty ? "Unsaved changes" : "Saved"}</span>
                       {email.dirty && (
                         <Button variant="brand" size="xs" onClick={email.save} disabled={email.saving} isLoading={email.saving}
                           icon={<Save className="w-3 h-3" />}
@@ -512,7 +512,7 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
                         </Button>
                       )}
                     </div>
-                    <p className="text-[10px] text-text-3">
+                    <p className="text-micro text-text-3">
                       Save your edits before sending. Tailored CV + cover letter are attached as PDFs — keep this body short.
                     </p>
                   </>
@@ -525,12 +525,12 @@ function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
 
           {emailFallback && (
             <div className="mx-4 mb-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
-              <p className="text-[11px] text-text-2 mb-2">Clipboard blocked — select all and copy manually:</p>
+              <p className="text-caption text-text-2 mb-2">Clipboard blocked — select all and copy manually:</p>
               <textarea readOnly rows={7}
-                className="w-full text-[11px] font-mono text-text bg-surface border border-[var(--border)] rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+                className="w-full text-caption font-mono text-text bg-surface border border-[var(--border)] rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                 value={`Subject: ${emailFallback.subject}\n\n${emailFallback.body}`}
                 onFocus={(e) => e.currentTarget.select()} />
-              <button onClick={() => setEmailFallback(null)} className="mt-1 text-[11px] text-text-3 hover:text-text">Dismiss</button>
+              <button onClick={() => setEmailFallback(null)} className="mt-1 text-caption text-text-3 hover:text-text">Dismiss</button>
             </div>
           )}
 
@@ -702,25 +702,25 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <a href={row.job_url} target="_blank" rel="noopener noreferrer"
-              className="text-[14px] font-semibold text-text hover:text-[var(--brand)] transition-colors">
+              className="text-title font-semibold text-text hover:text-[var(--brand)] transition-colors">
               {row.job_title}
             </a>
-            {isApplied && <Badge variant="green" className="text-[10px] px-1.5 h-4 font-bold">Applied</Badge>}
-            {isArchived && <Badge variant="gray" className="text-[10px] px-1.5 h-4 font-bold">Archived</Badge>}
+            {isApplied && <Badge variant="green" className="text-micro px-1.5 h-4 font-bold">Applied</Badge>}
+            {isArchived && <Badge variant="gray" className="text-micro px-1.5 h-4 font-bold">Archived</Badge>}
           </div>
-          <p className="text-[12px] text-text-2 truncate mt-0.5">
+          <p className="text-label text-text-2 truncate mt-0.5">
             {row.job_company || "—"}{row.job_location && ` · ${row.job_location}`}{row.profile_name && ` · via ${row.profile_name}`}
           </p>
-          <p className="text-[11px] text-text-3 mt-1 flex items-center gap-1.5">
+          <p className="text-caption text-text-3 mt-1 flex items-center gap-1.5">
             {isApplied
               ? <><CheckCircle2 className="w-3 h-3 text-emerald-600" /> {row.job_contact_email ? `Emailed ${row.job_contact_email}` : "Applied via job link"} · {relativeDate(row.job_applied_at)}</>
               : <><Archive className="w-3 h-3" /> Dismissed · {relativeDate(row.job_dismissed_at)}</>}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className={`text-[16px] font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
+          <p className={`text-lead font-bold tabular-nums ${scoreColor(row.tailored_match_score)}`}>
             {row.tailored_match_score == null ? "—" : Math.round(row.tailored_match_score)}
-            {row.tailored_match_score != null && <span className="text-[10px] text-text-3 font-medium">/100</span>}
+            {row.tailored_match_score != null && <span className="text-micro text-text-3 font-medium">/100</span>}
           </p>
         </div>
       </div>
@@ -764,7 +764,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
         <div className="flex items-center gap-2 ml-auto">
           {isApplied && (
             <button onClick={handleMoveBackToPool} disabled={movingBack}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2.5 py-1 transition-colors disabled:opacity-40"
+              className="inline-flex items-center gap-1 text-caption text-text-3 hover:text-text px-2.5 py-1 transition-colors disabled:opacity-40"
               title="Didn't actually apply? Move it back to the pool">
               {movingBack ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3 rotate-180" />}
               Move back to pool
@@ -772,7 +772,7 @@ function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () 
           )}
           {isApplied && (
             <button onClick={handleArchive}
-              className="inline-flex items-center gap-1 text-[11px] text-text-3 hover:text-text px-2.5 py-1 transition-colors">
+              className="inline-flex items-center gap-1 text-caption text-text-3 hover:text-text px-2.5 py-1 transition-colors">
               <Archive className="w-3 h-3" /> Archive
             </button>
           )}

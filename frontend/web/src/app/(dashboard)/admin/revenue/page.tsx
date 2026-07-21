@@ -16,9 +16,9 @@ function Kpi({ label, value, sub, color = "text-text" }: {
 }) {
   return (
     <div className="border border-border bg-surface rounded-md px-4 py-3">
-      <p className="text-[11px] font-medium text-text-3 mb-0.5">{label}</p>
-      <p className={`text-[22px] font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-text-3 mt-0.5">{sub}</p>}
+      <p className="text-caption font-medium text-text-3 mb-0.5">{label}</p>
+      <p className={`text-h1 font-bold ${color}`}>{value}</p>
+      {sub && <p className="text-caption text-text-3 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -112,15 +112,15 @@ export default async function AdminRevenuePage() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Revenue</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Revenue & billing</h1>
-        <p className="text-[12px] text-text-3 mt-0.5">Live from the <code className="font-mono text-[11px]">subscriptions</code> table. MRR trend and billing events are placeholder data.</p>
+        <h1 className="text-lead font-semibold text-text">Revenue & billing</h1>
+        <p className="text-label text-text-3 mt-0.5">Live from the <code className="font-mono text-caption">subscriptions</code> table. MRR trend and billing events are placeholder data.</p>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — MRR trend chart and billing events feed are not yet wired to Stripe webhooks.</span>
       </div>
@@ -150,17 +150,17 @@ export default async function AdminRevenuePage() {
         {(expiringTrials.length > 0 || pendingCancel.length > 0 || pastDueSubs.length > 0) && (
           <section className="space-y-2">
             {pastDueSubs.length > 0 && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-md px-4 py-2.5 text-[12px] text-red-800">
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-md px-4 py-2.5 text-label text-red-800">
                 <span className="font-semibold">🔴 {pastDueSubs.length} past-due</span> — payment collection failing.
               </div>
             )}
             {expiringTrials.length > 0 && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 text-[12px] text-amber-800">
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 text-label text-amber-800">
                 <span className="font-semibold">⏱ {expiringTrials.length} trial{expiringTrials.length > 1 ? "s" : ""} expiring</span> in the next 3 days.
               </div>
             )}
             {pendingCancel.length > 0 && (
-              <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-md px-4 py-2.5 text-[12px] text-orange-800">
+              <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-md px-4 py-2.5 text-label text-orange-800">
                 <span className="font-semibold">↩ {pendingCancel.length} cancellation{pendingCancel.length > 1 ? "s" : ""} pending</span> — will lapse at period end.
               </div>
             )}
@@ -169,15 +169,15 @@ export default async function AdminRevenuePage() {
 
         {/* MRR trend — not yet wired */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">MRR trend — last 12 months</h2>
-          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+          <h2 className="text-label font-semibold text-text mb-3">MRR trend — last 12 months</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-label text-text-3">
             Not yet wired — connect Stripe webhooks to populate.
           </div>
         </section>
 
         {/* Plan breakdown */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Active plan breakdown</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Active plan breakdown</h2>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
               <thead><tr><th>Plan</th><th>Subscribers</th><th>Monthly price</th><th>MRR contribution</th><th>% of MRR</th></tr></thead>
@@ -188,7 +188,7 @@ export default async function AdminRevenuePage() {
                   return (
                     <tr key={plan.id}>
                       <td>
-                        <Badge variant={PLAN_VARIANT[plan.id] ?? "gray"} className="text-[10px]">{plan.display_name}</Badge>
+                        <Badge variant={PLAN_VARIANT[plan.id] ?? "gray"} className="text-micro">{plan.display_name}</Badge>
                       </td>
                       <td className="tabular-nums">{d.count}</td>
                       <td className="font-mono text-text-2">{plan.price_cents > 0 ? fmt(plan.price_cents) : "Free"}</td>
@@ -207,7 +207,7 @@ export default async function AdminRevenuePage() {
 
         {/* Recent subscriptions */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Recent subscription events (30d)</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Recent subscription events (30d)</h2>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
               <thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Period end</th><th>Since</th></tr></thead>
@@ -222,8 +222,8 @@ export default async function AdminRevenuePage() {
                         {emailById[s.user_id] ?? s.user_id.slice(0, 12) + "…"}
                       </Link>
                     </td>
-                    <td><Badge variant={PLAN_VARIANT[s.plan_id] ?? "gray"} className="text-[10px]">{planById[s.plan_id]?.display_name ?? s.plan_id}</Badge></td>
-                    <td><Badge variant={s.status === "active" ? "green" : s.status === "trialing" ? "amber" : s.status === "canceled" ? "red" : "gray"} className="text-[10px]">{s.status}</Badge></td>
+                    <td><Badge variant={PLAN_VARIANT[s.plan_id] ?? "gray"} className="text-micro">{planById[s.plan_id]?.display_name ?? s.plan_id}</Badge></td>
+                    <td><Badge variant={s.status === "active" ? "green" : s.status === "trialing" ? "amber" : s.status === "canceled" ? "red" : "gray"} className="text-micro">{s.status}</Badge></td>
                     <td className="text-text-3 tabular-nums">{s.current_period_end ? new Date(s.current_period_end).toLocaleDateString("en-AU") : "—"}</td>
                     <td className="text-text-3">{timeAgo(s.created_at)}</td>
                   </tr>
@@ -235,8 +235,8 @@ export default async function AdminRevenuePage() {
 
         {/* Billing events — not yet wired */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Billing events feed</h2>
-          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+          <h2 className="text-label font-semibold text-text mb-3">Billing events feed</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-label text-text-3">
             Not yet wired — connect Stripe webhooks to populate.
           </div>
         </section>

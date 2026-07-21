@@ -87,8 +87,8 @@ export default async function IntegrationsPage() {
 
         {/* Job sources — per-tier editable config */}
         <section>
-          <h2 className="text-[13px] font-semibold text-text mb-1">Job sources</h2>
-          <p className="text-[12px] text-text-3 mb-3">
+          <h2 className="text-body font-semibold text-text mb-1">Job sources</h2>
+          <p className="text-label text-text-3 mb-3">
             Which job boards to scan, and the fetch method per source — configured
             separately for each <strong className="text-text-2">subscription tier</strong>.
             Users on higher tiers get richer JDs (Adzuna direct via actor).
@@ -98,8 +98,8 @@ export default async function IntegrationsPage() {
 
         {/* Apify quota */}
         <section>
-          <h2 className="text-[13px] font-semibold text-text mb-1">Apify quota</h2>
-          <p className="text-[12px] text-text-3 mb-3">
+          <h2 className="text-body font-semibold text-text mb-1">Apify quota</h2>
+          <p className="text-label text-text-3 mb-3">
             Residential-proxy + actor usage for SEEK / Adzuna / Careerjet full-JD enrichment.
           </p>
           <ApifyCard initialData={apifyInitial} />

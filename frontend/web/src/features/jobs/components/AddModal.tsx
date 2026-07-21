@@ -134,7 +134,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
         <div className="px-5 py-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[15px] font-semibold text-text">Add a job</h2>
-            <p className="text-[12px] text-text-2 mt-0.5">
+            <p className="text-label text-text-2 mt-0.5">
               Found a job elsewhere? Add it here to analyse and track it.
             </p>
           </div>
@@ -146,7 +146,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
         {/* Tab switcher */}
         <div className="px-5 pt-3 flex gap-1">
           {([["url", Link2, "Fetch from URL"], ["paste", FileText, "Paste JD"]] as const).map(([t, Icon, label]) => (
-            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
+            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
               <Icon className="w-3.5 h-3.5" />
               {label}
             </button>
@@ -167,7 +167,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                 onKeyDown={(e) => e.key === "Enter" && handleFetch()}
                 placeholder="https://www.seek.com.au/job/123456"
                 disabled={fetching}
-                className="field flex-1 text-[13px]"
+                className="field flex-1 text-body"
                 autoFocus
               />
               <Button
@@ -186,14 +186,14 @@ export function AddModal({ onClose }: { onClose: () => void }) {
           )}
 
           {fetchError && (
-            <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {fetchError} — try the &quot;Paste JD&quot; tab instead.
             </p>
           )}
 
           {/* Pre-filled confirmation (URL tab) */}
           {tab === "url" && prefilled && (
-            <p className="text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
+            <p className="text-label text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
               ✓ Job details fetched — review and edit below, then save.
             </p>
           )}
@@ -234,11 +234,11 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setJd(e.target.value)}
                   rows={7}
                   placeholder="Paste the full job description here. Trim company blurbs and EEO statements to focus the AI on responsibilities and requirements."
-                  className="text-[12px] font-mono resize-y"
+                  className="text-label font-mono resize-y"
                   spellCheck={false}
                 />
                 {jd.trim().length > 0 && jd.trim().length < 200 && (
-                  <p className="text-[11px] text-amber-600 mt-1">
+                  <p className="text-caption text-amber-600 mt-1">
                     Too short for reliable analysis — paste more of the JD (aim for 200+ chars).
                   </p>
                 )}
@@ -247,7 +247,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
           )}
 
           {saveError && (
-            <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {saveError}
             </p>
           )}
@@ -256,7 +256,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
         {/* Footer */}
         {showFields && (
           <div className="px-5 py-3 border-t border-[var(--border)] flex items-center justify-between gap-2 bg-[var(--surface-2)] rounded-b-lg">
-            <span className="text-[11px] text-text-3">
+            <span className="text-caption text-text-3">
               Saved to your <strong className="text-text-2">Saved Jobs</strong> profile
             </span>
             <div className="flex gap-2">

@@ -15,9 +15,9 @@ function Kpi({ label, value, sub, color = "text-text" }: {
 }) {
   return (
     <div className="border border-border bg-surface rounded-md px-4 py-3">
-      <p className="text-[11px] font-medium text-text-3 mb-0.5">{label}</p>
-      <p className={`text-[22px] font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-text-3 mt-0.5">{sub}</p>}
+      <p className="text-caption font-medium text-text-3 mb-0.5">{label}</p>
+      <p className={`text-h1 font-bold ${color}`}>{value}</p>
+      {sub && <p className="text-caption text-text-3 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -140,15 +140,15 @@ export default async function AdminRetentionPage() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Retention</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Retention & engagement</h1>
-        <p className="text-[12px] text-text-3 mt-0.5">Adoption funnel and churn signals. DAU/WAU/MAU and cohort grid use placeholder values until more data accumulates.</p>
+        <h1 className="text-lead font-semibold text-text">Retention & engagement</h1>
+        <p className="text-label text-text-3 mt-0.5">Adoption funnel and churn signals. DAU/WAU/MAU and cohort grid use placeholder values until more data accumulates.</p>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — DAU/WAU/MAU and cohort grid are not yet wired. More time-series data needed.</span>
       </div>
@@ -157,7 +157,7 @@ export default async function AdminRetentionPage() {
 
         {/* Active users */}
         <section>
-          <h2 className="text-[11px] font-semibold text-text-3 uppercase tracking-widest mb-3">Active users</h2>
+          <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest mb-3">Active users</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Kpi label="New this week" value={String(newUsersThisWeek)} sub="signups" />
           </div>
@@ -172,7 +172,7 @@ export default async function AdminRetentionPage() {
 
         {/* Feature adoption funnel */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Feature adoption funnel</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Feature adoption funnel</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-3">
             {funnel.map(({ label, count, desc }, idx) => {
               const pct = totalUsers > 0 ? (count / totalUsers) * 100 : 0;
@@ -180,18 +180,18 @@ export default async function AdminRetentionPage() {
               return (
                 <div key={label}>
                   <div className="flex items-center gap-3">
-                    <span className="text-[12px] text-text-2 w-52 truncate">{label}</span>
+                    <span className="text-label text-text-2 w-52 truncate">{label}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${isFirst ? "bg-blue-500" : pct >= 60 ? "bg-emerald-500" : pct >= 30 ? "bg-amber-400" : "bg-red-400"}`}
                         style={{ width: `${Math.max(pct > 0 ? 1 : 0, pct)}%` }}
                       />
                     </div>
-                    <span className="text-[11px] font-mono text-text-2 w-24 text-right tabular-nums">
+                    <span className="text-caption font-mono text-text-2 w-24 text-right tabular-nums">
                       {count} ({pct.toFixed(0)}%)
                     </span>
                   </div>
-                  <p className="text-[10px] text-text-3 ml-[224px] mt-0.5">{desc}</p>
+                  <p className="text-micro text-text-3 ml-[224px] mt-0.5">{desc}</p>
                 </div>
               );
             })}
@@ -200,26 +200,26 @@ export default async function AdminRetentionPage() {
 
         {/* Cohort retention — not yet wired */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cohort retention</h2>
-          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+          <h2 className="text-label font-semibold text-text mb-3">Cohort retention</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-label text-text-3">
             Not yet wired — needs more months of user data.
           </div>
         </section>
 
         {/* Signup trend */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Signup trend — last 8 weeks</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Signup trend — last 8 weeks</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-1.5">
             {Object.entries(weekBuckets).map(([week, count]) => (
               <div key={week} className="flex items-center gap-3">
-                <span className="text-[11px] text-text-3 w-8">{week}</span>
+                <span className="text-caption text-text-3 w-8">{week}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
                     className="bg-blue-500 h-2 rounded-full"
                     style={{ width: count > 0 ? `${Math.max(2, (count / maxSignups) * 100)}%` : "0%" }}
                   />
                 </div>
-                <span className="text-[11px] font-mono text-text-2 w-6 text-right">{count}</span>
+                <span className="text-caption font-mono text-text-2 w-6 text-right">{count}</span>
               </div>
             ))}
           </div>
@@ -228,7 +228,7 @@ export default async function AdminRetentionPage() {
         {/* At-risk users */}
         {atRiskUsers.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">
+            <h2 className="text-label font-semibold text-text mb-3">
               At-risk users <span className="text-text-3 font-normal">(active 14–30d ago, silent since)</span>
             </h2>
             <div className="bg-surface border border-amber-200 rounded-md overflow-x-auto">
@@ -258,7 +258,7 @@ export default async function AdminRetentionPage() {
         {/* Most engaged users */}
         {topUsers.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Most engaged (by analysis runs, 30d)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Most engaged (by analysis runs, 30d)</h2>
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>User</th><th>Analyses</th><th>Cover letters</th><th>Applied</th><th>Joined</th></tr></thead>

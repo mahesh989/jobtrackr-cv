@@ -42,7 +42,7 @@ export function UsageMeter({
           />
         </div>
       )}
-      {hint && <p className="mt-1 text-[11px] text-text-2">{hint}</p>}
+      {hint && <p className="mt-1 text-caption text-text-2">{hint}</p>}
     </div>
   );
 }

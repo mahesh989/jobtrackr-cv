@@ -94,7 +94,7 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
         <svg className="w-4 h-4 text-text-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7h-4V3.5a1.5 1.5 0 00-1.5-1.5h-5A1.5 1.5 0 008 3.5V7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zm-10-3h4v3h-4V4z"/>
         </svg>
-        <h2 className="text-[14px] font-semibold text-text">Job description analysis</h2>
+        <h2 className="text-title font-semibold text-text">Job description analysis</h2>
       </div>
 
       <div className="px-5 py-4 space-y-4">
@@ -102,20 +102,20 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
         {(d.job_title || d.seniority_level || d.experience_years_required != null || ctx?.setting) && (
           <div className="flex flex-wrap items-center gap-2">
             {d.job_title && (
-              <span className="text-[14px] font-semibold text-text">{d.job_title}</span>
+              <span className="text-title font-semibold text-text">{d.job_title}</span>
             )}
             {d.seniority_level && d.seniority_level !== "unknown" && (
-              <span className="text-[11px] uppercase tracking-wide bg-[var(--blue-light)] text-[var(--brand)] border border-[var(--brand)]/20 px-1.5 py-0.5 rounded">
+              <span className="text-caption uppercase tracking-wide bg-[var(--blue-light)] text-[var(--brand)] border border-[var(--brand)]/20 px-1.5 py-0.5 rounded">
                 {d.seniority_level}
               </span>
             )}
             {typeof d.experience_years_required === "number" && d.experience_years_required > 0 && (
-              <span className="text-[11px] text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
+              <span className="text-caption text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded">
                 {d.experience_years_required}+ yrs
               </span>
             )}
             {ctx?.setting && (
-              <span className="text-[11px] text-text-2 bg-surface-2 border border-border px-1.5 py-0.5 rounded capitalize">
+              <span className="text-caption text-text-2 bg-surface-2 border border-border px-1.5 py-0.5 rounded capitalize">
                 {ctx.setting}
               </span>
             )}
@@ -126,10 +126,10 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
           weak ? (
             <div className="flex items-start gap-2 p-3 rounded-md border-2 border-red-200 bg-red-50">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-[13px] font-bold text-red-700 leading-relaxed">{d.summary}</p>
+              <p className="text-body font-bold text-red-700 leading-relaxed">{d.summary}</p>
             </div>
           ) : (
-            <p className="text-[13px] text-text-2 leading-relaxed italic">{d.summary}</p>
+            <p className="text-body text-text-2 leading-relaxed italic">{d.summary}</p>
           )
         )}
 
@@ -151,12 +151,12 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
         {/* Responsibilities */}
         {d.responsibilities && d.responsibilities.length > 0 && (
           <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+            <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-2">
               Responsibilities
             </h3>
             <ul className="space-y-1.5">
               {d.responsibilities.map((r, i) => (
-                <li key={i} className="flex gap-2 text-[13px] text-text-2 leading-snug">
+                <li key={i} className="flex gap-2 text-body text-text-2 leading-snug">
                   <span className="text-text-3 mt-0.5">•</span>
                   <span>{r}</span>
                 </li>
@@ -183,7 +183,7 @@ function SkillBlock({
 }) {
   return (
     <div>
-      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">{label}</h3>
+      <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-2">{label}</h3>
       {categorised ? (
         <CategorisedSkillGrid skills={skills as CategorisedSkills} variant={variant} catLabels={catLabels} catOrder={catOrder} />
       ) : (
@@ -211,7 +211,7 @@ function CategorisedSkillGrid({
         if (!items || items.length === 0) return null;
         return (
           <div key={cat} className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
-            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
+            <span className="mt-0.5 shrink-0 text-micro font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
               {catLabels[cat]}
             </span>
             <div className="flex flex-wrap gap-1">
@@ -233,13 +233,13 @@ function CredentialBlock({ credentials }: { credentials: Credentials }) {
 
   return (
     <div>
-      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-2">
+      <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-2">
         Credentials &amp; Eligibility
       </h3>
       <div className="space-y-2">
         {rows.map(({ label, items, variant }) => (
           <div key={label} className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
-            <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
+            <span className="mt-0.5 shrink-0 text-micro font-semibold uppercase tracking-widest text-text-3 bg-surface-2 border border-border rounded px-1.5 py-0.5">
               {label}
             </span>
             <div className="flex flex-wrap gap-1">
@@ -265,6 +265,6 @@ function Chip({ label, variant }: { label: string; variant: "required" | "prefer
     ? "bg-[var(--blue-light)] text-[var(--brand)] border-[var(--brand)]/20"
     : "bg-surface-2 text-text-2 border-border";
   return (
-    <span className={`text-[11px] px-1.5 py-0.5 rounded border ${cls}`}>{label}</span>
+    <span className={`text-caption px-1.5 py-0.5 rounded border ${cls}`}>{label}</span>
   );
 }

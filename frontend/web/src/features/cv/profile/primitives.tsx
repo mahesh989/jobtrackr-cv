@@ -14,7 +14,7 @@ export function SectionCard({
         </span>
         <div className="min-w-0">
           <h2 className="text-[14.5px] font-semibold text-text">{title}</h2>
-          {subtitle && <p className="text-[12px] text-text-3 mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-label text-text-3 mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {children}
@@ -56,7 +56,7 @@ export function CheckBox({ label, checked, onChange, detected = false }: { label
     <div className="rounded-md px-2 py-1.5 hover:bg-[var(--surface-2)] transition-colors flex items-center gap-2">
       <Checkbox checked={checked} onChange={(e) => onChange(e.target.checked)} label={label} />
       {detected && !checked && (
-        <span className="text-[10px] text-[var(--brand)] font-medium bg-[var(--brand)]/10 rounded px-1.5 py-0.5">on your CV</span>
+        <span className="text-micro text-[var(--brand)] font-medium bg-[var(--brand)]/10 rounded px-1.5 py-0.5">on your CV</span>
       )}
     </div>
   );

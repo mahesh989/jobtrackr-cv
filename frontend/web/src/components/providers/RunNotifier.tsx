@@ -177,8 +177,8 @@ export function RunNotifier() {
               </svg>
             )}
             <div className="min-w-0">
-              <div className="text-[13px] font-semibold truncate">{t.title}</div>
-              <div className="text-[11px] mt-0.5 opacity-80">{t.sub}</div>
+              <div className="text-body font-semibold truncate">{t.title}</div>
+              <div className="text-caption mt-0.5 opacity-80">{t.sub}</div>
             </div>
           </div>
         </Link>

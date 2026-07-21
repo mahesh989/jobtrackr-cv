@@ -16,7 +16,7 @@ export function SaveBar() {
       >
         {saving ? "Saving…" : "Save details"}
       </Button>
-      <span className="text-[12px] text-text-2">
+      <span className="text-label text-text-2">
         {error ? <span className="text-red">{error}</span>
           : saved ? <span className="text-green-600 font-medium">✓ Saved</span>
           : dirty ? "Unsaved changes — contact, verticals, credentials & references."

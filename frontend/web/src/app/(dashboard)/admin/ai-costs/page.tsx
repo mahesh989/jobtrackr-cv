@@ -24,7 +24,7 @@ function CostBar({ value, max }: { value: number; max: number }) {
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[80px]">
         <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-[11px] font-mono text-text-2 shrink-0">{formatCost(value)}</span>
+      <span className="text-caption font-mono text-text-2 shrink-0">{formatCost(value)}</span>
     </div>
   );
 }
@@ -141,15 +141,15 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">AI costs</span>
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-[16px] font-semibold text-text">AI cost & usage</h1>
-            <p className="text-[12px] text-text-3 mt-0.5">
-              Data from <code className="font-mono text-[11px]">ai_calls</code> table.{" "}
+            <h1 className="text-lead font-semibold text-text">AI cost & usage</h1>
+            <p className="text-label text-text-3 mt-0.5">
+              Data from <code className="font-mono text-caption">ai_calls</code> table.{" "}
               {noData && <span className="text-amber-700 font-medium">No data yet — apply migration 055 and set TRACK_AI_USAGE=true on cv-backend.</span>}
             </p>
           </div>
@@ -168,9 +168,9 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
             { label: "Cached tokens",        value: formatTokens(cachedTokens), sub: "saved from cache reads" },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-              <p className="text-[11px] font-medium text-text-3 mb-0.5">{s.label}</p>
-              <p className="text-[20px] font-bold text-text">{s.value}</p>
-              <p className="text-[11px] text-text-3">{s.sub}</p>
+              <p className="text-caption font-medium text-text-3 mb-0.5">{s.label}</p>
+              <p className="text-h2 font-bold text-text">{s.value}</p>
+              <p className="text-caption text-text-3">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -184,17 +184,17 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
             { label: "Retry calls (mo)",   value: String(retryCalls),  color: retryCalls > 0 ? "text-amber-600" : undefined },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-              <p className="text-[11px] font-medium text-text-3 mb-0.5">{s.label}</p>
-              <p className={`text-[20px] font-bold ${s.color ?? "text-text"}`}>{s.value}</p>
+              <p className="text-caption font-medium text-text-3 mb-0.5">{s.label}</p>
+              <p className={`text-h2 font-bold ${s.color ?? "text-text"}`}>{s.value}</p>
             </div>
           ))}
         </div>
 
         {/* Provider breakdown */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cost by provider ({RANGE_LABELS[range]})</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Cost by provider ({RANGE_LABELS[range]})</h2>
           {providerRanked.length === 0 ? (
-            <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-4">No data yet</p>
+            <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-4">No data yet</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               {(["openai", "anthropic", "deepseek"] as const).map((prov) => {
@@ -203,10 +203,10 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
                   <div key={prov} className="border border-border bg-surface rounded-md px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`w-2 h-2 rounded-full ${PROVIDER_COLOR[prov] ?? "bg-slate-400"}`} />
-                      <p className="text-[11px] font-semibold text-text capitalize">{prov}</p>
+                      <p className="text-caption font-semibold text-text capitalize">{prov}</p>
                     </div>
-                    <p className="text-[20px] font-bold text-text">{d ? formatCost(d.cost) : "$0"}</p>
-                    <p className="text-[11px] text-text-3">{d ? `${d.calls.toLocaleString()} calls · ${formatTokens(d.tokens)} tokens` : "no usage"}</p>
+                    <p className="text-h2 font-bold text-text">{d ? formatCost(d.cost) : "$0"}</p>
+                    <p className="text-caption text-text-3">{d ? `${d.calls.toLocaleString()} calls · ${formatTokens(d.tokens)} tokens` : "no usage"}</p>
                   </div>
                 );
               })}
@@ -216,15 +216,15 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2.5">
               {providerRanked.map(([prov, d]) => (
                 <div key={prov} className="flex items-center gap-3">
-                  <span className="text-[12px] text-text-2 w-24 capitalize">{prov}</span>
+                  <span className="text-label text-text-2 w-24 capitalize">{prov}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                     <div
                       className={`${PROVIDER_COLOR[prov] ?? "bg-slate-400"} h-2 rounded-full`}
                       style={{ width: `${Math.max(2, (d.cost / maxProviderCost) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-mono text-text-2 w-20 text-right">{formatCost(d.cost)}</span>
-                  <span className="text-[10px] text-text-3 w-24 text-right">{((d.cost / (rangeTotal || 1)) * 100).toFixed(1)}% of total</span>
+                  <span className="text-caption font-mono text-text-2 w-20 text-right">{formatCost(d.cost)}</span>
+                  <span className="text-micro text-text-3 w-24 text-right">{((d.cost / (rangeTotal || 1)) * 100).toFixed(1)}% of total</span>
                 </div>
               ))}
             </div>
@@ -233,32 +233,32 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
 
         {/* Daily sparkline (text) */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Daily cost — last 7 days</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Daily cost — last 7 days</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
             {Object.entries(dayBuckets).map(([day, cost]) => (
               <div key={day} className="flex items-center gap-3">
-                <span className="text-[11px] text-text-3 tabular-nums w-24">{day}</span>
+                <span className="text-caption text-text-3 tabular-nums w-24">{day}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
                     className="bg-blue-500 h-2 rounded-full transition-all"
                     style={{ width: `${Math.max(2, (cost / maxDay) * 100)}%` }}
                   />
                 </div>
-                <span className="text-[11px] font-mono text-text-2 shrink-0 w-20 text-right">{formatCost(cost)}</span>
+                <span className="text-caption font-mono text-text-2 shrink-0 w-20 text-right">{formatCost(cost)}</span>
               </div>
             ))}
-            {noData && <p className="text-[12px] text-text-3 text-center py-4">No data yet</p>}
+            {noData && <p className="text-label text-text-3 text-center py-4">No data yet</p>}
           </div>
         </section>
 
         {/* Cost by operation */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cost by operation ({RANGE_LABELS[range]})</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Cost by operation ({RANGE_LABELS[range]})</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2.5">
-            {opRanked.length === 0 && <p className="text-[12px] text-text-3">No data yet</p>}
+            {opRanked.length === 0 && <p className="text-label text-text-3">No data yet</p>}
             {opRanked.map(([op, cost]) => (
               <div key={op} className="flex items-center gap-3">
-                <span className="text-[12px] text-text-2 w-44 truncate">{op}</span>
+                <span className="text-label text-text-2 w-44 truncate">{op}</span>
                 <div className="flex-1"><CostBar value={cost} max={maxOpCost} /></div>
               </div>
             ))}
@@ -267,12 +267,12 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
 
         {/* Cost by user */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cost by user ({RANGE_LABELS[range]})</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Cost by user ({RANGE_LABELS[range]})</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2.5">
-            {userRanked.length === 0 && <p className="text-[12px] text-text-3">No data yet</p>}
+            {userRanked.length === 0 && <p className="text-label text-text-3">No data yet</p>}
             {userRanked.map(([uid, cost]) => (
               <div key={uid} className="flex items-center gap-3">
-                <span className="text-[12px] text-text-2 w-48 truncate">{emailById[uid] ?? uid.slice(0, 12)}</span>
+                <span className="text-label text-text-2 w-48 truncate">{emailById[uid] ?? uid.slice(0, 12)}</span>
                 <div className="flex-1"><CostBar value={cost} max={maxUserCost} /></div>
               </div>
             ))}
@@ -281,7 +281,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
 
         {/* Cost by model */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cost by model ({RANGE_LABELS[range]})</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Cost by model ({RANGE_LABELS[range]})</h2>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
               <thead><tr><th>Model</th><th>Calls</th><th>Cost</th><th>Cost / call</th></tr></thead>
@@ -291,7 +291,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
                 )}
                 {modelRanked.map(([model, { cost, calls: c }]) => (
                   <tr key={model}>
-                    <td className="font-mono text-[12px] text-text">{model}</td>
+                    <td className="font-mono text-label text-text">{model}</td>
                     <td className="tabular-nums">{c.toLocaleString()}</td>
                     <td className="tabular-nums font-mono">{formatCost(cost)}</td>
                     <td className="tabular-nums font-mono text-text-3">{c > 0 ? formatCost(Math.round(cost / c)) : "—"}</td>

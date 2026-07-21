@@ -80,8 +80,8 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-1.5">
           <Bookmark className="w-3.5 h-3.5 text-[var(--brand)]" />
-          <span className="text-[12px] font-semibold text-text">Continue where you left off</span>
-          <span className="text-[10px] text-text-3 ml-1">({jobs.length})</span>
+          <span className="text-label font-semibold text-text">Continue where you left off</span>
+          <span className="text-micro text-text-3 ml-1">({jobs.length})</span>
         </div>
         <IconButton onClick={dismiss} title="Hide this rail" aria-label="Hide this rail" size="sm" icon={<X className="w-3.5 h-3.5" />} />
       </div>
@@ -95,10 +95,10 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
               className="border border-[var(--border)] rounded-md bg-[var(--surface-2)] p-2.5 flex flex-col gap-1.5 hover:border-[var(--text-3)] transition-colors"
             >
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-text truncate" title={job.title}>
+                <p className="text-label font-semibold text-text truncate" title={job.title}>
                   {job.title}
                 </p>
-                <p className="text-[11px] text-text-2 truncate" title={job.company}>
+                <p className="text-caption text-text-2 truncate" title={job.company}>
                   {job.company || "—"}
                 </p>
               </div>
@@ -107,12 +107,12 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
                 {action.href ? (
                   <Link
                     href={action.href}
-                    className="text-[11px] font-medium text-[var(--brand)] hover:underline whitespace-nowrap"
+                    className="text-caption font-medium text-[var(--brand)] hover:underline whitespace-nowrap"
                   >
                     {action.label} →
                   </Link>
                 ) : (
-                  <span className="text-[11px] font-medium text-text-3 italic whitespace-nowrap">
+                  <span className="text-caption font-medium text-text-3 italic whitespace-nowrap">
                     {action.label}
                   </span>
                 )}

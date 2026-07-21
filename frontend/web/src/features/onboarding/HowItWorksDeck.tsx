@@ -33,7 +33,7 @@ function FlowBox({ children, tone = "default" }: { children: React.ReactNode; to
       ? "border-[var(--green)]/40 bg-[var(--green-light)] text-[var(--green)]"
       : "border-border bg-[var(--surface-2)] text-text";
   return (
-    <div className={`rounded-md border px-3 py-2 text-[12px] font-medium text-center ${cls}`}>
+    <div className={`rounded-md border px-3 py-2 text-label font-medium text-center ${cls}`}>
       {children}
     </div>
   );
@@ -42,8 +42,8 @@ function FlowBox({ children, tone = "default" }: { children: React.ReactNode; to
 function Arrow({ label }: { label?: string }) {
   return (
     <div className="flex flex-col items-center py-1 text-text-3">
-      {label && <span className="text-[10px] mb-0.5">{label}</span>}
-      <span className="text-[14px] leading-none">↓</span>
+      {label && <span className="text-micro mb-0.5">{label}</span>}
+      <span className="text-title leading-none">↓</span>
     </div>
   );
 }
@@ -57,8 +57,8 @@ export function HowItWorksDeck() {
         <dl className="divide-y divide-border">
           {TERMS.map((t) => (
             <div key={t.term} className="py-2.5 first:pt-0 sm:flex sm:gap-4">
-              <dt className="text-[13px] font-semibold text-text sm:w-48 sm:shrink-0">{t.term}</dt>
-              <dd className="text-[12px] text-text-2 leading-relaxed mt-0.5 sm:mt-0">{t.def}</dd>
+              <dt className="text-body font-semibold text-text sm:w-48 sm:shrink-0">{t.term}</dt>
+              <dd className="text-label text-text-2 leading-relaxed mt-0.5 sm:mt-0">{t.def}</dd>
             </div>
           ))}
         </dl>
@@ -69,7 +69,7 @@ export function HowItWorksDeck() {
       title: "Running a profile",
       body: (
         <>
-          <p className="text-[12px] text-text-2 mb-3 text-center">What happens in one run of your profile:</p>
+          <p className="text-label text-text-2 mb-3 text-center">What happens in one run of your profile:</p>
           <div className="max-w-sm mx-auto">
             <FlowBox>Fetch — every enabled source for your keywords + location</FlowBox>
             <Arrow />
@@ -81,7 +81,7 @@ export function HowItWorksDeck() {
             <Arrow />
             <FlowBox tone="end">Save &amp; score — survivors land in your feed, AI-scored (~1–2 min)</FlowBox>
           </div>
-          <p className="text-[11px] text-text-3 mt-3 text-center">If scheduled, this repeats automatically.</p>
+          <p className="text-caption text-text-3 mt-3 text-center">If scheduled, this repeats automatically.</p>
         </>
       ),
     },
@@ -90,7 +90,7 @@ export function HowItWorksDeck() {
       title: "How analysis runs",
       body: (
         <>
-          <p className="text-[12px] text-text-2 mb-3 text-center">
+          <p className="text-label text-text-2 mb-3 text-center">
             Per job, when you click <span className="font-medium text-text">Analyze</span>:
           </p>
           <div className="max-w-sm mx-auto">
@@ -122,10 +122,10 @@ export function HowItWorksDeck() {
       title: "How to apply (email vs non-email)",
       body: (
         <>
-          <p className="text-[12px] text-text-2 mb-2">
+          <p className="text-label text-text-2 mb-2">
             When a cover letter is ready, the job appears in your <span className="font-medium text-text">Applications</span> pool:
           </p>
-          <ul className="space-y-1.5 text-[12px] text-text-2 list-disc pl-5">
+          <ul className="space-y-1.5 text-label text-text-2 list-disc pl-5">
             <li>
               <span className="font-medium text-text">Application pool</span> — all jobs waiting for you to act. Expand any card to preview and edit the tailored CV, cover letter, and email message inline.
             </li>
@@ -138,7 +138,7 @@ export function HowItWorksDeck() {
             </li>
             <li><span className="font-medium text-text">Mark applied</span> → moves to the <span className="font-medium text-text">Sent</span> tab. You can move it back to the pool if needed.</li>
           </ul>
-          <p className="text-[12px] text-text-3 mt-2">Nothing leaves your account until you press Send or Apply.</p>
+          <p className="text-label text-text-3 mt-2">Nothing leaves your account until you press Send or Apply.</p>
         </>
       ),
     },
@@ -147,10 +147,10 @@ export function HowItWorksDeck() {
       title: "How a job is tracked",
       body: (
         <>
-          <p className="text-[12px] text-text-2 mb-3">
+          <p className="text-label text-text-2 mb-3">
             Each job carries one <span className="font-medium text-text">state</span> badge showing where it is:
           </p>
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-caption">
             {["Discovered", "Analysing", "Below initial / final", "Ready to apply / send", "Applied", "Archived"].map((s, idx, arr) => (
               <span key={s} className="flex items-center gap-1.5">
                 <span className="px-2 py-0.5 rounded-full border border-border bg-[var(--surface-2)] text-text-2">{s}</span>
@@ -158,7 +158,7 @@ export function HowItWorksDeck() {
               </span>
             ))}
           </div>
-          <p className="text-[12px] text-text-2 mt-3">
+          <p className="text-label text-text-2 mt-3">
             You can <span className="font-medium text-text">Mark applied</span> or <span className="font-medium text-text">Dismiss</span> a job at any time. The dashboard funnel rolls these states up so you always see where your pipeline stands.
           </p>
         </>

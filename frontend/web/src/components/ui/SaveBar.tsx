@@ -30,7 +30,7 @@ export function SaveBar({
   return (
     <div className={`flex items-center gap-2.5 rounded-b-lg border-t border-border bg-[var(--surface-2)] px-4 py-3 ${className}`}>
       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${DOT[state]}`} />
-      {message ? <span className="text-[11px] text-text-2">{message}</span> : null}
+      {message ? <span className="text-caption text-text-2">{message}</span> : null}
       {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>
   );

@@ -55,7 +55,7 @@ export default async function VoicePage() {
               We use this to rewrite outgoing emails and the body of generated cover letters so they sound
               like you, not like a template.
             </p>
-            <p className="page-subtitle mt-1 text-[12px] text-[var(--sidebar-text-dim)]">
+            <p className="page-subtitle mt-1 text-label text-[var(--sidebar-text-dim)]">
               Note: this is about <span className="font-semibold">style</span>. Concrete achievements and
               metrics from your CV live in the <em>Stories</em> section below — different thing.
             </p>

@@ -62,7 +62,7 @@ export function ProfilesTable({
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="overflow-x-auto">
       <div className="min-w-[880px]">
-      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-caption font-semibold text-text-2 uppercase tracking-wider">
         <div className="col-span-3">Profile</div>
         <div className="col-span-1 sm:col-span-2">Keywords</div>
         <div className="col-span-1 text-center">New</div>
@@ -97,12 +97,12 @@ export function ProfilesTable({
               <div className="min-w-0">
                 <Link
                   href={`/profiles/${p.id}/jobs`}
-                  className="text-[13px] font-semibold text-text hover:text-[var(--brand)] truncate flex items-center gap-1.5 transition-colors"
+                  className="text-body font-semibold text-text hover:text-[var(--brand)] truncate flex items-center gap-1.5 transition-colors"
                 >
                   {p.name}
                 </Link>
                 {!p.is_manual && (
-                  <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
+                  <span className={`text-caption ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                     {p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
                   </span>
                 )}
@@ -110,7 +110,7 @@ export function ProfilesTable({
             </div>
 
             <div className="col-span-1 sm:col-span-2 flex items-center">
-              <span className="text-[12px] text-text-2 truncate">
+              <span className="text-label text-text-2 truncate">
                 {p.keywords.slice(0, 3).join(", ")}
                 {p.keywords.length > 3 && <span className="text-text-3"> +{p.keywords.length - 3}</span>}
               </span>
@@ -120,27 +120,27 @@ export function ProfilesTable({
               {newJobs > 0 ? (
                 <Badge variant="blue" className="font-bold">{newJobs}</Badge>
               ) : (
-                <span className="text-[12px] text-text-3">—</span>
+                <span className="text-label text-text-3">—</span>
               )}
             </div>
 
             <div className="col-span-1 flex items-center justify-center">
-              <span className="text-[13px] font-medium text-text">{total}</span>
+              <span className="text-body font-medium text-text">{total}</span>
             </div>
 
             <div className="col-span-1 flex items-center justify-center">
               {applied > 0 ? (
                 <Badge variant="green">{applied}</Badge>
               ) : (
-                <span className="text-[12px] text-text-3">—</span>
+                <span className="text-label text-text-3">—</span>
               )}
             </div>
 
             <div className="col-span-2 sm:col-span-1 flex items-center min-w-0">
               {!run ? (
-                <span className="text-[12px] text-text-3">Never</span>
+                <span className="text-label text-text-3">Never</span>
               ) : isRunning ? (
-                <span className="text-[12px] text-[var(--brand)] font-medium flex items-center gap-1.5 whitespace-nowrap">
+                <span className="text-label text-[var(--brand)] font-medium flex items-center gap-1.5 whitespace-nowrap">
                   <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -148,12 +148,12 @@ export function ProfilesTable({
                   Running…
                 </span>
               ) : failed ? (
-                <span className="text-[12px] text-[#CF222E]">✗ Failed</span>
+                <span className="text-label text-[#CF222E]">✗ Failed</span>
               ) : (
                 <div className="whitespace-nowrap">
-                  <span className="text-[12px] text-text-2">{relativeDate(run.started_at)}</span>
+                  <span className="text-label text-text-2">{relativeDate(run.started_at)}</span>
                   {run.jobs_saved > 0 && (
-                    <span className="text-[11px] text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
+                    <span className="text-caption text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
                   )}
                 </div>
               )}
@@ -163,7 +163,7 @@ export function ProfilesTable({
               {p.is_manual ? null : (
                 <>
                   <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
-                  <Button asChild variant="default" className={`text-[12px] px-2.5 py-1 shrink-0 whitespace-nowrap ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}>
+                  <Button asChild variant="default" className={`text-label px-2.5 py-1 shrink-0 whitespace-nowrap ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}>
                     <Link
                       href={`/profiles/${p.id}/jobs${newJobs > 0 ? "?view=new" : ""}`}
                     >

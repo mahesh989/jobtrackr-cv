@@ -379,22 +379,22 @@ export function ReviewClient({
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <button type="button" onClick={() => router.push("/cv")} className="inline-flex items-center gap-1 text-[12px] text-text-3 hover:text-text transition-colors mb-2"><ArrowLeft className="h-3.5 w-3.5" /> 
+          <button type="button" onClick={() => router.push("/cv")} className="inline-flex items-center gap-1 text-label text-text-3 hover:text-text transition-colors mb-2"><ArrowLeft className="h-3.5 w-3.5" /> 
             Back to Profile
           </button>
           {isCreate ? (
             <>
-              <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
-              <h1 className="text-[20px] sm:text-[22px] font-semibold text-text mt-0.5 leading-tight">Build your CV</h1>
-              <p className="mt-1.5 text-[13px] text-text-2 leading-relaxed max-w-2xl">
+              <p className="text-caption uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
+              <h1 className="text-h2 sm:text-h1 font-semibold text-text mt-0.5 leading-tight">Build your CV</h1>
+              <p className="mt-1.5 text-body text-text-2 leading-relaxed max-w-2xl">
                 Add your experience and education, then add any other sections you need. We&apos;ll write the professional summary automatically when you tailor this CV to a job.
               </p>
             </>
           ) : (
             <>
-              <p className="text-[11px] uppercase tracking-wider text-text-3 font-medium">Step 1 of 2 · before analysis</p>
-              <h1 className="text-[20px] sm:text-[22px] font-semibold text-text mt-0.5 leading-tight">Review &amp; tidy your CV</h1>
-              <p className="mt-1.5 text-[13px] text-text-2 leading-relaxed max-w-2xl">
+              <p className="text-caption uppercase tracking-wider text-text-3 font-medium">Step 1 of 2 · before analysis</p>
+              <h1 className="text-h2 sm:text-h1 font-semibold text-text mt-0.5 leading-tight">Review &amp; tidy your CV</h1>
+              <p className="mt-1.5 text-body text-text-2 leading-relaxed max-w-2xl">
                 We rearranged <strong className="text-text font-medium">{label}</strong> into a consistent format using only your own words. Edit anything that&apos;s off — nothing was paraphrased or shortened.
               </p>
             </>
@@ -437,16 +437,16 @@ export function ReviewClient({
                   type="button"
                   onClick={handleExtractSkills}
                   disabled={extractingSkills}
-                  className="inline-flex items-center gap-1.5 text-[12px] text-[var(--brand)] hover:underline disabled:opacity-50 disabled:no-underline"
+                  className="inline-flex items-center gap-1.5 text-label text-[var(--brand)] hover:underline disabled:opacity-50 disabled:no-underline"
                 >
                   {extractingSkills
                     ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Extracting…</>
                     : <><Sparkles className="h-3.5 w-3.5" /> Suggest from experience</>
                   }
                 </button>
-                <span className="text-[11px] text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
+                <span className="text-caption text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
                 {extractSkillsErr && (
-                  <p className="w-full text-[11px] text-red-600">{extractSkillsErr}</p>
+                  <p className="w-full text-caption text-red-600">{extractSkillsErr}</p>
                 )}
               </div>
             )}
@@ -509,7 +509,7 @@ export function ReviewClient({
                     />
                   </Grid>
                   <div className="mt-4">
-                    <div className="text-[11px] uppercase tracking-wider font-medium mb-2">
+                    <div className="text-caption uppercase tracking-wider font-medium mb-2">
                       <span className={expFieldErr(i, "bullets") ? "text-red-600" : "text-text-3"}>
                         Bullets{isCreate && <span className="text-red-500 ml-0.5">*</span>}
                         {expFieldErr(i, "bullets") && <span className="normal-case tracking-normal ml-1.5">· add at least one</span>}
@@ -547,7 +547,7 @@ export function ReviewClient({
           ) : doc.education.map((e, i) => (
             <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
               {e._moved_from_certifications && (
-                <span className="inline-flex items-center gap-1 mb-2 px-2 py-0.5 text-[11px] rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/5 text-text-2">
+                <span className="inline-flex items-center gap-1 mb-2 px-2 py-0.5 text-caption rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/5 text-text-2">
                   <BadgeCheck className="h-3 w-3 text-[var(--brand)]" />
                   Moved here from certifications
                 </span>
@@ -617,7 +617,7 @@ export function ReviewClient({
                   </div>
                 </Grid>
                 <div className="mt-3">
-                  <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
+                  <div className="text-caption uppercase tracking-wider text-text-3 font-medium mb-1.5">
                     Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
                   </div>
                   <GhostTextarea rows={2} value={p.description} onChange={v => patchProject(i, { description: v })} />
@@ -685,7 +685,7 @@ export function ReviewClient({
                   <GhostField label="Date"     value={a.date}     onChange={v => patchAward(i, { date: v })} />
                 </Grid>
                 <div className="mt-3">
-                  <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-1.5">
+                  <div className="text-caption uppercase tracking-wider text-text-3 font-medium mb-1.5">
                     Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
                   </div>
                   <GhostTextarea rows={2} value={a.description} onChange={v => patchAward(i, { description: v })} />
@@ -837,12 +837,12 @@ function Section({
             <div className="flex items-center gap-2">
               <span className="text-[14.5px] font-semibold text-text">{title}</span>
               {meta && (
-                <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
+                <span className="text-caption text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">
                   {meta}
                 </span>
               )}
             </div>
-            {subtitle && <p className="text-[12px] text-text-3 mt-0.5 truncate">{subtitle}</p>}
+            {subtitle && <p className="text-label text-text-3 mt-0.5 truncate">{subtitle}</p>}
           </div>
           {open
             ? <ChevronDown  className="h-4 w-4 text-text-3 shrink-0" aria-hidden="true" />
@@ -912,7 +912,7 @@ function DatesField({ start, end, onStart, onEnd, invalid = false }: {
     : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
   return (
     <div>
-      <span className="text-[11px] uppercase tracking-wider text-text-3 font-medium block mb-1">
+      <span className="text-caption uppercase tracking-wider text-text-3 font-medium block mb-1">
         Dates {(blank || invalid) && <span className="normal-case tracking-normal text-red-600 font-semibold">· {invalid ? "required" : "missing"}</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
@@ -922,7 +922,7 @@ function DatesField({ start, end, onStart, onEnd, invalid = false }: {
           onChange={e => onStart(e.target.value)}
           placeholder="Start"
           aria-label="Start date"
-          className={`text-[13px] py-1.5 ${border}`}
+          className={`text-body py-1.5 ${border}`}
         />
         <Input
           type="text"
@@ -930,7 +930,7 @@ function DatesField({ start, end, onStart, onEnd, invalid = false }: {
           onChange={e => onEnd(e.target.value)}
           placeholder="End or Present"
           aria-label="End date"
-          className={`text-[13px] py-1.5 ${border}`}
+          className={`text-body py-1.5 ${border}`}
         />
       </div>
     </div>
@@ -952,7 +952,7 @@ function BulletRow({ value, onChange, onRemove }: {
   useEffect(autoGrow, [value, autoGrow]);
   return (
     <div className="group/bullet flex items-start gap-2 py-1 rounded-md hover:bg-[var(--surface-2)]/30 transition-colors">
-      <span className="mt-[13px] select-none text-[var(--brand)]/60 leading-none text-[10px] shrink-0" aria-hidden="true">●</span>
+      <span className="mt-[13px] select-none text-[var(--brand)]/60 leading-none text-micro shrink-0" aria-hidden="true">●</span>
       <textarea
         ref={ref}
         rows={1}
@@ -988,12 +988,12 @@ function SkillsBucket({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
-        <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium">{label}</div>
-        <span className="text-[11px] text-text-3">{items.length}</span>
+        <div className="text-caption uppercase tracking-wider text-text-3 font-medium">{label}</div>
+        <span className="text-caption text-text-3">{items.length}</span>
       </div>
       <div className="flex flex-wrap gap-1.5 items-center">
         {items.map(s => (
-          <span key={s} className="group/chip inline-flex items-center gap-1 text-[12px] pl-2 pr-1 py-0.5 rounded-full bg-[var(--surface-2)]/80 border border-[var(--border)]/60 hover:border-[var(--border)] transition-colors">
+          <span key={s} className="group/chip inline-flex items-center gap-1 text-label pl-2 pr-1 py-0.5 rounded-full bg-[var(--surface-2)]/80 border border-[var(--border)]/60 hover:border-[var(--border)] transition-colors">
             <span className="text-text">{s}</span>
             <button
               type="button"
@@ -1013,7 +1013,7 @@ function SkillsBucket({
             if (e.key === "Enter") { e.preventDefault(); onAdd(bucket, input); setInput(""); }
           }}
           placeholder="add…"
-          className="text-[12px] h-6 w-24 rounded-full border border-dashed border-[var(--border)] bg-transparent px-2.5 placeholder:text-text-3 focus:outline-none focus:border-[var(--brand)]/70 focus:bg-[var(--surface-2)]/40 transition-colors"
+          className="text-label h-6 w-24 rounded-full border border-dashed border-[var(--border)] bg-transparent px-2.5 placeholder:text-text-3 focus:outline-none focus:border-[var(--brand)]/70 focus:bg-[var(--surface-2)]/40 transition-colors"
           aria-label={`Add ${label}`}
         />
       </div>
@@ -1035,7 +1035,7 @@ function TimelineEntry({
         <span aria-hidden="true" className="absolute left-[9px] sm:left-[11px] top-3 bottom-0 w-px bg-[var(--border)]" />
       )}
       <span aria-hidden="true" className={`absolute left-[5px] sm:left-[7px] top-2.5 h-2 w-2 rounded-full ring-2 ring-[var(--surface)] ${isFirst ? "bg-[var(--brand)]" : "bg-[var(--border)]"}`} />
-      <div className="text-[11px] text-text-2 font-medium mb-2 -mt-0.5">{dateLabel || <span className="text-text-3 italic">no dates</span>}</div>
+      <div className="text-caption text-text-2 font-medium mb-2 -mt-0.5">{dateLabel || <span className="text-text-3 italic">no dates</span>}</div>
       <div>{children}</div>
     </li>
   );
@@ -1049,7 +1049,7 @@ function EmptyState({ icon: Icon, text, actionLabel, onAction }: {
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-2)]/60 text-text-3 mb-2">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <p className="text-[13px] text-text-3 max-w-xs">{text}</p>
+      <p className="text-body text-text-3 max-w-xs">{text}</p>
       {actionLabel && onAction && (
         <button type="button" onClick={onAction} className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--brand)] hover:underline">
           <Plus className="h-3.5 w-3.5" /> {actionLabel}

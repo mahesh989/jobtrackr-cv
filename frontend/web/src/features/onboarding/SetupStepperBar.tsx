@@ -41,14 +41,14 @@ export function SetupStepperBar() {
     <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-[var(--brand)]/10 px-6 py-2.5 backdrop-blur">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-1 text-[12px] font-medium text-text-2 hover:text-text transition-colors shrink-0"
+        className="inline-flex items-center gap-1 text-label font-medium text-text-2 hover:text-text transition-colors shrink-0"
       >
         <ChevronLeft className="w-3.5 h-3.5" /> Back
       </Link>
 
       <div className="flex-1 min-w-0 text-center">
-        <span className="text-[11px] text-text-3">Step {stepNum} of {SETUP_STEP_COUNT} · </span>
-        <span className="text-[12px] font-medium text-text">{step.title}</span>
+        <span className="text-caption text-text-3">Step {stepNum} of {SETUP_STEP_COUNT} · </span>
+        <span className="text-label font-medium text-text">{step.title}</span>
       </div>
 
       <Button

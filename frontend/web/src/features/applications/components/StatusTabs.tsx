@@ -60,7 +60,7 @@ export function StatusTabs({ counts }: { counts: ApplicationStatusCounts }) {
               {count > 0 && (
                 <span
                   className={
-                    "text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center " +
+                    "text-micro font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center " +
                     (current === t.value
                       ? "bg-text text-[var(--surface)]"
                       : "bg-[var(--border)] text-text-2")

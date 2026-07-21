@@ -17,9 +17,9 @@ function Kpi({ label, value, sub, color = "text-text" }: {
 }) {
   return (
     <div className="border border-border bg-surface rounded-md px-4 py-3">
-      <p className="text-[11px] font-medium text-text-3 mb-0.5">{label}</p>
-      <p className={`text-[22px] font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-text-3 mt-0.5">{sub}</p>}
+      <p className="text-caption font-medium text-text-3 mb-0.5">{label}</p>
+      <p className={`text-h1 font-bold ${color}`}>{value}</p>
+      {sub && <p className="text-caption text-text-3 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -30,7 +30,7 @@ function PctBar({ pct, color = "bg-blue-500" }: { pct: number; color?: string })
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[60px]">
         <div className={`${color} h-1.5 rounded-full`} style={{ width: `${Math.min(100, Math.max(pct > 0 ? 1 : 0, pct))}%` }} />
       </div>
-      <span className="text-[11px] text-text-3 w-10 text-right tabular-nums">{pct.toFixed(1)}%</span>
+      <span className="text-caption text-text-3 w-10 text-right tabular-nums">{pct.toFixed(1)}%</span>
     </div>
   );
 }
@@ -212,20 +212,20 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Sourcing health</span>
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-[16px] font-semibold text-text">Job sourcing health</h1>
-            <p className="text-[12px] text-text-3 mt-0.5">Worker pipeline — fetching, dedup, JD quality, locations. Source availability badges use placeholder data.</p>
+            <h1 className="text-lead font-semibold text-text">Job sourcing health</h1>
+            <p className="text-label text-text-3 mt-0.5">Worker pipeline — fetching, dedup, JD quality, locations. Source availability badges use placeholder data.</p>
           </div>
           <RangeFilter current={range} path="/admin/sourcing" />
         </div>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-[12px] text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — Source availability badges are not yet wired. Replace with real max(started_at) per source query.</span>
       </div>
@@ -242,7 +242,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* Global job bucket */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Global job bucket</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Global job bucket</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Kpi label="Bucket size" value={bucketTotal.toLocaleString()} sub="canonical postings" color="text-blue-700" />
             <Kpi label="Coverage slices" value={coverageSlices.length.toLocaleString()} sub={`${freshSlices} fresh (<6h)`} />
@@ -252,7 +252,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
           {Object.keys(bucketBySource).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {Object.entries(bucketBySource).sort((a, b) => b[1] - a[1]).map(([src, n]) => (
-                <span key={src} className="text-[11px] border border-border bg-surface rounded px-2 py-1 text-text-3">
+                <span key={src} className="text-caption border border-border bg-surface rounded px-2 py-1 text-text-3">
                   {src}: <span className="font-semibold text-text">{n}</span>
                 </span>
               ))}
@@ -262,8 +262,8 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* Source availability — not yet wired */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Source availability</h2>
-          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-[12px] text-text-3">
+          <h2 className="text-label font-semibold text-text mb-3">Source availability</h2>
+          <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-label text-text-3">
             Not yet wired — connect to run_logs to populate.
           </div>
         </section>
@@ -271,19 +271,19 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         {/* Per-source save counts */}
         {sourceRanked.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Jobs saved by source (30d)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Jobs saved by source (30d)</h2>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2.5">
               {sourceRanked.map(([src, d]) => (
                 <div key={src} className="flex items-center gap-3">
-                  <span className="text-[12px] text-text-2 w-28 capitalize truncate">{src}</span>
+                  <span className="text-label text-text-2 w-28 capitalize truncate">{src}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                     <div
                       className="bg-blue-500 h-1.5 rounded-full"
                       style={{ width: `${Math.max(d.saved > 0 ? 1 : 0, (d.saved / maxSourceSaved) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-mono text-text-2 w-14 text-right tabular-nums">{d.saved.toLocaleString()}</span>
-                  <span className="text-[10px] text-text-3 w-20 text-right">{d.runs} run{d.runs !== 1 ? "s" : ""}</span>
+                  <span className="text-caption font-mono text-text-2 w-14 text-right tabular-nums">{d.saved.toLocaleString()}</span>
+                  <span className="text-micro text-text-3 w-20 text-right">{d.runs} run{d.runs !== 1 ? "s" : ""}</span>
                 </div>
               ))}
             </div>
@@ -292,7 +292,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* JD quality */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">JD quality (30d)</h2>
+          <h2 className="text-label font-semibold text-text mb-3">JD quality (30d)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <Kpi label="Total jobs (30d)"  value={totalJobs.toLocaleString()} />
             <Kpi label="Full JD"           value={String(fullJd)}  sub={fullJdPct !== null ? `${fullJdPct.toFixed(1)}% of saved` : ""} color="text-emerald-700" />
@@ -326,23 +326,23 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* Daily trend */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Daily jobs saved — last 7 days</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Daily jobs saved — last 7 days</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
             {Object.entries(dayBuckets).map(([day, d]) => (
               <div key={day} className="flex items-center gap-3">
-                <span className="text-[11px] text-text-3 tabular-nums w-24">{day}</span>
+                <span className="text-caption text-text-3 tabular-nums w-24">{day}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
                     className="bg-blue-500 h-2 rounded-full"
                     style={{ width: d.saved > 0 ? `${Math.max(2, (d.saved / maxDaySaved) * 100)}%` : "0%" }}
                   />
                 </div>
-                <span className="text-[11px] font-mono text-text-2 w-14 text-right tabular-nums">{d.saved}</span>
-                <span className="text-[10px] text-text-3 w-16 text-right">{d.runs} run{d.runs !== 1 ? "s" : ""}</span>
+                <span className="text-caption font-mono text-text-2 w-14 text-right tabular-nums">{d.saved}</span>
+                <span className="text-micro text-text-3 w-16 text-right">{d.runs} run{d.runs !== 1 ? "s" : ""}</span>
               </div>
             ))}
             {Object.values(dayBuckets).every((d) => d.saved === 0) && (
-              <p className="text-[12px] text-text-3 text-center py-4">No completed runs in the last 7 days.</p>
+              <p className="text-label text-text-3 text-center py-4">No completed runs in the last 7 days.</p>
             )}
           </div>
         </section>
@@ -350,7 +350,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         {/* Source-to-applied funnel */}
         {allSources.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Source → applied funnel ({RANGE_LABELS[range]})</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Source → applied funnel ({RANGE_LABELS[range]})</h2>
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead>
@@ -379,7 +379,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                                 style={{ width: `${Math.min(100, rate * 10)}%` }}
                               />
                             </div>
-                            <span className="text-[11px] text-text-3 w-12 text-right tabular-nums">{rate.toFixed(1)}%</span>
+                            <span className="text-caption text-text-3 w-12 text-right tabular-nums">{rate.toFixed(1)}%</span>
                           </div>
                         </td>
                       </tr>
@@ -390,7 +390,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                       <td className="text-text">Total</td>
                       <td className="tabular-nums">{totalSaved.toLocaleString()}</td>
                       <td className="tabular-nums text-emerald-700">{appliedTotal}</td>
-                      <td className="tabular-nums text-[12px] text-text-3">
+                      <td className="tabular-nums text-label text-text-3">
                         {totalSaved > 0 ? ((appliedTotal / totalSaved) * 100).toFixed(1) : 0}%
                       </td>
                     </tr>
@@ -404,18 +404,18 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         {/* Top job locations */}
         {topLocations.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Top job locations ({RANGE_LABELS[range]})</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Top job locations ({RANGE_LABELS[range]})</h2>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
               {topLocations.map(([loc, count]) => (
                 <div key={loc} className="flex items-center gap-3">
-                  <span className="text-[12px] text-text-2 w-52 truncate">{loc}</span>
+                  <span className="text-label text-text-2 w-52 truncate">{loc}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                     <div
                       className="bg-blue-500 h-1.5 rounded-full"
                       style={{ width: `${Math.max(2, (count / maxLocationCount) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-mono text-text-2 w-14 text-right tabular-nums">{count.toLocaleString()}</span>
+                  <span className="text-caption font-mono text-text-2 w-14 text-right tabular-nums">{count.toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -425,7 +425,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         {/* Source method health (from source_methods JSONB — populated after migration 065) */}
         {runsWithMethods.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Source method health ({RANGE_LABELS[range]})</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Source method health ({RANGE_LABELS[range]})</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Kpi label="Runs tracked"           value={String(runsWithMethods.length)} sub="with source_methods" />
               <Kpi label="SEEK direct failures"   value={String(seekDirectFails)}   sub="listings skipped / actor failed" color={seekDirectFails > 0 ? "text-red-600" : "text-text"} />
@@ -437,7 +437,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* Recent run log */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Recent worker runs</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Recent worker runs</h2>
           <div className="bg-surface border border-border rounded-md overflow-x-auto">
             <table className="data-table">
               <thead><tr><th>Run</th><th>Status</th><th>Tier</th><th>Source methods</th><th>Fetched</th><th>Saved</th><th>Started</th></tr></thead>
@@ -459,14 +459,14 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                                    : null;
                   return (
                     <tr key={r.id}>
-                      <td className="font-mono text-[11px] text-text-3">{r.id.slice(0, 8)}…</td>
+                      <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                       <td>
-                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-[10px]">
+                        <Badge variant={r.status === "completed" ? "green" : r.status === "failed" ? "red" : r.status === "running" ? "blue" : "gray"} className="text-micro">
                           {r.status}
                         </Badge>
                       </td>
-                      <td className="text-[11px] text-text-3 tabular-nums">{sm?.tier ?? "—"}</td>
-                      <td className="text-[10px] space-x-1">
+                      <td className="text-caption text-text-3 tabular-nums">{sm?.tier ?? "—"}</td>
+                      <td className="text-micro space-x-1">
                         {seekChip   && <span className={`font-medium ${seekChip.cls}`}>{seekChip.label}</span>}
                         {adzunaChip && <span className={`font-medium ${adzunaChip.cls}`}>{adzunaChip.label}</span>}
                         {!sm && <span className="text-text-3">—</span>}

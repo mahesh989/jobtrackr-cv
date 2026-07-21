@@ -56,7 +56,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+            <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
               <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
@@ -73,7 +73,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
               </svg>
               <span className="text-text-2">Run history</span>
             </div>
-            <h1 className="text-[16px] font-semibold text-text">Run history</h1>
+            <h1 className="text-lead font-semibold text-text">Run history</h1>
           </div>
           <Link href={`/profiles/${id}/jobs`}>
             <Button size="sm" className="px-2.5 py-1">← Back to jobs</Button>
@@ -95,13 +95,13 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <p className="text-[14px] font-semibold text-text mb-1">No runs yet</p>
-            <p className="text-[12px] text-text-2">Trigger a run from the dashboard to see history here.</p>
+            <p className="text-title font-semibold text-text mb-1">No runs yet</p>
+            <p className="text-label text-text-2">Trigger a run from the dashboard to see history here.</p>
           </div>
         ) : (
           <div className="bg-surface border border-border rounded-md overflow-hidden anim-in">
             {/* Table header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-[11px] font-semibold text-text-2 uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[var(--surface-2)] border-b border-border text-caption font-semibold text-text-2 uppercase tracking-wider">
               <div className="col-span-3">Started</div>
               <div className="col-span-1">Duration</div>
               <div className="col-span-1 text-center">Status</div>
@@ -131,7 +131,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand)]"/>
                         </span>
                       )}
-                      <span className="text-[12px] font-medium text-text">
+                      <span className="text-label font-medium text-text">
                         {new Date(run.started_at).toLocaleString("en-AU", {
                           day: "numeric", month: "short",
                           hour: "numeric", minute: "2-digit",
@@ -142,7 +142,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     {/* Duration */}
                     <div className="col-span-1 flex items-center">
                       <span
-                        className={`text-[12px] ${isRunning ? "text-[var(--brand)] font-medium" : "text-text-2"}`}
+                        className={`text-label ${isRunning ? "text-[var(--brand)] font-medium" : "text-text-2"}`}
                         title={isRunning && run.current_stage ? run.current_stage : undefined}
                       >
                         {isRunning && run.current_stage
@@ -154,38 +154,38 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     {/* Status */}
                     <div className="col-span-1 flex items-center justify-center">
                       {isRunning ? (
-                        <Badge variant="blue" className="text-[10px]">Running</Badge>
+                        <Badge variant="blue" className="text-micro">Running</Badge>
                       ) : isFailed ? (
-                        <Badge variant="red" className="text-[10px]">Failed</Badge>
+                        <Badge variant="red" className="text-micro">Failed</Badge>
                       ) : isDone ? (
-                        <Badge variant="green" className="text-[10px]">Done</Badge>
+                        <Badge variant="green" className="text-micro">Done</Badge>
                       ) : (
-                        <Badge variant="gray" className="text-[10px]">{run.status}</Badge>
+                        <Badge variant="gray" className="text-micro">{run.status}</Badge>
                       )}
                     </div>
 
                     {/* Fetched */}
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-[12px] text-text-2">{run.jobs_fetched ?? "—"}</span>
+                      <span className="text-label text-text-2">{run.jobs_fetched ?? "—"}</span>
                     </div>
 
                     {/* Deduped */}
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-[12px] text-text-2">{run.jobs_after_dedup ?? "—"}</span>
+                      <span className="text-label text-text-2">{run.jobs_after_dedup ?? "—"}</span>
                     </div>
 
                     {/* Saved */}
                     <div className="col-span-1 flex items-center justify-center">
                       {run.jobs_saved > 0 ? (
-                        <span className="text-[12px] font-semibold text-[#1A7F37]">+{run.jobs_saved}</span>
+                        <span className="text-label font-semibold text-[#1A7F37]">+{run.jobs_saved}</span>
                       ) : (
-                        <span className="text-[12px] text-text-3">—</span>
+                        <span className="text-label text-text-3">—</span>
                       )}
                     </div>
 
                     {/* Sources */}
                     <div className="col-span-2 flex items-center">
-                      <span className="text-[11px] text-text-2 truncate">
+                      <span className="text-caption text-text-2 truncate">
                         {run.sources_run?.length > 0
                           ? `${run.sources_run.length} source${run.sources_run.length !== 1 ? "s" : ""}`
                           : "—"}
@@ -194,7 +194,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
                     {/* AI cost */}
                     <div className="col-span-1 flex items-center justify-end">
-                      <span className="text-[11px] text-text-3">
+                      <span className="text-caption text-text-3">
                         {costLabel(run.ai_cost_cents) ?? "—"}
                       </span>
                     </div>
@@ -214,7 +214,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                   {/* Error message */}
                   {run.error_message && (
                     <div className="px-4 pb-3">
-                      <p className="text-[11px] text-[#CF222E] bg-[#FFEBE9] border border-[#CF222E]/20 rounded px-3 py-2">
+                      <p className="text-caption text-[#CF222E] bg-[#FFEBE9] border border-[#CF222E]/20 rounded px-3 py-2">
                         {run.error_message}
                       </p>
                     </div>

@@ -20,8 +20,8 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
         <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--green-light)] border border-[var(--green)]/30 flex items-center justify-center">
           <Check className="w-6 h-6 text-[var(--green)]" strokeWidth={3} />
         </div>
-        <h2 className="text-[16px] font-semibold text-text">You&apos;re all set</h2>
-        <p className="text-[12px] text-text-2 mt-1">
+        <h2 className="text-lead font-semibold text-text">You&apos;re all set</h2>
+        <p className="text-label text-text-2 mt-1">
           {doneCount} of {SETUP_STEPS.length} steps done — click any step to review or make changes.
         </p>
       </div>
@@ -55,12 +55,12 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
               >
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-text truncate">{step.title}</span>
+                    <span className="text-body font-semibold text-text truncate">{step.title}</span>
                     {!done && (
-                      <span className="text-[10px] text-text-3 uppercase tracking-wide">{TAG_LABEL[step.tag]}</span>
+                      <span className="text-micro text-text-3 uppercase tracking-wide">{TAG_LABEL[step.tag]}</span>
                     )}
                   </span>
-                  <span className="block text-[11px] text-text-3 mt-0.5">
+                  <span className="block text-caption text-text-3 mt-0.5">
                     {done ? "Done" : "Not done yet"}
                   </span>
                 </span>

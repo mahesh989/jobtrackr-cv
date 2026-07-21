@@ -53,11 +53,11 @@ export function DeleteButton({
         size="sm"
       >
         <div className="p-6">
-          <h2 className="text-[16px] font-semibold text-text mb-2">Delete profile?</h2>
-          <p className="text-[13px] text-text-2 leading-relaxed mb-2">
+          <h2 className="text-lead font-semibold text-text mb-2">Delete profile?</h2>
+          <p className="text-body text-text-2 leading-relaxed mb-2">
             This will permanently delete <strong className="text-text">{profileName}</strong> and all its associated jobs, run history, and settings.
           </p>
-          <p className="text-[12px] text-[var(--red)] font-medium mb-5">This action cannot be undone.</p>
+          <p className="text-label text-[var(--red)] font-medium mb-5">This action cannot be undone.</p>
 
           <div className="flex gap-2 justify-end">
             <Button

@@ -61,15 +61,15 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
         {/* Email OAuth result banner — shown once after the callback redirects here. */}
         {connected && (
           <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
-            <p className="text-[13px] font-medium text-black dark:text-white">
+            <p className="text-body font-medium text-black dark:text-white">
               ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
             </p>
           </div>
         )}
         {errorKey && (
           <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
-            <p className="text-[13px] font-medium text-red-800 dark:text-red-300">✗ Email connection failed</p>
-            <p className="text-[12px] text-red-700 dark:text-red-400 mt-0.5">{describeError(errorKey)}</p>
+            <p className="text-body font-medium text-red-800 dark:text-red-300">✗ Email connection failed</p>
+            <p className="text-label text-red-700 dark:text-red-400 mt-0.5">{describeError(errorKey)}</p>
           </div>
         )}
 
@@ -77,7 +77,7 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
           <div>
             <h2 className="text-[14.5px] font-semibold text-text">Email account</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">
+            <p className="text-label text-text-3 mt-0.5">
               Connect Gmail or Outlook to send application emails with your cover letter and
               tailored CV directly from the Applications page.
             </p>
@@ -93,14 +93,14 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-3">
           <div>
             <h2 className="text-[14.5px] font-semibold text-text">Notifications</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">
+            <p className="text-label text-text-3 mt-0.5">
               Control which emails JobTrackr sends you.
             </p>
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[13px] text-text font-medium">Email me when new jobs are found</p>
-              <p className="text-[12px] text-text-3 mt-0.5">
+              <p className="text-body text-text font-medium">Email me when new jobs are found</p>
+              <p className="text-label text-text-3 mt-0.5">
                 One email per scheduled run that saves new jobs. You can unsubscribe from any email too.
               </p>
             </div>

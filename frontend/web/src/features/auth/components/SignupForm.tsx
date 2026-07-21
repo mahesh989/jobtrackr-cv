@@ -171,14 +171,14 @@ export function SignupForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
                   {resendLoading ? "Resending…" : "Resend confirmation email"}
                 </button>
               </>
             )}
           </div>
 
-          <button onClick={handleTryDifferentEmail} className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
             Try a different email
           </button>
         </div>

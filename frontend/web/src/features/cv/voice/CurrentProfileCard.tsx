@@ -19,7 +19,7 @@ export function CurrentProfileCard({ profile, onEdit, onReplace }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="space-y-0.5">
           <p className="text-sm font-medium text-[var(--text)]">Current writing sample</p>
-          <p className="text-[11px] text-[var(--sidebar-text-dim)]">
+          <p className="text-caption text-[var(--sidebar-text-dim)]">
             {sourceLabel(profile.voice_sample_source)}
             {" · Last updated "}
             {new Date(profile.updated_at).toLocaleDateString("en-GB", {
@@ -41,7 +41,7 @@ export function CurrentProfileCard({ profile, onEdit, onReplace }: Props) {
           </button>
           {showSample && (
             <div className="border-t border-[var(--card-border)] px-3 py-3 bg-[var(--surface-2)]">
-              <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-[var(--text-2)] font-sans">
+              <p className="whitespace-pre-wrap text-label leading-relaxed text-[var(--text-2)] font-sans">
                 {profile.voice_sample_raw}
               </p>
             </div>
@@ -58,7 +58,7 @@ export function CurrentProfileCard({ profile, onEdit, onReplace }: Props) {
           <Plus className="w-3.5 h-3.5" />
           Replace with a new sample
         </button>
-        <span className="text-[11px] text-[var(--sidebar-text-dim)] ml-auto">
+        <span className="text-caption text-[var(--sidebar-text-dim)] ml-auto">
           Saving any new text replaces the current sample.
         </span>
       </div>

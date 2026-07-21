@@ -19,7 +19,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
           className={`h-3.5 w-3.5 accent-[var(--brand)] ${className}`}
           {...rest}
         />
-        <span className="text-[13px] text-text-2">{label}</span>
+        <span className="text-body text-text-2">{label}</span>
         {error ? <span className="text-xs text-[var(--red)]">{error}</span> : null}
       </label>
     );

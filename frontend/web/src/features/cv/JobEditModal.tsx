@@ -156,7 +156,7 @@ export function JobEditModal({
     <Modal open onClose={onClose} size="lg" className="max-h-[90vh]">
       <div className="px-5 py-4 border-b border-[var(--border)]">
         <h2 className="text-[15px] font-semibold text-text">Edit job inputs</h2>
-        <p className="text-[12px] text-text-2 mt-0.5 leading-snug">
+        <p className="text-label text-text-2 mt-0.5 leading-snug">
           Trim out the noise — company blurb, EEO statement, benefits — so the
           AI focuses on responsibilities and skills. The original scrape is
           preserved either way.
@@ -166,7 +166,7 @@ export function JobEditModal({
             href={jobUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-medium text-[var(--brand)] hover:underline"
+            className="inline-flex items-center gap-1.5 mt-2 text-label font-medium text-[var(--brand)] hover:underline"
             title="Open the live job posting in a new tab to copy the full description"
           >
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -181,7 +181,7 @@ export function JobEditModal({
           {/* JD text */}
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-[11px] text-text-2 tabular-nums">
+              <span className="text-caption text-text-2 tabular-nums">
                 {charCount.toLocaleString()} chars · {wordCount.toLocaleString()} words
               </span>
             </div>
@@ -193,14 +193,14 @@ export function JobEditModal({
               onChange={(e) => setText(e.target.value)}
               rows={16}
               spellCheck={false}
-              className="bg-[var(--surface-2)] border-[var(--border)] rounded-md px-3 py-2 text-[12px] placeholder:text-text-3 leading-relaxed font-mono focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+              className="bg-[var(--surface-2)] border-[var(--border)] rounded-md px-3 py-2 text-label placeholder:text-text-3 leading-relaxed font-mono focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
             <div className="flex items-center gap-3 mt-1.5">
-              <button onClick={resetToOriginal} disabled={busy} className="text-[11px] text-[var(--brand)] hover:underline" title="Replace the editor contents with the original scraped description">
+              <button onClick={resetToOriginal} disabled={busy} className="text-caption text-[var(--brand)] hover:underline" title="Replace the editor contents with the original scraped description">
                 Reset to original scrape
               </button>
               {wasOriginallyEdited && (
-                <span className="text-[11px] text-[var(--amber)] bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-1.5 py-0.5 rounded">
+                <span className="text-caption text-[var(--amber)] bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-1.5 py-0.5 rounded">
                   Edited JD active
                 </span>
               )}
@@ -219,7 +219,7 @@ export function JobEditModal({
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jane.recruiter@company.com"
             />
-            <p className="text-[11px] text-text-2 mt-1.5">
+            <p className="text-caption text-text-2 mt-1.5">
               Used later for sending your tailored CV via email — kept private on your account.
             </p>
           </div>
@@ -236,7 +236,7 @@ export function JobEditModal({
               onChange={(e) => setHiringMgr(e.target.value)}
               placeholder="John Smith"
             />
-            <p className="text-[11px] text-text-2 mt-1.5">
+            <p className="text-caption text-text-2 mt-1.5">
               Used in the cover letter salutation (e.g., &ldquo;Dear John Smith,&rdquo;).
             </p>
           </div>
@@ -251,26 +251,26 @@ export function JobEditModal({
               rows={3}
               spellCheck={false}
               placeholder={"Level 10, 123 Pitt Street\nSydney NSW 2000"}
-              className="bg-[var(--surface-2)] border-[var(--border)] rounded-md px-3 py-2 text-[13px] placeholder:text-text-3 focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+              className="bg-[var(--surface-2)] border-[var(--border)] rounded-md px-3 py-2 text-body placeholder:text-text-3 focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
-            <p className="text-[11px] text-text-2 mt-1.5">
+            <p className="text-caption text-text-2 mt-1.5">
               Appears in the cover letter employer block beneath the company name. Leave blank to omit.
             </p>
           </div>
 
           {exclusionHits.length > 0 && (
             <div className="rounded-md bg-[var(--amber)]/12 border border-[var(--amber)]/40 px-3 py-2">
-              <p className="text-[12px] font-medium text-[var(--amber)]">
+              <p className="text-label font-medium text-[var(--amber)]">
                 This JD matches {exclusionHits.length} exclusion{exclusionHits.length > 1 ? "s" : ""} from your profile settings
               </p>
-              <p className="text-[11px] text-text-2 mt-1">
+              <p className="text-caption text-text-2 mt-1">
                 {exclusionHits.map((h) => (
                   <span key={h} className="inline-block bg-[var(--amber)]/15 border border-[var(--amber)]/30 rounded px-1.5 py-0.5 mr-1.5 mb-1 text-[var(--amber)] font-medium">
                     {h}
                   </span>
                 ))}
               </p>
-              <p className="text-[11px] text-text-3 mt-1">
+              <p className="text-caption text-text-3 mt-1">
                 The scraping pipeline would have filtered this job out. You can still save and analyse it.
               </p>
             </div>
@@ -278,7 +278,7 @@ export function JobEditModal({
 
           {confirmExclusion && (
             <div className="rounded-md bg-[var(--amber)]/8 border border-[var(--amber)]/40 px-3 py-3">
-              <p className="text-[12px] font-medium text-text mb-2">
+              <p className="text-label font-medium text-text mb-2">
                 Save anyway? This JD contains excluded phrases.
               </p>
               <div className="flex gap-2">
@@ -300,7 +300,7 @@ export function JobEditModal({
           )}
 
           {error && (
-            <div className="rounded-md bg-[var(--red)]/12 border border-[var(--red)]/30 px-3 py-2 text-[12px] text-[var(--red)]">
+            <div className="rounded-md bg-[var(--red)]/12 border border-[var(--red)]/30 px-3 py-2 text-label text-[var(--red)]">
               {error}
             </div>
           )}

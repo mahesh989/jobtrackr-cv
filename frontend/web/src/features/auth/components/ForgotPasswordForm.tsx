@@ -139,7 +139,7 @@ export function ForgotPasswordForm() {
           </p>
           <Link
             href="/auth/login"
-            className="mt-6 inline-block text-[13px] font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
+            className="mt-6 inline-block text-body font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
             style={{ background: "#0B7D74", color: "#FFFFFF" }}
           >
             Go to sign in
@@ -174,14 +174,14 @@ export function ForgotPasswordForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-[13px] underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
                   {resendLoading ? "Resending…" : "Resend reset link"}
                 </button>
               </>
             )}
           </div>
 
-          <button onClick={handleTryDifferentEmail} className="mt-4 text-[13px] underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
             Try a different email
           </button>
         </div>

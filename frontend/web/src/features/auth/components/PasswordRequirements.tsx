@@ -34,7 +34,7 @@ export function PasswordRequirements({ password }: { password: string }) {
         return (
           <li
             key={rule.key}
-            className="flex items-center gap-1.5 text-[12px] transition-colors"
+            className="flex items-center gap-1.5 text-label transition-colors"
             style={{ color: met ? "#0B7D74" : "#667085" }}
           >
             {met ? (

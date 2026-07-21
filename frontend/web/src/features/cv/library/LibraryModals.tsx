@@ -44,7 +44,7 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
               <p className="mt-4 text-[15px] font-semibold text-text" aria-live="polite">
                 {UPLOAD_MESSAGES[step]}
               </p>
-              <p className="mt-1 text-[13px] text-text-2">
+              <p className="mt-1 text-body text-text-2">
                 This may take a moment — please wait.
               </p>
             </>
@@ -52,13 +52,13 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
             <>
               <CheckCircle2 className="h-11 w-11 text-green-500" aria-hidden="true" />
               <p className="mt-4 text-[15px] font-semibold text-text">CV uploaded successfully</p>
-              <p className="mt-1 text-[13px] text-text-2">Taking you to review your CV…</p>
+              <p className="mt-1 text-body text-text-2">Taking you to review your CV…</p>
               <Button
                 variant="primary"
                 size="sm"
                 type="button"
                 onClick={onProceed}
-                className="mt-5 rounded-full px-7 py-2 text-[13px] font-medium"
+                className="mt-5 rounded-full px-7 py-2 text-body font-medium"
               >
                 OK
               </Button>
@@ -87,15 +87,15 @@ export function DeleteConfirmModal({ target, deleting, onCancel, onConfirm }: De
         onClick={() => !deleting && onCancel()}
       />
       <div className="relative bg-surface rounded-lg border border-[var(--border)] shadow-xl max-w-md w-full p-6">
-        <h2 className="text-[16px] font-semibold text-text mb-2">Delete this CV?</h2>
-        <p className="text-[13px] text-text-2 leading-relaxed mb-2">
+        <h2 className="text-lead font-semibold text-text mb-2">Delete this CV?</h2>
+        <p className="text-body text-text-2 leading-relaxed mb-2">
           This removes <strong className="text-text">{target.label}</strong>{" "}
           from your library and deletes the file from storage.
           {target.is_active && (
             <> It is currently your <strong>active</strong> CV — after deletion you will need to set another active before running an analysis.</>
           )}
         </p>
-        <p className="text-[12px] text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
+        <p className="text-label text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
         <div className="flex gap-2 justify-end">
           <Button
             onClick={onCancel}

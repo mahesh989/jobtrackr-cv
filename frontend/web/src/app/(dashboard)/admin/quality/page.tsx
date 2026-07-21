@@ -25,7 +25,7 @@ function ScoreBadge({ score }: { score: number | null }) {
     score >= 70 ? "text-amber-700 bg-amber-50" :
     score >= 60 ? "text-blue-700 bg-blue-50" :
     "text-red-700 bg-red-50";
-  return <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${color}`}>{score}</span>;
+  return <span className={`inline-block px-2 py-0.5 rounded text-caption font-semibold ${color}`}>{score}</span>;
 }
 
 export default async function AdminQualityPage() {
@@ -125,17 +125,17 @@ export default async function AdminQualityPage() {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Quality</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Product quality <span className="text-[13px] font-normal text-text-3 ml-1">(30d, completed runs)</span></h1>
+        <h1 className="text-lead font-semibold text-text">Product quality <span className="text-body font-normal text-text-3 ml-1">(30d, completed runs)</span></h1>
       </div>
 
       <div className="px-6 py-5 space-y-6 max-w-5xl">
 
         {runs.length === 0 && (
-          <p className="text-[12px] text-text-3 bg-surface border border-border rounded-md px-4 py-6 text-center">
+          <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-6 text-center">
             No completed runs in the last 30 days yet.
           </p>
         )}
@@ -149,15 +149,15 @@ export default async function AdminQualityPage() {
             { label: "Runs scored",      value: String(withScores.length) },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-              <p className="text-[11px] text-text-3 mb-0.5">{s.label}</p>
-              <p className={`text-[20px] font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
+              <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
+              <p className={`text-h2 font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
             </div>
           ))}
         </div>
 
         {/* Gate funnel */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Gate funnel</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Gate funnel</h2>
           <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-3">
             {[
               { label: "Runs started",      count: totalStarted,  pct: 100 },
@@ -166,11 +166,11 @@ export default async function AdminQualityPage() {
               { label: "Cover letter generated", count: hasLetter, pct: totalStarted > 0 ? (hasLetter / totalStarted) * 100 : 0 },
             ].map(({ label, count, pct }) => (
               <div key={label} className="flex items-center gap-3">
-                <span className="text-[12px] text-text-2 w-52">{label}</span>
+                <span className="text-label text-text-2 w-52">{label}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
                 </div>
-                <span className="text-[11px] font-mono text-text-2 w-24 text-right">{count} ({pct.toFixed(0)}%)</span>
+                <span className="text-caption font-mono text-text-2 w-24 text-right">{count} ({pct.toFixed(0)}%)</span>
               </div>
             ))}
           </div>
@@ -179,21 +179,21 @@ export default async function AdminQualityPage() {
         {/* Score distribution */}
         {withScores.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Tailored ATS score distribution</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Tailored ATS score distribution</h2>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
               {(Object.entries(scoreRanges) as [string, number][]).map(([range, count]) => {
                 const pct = withScores.length > 0 ? (count / withScores.length) * 100 : 0;
                 const isAboveGate = range === "70–79" || range === "80–89" || range === "90+";
                 return (
                   <div key={range} className="flex items-center gap-3">
-                    <span className={`text-[12px] w-16 ${isAboveGate ? "text-emerald-700 font-medium" : "text-text-3"}`}>{range}</span>
+                    <span className={`text-label w-16 ${isAboveGate ? "text-emerald-700 font-medium" : "text-text-3"}`}>{range}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${isAboveGate ? "bg-emerald-500" : count === maxScoreCount ? "bg-amber-400" : "bg-slate-400"}`}
                         style={{ width: `${(count / maxScoreCount) * 100}%` }}
                       />
                     </div>
-                    <span className="text-[11px] text-text-3 w-20 text-right">{count} ({pct.toFixed(0)}%)</span>
+                    <span className="text-caption text-text-3 w-20 text-right">{count} ({pct.toFixed(0)}%)</span>
                   </div>
                 );
               })}
@@ -204,7 +204,7 @@ export default async function AdminQualityPage() {
         {/* Role-family breakdown */}
         {familyRanked.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Quality by role family</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Quality by role family</h2>
             <div className="bg-surface border border-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Role family</th><th>Runs</th><th>Avg tailored score</th><th>Avg lift</th></tr></thead>
@@ -227,7 +227,7 @@ export default async function AdminQualityPage() {
 
         {/* Cover letter reliability */}
         <section>
-          <h2 className="text-[12px] font-semibold text-text mb-3">Cover letter reliability (30d)</h2>
+          <h2 className="text-label font-semibold text-text mb-3">Cover letter reliability (30d)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Generated",  value: String(totalLetters) },
@@ -237,8 +237,8 @@ export default async function AdminQualityPage() {
                 color: letterSuccessRate !== null && letterSuccessRate < 90 ? "text-amber-700" : "text-emerald-700" },
             ].map((s) => (
               <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">{s.label}</p>
-                <p className={`text-[20px] font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
+                <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
+                <p className={`text-h2 font-bold ${(s as { color?: string }).color ?? "text-text"}`}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -247,21 +247,21 @@ export default async function AdminQualityPage() {
         {/* Structural validation */}
         {withStruct.length > 0 && (
           <section>
-            <h2 className="text-[12px] font-semibold text-text mb-3">Structural validation (30d)</h2>
+            <h2 className="text-label font-semibold text-text mb-3">Structural validation (30d)</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Runs with report</p>
-                <p className="text-[20px] font-bold text-text">{withStruct.length}</p>
+                <p className="text-caption text-text-3 mb-0.5">Runs with report</p>
+                <p className="text-h2 font-bold text-text">{withStruct.length}</p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Struct fail rate</p>
-                <p className={`text-[20px] font-bold ${structFailRate !== null && structFailRate > 10 ? "text-amber-700" : "text-emerald-700"}`}>
+                <p className="text-caption text-text-3 mb-0.5">Struct fail rate</p>
+                <p className={`text-h2 font-bold ${structFailRate !== null && structFailRate > 10 ? "text-amber-700" : "text-emerald-700"}`}>
                   {structFailRate !== null ? `${structFailRate.toFixed(1)}%` : "—"}
                 </p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
-                <p className="text-[11px] text-text-3 mb-0.5">Struct fails (count)</p>
-                <p className={`text-[20px] font-bold ${structFails > 0 ? "text-amber-700" : "text-emerald-700"}`}>{structFails}</p>
+                <p className="text-caption text-text-3 mb-0.5">Struct fails (count)</p>
+                <p className={`text-h2 font-bold ${structFails > 0 ? "text-amber-700" : "text-emerald-700"}`}>{structFails}</p>
               </div>
             </div>
           </section>

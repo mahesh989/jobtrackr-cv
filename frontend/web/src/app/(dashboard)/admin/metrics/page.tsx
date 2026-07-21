@@ -16,10 +16,10 @@ function MetricRow({
   index: number; label: string; target: string; value: string; pass: boolean | null; manual?: boolean;
 }) {
   const status = manual
-    ? <Badge variant="gray" className="text-[10px]">Manual</Badge>
-    : pass === true  ? <Badge variant="green" className="text-[10px]">Pass</Badge>
-    : pass === false ? <Badge variant="red" className="text-[10px]">Fail</Badge>
-    : <Badge variant="gray" className="text-[10px]">N/A</Badge>;
+    ? <Badge variant="gray" className="text-micro">Manual</Badge>
+    : pass === true  ? <Badge variant="green" className="text-micro">Pass</Badge>
+    : pass === false ? <Badge variant="red" className="text-micro">Fail</Badge>
+    : <Badge variant="gray" className="text-micro">N/A</Badge>;
 
   return (
     <tr>
@@ -85,7 +85,7 @@ export default async function MetricsPage() {
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
@@ -97,15 +97,15 @@ export default async function MetricsPage() {
           <span className="text-text-2">Beta metrics</span>
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-[16px] font-semibold text-text">Acceptance metrics</h1>
-          <span className="text-[11px] text-text-3">
+          <h1 className="text-lead font-semibold text-text">Acceptance metrics</h1>
+          <span className="text-caption text-text-3">
             Last computed: {new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}
           </span>
         </div>
       </div>
 
       <div className="px-6 py-5 space-y-5">
-        <p className="text-[12px] text-text-2 anim-in">
+        <p className="text-label text-text-2 anim-in">
           All 8 metrics must pass simultaneously for 30 consecutive days before beta invites are issued.
         </p>
 
@@ -186,8 +186,8 @@ export default async function MetricsPage() {
 
         {/* Manual guidance */}
         <div className="bg-[#FFF8C5] border border-[#9A6700]/20 rounded-md p-4 anim-in anim-delay-2">
-          <p className="text-[12px] font-semibold text-[#9A6700] mb-2">Manual metrics guidance</p>
-          <ul className="text-[12px] text-text space-y-1.5 list-disc list-inside leading-relaxed">
+          <p className="text-label font-semibold text-[#9A6700] mb-2">Manual metrics guidance</p>
+          <ul className="text-label text-text space-y-1.5 list-disc list-inside leading-relaxed">
             <li><span className="font-semibold">#4 Relevance accuracy</span> — Rate a sample of 20 jobs per run. Track in a spreadsheet until rating UI is built.</li>
             <li><span className="font-semibold">#5 Visa plausibility</span> — Does the visa_likelihood score match the actual job description?</li>
             <li><span className="font-semibold">#6 Time saved</span> — Estimate time saved vs. manual searching. Track weekly.</li>

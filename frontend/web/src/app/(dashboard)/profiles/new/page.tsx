@@ -23,7 +23,7 @@ export default async function NewProfilePage() {
     <div className="min-h-full">
       {/* Page header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
@@ -34,7 +34,7 @@ export default async function NewProfilePage() {
           </svg>
           <span className="text-text-2">New profile</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">New search profile</h1>
+        <h1 className="text-lead font-semibold text-text">New search profile</h1>
       </div>
 
       <div className="px-6 py-5">
@@ -46,8 +46,8 @@ export default async function NewProfilePage() {
 
           {/* Tips panel */}
           <div className="w-72 shrink-0 hidden lg:block anim-in anim-delay-1">
-            <div className="bg-surface border border-border rounded-md p-4 space-y-4 text-[12px]">
-              <p className="text-[11px] font-semibold text-text-2 uppercase tracking-wider">Tips</p>
+            <div className="bg-surface border border-border rounded-md p-4 space-y-4 text-label">
+              <p className="text-caption font-semibold text-text-2 uppercase tracking-wider">Tips</p>
 
               <div className="space-y-3">
                 <div>

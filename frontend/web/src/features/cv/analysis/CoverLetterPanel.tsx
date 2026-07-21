@@ -69,7 +69,7 @@ function Naturalnessbadge({ score }: { score: number | null }) {
                : score >= 0.5  ? "text-yellow-700 bg-yellow-50 border-yellow-200"
                : "text-red-700 bg-red-50 border-red-200";
   return (
-    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium ${colour}`}>
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-caption font-medium ${colour}`}>
       {label}
     </span>
   );
@@ -458,24 +458,24 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Header */}
       <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-[14px] font-semibold text-text">Cover Letter</h2>
-          <p className="text-[11px] text-text-3 mt-0.5">
+          <h2 className="text-title font-semibold text-text">Cover Letter</h2>
+          <p className="text-caption text-text-3 mt-0.5">
             Tailored to your voice, your CV, and this job description
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {hasBody && (
-            <span className="text-[11px] text-text-3 tabular-nums whitespace-nowrap">
+            <span className="text-caption text-text-3 tabular-nums whitespace-nowrap">
               {wordCount.toLocaleString()} words · {charCount.toLocaleString()} characters
             </span>
           )}
           {letter?.status === "completed" && (
-            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40">
+            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-caption text-text-3 hover:text-text underline disabled:opacity-40">
               Regenerate
             </button>
           )}
           {!letter && (
-            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50">
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
           )}
@@ -486,12 +486,12 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {belowFinalGate && (
         <div className="mx-5 mt-4 rounded border-2 border-amber-300 bg-amber-50 px-3 py-3">
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-[10px] font-bold text-amber-900">!</span>
+            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-micro font-bold text-amber-900">!</span>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-amber-900 leading-snug">
+              <p className="text-body font-semibold text-amber-900 leading-snug">
                 Below your final-ATS threshold
               </p>
-              <p className="mt-1 text-[12px] text-amber-800 leading-relaxed">
+              <p className="mt-1 text-label text-amber-800 leading-relaxed">
                 Tailored CV scored{" "}
                 <span className="font-bold tabular-nums">{belowFinalGate.score ?? "—"}</span>
                 {" "}/ 100, below your configured threshold of{" "}
@@ -502,11 +502,11 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             <button
               onClick={() => handleGenerate(true)}
               disabled={loading}
-              className="mt-3 rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="mt-3 rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Starting…" : "Try again"}
             </button>
-                <button onClick={() => setBelowFinalGate(null)} className="px-2.5 py-1 text-[12px] text-amber-700 hover:text-amber-900 transition-colors">
+                <button onClick={() => setBelowFinalGate(null)} className="px-2.5 py-1 text-label text-amber-700 hover:text-amber-900 transition-colors">
                   Dismiss
                 </button>
               </div>
@@ -517,14 +517,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
       {/* Error */}
       {error && (
-        <div className="mx-5 mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+        <div className="mx-5 mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-label text-red-700">
           {error}
         </div>
       )}
 
       {/* Billing cap — upgrade prompt */}
       {paywall && (
-        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-label text-amber-800">
           <span className="font-medium">{paywall.message}</span>
           <Button asChild variant="brand" size="xs" className="shrink-0">
             <a href={`/billing?denied=${paywall.reason}`}>Upgrade</a>
@@ -535,7 +535,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Auto-research indicator: shown while we transparently fetch company
           research before drafting (the user doesn't click anything). */}
       {researching && (
-        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-[12px] text-blue-900">
+        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-label text-blue-900">
           <span className="animate-pulse">●</span>{" "}
           Researching <span className="font-medium">{researching}</span> before drafting your letter…
         </div>
@@ -544,17 +544,17 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* No letter yet — prompt */}
       {!letter && !loading && !error && !researching && (
         <div className="px-5 py-8 text-center">
-          <p className="text-[13px] text-text-2">
+          <p className="text-body text-text-2">
             Generate a personalised cover letter using your writing voice, story library,
             and company research.
           </p>
-          <p className="mt-1 text-[11px] text-text-3">
+          <p className="mt-1 text-caption text-text-3">
             Requires: active CV · writing voice · extracted stories · JD text
           </p>
             <button
               onClick={() => handleGenerate(false)}
               disabled={loading}
-              className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
@@ -564,7 +564,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Variant picker — shown while status='picking' */}
       {isPicking && letter?.opening_variants && letter.opening_variants.length > 0 && (
         <div className="px-5 py-4">
-          <p className="text-[13px] text-text-2 mb-4">
+          <p className="text-body text-text-2 mb-4">
             Choose an opening — the rest of the letter will be written to match it.
           </p>
           <div className="space-y-3">
@@ -573,16 +573,16 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 key={variant.id}
                 className="rounded border border-border bg-surface p-4"
               >
-                <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wider mb-2">
+                <p className="text-micro font-semibold text-text-3 uppercase tracking-wider mb-2">
                   {variant.pattern_label}
                 </p>
-                <p className="text-[13px] text-text leading-relaxed mb-3">
+                <p className="text-body text-text leading-relaxed mb-3">
                   {variant.text}
                 </p>
                 <button
                   onClick={() => handlePick(variant.id)}
                   disabled={pickingId !== null}
-                  className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   {pickingId === variant.id ? "Confirming…" : "Use this opener"}
                 </button>
@@ -596,7 +596,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {letter && (isRunning || (!isTerminal && !isPicking)) && (
         <div className="px-5 py-4 space-y-2">
           {STEP_LABELS.map(({ key, label }) => (
-            <div key={key} className="flex items-center gap-2 text-[13px]">
+            <div key={key} className="flex items-center gap-2 text-body">
               {stepIcon(genStatus[key as keyof GenerationStatus])}
               <span className={genStatus[key as keyof GenerationStatus] === "running" ? "text-text font-medium" : "text-text-2"}>
                 {label}
@@ -609,11 +609,11 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Failed */}
       {letter?.status === "failed" && (
         <div className="px-5 py-4">
-          <p className="text-[13px] text-red-600 font-medium">Generation failed</p>
+          <p className="text-body text-red-600 font-medium">Generation failed</p>
           {letter.error_message && (
-            <p className="mt-1 text-[11px] text-text-3 font-mono">{letter.error_message}</p>
+            <p className="mt-1 text-caption text-text-3 font-mono">{letter.error_message}</p>
           )}
-            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-[11px] text-text-3 hover:text-text underline disabled:opacity-40">
+            <button onClick={() => handleGenerate(true)} disabled={loading} className="text-caption text-text-3 hover:text-text underline disabled:opacity-40">
               Regenerate
             </button>
         </div>
@@ -626,7 +626,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           <div className="flex flex-wrap items-center gap-2">
             <Naturalnessbadge score={letter.naturalness_score} />
             {letter.company_hook_text && (
-              <span className="text-[11px] text-text-3 italic truncate max-w-xs">
+              <span className="text-caption text-text-3 italic truncate max-w-xs">
                 Hook: {letter.company_hook_text}
               </span>
             )}
@@ -639,9 +639,9 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
               value={editedBody ?? letter.pass_3_final ?? ""}
               onChange={(e) => setEditedBody(e.target.value)}
               rows={12}
-              className="rounded border-border bg-surface px-3 py-2 text-[13px] text-text leading-relaxed font-sans focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
+              className="rounded border-border bg-surface px-3 py-2 text-body text-text leading-relaxed font-sans focus:ring-2 focus:ring-[var(--brand)]/30 resize-y"
             />
-            <p className="text-[11px] text-text-3 mt-1">
+            <p className="text-caption text-text-3 mt-1">
               Edit freely — changes are temporary during this session.
             </p>
           </div>
@@ -659,7 +659,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             return (
               <>
                 {claims.length > 0 && (
-                  <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                  <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-label text-amber-900">
                     <p className="font-medium">Review before sending — these claims could not be verified against your CV:</p>
                     <ul className="mt-1 list-disc list-inside space-y-0.5">
                       {claims.map((c, i) => <li key={i}>{c}</li>)}
@@ -667,14 +667,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                   </div>
                 )}
                 {flags.low_quality_company_research && (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
                     Company research returned limited information for this employer.
                     Paragraph 2 falls back to the job description — read it carefully
                     before sending.
                   </div>
                 )}
                 {claims.length === 0 && flags.honesty_inconclusive && (
-                  <p className="text-[11px] text-text-3">
+                  <p className="text-caption text-text-3">
                     Note: honesty check was inconclusive — give the letter a quick read before sending.
                   </p>
                 )}
@@ -709,7 +709,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
           {/* Model provenance */}
           {letter.pass_3_model && (
-            <p className="text-[10px] text-text-3">
+            <p className="text-micro text-text-3">
               Generated with {letter.pass_3_model}
             </p>
           )}
@@ -730,7 +730,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-border">
-              <h3 id="download-pdf-title" className="text-[14px] font-semibold text-text">
+              <h3 id="download-pdf-title" className="text-title font-semibold text-text">
                 Download as PDF
               </h3>
             </div>
@@ -745,19 +745,19 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                   onChange={(e) => setDownloadHiringMgr(e.target.value)}
                   placeholder="e.g., John Smith"
                 />
-                <p className="text-[11px] text-text-3 mt-1">
+                <p className="text-caption text-text-3 mt-1">
                   Used in the salutation line. Leave blank to use the job default or &ldquo;Hiring Manager&rdquo;.
                 </p>
               </div>
             </div>
             <div className="px-5 py-3 border-t border-border flex gap-2 justify-end bg-surface-2">
-              <button onClick={() => setShowDownloadModal(false)} disabled={downloading} className="rounded border border-border px-3 py-1.5 text-[12px] text-text-2 hover:text-text transition-colors disabled:opacity-40">
+              <button onClick={() => setShowDownloadModal(false)} disabled={downloading} className="rounded border border-border px-3 py-1.5 text-label text-text-2 hover:text-text transition-colors disabled:opacity-40">
                 Cancel
               </button>
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="rounded bg-brand px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {downloading ? "Generating…" : "Download"}
               </button>

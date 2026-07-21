@@ -20,7 +20,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           aria-invalid={!!error || undefined}
           {...rest}
         />
-        <span className="text-[13px] text-text">{label}</span>
+        <span className="text-body text-text">{label}</span>
         {error ? <span className="text-xs text-[var(--red)]">{error}</span> : null}
       </label>
     );

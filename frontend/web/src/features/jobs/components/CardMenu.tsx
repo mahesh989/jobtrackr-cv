@@ -56,7 +56,7 @@ export function CardMenu({
         <div
           ref={menuRef}
           style={{ position: "fixed", top: pos.top, right: pos.right }}
-          className="z-50 min-w-[160px] rounded-md border border-border bg-surface shadow-lg py-1 text-[12px]"
+          className="z-50 min-w-[160px] rounded-md border border-border bg-surface shadow-lg py-1 text-label"
         >
           <MenuItem onClick={() => { setOpen(false); onEdit(); }}>Edit JD…</MenuItem>
           {job.progress.has_analysis && job.progress.latest_run_id && (

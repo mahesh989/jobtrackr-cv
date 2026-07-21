@@ -43,7 +43,7 @@ export function TrialHero() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl font-bold text-text">3-day free trial</span>
-            <span className="rounded-full bg-[var(--brand)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--brand)]">
+            <span className="rounded-full bg-[var(--brand)]/10 px-2 py-0.5 text-caption font-semibold text-[var(--brand)]">
               No charge today
             </span>
           </div>

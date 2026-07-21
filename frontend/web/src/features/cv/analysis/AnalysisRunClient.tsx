@@ -117,18 +117,18 @@ function StepRow({
     <div className="flex items-start gap-3 py-2">
       <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${dot} ${state === "running" ? "ring-2 ring-blue/30" : ""}`} />
       <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
-        <span className={`text-[13px] ${color}`}>{label}</span>
+        <span className={`text-body ${color}`}>{label}</span>
         {typeof scoreBadge === "number" && state === "completed" && (
-          <span className="text-[11px] font-semibold text-[var(--brand)] bg-[var(--brand)]/10 border border-[var(--brand)]/25 rounded px-1.5 py-0.5 tabular-nums">
+          <span className="text-caption font-semibold text-[var(--brand)] bg-[var(--brand)]/10 border border-[var(--brand)]/25 rounded px-1.5 py-0.5 tabular-nums">
             {Math.round(scoreBadge)}%
           </span>
         )}
         {subLabel && (
-          <span className="text-[11px] text-text-3 italic w-full">{subLabel}</span>
+          <span className="text-caption text-text-3 italic w-full">{subLabel}</span>
         )}
       </div>
       {trailingNode}
-      <span className="text-[11px] text-text-3 uppercase tracking-wide shrink-0">{state}</span>
+      <span className="text-caption text-text-3 uppercase tracking-wide shrink-0">{state}</span>
     </div>
   );
 }
@@ -334,9 +334,9 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
       {/* Steps */}
       <div className="bg-surface border border-border rounded-md">
         <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
-          <h2 className="text-[14px] font-semibold text-text">Pipeline steps</h2>
+          <h2 className="text-title font-semibold text-text">Pipeline steps</h2>
           <div className="flex items-center gap-3">
-            <span className={`text-[11px] uppercase tracking-wide ${
+            <span className={`text-caption uppercase tracking-wide ${
               run.status === "failed"  ? "text-red" :
               run.status === "completed" ? "text-green" :
               "text-text-3"
@@ -352,7 +352,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
               <button
                 onClick={() => startCancel(async () => { await cancelAnalysisRun(runId); })}
                 disabled={cancelPending}
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 text-label font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
                 title="Stop this analysis — prevents remaining AI steps from running"
               >
                 {cancelPending
@@ -392,7 +392,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
               ? (
                 <a
                   href="/applications?status=email"
-                  className="text-[11px] font-semibold text-[var(--brand)] hover:underline"
+                  className="text-caption font-semibold text-[var(--brand)] hover:underline"
                 >
                   View letter →
                 </a>
@@ -410,12 +410,12 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           })()}
         </div>
         {run.error_message && (
-          <div className="px-5 py-3 border-t border-border bg-red-light/30 text-[12px] text-red">
+          <div className="px-5 py-3 border-t border-border bg-red-light/30 text-label text-red">
             {run.error_message}
           </div>
         )}
         {!isTerminal && (
-          <div className="px-5 py-3 border-t border-border bg-surface-2 text-[11px] text-text-3">
+          <div className="px-5 py-3 border-t border-border bg-surface-2 text-caption text-text-3">
             Live — updates stream in via Supabase Realtime.
           </div>
         )}
@@ -429,10 +429,10 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-[13px] font-semibold text-amber-900">
+              <h3 className="text-body font-semibold text-amber-900">
                 Tailoring skipped — initial ATS below the gate
               </h3>
-              <p className="text-[12px] text-amber-800 mt-1 leading-relaxed">
+              <p className="text-label text-amber-800 mt-1 leading-relaxed">
                 {typeof run.match_score === "number"
                   ? `The initial ATS score (${Math.round(run.match_score)}%) is below the ${MIN_INITIAL_ATS}% gate, `
                   : `The initial ATS score is below the ${MIN_INITIAL_ATS}% gate, `}
@@ -443,13 +443,13 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 <button
                   onClick={handleResume}
                   disabled={resuming}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-label font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
                   title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
                 >
                   {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                   {resuming ? "Resuming…" : "Continue & tailor anyway"}
                 </button>
-                {resumeErr && <span className="text-[11px] text-red">{resumeErr}</span>}
+                {resumeErr && <span className="text-caption text-red">{resumeErr}</span>}
               </div>
             </div>
           </div>
@@ -478,7 +478,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         />
 
         {showInput && (
-          <div className="px-5 py-4 space-y-4 text-[12px]">
+          <div className="px-5 py-4 space-y-4 text-label">
             <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-text-2">
               <dt className="text-text-3">Provider</dt>
               <dd className="font-mono text-text">{run.ai_provider ?? "—"}</dd>
@@ -499,13 +499,13 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
 
             {run.jd_text && (
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1.5">
+                <div className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-1.5">
                   Exact JD text sent to the AI
                 </div>
-                <pre className="bg-surface-2 border border-border rounded p-3 text-[12px] text-text-2 leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap break-words">
+                <pre className="bg-surface-2 border border-border rounded p-3 text-label text-text-2 leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap break-words">
                   {run.jd_text}
                 </pre>
-                <p className="text-[11px] text-text-3 mt-1.5">
+                <p className="text-caption text-text-3 mt-1.5">
                   To verify cv-magic parity: copy this text, paste into a standalone
                   chat with <span className="font-mono">{run.ai_model ?? "the same model"}</span>,
                   use cv-magic&apos;s JD-analysis prompt, and compare outputs.
@@ -609,19 +609,19 @@ function CvSkillsSummary({
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
-        <h2 className="text-[14px] font-semibold text-text">Your CV — skills by category</h2>
-        {label && <span className="text-[11px] text-text-3 truncate">{label}</span>}
+        <h2 className="text-title font-semibold text-text">Your CV — skills by category</h2>
+        {label && <span className="text-caption text-text-3 truncate">{label}</span>}
       </div>
       <div className="px-5 py-4 space-y-3">
-        <div className="flex flex-wrap gap-4 text-[12px]">
+        <div className="flex flex-wrap gap-4 text-label">
           {catOrder.map((cat, i) => (
             <div key={cat} className="flex items-baseline gap-1.5">
-              <span className="text-[14px] font-semibold tabular-nums text-text">{totals[i]}</span>
+              <span className="text-title font-semibold tabular-nums text-text">{totals[i]}</span>
               <span className="text-text-3">{catLabels[cat].toLowerCase()}</span>
             </div>
           ))}
           <div className="ml-auto flex items-baseline gap-1.5">
-            <span className="text-[14px] font-semibold tabular-nums text-text">{total}</span>
+            <span className="text-title font-semibold tabular-nums text-text">{total}</span>
             <span className="text-text-3">total</span>
           </div>
         </div>
@@ -631,12 +631,12 @@ function CvSkillsSummary({
             if (!items || items.length === 0) return null;
             return (
               <div key={cat}>
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-text-3 mb-1">
+                <h3 className="text-micro font-semibold uppercase tracking-widest text-text-3 mb-1">
                   {catLabels[cat]} <span className="font-normal">({items.length})</span>
                 </h3>
                 <div className="flex flex-wrap gap-1">
                   {items.map((s) => (
-                    <span key={s} className="text-[11px] font-mono px-1.5 py-0.5 rounded border bg-[var(--brand)]/10 text-[var(--brand)] border-[var(--brand)]/25">
+                    <span key={s} className="text-caption font-mono px-1.5 py-0.5 rounded border bg-[var(--brand)]/10 text-[var(--brand)] border-[var(--brand)]/25">
                       {s}
                     </span>
                   ))}

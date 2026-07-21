@@ -53,7 +53,7 @@ export function InstructionsTabs({
           <Tabs.Trigger
             key={t.key}
             value={t.key}
-            className="px-4 py-2.5 text-[13px] font-semibold -mb-px"
+            className="px-4 py-2.5 text-body font-semibold -mb-px"
           >
             {t.label}
           </Tabs.Trigger>

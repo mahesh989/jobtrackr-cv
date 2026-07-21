@@ -32,9 +32,9 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
     <div className="border border-border rounded-md p-4 bg-surface space-y-3">
       <div className="flex items-center gap-2">
         <Mail className="w-4 h-4 text-text-2" />
-        <h3 className="text-[13px] font-semibold text-text">Email account</h3>
+        <h3 className="text-body font-semibold text-text">Email account</h3>
       </div>
-      <p className="text-[12px] text-text-3 leading-relaxed">
+      <p className="text-label text-text-3 leading-relaxed">
         Connect Gmail or Outlook to send application emails directly from JobTrackr.
         Your cover letter is used as the email body; your tailored CV PDF is attached automatically.
       </p>
@@ -46,15 +46,15 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
             <div className="flex items-center gap-2 min-w-0">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-text">
+                <p className="text-label font-medium text-text">
                   {connected.provider === "google" ? "Gmail" : "Outlook"} connected
                 </p>
-                <p className="text-[11px] text-text-2 truncate">
+                <p className="text-caption text-text-2 truncate">
                   {connected.from_address}
                 </p>
               </div>
             </div>
-            <button onClick={handleDisconnect} disabled={disconnecting} className="inline-flex items-center gap-1 text-[11px] text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40">
+            <button onClick={handleDisconnect} disabled={disconnecting} className="inline-flex items-center gap-1 text-caption text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40">
               {disconnecting
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <LogOut  className="w-3 h-3" />
@@ -67,7 +67,7 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
         /* ── Connect buttons ── */
         <div className="flex flex-wrap gap-2">
           {googleConfigured && (
-            <Button asChild variant="default" className="text-[12px] px-3 py-1.5">
+            <Button asChild variant="default" className="text-label px-3 py-1.5">
               <a href="/api/auth/email/google" className="inline-flex items-center gap-2">
               {/* Google G icon */}
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -81,7 +81,7 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
             </Button>
           )}
           {microsoftConfigured && (
-            <Button asChild variant="default" className="text-[12px] px-3 py-1.5">
+            <Button asChild variant="default" className="text-label px-3 py-1.5">
               <a href="/api/auth/email/outlook" className="inline-flex items-center gap-2">
               {/* Microsoft icon */}
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -95,11 +95,11 @@ export function IntegrationCard({ connected, googleConfigured, microsoftConfigur
             </Button>
           )}
           {!googleConfigured && !microsoftConfigured && (
-            <p className="text-[12px] text-amber-600 dark:text-amber-400">
-              Not configured — set <code className="font-mono text-[11px]">GOOGLE_CLIENT_ID</code>{" "}
-              + <code className="font-mono text-[11px]">GOOGLE_CLIENT_SECRET</code> (or{" "}
-              <code className="font-mono text-[11px]">MICROSOFT_CLIENT_ID</code>{" "}
-              + <code className="font-mono text-[11px]">MICROSOFT_CLIENT_SECRET</code>) in your environment.
+            <p className="text-label text-amber-600 dark:text-amber-400">
+              Not configured — set <code className="font-mono text-caption">GOOGLE_CLIENT_ID</code>{" "}
+              + <code className="font-mono text-caption">GOOGLE_CLIENT_SECRET</code> (or{" "}
+              <code className="font-mono text-caption">MICROSOFT_CLIENT_ID</code>{" "}
+              + <code className="font-mono text-caption">MICROSOFT_CLIENT_SECRET</code>) in your environment.
             </p>
           )}
         </div>

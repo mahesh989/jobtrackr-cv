@@ -435,7 +435,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           return (
             <Chip key={lens} active={on} onClick={() => switchLens(lens)}>
               {lm.label}
-              <span className={`text-[10px] min-w-[16px] h-4 px-1 rounded-full inline-flex items-center justify-center font-bold ${
+              <span className={`text-micro min-w-[16px] h-4 px-1 rounded-full inline-flex items-center justify-center font-bold ${
                 on ? "bg-white/20 text-[var(--brand-fg)]" : "bg-[var(--border)] text-text-3"
               }`}>{cnt}</span>
             </Chip>
@@ -455,11 +455,11 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
             onMouseLeave={onMouseLeave}
             onClick={onClick}
           />
-          <p className="text-[10px] text-text-3 text-center mt-1">click to explore</p>
+          <p className="text-micro text-text-3 text-center mt-1">click to explore</p>
         </div>
 
         <div className="w-full sm:flex-1 min-w-0 space-y-2">
-          <p className="text-[10px] font-semibold text-text-3 uppercase tracking-wider mb-3">Breakdown</p>
+          <p className="text-micro font-semibold text-text-3 uppercase tracking-wider mb-3">Breakdown</p>
           {meta.slices.slice(0, vis).map((s, i) => {
             const n   = counts[i];
             const pct = total > 0 ? Math.round((n / total) * 100) : 0;
@@ -467,9 +467,9 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
             const inner = (
               <>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-125" style={{ background: s.color }} />
-                <span className="text-[12px] text-text truncate flex-1">{s.label}</span>
-                <span className="text-[13px] font-semibold text-text w-12 text-right shrink-0 tabular-nums">{n.toLocaleString()}</span>
-                <span className="text-[10px] text-text-3 w-9 text-right shrink-0 tabular-nums">{pct}%</span>
+                <span className="text-label text-text truncate flex-1">{s.label}</span>
+                <span className="text-body font-semibold text-text w-12 text-right shrink-0 tabular-nums">{n.toLocaleString()}</span>
+                <span className="text-micro text-text-3 w-9 text-right shrink-0 tabular-nums">{pct}%</span>
                 {/* Trailing spacer pulls the number + % column ~40% in from the
                     right edge so it reads closer to the labels. Fixed-width
                     right-aligned number/pct keep every row in a clean column —
@@ -494,10 +494,10 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           {/* ATS lift — Analysis lens */}
           {activeLens === "analysis" && (data.analysis.avgAtsLift ?? 0) > 0 && (
             <div className="mt-3 px-3 py-2 rounded-md bg-[var(--surface-2)] border border-[var(--border)]">
-              <p className="text-[10px] text-text-3 uppercase tracking-wide mb-0.5">Avg ATS lift from tailoring</p>
-              <p className="text-[22px] font-bold leading-none" style={{ color: "var(--chart-pos)" }}>
+              <p className="text-micro text-text-3 uppercase tracking-wide mb-0.5">Avg ATS lift from tailoring</p>
+              <p className="text-h1 font-bold leading-none" style={{ color: "var(--chart-pos)" }}>
                 +{data.analysis.avgAtsLift}
-                <span className="text-[12px] font-normal text-text-2 ml-1">pts</span>
+                <span className="text-label font-normal text-text-2 ml-1">pts</span>
               </p>
             </div>
           )}
@@ -508,7 +508,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
               href="/?triage=thinJd"
               shallow={shallow}
               apply={applyFilter}
-              className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-amber-600 hover:text-amber-700 transition-colors"
+              className="mt-2 inline-flex items-center gap-1.5 text-caption text-amber-600 hover:text-amber-700 transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
               {counts[1]} thin JD{counts[1] > 1 ? "s" : ""} — paste full text to unlock analysis
@@ -557,14 +557,14 @@ function DonutPopup({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <p className="text-[10px] text-text-3 uppercase tracking-wide">{meta.label}</p>
+            <p className="text-micro text-text-3 uppercase tracking-wide">{meta.label}</p>
             <h3 className="text-[15px] font-semibold text-text">{title}</h3>
           </div>
           <IconButton
             onClick={onClose}
             aria-label="Close"
             shape="circle"
-            icon={<span className="text-[18px] leading-none">×</span>}
+            icon={<span className="text-h3 leading-none">×</span>}
           />
         </div>
 
@@ -583,7 +583,7 @@ function DonutPopup({
         {/* Content */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           {profs.length === 0 && (
-            <p className="text-[13px] text-text-2 text-center py-8">No data yet</p>
+            <p className="text-body text-text-2 text-center py-8">No data yet</p>
           )}
           {mode === "center"
             ? profs.map((p) => <StackedBar key={p.profileId} profile={p} meta={meta} vis={vis} />)
@@ -645,8 +645,8 @@ function StackedBar({ profile, meta, vis = 3 }: { profile: ProfileCount; meta: L
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1.5">
-        <span className="text-[13px] font-medium text-text truncate pr-2">{profile.profileName}</span>
-        <span className="text-[12px] text-text-2 shrink-0">{total}</span>
+        <span className="text-body font-medium text-text truncate pr-2">{profile.profileName}</span>
+        <span className="text-label text-text-2 shrink-0">{total}</span>
       </div>
       <div className="h-5 w-full rounded-md overflow-hidden flex bg-[var(--surface-2)]">
         {meta.slices.slice(0, vis).map((s, i) => {
@@ -658,7 +658,7 @@ function StackedBar({ profile, meta, vis = 3 }: { profile: ProfileCount; meta: L
       </div>
       <div className="flex gap-3 mt-1.5">
         {meta.slices.slice(0, vis).map((s, i) => (
-          <span key={i} className="text-[10px] text-text-3 flex items-center gap-0.5">
+          <span key={i} className="text-micro text-text-3 flex items-center gap-0.5">
             <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ background: s.color }} />
             {s.label}: {profile.counts[i]}
           </span>
@@ -681,8 +681,8 @@ function AnimatedBar({ label, count, color, maxCount, delay = 60 }: {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1">
-        <span className="text-[13px] font-medium text-text truncate pr-2">{label}</span>
-        <span className="text-[13px] font-semibold shrink-0" style={{ color }}>{count}</span>
+        <span className="text-body font-medium text-text truncate pr-2">{label}</span>
+        <span className="text-body font-semibold shrink-0" style={{ color }}>{count}</span>
       </div>
       <div className="h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${w}%`, background: color }} />
@@ -709,7 +709,7 @@ function SourceBreakdown({ data, filter }: { data: PipelineLensData; filter: str
 
   return (
     <div className="border-t border-border pt-4">
-      <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wide mb-3">Saved by source</p>
+      <p className="text-caption font-semibold text-text-3 uppercase tracking-wide mb-3">Saved by source</p>
       <div className="space-y-2.5">
         {entries.map(([src, n]) => (
           <AnimatedBar key={src} label={src} count={n} color="var(--chart-pos)" maxCount={max} delay={80} />

@@ -64,12 +64,12 @@ interface Props {
 function SectionHeader({ step, title, subtitle }: { step: number; title: string; subtitle?: string }) {
   return (
     <div className="flex items-baseline gap-3 mb-3">
-      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-[11px] font-semibold shrink-0">
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-caption font-semibold shrink-0">
         {step}
       </span>
       <div>
-        <h3 className="text-[14px] font-semibold text-text leading-none">{title}</h3>
-        {subtitle && <p className="text-[11px] text-text-2 mt-0.5">{subtitle}</p>}
+        <h3 className="text-title font-semibold text-text leading-none">{title}</h3>
+        {subtitle && <p className="text-caption text-text-2 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -157,7 +157,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
             />
           </div>
           <div>
-            <label className="block text-[12px] font-semibold text-text mb-1.5">Location</label>
+            <label className="block text-label font-semibold text-text mb-1.5">Location</label>
             <LocationAutocomplete
               name="location"
               defaultValue={defaults?.location}
@@ -195,7 +195,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
             <>
               <div className="border-t border-border" />
               <div>
-                <label className="block text-[12px] font-semibold text-text mb-1.5">
+                <label className="block text-label font-semibold text-text mb-1.5">
                   Work setting
                 </label>
                 <div className="flex flex-col gap-2">
@@ -211,14 +211,14 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                           className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
                         />
                         <span>
-                          <span className="block text-[13px] font-medium text-text">{opt.label}</span>
-                          <span className="block text-[11px] text-text-2 leading-snug">{opt.description}</span>
+                          <span className="block text-body font-medium text-text">{opt.label}</span>
+                          <span className="block text-caption text-text-2 leading-snug">{opt.description}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-text-2 mt-1.5">
+                <p className="text-caption text-text-2 mt-1.5">
                   Leave all unticked to show jobs in every setting.
                 </p>
               </div>
@@ -278,13 +278,13 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
           </div>
 
           <div>
-            <label className="block text-[12px] font-semibold text-text mb-2">Mode</label>
+            <label className="block text-label font-semibold text-text mb-2">Mode</label>
             <div className="flex flex-wrap gap-5">
               {[
                 { value: "manual", label: "Manual run only" },
                 { value: "auto",   label: "Auto-run" },
               ].map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 text-[13px] font-medium cursor-pointer">
+                <label key={opt.value} className="flex items-center gap-2 text-body font-medium cursor-pointer">
                   <input
                     type="radio"
                     name="run_mode"
@@ -299,7 +299,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
             </div>
             {runMode === "auto" && (
               <div className="flex items-center gap-3 mt-3">
-                <span className="text-[12px] text-text-2">Every</span>
+                <span className="text-label text-text-2">Every</span>
                 {/* ponytail: inline input — Input's stacked label layout breaks inline sentence placement */}
                 <input
                   type="number"
@@ -309,7 +309,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                   defaultValue={defaultDays}
                   className="field text-center w-20"
                 />
-                <span className="text-[12px] text-text-2">days</span>
+                <span className="text-label text-text-2">days</span>
               </div>
             )}
           </div>
@@ -324,7 +324,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
           subtitle="What happens after a scrape: tailor a CV → send the application."
         />
 
-        <div className="flex items-stretch gap-2 mb-4 text-[11px]">
+        <div className="flex items-stretch gap-2 mb-4 text-caption">
           <FunnelChip label="Scrape" status="always" detail={runMode === "auto" ? `every ${defaultDays}d` : "manual"} />
           <FunnelArrow />
           <FunnelChip label="Tailor" status={tailorMode === "auto" ? "on" : "off"} detail={tailorMode === "auto" ? "ATS ≥ 60" : "off"} />
@@ -336,7 +336,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
 
           {/* Tailor stage — directly maps to automation_enabled */}
           <div>
-            <p className="text-[12px] font-semibold text-text mb-2">Tailor — auto-generate tailored CV + cover letter</p>
+            <p className="text-label font-semibold text-text mb-2">Tailor — auto-generate tailored CV + cover letter</p>
             <div className="flex flex-col gap-1.5">
               {[
                 { value: "off",  label: "Off",  desc: "Only runs when you click Analyze manually." },
@@ -351,14 +351,14 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                     className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
                   />
                   <span>
-                    <span className="block text-[12px] font-medium text-text">{opt.label}</span>
-                    <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
+                    <span className="block text-label font-medium text-text">{opt.label}</span>
+                    <span className="block text-caption text-text-2 leading-snug">{opt.desc}</span>
                   </span>
                 </label>
               ))}
             </div>
             {tailorMode === "auto" && (
-              <p className="mt-2 text-[11px] text-text-2 leading-relaxed">
+              <p className="mt-2 text-caption text-text-2 leading-relaxed">
                 ATS gates are global: <strong>60</strong> to tailor · <strong>70</strong> to auto-write a cover letter.
               </p>
             )}
@@ -370,7 +370,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
 
           {/* Send stage */}
           <div>
-            <p className="text-[12px] font-semibold text-text mb-2">Send</p>
+            <p className="text-label font-semibold text-text mb-2">Send</p>
             <div className="flex flex-col gap-1.5">
               {[
                 { value: "never",        label: "Never auto-send",          desc: "Drafts generated; you click Send manually." },
@@ -387,8 +387,8 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                     className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
                   />
                   <span>
-                    <span className="block text-[12px] font-medium text-text">{opt.label}</span>
-                    <span className="block text-[11px] text-text-2 leading-snug">{opt.desc}</span>
+                    <span className="block text-label font-medium text-text">{opt.label}</span>
+                    <span className="block text-caption text-text-2 leading-snug">{opt.desc}</span>
                   </span>
                 </label>
               ))}
@@ -428,14 +428,14 @@ function FunnelChip({ label, status, detail }: { label: string; status: "always"
           : "border-[var(--brand)]/40 bg-[var(--blue-light)] text-text"
       }`}
     >
-      <p className="text-[12px] font-semibold leading-none">{label}</p>
-      <p className="text-[10px] mt-1 leading-none">{detail}</p>
+      <p className="text-label font-semibold leading-none">{label}</p>
+      <p className="text-micro mt-1 leading-none">{detail}</p>
     </div>
   );
 }
 
 function FunnelArrow() {
   return (
-    <div className="flex items-center text-text-3 text-[14px]">→</div>
+    <div className="flex items-center text-text-3 text-title">→</div>
   );
 }

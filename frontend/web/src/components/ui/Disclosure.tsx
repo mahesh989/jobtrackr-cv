@@ -32,11 +32,11 @@ export function DisclosureButton({
           className={`w-3 h-3 text-text-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
         />
         <span className="min-w-0">
-          <span className="text-[14px] font-semibold text-text">{title}</span>
-          {subtitle && <span className="block text-[12px] text-text-3">{subtitle}</span>}
+          <span className="text-title font-semibold text-text">{title}</span>
+          {subtitle && <span className="block text-label text-text-3">{subtitle}</span>}
         </span>
       </span>
-      {meta && <span className="shrink-0 flex items-center gap-2 text-[11px] text-text-3">{meta}</span>}
+      {meta && <span className="shrink-0 flex items-center gap-2 text-caption text-text-3">{meta}</span>}
     </button>
   );
 }

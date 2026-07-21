@@ -106,8 +106,8 @@ function TierColumn({
     <div className="rounded-md border border-border bg-surface p-4 space-y-3">
       {/* Tier header */}
       <div>
-        <p className="text-[13px] font-semibold text-text">{tier.label}</p>
-        {tier.badge && <p className="text-[11px] text-text-3">{tier.badge}</p>}
+        <p className="text-body font-semibold text-text">{tier.label}</p>
+        {tier.badge && <p className="text-caption text-text-3">{tier.badge}</p>}
       </div>
 
       {/* Source rows */}
@@ -123,18 +123,18 @@ function TierColumn({
                   onChange={() => toggle(s.id)}
                   className="h-4 w-4 rounded border-[var(--border)] text-[var(--brand)] focus:ring-[var(--brand)]/30"
                 />
-                <span className="text-[12px] font-medium text-text">{s.label}</span>
-                <span className="text-[10px] text-text-3">{s.tag}</span>
+                <span className="text-label font-medium text-text">{s.label}</span>
+                <span className="text-micro text-text-3">{s.tag}</span>
               </label>
 
               {on && s.id === "adzuna" && (
-                <div className="mt-1.5 ml-6 space-y-0.5 text-[11px]">
+                <div className="mt-1.5 ml-6 space-y-0.5 text-caption">
                   <MethodRadio name={`${tier.id}-adzuna`} value="api"    checked={adzunaM === "api"}    onChange={() => { setAdzunaM("api");    touch(); }} label="API — fast teaser" />
                   <MethodRadio name={`${tier.id}-adzuna`} value="direct" checked={adzunaM === "direct"} onChange={() => { setAdzunaM("direct"); touch(); }} label="Direct — full JD (actor)" />
                 </div>
               )}
               {on && s.id === "seek" && (
-                <div className="mt-1.5 ml-6 space-y-0.5 text-[11px]">
+                <div className="mt-1.5 ml-6 space-y-0.5 text-caption">
                   <MethodRadio name={`${tier.id}-seek`} value="direct" checked={seekM === "direct"} onChange={() => { setSeekM("direct"); touch(); }} label="Direct — free" />
                   <MethodRadio name={`${tier.id}-seek`} value="actor"  checked={seekM === "actor"}  onChange={() => { setSeekM("actor");  touch(); }} label="Actor — Apify (paid)" />
                 </div>
@@ -149,7 +149,7 @@ function TierColumn({
         <Button type="button" variant="brand" size="sm" onClick={save} disabled={saving || !dirty}>
           {saving ? "Saving…" : "Save"}
         </Button>
-        <span className="text-[11px]">
+        <span className="text-caption">
           {error  ? <span className="text-red-500">{error}</span>
             : saved  ? <span className="text-green-600 font-medium">✓ Saved</span>
             : dirty  ? <span className="text-text-2">Unsaved</span>

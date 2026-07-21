@@ -351,7 +351,7 @@ export default async function JobsPage({
 
       {/* Header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-2">
+        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-2">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
@@ -365,19 +365,19 @@ export default async function JobsPage({
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-[16px] font-semibold text-text">{p.name}</h1>
+              <h1 className="text-lead font-semibold text-text">{p.name}</h1>
               {newCount > 0 && (
                 <Badge variant="blue" className="font-bold">{newCount} new</Badge>
               )}
               {tabAppliedCount > 0 && (
                 <Badge variant="green">{tabAppliedCount} applied</Badge>
               )}
-              <span className={`text-[11px] ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
+              <span className={`text-caption ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}
               </span>
             </div>
             {p.home_address && (
-              <p className="text-[12px] text-text-2 flex items-center gap-1.5 mt-1">
+              <p className="text-label text-text-2 flex items-center gap-1.5 mt-1">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -418,7 +418,7 @@ export default async function JobsPage({
 
         {/* ?view=new banner — latest fetched batch, with an exit back to all */}
         {isNewView && (
-          <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-[12px] anim-in">
+          <div className="flex items-center justify-between gap-2 flex-wrap px-3 py-2 rounded-md bg-[var(--brand)]/8 border border-[var(--brand)]/30 text-label anim-in">
             <span className="text-text">
               <span className="font-semibold text-[var(--brand)]">Latest fetch</span>
               {" — "}{visibleBoardJobs.length} job{visibleBoardJobs.length !== 1 ? "s" : ""} from the most recent run. Your usual sort and filters apply.
@@ -442,7 +442,7 @@ export default async function JobsPage({
         </Suspense>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 text-[11px] text-text-3 pt-2 anim-in anim-delay-2">
+        <div className="flex items-center gap-3 text-caption text-text-3 pt-2 anim-in anim-delay-2">
           <Link href={`/profiles/${id}/runs`} className="hover:text-text transition-colors">
             Run history
           </Link>

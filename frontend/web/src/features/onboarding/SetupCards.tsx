@@ -57,8 +57,8 @@ export function SetupCards({
     <div className="w-full max-w-xl mx-auto">
       {/* Progress summary */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[12px] text-text-3">Step {i + 1} of {SETUP_STEP_COUNT}</span>
-        <span className="text-[12px] text-text-3">{doneCount}/{SETUP_STEP_COUNT} done</span>
+        <span className="text-label text-text-3">Step {i + 1} of {SETUP_STEP_COUNT}</span>
+        <span className="text-label text-text-3">{doneCount}/{SETUP_STEP_COUNT} done</span>
       </div>
 
       {/* Card */}
@@ -74,24 +74,24 @@ export function SetupCards({
           )}
         </div>
 
-        <h2 className="text-[18px] font-semibold text-text mb-2">{step.title}</h2>
+        <h2 className="text-h3 font-semibold text-text mb-2">{step.title}</h2>
 
         <div className="flex items-center justify-center gap-2 mb-4">
-          <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${TAG_CLASS[step.tag]}`}>
+          <span className={`text-micro font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${TAG_CLASS[step.tag]}`}>
             {TAG_LABEL[step.tag]}
           </span>
           {done && (
-            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border text-[var(--green)] bg-[var(--green-light)] border-[var(--green)]/30">
+            <span className="text-micro font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border text-[var(--green)] bg-[var(--green-light)] border-[var(--green)]/30">
               Done
             </span>
           )}
         </div>
 
-        <p className="text-[13px] text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{step.blurb}</p>
+        <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{step.blurb}</p>
 
         <Button
           variant="blue"
-          className="text-[14px] px-5 py-2.5"
+          className="text-title px-5 py-2.5"
           onClick={() => router.push(ctaHref)}
           icon={<ChevronRight className="w-4 h-4" />}
         >
@@ -101,7 +101,7 @@ export function SetupCards({
 
       {/* Footer nav — Back to the previous card, dot row to jump */}
       <div className="flex items-center justify-between mt-4">
-        <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0} className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+        <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0} className="inline-flex items-center gap-1 text-body text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
 
@@ -111,7 +111,7 @@ export function SetupCards({
           ))}
         </div>
 
-        <button onClick={() => setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))} disabled={i === SETUP_STEP_COUNT - 1} className="inline-flex items-center gap-1 text-[13px] text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+        <button onClick={() => setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))} disabled={i === SETUP_STEP_COUNT - 1} className="inline-flex items-center gap-1 text-body text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           Skip <ChevronRight className="w-4 h-4" />
         </button>
       </div>

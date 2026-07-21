@@ -38,7 +38,7 @@ export function VisaStatusSelect({ initial }: { initial: string | null }) {
       value={isUserVisaStatus(value) ? value : ""}
       onChange={(e) => handleChange(e.target.value)}
       disabled={pending}
-      className="text-[12px] py-1"
+      className="text-label py-1"
     >
       <option value="">Not set — no eligibility filtering</option>
       {Object.entries(VISA_STATUS_LABELS).map(([k, label]) => (

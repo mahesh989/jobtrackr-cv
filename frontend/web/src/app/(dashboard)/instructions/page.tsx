@@ -49,15 +49,15 @@ export default async function InstructionsPage({
     <div className="min-h-full">
       {/* Header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
           <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
           <span className="text-text-2">Instructions</span>
         </div>
-        <h1 className="text-[16px] font-semibold text-text">Instructions</h1>
-        <p className="text-[12px] text-text-2 mt-0.5">
+        <h1 className="text-lead font-semibold text-text">Instructions</h1>
+        <p className="text-label text-text-2 mt-0.5">
           Get set up, learn the vocabulary, and see how the pipeline works end to end.
         </p>
       </div>

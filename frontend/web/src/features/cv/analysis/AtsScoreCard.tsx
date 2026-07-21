@@ -37,7 +37,7 @@ export function AtsScoreCard({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2">
-        <h2 className="text-[14px] font-semibold text-text">ATS score</h2>
+        <h2 className="text-title font-semibold text-text">ATS score</h2>
       </div>
       <div className="px-5 py-4 space-y-4">
         {overall !== null && (
@@ -47,8 +47,8 @@ export function AtsScoreCard({ data }: { data: Record<string, unknown> }) {
                 {Math.round(overall)}
               </span>
               <div>
-                <p className="text-[13px] font-medium text-text">Overall match score</p>
-                <p className="text-[11px] text-text-3 leading-snug">
+                <p className="text-body font-medium text-text">Overall match score</p>
+                <p className="text-caption text-text-3 leading-snug">
                   Weighted from keyword, experience, and formatting sub-scores.
                 </p>
               </div>
@@ -83,12 +83,12 @@ function SubScore({ label, value }: { label: string; value: number | undefined }
   const v = has ? Math.round(value!) : null;
   return (
     <div className="bg-surface-2 border border-border rounded p-3">
-      <div className="text-[10px] uppercase tracking-wide text-text-3">{label}</div>
+      <div className="text-micro uppercase tracking-wide text-text-3">{label}</div>
       <div className="mt-1.5 flex items-baseline gap-2">
-        <span className={`text-[20px] font-bold tabular-nums ${has ? scoreColor(v!).split(" ")[0] : "text-text-3"}`}>
+        <span className={`text-h2 font-bold tabular-nums ${has ? scoreColor(v!).split(" ")[0] : "text-text-3"}`}>
           {v ?? "—"}
         </span>
-        {has && <span className="text-[11px] text-text-3">/ 100</span>}
+        {has && <span className="text-caption text-text-3">/ 100</span>}
       </div>
       {has && (
         <div className="mt-2 h-1.5 rounded-full bg-surface border border-border overflow-hidden">
@@ -109,10 +109,10 @@ function SubScore({ label, value }: { label: string; value: number | undefined }
 function ListBlock({ label, items, cls }: { label: string; items: string[]; cls: string }) {
   return (
     <div>
-      <h3 className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${cls}`}>{label}</h3>
+      <h3 className={`text-micro font-semibold uppercase tracking-widest mb-1.5 ${cls}`}>{label}</h3>
       <ul className="space-y-1">
         {items.map((s, i) => (
-          <li key={i} className="flex gap-2 text-[12px] text-text-2">
+          <li key={i} className="flex gap-2 text-label text-text-2">
             <span className="text-text-3 mt-0.5">•</span>
             <span>{s}</span>
           </li>

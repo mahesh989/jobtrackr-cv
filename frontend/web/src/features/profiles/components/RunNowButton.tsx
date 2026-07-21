@@ -91,7 +91,7 @@ export function RunNowButton({
         title="Stop this run"
         variant="danger"
         className={`border-[var(--red)]/30 text-[var(--red)] bg-[var(--surface)] hover:bg-[var(--red-light)] transition-colors ${
-          compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
+          compact ? "px-2.5 py-1 text-label" : "text-body"
         }`}
       >
         <svg
@@ -112,7 +112,7 @@ export function RunNowButton({
       <Button
         disabled
         className={`opacity-50 cursor-not-allowed ${
-          compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
+          compact ? "px-2.5 py-1 text-label" : "text-body"
         }`}
       >
         <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -131,7 +131,7 @@ export function RunNowButton({
         onClick={() => handleRun(false)}
         variant="danger"
         className={`text-[var(--red)] border-[var(--red)]/30 bg-[var(--red-light)] ${
-          compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"
+          compact ? "px-2.5 py-1 text-label" : "text-body"
         }`}
       >
         Retry
@@ -144,7 +144,7 @@ export function RunNowButton({
     <Button
       onClick={() => handleRun(false)}
       title="Run now — fetch jobs posted since the last run (incremental)"
-      className={compact ? "px-2.5 py-1 text-[12px]" : "text-[13px]"}
+      className={compact ? "px-2.5 py-1 text-label" : "text-body"}
     >
       <svg
         className={compact ? "w-3 h-3" : "w-3.5 h-3.5"}

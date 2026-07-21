@@ -30,13 +30,13 @@ export function PoolSort({ current }: { current: PoolSortKey }) {
   }
 
   return (
-    <label className="inline-flex items-center gap-1.5 text-[11px] text-text-3">
+    <label className="inline-flex items-center gap-1.5 text-caption text-text-3">
       Sort by
       <select
         value={current}
         onChange={(e) => setSort(e.target.value as PoolSortKey)}
         disabled={pending}
-        className="bg-[var(--surface-2)] border border-[var(--border)] rounded text-[12px] text-text px-2 py-1 cursor-pointer disabled:opacity-60 focus:outline-none focus:border-[var(--brand)]"
+        className="bg-[var(--surface-2)] border border-[var(--border)] rounded text-label text-text px-2 py-1 cursor-pointer disabled:opacity-60 focus:outline-none focus:border-[var(--brand)]"
       >
         {OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

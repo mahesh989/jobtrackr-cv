@@ -67,11 +67,11 @@ function StoryCard({
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-semibold text-[var(--text)] leading-snug">{story.title}</p>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--card-border)]">
+            <span className="px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--card-border)]">
               {story.domain}
             </span>
             {story.year && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--surface-2)] text-[var(--text-3)] border border-[var(--card-border)]">
+              <span className="px-2 py-0.5 rounded-full text-caption font-medium bg-[var(--surface-2)] text-[var(--text-3)] border border-[var(--card-border)]">
                 {story.year}
               </span>
             )}
@@ -95,7 +95,7 @@ function StoryCard({
           {story.numbers.map((n, i) => (
             <span
               key={i}
-              className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              className="px-2 py-0.5 rounded-full text-caption font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
             >
               {n.metric}: {n.value}
             </span>
@@ -132,12 +132,12 @@ function StoryCard({
               ? story.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-full text-[11px] bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--card-border)]"
+                    className="px-2 py-0.5 rounded-full text-caption bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--card-border)]"
                   >
                     {tag}
                   </span>
                 ))
-              : <span className="text-[11px] text-[var(--sidebar-text-dim)] italic">No tags</span>
+              : <span className="text-caption text-[var(--sidebar-text-dim)] italic">No tags</span>
             }
             <button onClick={onEditStart} className="p-0.5 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--text)] transition-colors" title="Edit tags">
               <Pencil className="w-3 h-3" />

@@ -95,13 +95,13 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] text-text-3 mb-1">
+        <div className="flex items-center gap-2 text-caption text-text-3 mb-1">
           <Link href="/admin" className="hover:text-text">Admin</Link>
           <span>/</span><span className="text-text-2">Activity</span>
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-[16px] font-semibold text-text">User activity</h1>
-          <span className="text-[12px] text-text-3">{filtered.length} events shown</span>
+          <h1 className="text-lead font-semibold text-text">User activity</h1>
+          <span className="text-label text-text-3">{filtered.length} events shown</span>
         </div>
       </div>
 
@@ -114,7 +114,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
           <div className="flex flex-wrap gap-2">
             <Link
               href={filterUser ? `/admin/activity?user=${filterUser}` : "/admin/activity"}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${!filterEvent ? "bg-text text-bg border-text" : "border-border text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
+              className={`px-2.5 py-1 rounded-full text-caption font-medium border transition-colors ${!filterEvent ? "bg-text text-bg border-text" : "border-border text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
             >
               All events
             </Link>
@@ -122,27 +122,27 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
               <Link
                 key={et}
                 href={`/admin/activity?${filterUser ? `user=${filterUser}&` : ""}event=${et}`}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${filterEvent === et ? "bg-text text-bg border-text" : "border-border text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
+                className={`px-2.5 py-1 rounded-full text-caption font-medium border transition-colors ${filterEvent === et ? "bg-text text-bg border-text" : "border-border text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
               >
                 {et.replace(/_/g, " ")}
               </Link>
             ))}
             {eventTypes.length === 0 && (
-              <span className="text-[12px] text-text-3">No events yet — activity populates as users interact with the app.</span>
+              <span className="text-label text-text-3">No events yet — activity populates as users interact with the app.</span>
             )}
           </div>
 
           {/* If filtering by user, show who */}
           {filterUser && (
             <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-              <span className="text-[12px] text-blue-700">Showing activity for: <span className="font-semibold">{emailById[filterUser] ?? filterUser}</span></span>
-              <Link href="/admin/activity" className="ml-auto text-[11px] text-blue-600 hover:underline">Clear filter</Link>
+              <span className="text-label text-blue-700">Showing activity for: <span className="font-semibold">{emailById[filterUser] ?? filterUser}</span></span>
+              <Link href="/admin/activity" className="ml-auto text-caption text-blue-600 hover:underline">Clear filter</Link>
             </div>
           )}
 
           {/* Event list */}
           {filtered.length === 0 ? (
-            <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-text-3 text-[12px]">
+            <div className="bg-surface border border-border rounded-md px-4 py-8 text-center text-text-3 text-label">
               No events{filterEvent ? ` of type "${filterEvent}"` : ""} yet.
             </div>
           ) : (
@@ -150,7 +150,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
               {filtered.map((e, i) => (
                 <div key={e.id ?? i} className="flex items-start gap-3 px-4 py-3">
                   <div className="shrink-0 mt-0.5">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${eventColor[e.event_type] ?? "bg-slate-100 text-slate-700"}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-micro font-semibold ${eventColor[e.event_type] ?? "bg-slate-100 text-slate-700"}`}>
                       {e.event_type.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -158,24 +158,24 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link
                         href={`/admin/activity?user=${e.user_id}`}
-                        className="text-[12px] font-medium text-text hover:underline truncate"
+                        className="text-label font-medium text-text hover:underline truncate"
                       >
                         {emailById[e.user_id] ?? e.user_id.slice(0, 12) + "…"}
                       </Link>
                       {e.country && (
-                        <span className="text-[11px] text-text-3">{e.city ? `${e.city}, ` : ""}{e.country}</span>
+                        <span className="text-caption text-text-3">{e.city ? `${e.city}, ` : ""}{e.country}</span>
                       )}
                       {e.device && (
-                        <span className="text-[10px] bg-[var(--sidebar-active-bg)] px-1.5 py-0.5 rounded text-text-3">{e.device}</span>
+                        <span className="text-micro bg-[var(--sidebar-active-bg)] px-1.5 py-0.5 rounded text-text-3">{e.device}</span>
                       )}
                     </div>
                     {e.metadata && Object.keys(e.metadata).length > 0 && (
-                      <p className="text-[11px] text-text-3 font-mono mt-0.5 truncate max-w-lg">
+                      <p className="text-caption text-text-3 font-mono mt-0.5 truncate max-w-lg">
                         {JSON.stringify(e.metadata)}
                       </p>
                     )}
                   </div>
-                  <span className="text-[11px] text-text-3 tabular-nums shrink-0">{timeAgo(e.created_at)}</span>
+                  <span className="text-caption text-text-3 tabular-nums shrink-0">{timeAgo(e.created_at)}</span>
                 </div>
               ))}
             </div>
@@ -184,27 +184,27 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
 
         {/* Right: per-user summary sidebar */}
         <div className="w-64 shrink-0 hidden lg:block">
-          <h2 className="text-[12px] font-semibold text-text-3 uppercase tracking-widest mb-3">All users</h2>
+          <h2 className="text-label font-semibold text-text-3 uppercase tracking-widest mb-3">All users</h2>
           <div className="space-y-1">
             {users.map((u) => (
               <Link
                 key={u.id}
                 href={`/admin/activity?user=${u.id}`}
-                className={`flex items-center justify-between rounded-md px-2.5 py-2 text-[12px] transition-colors ${filterUser === u.id ? "bg-[var(--sidebar-active-bg)] text-text font-semibold" : "text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
+                className={`flex items-center justify-between rounded-md px-2.5 py-2 text-label transition-colors ${filterUser === u.id ? "bg-[var(--sidebar-active-bg)] text-text font-semibold" : "text-text-2 hover:bg-[var(--sidebar-active-bg)]"}`}
               >
                 <span className="truncate max-w-[140px]">{u.email}</span>
                 <div className="flex gap-1 shrink-0">
                   {runsByUser[u.id] > 0 && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 rounded-full">{runsByUser[u.id]}</span>
+                    <span className="text-micro bg-amber-100 text-amber-700 px-1.5 rounded-full">{runsByUser[u.id]}</span>
                   )}
                   {lettersByUser[u.id] > 0 && (
-                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 rounded-full">{lettersByUser[u.id]}</span>
+                    <span className="text-micro bg-purple-100 text-purple-700 px-1.5 rounded-full">{lettersByUser[u.id]}</span>
                   )}
                 </div>
               </Link>
             ))}
           </div>
-          <p className="text-[10px] text-text-3 mt-3">🟡 = analyses  🟣 = letters (30d)</p>
+          <p className="text-micro text-text-3 mt-3">🟡 = analyses  🟣 = letters (30d)</p>
         </div>
       </div>
     </div>

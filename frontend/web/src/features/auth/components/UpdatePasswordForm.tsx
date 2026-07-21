@@ -99,7 +99,7 @@ export function UpdatePasswordForm() {
           </p>
           <Link
             href="/auth/forgot-password"
-            className="mt-6 inline-block text-[13px] font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
+            className="mt-6 inline-block text-body font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
             style={{ background: "#0B7D74", color: "#FFFFFF" }}
           >
             Request a new link

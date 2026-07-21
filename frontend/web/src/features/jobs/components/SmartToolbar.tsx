@@ -255,13 +255,13 @@ export function SmartToolbar({
     <div className="rounded-md border border-border bg-surface p-3 space-y-4">
       {/* Row 1 — distance, sort, location search */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
-          <label className="flex items-center gap-1.5 text-[11px] text-text-2 w-full sm:flex-1 sm:justify-start">
+          <label className="flex items-center gap-1.5 text-caption text-text-2 w-full sm:flex-1 sm:justify-start">
           Distance
           {/* ponytail: toolbar inline select — Select component's stacked label layout breaks compact toolbar row */}
           <select
             value={distanceValue}
             onChange={(e) => setDistance(e.target.value)}
-            className="field text-[12px] py-1 pr-7 flex-1 sm:flex-none"
+            className="field text-label py-1 pr-7 flex-1 sm:flex-none"
             title={homeAddress ? `Distance from ${homeAddress}` : "Distance from each profile's home address"}
           >
             {DISTANCE_OPTIONS.map((o) => (
@@ -271,13 +271,13 @@ export function SmartToolbar({
         </label>
 
         <div className="w-full sm:flex-1 flex justify-start sm:justify-center">
-          <label className="flex items-center gap-1.5 text-[11px] text-text-2 w-full sm:w-auto">
+          <label className="flex items-center gap-1.5 text-caption text-text-2 w-full sm:w-auto">
             Sort
             {/* ponytail: toolbar inline select — same reason */}
             <select
               value={currentSort}
               onChange={(e) => setOne("sort", e.target.value)}
-              className="field text-[12px] py-1 pr-7 flex-1 sm:flex-none"
+              className="field text-label py-1 pr-7 flex-1 sm:flex-none"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -300,7 +300,7 @@ export function SmartToolbar({
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
               placeholder="Filter by location or company…"
-              className="field pl-3 pr-8 text-[12px] w-full"
+              className="field pl-3 pr-8 text-label w-full"
             />
             {currentLocation && (
               <button onClick={() => setOne("location", "")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text" aria-label="Clear location filter" disabled={pending}>
@@ -316,8 +316,8 @@ export function SmartToolbar({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {/* Jobs Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Jobs</span>
-            <button type="button" onClick={clearStageAndTriage} title="Clear stage filter — show everything" className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ allJobsActive ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+            <span className="text-micro uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Jobs</span>
+            <button type="button" onClick={clearStageAndTriage} title="Clear stage filter — show everything" className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ allJobsActive ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
               All jobs
               <span className={`tabular-nums ${allJobsActive ? "text-white/80" : "text-text-3"}`}>
                 {counts.discovered}
@@ -328,7 +328,7 @@ export function SmartToolbar({
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;
               return (
-                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   {chip.label}
                   {count > 0 && (
                     <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
@@ -340,12 +340,12 @@ export function SmartToolbar({
 
           {/* Analysis Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0">Analysis</span>
+            <span className="text-micro uppercase font-semibold text-text-3 tracking-wider shrink-0">Analysis</span>
             {ANALYSIS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;
               return (
-                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   {chip.label}
                   {count > 0 && (
                     <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
@@ -360,7 +360,7 @@ export function SmartToolbar({
               const active = currentAts === "no_ats";
               const count  = atsCounts["no_ats"] ?? 0;
               return (
-                <button key="not_analysed" type="button" onClick={() => selectAtsChip("no_ats")} title={notAnalysedBand.tip} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key="not_analysed" type="button" onClick={() => selectAtsChip("no_ats")} title={notAnalysedBand.tip} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : notAnalysedBand.dot}`} />
                   {notAnalysedBand.label}
                   {count > 0 && (
@@ -377,7 +377,7 @@ export function SmartToolbar({
           {/* ATS Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0 md:ml-auto">
             <span
-              className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0"
+              className="text-micro uppercase font-semibold text-text-3 tracking-wider shrink-0"
               title={`ATS gates: initial ${thresholds.initial} (must pass to tailor), final ${thresholds.final} (auto cover letter)`}
             >
               ATS
@@ -386,7 +386,7 @@ export function SmartToolbar({
               const active = currentAts === b.id;
               const count  = atsCounts[b.id] ?? 0;
               return (
-                <button key={b.id} type="button" onClick={() => selectAtsChip(b.id)} title={b.tip} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? `${b.chipBg} ${b.chipText} border-current font-medium` : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key={b.id} type="button" onClick={() => selectAtsChip(b.id)} title={b.tip} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? `${b.chipBg} ${b.chipText} border-current font-medium` : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
                   {b.label}
                   {count > 0 && (
@@ -402,12 +402,12 @@ export function SmartToolbar({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {/* Stages Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-            <span className="text-[10px] uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Stages</span>
+            <span className="text-micro uppercase font-semibold text-text-3 tracking-wider shrink-0 w-12">Stages</span>
             {STAGES_CHIPS.map((chip) => {
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;
               return (
-                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   {chip.label}
                   {count > 0 && (
                     <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>
@@ -443,12 +443,12 @@ export function SmartToolbar({
 
           {/* JDs Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0 md:ml-auto">
-            <span className="text-[10px] font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
+            <span className="text-micro font-semibold text-text-3 tracking-wider shrink-0"><span className="uppercase">JD</span>s</span>
             {JDS_CHIPS.map((chip) => {
               const active = isStageActive(chip);
               const count  = counts[chip.countKey] ?? 0;
               return (
-                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
+                <button key={chip.id} type="button" onClick={() => selectStageChip(chip)} disabled={count === 0 && !active} className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${ active ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium" : count === 0 ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed" : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]" }`}>
                   {chip.label}
                   {count > 0 && (
                     <span className={`tabular-nums ${active ? "text-white/80" : "text-text-3"}`}>{count}</span>

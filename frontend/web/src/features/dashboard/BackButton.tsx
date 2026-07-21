@@ -25,7 +25,7 @@ export function BackButton() {
   }
 
   return (
-    <button onClick={handleBack} className="inline-flex items-center gap-1 text-[12px] text-text-2 hover:text-text transition-colors">
+    <button onClick={handleBack} className="inline-flex items-center gap-1 text-label text-text-2 hover:text-text transition-colors">
       ← Back
     </button>
   );

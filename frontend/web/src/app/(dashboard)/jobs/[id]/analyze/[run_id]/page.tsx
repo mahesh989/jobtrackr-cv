@@ -119,13 +119,13 @@ export default async function AnalyzeRunPage({ params }: Props) {
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <a
           href="/analyses"
-          className="inline-flex items-center text-[12px] text-text-3 hover:text-text"
+          className="inline-flex items-center text-label text-text-3 hover:text-text"
         >
           ← Back to analyses
         </a>
-        <h1 className="mt-1 text-[20px] font-serif font-bold text-text">Analysis Run</h1>
-        <p className="text-[12px] text-text-3 italic mt-0.5">{subtitleText}</p>
-        <p className="text-[11px] text-text-3 mt-1 truncate">
+        <h1 className="mt-1 text-h2 font-serif font-bold text-text">Analysis Run</h1>
+        <p className="text-label text-text-3 italic mt-0.5">{subtitleText}</p>
+        <p className="text-caption text-text-3 mt-1 truncate">
           <span className="font-medium text-text-2">{job?.title ?? "Job"}</span>
           {job?.company ? ` · ${job.company}` : ""}
           {job?.location ? ` · ${job.location}` : ""}
@@ -143,7 +143,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
       <div className="px-4 sm:px-6 pt-6 pb-24">
         <div className="max-w-4xl mx-auto space-y-4">
         {jdChanged && (
-          <div className="rounded-md bg-[#FFF8C5] border border-[#D4A72C]/40 px-4 py-3 text-[12px] text-[#9A6700]">
+          <div className="rounded-md bg-[#FFF8C5] border border-[#D4A72C]/40 px-4 py-3 text-label text-[#9A6700]">
             <strong className="font-semibold">JD has changed since this analysis ran.</strong>{" "}
             The job description you saved is different from what was analysed.{" "}
             <a href={`/profiles`} className="underline hover:opacity-80">

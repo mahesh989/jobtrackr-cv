@@ -31,7 +31,7 @@ export function TailoredScoreCard(props: Props) {
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
       <div className="px-5 py-3 border-b border-border bg-surface-2">
-        <h2 className="text-[14px] font-semibold text-text">Tailored CV — ATS lift</h2>
+        <h2 className="text-title font-semibold text-text">Tailored CV — ATS lift</h2>
       </div>
       <div className="px-5 py-4 space-y-4">
         <div className="grid grid-cols-3 items-center gap-3">
@@ -82,7 +82,7 @@ export function TailoredScoreCard(props: Props) {
         )}
 
         {props.structuralReport?.summary && (
-          <div className="text-[11px] text-text-3 flex gap-3 pt-2 border-t border-border">
+          <div className="text-caption text-text-3 flex gap-3 pt-2 border-t border-border">
             <span>Structure check:</span>
             <span className="text-green">{props.structuralReport.summary.pass ?? 0} pass</span>
             <span className="text-[#9A6700]">{props.structuralReport.summary.warn ?? 0} warn</span>
@@ -99,7 +99,7 @@ function ScoreCircle({ label, score, muted }: { label: string; score?: number | 
   const v = has ? Math.round(score!) : null;
   return (
     <div className={`flex flex-col items-center ${muted ? "opacity-70" : ""}`}>
-      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-[22px] font-bold tabular-nums border-2 ${
+      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-h1 font-bold tabular-nums border-2 ${
         v == null ? "text-text-3 border-border bg-surface-2"
         : v >= 80 ? "text-green border-green/40 bg-green-light"
         : v >= 60 ? "text-[#9A6700] border-[#D4A72C]/40 bg-[#FFF8C5]"
@@ -107,7 +107,7 @@ function ScoreCircle({ label, score, muted }: { label: string; score?: number | 
       }`}>
         {v ?? "—"}
       </div>
-      <span className="text-[11px] text-text-3 uppercase tracking-wide mt-1.5">{label}</span>
+      <span className="text-caption text-text-3 uppercase tracking-wide mt-1.5">{label}</span>
     </div>
   );
 }
@@ -116,14 +116,14 @@ function DeltaBadge({ delta }: { delta: number }) {
   const positive = delta >= 0;
   return (
     <div className="flex flex-col items-center">
-      <div className={`px-3 py-1.5 rounded-md border text-[18px] font-bold tabular-nums ${
+      <div className={`px-3 py-1.5 rounded-md border text-h3 font-bold tabular-nums ${
         positive
           ? "bg-green-light text-green border-green/30"
           : "bg-red-light text-red border-red/30"
       }`}>
         {positive ? "+" : ""}{delta}
       </div>
-      <span className="text-[11px] text-text-3 uppercase tracking-wide mt-1.5">Lift</span>
+      <span className="text-caption text-text-3 uppercase tracking-wide mt-1.5">Lift</span>
     </div>
   );
 }
@@ -136,11 +136,11 @@ function ChipList({ label, sublabel, items, cls }: {
 }) {
   return (
     <div>
-      <h3 className="text-[11px] font-semibold text-text">{label}</h3>
-      <p className="text-[11px] text-text-3 mb-1.5">{sublabel}</p>
+      <h3 className="text-caption font-semibold text-text">{label}</h3>
+      <p className="text-caption text-text-3 mb-1.5">{sublabel}</p>
       <div className="flex flex-wrap gap-1">
         {items.map((s, i) => (
-          <span key={i} className={`text-[11px] px-1.5 py-0.5 rounded border font-mono ${cls}`}>{s}</span>
+          <span key={i} className={`text-caption px-1.5 py-0.5 rounded border font-mono ${cls}`}>{s}</span>
         ))}
       </div>
     </div>

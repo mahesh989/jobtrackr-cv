@@ -522,7 +522,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
       {/* Success flash — shown when the user closed the modal before the
           upload finished (background completion confirmation). */}
       {flash && typeof window !== "undefined" && createPortal(
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 rounded-full border border-[var(--border)] bg-surface px-4 py-2 text-[13px] font-medium text-text shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 rounded-full border border-[var(--border)] bg-surface px-4 py-2 text-body font-medium text-text shadow-lg">
           <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" /> {flash}
         </div>,
         document.body,
@@ -616,20 +616,20 @@ function CvRowCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-text truncate">{cv.label}</span>
-            <span className="text-[11px] text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">{ext}</span>
+            <span className="text-caption text-text-3 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)]/60">{ext}</span>
             {cv.is_active && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--brand)]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2 py-0.5 text-caption font-semibold text-[var(--brand)]">
                 <CheckCircle2 className="h-3 w-3" />
                 Active
               </span>
             )}
             {cv.structured_cv_status === "verified" && (
-              <span className="rounded-full border border-green-700/40 bg-green-700/10 px-2 py-0.5 text-[11px] font-semibold text-green-800 dark:text-green-300">
+              <span className="rounded-full border border-green-700/40 bg-green-700/10 px-2 py-0.5 text-caption font-semibold text-green-800 dark:text-green-300">
                 Reviewed
               </span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-3 text-[12px] text-text-3" suppressHydrationWarning>
+          <div className="mt-1 flex items-center gap-3 text-label text-text-3" suppressHydrationWarning>
             <span>{isBuilt ? "Created" : "Uploaded"} {created}</span>
           </div>
         </div>
@@ -715,7 +715,7 @@ function InlineAction({
   disabled?: boolean;
   onClick: () => void;
 }) {
-  const base = "inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md transition-colors select-none cursor-pointer";
+  const base = "inline-flex items-center gap-1.5 text-label font-medium rounded-md transition-colors select-none cursor-pointer";
   const tone = danger
     ? "p-1.5 text-text-3 hover:bg-red-light hover:text-red"
     : primary
@@ -870,14 +870,14 @@ function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
   if (!skills) {
     return (
       <div className="mt-2" onClick={e => e.stopPropagation()}>
-        <p className="text-[11px] text-text-3 italic mb-1.5">
+        <p className="text-caption text-text-3 italic mb-1.5">
           Skills not yet categorised. Make sure an AI key is connected, then click below.
         </p>
-        {reCatError && <p className="text-[11px] text-red mb-1">{reCatError}</p>}
+        {reCatError && <p className="text-caption text-red mb-1">{reCatError}</p>}
         <button
           onClick={(e) => { e.stopPropagation(); handleRecategorise(); }}
           disabled={reCatLoading}
-          className="text-[11px] font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
+          className="text-caption font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
         >
           {reCatLoading ? "Categorising…" : "↺ Categorise skills now"}
         </button>
@@ -926,12 +926,12 @@ function SkillRow({
     : "bg-surface text-text-2 border-border";
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="w-fit text-[10px] font-semibold uppercase tracking-widest text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
+      <span className="w-fit text-micro font-semibold uppercase tracking-widest text-text-3 bg-surface border border-border rounded px-1.5 py-0.5">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">
         {items.map((s) => (
-          <span key={s} className={`text-[11px] px-1.5 py-0.5 rounded border ${chipCls}`}>{s}</span>
+          <span key={s} className={`text-caption px-1.5 py-0.5 rounded border ${chipCls}`}>{s}</span>
         ))}
       </div>
     </div>

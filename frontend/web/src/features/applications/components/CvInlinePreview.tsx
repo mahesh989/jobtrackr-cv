@@ -99,9 +99,9 @@ export function CvInlinePreview({ storagePath }: Props) {
     <div className="rounded-md border border-border bg-[var(--surface-2)] overflow-hidden">
       <div className="bg-white p-5 max-h-[420px] overflow-y-auto" style={{ colorScheme: "light" }}>
         {displayErr ? (
-          <p className="text-[12px] text-red-600 italic">{displayErr}</p>
+          <p className="text-label text-red-600 italic">{displayErr}</p>
         ) : !formattedMd ? (
-          <div className="py-8 flex items-center justify-center text-gray-500 text-[12px]">
+          <div className="py-8 flex items-center justify-center text-gray-500 text-label">
             <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading tailored CV…
           </div>
         ) : (
@@ -133,7 +133,7 @@ export function CvInlinePreview({ storagePath }: Props) {
         )}
       </div>
       <div className="px-3 py-1.5 border-t border-border bg-[var(--surface-2)]">
-        <p className="text-[10px] text-text-3">
+        <p className="text-micro text-text-3">
           Same format as the Full Analysis page preview. Scroll to see more.
         </p>
       </div>

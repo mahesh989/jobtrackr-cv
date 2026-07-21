@@ -185,27 +185,27 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-semibold text-text">{meta.label}</span>
+                  <span className="text-body font-semibold text-text">{meta.label}</span>
                   {state.hasKey && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-green-50 border-green-200 text-green-700">
+                    <span className="text-micro font-semibold px-1.5 py-0.5 rounded border bg-green-50 border-green-200 text-green-700">
                       KEY SET
                     </span>
                   )}
                   {state.isActive && (
                     <span
-                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded border"
+                      className="text-micro font-semibold px-1.5 py-0.5 rounded border"
                       style={{ background: `${meta.color}18`, color: meta.color, borderColor: `${meta.color}30` }}
                     >
                       active for all users
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-text-3 mt-0.5">{meta.tagline}</p>
+                <p className="text-caption text-text-3 mt-0.5">{meta.tagline}</p>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
                 {state.hasKey && !isOpen && (
-                  <span className="text-[11px] text-text-3 hidden sm:block truncate max-w-[150px]">
+                  <span className="text-caption text-text-3 hidden sm:block truncate max-w-[150px]">
                     {state.model}
                   </span>
                 )}
@@ -216,7 +216,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
             {isOpen && (
               <div className="border-t border-[var(--border)] bg-[var(--surface)] px-4 py-4 space-y-4">
                 {state.statusReason && (
-                  <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-700">
+                  <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-label text-amber-700">
                     {state.statusReason}
                   </div>
                 )}
@@ -224,13 +224,13 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                 {(!state.hasKey || replaceMode[id]) && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold uppercase tracking-wide text-text-3">API key</label>
+                      <label className="text-caption font-semibold uppercase tracking-wide text-text-3">API key</label>
                       <a
                         href={meta.helpUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text transition-colors"
+                        className="flex items-center gap-1 text-caption text-text-3 hover:text-text transition-colors"
                       >
                         Get key <ExternalLink className="w-3 h-3" />
                       </a>
@@ -244,16 +244,16 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                       onChange={(e) => setKeyInputs((prev) => ({ ...prev, [id]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && handleConnect(id)}
                       placeholder={meta.placeholder}
-                      className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-[13px] font-mono placeholder:text-text-3 focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]"
+                      className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-body font-mono placeholder:text-text-3 focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]"
                     />
-                    <p className="text-[11px] text-text-3">
+                    <p className="text-caption text-text-3">
                       Stored encrypted (AES-256-GCM). Used for every user&apos;s analyses while this provider is active.
                     </p>
                   </div>
                 )}
 
                 {state.hasKey && !replaceMode[id] && (
-                  <div className="text-[12px] text-text-2">
+                  <div className="text-label text-text-2">
                     Key stored · last validated{" "}
                     <span className="text-text font-medium">
                       {state.lastValidatedAt
@@ -265,15 +265,15 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold uppercase tracking-wide text-text-3">Model</label>
+                    <label className="text-caption font-semibold uppercase tracking-wide text-text-3">Model</label>
                     <span className="flex items-center gap-1 h-4">
                       {savingModel === id && (
-                        <span className="flex items-center gap-1 text-[11px] text-text-3">
+                        <span className="flex items-center gap-1 text-caption text-text-3">
                           <Loader2 className="w-3 h-3 animate-spin" /> Saving…
                         </span>
                       )}
                       {savedFlash === id && savingModel !== id && (
-                        <span className="flex items-center gap-1 text-[11px] text-green-600">
+                        <span className="flex items-center gap-1 text-caption text-green-600">
                           <Check className="w-3 h-3" /> Saved
                         </span>
                       )}
@@ -283,7 +283,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                     {meta.models.map((m) => {
                       const on = state.model === m.value;
                       return (
-                        <button key={m.value} disabled={savingModel === id} onClick={() => { if (state.hasKey) handleSaveModel(id, m.value); else setStates((prev) => ({ ...prev, [id]: { ...prev[id], model: m.value } })); }} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all disabled:opacity-50 ${ on ? "bg-text text-[var(--surface)] border-text" : "bg-[var(--surface-2)] border-[var(--border)] text-text-2 hover:text-text" }`}>
+                        <button key={m.value} disabled={savingModel === id} onClick={() => { if (state.hasKey) handleSaveModel(id, m.value); else setStates((prev) => ({ ...prev, [id]: { ...prev[id], model: m.value } })); }} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-caption font-medium transition-all disabled:opacity-50 ${ on ? "bg-text text-[var(--surface)] border-text" : "bg-[var(--surface-2)] border-[var(--border)] text-text-2 hover:text-text" }`}>
                           {m.label}
                           <span className={`text-[9px] px-1 py-0.5 rounded border font-semibold ${on ? "bg-white/20 text-white border-white/20" : TAG_CLS[m.tag]}`}>
                             {m.tag}
@@ -295,7 +295,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                 </div>
 
                 {errors[id] && (
-                  <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
                     {errors[id]}
                   </p>
                 )}

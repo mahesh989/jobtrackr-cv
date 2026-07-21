@@ -39,7 +39,7 @@ export function RangeFilter({
           key={r.value}
           href={href(r.value)}
           className={
-            "px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors " +
+            "px-2.5 py-1 rounded-full text-caption font-medium border transition-colors " +
             (current === r.value
               ? "bg-text text-bg border-text"
               : "border-border text-text-2 hover:bg-[var(--sidebar-active-bg)]")

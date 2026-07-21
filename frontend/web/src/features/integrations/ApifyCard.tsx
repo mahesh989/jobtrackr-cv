@@ -49,8 +49,8 @@ function QuotaBar({ used, total }: { used: number; total: number }) {
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between items-center">
-        <span className="text-[12px] text-text-2">Monthly usage</span>
-        <span className="text-[12px] font-medium text-text tabular-nums">
+        <span className="text-label text-text-2">Monthly usage</span>
+        <span className="text-label font-medium text-text tabular-nums">
           ${used.toFixed(2)} <span className="text-text-3 font-normal">/ ${total.toFixed(2)}</span>
         </span>
       </div>
@@ -128,12 +128,12 @@ export function ApifyCard({ initialData }: Props) {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[14px] font-semibold text-text">SEEK Australia</span>
-              <span className="text-[11px] text-text-3 bg-surface border border-border px-1.5 py-0.5 rounded-full">
+              <span className="text-title font-semibold text-text">SEEK Australia</span>
+              <span className="text-caption text-text-3 bg-surface border border-border px-1.5 py-0.5 rounded-full">
                 via Apify
               </span>
             </div>
-            <p className="text-[12px] text-text-2 mt-0.5">Australia&apos;s #1 job board — 170,000+ active listings</p>
+            <p className="text-label text-text-2 mt-0.5">Australia&apos;s #1 job board — 170,000+ active listings</p>
           </div>
         </div>
         {connected && data && <StatusBadge status={data.status} />}
@@ -147,7 +147,7 @@ export function ApifyCard({ initialData }: Props) {
           <>
             <QuotaBar used={data.quota_used_usd} total={data.monthly_budget_usd} />
 
-            <div className="flex items-center justify-between text-[12px]">
+            <div className="flex items-center justify-between text-label">
               <span className="text-text-3">
                 {data.quota_used_requests.toLocaleString()} jobs fetched this month
               </span>
@@ -156,7 +156,7 @@ export function ApifyCard({ initialData }: Props) {
 
             {/* Quota exceeded */}
             {data.status === "quota_exceeded" && (
-              <div className="rounded-md bg-amber-light border border-amber/20 px-3 py-2.5 text-[12px] text-amber">
+              <div className="rounded-md bg-amber-light border border-amber/20 px-3 py-2.5 text-label text-amber">
                 Monthly limit of ${data.monthly_budget_usd.toFixed(0)} reached. SEEK results will resume on {data.quota_resets_on}.{" "}
                 <a href="https://apify.com/pricing" target="_blank" rel="noreferrer"
                   className="underline hover:opacity-80">Upgrade Apify plan →</a>
@@ -165,14 +165,14 @@ export function ApifyCard({ initialData }: Props) {
 
             {/* Token error */}
             {data.status_reason && !["valid", "quota_exceeded"].includes(data.status) && (
-              <div className="rounded-md bg-red-light border border-red/20 px-3 py-2.5 text-[12px] text-red">
+              <div className="rounded-md bg-red-light border border-red/20 px-3 py-2.5 text-label text-red">
                 {data.status_reason}
               </div>
             )}
 
             {/* Last used */}
             {data.last_used_at && (
-              <p className="text-[11px] text-text-3">
+              <p className="text-caption text-text-3">
                 Last used:{" "}
                 {new Date(data.last_used_at).toLocaleDateString("en-AU", {
                   day: "numeric", month: "short", year: "numeric",
@@ -205,7 +205,7 @@ export function ApifyCard({ initialData }: Props) {
         ) : (
           /* ── Disconnected state ── */
           <>
-            <p className="text-[13px] text-text-2 leading-relaxed">
+            <p className="text-body text-text-2 leading-relaxed">
               Connect your free Apify account to include SEEK listings in every pipeline run.
               Each account gets{" "}
               <span className="font-semibold text-text">$5 free credit/month</span>{" "}
@@ -215,7 +215,7 @@ export function ApifyCard({ initialData }: Props) {
             {/* Benefit pills */}
             <div className="flex flex-wrap gap-2">
               {["No credit card required", "Resets monthly", "Your token, your quota"].map((t) => (
-                <span key={t} className="flex items-center gap-1.5 text-[12px] text-green">
+                <span key={t} className="flex items-center gap-1.5 text-label text-green">
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                   </svg>
@@ -226,8 +226,8 @@ export function ApifyCard({ initialData }: Props) {
 
             {/* Setup guide */}
             <div className="rounded-md bg-surface-2 border border-border px-4 py-3 space-y-2">
-              <p className="text-[12px] font-semibold text-text">How to get your API token</p>
-              <ol className="text-[12px] text-text-2 space-y-1.5">
+              <p className="text-label font-semibold text-text">How to get your API token</p>
+              <ol className="text-label text-text-2 space-y-1.5">
                 <li className="flex gap-2">
                   <span className="text-text-3 shrink-0 w-4 text-right">1.</span>
                   <span>
@@ -271,7 +271,7 @@ function TokenInput({
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-[12px] font-semibold text-text mb-1.5">
+        <label className="block text-label font-semibold text-text mb-1.5">
           Apify API Token
         </label>
         <div className="relative">
@@ -281,7 +281,7 @@ function TokenInput({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onConnect()}
             placeholder="apify_api_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            className="pr-9 font-mono text-[13px]"
+            className="pr-9 font-mono text-body"
             autoComplete="off"
             spellCheck={false}
           />
@@ -298,7 +298,7 @@ function TokenInput({
             )}
           </button>
         </div>
-        {error && <p className="mt-1.5 text-[12px] text-red">{error}</p>}
+        {error && <p className="mt-1.5 text-label text-red">{error}</p>}
       </div>
 
       <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ function TokenInput({
         {onCancel && (
           <Button size="sm" onClick={onCancel}>Cancel</Button>
         )}
-        <span className="ml-auto text-[11px] text-text-3">Token stored encrypted</span>
+        <span className="ml-auto text-caption text-text-3">Token stored encrypted</span>
       </div>
     </div>
   );

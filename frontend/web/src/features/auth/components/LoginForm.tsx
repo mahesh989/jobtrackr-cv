@@ -130,7 +130,7 @@ export function LoginForm() {
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label htmlFor="password" className="text-[12px] font-semibold text-text">
+            <label htmlFor="password" className="text-label font-semibold text-text">
               Password
             </label>
             <Link

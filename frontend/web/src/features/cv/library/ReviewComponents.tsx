@@ -93,7 +93,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
               type="button"
               onClick={cancelCreate}
               disabled={save === "saving" || cancelling}
-              className="rounded-full px-3.5 py-1.5 text-[13px] font-medium"
+              className="rounded-full px-3.5 py-1.5 text-body font-medium"
             >
               {cancelling ? "Cancelling…" : "Cancel"}
             </Button>
@@ -103,7 +103,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
               type="button"
               onClick={saveDraft}
               disabled={save === "saving" || cancelling}
-              className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium"
+              className="rounded-full border px-3.5 py-1.5 text-body font-medium"
             >
               Save as draft
             </Button>
@@ -113,7 +113,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
               type="button"
               onClick={saveFinish}
               disabled={save === "saving" || cancelling}
-              className="rounded-full px-4 py-1.5 text-[13px] font-medium"
+              className="rounded-full px-4 py-1.5 text-body font-medium"
             >
               Save
             </Button>
@@ -156,7 +156,7 @@ export function AddSectionPanel({
   if (!isCreate || (!hasMoreOptional && addingCustom)) return null;
   return (
     <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/20 px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wider text-text-3 font-medium mb-2">Add a section</div>
+      <div className="text-caption uppercase tracking-wider text-text-3 font-medium mb-2">Add a section</div>
       <div className="flex flex-wrap gap-2 items-center">
         {OPTIONAL_SECTIONS.filter(s => !optionalShown(s.key)).map(s => (
           <Button
@@ -192,7 +192,7 @@ export function AddSectionPanel({
               variant="default"
               size="sm"
               onClick={addCustomSection}
-              className="inline-flex items-center gap-1 text-[12px] rounded-full border border-[var(--brand)]/40 bg-[var(--brand)]/5 text-[var(--brand)] px-3 py-1 hover:bg-[var(--brand)]/10 transition-colors"
+              className="inline-flex items-center gap-1 text-label rounded-full border border-[var(--brand)]/40 bg-[var(--brand)]/5 text-[var(--brand)] px-3 py-1 hover:bg-[var(--brand)]/10 transition-colors"
             >
               Add
             </Button>
@@ -235,7 +235,7 @@ export function SaveBadge({ status, verified, err, compact }: {
   };
   const m = map[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[12px] ${m.tone} ${compact ? "" : ""}`}>
+    <span className={`inline-flex items-center gap-1.5 text-label ${m.tone} ${compact ? "" : ""}`}>
       <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 rounded-full ${m.dot}`} />
       {m.text}
     </span>

@@ -450,9 +450,9 @@ function FeedSectionView({
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
           <h3 className="text-[15px] font-semibold text-text">{section.label}</h3>
-          <span className="text-[12px] font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
+          <span className="text-label font-medium text-text-3 tabular-nums">{section.jobs.length}</span>
           {section.caption ? (
-            <span className="text-[11px] text-text-3 truncate">— {section.caption}</span>
+            <span className="text-caption text-text-3 truncate">— {section.caption}</span>
           ) : null}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -687,27 +687,27 @@ function FactsChips({ job }: { job: BoardJob }) {
   return (
     <>
       {(job.employment_types ?? []).map((t) => (
-        <Badge key={t} variant="blue" className="text-[10px] px-1.5 h-4" title="Work type (from the JD/source)">
+        <Badge key={t} variant="blue" className="text-micro px-1.5 h-4" title="Work type (from the JD/source)">
           {EMPLOYMENT_CHIP_LABEL[t] ?? t}
         </Badge>
       ))}
       {workRights && (
         <span
-          className="badge badge-purple text-[10px] px-1.5 h-4"
+          className="badge badge-purple text-micro px-1.5 h-4"
           title={job.visa_extracted_text ?? "Work-rights requirement stated in the JD"}
         >
           {workRights}
         </span>
       )}
       {job.sponsorship_status === "yes" && (
-        <span className="badge badge-green text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "The JD states visa sponsorship is available"}>
+        <span className="badge badge-green text-micro px-1.5 h-4" title={job.visa_extracted_text ?? "The JD states visa sponsorship is available"}>
           Sponsorship
         </span>
       )}
       {anyEmail && (
         <Badge
           variant="gray"
-          className="text-[10px] px-1.5 h-4 cursor-copy"
+          className="text-micro px-1.5 h-4 cursor-copy"
           title={`${anyEmail.kind === "application" ? "Apply by email" : "Contact"}: ${anyEmail.email}${anyEmail.person ? ` (${anyEmail.person})` : ""} — click card menu to copy`}
         >
           ✉ {anyEmail.kind === "application" ? "Apply by email" : "Contact"}
@@ -716,24 +716,24 @@ function FactsChips({ job }: { job: BoardJob }) {
       {closeDays !== null && closeDays <= 14 && (
         <Badge
           variant={closeDays <= 3 ? "red" : "amber"}
-          className="text-[10px] px-1.5 h-4"
+          className="text-micro px-1.5 h-4"
           title={`Applications close ${job.closing_date}`}
         >
           Closes {closeDays === 0 ? "today" : `in ${closeDays}d`}
         </Badge>
       )}
       {job.is_agency === true && (
-        <Badge variant="gray" className="text-[10px] px-1.5 h-4" title="Posted by a recruitment agency">
+        <Badge variant="gray" className="text-micro px-1.5 h-4" title="Posted by a recruitment agency">
           Agency
         </Badge>
       )}
       {job.eligibility === "not_eligible" && (
-        <Badge variant="red" className="text-[10px] px-1.5 h-4" title={job.visa_extracted_text ?? "Based on the JD's stated work-rights requirement vs your visa status (Profile)"}>
+        <Badge variant="red" className="text-micro px-1.5 h-4" title={job.visa_extracted_text ?? "Based on the JD's stated work-rights requirement vs your visa status (Profile)"}>
           Not eligible
         </Badge>
       )}
       {job.hours_cap_conflict && job.eligibility !== "not_eligible" && (
-        <Badge variant="amber" className="text-[10px] px-1.5 h-4" title="Full-time only — may conflict with student-visa hour caps">
+        <Badge variant="amber" className="text-micro px-1.5 h-4" title="Full-time only — may conflict with student-visa hour caps">
           FT only ⚠
         </Badge>
       )}
@@ -757,7 +757,7 @@ function CardChips({ job }: { job: BoardJob }) {
         style={{ background: VISA_COLOR[visaKey(job)] }}
         title={VISA_LABEL[visaKey(job)]}
       />
-      <span className="text-[10px] text-text-3">{relativeDate(job.posted_at || job.created_at) ?? "—"}</span>
+      <span className="text-micro text-text-3">{relativeDate(job.posted_at || job.created_at) ?? "—"}</span>
     </div>
   );
 }
@@ -768,7 +768,7 @@ function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) {
       href={job.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`${inline ? "text-[13px]" : "text-[13px]"} font-semibold text-text hover:text-[var(--brand)] leading-snug ${inline ? "break-words" : "block mb-1.5"}`}
+      className={`${inline ? "text-body" : "text-body"} font-semibold text-text hover:text-[var(--brand)] leading-snug ${inline ? "break-words" : "block mb-1.5"}`}
     >
       {job.title}
     </a>
@@ -779,7 +779,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-[11px]"} text-text-2`}>
+    <p className={`${compact ? "mt-1 text-[11.5px]" : "text-caption"} text-text-2`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}
@@ -807,7 +807,7 @@ function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {
       )}
       {jobNeedsJd(job) && (
         <span className="ml-2 inline-flex items-center gap-0.5 text-amber-600 align-middle">
-          <FileWarning className="w-3 h-3 inline" /> <span className="text-[10px]">thin JD</span>
+          <FileWarning className="w-3 h-3 inline" /> <span className="text-micro">thin JD</span>
         </span>
       )}
       {job.jd_quality === "unknown" && (
@@ -887,7 +887,7 @@ function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean }) {
       <div className={`relative bg-[var(--surface-2)] rounded-full overflow-hidden ${compact ? "h-1" : "h-1.5"} flex-1`}>
         <div className={`h-full ${cls}`} style={{ width: `${displayScore}%` }} />
       </div>
-      <span className={`tabular-nums font-semibold text-text-2 shrink-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+      <span className={`tabular-nums font-semibold text-text-2 shrink-0 ${compact ? "text-micro" : "text-caption"}`}>
         {displayScore}
       </span>
     </div>
@@ -918,7 +918,7 @@ function ProgressDots({ progress }: { progress: BoardJob["progress"] }) {
 function ProfileChip({ name }: { name: string }) {
   return (
     <span
-      className="text-[10px] font-medium px-1.5 py-px rounded shrink-0 bg-[var(--surface-2)] text-text-2 border border-border"
+      className="text-micro font-medium px-1.5 py-px rounded shrink-0 bg-[var(--surface-2)] text-text-2 border border-border"
       title={`Found via the "${name}" search profile`}
     >
       {name}
@@ -942,7 +942,7 @@ function AtsChip({ job }: { job: BoardJob }) {
   return (
     <span
       title={meta.tip}
-      className={`text-[10px] font-semibold px-1.5 py-px rounded shrink-0 ${meta.chipBg} ${meta.chipText}`}
+      className={`text-micro font-semibold px-1.5 py-px rounded shrink-0 ${meta.chipBg} ${meta.chipText}`}
     >
       ATS {meta.label}
     </span>
@@ -953,7 +953,7 @@ function ChipWarn({ label, tooltip }: { label: string; tooltip: string }) {
   return (
     <span
       title={tooltip}
-      className="text-[10px] font-medium px-1.5 py-px rounded shrink-0 bg-amber-100 text-amber-800"
+      className="text-micro font-medium px-1.5 py-px rounded shrink-0 bg-amber-100 text-amber-800"
     >
       {label}
     </span>
@@ -985,13 +985,13 @@ function EmptyState({ favourite = false }: { favourite?: boolean }) {
         </div>
         {favourite ? (
           <>
-            <p className="text-[14px] font-semibold text-text mb-1">No favourite jobs</p>
-            <p className="text-[12px] text-text-2">Star a job to shortlist it here.</p>
+            <p className="text-title font-semibold text-text mb-1">No favourite jobs</p>
+            <p className="text-label text-text-2">Star a job to shortlist it here.</p>
           </>
         ) : (
           <>
-            <p className="text-[14px] font-semibold text-text mb-1">No jobs match your filters</p>
-            <p className="text-[12px] text-text-2">Adjust the filters above or run the pipeline to fetch new listings.</p>
+            <p className="text-title font-semibold text-text mb-1">No jobs match your filters</p>
+            <p className="text-label text-text-2">Adjust the filters above or run the pipeline to fetch new listings.</p>
           </>
         )}
       </div>

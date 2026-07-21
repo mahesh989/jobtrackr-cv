@@ -75,13 +75,13 @@ export function ThemePickerClient() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p
-                  className="text-[14px] font-semibold tracking-tight"
+                  className="text-title font-semibold tracking-tight"
                   style={{ color: t.preview.text }}
                 >
                   {t.name}
                 </p>
                 <p
-                  className="text-[12px] mt-0.5"
+                  className="text-label mt-0.5"
                   style={{ color: t.preview.muted }}
                 >
                   {t.description}
