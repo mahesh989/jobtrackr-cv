@@ -417,18 +417,19 @@ export function SmartToolbar({
             })}
           </div>
 
-          {(() => {
+          {Array.from({ length: 10 }).map((_, i) => {
             const favActive = isStageActive(FAVOURITE_CHIP);
             const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
             return (
               <button
+                key={i}
                 type="button"
                 onClick={() => selectStageChip(FAVOURITE_CHIP)}
                 disabled={favCount === 0 && !favActive}
                 title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
                 aria-pressed={favActive}
-                aria-label="Favourite jobs"
-                className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ml-auto ${
+                aria-label={`Favourite jobs ${i + 1}`}
+                className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ${
                   favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
                 }`}
               >
@@ -437,7 +438,7 @@ export function SmartToolbar({
                 />
               </button>
             );
-          })()}
+          })}
 
           {/* JDs Group */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
