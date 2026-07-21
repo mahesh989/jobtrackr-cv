@@ -8,8 +8,8 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
  * change the color scheme here once, every chip in the app follows.
  */
 const sizeClass = {
-  sm: "px-2.5 py-1 text-[11px]",
-  md: "px-3 py-1.5 text-[12px]",
+  sm: "px-2.5 py-1 text-caption",
+  md: "px-3 py-1.5 text-label",
 } as const;
 
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {

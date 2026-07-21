@@ -18,7 +18,7 @@ export function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label htmlFor={htmlFor} className="block text-[12px] font-semibold text-text mb-1">
+    <label htmlFor={htmlFor} className="block text-label font-semibold text-text mb-1">
       {children}
       {required && <span className="text-[var(--red)] ml-0.5">*</span>}
     </label>
@@ -27,12 +27,12 @@ export function FieldLabel({
 
 export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <p id={id} className="mt-1 text-[11px] text-[var(--red)]">{children}</p>
+    <p id={id} className="mt-1 text-caption text-[var(--red)]">{children}</p>
   );
 }
 
 export function FieldHint({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <p id={id} className="mt-1 text-[11px] text-text-3">{children}</p>
+    <p id={id} className="mt-1 text-caption text-text-3">{children}</p>
   );
 }

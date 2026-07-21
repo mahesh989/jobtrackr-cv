@@ -21,8 +21,8 @@ const outerSizeClass = {
 } as const;
 
 const optionSizeClass = {
-  sm: "px-2.5 py-1 rounded text-[11px]",
-  md: "px-4 py-2 rounded-lg text-[13px]",
+  sm: "px-2.5 py-1 rounded text-caption",
+  md: "px-4 py-2 rounded-lg text-body",
 } as const;
 
 export function SegmentedControl<T extends string>({

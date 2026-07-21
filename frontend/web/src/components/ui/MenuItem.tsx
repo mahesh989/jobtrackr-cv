@@ -20,7 +20,7 @@ export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * keep in sync by hand.
  */
 export function menuItemClass(danger = false, className = ""): string {
-  return `w-full flex items-center gap-2 text-left px-3 py-1.5 text-[12px] transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-40 ${
+  return `w-full flex items-center gap-2 text-left px-3 py-1.5 text-label transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-40 ${
     danger ? "text-text-3 hover:text-red-600" : "text-text-2 hover:text-text"
   } ${className}`.trim();
 }

@@ -279,6 +279,21 @@
   --color-amber-light: var(--amber-light);
   --color-purple:      var(--purple);
   --color-purple-light:var(--purple-light);
+
+  /* ── Type scale — single source of truth for font sizes ──────────────
+     Semantic names, deliberately NOT xs/sm/base: Tailwind's default scale
+     (12/14/16px) is still used in ~150 places and means something different,
+     so these live alongside it. New code should prefer these tokens; feature
+     files are being migrated off raw text-[Npx] onto them in chunks. */
+  --text-micro:   10px;   /* pills, timestamps, dense meta            */
+  --text-caption: 11px;   /* captions, hints, field errors, sub-meta  */
+  --text-label:   12px;   /* field labels, secondary UI text          */
+  --text-body:    13px;   /* body copy, inputs, primary UI text       */
+  --text-title:   14px;   /* card / row titles                        */
+  --text-lead:    16px;   /* emphasized leads                         */
+  --text-h3:      18px;
+  --text-h2:      20px;
+  --text-h1:      22px;
 }
 
 /* ─── Reset / base ──────────────────────────────────────────── */
