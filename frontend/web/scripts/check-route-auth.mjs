@@ -60,13 +60,15 @@ const ENFORCEMENT_SIGNALS = [
   "constructEvent", // throws on bad signature → enforcement is intrinsic
   "verifyHmac",
   "verify_hmac",
-  // requireUser()/requireAdmin() (lib/api-utils.ts) return a ready-made 401/403
-  // NextResponse the route hands back via `if (error) return error;` — the
-  // denial literal lives inside the helper, not the route file. Same
-  // intrinsic-enforcement rationale as verifyHmac above.
-  "requireUser",
-  "requireAdmin",
 ];
+
+// requireUser()/requireAdmin() (lib/api-utils.ts) return a ready-made 401/403
+// NextResponse — but ONLY if the route actually hands it back. Presence of the
+// helper alone is NOT enforcement (a route could destructure `user` and ignore
+// `error` — the exact false-green this guard exists to catch). So enforcement
+// is only credited when the file also RETURNS a *err*/error variable, i.e. the
+// idiomatic `if (authErr) return authErr;` / `if (error) return error;`.
+const RETURNS_HELPER_ERROR = /if\s*\(\s*\w*[eE]rr\w*\s*\)\s*\{?\s*return\b/;
 
 function walk(dir) {
   const out = [];
@@ -84,7 +86,10 @@ for (const file of walk(API_DIR)) {
   if (Object.prototype.hasOwnProperty.call(PUBLIC_ALLOWLIST, rel)) continue;
   const src = readFileSync(file, "utf8");
   const hasAuth = AUTH_SIGNALS.some((s) => src.includes(s));
-  const hasEnforcement = ENFORCEMENT_SIGNALS.some((s) => src.includes(s));
+  const usesAuthHelper = /require(User|Admin)\s*\(/.test(src);
+  const hasEnforcement =
+    ENFORCEMENT_SIGNALS.some((s) => src.includes(s)) ||
+    (usesAuthHelper && RETURNS_HELPER_ERROR.test(src));
   if (!hasAuth) offenders.push(`${rel} — no auth-acquisition signal`);
   else if (!hasEnforcement) offenders.push(`${rel} — acquires a user but no denial path (401/403)`);
 }
