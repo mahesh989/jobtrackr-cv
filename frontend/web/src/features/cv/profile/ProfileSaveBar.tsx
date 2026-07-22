@@ -27,7 +27,7 @@ export function AutoSaveBadge() {
   );
 }
 
-export function SaveBar() {
+export function ProfileSaveBar() {
   const { dirty, saving, saved, error, save } = useProfile();
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-3">

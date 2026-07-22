@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import {
   ProfileDetailsProvider, ContactSection,
-  AvailabilitySection, SaveBar,
+  AvailabilitySection, ProfileSaveBar,
 } from "@/features/cv/profile";
 import { VisaStatusSelect } from "@/features/cv/profile/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
@@ -67,7 +67,7 @@ export default async function DetailsPage() {
           </section>
 
           <AvailabilitySection />
-          <SaveBar />
+          <ProfileSaveBar />
         </ProfileDetailsProvider>
       </div>
     </div>
