@@ -33,6 +33,7 @@ const PUBLIC_ALLOWLIST = {
   "billing/webhook/route.ts": "Stripe webhook — authenticated by Stripe signature, not user session",
   "auth/forgot-password/route.ts": "public SSO-only identity check (read-only DB function, no GoTrue call) — IP rate-limited (10/60s); the actual password-reset send happens client-side, gated by Supabase's own native captcha check",
   "notifications/unsubscribe/route.ts": "one-click email unsubscribe link — must work unauthenticated by design; gated by an HMAC signature (verifySig, timing-safe compare) + per-uid rate limit, not a user session",
+  "user/setup-status/route.ts": "setup-gate probe — unauthenticated callers receive the constant {complete:true, step:1} before any query runs (deliberate graceful no-op, zero data exposure); authenticated reads are RLS-scoped",
 };
 
 // (1) The route obtains a caller identity / verifies a signed sender.
@@ -59,6 +60,12 @@ const ENFORCEMENT_SIGNALS = [
   "constructEvent", // throws on bad signature → enforcement is intrinsic
   "verifyHmac",
   "verify_hmac",
+  // requireUser()/requireAdmin() (lib/api-utils.ts) return a ready-made 401/403
+  // NextResponse the route hands back via `if (error) return error;` — the
+  // denial literal lives inside the helper, not the route file. Same
+  // intrinsic-enforcement rationale as verifyHmac above.
+  "requireUser",
+  "requireAdmin",
 ];
 
 function walk(dir) {
