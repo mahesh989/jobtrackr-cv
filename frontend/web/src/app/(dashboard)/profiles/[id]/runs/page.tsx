@@ -6,12 +6,21 @@ import { RunJobsTable } from "@/features/profiles/components/RunJobsTable";
 import { LiveRunStatus } from "@/features/profiles/components/LiveRunStatus";
 import { LiveLogConsole } from "@/features/profiles/components/LiveLogConsole";
 import { Badge, Button } from "@/components/ui";
+import { ADMIN_ROLES } from "@/lib/constants";
 
 export default async function RunHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
+
+  // Admin-only diagnostic surface. Role-gated (NOT the jt_user_view cookie),
+  // so an admin in "view as user" mode can still open it.
+  const { data: meRow } = await supabase
+    .from("users").select("role").eq("id", user.id).single();
+  if (!(ADMIN_ROLES as readonly string[]).includes((meRow?.role as string) ?? "")) {
+    redirect(`/profiles/${id}/jobs`);
+  }
 
   const { data: profile } = await supabase
     .from("search_profiles")

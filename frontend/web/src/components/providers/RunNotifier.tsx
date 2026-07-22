@@ -32,7 +32,7 @@ interface Toast {
 const BACKSTOP_MS = 20000; // safety-net poll, visible tabs only
 const TOAST_MS    = 8000;
 
-export function RunNotifier() {
+export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const prev   = useRef<Record<string, string>>({});
   const seeded = useRef(false);
@@ -84,8 +84,12 @@ export function RunNotifier() {
               title: isSuccess
                 ? `${r.profile_name} — ${r.jobs_saved} new ${r.jobs_saved === 1 ? "job" : "jobs"}`
                 : `${r.profile_name} — pipeline ${r.status}`,
-              sub:   isSuccess ? "Click to view feed" : "Click to view run history",
-              href:  isSuccess
+              // Run history is an admin-only surface — general users land on
+              // the profile's job board instead.
+              sub:   isSuccess ? "Click to view feed"
+                   : isAdmin   ? "Click to view run history"
+                   :             "Click to open the profile",
+              href:  isSuccess || !isAdmin
                 ? `/profiles/${r.profile_id}/jobs`
                 : `/profiles/${r.profile_id}/runs`,
             };
@@ -150,7 +154,7 @@ export function RunNotifier() {
       document.removeEventListener("visibilitychange", onVisibility);
       for (const h of timeoutHandles) clearTimeout(h);
     };
-  }, [router]);
+  }, [router, isAdmin]);
 
   if (toasts.length === 0) return null;
 

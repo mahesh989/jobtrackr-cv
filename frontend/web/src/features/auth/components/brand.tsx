@@ -1,8 +1,8 @@
 /**
  * Shared branding pieces for the auth screens (login / signup).
  *
- * These pages are deliberately hand-styled to match the Aurora Light theme's
- * canonical palette (see :root.theme-aurora-light in globals.css) but do NOT
+ * These pages are deliberately hand-styled to match the Classic theme's
+ * canonical palette (see :root.theme-classic in globals.css) but do NOT
  * consume the app theme tokens directly — they render the same way
  * regardless of a logged-in user's own theme choice, since there's no theme
  * preference yet at the pre-login stage.
@@ -30,11 +30,11 @@ export const GOOGLE_SVG = (
 );
 
 export const inputStyle = {
-  background: "#EEF2F7",
+  background: "#F1F5F9",
   border: "1px solid #E2E8F0",
   fontSize: 14,
   fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-  color: "#0E141B",
+  color: "#0F172A",
 } as React.CSSProperties;
 
 export function Spinner({ size = 16 }: { size?: number }) {

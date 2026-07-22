@@ -68,7 +68,7 @@ export function UpdatePasswordForm() {
 
   return (
     <Shell
-      headline={<>Set a new<br /><em style={{ fontStyle: "italic", color: "#0B7D74" }}>password.</em></>}
+      headline={<>Set a new<br /><em style={{ fontStyle: "italic", color: "#3B82F6" }}>password.</em></>}
       tagline="Choose a strong password you haven't used elsewhere."
       switchPrompt="Changed your mind?"
       switchHref="/auth/login"
@@ -78,7 +78,7 @@ export function UpdatePasswordForm() {
       {sessionState === "checking" && (
         <div className="flex flex-col items-center py-10 text-center">
           <Spinner size={24} />
-          <p className="mt-3" style={{ color: "#475467", fontSize: 13 }}>Verifying your reset link…</p>
+          <p className="mt-3" style={{ color: "#475569", fontSize: 13 }}>Verifying your reset link…</p>
         </div>
       )}
 
@@ -94,13 +94,13 @@ export function UpdatePasswordForm() {
           <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 24, lineHeight: 1.2, letterSpacing: "-0.5px" }}>
             This link is invalid or expired
           </h1>
-          <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+          <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
             Password reset links can only be used once and expire after a while. Request a new one to continue.
           </p>
           <Link
             href="/auth/forgot-password"
             className="mt-6 inline-block text-body font-semibold rounded-lg px-5 py-2.5 transition-opacity hover:opacity-90"
-            style={{ background: "#0B7D74", color: "#FFFFFF" }}
+            style={{ background: "#3B82F6", color: "#FFFFFF" }}
           >
             Request a new link
           </Link>
@@ -120,7 +120,7 @@ export function UpdatePasswordForm() {
       >
         Choose a new password.
       </h1>
-      <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+      <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
         You&apos;ll be signed in with this the next time you log in.
       </p>
 
@@ -154,7 +154,7 @@ export function UpdatePasswordForm() {
           type="submit"
           disabled={loading || !passwordMeetsAllRules(password) || password !== confirmPassword}
           className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
-          style={{ background: "#0B7D74", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
+          style={{ background: "#3B82F6", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
         >
           {loading ? (
             <>

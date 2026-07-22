@@ -34,9 +34,9 @@ export function Shell({
   children,
 }: ShellProps) {
   const switchLink = (
-    <Link href={switchHref} className="group text-body cursor-pointer" style={{ color: "#475467" }}>
+    <Link href={switchHref} className="group text-body cursor-pointer" style={{ color: "#475569" }}>
       {switchPrompt}{" "}
-      <span className="underline-offset-2 group-hover:underline" style={{ color: "#0B7D74", fontWeight: 500 }}>
+      <span className="underline-offset-2 group-hover:underline" style={{ color: "#3B82F6", fontWeight: 500 }}>
         {switchLabel}
       </span>
     </Link>
@@ -45,14 +45,14 @@ export function Shell({
   return (
     <div
       className="min-h-screen flex"
-      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#0E141B" }}
+      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#0F172A" }}
     >
       {/* ── Brand panel (desktop only) ── */}
       <aside
         className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10"
-        style={{ background: "#ECFBF8", color: "#0E141B" }}
+        style={{ background: "#EFF6FF", color: "#0F172A" }}
       >
-        <Link href="/dashboard" className="flex items-center">
+        <Link href="/" className="flex items-center">
           {/* Logo is the full "JobTrackr" wordmark — no separate badge/text. */}
           {LOGO_SVG}
         </Link>
@@ -64,14 +64,14 @@ export function Shell({
               fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)",
               lineHeight: 1.15,
               letterSpacing: "-0.6px",
-              color: "#0E141B",
+              color: "#0F172A",
               marginBottom: 12,
               fontWeight: 400,
             }}
           >
             {headline}
           </h2>
-          <p style={{ color: "rgba(14, 20, 27,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+          <p style={{ color: "rgba(15, 23, 42,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
             {tagline}
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -81,13 +81,13 @@ export function Shell({
                 style={{
                   display: "flex", alignItems: "flex-start", gap: 10,
                   padding: "10px 0",
-                  borderBottom: "1px solid rgba(14, 20, 27, 0.08)",
-                  color: "rgba(14, 20, 27,0.7)",
+                  borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
+                  color: "rgba(15, 23, 42,0.7)",
                   fontSize: 13, lineHeight: 1.5,
                 }}
               >
                 <span
-                  style={{ width: 5, height: 5, background: "#0B7D74", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
+                  style={{ width: 5, height: 5, background: "#3B82F6", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
                 />
                 {f}
               </li>
@@ -95,16 +95,16 @@ export function Shell({
           </ul>
         </div>
 
-        <p style={{ fontSize: 11, color: "rgba(14, 20, 27,0.2)", letterSpacing: 0.3 }}>
+        <p style={{ fontSize: 11, color: "rgba(15, 23, 42,0.2)", letterSpacing: 0.3 }}>
           Built for Australian job seekers
         </p>
       </aside>
 
       {/* ── Form panel ── */}
-      <div className="flex-1 flex flex-col" style={{ background: "#F6F8FB" }}>
+      <div className="flex-1 flex flex-col" style={{ background: "#F1F5F9" }}>
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
-          <Link href="/dashboard" className="flex items-center">
+          <Link href="/" className="flex items-center">
             {LOGO_SVG}
           </Link>
           {switchLink}
@@ -133,8 +133,8 @@ export function Shell({
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
             {trustLabels.map((label) => (
-              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#667085" }}>
-                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#0B7D74" }} />
+              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#64748B" }}>
+                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#3B82F6" }} />
                 {label}
               </li>
             ))}

@@ -38,6 +38,7 @@ import {
 } from "@/features/jobs/lib/progressFlags";
 import { derivePipelineState, recomputeGates } from "@/features/jobs/lib/pipelineState";
 import { computeEligibility, hoursCapConflict, isUserVisaStatus } from "@/lib/eligibility";
+import { ADMIN_ROLES } from "@/lib/constants";
 
 interface SearchParams {
   sort?:          string;
@@ -78,6 +79,13 @@ export default async function JobsPage({
     .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals, adzuna_exclude_keywords")
     .eq("id", id).eq("user_id", user.id).single();
   if (!profile) redirect("/dashboard");
+
+  // Pipeline console + run history are internal/diagnostic surfaces — admin
+  // only. Gated on ROLE, deliberately NOT on the jt_user_view cookie, so an
+  // admin browsing in "view as user" mode keeps them.
+  const { data: meRow } = await supabase
+    .from("users").select("role").eq("id", user.id).single();
+  const isAdmin = (ADMIN_ROLES as readonly string[]).includes((meRow?.role as string) ?? "");
 
   // Per-vertical cutoffs (healthcare/nursing = 55/65). Drives live re-bucketing
   // so the ATS tabs/counts match the gate the analysis actually used. The
@@ -400,9 +408,11 @@ export default async function JobsPage({
                 Export CSV
               </Button>
             </Link>
-            <Link href={`/profiles/${id}/runs`} className="shrink-0 whitespace-nowrap">
-              <Button size="sm" className="px-2.5 py-1">Run history</Button>
-            </Link>
+            {isAdmin && (
+              <Link href={`/profiles/${id}/runs`} className="shrink-0 whitespace-nowrap">
+                <Button size="sm" className="px-2.5 py-1">Run history</Button>
+              </Link>
+            )}
             <Link href={`/profiles/${id}/edit`} className="shrink-0 whitespace-nowrap">
               <Button size="sm" className="px-2.5 py-1">Edit</Button>
             </Link>
@@ -414,7 +424,7 @@ export default async function JobsPage({
 
       <div className="px-6 py-4 space-y-4">
         <LiveRunStatus profileId={id} initialIsRunning={isRunning} />
-        <LiveLogConsole profileId={id} />
+        {isAdmin && <LiveLogConsole profileId={id} />}
 
         {/* ?view=new banner — latest fetched batch, with an exit back to all */}
         {isNewView && (
@@ -443,10 +453,14 @@ export default async function JobsPage({
 
         {/* Footer */}
         <div className="flex items-center gap-3 text-caption text-text-3 pt-2 anim-in anim-delay-2">
-          <Link href={`/profiles/${id}/runs`} className="hover:text-text transition-colors">
-            Run history
-          </Link>
-          <span>·</span>
+          {isAdmin && (
+            <>
+              <Link href={`/profiles/${id}/runs`} className="hover:text-text transition-colors">
+                Run history
+              </Link>
+              <span>·</span>
+            </>
+          )}
           <Link href={`/api/profiles/${id}/jobs/export`} className="hover:text-text transition-colors">
             Export all as CSV
           </Link>

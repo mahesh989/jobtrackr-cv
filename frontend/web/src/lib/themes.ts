@@ -120,14 +120,12 @@ const VALID_IDS = new Set<Theme>(["aurora-dark", "aurora-light", "default", "cla
 const THEMED_CLASSES = ["theme-aurora-dark", "theme-aurora-light", "theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "aurora-light";
+  if (typeof window === "undefined") return "classic";
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
   if (stored && VALID_IDS.has(stored)) {
     return stored;
   }
-  // No saved preference → Aurora Light is the project default. An explicit
-  // 'default'/other choice is honoured above; only unset/unrecognised land here.
-  return "aurora-light";
+  return "classic";
 }
 
 export function applyTheme(theme: Theme) {

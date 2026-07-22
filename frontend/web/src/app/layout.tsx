@@ -5,11 +5,8 @@ import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // ── "Default" theme fonts (original JobTrackr look) ───────────────────────
-// The user-facing default theme is 'aurora-light' (see the FOUC guard below),
-// which uses the cv-magic fonts (Manrope / Noto Serif) declared further down. These
-// two only apply when a user explicitly picks the "Default" theme, so we set
-// preload: false — the browser fetches them lazily on theme switch instead of
-// preloading them on every route (incl. the public marketing/login pages).
+// These only apply when a user explicitly picks the "Default" theme, so
+// preload: false — the browser fetches them lazily on theme switch.
 const sofiaSans = Sofia_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
@@ -28,13 +25,12 @@ const dmSerif = DM_Serif_Display({
 });
 
 // ── cv-magic theme fonts (Classic / Gilded Noir / Notion / Clay) ──────────
-// No longer the default (Aurora is), so these load lazily on theme switch.
+// Classic is the new default, so Manrope + Noto Serif are preloaded.
 const manrope = Manrope({
   variable: "--font-cv-sans",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
   display: "swap",
-  preload: false,
 });
 
 const notoSerif = Noto_Serif({
@@ -42,18 +38,16 @@ const notoSerif = Noto_Serif({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   display: "swap",
-  preload: false,
 });
 
-// ── Aurora theme fonts (Aurora Dark / Aurora Light — the new default) ──────
-// Body: Plus Jakarta Sans · Display headings: Space Grotesk · Numerals: JetBrains
-// Mono. Jakarta + Grotesk carry the default preload (Aurora is the default
-// theme); the mono is used less, so it loads lazily.
+// ── Aurora theme fonts (Aurora Dark / Aurora Light) ───────────────────────
+// No longer the default (Classic is), so these load lazily on theme switch.
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  preload: false,
 });
 
 const spaceGrotesk = Space_Grotesk({
@@ -61,6 +55,7 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  preload: false,
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -136,8 +131,8 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://accounts.google.com" />
         {/*
           FOUC guard for the theme system. Runs synchronously before any
-          React code, so users on a non-Classic theme don't briefly see
-          Classic flash before their saved theme applies. Kept tiny on
+          React code, so users on a non-default theme don't briefly see the
+          default flash before their saved theme applies. Kept tiny on
           purpose — anything heavier should live in ThemeProvider.
         */}
         <script
@@ -145,7 +140,7 @@ export default function RootLayout({
             __html: `
               try {
                 var d = document.documentElement;
-                var t = localStorage.getItem('jobtrackr-theme') || 'aurora-light';
+                var t = localStorage.getItem('jobtrackr-theme') || 'classic';
                 if (t !== 'default' && /^(aurora-dark|aurora-light|classic|gilded-noir|notion|clay)$/.test(t)) {
                   d.classList.add('theme-' + t);
                 }

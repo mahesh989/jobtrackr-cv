@@ -130,7 +130,7 @@ export function SignupForm() {
       headline={
         <>
           Stop hunting.<br />
-          <em style={{ fontStyle: "italic", color: "#0B7D74" }}>Start tracking.</em>
+          <em style={{ fontStyle: "italic", color: "#3B82F6" }}>Start tracking.</em>
         </>
       }
       tagline="Set up in 60 seconds. Your ranked feed will be ready before you wake up tomorrow."
@@ -143,16 +143,16 @@ export function SignupForm() {
         /* ── Email sent state ── */
         <div className="text-center">
           <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(11, 125, 116, 0.12)", border: "1px solid rgba(11, 125, 116, 0.2)" }}>
-            <svg width="22" height="22" fill="none" stroke="#0B7D74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
           <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
             Check your inbox
           </h1>
-          <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+          <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
             We sent a confirmation link to{" "}
-            <span style={{ color: "#0E141B", fontWeight: 500 }}>{email}</span>.
+            <span style={{ color: "#0F172A", fontWeight: 500 }}>{email}</span>.
             Click it to activate your account.
           </p>
 
@@ -171,14 +171,14 @@ export function SignupForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#0B7D74" }}>
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#3B82F6" }}>
                   {resendLoading ? "Resending…" : "Resend confirmation email"}
                 </button>
               </>
             )}
           </div>
 
-          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475467" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#0B7D74"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475467"; }}>
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475569" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#3B82F6"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475569"; }}>
             Try a different email
           </button>
         </div>
@@ -188,13 +188,13 @@ export function SignupForm() {
             <h1 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 4vw, 2.25rem)", lineHeight: 1.12, letterSpacing: "-0.8px", marginBottom: 8 }}>
               Create your account.
             </h1>
-            <p style={{ color: "#475467", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
+            <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
               Start your 3-day free trial — no commitment required.
             </p>
           </div>
 
           {/* Google button */}
-          <button onClick={handleGoogleSignUp} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0E141B", opacity: googleLoading ? 0.7 : 1 }}>
+          <button onClick={handleGoogleSignUp} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0F172A", opacity: googleLoading ? 0.7 : 1 }}>
             {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
             Continue with Google
           </button>
@@ -250,7 +250,7 @@ export function SignupForm() {
                 password !== confirmPassword
               }
               className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
-              style={{ background: "#0B7D74", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
+              style={{ background: "#3B82F6", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
             >
               {loading ? (
                 <>
@@ -270,7 +270,7 @@ export function SignupForm() {
 
           <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>
             Already have an account?{" "}
-            <Link href="/auth/login" style={{ color: "#0B7D74", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
+            <Link href="/auth/login" style={{ color: "#3B82F6", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
           </p>
         </>
       )}

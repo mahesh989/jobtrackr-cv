@@ -5,22 +5,19 @@ html:has(.landing) { scroll-behavior: smooth; }
 
 .landing {
   scroll-margin-top: 80px;
-  /* Aurora Light — canonical values from :root.theme-aurora-light in globals.css */
-  --ink: #0E141B;
-  --ink-2: #334155;
-  --ink-3: #475467;
-  --ink-4: #667085;
-  --canvas: #F6F8FB;
+  /* Classic — canonical values from :root.theme-classic in globals.css */
+  --ink: #0F172A;
+  --ink-2: #475569;
+  --ink-3: #475569;
+  --ink-4: #64748B;
+  --canvas: #FFFFFF;
   --surface: #FFFFFF;
-  --surface-2: #EEF2F7;
-  --surface-3: #E6ECF3;
-  --accent: #0B7D74;
-  --accent-light: rgba(11, 125, 116, 0.12);
-  --accent-mid: #0D9488;
-  /* Deliberately kept dark — the logo-mark badge and CTA band are a
-     one-section contrast accent against the otherwise light page, same
-     pattern as Stripe/Linear's dark CTA band on a light site. */
-  --dark: #0E141B;
+  --surface-2: #F1F5F9;
+  --surface-3: #F8FAFC;
+  --accent: #3B82F6;
+  --accent-light: rgba(59, 130, 246, 0.12);
+  --accent-mid: #2563EB;
+  --dark: #0F172A;
   --amber: #B45309;
   --amber-light: rgba(180, 83, 9, 0.12);
   --border: #E2E8F0;
