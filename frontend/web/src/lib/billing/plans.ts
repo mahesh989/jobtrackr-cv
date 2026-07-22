@@ -12,6 +12,10 @@
  * buckets with equal caps (either/or). total = unique * 1.5. Caps reset per
  * Stripe billing period. Pricing (AUD): Weekly A$9.99/wk, Monthly A$19.99/mo,
  * Unlimited A$29.99/mo — finalized 2026-06-23.
+ *
+ * Weekly caps restored 2026-07-22 (migration 082, reversing 061): an uncapped
+ * A$9.99 weekly undermined the Unlimited tier. Ladder is now
+ * Weekly (capped sprint) → Monthly (best value) → Unlimited (no caps).
  */
 
 export type PlanId = "trial" | "weekly" | "monthly" | "unlimited" | "comp";
@@ -55,8 +59,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxCvUnique: 3, maxCvTotal: 3, maxLetterUnique: 3, maxLetterTotal: 3,
   },
   weekly: {
-    maxProfiles: null, maxRuns: null,
-    maxCvUnique: null, maxCvTotal: null, maxLetterUnique: null, maxLetterTotal: null,
+    maxProfiles: 5, maxRuns: 30,
+    maxCvUnique: 50, maxCvTotal: 75, maxLetterUnique: 50, maxLetterTotal: 75,
   },
   monthly: {
     maxProfiles: 10, maxRuns: 120,
@@ -84,10 +88,10 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
     isPublic: true,
     blurb: "For an active job search sprint.",
     highlights: [
-      "Unlimited tailored CVs",
-      "Unlimited cover letters",
-      "Unlimited profiles & runs",
-      "No caps",
+      "50 tailored CVs / week",
+      "50 cover letters / week",
+      "5 search profiles",
+      "30 discovery runs / week",
     ],
     ...PLAN_LIMITS.weekly,
   },

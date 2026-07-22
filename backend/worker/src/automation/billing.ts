@@ -19,7 +19,7 @@
  *   4. If the run row is never created, the caller voids the reservation with
  *      releaseCvUsageEvent().
  *
- * Founder/admin, comp, unlimited/weekly plans, and trial-with-no-period bypass
+ * Founder/admin, comp, unlimited plans, and trial-with-no-period bypass
  * the meter (eventId = null → nothing to link/void). Fails CLOSED on RPC error.
  */
 import { db } from "../db/client.js";
@@ -31,7 +31,7 @@ const ADMIN_ROLES = new Set(["founder", "admin"]);
 // authoritative and read first.
 const PLAN_CV_LIMITS: Record<string, { unique: number | null; total: number | null }> = {
   trial:     { unique: 3,    total: 3    },
-  weekly:    { unique: null, total: null },
+  weekly:    { unique: 50,   total: 75   },
   monthly:   { unique: 250,  total: 375  },
   unlimited: { unique: null, total: null },
   comp:      { unique: null, total: null },
