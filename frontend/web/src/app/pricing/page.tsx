@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 import { PlanCards } from "@/features/billing/PlanCards";
 
 export const metadata = { title: "Pricing — JobTrackr" };
@@ -14,14 +13,11 @@ export default function PricingPage() {
     <div className="min-h-screen bg-bg px-4 sm:px-6 py-12">
       <div className="mx-auto max-w-4xl space-y-8">
         <div className="flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-[var(--brand)]" />
-            <span className="text-base font-semibold text-text" style={{ fontFamily: "Georgia, serif" }}>
-              JobTrackr
-            </span>
+          <Link href="/" className="flex items-center">
+            <img src="/logo-wordmark.png" alt="JobTrackr" style={{ height: 30, width: "auto", objectFit: "contain" }} />
           </Link>
           <Link href="/auth/login" className="text-sm font-medium text-text-2 hover:text-text">
-            Log in
+            Sign in
           </Link>
         </div>
 
