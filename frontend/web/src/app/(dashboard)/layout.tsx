@@ -22,7 +22,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   );
 
   const ent = await getEntitlement(user.id);
-  if (ent.status === "none") redirect("/onboarding/plan");
+  // Never-subscribed accounts stay on the plan page until they pick a plan
+  // (paid or trial). "incomplete"/"incomplete_expired" = checkout started but
+  // never activated — still never-subscribed. Former subscribers (canceled /
+  // unpaid) keep read-only dashboard access to their existing data instead.
+  if (["none", "incomplete", "incomplete_expired"].includes(ent.status)) {
+    redirect("/onboarding/plan");
+  }
 
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(ent.role);
   const userView = isAdmin && (await cookies()).get("jt_user_view")?.value === "1";
@@ -55,7 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Client-side setup gate — checks profile + CV + AI key via API.
             Runs in useEffect so the page header (LCP) paints immediately.
             Redirect fires ~200-400ms later if setup is incomplete. */}
-        {!isAdmin && <SetupGateClient />}
+        {!isAdmin && <Suspense fallback={null}><SetupGateClient /></Suspense>}
 
         {children}
       </div>
