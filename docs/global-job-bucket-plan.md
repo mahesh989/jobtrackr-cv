@@ -46,7 +46,7 @@ Hard requirements from the product owner:
 |---|---|---|
 | Orchestration | [orchestrator.ts](../backend/worker/src/pipeline/orchestrator.ts) | Runs per profile; one run per `run_pipeline` job. |
 | Lookback window | orchestrator.ts:290–330 | First run = 28d deep; else incremental `min(daysSince(lastRun)+1, 30)`. Driven by the **profile's** `run_logs`. |
-| Source method by tier | [migration 064](../shared/supabase/migrations/064_platform_source_tiers.sql) | `weekly`/`monthly` → Adzuna **api** (snippet), SEEK direct. `unlimited` → Adzuna **direct/actor** (full JD), SEEK direct. |
+| Source method by tier | [migration 064](../shared/supabase/migrations/archive/064_platform_source_tiers.sql) | `weekly`/`monthly` → Adzuna **api** (snippet), SEEK direct. `unlimited` → Adzuna **direct/actor** (full JD), SEEK direct. |
 | Dedup | [dedup.ts](../backend/worker/src/pipeline/dedup.ts) | L1 url_hash, L2-strong (title+city+company), L2-weak (`possible_duplicate`). Universe = new candidates **+ existing rows for THIS profile** (`fetchExistingJobsForProfile`). |
 | Canonical URL | [normalise.ts:44](../backend/worker/src/pipeline/normalise.ts) | Strips utm/ref/src, lowercases, trims trailing slash. |
 | Normalisation keys | [normalise/keys.ts](../backend/worker/src/pipeline/normalise/keys.ts) | `normaliseCity` → metro or state code (our **location-cell** primitive). `normaliseTitle`, `normaliseCompany`, `bucketKey`. |
@@ -54,7 +54,7 @@ Hard requirements from the product owner:
 | Filters | stages 4c, 10b | Title include/exclude + description-exclude (postFetchFilter), then working-rights filter. Applied **before save**. |
 | Save | [save.ts](../backend/worker/src/pipeline/save.ts) | Idempotent upsert into `jobs` on conflict `(profile_id, url_hash)`. |
 | Per-user state | `jobs` columns | `seen_at`, `applied_at`, `dismissed_at`, `pool_decision_at`, `manual_jd_text`, `contact_email`, `ai_relevance_score`, `keywords_matched`, `distance_km`. |
-| RLS | [migration 002](../shared/supabase/migrations/002_rls.sql) | `jobs` access via join `search_profiles.user_id = auth.uid()`. |
+| RLS | [migration 002](../shared/supabase/migrations/archive/002_rls.sql) | `jobs` access via join `search_profiles.user_id = auth.uid()`. |
 
 **Key insight:** JD enrichment is *already* post-dedup. So widening the dedup universe from
 per-profile to global directly reduces the number of full-JD scrapes — the savings lever is

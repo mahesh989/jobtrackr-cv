@@ -1,6 +1,6 @@
 # JobTrackr-CV — Database Reference
 
-> Derived from migrations `001`–`038` — the single source of truth.
+> Derived from the squashed migrations (see Migration History below) — the single source of truth.
 > All migrations were applied manually via Supabase SQL Editor (CLI never linked; see OPS-1 in `.claude/graph.json`).
 > **Additive only** — never ALTER existing JobTrackr base tables (`jobs`, `search_profiles`, etc.). New columns and new `user_integrations.provider` values only.
 
@@ -8,50 +8,19 @@
 
 ## Migration History
 
-| # | File | What it adds |
-|---|------|--------------|
-| 001 | `001_schema.sql` | Base schema: `invite_codes`, `users`, `search_profiles`, `jobs`, `run_logs`, `ai_cache`; extensions `pgcrypto`, `pg_trgm` |
-| 002 | `002_rls.sql` | RLS enabled + policies for all 001 tables |
-| 003 | `003_seed_founder.sql` | Founder invite code seed (no schema change) |
-| 004 | `004_ai_usage.sql` | `run_logs` — AI usage columns + `monthly_ai_spend_millicents()` function |
-| 005 | `005_salary.sql` | `jobs` — `salary_min`, `salary_max` |
-| 006 | `006_vertical_filter.sql` | `search_profiles` — `target_verticals` |
-| 007 | `007_adzuna_advanced.sql` | `search_profiles` — 11 Adzuna-specific filter columns |
-| 008 | `008_user_integrations.sql` | `user_integrations` table + RLS + admin view; initial providers: `apify`, `linkedin`, `indeed` |
-| 009 | `009_add_possible_duplicate_dedup_status.sql` | `jobs.dedup_status` — adds `possible_duplicate` value |
-| 010 | `010_cv_versions.sql` | `cv_versions` table + RLS |
-| 011 | `011_analysis_runs.sql` | `analysis_runs` table + RLS + Realtime publication |
-| 012 | `012_extend_user_integrations.sql` | `user_integrations.provider` — adds `anthropic`, `openai` |
-| 013 | `013_storage_buckets.sql` | Storage buckets `cvs` (5 MB PDF/DOCX) and `tailored-cvs` (10 MB PDF) + RLS |
-| 014 | `014_add_deepseek_provider.sql` | `user_integrations.provider` — adds `deepseek` |
-| 015 | `015_jobs_manual_jd_and_email.sql` | `jobs` — `manual_jd_text`, `contact_email` |
-| 016 | `016_cv_categorised_skills.sql` | `cv_versions` — `categorised_skills` JSONB |
-| 017 | `017_cascade_delete_analysis_runs_with_cv.sql` | `analysis_runs.cv_version_id` FK changed to `ON DELETE CASCADE` |
-| 018 | `018_analysis_runs_provenance.sql` | `analysis_runs` — `ai_provider`, `ai_model` |
-| 019 | `019_tailored_bucket_allow_markdown.sql` | `tailored-cvs` bucket — adds `text/markdown` to MIME allow-list |
-| 020 | `020_user_preferences.sql` | `user_preferences` table + RLS |
-| 021 | `021_voice_profiles.sql` | `voice_profiles` table + RLS + unique user_id + updated_at trigger |
-| 022 | `022_stories.sql` | `stories` table + RLS + composite index + updated_at trigger |
-| 023 | `023_replace_stories_rpc.sql` | `replace_stories` RPC (SECURITY DEFINER, atomic delete+insert) |
-| 024 | `024_company_research.sql` | `company_research` global cache table + RLS (authenticated SELECT) |
-| 025 | `025_cover_letters.sql` | `cover_letters` table + RLS + Realtime publication |
-| 026 | `026_jobs_hiring_manager.sql` | `jobs` — `hiring_manager` (Phase 10.5 delivery template) |
-| 027 | `027_cover_letters_variants.sql` | `cover_letters` — `opening_variants` / `chosen_opening` / `discarded_openings` JSONB + status CHECK adds `'picking'` (Phase 11) |
-| 028 | `028_add_run_logs_current_stage.sql` | `run_logs` — pipeline stage tracking |
-| 029 | `029_add_run_logs_sources_saved.sql` | `run_logs` — source-level save counters |
-| 030 | `030_add_run_logs_log_lines.sql` | `run_logs` — captured worker log lines |
-| 031 | `031_automation_gates_and_applications.sql` | Phase A — gated automation foundation: `jobs.jd_quality`/`role_match`/`has_email`(GENERATED); `analysis_runs` 4 gate columns + `automation` flag; `search_profiles` 6 automation-config columns; `cover_letters.auto_selected_variant_id`; NEW `applications` outbox (RLS + Realtime + 2 indexes); NEW `email_integrations` stub |
-| 032 | `032_backfill_jd_quality_and_role_match.sql` | Phase A backfill — classified existing 141 jobs (37 rich / 41 thin / 63 unknown JDs; 74 match / 67 uncertain) |
-| 033 | `033_add_pool_decision_at.sql` | D-1 revision — `jobs.pool_decision_at timestamptz` for the Applications Pool "To review" → email/apply routing |
-| 034 | `034_email_integration_phase_f.sql` | Phase F — `email_integrations.oauth_token` `bytea`→`text`; `cover_letters.email_sent_at` + `email_sent_to` send tracking |
-| 035 | `035_email_provider_check_align.sql` | Phase F bug fix — `email_integrations.provider` CHECK realigned `('gmail','outlook')`→`('google','microsoft')` to match code |
-| 036 | `036_cover_letter_pdf_storage.sql` | Phase G — `cover_letters.pdf_storage_path text` + NEW `cover-letters` storage bucket (5 MB cap, PDF-only) + RLS owner-select policy |
-| 037 | `037_cover_letters_analysis_run_id.sql` | Phase E-2 bug fix — `cover_letters.analysis_run_id uuid REFERENCES analysis_runs(id) ON DELETE SET NULL` + partial index. Without this E-2's auto_cover_letter.py crashed with PG error 42703 on every insert |
-| 038 | `038_jd_quality_trigger.sql` | UX bug fix — `classify_jd_quality()` SQL function + BEFORE INSERT/UPDATE trigger on jobs so `jd_quality` auto-stamps on every scrape. Threshold aligned to worker's `JD_MIN_USABLE = 2000` (was 300 in 032) so the "Needs JD" chip / TriageBanner / pipelineState='needs_jd' badge actually fires on jobs the worker auto-skips. Includes a re-classify backfill |
-| 058 | `058_cv_versions_structured_cv.sql` | `cv_versions` — `structured_cv jsonb` + `structured_cv_status text` for the post-upload review form (parsed → edited → verified) |
-| 059 | `059_cv_versions_normalized_cv_text.sql` | `cv_versions` — `normalized_cv_text text`, canonical markdown re-rendered from `structured_cv`; analysis pipeline reads this when present, falls back to `cv_text` |
+**Squashed 2026-07-23.** The 84 sequential migrations (`001_schema.sql` …
+`082_weekly_plan_caps_and_price_fix.sql`) were consolidated into three files
+whose combined effect is byte-identical (verified via `pg_dump --schema-only`
+diff against a sequentially-migrated database):
 
-> *(Migrations 039–057 omitted from this table — see `shared/supabase/migrations/` for the full sequence.)*
+| File | Contents |
+|------|----------|
+| `001_full_schema.sql` | All tables, functions, triggers, indexes, views, grants, realtime publication — in dependency order, with every `ALTER TABLE ADD COLUMN` folded into its `CREATE TABLE` |
+| `002_rls.sql` | Every `ENABLE ROW LEVEL SECURITY` + every policy (incl. storage.objects policies) |
+| `003_seed.sql` | Storage buckets, plan catalogue (post-082 caps/prices), platform AI/source config (net state after 070–077), commented founder-seed operator block |
+
+The original 84 files are preserved verbatim in `shared/supabase/migrations/archive/`
+for history reference. Per-migration commentary lives in each archived file's header.
 
 ---
 
