@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { suggestCredentialKeys } from "@/lib/cv/certSuggestions";
 import {
-  ProfileDetailsProvider, CredentialsSection, SaveBar,
+  ProfileDetailsProvider, CredentialsSection, AutoSaveBadge,
 } from "@/features/cv/profile/DetailsClient";
 import type { ContactDetails } from "@/lib/types";
 
@@ -46,7 +46,7 @@ export default async function CredentialsPage() {
 
         <ProfileDetailsProvider initial={contactDetails} activeCvId={activeCv?.id ?? null}>
           <CredentialsSection suggestedKeys={suggestedCredentialKeys} />
-          <SaveBar />
+          <AutoSaveBadge />
         </ProfileDetailsProvider>
       </div>
     </div>

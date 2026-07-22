@@ -39,6 +39,11 @@ import {
 
 const AUTOSAVE_MS = 10_000;
 
+// Canonical serialization used for dirty-checking — must build the payload
+// exactly the way persist() does so snapshot comparison is byte-accurate.
+const serializeCv = (d: StructuredCv, cs: CustomCvSection[]) =>
+  JSON.stringify({ ...d, custom_sections: cs });
+
 type SectionKey =
   | "skills" | "summary" | "experience" | "education"
   | "projects" | "languages" | "awards" | "certifications" | "references";
@@ -115,7 +120,12 @@ export function ReviewClient({
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = useCallback(async (next: StructuredCv, cs: CustomCvSection[], verified: boolean) => {
+  // Snapshot of the last server-acknowledged payload. Autosave only fires
+  // when the current state actually differs from this — no diff, no request.
+  const lastSaved = useRef<string>(serializeCv(initialStructuredCv,
+    (initialStructuredCv as { custom_sections?: CustomCvSection[] }).custom_sections ?? []));
+
+  const persist = useCallback(async (next: StructuredCv, cs: CustomCvSection[], verified: boolean, opts?: { keepalive?: boolean }) => {
     setSave("saving");
     setErr(null);
     try {
@@ -124,6 +134,9 @@ export function ReviewClient({
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ structured_cv: payload, verified }),
+        // keepalive lets the request survive the page being torn down
+        // (tab close / navigation) — used only by the dirty-flush paths.
+        keepalive: opts?.keepalive ?? false,
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
@@ -131,6 +144,7 @@ export function ReviewClient({
         setErr(j.error ?? `Save failed (${res.status})`);
         return false;
       }
+      lastSaved.current = JSON.stringify(payload);
       const j = await res.json() as { structured_cv_status: string };
       setStatus(j.structured_cv_status);
       setSave("saved");
@@ -142,17 +156,50 @@ export function ReviewClient({
     }
   }, [cvId]);
 
-  const mounted = useRef(false);
   useEffect(() => {
-    if (!mounted.current) { mounted.current = true; return; }
     // Create mode: no autosave — user saves explicitly via the Save button.
     if (isCreate) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // Dirty-check: skip when nothing actually changed (also covers the
+    // initial mount and StrictMode's dev double-mount — same snapshot, no-op).
+    if (serializeCv(doc, customSects) === lastSaved.current) return;
     setSave("dirty");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => { persist(doc, customSects, false); }, AUTOSAVE_MS);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [doc, customSects, persist, isCreate]);
+
+  // Flush a dirty buffer when the tab is hidden or the page is torn down —
+  // otherwise an edit made within AUTOSAVE_MS of leaving would be lost.
+  useEffect(() => {
+    if (isCreate) return;
+    const flushIfHidden = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (serializeCv(doc, customSects) === lastSaved.current) return;
+      if (timer.current) clearTimeout(timer.current);
+      void persist(doc, customSects, false, { keepalive: true });
+    };
+    document.addEventListener("visibilitychange", flushIfHidden);
+    window.addEventListener("pagehide", flushIfHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", flushIfHidden);
+      window.removeEventListener("pagehide", flushIfHidden);
+    };
+  }, [doc, customSects, persist, isCreate]);
+
+  // Same flush for in-app navigation (e.g. "Back to Profile"), which unmounts
+  // the component without firing pagehide. Latest state is read via a ref so
+  // this effect registers its cleanup once.
+  const latest = useRef({ doc, customSects });
+  useEffect(() => { latest.current = { doc, customSects }; }, [doc, customSects]);
+  useEffect(() => {
+    if (isCreate) return;
+    return () => {
+      const { doc: d, customSects: cs } = latest.current;
+      if (serializeCv(d, cs) === lastSaved.current) return;
+      if (timer.current) clearTimeout(timer.current);
+      void persist(d, cs, false, { keepalive: true });
+    };
+  }, [isCreate, persist]);
 
   // Create-mode validation — Experience and Education are mandatory before a
   // CV can be marked "Reviewed". Drafts skip this entirely.

@@ -5,4 +5,4 @@ export { ContactSection } from "./ContactSection";
 export { VerticalsSection } from "./VerticalsSection";
 export { CredentialsSection } from "./CredentialsSection";
 export { AvailabilitySection } from "./AvailabilitySection";
-export { SaveBar } from "./SaveBar";
+export { SaveBar, AutoSaveBadge } from "./SaveBar";

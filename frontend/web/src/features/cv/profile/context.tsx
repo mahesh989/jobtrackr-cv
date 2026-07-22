@@ -9,6 +9,9 @@ import type { Referee, ReferencesMode, ReferencesData } from "@/features/cv/prof
 
 export type { Referee, ReferencesMode, ReferencesData };
 
+/** Lifecycle of the background autosave — drives the AutoSaveBadge. */
+export type AutoSaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
 export const MAX_REFEREES = 3;
 export const CONTACT_KEYS = [
   "name", "phone", "email", "address", "suburb", "postcode",
@@ -45,6 +48,7 @@ export interface Ctx {
   saved:     boolean;
   error:     string | null;
   showErrors: boolean;
+  autoStatus: AutoSaveStatus;
   save:      () => Promise<void>;
 }
 
@@ -88,7 +92,8 @@ export function ProfileDetailsProvider({
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
-  const touch = () => { setDirty(true); setSaved(false); };
+  const [autoStatus, setAutoStatus] = useState<AutoSaveStatus>("idle");
+  const touch = () => { setDirty(true); setSaved(false); setAutoStatus("pending"); };
 
   const buildPayload = () => ({
     ...cd,
@@ -115,12 +120,16 @@ export function ProfileDetailsProvider({
   useEffect(() => {
     if (!dirty) return;
     const t = setTimeout(() => {
+      setAutoStatus("saving");
       void fetch("/api/user/preferences", {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ contact_details: payloadRef.current() }),
-      }).then((res) => { if (res.ok) setDirty(false); })
-        .catch(() => {}); // silent — manual save surfaces errors
+      }).then((res) => {
+        if (res.ok) { setDirty(false); setAutoStatus("saved"); }
+        else setAutoStatus("error");
+      })
+        .catch(() => setAutoStatus("error")); // badge surfaces it; next edit retries
     }, 1200);
     return () => clearTimeout(t);
   }, [dirty, cd, family, creds, refMode, referees]);
@@ -140,7 +149,7 @@ export function ProfileDetailsProvider({
     patchReferee: (i, field, value) => { setReferees((p) => p.map((r, idx) => idx === i ? { ...r, [field]: value } : r)); touch(); },
     setReferees: (r) => { setReferees(r); touch(); },
     activeCvId,
-    dirty, saving, saved, error, showErrors,
+    dirty, saving, saved, error, showErrors, autoStatus,
     save: async () => {
       const missingContact = REQUIRED_CONTACT_KEYS.filter(
         (k) => !((cd as Record<string, string>)[k] ?? "").trim()
@@ -172,6 +181,7 @@ export function ProfileDetailsProvider({
         if (!res.ok) { setError(json.error ?? `Save failed (${res.status})`); return; }
         setReferees(cleanedRefs);
         setDirty(false);
+        setAutoStatus("saved");
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
         router.refresh();
