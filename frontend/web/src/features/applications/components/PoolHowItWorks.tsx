@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
+
+// localStorage never notifies within this tab, so subscribe is a no-op —
+// useSyncExternalStore is used purely for its hydration-safe snapshot split.
+const subscribeNoop = () => () => {};
+const readStoredOpen = () => {
+  try { return localStorage.getItem("pool-howto-collapsed") !== "1"; }
+  catch { return false; }
+};
 
 /**
  * Collapsible "How does Application Pool work?" panel.
@@ -9,14 +17,18 @@ import { ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
  * users who've read it don't see it expanded every visit.
  */
 export function PoolHowItWorks() {
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("pool-howto-collapsed") !== "1";
-  });
+  // Hydration-safe stored preference: the server snapshot (collapsed) is what
+  // SSR rendered, and React swaps in the client snapshot post-hydration —
+  // no mismatch. (Reading localStorage in a useState initializer made the
+  // first client render diverge from the SSR HTML → React hydration error.)
+  const stored = useSyncExternalStore(subscribeNoop, readStoredOpen, () => false);
+  // Once the user toggles, their in-page choice overrides the stored value.
+  const [override, setOverride] = useState<boolean | null>(null);
+  const open = override ?? stored;
 
   function toggle() {
     const next = !open;
-    setOpen(next);
+    setOverride(next);
     try { localStorage.setItem("pool-howto-collapsed", next ? "0" : "1"); } catch { /* ignore */ }
   }
 
