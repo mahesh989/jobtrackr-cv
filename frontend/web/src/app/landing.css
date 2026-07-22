@@ -88,7 +88,7 @@ html:has(.landing) { scroll-behavior: smooth; }
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 75% 55% at 50% -5%, rgba(11, 125, 116, 0.07) 0%, transparent 65%);
+  background: radial-gradient(ellipse 75% 55% at 50% -5%, rgba(59, 130, 246, 0.07) 0%, transparent 65%);
   pointer-events: none;
   z-index: 0;
 }
@@ -99,7 +99,7 @@ html:has(.landing) { scroll-behavior: smooth; }
   font-size: 13px; font-weight: 500;
   padding: 5px 14px; border-radius: 100px;
   margin-bottom: 1.75rem;
-  border: 1px solid rgba(11, 125, 116, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   letter-spacing: 0.2px;
 }
 .land-kicker em {
@@ -335,7 +335,7 @@ html:has(.landing) { scroll-behavior: smooth; }
 }
 .land-pill-green {
   background: var(--accent-light); color: var(--accent);
-  border: 1px solid rgba(11, 125, 116, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 .land-pill-amber {
   background: var(--amber-light); color: var(--amber);
@@ -397,7 +397,7 @@ html:has(.landing) { scroll-behavior: smooth; }
   font-size: 13px; color: var(--ink-2); white-space: nowrap;
 }
 .land-source-pill.featured {
-  background: var(--accent-light); border-color: rgba(11, 125, 116, 0.25);
+  background: var(--accent-light); border-color: rgba(59, 130, 246, 0.25);
   color: var(--accent); font-weight: 500;
 }
 
@@ -416,7 +416,7 @@ html:has(.landing) { scroll-behavior: smooth; }
   border: 1px solid var(--border);
 }
 .land-compare-before { background: var(--surface-2); }
-.land-compare-after  { background: rgba(11, 125, 116, 0.05); border-color: rgba(11, 125, 116, 0.22); }
+.land-compare-after  { background: rgba(59, 130, 246, 0.05); border-color: rgba(59, 130, 246, 0.22); }
 .land-compare-h {
   font-family: var(--serif); font-size: 1.25rem;
   margin-bottom: 1rem; color: var(--ink);
@@ -533,7 +533,7 @@ html:has(.landing) { scroll-behavior: smooth; }
 .land-testimonial-avatar {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--accent-light);
-  border: 1px solid rgba(11, 125, 116, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--serif); font-size: 13px; color: var(--accent);
   flex-shrink: 0;
