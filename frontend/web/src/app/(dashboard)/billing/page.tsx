@@ -8,7 +8,7 @@ import { UsageMeter } from "@/features/billing/UsageMeter";
 import { PlanCards } from "@/features/billing/PlanCards";
 import { ManageButton } from "@/features/billing/ManageButton";
 import { UpgradeOptions } from "@/features/billing/UpgradeOptions";
-import { formatDate as fmtDate } from "@/lib/date";
+import { formatDate as fmtDate } from "@/lib/dates";
 
 export const metadata = { title: "Billing — JobTrackr" };
 

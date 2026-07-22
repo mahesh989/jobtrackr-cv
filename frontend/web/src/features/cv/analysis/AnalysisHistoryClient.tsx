@@ -11,7 +11,7 @@ import {
   Building2,
   Filter,
 } from "lucide-react";
-import { formatDateTime as fmtDate } from "@/lib/date";
+import { formatDateTime as fmtDate } from "@/lib/dates";
 
 export interface HistoryRun {
   id:                   string;

@@ -34,6 +34,7 @@ import { SentEmailModal } from "./SentEmailModal";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button, Input, Textarea } from "@/components/ui";
 import { relativeDate } from "@/lib/dates";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useCoverLetter } from "../hooks/useCoverLetter";
 import { useEmailDraft } from "../hooks/useEmailDraft";
 import { useContactEmail } from "../hooks/useContactEmail";
@@ -101,23 +102,6 @@ export interface ApplicationRowV2 {
 }
 
 export type CardTabV2 = "pool" | "sent";
-
-async function copyToClipboard(text: string): Promise<boolean> {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    try { await navigator.clipboard.writeText(text); return true; } catch { /* fall through */ }
-  }
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed"; ta.style.opacity = "0"; ta.style.left = "-9999px";
-    ta.setAttribute("readonly", "");
-    document.body.appendChild(ta);
-    ta.select(); ta.setSelectionRange(0, text.length);
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch { return false; }
-}
 
 function scoreColor(n: number | null) {
   if (n == null) return "text-text-3";

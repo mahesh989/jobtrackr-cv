@@ -8,7 +8,7 @@ import {
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { markJobDismissed, bulkArchiveJobs, bulkStarJobs, toggleStarJob } from "@/lib/actions";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/features/cv/analysis/AnalyzeJobButton";
-import { JobEditModal } from "@/features/cv/JobEditModal";
+import { JobEditModal } from "./JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob, type AtsBand, type JobGroup } from "../lib/jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";

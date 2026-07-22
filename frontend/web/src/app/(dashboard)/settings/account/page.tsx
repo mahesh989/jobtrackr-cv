@@ -2,7 +2,7 @@ import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect }          from "next/navigation";
 import { IntegrationCard } from "@/features/email/IntegrationCard";
-import { NotificationsToggle }  from "@/features/cv/NotificationsToggle";
+import { NotificationsToggle }  from "@/features/jobs/components/NotificationsToggle";
 
 export const metadata = { title: "Account — JobTrackr" };
 

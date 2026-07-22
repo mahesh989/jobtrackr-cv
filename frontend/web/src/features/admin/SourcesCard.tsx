@@ -6,7 +6,6 @@
 
 import { useState } from "react";
 import { Radio, Button } from "@/components/ui";
-import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
 import type { JobSource, SourceTier, TierConfig, AdzunaMethod, SeekMethod } from "@/lib/constants";
 
 interface Props {
@@ -32,12 +31,6 @@ const SOURCES: { id: JobSource; label: string; tag: string }[] = [
   { id: "successfactors",    label: "Aged Care — Aus Unity", tag: "SuccessFactors direct" },
   { id: "adlogic",           label: "Aged Care — Moran",     tag: "AdLogic direct" },
 ];
-
-function MethodRadio({ name, value, checked, onChange, label }: {
-  name: string; value: string; checked: boolean; onChange: () => void; label: string;
-}) {
-  return <Radio name={name} value={value} checked={checked} onChange={onChange} label={label} />;
-}
 
 export function SourcesCard({ initial }: Props) {
   return (
@@ -129,14 +122,14 @@ function TierColumn({
 
               {on && s.id === "adzuna" && (
                 <div className="mt-1.5 ml-6 space-y-0.5 text-caption">
-                  <MethodRadio name={`${tier.id}-adzuna`} value="api"    checked={adzunaM === "api"}    onChange={() => { setAdzunaM("api");    touch(); }} label="API — fast teaser" />
-                  <MethodRadio name={`${tier.id}-adzuna`} value="direct" checked={adzunaM === "direct"} onChange={() => { setAdzunaM("direct"); touch(); }} label="Direct — full JD (actor)" />
+                  <Radio name={`${tier.id}-adzuna`} value="api"    checked={adzunaM === "api"}    onChange={() => { setAdzunaM("api");    touch(); }} label="API — fast teaser" />
+                  <Radio name={`${tier.id}-adzuna`} value="direct" checked={adzunaM === "direct"} onChange={() => { setAdzunaM("direct"); touch(); }} label="Direct — full JD (actor)" />
                 </div>
               )}
               {on && s.id === "seek" && (
                 <div className="mt-1.5 ml-6 space-y-0.5 text-caption">
-                  <MethodRadio name={`${tier.id}-seek`} value="direct" checked={seekM === "direct"} onChange={() => { setSeekM("direct"); touch(); }} label="Direct — free" />
-                  <MethodRadio name={`${tier.id}-seek`} value="actor"  checked={seekM === "actor"}  onChange={() => { setSeekM("actor");  touch(); }} label="Actor — Apify (paid)" />
+                  <Radio name={`${tier.id}-seek`} value="direct" checked={seekM === "direct"} onChange={() => { setSeekM("direct"); touch(); }} label="Direct — free" />
+                  <Radio name={`${tier.id}-seek`} value="actor"  checked={seekM === "actor"}  onChange={() => { setSeekM("actor");  touch(); }} label="Actor — Apify (paid)" />
                 </div>
               )}
             </div>

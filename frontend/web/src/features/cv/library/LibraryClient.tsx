@@ -431,7 +431,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
         </div>
       )}
 
-      {/* CV list — rounded-lg cards with glass effect, matches cv-magic */}
+      {/* CV list — rounded-lg cards */}
       {cvs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
           <FileText className="mx-auto mb-3 h-8 w-8 text-text-3" />

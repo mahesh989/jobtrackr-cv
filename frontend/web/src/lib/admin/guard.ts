@@ -13,7 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES }       from "@/lib/constants";
 import { redirect }          from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatDateTime }    from "@/lib/date";
+import { formatDateTime }    from "@/lib/dates";
 
 export async function requireAdmin(): Promise<{
   userId: string;

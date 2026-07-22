@@ -54,7 +54,7 @@ function QuotaBar({ used, total }: { used: number; total: number }) {
           ${used.toFixed(2)} <span className="text-text-3 font-normal">/ ${total.toFixed(2)}</span>
         </span>
       </div>
-      {/* Reuse visa-track pattern from globals.css */}
+      {/* Slim usage meter bar */}
       <div className="w-full h-[6px] rounded-full border border-border overflow-hidden bg-surface-2">
         <div
           className="h-full rounded-full transition-all duration-500"
