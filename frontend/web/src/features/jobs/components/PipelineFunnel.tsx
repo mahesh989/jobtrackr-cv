@@ -1,6 +1,6 @@
 /**
  * FunnelCounts — the shared count-by-stage shape used across the jobs UI
- * (SmartToolbar, SmartFeed, JobBoard, ProfileBoard, dashboard pages).
+ * (SmartToolbar, SmartFeed, JobBoard, ProfileJobBoard, dashboard pages).
  *
  * The PipelineFunnel component that originally lived in this file (a
  * horizontal connected bar showing jobs flowing through pipeline stages —

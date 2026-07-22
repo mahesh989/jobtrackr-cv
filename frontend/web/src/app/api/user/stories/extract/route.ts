@@ -24,7 +24,7 @@ import { NextResponse }                                  from "next/server";
 import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
-import { extractStories, Story, CvBackendError }         from "@/lib/cvBackend";
+import { extractStories, Story, CvBackendError }         from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s timeout

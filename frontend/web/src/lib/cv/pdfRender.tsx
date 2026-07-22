@@ -23,10 +23,10 @@ import {
   padPipesAndCleanArtifacts,
   stampContactClient,
   tidyContactLine,
-} from "@/lib/cvMarkdownHelpers";
+} from "@/lib/cv/markdownHelpers";
 import type { ContactDetails } from "@/lib/types";
-import { CV_PDF_STYLE } from "@/lib/cvPdfStyle";
-import { fitCvToPage } from "@/lib/cvPdfFit";
+import { CV_PDF_STYLE } from "@/lib/cv/pdfStyle";
+import { fitCvToPage } from "@/lib/cv/pdfFit";
 
 interface RenderInput {
   markdown:        string;

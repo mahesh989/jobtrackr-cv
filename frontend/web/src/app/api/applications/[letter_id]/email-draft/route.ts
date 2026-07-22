@@ -14,7 +14,7 @@ import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
-import { voiceRewriteEmail }         from "@/lib/cvBackend";
+import { voiceRewriteEmail }         from "@/lib/cv/backend";
 import type { ContactDetails }       from "@/lib/types";
 import { filenameSlug }              from "@/lib/filenameSlug";
 

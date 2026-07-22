@@ -23,7 +23,7 @@ import Link from "next/link";
 import { Button, Input, Select, Textarea, Form, FormActions } from "@/components/ui";
 import { createProfile, updateProfile } from "@/lib/actions";
 import { LocationAutocomplete } from "@/features/profiles/components/LocationAutocomplete";
-import { SETTING_CATEGORY_META } from "@/lib/settingCategories";
+import { SETTING_CATEGORY_META } from "@/lib/workSetting/categories";
 
 interface Props {
   mode: "create" | "edit";

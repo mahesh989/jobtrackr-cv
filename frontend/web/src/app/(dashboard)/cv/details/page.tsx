@@ -5,8 +5,8 @@ import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import {
   ProfileDetailsProvider, ContactSection,
   AvailabilitySection, SaveBar,
-} from "@/features/cv/profile/DetailsClient";
-import { VisaStatusSelect } from "@/features/cv/VisaStatusSelect";
+} from "@/features/cv/profile";
+import { VisaStatusSelect } from "@/features/cv/profile/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
 import type { ContactDetails } from "@/lib/types";
 

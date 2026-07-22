@@ -14,7 +14,7 @@ interface Props {
   microsoftConfigured: boolean;
 }
 
-export function IntegrationCard({ connected, googleConfigured, microsoftConfigured }: Props) {
+export function EmailIntegrationCard({ connected, googleConfigured, microsoftConfigured }: Props) {
   const [disconnecting, setDisconnecting] = useState(false);
 
   async function handleDisconnect() {

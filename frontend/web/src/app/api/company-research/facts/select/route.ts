@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse }         from "next/server";
 import { createClient }                      from "@/lib/supabase/server";
 import { createAdminClient }                 from "@/lib/supabase/admin";
-import { selectCompanyFact, CvBackendError } from "@/lib/cvBackend";
+import { selectCompanyFact, CvBackendError } from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;

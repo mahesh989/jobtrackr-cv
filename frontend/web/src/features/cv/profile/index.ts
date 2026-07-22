@@ -1,8 +1,8 @@
 "use client";
 
-export { ProfileDetailsProvider } from "./context";
+export { ProfileDetailsProvider } from "./ProfileDetailsContext";
 export { ContactSection } from "./ContactSection";
 export { VerticalsSection } from "./VerticalsSection";
 export { CredentialsSection } from "./CredentialsSection";
 export { AvailabilitySection } from "./AvailabilitySection";
-export { SaveBar, AutoSaveBadge } from "./SaveBar";
+export { SaveBar, AutoSaveBadge } from "./ProfileSaveBar";

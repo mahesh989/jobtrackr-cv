@@ -1,7 +1,7 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect }          from "next/navigation";
-import { IntegrationCard } from "@/features/email/IntegrationCard";
+import { EmailIntegrationCard } from "@/features/integrations/EmailIntegrationCard";
 import { NotificationsToggle }  from "@/features/jobs/components/NotificationsToggle";
 
 export const metadata = { title: "Account — JobTrackr" };
@@ -82,7 +82,7 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
               tailored CV directly from the Applications page.
             </p>
           </div>
-          <IntegrationCard
+          <EmailIntegrationCard
             connected={emailConnected}
             googleConfigured={!!process.env.GOOGLE_CLIENT_ID}
             microsoftConfigured={!!process.env.MICROSOFT_CLIENT_ID}

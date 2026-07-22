@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { renderCanonicalCv, CvBackendError, type StructuredCv } from "@/lib/cvBackend";
+import { renderCanonicalCv, CvBackendError, type StructuredCv } from "@/lib/cv/backend";
 import { requireUser }               from "@/lib/api-utils";
 
 export const runtime     = "nodejs";

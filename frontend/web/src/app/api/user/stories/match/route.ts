@@ -28,7 +28,7 @@
 import { NextRequest, NextResponse }                       from "next/server";
 import { createClient }                                    from "@/lib/supabase/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
-import { matchStories, CvBackendError, MatchStoriesStory } from "@/lib/cvBackend";
+import { matchStories, CvBackendError, MatchStoriesStory } from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;   // deterministic scoring — no AI call needed

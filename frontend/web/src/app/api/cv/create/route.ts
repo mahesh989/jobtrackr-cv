@@ -23,7 +23,7 @@ import { createAdminClient }  from "@/lib/supabase/admin";
 import {
   STRUCTURED_CV_VERSION,
   type StructuredCv,
-} from "@/lib/cvBackend";
+} from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;

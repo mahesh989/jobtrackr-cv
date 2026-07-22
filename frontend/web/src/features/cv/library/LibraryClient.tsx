@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 import { Upload, CheckCircle2, Trash2, FileText, ChevronRight, ChevronDown, Loader2, FilePlus, Pencil } from "lucide-react";
 import { ReviewClient } from "@/features/cv/library/ReviewClient";
 import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/LibraryModals";
-import type { StructuredCv } from "@/lib/cvBackend";
+import type { StructuredCv } from "@/lib/cv/backend";
 import type { CategorisedSkills } from "@/lib/types";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 

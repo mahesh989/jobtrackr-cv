@@ -2,8 +2,8 @@
 
 import { Layers, ChevronDown } from "lucide-react";
 import type { RoleFamily } from "@/lib/types";
-import { useProfile } from "./context";
-import { SectionCard } from "./primitives";
+import { useProfile } from "./ProfileDetailsContext";
+import { SectionCard } from "./ProfileFormComponents";
 
 const FAMILY_OPTIONS: { value: RoleFamily; label: string }[] = [
   { value: "tech",    label: "Tech / Data / Engineering" },

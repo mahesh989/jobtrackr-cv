@@ -85,7 +85,7 @@ frontend/web/src/
     cv/             # CV library, review editor, tailoring, voice/stories
       analysis/     # AnalysisRun, CoverLetter, Feasibility
       library/      # LibraryClient, ReviewClient
-      profile/      # ProfileForm, sections, primitives
+      profile/      # Profile details form (sections, context, ProfileFormComponents)
       voice/        # CaptureClient, Stories
     jobs/           # Job boards, search, scraping
       components/   # JobBoard, SmartFeed, SmartToolbar, etc.
@@ -95,8 +95,7 @@ frontend/web/src/
     admin/          # Admin dashboards (RangeFilter, AiSettings, SourcesCard)
     billing/        # Stripe billing (ManageButton, PlanCards, UsageMeter)
     dashboard/      # Dashboard home page (StatCards, PipelineDonut)
-    email/          # Email integration (IntegrationCard)
-    integrations/   # Third-party integrations (ApifyCard)
+    integrations/   # Third-party integrations (ApifyCard, EmailIntegrationCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
     api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()

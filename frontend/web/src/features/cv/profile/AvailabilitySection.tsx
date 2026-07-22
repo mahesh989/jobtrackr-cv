@@ -2,8 +2,8 @@
 
 import { Clock } from "lucide-react";
 import { ALL_EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
-import { useProfile } from "./context";
-import { SectionCard, CheckBox, Pill } from "./primitives";
+import { useProfile } from "./ProfileDetailsContext";
+import { SectionCard, CheckBox, Pill } from "./ProfileFormComponents";
 
 // Legacy Title-Case values (pre-Fix-3) → canonical snake_case tags, so values
 // saved by the old checkbox UI still show as selected here.

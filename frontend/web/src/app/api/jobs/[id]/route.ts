@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { classifySettingText }       from "@/lib/settingClassifier";
+import { classifySettingText }       from "@/lib/workSetting/classifier";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_JD_CHARS = 60_000;          // sane upper bound — tokens get expensive

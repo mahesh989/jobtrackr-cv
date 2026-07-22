@@ -5,7 +5,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { ContactDetails, ProfileCredentials, RoleFamily } from "@/lib/types";
-import type { Referee, ReferencesMode, ReferencesData } from "@/features/cv/profile/ReferencesSection";
+import type { Referee, ReferencesMode, ReferencesData } from "./referencesTypes";
 
 export type { Referee, ReferencesMode, ReferencesData };
 

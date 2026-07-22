@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
-import { callCvBackend }             from "@/lib/cvBackend";
+import { callCvBackend }             from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;

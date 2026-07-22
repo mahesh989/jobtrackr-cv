@@ -18,7 +18,7 @@ import { type AtsThresholds } from "@/lib/atsThresholds";
 import {
   relativeDate, clampInt, isPostedToday, getAtsMeta, visaKey, VISA_COLOR, VISA_LABEL,
   sourcePillTone, byDistanceAsc, EMPLOYMENT_CHIP_LABEL, daysUntilClose,
-} from "@/lib/smartFeedUtils";
+} from "@/features/jobs/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 import { DistanceRibbon } from "./DistanceRibbon";
 import { BulkActionBar } from "./BulkActionBar";

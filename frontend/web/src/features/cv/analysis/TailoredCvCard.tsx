@@ -11,9 +11,9 @@ import {
   padPipesAndCleanArtifacts,
   stampContactClient,
   tidyContactLine,
-} from "@/lib/cvMarkdownHelpers";
+} from "@/lib/cv/markdownHelpers";
 import type { ContactDetails } from "@/lib/types";
-import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
+import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 
 interface Props {
   storagePath:    string | null;   // markdown path in tailored-cvs bucket

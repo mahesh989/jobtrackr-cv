@@ -16,7 +16,7 @@ import { NextRequest, NextResponse }  from "next/server";
 import { createClient }               from "@/lib/supabase/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { getActiveAiCredentials }     from "@/lib/ai/activeProvider";
-import { categoriseCv, CvBackendError } from "@/lib/cvBackend";
+import { categoriseCv, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const runtime     = "nodejs";

@@ -1,8 +1,8 @@
 "use client";
 
 import { UserCircle2 } from "lucide-react";
-import { useProfile } from "./context";
-import { SectionCard, Field } from "./primitives";
+import { useProfile } from "./ProfileDetailsContext";
+import { SectionCard, Field } from "./ProfileFormComponents";
 
 export function ContactSection() {
   const { cd, setField, family, showErrors } = useProfile();

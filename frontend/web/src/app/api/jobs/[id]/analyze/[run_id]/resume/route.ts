@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
-import { startAnalysis, CvBackendError } from "@/lib/cvBackend";
+import { startAnalysis, CvBackendError } from "@/lib/cv/backend";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 

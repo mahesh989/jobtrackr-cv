@@ -15,7 +15,7 @@ import {
   renderCanonicalCv,
   type StructuredCv,
   type CategoriseCvResponse,
-} from "@/lib/cvBackend";
+} from "@/lib/cv/backend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptApiKey }     from "@/lib/integrations/crypto";
 import { PROVIDER_ORDER }    from "@/lib/ai/models";

@@ -42,7 +42,7 @@ import {
   CvBackendError,
   MatchStoriesStory,
   OpeningVariant,
-} from "@/lib/cvBackend";
+} from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import type { ToneTarget } from "@/lib/types";

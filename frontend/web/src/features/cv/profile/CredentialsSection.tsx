@@ -1,9 +1,9 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
-import { useProfile } from "./context";
-import { SectionCard, Field, Select, CheckBox } from "./primitives";
-import { ReferencesSubSection } from "./ReferencesSubSection";
+import { useProfile } from "./ProfileDetailsContext";
+import { SectionCard, Field, Select, CheckBox } from "./ProfileFormComponents";
+import { ReferencesSection } from "./ReferencesSection";
 
 export function CredentialsSection({ suggestedKeys = [] }: { suggestedKeys?: string[] }) {
   const { family, creds, setCred } = useProfile();
@@ -54,7 +54,7 @@ export function CredentialsSection({ suggestedKeys = [] }: { suggestedKeys?: str
         )}
       </SectionCard>
 
-      <ReferencesSubSection />
+      <ReferencesSection />
     </div>
   );
 }

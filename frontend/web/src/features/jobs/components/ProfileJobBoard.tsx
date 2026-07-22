@@ -49,7 +49,7 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
  *   - On stage change, scrolls the feed back into view (carry-over from the
  *     pre-redesign behaviour: a funnel click should move focus to the list).
  */
-export function ProfileBoard({
+export function ProfileJobBoard({
   jobs,
   counts,
   homeAddress = null,

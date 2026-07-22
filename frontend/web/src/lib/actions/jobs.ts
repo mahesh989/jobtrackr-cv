@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { authedClient, sha256 } from "./_helpers";
 import { getOrCreateManualProfile } from "./profiles";
-import { classifySettingText } from "@/lib/settingClassifier";
+import { classifySettingText } from "@/lib/workSetting/classifier";
 
 /**
  * Add a manually-found job to the user's Saved Jobs profile.
@@ -210,7 +210,7 @@ export async function bulkArchiveJobs(jobIds: string[]) {
   if (error) throw new Error(error.message);
 
   // Bust the cache for every per-profile board the archived jobs belong to
-  // — without this, ProfileBoard would still serve cached rows including
+  // — without this, ProfileJobBoard would still serve cached rows including
   // the just-archived items (router.refresh on the client revalidates the
   // current route only, and the action ran on the server). Falling back to
   // a full /profiles revalidation covers the dashboard sidebar

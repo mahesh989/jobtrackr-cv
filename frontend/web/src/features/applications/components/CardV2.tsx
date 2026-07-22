@@ -26,7 +26,7 @@ import {
 import { Badge, MenuItem, menuItemClass, SegmentedControl, IconButton } from "@/components/ui";
 import { markJobApplied, markJobDismissed, markJobUnapplied } from "@/lib/actions";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { renderTailoredCvBlob } from "@/lib/cvPdfRender";
+import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import type { ContactDetails } from "@/lib/types";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 import { CvInlinePreview } from "./CvInlinePreview";

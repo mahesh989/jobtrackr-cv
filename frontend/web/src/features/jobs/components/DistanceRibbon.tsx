@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { visaKey, VISA_COLOR, VISA_LABEL } from "@/lib/smartFeedUtils";
+import { visaKey, VISA_COLOR, VISA_LABEL } from "@/features/jobs/lib/smartFeedUtils";
 import type { BoardJob } from "../lib/jobFilters";
 
 export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }: {

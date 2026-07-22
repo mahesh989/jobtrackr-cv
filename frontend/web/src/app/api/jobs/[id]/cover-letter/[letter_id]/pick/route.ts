@@ -26,7 +26,7 @@ import { NextRequest, NextResponse }    from "next/server";
 import { createClient }                  from "@/lib/supabase/server";
 import { createAdminClient }             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }        from "@/lib/ai/activeProvider";
-import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cvBackend";
+import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cv/backend";
 import type { ToneTarget }              from "@/lib/types";
 
 // Local type for the cover_letters columns we read in this route.

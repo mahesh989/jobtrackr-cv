@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Check } from "lucide-react";
-import { useProfile } from "./context";
+import { useProfile } from "./ProfileDetailsContext";
 import { Button } from "@/components/ui";
 
 /**

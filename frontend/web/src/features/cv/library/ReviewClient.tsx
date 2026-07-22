@@ -28,7 +28,7 @@ import type {
   StructuredCvReferee,
   StructuredCvProject,
   CustomCvSection,
-} from "@/lib/cvBackend";
+} from "@/lib/cv/backend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 import { Input, Textarea, IconButton } from "@/components/ui";
 import {

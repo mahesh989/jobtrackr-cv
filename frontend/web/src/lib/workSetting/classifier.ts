@@ -6,7 +6,7 @@
 // user-chosen, so ambiguous → "other" is fine here. The worker owns the AI tier
 // and the shared bucket classification.
 
-import type { SettingCategory } from "./settingCategories";
+import type { SettingCategory } from "./categories";
 
 export interface SettingResult {
   setting_category: SettingCategory | null; // null = not a care job
