@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 /**
- * Route auth guard.
+ * Route auth guard — structural edition.
  *
  * The Next.js middleware deliberately EXEMPTS /api/** from the auth redirect
  * (see web/src/middleware.ts) — every API route is expected to guard itself.
- * That works today (audited 2026-06-11), but it relies on each new route
- * remembering to check auth. One forgotten check is a data leak.
  *
- * This script codifies that audit. For each route.ts under src/app/api/** it
- * requires BOTH:
- *   (1) an auth-acquisition signal (e.g. getAuthUser / verify_hmac), AND
- *   (2) an enforcement signal (a denial path: 401/403/Unauthorized, a signature
- *       verify that throws, or an HMAC dependency).
- * Requiring (2) as well as (1) is what stops the weak failure mode of a route
- * that imports getAuthUser but never acts on the result.
+ * Since 2026-07-23 the canonical pattern is the withUser()/withAdmin() wrapper
+ * (lib/api-utils.ts): the wrapper acquires the session and denies with 401/403
+ * BEFORE the handler runs, so a wrapped route is structurally incapable of
+ * skipping auth. This guard therefore checks membership in one of four groups:
  *
- * Heuristic, not a proof: it greps source, it does not do dataflow analysis.
- * The durable guarantee is the withAuth()/HMAC wrapper pattern; this guard is
- * the cheap backstop that runs in CI on every route, today.
+ *   1. wrapper      — exports go through withUser( / withAdmin(
+ *   2. signature    — Stripe constructEvent / HMAC verify (throws on bad sig)
+ *   3. redirect     — browser flows that deny by redirecting to /auth/login
+ *                     (OAuth callbacks, admin view-as)
+ *   4. allowlisted  — intentionally public, each with a reason + its own
+ *                     abuse mitigation
+ *
+ * Anything else fails CI. No grep-for-401 heuristics anymore — a route either
+ * uses a structural guard or must be explicitly justified below.
  *
  * Run: `npm run check:auth` (wired into CI: .github/workflows/ci.yml).
  */
@@ -30,45 +31,22 @@ const API_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "..", "src", 
 // Routes that are intentionally public. Each MUST have a reason and is expected
 // to carry its own abuse mitigation (rate limit, signature, etc.).
 const PUBLIC_ALLOWLIST = {
-  "billing/webhook/route.ts": "Stripe webhook — authenticated by Stripe signature, not user session",
   "auth/forgot-password/route.ts": "public SSO-only identity check (read-only DB function, no GoTrue call) — IP rate-limited (10/60s); the actual password-reset send happens client-side, gated by Supabase's own native captcha check",
-  "notifications/unsubscribe/route.ts": "one-click email unsubscribe link — must work unauthenticated by design; gated by an HMAC signature (verifySig, timing-safe compare) + per-uid rate limit, not a user session",
   "user/setup-status/route.ts": "setup-gate probe — unauthenticated callers receive the constant {complete:true, step:1} before any query runs (deliberate graceful no-op, zero data exposure); authenticated reads are RLS-scoped",
 };
 
-// (1) The route obtains a caller identity / verifies a signed sender.
-const AUTH_SIGNALS = [
-  "getAuthUser",
-  "auth.getUser",
-  "verifyHmac",
-  "verify_hmac",
-  "X-Signature",
-  "x-signature",
-  "constructEvent", // Stripe signature verification
-  "requireUser",
-];
+// Signature-verified routes: authenticated by a cryptographic check that
+// throws/denies intrinsically, not by user session.
+const SIGNATURE_SIGNALS = ["constructEvent", "verifyHmac", "verify_hmac", "verifySig"];
 
-// (2) The route actually DENIES when that identity is missing/invalid. A route
-// with (1) but not (2) acquired a user and ignored it — the exact false-green
-// the original substring check would have passed.
-const ENFORCEMENT_SIGNALS = [
-  "401",
-  "403",
-  "Unauthorized",
-  "Forbidden",
-  "/auth/login", // browser flows (e.g. OAuth callbacks) deny by redirect to login
-  "constructEvent", // throws on bad signature → enforcement is intrinsic
-  "verifyHmac",
-  "verify_hmac",
-];
-
-// requireUser()/requireAdmin() (lib/api-utils.ts) return a ready-made 401/403
-// NextResponse — but ONLY if the route actually hands it back. Presence of the
-// helper alone is NOT enforcement (a route could destructure `user` and ignore
-// `error` — the exact false-green this guard exists to catch). So enforcement
-// is only credited when the file also RETURNS a *err*/error variable, i.e. the
-// idiomatic `if (authErr) return authErr;` / `if (error) return error;`.
-const RETURNS_HELPER_ERROR = /if\s*\(\s*\w*[eE]rr\w*\s*\)\s*\{?\s*return\b/;
+// Redirect-denial browser flows: unauthenticated callers are redirected to
+// login (or /) rather than 401'd. Must contain BOTH an auth acquisition and
+// a redirect denial to qualify.
+const REDIRECT_ROUTES = new Set([
+  "admin/view-as/route.ts",
+  "auth/email/google/callback/route.ts",
+  "auth/email/outlook/callback/route.ts",
+]);
 
 function walk(dir) {
   const out = [];
@@ -85,24 +63,44 @@ for (const file of walk(API_DIR)) {
   const rel = relative(API_DIR, file).split("\\").join("/");
   if (Object.prototype.hasOwnProperty.call(PUBLIC_ALLOWLIST, rel)) continue;
   const src = readFileSync(file, "utf8");
-  const hasAuth = AUTH_SIGNALS.some((s) => src.includes(s));
-  const usesAuthHelper = /require(User|Admin)\s*\(/.test(src);
-  const hasEnforcement =
-    ENFORCEMENT_SIGNALS.some((s) => src.includes(s)) ||
-    (usesAuthHelper && RETURNS_HELPER_ERROR.test(src));
-  if (!hasAuth) offenders.push(`${rel} — no auth-acquisition signal`);
-  else if (!hasEnforcement) offenders.push(`${rel} — acquires a user but no denial path (401/403)`);
+
+  // Group 1: structural wrapper. Every exported HTTP method must be wrapped —
+  // one unwrapped `export async function METHOD` alongside wrapped ones is
+  // exactly the forgotten-auth hole this guard exists to catch.
+  const usesWrapper = /export const (GET|POST|PUT|PATCH|DELETE|HEAD) = with(User|Admin)\(/.test(src);
+  const bareExports = [...src.matchAll(/export (?:async )?function (GET|POST|PUT|PATCH|DELETE|HEAD)\b/g)].map((m) => m[1]);
+
+  if (usesWrapper && bareExports.length === 0) continue;
+
+  // Group 2: signature-verified.
+  if (SIGNATURE_SIGNALS.some((s) => src.includes(s))) continue;
+
+  // Group 3: redirect-denial browser flow.
+  if (REDIRECT_ROUTES.has(rel)) {
+    const acquires = src.includes("auth.getUser") || src.includes("requireAdmin");
+    const denies = src.includes("/auth/login") || /NextResponse\.redirect/.test(src);
+    if (acquires && denies) continue;
+    offenders.push(`${rel} — listed as redirect-denial but missing acquire/deny signals`);
+    continue;
+  }
+
+  if (usesWrapper && bareExports.length > 0) {
+    offenders.push(`${rel} — mixes wrapped and BARE exports (${bareExports.join(", ")}) — wrap every method`);
+  } else {
+    offenders.push(`${rel} — no structural guard (withUser/withAdmin), no signature verify, not allowlisted`);
+  }
 }
 
 if (offenders.length) {
   console.error("\n✗ API routes that don't provably guard themselves:\n");
   for (const o of offenders) console.error("   • " + o);
   console.error(
-    "\nEither add an auth check (getAuthUser / verifyHmac / signature verify),\n" +
-      "or, if the route is genuinely public, add it to PUBLIC_ALLOWLIST in\n" +
-      "web/scripts/check-route-auth.mjs with a reason and its own abuse mitigation.\n",
+    "\nWrap handlers in withUser()/withAdmin() from @/lib/api-utils (the\n" +
+      "canonical pattern), verify a signature, or — if the route is genuinely\n" +
+      "public — add it to PUBLIC_ALLOWLIST in web/scripts/check-route-auth.mjs\n" +
+      "with a reason and its own abuse mitigation.\n",
   );
   process.exit(1);
 }
 
-console.log(`✓ route-auth guard: all API routes guard themselves or are allowlisted (${Object.keys(PUBLIC_ALLOWLIST).length} public).`);
+console.log(`✓ route-auth guard: all API routes use structural auth or are justified (${Object.keys(PUBLIC_ALLOWLIST).length} public, ${REDIRECT_ROUTES.size} redirect-flow).`);

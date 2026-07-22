@@ -23,11 +23,11 @@
  */
 
 import { NextRequest, NextResponse }    from "next/server";
-import { createClient }                  from "@/lib/supabase/server";
 import { createAdminClient }             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }        from "@/lib/ai/activeProvider";
 import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cv/backend";
 import type { ToneTarget }              from "@/lib/types";
+import { withUser } from "@/lib/api-utils";
 
 // Local type for the cover_letters columns we read in this route.
 // opening_variants is not yet in the generated Supabase types (migration 027
@@ -47,16 +47,12 @@ interface PickLetter {
 export const runtime     = "nodejs";
 export const maxDuration = 30;  // cv-backend returns 202 immediately
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; letter_id: string }> },
-) {
+  { params }: { params: Promise<{ id: string; letter_id: string }> }, { user }) => {
   const { id: jobId, letter_id: letterId } = await params;
 
   // ── 1. Auth ────────────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── 2. Parse body ──────────────────────────────────────────────────────────
   let body: { variant_id?: unknown } = {};
@@ -272,4 +268,4 @@ export async function POST(
   }
 
   return NextResponse.json({ letter_id: letterId });
-}
+});

@@ -10,11 +10,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, priceIdForPlan } from "@/lib/billing/stripe";
 import { getEntitlement }            from "@/lib/billing/entitlements";
 import type { PlanId }               from "@/lib/billing/plans";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -24,10 +24,7 @@ const PLAN_RANK: Partial<Record<PlanId, number>> = {
   unlimited: 3,
 };
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const body = await req.json().catch(() => ({}));
   const targetPlan = body?.targetPlan as PlanId | undefined;
@@ -89,4 +86,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ success: true });
-}
+});

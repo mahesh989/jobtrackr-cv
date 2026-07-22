@@ -11,25 +11,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { structurizeAndPersist }     from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { PROVIDER_ORDER }           from "@/lib/ai/models";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
 
 type Provider = (typeof PROVIDER_ORDER)[number];
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+  { user },
+) => {
   const { id } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: 2 AI calls (structurize + categorise), also silently
   // auto-fired by the review page on a stale stored version.
@@ -62,4 +60,4 @@ export async function POST(
       console.error("[/api/cv/:id/structurize] update failed:", r.error.message);
       return NextResponse.json({ error: "Save failed — apply migrations 058 and 059 in Supabase first." }, { status: 500 });
   }
-}
+});

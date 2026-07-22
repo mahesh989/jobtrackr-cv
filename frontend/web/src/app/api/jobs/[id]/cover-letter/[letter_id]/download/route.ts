@@ -18,20 +18,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
-import { createClient }        from "@/lib/supabase/server";
 import { assembleLetter } from "@/lib/coverLetterTemplate";
 import type { ContactDetails } from "@/lib/types";
 import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
+import { withUser } from "@/lib/api-utils";
 
-export async function GET(
+export const GET = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string; letter_id: string }> },
-) {
+  { user },
+) => {
   const { id: jobId, letter_id: letterId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const hireMgrOverride = req.nextUrl.searchParams.get("hiring_manager_override");
   const editedBody      = req.nextUrl.searchParams.get("edited_body");
@@ -123,4 +121,4 @@ export async function GET(
     company:        job.company,
     user_name:      contactDetails.name || "",
   });
-}
+});

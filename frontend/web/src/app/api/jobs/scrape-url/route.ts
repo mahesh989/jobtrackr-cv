@@ -11,17 +11,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { scrapeJobUrl } from "@/lib/scrapeJobUrl";
 import { rateLimit } from "@/lib/rateLimit";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 20;
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const rl = await rateLimit(`scrape-url:${user.id}`, 10, 60);
   if (!rl.allowed) return NextResponse.json(
@@ -45,4 +42,4 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : "Scrape failed";
     return NextResponse.json({ error: msg }, { status: 422 });
   }
-}
+});

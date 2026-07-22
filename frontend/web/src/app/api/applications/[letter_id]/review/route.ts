@@ -10,20 +10,18 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidatePath }            from "next/cache";
+import { withUser } from "@/lib/api-utils";
 
 const MAX_SUBJECT_LEN = 300;
 const MAX_BODY_LEN    = 20_000;
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { user },
+) => {
 
   const { letter_id } = await params;
 
@@ -72,4 +70,4 @@ export async function POST(
   // Refresh the applications listing so the card moves tabs immediately.
   revalidatePath("/applications");
   return NextResponse.json({ reviewed: true });
-}
+});

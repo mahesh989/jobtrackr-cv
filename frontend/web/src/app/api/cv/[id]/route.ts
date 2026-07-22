@@ -15,18 +15,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidatePath }            from "next/cache";
 import { ensureSomeoneActive }       from "@/lib/cv/ensureActive";
-import { requireUser }               from "@/lib/api-utils";
+import { withUser }                  from "@/lib/api-utils";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
+  { user },
+) => {
   const { id } = await params;
 
   const admin = createAdminClient();
@@ -50,16 +49,15 @@ export async function GET(
     .createSignedUrl(data.pdf_storage_path, SIGNED_URL_TTL_SECONDS);
 
   return NextResponse.json({ ...data, signed_url: signed?.signedUrl ?? null });
-}
+});
 
 // ── PATCH — set/unset active ─────────────────────────────────────────────────
 
-export async function PATCH(
+export const PATCH = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
+  { user },
+) => {
   const { id } = await params;
 
   let body: { is_active?: boolean };
@@ -113,16 +111,15 @@ export async function PATCH(
 
   revalidatePath("/cv");
   return NextResponse.json({ id, is_active: body.is_active });
-}
+});
 
 // ── DELETE ───────────────────────────────────────────────────────────────────
 
-export async function DELETE(
+export const DELETE = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
+  { user },
+) => {
   const { id } = await params;
 
   const admin = createAdminClient();
@@ -159,4 +156,4 @@ export async function DELETE(
 
   revalidatePath("/cv");
   return NextResponse.json({ deleted: true });
-}
+});

@@ -19,8 +19,8 @@ diff against a sequentially-migrated database):
 | `002_rls.sql` | Every `ENABLE ROW LEVEL SECURITY` + every policy (incl. storage.objects policies) |
 | `003_seed.sql` | Storage buckets, plan catalogue (post-082 caps/prices), platform AI/source config (net state after 070–077), commented founder-seed operator block |
 
-The original 84 files are preserved verbatim in `shared/supabase/migrations/archive/`
-for history reference. Per-migration commentary lives in each archived file's header.
+The original 84 files were retired 2026-07-23 — view them in git history
+(`git show 9f7a729` lists the full pre-squash tree under `shared/supabase/migrations/archive/`).
 
 ---
 

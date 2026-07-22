@@ -8,16 +8,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe }                 from "@/lib/billing/stripe";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const admin = createAdminClient();
   const { data: sub } = await admin
@@ -38,4 +35,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ url: portal.url });
-}
+});

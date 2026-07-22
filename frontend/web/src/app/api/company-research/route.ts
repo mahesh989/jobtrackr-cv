@@ -19,19 +19,16 @@
  */
 
 import { NextRequest, NextResponse }                   from "next/server";
-import { createClient }                                from "@/lib/supabase/server";
 import { createAdminClient }                           from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                      from "@/lib/ai/activeProvider";
 import { researchCompany, CompanyResearch, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE }                from "@/lib/rateLimit";
+import { withUser }                                    from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;  // Tavily + scrape + AI distill
 
-export async function POST(req: NextRequest) {
-  // ── 1. Init supabase client ───────────────────────────────────────────────────
-  const supabase = await createClient();
-
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { company_name?: string; company_domain?: string; jd_location?: string };
   try {
@@ -63,15 +60,10 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // ── 4. Parallel: auth check + cache lookup ────────────────────────────────────
-  // Slug is known at this point so both calls can fire concurrently — saves one
-  // full network roundtrip on every cache hit.
-  const [{ data: { user } }, { data: existing, error: lookupErr }] = await Promise.all([
-    supabase.auth.getUser(),
-    admin.from("company_research").select("*").eq("company_id", companyId).maybeSingle(),
-  ]);
-
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // ── 4. Cache lookup ───────────────────────────────────────────────────────────
+  // (auth already resolved by withUser before the handler ran)
+  const { data: existing, error: lookupErr } =
+    await admin.from("company_research").select("*").eq("company_id", companyId).maybeSingle();
 
   // Rate limit: company research spends the system Tavily key + an AI call and
   // triggers an outbound homepage fetch — cap per-user request volume.
@@ -170,4 +162,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ status: "completed", research: result.research });
-}
+});

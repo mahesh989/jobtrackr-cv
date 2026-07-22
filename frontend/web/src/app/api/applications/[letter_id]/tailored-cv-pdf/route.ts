@@ -25,9 +25,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { filenameSlug }              from "@/lib/filenameSlug";
+import { withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
@@ -63,13 +63,9 @@ async function authLetter(
 }
 
 /** HEAD — 200 if the cached PDF exists, 404 otherwise. No body. */
-export async function HEAD(
+export const HEAD = withUser(async (
   _req: NextRequest,
-  { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return new NextResponse(null, { status: 401 });
+  { params }: { params: Promise<{ letter_id: string }> }, { user }) => {
 
   const { letter_id } = await params;
   const admin = createAdminClient();
@@ -83,16 +79,14 @@ export async function HEAD(
   const exists = !!list?.some((f) => f.name === pdfFileName(letter_id));
 
   return new NextResponse(null, { status: exists ? 200 : 404 });
-}
+});
 
 /** PUT — cache the client-rendered PDF bytes. */
-export async function PUT(
+export const PUT = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { user },
+) => {
 
   const { letter_id } = await params;
   const admin = createAdminClient();
@@ -127,16 +121,14 @@ export async function PUT(
   }
 
   return NextResponse.json({ ok: true });
-}
+});
 
 /** GET — stream the cached PDF inline. */
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { user },
+) => {
 
   const { letter_id } = await params;
   const admin = createAdminClient();
@@ -171,4 +163,4 @@ export async function GET(
       "Cache-Control":       "private, max-age=300",
     },
   });
-}
+});

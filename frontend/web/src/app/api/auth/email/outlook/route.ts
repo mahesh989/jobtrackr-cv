@@ -8,16 +8,13 @@
  */
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { randomBytes }  from "crypto";
 import { cookies }      from "next/headers";
+import { withUser } from "@/lib/api-utils";
 
 const SCOPE = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access";
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async () => {
 
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const appUrl   = process.env.NEXT_PUBLIC_APP_URL;
@@ -48,4 +45,4 @@ export async function GET() {
   return NextResponse.redirect(
     `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`,
   );
-}
+});

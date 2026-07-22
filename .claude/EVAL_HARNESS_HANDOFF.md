@@ -12,7 +12,7 @@ that works for **any CV / any job**. Built an A/B/C/D harness to compare prompt/
 variants on the same CV+JD and iterate with evidence, not guesses.
 
 ## What was built (all additive, isolated)
-- **DB**: `shared/supabase/migrations/archive/043_eval_runs.sql` + `044_eval_runs_status.sql` — isolated
+- **DB**: migrations 043_eval_runs + 044_eval_runs_status (now folded into 001_full_schema.sql; originals in git history @9f7a729) — isolated
   `eval_runs` table (RLS on, service-role only). No existing table touched.
 - **Backend** (`backend/api/app/services/eval/`): `runner.py` (background compute+persist),
   `writers.py` (writer registry), `scorers.py` (scorer registry), `grounding.py` (Layer-A

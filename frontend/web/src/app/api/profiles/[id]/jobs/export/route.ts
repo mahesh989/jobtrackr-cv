@@ -2,8 +2,8 @@
 // Respects the same sort/filter params as the jobs page.
 // Returns Content-Disposition: attachment so browsers download directly.
 
-import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { withUser } from "@/lib/api-utils";
 
 function escapeCsv(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -18,14 +18,11 @@ function row(cells: (string | number | null | undefined)[]): string {
   return cells.map(escapeCsv).join(",");
 }
 
-export async function GET(
+export const GET = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+, { user, supabase }) => {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: profile } = await supabase
     .from("search_profiles")
@@ -96,4 +93,4 @@ export async function GET(
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
-}
+});

@@ -20,8 +20,8 @@
  */
 
 import { NextRequest, NextResponse }  from "next/server";
-import { createClient }               from "@/lib/supabase/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -29,16 +29,14 @@ const MAX_TAGS      = 10;
 const MAX_TAG_CHARS = 50;
 const MAX_ONE_LINE  = 300;
 
-export async function PATCH(
+export const PATCH = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+  { user },
+) => {
   const { id: storyId } = await params;
 
   // ── 1. Verify session ────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { tags?: unknown; one_line?: unknown };
@@ -114,4 +112,4 @@ export async function PATCH(
   }
 
   return NextResponse.json(updated);
-}
+});

@@ -10,18 +10,14 @@
  */
 
 import { NextRequest, NextResponse }  from "next/server";
-import { createClient }               from "@/lib/supabase/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 import { filenameSlug }               from "@/lib/filenameSlug";
+import { withUser } from "@/lib/api-utils";
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
-  { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { params }: { params: Promise<{ letter_id: string }> }, { user }) => {
 
   const { letter_id } = await params;
 
@@ -67,4 +63,4 @@ export async function GET(
       "Content-Length":      bytes.length.toString(),
     },
   });
-}
+});

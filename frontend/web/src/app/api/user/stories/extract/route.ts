@@ -21,19 +21,16 @@
  */
 
 import { NextResponse }                                  from "next/server";
-import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
 import { extractStories, Story, CvBackendError }         from "@/lib/cv/backend";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s timeout
 
-export async function POST() {
+export const POST = withUser(async (_req, _ctx, { user }) => {
   // ── 1. Verify session ────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
 
@@ -161,4 +158,4 @@ export async function POST() {
     count:      (savedStories ?? []).length,
     diagnostic: null,
   });
-}
+});

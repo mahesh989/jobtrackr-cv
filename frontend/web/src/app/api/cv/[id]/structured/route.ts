@@ -14,19 +14,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { renderCanonicalCv, CvBackendError, type StructuredCv } from "@/lib/cv/backend";
-import { requireUser }               from "@/lib/api-utils";
+import { withUser }                  from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
+  { user },
+) => {
   const { id } = await params;
 
   const admin = createAdminClient();
@@ -39,16 +38,15 @@ export async function GET(
 
   if (error || !data) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(data);
-}
+});
 
 // ── PATCH ────────────────────────────────────────────────────────────────────
 
-export async function PATCH(
+export const PATCH = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
+  { user },
+) => {
   const { id } = await params;
 
   let body: { structured_cv?: unknown; verified?: boolean };
@@ -130,4 +128,4 @@ export async function PATCH(
     structured_cv_status: newStatus,
     normalized_cv_text:   normalizedCvText,
   });
-}
+});

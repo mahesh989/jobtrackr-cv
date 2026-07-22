@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerScheduleSync } from "@/lib/actions/_helpers";
+import { withUser } from "@/lib/api-utils";
 
 /**
  * POST /api/profiles/resume-paused
@@ -14,12 +14,7 @@ import { triggerScheduleSync } from "@/lib/actions/_helpers";
  * Never auto-resumes on its own — this route only fires when the user
  * explicitly clicks "Resume" on the paused-profiles banner.
  */
-export async function POST() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
 
@@ -66,4 +61,4 @@ export async function POST() {
   if (resumed > 0) triggerScheduleSync();
 
   return NextResponse.json({ resumed, total: profileIds.length });
-}
+});

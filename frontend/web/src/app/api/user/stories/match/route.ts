@@ -26,20 +26,17 @@
  */
 
 import { NextRequest, NextResponse }                       from "next/server";
-import { createClient }                                    from "@/lib/supabase/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
 import { matchStories, CvBackendError, MatchStoriesStory } from "@/lib/cv/backend";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;   // deterministic scoring — no AI call needed
 
 const JD_MIN_CHARS = 50;  // below this, jd_text is not useful for matching
 
-export async function POST(req: NextRequest) {
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   // ── 1. Verify session ────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── 2. Parse + validate body ─────────────────────────────────────────────────
   let body: { job_id?: unknown };
@@ -174,4 +171,4 @@ export async function POST(req: NextRequest) {
     .sort((a, b) => b.match_score - a.match_score);
 
   return NextResponse.json({ stories: withScores, count: withScores.length });
-}
+});

@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -27,18 +27,13 @@ interface AutocompleteResponse {
   suggestions?: Array<{ placePrediction?: PlacePrediction }>;
 }
 
-export async function GET(req: NextRequest) {
+export const GET = withUser(async (req: NextRequest) => {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) {
     return NextResponse.json({ suggestions: [] });
   }
 
   // Only authenticated users may consume the Places quota.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const apiKey = process.env.PLACES_API_KEY;
   if (!apiKey) {
@@ -81,4 +76,4 @@ export async function GET(req: NextRequest) {
     .filter((t): t is string => Boolean(t));
 
   return NextResponse.json({ suggestions });
-}
+});

@@ -10,19 +10,16 @@
 // Storage objects are NOT covered by any cascade, so we remove them explicitly
 // first, while the rows that hold their paths still exist.
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { withUser } from "@/lib/api-utils";
 
 // A real Storage object path. Excludes the "pending" placeholder and the
 // `built://…` sentinel used by from-scratch CVs (which have no Storage object).
 const isPath = (p: unknown): p is string =>
   typeof p === "string" && p.length > 0 && p !== "pending" && !p.startsWith("built://");
 
-export async function DELETE() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
 
@@ -70,4 +67,4 @@ export async function DELETE() {
   }
 
   return NextResponse.json({ deleted: true });
-}
+});

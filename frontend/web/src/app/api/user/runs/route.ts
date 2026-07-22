@@ -3,8 +3,8 @@
 // the client can detect running→completed/failed transitions and toast
 // regardless of which page the user is sitting on.
 
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { withUser } from "@/lib/api-utils";
 
 interface RunRow {
   id:             string;
@@ -17,10 +17,7 @@ interface RunRow {
   search_profiles: { name: string } | null;
 }
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
   const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
@@ -44,4 +41,4 @@ export async function GET() {
   }));
 
   return NextResponse.json({ runs });
-}
+});
