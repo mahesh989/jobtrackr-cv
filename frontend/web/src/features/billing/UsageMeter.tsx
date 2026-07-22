@@ -24,7 +24,7 @@ export function UsageMeter({
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-xs font-medium text-text">{label}</span>
-        <span className={"text-xs font-semibold " + (full ? "text-red-600" : near ? "text-amber-600" : "text-text-2")}>
+        <span className={"text-xs font-semibold " + (full ? "text-[var(--red)]" : near ? "text-[var(--amber)]" : "text-text-2")}>
           {unlimited ? (
             <span className="inline-flex items-center gap-1">
               {used} <InfinityIcon className="h-3.5 w-3.5" />
@@ -37,7 +37,7 @@ export function UsageMeter({
       {!unlimited && (
         <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
           <div
-            className={"h-full rounded-full transition-all " + (full ? "bg-red-500" : near ? "bg-amber-500" : "bg-[var(--brand)]")}
+            className={"h-full rounded-full transition-all " + (full ? "bg-[var(--red)]" : near ? "bg-[var(--amber)]" : "bg-[var(--brand)]")}
             style={{ width: `${pct}%` }}
           />
         </div>
