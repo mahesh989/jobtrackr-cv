@@ -33,20 +33,7 @@ export interface ProfileCredentials {
   show_availability?:     boolean;
 }
 
-export const AVAILABILITY_OPTIONS = ["Full Time", "Part Time", "Casual"] as const;
-
 export type RoleFamily = "tech" | "nursing" | "manual" | "general";
-
-export const FAMILY_LABELS: Record<RoleFamily, string> = {
-  tech:    "Tech",
-  nursing: "Healthcare",
-  manual:  "Manual",
-  general: "General",
-};
-
-export function formatFamilyLabel(f: RoleFamily): string {
-  return FAMILY_LABELS[f] ?? f;
-}
 
 export interface ContactDetails {
   name?:         string;

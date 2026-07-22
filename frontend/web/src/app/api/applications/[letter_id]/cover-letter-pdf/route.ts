@@ -13,6 +13,7 @@ import { NextRequest, NextResponse }  from "next/server";
 import { createClient }               from "@/lib/supabase/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
+import { filenameSlug }               from "@/lib/filenameSlug";
 
 export async function GET(
   _req: NextRequest,
@@ -44,7 +45,7 @@ export async function GET(
     .select("company")
     .eq("id", letter.job_id)
     .maybeSingle();
-  const companySlug = (job?.company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
+  const companySlug = filenameSlug(job?.company);
 
   let bytes: Buffer;
   try {

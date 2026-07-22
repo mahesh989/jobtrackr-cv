@@ -7,17 +7,11 @@
  * SkillCategory lives in @/lib/types — it's a domain type, not a constant.
  */
 
-export const RunStatus = {
+export const StepState = {
   PENDING: "pending",
   RUNNING: "running",
   COMPLETED: "completed",
   FAILED: "failed",
-} as const;
-
-export type RunStatus = (typeof RunStatus)[keyof typeof RunStatus];
-
-export const StepState = {
-  ...RunStatus,
   SKIPPED: "skipped",
 } as const;
 
@@ -26,30 +20,8 @@ export type StepState = (typeof StepState)[keyof typeof StepState];
 export const ADMIN_ROLES = ["founder", "admin"] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
-export const VisaStatus = {
-  AU_CITIZEN: "au_citizen",
-  PR: "pr",
-  WORKING_HOLIDAY: "working_holiday",
-  STUDENT_VISA: "student_visa",
-  TEMPORARY_WORK: "temp_work",
-  OTHER: "other",
-} as const;
-
-export type VisaStatus = (typeof VisaStatus)[keyof typeof VisaStatus];
-
 // Mirrors backend/worker/src/ai/jdFacts.ts (EmploymentType / ALL_EMPLOYMENT_TYPES) —
 // keep the two in sync, same mirror discipline as lib/eligibility.ts.
-export const EmploymentType = {
-  FULL_TIME: "full_time",
-  PART_TIME: "part_time",
-  CASUAL: "casual",
-  CONTRACT: "contract",
-  TEMPORARY: "temporary",
-  INTERNSHIP: "internship",
-} as const;
-
-export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
-
 export const ALL_EMPLOYMENT_TYPES = [
   "full_time",
   "part_time",

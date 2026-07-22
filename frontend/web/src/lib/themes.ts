@@ -116,8 +116,9 @@ export const THEMES: ReadonlyArray<{
 ];
 
 const STORAGE_KEY = "jobtrackr-theme";
-const VALID_IDS = new Set<Theme>(["aurora-dark", "aurora-light", "default", "classic", "gilded-noir", "notion", "clay"]);
-const THEMED_CLASSES = ["theme-aurora-dark", "theme-aurora-light", "theme-classic", "theme-gilded-noir", "theme-notion", "theme-clay"];
+const VALID_IDS = new Set<Theme>(THEMES.map((t) => t.id));
+// "default" has no class — it's the bare :root palette.
+const THEMED_CLASSES = THEMES.filter((t) => t.id !== "default").map((t) => `theme-${t.id}`);
 
 export function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "classic";

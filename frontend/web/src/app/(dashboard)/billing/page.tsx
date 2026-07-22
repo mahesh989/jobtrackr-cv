@@ -8,6 +8,7 @@ import { UsageMeter } from "@/features/billing/UsageMeter";
 import { PlanCards } from "@/features/billing/PlanCards";
 import { ManageButton } from "@/features/billing/ManageButton";
 import { UpgradeOptions } from "@/features/billing/UpgradeOptions";
+import { formatDate as fmtDate } from "@/lib/date";
 
 export const metadata = { title: "Billing — JobTrackr" };
 
@@ -39,11 +40,6 @@ const PLAN_NAME: Record<string, string> = {
   trial: "Free trial", weekly: "Weekly", monthly: "Monthly",
   unlimited: "Unlimited", comp: "Complimentary",
 };
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
-}
 
 function daysUntil(iso: string): number {
   return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000));

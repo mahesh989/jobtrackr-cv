@@ -160,29 +160,6 @@ export function categoriseCv(payload: CategoriseCvPayload): Promise<CategoriseCv
   );
 }
 
-export type ExtractCvReferencesPayload = CategoriseCvPayload;
-
-export interface ExtractedReferee {
-  name:      string;
-  job_title: string;
-  company:   string;
-  email:     string;
-}
-
-export interface ExtractCvReferencesResponse {
-  referees: ExtractedReferee[];
-}
-
-export function extractCvReferences(
-  payload: ExtractCvReferencesPayload,
-): Promise<ExtractCvReferencesResponse> {
-  return callCvBackend<ExtractCvReferencesResponse>(
-    "/internal/extract-cv-references",
-    payload,
-    { timeoutMs: 45_000 },
-  );
-}
-
 // ── /internal/structurize-cv ─────────────────────────────────────────────────
 
 export interface StructurizeCvPayload {
@@ -697,8 +674,3 @@ export function voiceRewriteEmail(
     { timeoutMs: 30_000 },
   );
 }
-
-// ── Eval harness (beta A/B/C/D screen) — removed, dead code ──────────────────
-// triggerEvalRun/getEvalRun/AnalyzeEvalPayload/AnalyzeEvalResult/EvalRunRow had
-// zero callers anywhere in the repo despite a doc comment claiming "used by the
-// beta screen's poll loop" — that screen is gone, these weren't. Deleted.

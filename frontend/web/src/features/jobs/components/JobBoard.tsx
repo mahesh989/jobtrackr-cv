@@ -7,23 +7,9 @@ import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive
 import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
-import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, type BoardJob, type AtsBand } from "../lib/jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, resolveStage, type BoardJob, type AtsBand } from "../lib/jobFilters";
 import { shallowSetParams } from "../lib/shallowNav";
 import { ThinJdBanner } from "./ThinJdBanner";
-
-/** Client-side resolveStage — mirrors the server's mapping of legacy params. */
-function resolveStage(sp: URLSearchParams): string {
-  const stage = sp.get("stage");
-  if (stage) return stage;
-  const status = sp.get("status");
-  if (status === "applied") return "applied";
-  if (status === "dismissed") return "dismissed";
-  const chips = sp.get("chips") ?? "";
-  if (chips.includes("analysed") && chips.includes("hasLetter")) return "letterReady";
-  if (chips.includes("analysed") && chips.includes("hasCv")) return "cvReady";
-  if (chips.includes("analysed")) return "analysed";
-  return "all";
-}
 
 // ── Suggested sort per stage ────────────────────────────────────────────
 // Nudges the most useful sort when the user clicks a stage in the funnel.

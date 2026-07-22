@@ -18,6 +18,7 @@ import { sendViaGmail }               from "@/lib/email/gmail";
 import { sendViaOutlook }             from "@/lib/email/outlook";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
+import { filenameSlug }              from "@/lib/filenameSlug";
 import { emitEvent }                 from "@/lib/admin/events";
 import type { ContactDetails }       from "@/lib/types";
 
@@ -208,7 +209,7 @@ export async function POST(
     : job.contact_email;
 
   const companyName = job.company ?? "company";
-  const companySlug = companyName.replace(/[^a-zA-Z0-9]/g, "_");
+  const companySlug = filenameSlug(companyName);
   const attachments = [];
   if (letterPdfBuffer) {
     attachments.push({

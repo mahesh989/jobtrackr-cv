@@ -4,9 +4,8 @@ import Link from "next/link";
 import { FilterAnchor } from "./FilterAnchor";
 import type { PipelineLensData } from "./PipelineDonut";
 
-export function CalloutStrip({ callouts, shallow, applyFilter }: {
+export function CalloutStrip({ callouts, applyFilter }: {
   callouts: PipelineLensData["callouts"];
-  shallow: boolean;
   applyFilter: (href: string) => void;
 }) {
   if (callouts.thinJdCount === 0 && callouts.passedButNoLetter === 0 && callouts.readyToApply === 0) return null;
@@ -14,12 +13,12 @@ export function CalloutStrip({ callouts, shallow, applyFilter }: {
   return (
     <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 px-5 py-3 border-t border-border overflow-x-auto sm:overflow-visible whitespace-nowrap sm:whitespace-normal">
       {callouts.thinJdCount > 0 && (
-        <FilterAnchor href="/?triage=thinJd" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+        <FilterAnchor href="/?triage=thinJd" apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
           ⚠ {callouts.thinJdCount} thin JD{callouts.thinJdCount > 1 ? "s" : ""} need attention
         </FilterAnchor>
       )}
       {callouts.passedButNoLetter > 0 && (
-        <FilterAnchor href="/?triage=passedNoLetter" shallow={shallow} apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+        <FilterAnchor href="/?triage=passedNoLetter" apply={applyFilter} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
           → {callouts.passedButNoLetter} passed ATS, no letter yet
         </FilterAnchor>
       )}

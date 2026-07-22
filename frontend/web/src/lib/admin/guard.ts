@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_ROLES }       from "@/lib/constants";
 import { redirect }          from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatDateTime }    from "@/lib/date";
 
 export async function requireAdmin(): Promise<{
   userId: string;
@@ -61,13 +62,8 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 }
 
-/** ISO date → "12 Jun 2026 14:32" */
-export function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-AU", {
-    day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
+/** ISO date → "12 Jun 2026, 14:32" */
+export const fmtDateTime = formatDateTime;
 
 /** Relative time → "2 mins ago", "3 days ago" */
 export function timeAgo(iso: string): string {

@@ -16,6 +16,7 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cvBackend";
 import type { ContactDetails }       from "@/lib/types";
+import { filenameSlug }              from "@/lib/filenameSlug";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
@@ -186,7 +187,7 @@ export async function GET(
     ? (job.hiring_manager ? `${job.hiring_manager} <${job.contact_email}>` : job.contact_email)
     : "(no recipient — copy & send from your own client)";
 
-  const companySlug = (job.company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
+  const companySlug = filenameSlug(job.company);
   const attachments: string[] = [`CoverLetter_${companySlug}.pdf`];
   if (hasTailoredCv) attachments.push(`TailoredCV_${companySlug}.pdf`);
 

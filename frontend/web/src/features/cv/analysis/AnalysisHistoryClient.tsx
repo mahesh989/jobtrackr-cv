@@ -11,6 +11,7 @@ import {
   Building2,
   Filter,
 } from "lucide-react";
+import { formatDateTime as fmtDate } from "@/lib/date";
 
 export interface HistoryRun {
   id:                   string;
@@ -39,13 +40,6 @@ type StatusFilter = "all" | "completed" | "running" | "failed";
 interface Props {
   initialRuns: HistoryRun[];
   jobs:        HistoryJob[];
-}
-
-function fmtDate(s: string) {
-  return new Date(s).toLocaleString("en-AU", {
-    day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
 }
 
 function StatusIcon({ status }: { status: HistoryRun["status"] }) {

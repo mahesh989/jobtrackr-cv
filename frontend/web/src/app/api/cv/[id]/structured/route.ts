@@ -12,18 +12,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { renderCanonicalCv, CvBackendError, type StructuredCv } from "@/lib/cvBackend";
+import { requireUser }               from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;
-
-async function authedUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
@@ -31,8 +25,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await authedUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
   const { id } = await params;
 
   const admin = createAdminClient();
@@ -53,8 +47,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await authedUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, error: authErr } = await requireUser();
+  if (authErr) return authErr;
   const { id } = await params;
 
   let body: { structured_cv?: unknown; verified?: boolean };

@@ -5,6 +5,7 @@ import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
 import { DisclosureButton } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
+import type { StepState }       from "@/lib/constants";
 import { cancelAnalysisRun }    from "@/lib/actions";
 import { JdAnalysisCard }       from "@/features/cv/analysis/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/features/cv/analysis/CvJdMatchingCard";
@@ -89,8 +90,6 @@ const STEPS: { key: string; label: string }[] = [
   { key: "tailored_cv",           label: "Creating tailored CV" },
 ];
 const COVER_LETTER_STEP = { key: "cover_letter", label: "Generating cover letter" };
-
-type StepState = "pending" | "running" | "completed" | "failed" | "skipped";
 
 function StepRow({
   label, state, scoreBadge, subLabel, trailingNode,

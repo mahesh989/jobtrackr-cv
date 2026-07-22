@@ -4,17 +4,16 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 
 export function FilterAnchor({
-  href, shallow, apply, className, onClick, children,
+  href, apply, className, onClick, children,
 }: {
   href: string;
-  shallow: boolean;
   apply?: (href: string) => void;
   className: string;
   onClick?: () => void;
   children: ReactNode;
 }) {
   const internal = href.startsWith("/dashboard?");
-  if (shallow && internal && apply) {
+  if (internal && apply) {
     return (
       <button type="button" onClick={() => { onClick?.(); apply(href); }} className={className} style={{ background: "none", border: "none", padding: 0, font: "inherit", textAlign: "left", color: "inherit", cursor: "pointer", }}>
         {children}

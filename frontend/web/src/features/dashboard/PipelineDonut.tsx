@@ -305,7 +305,7 @@ function hitCenter(mx: number, my: number) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function PipelineDonut({ data, shallow = false }: { data: PipelineLensData; shallow?: boolean }) {
+export function PipelineDonut({ data }: { data: PipelineLensData }) {
   const pathname = usePathname();
   const sp       = useSearchParams();
 
@@ -478,7 +478,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
               </>
             );
             return s.href ? (
-              <FilterAnchor key={i} href={s.href} shallow={shallow} apply={applyFilter} className={cls}>{inner}</FilterAnchor>
+              <FilterAnchor key={i} href={s.href} apply={applyFilter} className={cls}>{inner}</FilterAnchor>
             ) : (
               <div
                 key={i}
@@ -506,7 +506,7 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
           {activeLens === "jd" && counts[1] > 0 && (
             <FilterAnchor
               href="/?triage=thinJd"
-              shallow={shallow}
+             
               apply={applyFilter}
               className="mt-2 inline-flex items-center gap-1.5 text-caption text-amber-600 hover:text-amber-700 transition-colors"
             >
@@ -517,10 +517,10 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
         </div>
       </div>
 
-      <CalloutStrip callouts={data.callouts} shallow={shallow} applyFilter={applyFilter} />
+      <CalloutStrip callouts={data.callouts} applyFilter={applyFilter} />
 
       {popup !== null && (
-        <DonutPopup mode={popup} lens={activeLens} data={data} shallow={shallow} apply={applyFilter} onClose={() => setPopup(null)} />
+        <DonutPopup mode={popup} lens={activeLens} data={data} apply={applyFilter} onClose={() => setPopup(null)} />
       )}
     </div>
   );
@@ -529,13 +529,12 @@ export function PipelineDonut({ data, shallow = false }: { data: PipelineLensDat
 // ─── Popup ────────────────────────────────────────────────────────────────────
 
 function DonutPopup({
-  mode, lens, data, onClose, shallow = false, apply,
+  mode, lens, data, onClose, apply,
 }: {
   mode: "center" | number;
   lens: LensKey;
   data: PipelineLensData;
   onClose: () => void;
-  shallow?: boolean;
   apply?: (href: string) => void;
 }) {
   const [filter, setFilter] = useState<string | null>(null);
@@ -627,7 +626,7 @@ function DonutPopup({
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">
-              <FilterAnchor href={href} shallow={shallow} apply={apply} onClick={onClose} className="inline-flex w-full justify-center">
+              <FilterAnchor href={href} apply={apply} onClick={onClose} className="inline-flex w-full justify-center">
                 <Button variant="blue" size="sm" className="w-full justify-center">
                   {label}
                 </Button>

@@ -604,7 +604,7 @@ export default async function DashboardPage({
         />
 
         {/* ── Pipeline analytics donut ── */}
-        <PipelineDonut data={lensData} shallow />
+        <PipelineDonut data={lensData} />
 
         {/* ── Unified jobs board (client-side instant filtering) ── */}
         <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2 scroll-mt-4">

@@ -13,6 +13,20 @@
 
 import type { Job } from "../components/JobTable";
 
+/** Client-side resolveStage — mirrors the server's mapping of legacy params. */
+export function resolveStage(sp: URLSearchParams): string {
+  const stage = sp.get("stage");
+  if (stage) return stage;
+  const status = sp.get("status");
+  if (status === "applied") return "applied";
+  if (status === "dismissed") return "dismissed";
+  const chips = sp.get("chips") ?? "";
+  if (chips.includes("analysed") && chips.includes("hasLetter")) return "letterReady";
+  if (chips.includes("analysed") && chips.includes("hasCv")) return "cvReady";
+  if (chips.includes("analysed")) return "analysed";
+  return "all";
+}
+
 export type AtsBand = "above_final" | "below_final" | "below_initial" | "no_ats";
 
 export type BoardJob = Job & {
