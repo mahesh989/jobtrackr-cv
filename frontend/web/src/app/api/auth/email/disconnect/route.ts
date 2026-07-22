@@ -6,14 +6,11 @@
  */
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { deleteTokens } from "@/lib/email/tokens";
+import { withUser } from "@/lib/api-utils";
 
-export async function POST() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (_req, _ctx, { user }) => {
 
   await deleteTokens(user.id);
   return NextResponse.json({ disconnected: true });
-}
+});

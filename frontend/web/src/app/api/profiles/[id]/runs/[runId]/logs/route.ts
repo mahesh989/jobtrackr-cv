@@ -6,23 +6,20 @@
 // RLS on run_logs already restricts to profile owner, so a simple SELECT
 // with the user-scoped client suffices.
 
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { withUser } from "@/lib/api-utils";
 
 interface RunLogRow {
   log_lines: { t: string; msg: string }[] | null;
   status:    string;
 }
 
-export async function GET(
+export const GET = withUser(async (
   _req: Request,
   { params }: { params: Promise<{ id: string; runId: string }> }
-) {
+, { user, supabase }) => {
   const { id: profileId, runId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Ensure the profile belongs to this user (defence-in-depth on top of RLS).
   const { data: profile } = await supabase
@@ -47,4 +44,4 @@ export async function GET(
     lines:  data.log_lines ?? [],
     status: data.status,
   });
-}
+});

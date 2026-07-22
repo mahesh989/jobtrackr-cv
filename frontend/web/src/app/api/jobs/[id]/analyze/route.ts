@@ -16,7 +16,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, scrapeJd, CvBackendError, renderCanonicalCv } from "@/lib/cv/backend";
@@ -26,6 +25,7 @@ import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/bill
 import { resolveThresholds } from "@/lib/atsThresholds";
 import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/lib/jobFilters";
 import { emitEvent } from "@/lib/admin/events";
+import { withUser } from "@/lib/api-utils";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -60,10 +60,9 @@ function spliceStructuredReferees(
   return { ...(contactDetails ?? {}), references: { mode: existingMode, referees } };
 }
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  { params }: { params: Promise<{ id: string }> }, { user }) => {
   const { id: jobId } = await params;
 
   // ── Phase C-3 override flag ─────────────────────────────────────────────
@@ -77,9 +76,6 @@ export async function POST(
     ? overrideRaw
     : null;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: each analysis triggers a multi-call AI pipeline (BYOK) + scrape.
   const rl = await rateLimit(`analyze:${user.id}`, 20, 60);
@@ -411,4 +407,4 @@ export async function POST(
   });
 
   return NextResponse.json({ run_id: newRun.id, provider: chosen });
-}
+});

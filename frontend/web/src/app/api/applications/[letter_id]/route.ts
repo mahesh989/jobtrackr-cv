@@ -9,21 +9,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { withUser } from "@/lib/api-utils";
 
 const MAX_LETTER_LEN = 20_000;   // generous — typical cover letter is ~2KB
 const MIN_LETTER_LEN = 50;       // some minimum sanity check
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { user },
+) => {
 
   const { letter_id } = await params;
   const admin = createAdminClient();
@@ -48,17 +46,13 @@ export async function GET(
     email_sent_at: letter.email_sent_at,
     completed_at:  letter.completed_at,
   });
-}
+});
 
 // ── PATCH ────────────────────────────────────────────────────────────────────
 
-export async function PATCH(
+export const PATCH = withUser(async (
   req: NextRequest,
-  { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { params }: { params: Promise<{ letter_id: string }> }, { user }) => {
 
   const { letter_id } = await params;
 
@@ -114,4 +108,4 @@ export async function PATCH(
   }
 
   return NextResponse.json({ updated: true, length: newText.length });
-}
+});

@@ -17,21 +17,18 @@
  */
 
 import { NextRequest, NextResponse }                          from "next/server";
-import { createClient }                                        from "@/lib/supabase/server";
 import { createAdminClient }                                   from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cv/backend";
 import type { SourceTag }                                      from "@/features/cv/voice/types";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
   // Returns voice_sample_raw too — the user owns this text, they should be
@@ -43,14 +40,11 @@ export async function GET() {
     .maybeSingle();
 
   return NextResponse.json({ profile: data ?? null });
-}
+});
 
 // ── POST ──────────────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { voice_sample_text?: unknown; source?: unknown };
   try { body = await req.json(); }
@@ -133,4 +127,4 @@ export async function POST(req: NextRequest) {
     matched_ai_phrases: result.matched_ai_phrases,
     fingerprint:        result.fingerprint,
   });
-}
+});

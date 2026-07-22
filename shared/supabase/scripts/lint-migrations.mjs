@@ -5,7 +5,7 @@
  * Migrations in supabase/migrations are applied in filename order by their
  * numeric prefix (001_, 002_, …). Two files sharing a prefix make apply-order
  * ambiguous. This guard stops collisions. (The pre-squash history, including
- * its two grandfathered collisions, lives untouched in migrations/archive/.)
+ * its two grandfathered collisions, lives in git history — commit 9f7a729.)
  *
  * Run: `node supabase/scripts/lint-migrations.mjs`
  */

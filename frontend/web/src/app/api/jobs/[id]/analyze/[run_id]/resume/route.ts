@@ -15,12 +15,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, CvBackendError } from "@/lib/cv/backend";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;
@@ -33,15 +33,13 @@ const DOWNSTREAM_STEPS = [
   "tailored_cv",
 ] as const;
 
-export async function POST(
+export const POST = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; run_id: string }> },
-) {
+  { user },
+) => {
   const { id: jobId, run_id: runId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rl = await rateLimit(`analyze:${user.id}`, 20, 60);
   if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
@@ -200,4 +198,4 @@ export async function POST(
   }
 
   return NextResponse.json({ run_id: runId, provider: chosen });
-}
+});

@@ -19,21 +19,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 10;
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; letter_id: string }> },
-) {
+  { user },
+) => {
   const { id: jobId, letter_id: letterId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
 
@@ -66,4 +64,4 @@ export async function GET(
   }
 
   return NextResponse.json({ letter });
-}
+});

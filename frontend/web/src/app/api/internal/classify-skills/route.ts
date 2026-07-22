@@ -8,7 +8,7 @@
  * Used by the /beta/skills-audit page.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
+import { withAdmin, parseJsonBody } from "@/lib/api-utils";
 import { callCvBackend }             from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
@@ -31,12 +31,7 @@ interface ClassifyResponse {
   results: ClassifiedItem[];
 }
 
-export async function POST(req: NextRequest) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
-
-  const { error: adminErr } = await requireAdmin(user!);
-  if (adminErr) return adminErr;
+export const POST = withAdmin(async (req: NextRequest) => {
 
   const { data: body, error: parseErr } = await parseJsonBody<ClassifyBody>(req);
   if (parseErr) return parseErr;
@@ -55,4 +50,4 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
-}
+});

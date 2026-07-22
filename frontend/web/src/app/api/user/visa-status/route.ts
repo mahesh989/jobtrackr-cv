@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isUserVisaStatus } from "@/lib/eligibility";
+import { withUser } from "@/lib/api-utils";
 
 /**
  * GET/PATCH /api/user/visa-status — the user's working-rights situation
@@ -11,10 +11,7 @@ import { isUserVisaStatus } from "@/lib/eligibility";
  * Uses the caller's own Supabase client (RLS own-read / own-update).
  */
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
   const { data } = await supabase
     .from("user_preferences")
@@ -24,12 +21,9 @@ export async function GET() {
 
   const vs = (data?.contact_details as { visa_status?: string } | null)?.visa_status ?? null;
   return NextResponse.json({ visa_status: isUserVisaStatus(vs) ? vs : null });
-}
+});
 
-export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabase }) => {
 
   let body: unknown;
   try {
@@ -74,4 +68,4 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   revalidatePath("/dashboard");
   return NextResponse.json({ visa_status: visaStatus });
-}
+});

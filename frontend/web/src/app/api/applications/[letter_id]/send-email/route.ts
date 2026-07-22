@@ -11,7 +11,6 @@
  */
 
 import { NextRequest, NextResponse }  from "next/server";
-import { createClient }               from "@/lib/supabase/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { getValidAccessToken }        from "@/lib/email/tokens";
 import { sendViaGmail }               from "@/lib/email/gmail";
@@ -21,19 +20,16 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { filenameSlug }              from "@/lib/filenameSlug";
 import { emitEvent }                 from "@/lib/admin/events";
 import type { ContactDetails }       from "@/lib/types";
+import { withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 const MAX_SUBJECT_LEN = 300;
 const MAX_BODY_LEN    = 20_000;
 const MAX_CV_PDF_BYTES = 4 * 1024 * 1024;  // 4 MB — generous; a typical CV is ~80-200KB
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
-  { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { params }: { params: Promise<{ letter_id: string }> }, { user }) => {
 
   const { letter_id } = await params;
 
@@ -291,4 +287,4 @@ export async function POST(
   });
 
   return NextResponse.json({ sent: true, to: job.contact_email });
-}
+});

@@ -1,13 +1,10 @@
 // Data export — GET /api/user/export
 // Returns all of the authenticated user's data as JSON (AU Privacy Act right of access).
 
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { withUser } from "@/lib/api-utils";
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
   const [{ data: profiles }, { data: userData }] = await Promise.all([
     supabase.from("search_profiles").select("*").eq("user_id", user.id),
@@ -40,4 +37,4 @@ export async function GET() {
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
-}
+});

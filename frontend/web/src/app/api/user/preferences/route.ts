@@ -19,9 +19,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidateTag }             from "next/cache";
+import { withUser } from "@/lib/api-utils";
 import type {
   Project,
   ProfileCredentials,
@@ -177,10 +177,7 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
   return { ok: true, value: out };
 }
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
   const { data } = await admin
@@ -192,12 +189,9 @@ export async function GET() {
   return NextResponse.json({
     contact_details: (data?.contact_details as ContactDetails | null) ?? null,
   });
-}
+});
 
-export async function PATCH(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { contact_details?: unknown };
   try { body = await req.json(); }
@@ -220,4 +214,4 @@ export async function PATCH(req: NextRequest) {
   }
   revalidateTag(`preferences-${user.id}`, "default");
   return NextResponse.json({ contact_details: result.value });
-}
+});

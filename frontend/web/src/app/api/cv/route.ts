@@ -14,12 +14,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { extractCvText, extractStories, CvBackendError, type StructuredCv, type CategoriseCvResponse, type Story } from "@/lib/cv/backend";
 import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 // Extract (<=15s) + structurize/categorise in parallel (<=30s) + render
@@ -32,10 +32,7 @@ const ALLOWED_EXT = new Set(["pdf", "docx"]);
 
 // ── GET — list ───────────────────────────────────────────────────────────────
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -46,14 +43,11 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ cvs: data ?? [] });
-}
+});
 
 // ── POST — finalise a direct-upload ──────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   // Rate limit: upload triggers 2 AI calls (structurize + categorise).
   const rl = await rateLimit(`cv-upload:${user.id}`, 5, 60);
@@ -255,4 +249,4 @@ export async function POST(req: NextRequest) {
     has_categorisation: categorised !== null,
     redirect_to,
   });
-}
+});

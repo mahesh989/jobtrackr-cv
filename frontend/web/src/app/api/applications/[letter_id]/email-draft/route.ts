@@ -10,23 +10,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cv/backend";
 import type { ContactDetails }       from "@/lib/types";
 import { filenameSlug }              from "@/lib/filenameSlug";
+import { withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
-export async function GET(
+export const GET = withUser(async (
   _req: NextRequest,
   { params }: { params: Promise<{ letter_id: string }> },
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  { user },
+) => {
 
   const { letter_id } = await params;
   const admin = createAdminClient();
@@ -215,4 +213,4 @@ export async function GET(
         })()
       : null,
   });
-}
+});

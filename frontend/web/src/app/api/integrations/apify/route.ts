@@ -10,10 +10,10 @@
  */
 
 import { NextResponse }              from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { encryptApiKey, decryptApiKey } from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { withUser }                  from "@/lib/api-utils";
 
 const MONTHLY_BUDGET = 5.0;
 
@@ -74,19 +74,9 @@ async function fetchApifyUsage(token: string): Promise<{
   }
 }
 
-// ── Auth helper ────────────────────────────────────────────────────────────────
-
-async function getAuthenticatedUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
 // ── POST — connect / replace token ────────────────────────────────────────────
 
-export async function POST(req: Request) {
-  const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req, _ctx, { user }) => {
 
   let token: string;
   try {
@@ -142,13 +132,11 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ valid: true });
-}
+});
 
 // ── GET — sync real usage from Apify, return status ───────────────────────────
 
-export async function GET() {
-  const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -217,13 +205,11 @@ export async function GET() {
     quota_resets_on:      nextResetDate,
     is_enabled:           data.is_enabled,
   });
-}
+});
 
 // ── DELETE — disconnect ────────────────────────────────────────────────────────
 
-export async function DELETE() {
-  const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withUser(async (_req, _ctx, { user }) => {
 
   const admin = createAdminClient();
 
@@ -240,4 +226,4 @@ export async function DELETE() {
   }
 
   return NextResponse.json({ disconnected: true });
-}
+});

@@ -32,7 +32,6 @@
  */
 
 import { NextRequest, NextResponse }                      from "next/server";
-import { createClient }                                    from "@/lib/supabase/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                          from "@/lib/ai/activeProvider";
 import { MIN_FINAL_ATS }                                   from "@/lib/atsThresholds";
@@ -46,6 +45,7 @@ import {
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import type { ToneTarget } from "@/lib/types";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
@@ -65,10 +65,9 @@ function makeCompanySlug(name: string): string {
   );
 }
 
-export async function POST(
+export const POST = withUser(async (
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  { params }: { params: Promise<{ id: string }> }, { user }) => {
   const { id: jobId } = await params;
 
   // ── Phase D-2 final-gate override ──────────────────────────────────────────
@@ -83,9 +82,6 @@ export async function POST(
       : null;
 
   // ── 1. Auth ───────────────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: opening-variant generation is a synchronous multi-call AI step.
   const rl = await rateLimit(`cover-letter:${user.id}`, 20, 60);
@@ -493,4 +489,4 @@ export async function POST(
   if (usageEventId) await linkUsageEvent(usageEventId, letterId);
 
   return NextResponse.json({ letter_id: letterId, status: "picking", variants });
-}
+});

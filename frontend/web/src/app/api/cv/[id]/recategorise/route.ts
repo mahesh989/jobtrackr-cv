@@ -9,11 +9,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { categoriseCv, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 // categoriseCv retries once (sequential) on a stored-model failure, so worst
@@ -21,15 +21,11 @@ export const runtime     = "nodejs";
 // works on any Vercel plan tier.
 export const maxDuration = 55;
 
-export async function POST(
+export const POST = withUser(async (
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  { params }: { params: Promise<{ id: string }> }, { user }) => {
   const { id } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Rate limit: 1 AI call (categoriseCv).
   const rl = await rateLimit(`cv-recategorise:${user.id}`, 10, 60);
@@ -105,4 +101,4 @@ export async function POST(
   }
 
   return NextResponse.json({ categorised_skills: categorised });
-}
+});

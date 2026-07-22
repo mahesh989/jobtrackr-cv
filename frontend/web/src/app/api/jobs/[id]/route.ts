@@ -14,22 +14,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { classifySettingText }       from "@/lib/workSetting/classifier";
+import { withUser } from "@/lib/api-utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_JD_CHARS = 60_000;          // sane upper bound — tokens get expensive
 
-export async function PATCH(
+export const PATCH = withUser(async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+  { user },
+) => {
   const { id: jobId } = await params;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: {
     manual_jd_text?:  string | null;
@@ -164,4 +162,4 @@ export async function PATCH(
   }
 
   return NextResponse.json(updated);
-}
+});

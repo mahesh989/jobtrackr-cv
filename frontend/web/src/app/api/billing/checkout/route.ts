@@ -11,19 +11,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, priceIdForPlan } from "@/lib/billing/stripe";
 import { TRIAL_DAYS, type PlanId }   from "@/lib/billing/plans";
+import { withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
 const PURCHASABLE: PlanId[] = ["weekly", "monthly", "unlimited"];
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let plan: PlanId;
   let withTrial = false;
@@ -111,4 +108,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ url: session.url });
-}
+});

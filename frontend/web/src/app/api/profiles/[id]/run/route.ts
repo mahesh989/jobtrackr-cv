@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { createClient } from "@/lib/supabase/server";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeRun } from "@/lib/billing/entitlements";
+import { withUser } from "@/lib/api-utils";
 
 const QUEUE_NAME = "jobtrackr-pipeline";
 
@@ -19,10 +19,10 @@ function getQueue() {
   return new Queue(QUEUE_NAME, { connection });
 }
 
-export async function POST(
+export const POST = withUser(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+, { user, supabase }) => {
   const { id: profileId } = await params;
 
   // Optional { fullRefresh: true } body → re-run the deep 28-day window even on
@@ -34,11 +34,6 @@ export async function POST(
   } catch { /* no body → incremental */ }
 
   // Auth check
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   // Rate limit: each run enqueues a pipeline job that can incur Apify cost.
   const rl = await rateLimit(`run:${user.id}`, 10, 60);
@@ -88,4 +83,4 @@ export async function POST(
     console.error("[run] enqueue failed:", err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: "Failed to start run. Please try again." }, { status: 500 });
   }
-}
+});

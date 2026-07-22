@@ -36,3 +36,48 @@ export async function parseJsonBody<T>(req: NextRequest): Promise<{ data: T; err
     return { data: null, error: jsonError("Invalid JSON body", 400) };
   }
 }
+
+// ── Structural auth wrappers ─────────────────────────────────────────────────
+// Route handlers wrapped in withUser()/withAdmin() are incapable of skipping
+// auth: the wrapper acquires the session, denies with 401/403 itself, and only
+// then invokes the handler — with a guaranteed non-null `user` and the same
+// RLS-scoped `supabase` client it used (no second client construction).
+// scripts/check-route-auth.mjs treats these as the canonical guard pattern.
+
+type RouteCtx = { params: Promise<Record<string, string>> };
+
+export interface AuthedRoute {
+  user:     User;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}
+
+export interface AdminRoute extends AuthedRoute {
+  userId: string;
+  admin:  ReturnType<typeof createAdminClient>;
+}
+
+/** Wrap a route handler so it only runs for an authenticated user (else 401). */
+export function withUser<C extends RouteCtx = RouteCtx>(
+  handler: (req: NextRequest, ctx: C, auth: AuthedRoute) => Promise<Response> | Response,
+) {
+  return async (req: NextRequest, ctx: C): Promise<Response> => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return jsonError("Unauthorized", 401);
+    return handler(req, ctx, { user, supabase });
+  };
+}
+
+/** Wrap a route handler so it only runs for founder/admin users (else 401/403). */
+export function withAdmin<C extends RouteCtx = RouteCtx>(
+  handler: (req: NextRequest, ctx: C, auth: AdminRoute) => Promise<Response> | Response,
+) {
+  return async (req: NextRequest, ctx: C): Promise<Response> => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return jsonError("Unauthorized", 401);
+    const { userId, admin, error } = await requireAdmin(user);
+    if (error) return error;
+    return handler(req, ctx, { user, supabase, userId, admin });
+  };
+}

@@ -1,18 +1,14 @@
-import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse }      from "next/server";
+import { withUser } from "@/lib/api-utils";
 
-export async function GET(
+export const GET = withUser(async (
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  { params }: { params: Promise<{ id: string }> }, { user, supabase }) => {
   const { id } = await params;
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Explicit ownership check (defence-in-depth on top of run_logs RLS) — keeps
   // this route consistent with its DELETE handler and the per-run logs route.
@@ -37,22 +33,19 @@ export async function GET(
   }
 
   return NextResponse.json({ runs: data });
-}
+});
 
 // ── DELETE — cancel the active run for this profile ───────────────────────────
 // Sets the run_log status to "failed" with a user-cancel message.
 // The orchestrator's checkCancellation() sees this at the next stage boundary
 // and throws, causing the pipeline to exit cleanly.
-export async function DELETE(
+export const DELETE = withUser(async (
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
-) {
+, { user, supabase }) => {
   const { id } = await params;
 
   // Auth: verify the profile belongs to this user (RLS on run_logs uses profile owner)
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Confirm the profile belongs to this user before touching run_logs
   const { data: profile } = await supabase
@@ -83,4 +76,4 @@ export async function DELETE(
   }
 
   return NextResponse.json({ cancelled: cancelled?.length ?? 0 });
-}
+});

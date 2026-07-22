@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser, requireAdmin, parseJsonBody } from "@/lib/api-utils";
+import { withAdmin, parseJsonBody } from "@/lib/api-utils";
 import { encryptApiKey }             from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { PROVIDER_ORDER, DEFAULT_MODELS, type AiProvider } from "@/lib/ai/models";
@@ -69,12 +69,7 @@ async function validateKey(provider: AiProvider, key: string): Promise<Validatio
 
 // ── GET — list all 3 provider rows (never the decrypted key) ────────────────
 
-export async function GET(_req: NextRequest) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
-
-  const { admin, error: adminErr } = await requireAdmin(user!);
-  if (adminErr) return adminErr;
+export const GET = withAdmin(async (_req: NextRequest, _ctx, { admin }) => {
 
   const { data, error } = await admin
     .from("platform_ai_settings")
@@ -97,17 +92,12 @@ export async function GET(_req: NextRequest) {
   });
 
   return NextResponse.json({ providers: rows });
-}
+});
 
 // ── PATCH — set key / model / active provider for a single provider ─────────
 // body: { provider, key?: string, model?: string, setActive?: boolean }
 
-export async function PATCH(req: NextRequest) {
-  const { user, error: authErr } = await requireUser();
-  if (authErr) return authErr;
-
-  const { userId, admin, error: adminErr } = await requireAdmin(user!);
-  if (adminErr) return adminErr;
+export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin }) => {
 
   const { data: body, error: parseErr } = await parseJsonBody<{
     provider?: string; key?: string; model?: string; setActive?: boolean;
@@ -172,4 +162,4 @@ export async function PATCH(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
-}
+});

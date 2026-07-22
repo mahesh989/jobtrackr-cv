@@ -17,15 +17,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { withUser } from "@/lib/api-utils";
 
 const ALLOWED_EXT = new Set(["pdf", "docx"]);
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { ext?: string };
   try { body = await req.json(); }
@@ -58,4 +55,4 @@ export async function POST(req: NextRequest) {
     signed_url: data.signedUrl,
     token:      data.token,
   });
-}
+});

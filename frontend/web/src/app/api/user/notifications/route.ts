@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { withUser } from "@/lib/api-utils";
 
 /**
  * GET/PATCH /api/user/notifications — the "email me when new jobs are found"
@@ -7,10 +7,7 @@ import { createClient } from "@/lib/supabase/server";
  * Supabase client (RLS own-read / own-update) — no admin client needed here.
  */
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
   const { data } = await supabase
     .from("user_engagement")
@@ -22,12 +19,9 @@ export async function GET() {
   // backfill only covers users existing at migration time) — default true.
   const notifyNewJobs = (data?.notify_new_jobs as boolean | undefined) ?? true;
   return NextResponse.json({ notify_new_jobs: notifyNewJobs });
-}
+});
 
-export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabase }) => {
 
   let body: unknown;
   try {
@@ -55,4 +49,4 @@ export async function PATCH(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ notify_new_jobs: notifyNewJobs });
-}
+});
