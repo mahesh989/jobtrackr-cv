@@ -49,21 +49,10 @@ function Arrow({ label }: { label?: string }) {
 }
 
 export function HowItWorksDeck() {
+  // Story first, vocabulary last: the journey cards (run → analyse → apply →
+  // track) introduce every concept in context; the glossary is a reference to
+  // close on, not a prerequisite to wade through.
   const cards = [
-    {
-      id: "terms",
-      title: "Key terms",
-      body: (
-        <dl className="divide-y divide-border">
-          {TERMS.map((t) => (
-            <div key={t.term} className="py-2.5 first:pt-0 sm:flex sm:gap-4">
-              <dt className="text-body font-semibold text-text sm:w-48 sm:shrink-0">{t.term}</dt>
-              <dd className="text-label text-text-2 leading-relaxed mt-0.5 sm:mt-0">{t.def}</dd>
-            </div>
-          ))}
-        </dl>
-      ),
-    },
     {
       id: "discovery",
       title: "Running a profile",
@@ -162,6 +151,20 @@ export function HowItWorksDeck() {
             You can <span className="font-medium text-text">Mark applied</span> or <span className="font-medium text-text">Dismiss</span> a job at any time. The dashboard funnel rolls these states up so you always see where your pipeline stands.
           </p>
         </>
+      ),
+    },
+    {
+      id: "terms",
+      title: "Key terms",
+      body: (
+        <dl className="divide-y divide-border">
+          {TERMS.map((t) => (
+            <div key={t.term} className="py-2.5 first:pt-0 sm:flex sm:gap-4">
+              <dt className="text-body font-semibold text-text sm:w-48 sm:shrink-0">{t.term}</dt>
+              <dd className="text-label text-text-2 leading-relaxed mt-0.5 sm:mt-0">{t.def}</dd>
+            </div>
+          ))}
+        </dl>
       ),
     },
   ];

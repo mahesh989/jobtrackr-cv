@@ -8,7 +8,7 @@
  */
 
 import {
-  CreditCard, UserCircle2, PenLine, Mail, Briefcase,
+  CreditCard, UserCircle2, FileText, PenLine, Mail, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 import type { SetupStatus, SetupStepKey } from "./setupStatus";
@@ -22,19 +22,27 @@ export interface SetupStep {
   tag:   SetupTag;
   blurb: string;
   href:  string;
-  tab?:  string; // optional sub-tab param (e.g. "details" → ?tab=details)
 }
 
 export const SETUP_STEPS: SetupStep[] = [
   {
-    key: "billing", icon: CreditCard, title: "Choose your plan", tag: "required",
-    blurb: "Start with a free 3-day trial or subscribe directly — pick whichever plan fits how you want to search. You can switch plans anytime afterwards.",
-    href: "/onboarding/plan",
+    // Inside the app a plan always exists (the layout walls off never-
+    // subscribed accounts), so this step is a confirmation + management
+    // pointer — it must NOT link to /onboarding/plan, which bounces
+    // subscribed users straight back to /dashboard.
+    key: "billing", icon: CreditCard, title: "Your plan", tag: "required",
+    blurb: "You're on a plan — this step is done. Review usage, invoices, or switch plans anytime under Billing.",
+    href: "/billing",
   },
   {
-    key: "profile", icon: UserCircle2, title: "Set up your Profile", tag: "required",
-    blurb: "Fill in your contact details (Details tab), then upload or build your CV (CVs tab). Both are needed before your first analysis.",
-    href: "/cv", tab: "details",
+    key: "details", icon: UserCircle2, title: "Add your details", tag: "required",
+    blurb: "Your name, phone and address go on every tailored CV header. Takes a minute — required before your first analysis.",
+    href: "/cv/details",
+  },
+  {
+    key: "cv", icon: FileText, title: "Upload or build your CV", tag: "required",
+    blurb: "Upload your current CV (or build one from scratch). It becomes the source of truth the AI tailors from — nothing is ever invented beyond it.",
+    href: "/cv",
   },
   {
     key: "voice", icon: PenLine, title: "Set up your writing voice", tag: "recommended",
@@ -56,7 +64,7 @@ export const SETUP_STEPS: SetupStep[] = [
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** Steps that gate "setup complete" — the recommended/optional ones don't. */
-const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "profile", "searchProfile"];
+const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "details", "cv", "searchProfile"];
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",

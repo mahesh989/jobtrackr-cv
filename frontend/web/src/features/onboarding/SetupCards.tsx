@@ -50,8 +50,7 @@ export function SetupCards({
   const doneCount = SETUP_STEPS.filter((s) => status[s.key]).length;
 
   // Dominant CTA → this step's screen, in guided-setup mode.
-  const tabParam = step.tab ? `&tab=${step.tab}` : "";
-  const ctaHref = `${step.href}?setup=1&step=${i + 1}${tabParam}`;
+  const ctaHref = `${step.href}?setup=1&step=${i + 1}`;
 
   return (
     <div className="w-full max-w-xl mx-auto">

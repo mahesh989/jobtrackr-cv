@@ -14,11 +14,12 @@ import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type SetupStepKey =
-  | "billing" | "profile" | "voice" | "aiKey" | "email" | "apify" | "searchProfile";
+  | "billing" | "details" | "cv" | "voice" | "aiKey" | "email" | "apify" | "searchProfile";
 
 export interface SetupStatus {
   billing:       boolean; // an active subscription row exists (status !== "none")
-  profile:       boolean; // contact details (name + address + phone) AND an active CV version
+  details:       boolean; // contact details filled (name + address + phone)
+  cv:            boolean; // at least one CV version exists (first upload auto-activates)
   voice:         boolean; // a writing-voice profile exists
   aiKey:         boolean; // the platform AI provider (admin-configured) is active + valid
   email:         boolean; // Gmail/Outlook connected
@@ -59,13 +60,13 @@ export async function getSetupStatus(
   ]);
 
   const cd      = (prefRes.data?.contact_details ?? {}) as Record<string, unknown>;
-  const hasCv   = (cvRes.data?.length ?? 0) > 0;
-  const profile = !!(cd.name && cd.address && cd.phone) && hasCv;
+  const details = !!(cd.name && cd.address && cd.phone);
+  const cv      = (cvRes.data?.length ?? 0) > 0;
   const voice   = (voiceRes.data?.length ?? 0) > 0;
   const aiKey   = (aiRes.data as { status: string | null } | null)?.status === "valid";
   const email   = !!emailRes.data?.from_address;
   const apify   = !!apifyRes.data;
   const hasAnyJob = (((jobRes as { count: number | null }).count) ?? 0) > 0;
 
-  return { billing: hasBilling, profile, voice, aiKey, email, apify, searchProfile: hasAnyJob, hasAnyJob };
+  return { billing: hasBilling, details, cv, voice, aiKey, email, apify, searchProfile: hasAnyJob, hasAnyJob };
 }

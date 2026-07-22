@@ -14,6 +14,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { InstructionsTabs } from "@/features/onboarding/InstructionsTabs";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
 import { getSetupStatus } from "@/lib/setupStatus";
@@ -25,7 +26,7 @@ export const metadata = { title: "Instructions — JobTrackr" };
 export default async function InstructionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; step?: string }>;
+  searchParams: Promise<{ tab?: string; step?: string; checkout?: string }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -63,6 +64,16 @@ export default async function InstructionsPage({
       </div>
 
       <div className="px-6 py-6 max-w-5xl mx-auto">
+        {/* Post-checkout landing — plan is live, setup is the next job. */}
+        {sp?.checkout === "success" && (
+          <div className="mb-5 flex items-start gap-2 rounded-lg border border-[var(--green)]/30 bg-[var(--green-light)] px-4 py-3 text-sm text-[var(--green)]">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <strong>Your plan is active.</strong> Now let&apos;s get you analysis-ready — the steps
+              below take about five minutes end to end.
+            </span>
+          </div>
+        )}
         <InstructionsTabs
           defaultTab={defaultTab}
           setupComplete={setupComplete}
