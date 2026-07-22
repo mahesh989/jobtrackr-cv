@@ -13,6 +13,10 @@ import { Input } from "@/components/ui";
 export function LoginForm() {
   const searchParams = useSearchParams();
   const confirmed = searchParams.get("confirmed");
+  // ?next= — return the user to where they were headed (e.g. /pricing sends
+  // signed-out visitors here before plan checkout). Same-origin paths only.
+  const rawNext = searchParams.get("next");
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
@@ -62,7 +66,7 @@ export function LoginForm() {
     // per request; a client-side transition right after establishing a new
     // session could serve a stale RSC render and briefly show a blank
     // screen until a manual reload.
-    window.location.href = "/";
+    window.location.href = next;
   }
 
   return (

@@ -28,8 +28,8 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 // One-line explanation under the status — every read-only-causing status gets
 // a specific reason + next action, not just a bare label.
 const STATUS_DESCRIPTION: Partial<Record<string, string>> = {
-  incomplete:         "Your card couldn't be confirmed when you set this up, so the subscription never activated. Finish payment via Manage subscription, or choose a plan again below.",
-  incomplete_expired: "The checkout session expired before payment was confirmed. Choose a plan below to start again.",
+  incomplete:         "Checkout wasn't finished, so no plan is active and you haven't been charged. Pick a plan below to start again.",
+  incomplete_expired: "The checkout session expired before payment was confirmed. You haven't been charged — choose a plan below to start again.",
   canceled:           "This subscription was canceled. Resubscribe below to create new CVs and cover letters.",
   unpaid:             "Your last payment failed and the subscription was paused. Update your card via Manage subscription, or choose a plan below.",
   past_due:           "Your last payment failed. Update your card via Manage subscription to keep this plan active.",
@@ -70,13 +70,13 @@ const INVOICE_STATUS: Record<string, { text: string; cls: string }> = {
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ denied?: string; checkout?: string; upgraded?: string }>;
+  searchParams: Promise<{ denied?: string; checkout?: string; upgraded?: string; notice?: string }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { denied, checkout, upgraded } = await searchParams;
+  const { denied, checkout, upgraded, notice } = await searchParams;
   const [ent, snapshot] = await Promise.all([
     getEntitlement(user.id),
     getBillingSnapshot(user.id),
@@ -110,6 +110,12 @@ export default async function BillingPage({
             You&apos;re all set — your subscription is active. It may take a moment to reflect below.
           </Banner>
         )}
+        {notice === "already_subscribed" && (
+          <Banner tone="amber" icon={<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}>
+            You already have an active subscription, so a new checkout wasn&apos;t started — your
+            current plan is below. Use Change plan or Manage subscription to switch.
+          </Banner>
+        )}
         {upgraded === "1" && (
           <Banner tone="green" icon={<CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />}>
             Plan upgraded — your new plan is now active. It may take a moment to reflect below.
@@ -133,10 +139,19 @@ export default async function BillingPage({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-text">
-                  {PLAN_NAME[ent.planId] ?? ent.planId}
+                  {/* Trial users (only the explicit trial CTA creates these)
+                      lead with "Free trial"; the plan it converts into is the
+                      chip. Direct purchasers lead with their plan. Never-
+                      activated states fall back to planId "trial" — calling
+                      that "Free trial" would imply they had one. */}
+                  {["none", "incomplete", "incomplete_expired"].includes(ent.status)
+                    ? "No active plan"
+                    : trialing
+                    ? "Free trial"
+                    : PLAN_NAME[ent.planId] ?? ent.planId}
                 </h2>
-                <span className={"rounded-full px-2 py-0.5 text-caption font-semibold " + status.cls}>
-                  {status.text}
+                <span className={"rounded-full px-2 py-0.5 text-caption font-semibold " + (trialing && paidPlanId ? "bg-[var(--blue)]/10 text-[var(--blue)]" : status.cls)}>
+                  {trialing && paidPlanId ? PLAN_NAME[paidPlanId] : status.text}
                 </span>
               </div>
               {/* The price — the single most important fact on a billing page. */}
@@ -145,13 +160,19 @@ export default async function BillingPage({
               )}
               {trialing && (
                 <p className="mt-1 text-sm text-text-2">
-                  Free for now{price && paidPlanId ? (
-                    <> — then <span className="font-medium text-text">{price.label}</span> ({PLAN_NAME[paidPlanId]}) from {fmtDate(ent.trialEnd)}</>
-                  ) : null}
+                  {price && ent.trialEnd ? (
+                    <>
+                      A$0 today · then <span className="font-medium text-text">{price.label}</span> from {fmtDate(ent.trialEnd)} unless you cancel
+                    </>
+                  ) : (
+                    "Free trial in progress"
+                  )}
                 </p>
               )}
             </div>
-            {!isComp && ent.status !== "none" && <ManageButton />}
+            {/* No portal button for incomplete/expired — no Stripe subscription
+                exists yet, so the portal would open onto nothing actionable. */}
+            {!isComp && !["none", "incomplete", "incomplete_expired"].includes(ent.status) && <ManageButton />}
           </div>
 
           {STATUS_DESCRIPTION[ent.status] && (
@@ -292,7 +313,7 @@ export default async function BillingPage({
                 {trialing
                   ? "Upgrade anytime — your card is charged automatically when your trial ends."
                   : ent.status === "incomplete" || ent.status === "incomplete_expired"
-                  ? "Pick a plan below to start a fresh checkout — or use Manage subscription above if you'd rather finish the original one."
+                  ? "Pick a plan below to start a fresh checkout — you haven't been charged."
                   : readOnly
                   ? "Your account is read-only. Resubscribe to create new CVs and cover letters."
                   : "Choose a plan to get started."}

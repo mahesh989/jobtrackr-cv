@@ -8,9 +8,12 @@ import { Button } from "@/components/ui";
 /**
  * Plan-selection grid. Shared by /pricing and /onboarding/plan.
  *
- * Each "Subscribe" button POSTs to /api/billing/checkout and redirects the
- * browser to the returned Stripe Checkout URL. New customers get a 3-day trial
- * (card upfront); the trial copy is shown when `showTrial` is true.
+ * Two-door model:
+ *  - "Choose <plan>" buttons are DIRECT purchases — charged today, period
+ *    starts today (Stripe checkout states the amount due before card entry).
+ *  - The trial strip below the cards (shown when `showTrial`) is the ONLY
+ *    trial door: A$0 today on Monthly, converts after 3 days. New customers
+ *    only — the checkout route enforces once-per-customer.
  */
 export function PlanCards({
   showTrial = true,
@@ -25,18 +28,25 @@ export function PlanCards({
   const [loading, setLoading] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function subscribe(plan: PlanId) {
+  async function subscribe(plan: PlanId, withTrial = false) {
     setError(null);
     setLoading(plan);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, withTrial }),
       });
       if (res.status === 401) {
         // Not logged in — send them to sign up, then back to plan selection.
         window.location.assign("/auth/signup?next=/onboarding/plan");
+        return;
+      }
+      if (res.status === 409) {
+        // Already on a live subscription — checkout would double-bill.
+        // Billing page has the change-plan / manage flows; the notice param
+        // explains why they landed there.
+        window.location.assign("/billing?notice=already_subscribed");
         return;
       }
       const data = await res.json();
@@ -100,18 +110,38 @@ export function PlanCards({
                   className="mt-5 w-full justify-center"
                 >
                   {loading === plan.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : showTrial ? "Start free trial" : "Choose this plan"}
+                  {isCurrent ? "Current plan" : loading === plan.id ? "Redirecting…" : `Choose ${plan.displayName}`}
                 </Button>
               )}
             </div>
           );
         })}
       </div>
+      {/* Dedicated trial doorway — for visitors who aren't ready to pick a
+          plan. Checkout always needs a plan attached for the post-trial
+          conversion, so this starts the trial on Monthly (the default,
+          matching onboarding's TrialHero); they can switch or cancel any
+          time before the trial ends. */}
       {showTrial && (
-        <p className="text-center text-xs text-text-2">
-          New subscribers get a {TRIAL_DAYS}-day free trial — card required, cancel anytime before it ends.
-          Auto-renews at the end of each period.
-        </p>
+        <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-[var(--brand)]/30 bg-[var(--brand)]/5 px-5 py-4 sm:flex-row">
+          <div className="text-center sm:text-left">
+            <p className="text-sm font-semibold text-text">Not sure yet? Start with the free trial.</p>
+            <p className="mt-0.5 text-xs text-text-2">
+              {TRIAL_DAYS} days free — includes 3 tailored CVs and 3 cover letters. Card required, no
+              charge today. Continues on Monthly ({formatAud(PUBLIC_PLANS.find((p) => p.id === "monthly")!.priceCents)}/month) unless you cancel or switch.
+            </p>
+          </div>
+          <Button
+            variant="brand"
+            size="lg"
+            onClick={() => subscribe("monthly", true)}
+            disabled={loading !== null}
+            className="shrink-0 justify-center"
+          >
+            {loading === "monthly" && <Loader2 className="h-4 w-4 animate-spin" />}
+            {loading === "monthly" ? "Redirecting…" : "Start free trial"}
+          </Button>
+        </div>
       )}
     </div>
   );

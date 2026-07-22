@@ -25,7 +25,7 @@ export function TrialHero() {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "monthly" }),
+        body: JSON.stringify({ plan: "monthly", withTrial: true }),
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Could not start checkout.");

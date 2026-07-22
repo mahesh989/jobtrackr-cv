@@ -498,8 +498,11 @@ input[type="radio"] {
   color: var(--brand-fg);
   font-weight: 600;
 }
-.gh-btn-brand:hover  { opacity: 0.9; }
-.gh-btn-brand:active { opacity: 0.85; }
+/* Explicit background on hover/active: .gh-btn:hover's surface background
+   (specificity 0-2-0) would otherwise beat .gh-btn-brand's base (0-1-0) and
+   flash the button white on themes without their own override. */
+.gh-btn-brand:hover  { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.9; }
+.gh-btn-brand:active { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.85; }
 
 /* Table */
 .data-table {
