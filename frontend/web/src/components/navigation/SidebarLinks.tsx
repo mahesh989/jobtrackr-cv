@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { Button } from "@/components/ui";
+import { AddModal } from "@/features/jobs/components/AddModal";
 import {
   LayoutDashboard,
-  Briefcase,
   FileText,
   History,
   PenLine,
@@ -33,6 +34,11 @@ import {
   Eye,
   ArrowLeft,
   Mail,
+  Bookmark,
+  ChevronRight,
+  Search,
+  GraduationCap,
+  PlusCircle,
 } from "lucide-react";
 
 interface Profile {
@@ -74,15 +80,22 @@ function NavItem({
   children,
   badge,
   exact,
+  exclude,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
   badge?: number;
   exact?: boolean;
+  /** Path prefixes to exclude from matching (prevents parent paths like
+   *  `/cv` from matching sub-pages like `/cv/details`). */
+  exclude?: string[];
 }) {
   const pathname = usePathname();
-  const active = exact ? pathname === href : pathname.startsWith(href);
+  let active = exact ? pathname === href : pathname.startsWith(href);
+  if (active && exclude) {
+    active = !exclude.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  }
 
   return (
     <Link
@@ -123,8 +136,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function UserFooter({ email }: { email: string }) {
   return (
-    <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
-      <div className="flex items-center gap-2.5">
+    <div className="shrink-0">
+      <div className="flex items-center gap-2.5 px-3 py-1.5">
+        <Lock className="w-3.5 h-3.5 text-[var(--sidebar-text-dim)] shrink-0" />
+        <Link
+          href="/privacy"
+          className="text-caption font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors"
+        >
+          Privacy policy
+        </Link>
+      </div>
+      <div className="flex items-center gap-2.5 px-3 py-2.5 border-t border-[var(--sidebar-border)]">
         <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
           <span className="text-caption font-bold text-[var(--sidebar-text)]">
             {email[0]?.toUpperCase()}
@@ -156,8 +178,12 @@ function Logo() {
   );
 }
 
-export function SidebarLinks({ email, poolCount = 0, role, userView = false }: Props) {
+export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
+  const pathname = usePathname();
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [showAllProfiles, setShowAllProfiles] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   // ── Admin nav ─────────────────────────────────────────────────────────────
   // Founders/admins only see operational and business pages — no user-product
@@ -212,6 +238,12 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
   }
 
   // ── Regular user nav ──────────────────────────────────────────────────────
+  const MAX_VISIBLE = 4;
+  const displayedProfiles = showAllProfiles ? profiles : profiles.slice(0, MAX_VISIBLE);
+  const hasMore = profiles.length > MAX_VISIBLE;
+
+  const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
+
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
       <Logo />
@@ -230,20 +262,105 @@ export function SidebarLinks({ email, poolCount = 0, role, userView = false }: P
           </a>
         )}
 
-        <SectionLabel>Overview</SectionLabel>
         <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
-        <NavItem href="/instructions" icon={BookOpen}>Instructions</NavItem>
-        <NavItem href="/profiles" icon={Briefcase}>Job Searches</NavItem>
+
+        <SectionLabel>Jobs</SectionLabel>
+
+        {/* Saved — expandable profile list */}
+        <button
+          onClick={() => setSavedOpen(!savedOpen)}
+          className={
+            "sidebar-item flex items-center justify-between gap-2 w-full px-3 rounded-[var(--sidebar-item-radius)] " +
+            "text-body font-semibold transition-colors group " +
+            (isSavedActive
+              ? "sidebar-item-active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
+              : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]")
+          }
+          style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
+        >
+          <span className="sidebar-item-inner flex items-center gap-2.5 min-w-0">
+            <Bookmark className="h-4 w-4 shrink-0" />
+            <span className="truncate">Saved</span>
+          </span>
+          <ChevronRight
+            className={
+              "h-3.5 w-3.5 shrink-0 text-[var(--sidebar-text-dim)] transition-transform " +
+              (savedOpen ? "rotate-90" : "")
+            }
+          />
+        </button>
+
+        {savedOpen && (
+          <div className="ml-3 space-y-0.5">
+            {displayedProfiles.map((p) => {
+              const href = `/profiles/${p.id}/jobs`;
+              const active = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={p.id}
+                  href={href}
+                  className={
+                    "sidebar-item flex items-center gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] " +
+                    "text-body font-semibold transition-colors " +
+                    (active
+                      ? "sidebar-item-active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
+                      : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]")
+                  }
+                  style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
+                >
+                  <Activity
+                    className="h-3.5 w-3.5 shrink-0"
+                    style={{ color: p.isRunning ? "#22C55E" : undefined }}
+                  />
+                  <span className="truncate text-[13px]">{p.name}</span>
+                </Link>
+              );
+            })}
+            {hasMore && (
+              <button
+                onClick={() => setShowAllProfiles(!showAllProfiles)}
+                className="w-full text-left text-[11px] font-semibold px-3 py-1 rounded text-[var(--brand)] hover:bg-[var(--sidebar-active-bg)] transition-colors"
+              >
+                {showAllProfiles
+                  ? "Show fewer"
+                  : `+ ${profiles.length - MAX_VISIBLE} more`}
+              </button>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={() => setAddOpen(true)}
+          className={
+            "sidebar-item flex items-center gap-2 w-full px-3 rounded-[var(--sidebar-item-radius)] " +
+            "text-body font-semibold transition-colors group text-left " +
+            "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]"
+          }
+          style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
+        >
+          <span className="sidebar-item-inner flex items-center gap-2.5 min-w-0">
+            <PlusCircle className="h-4 w-4 shrink-0" />
+            <span className="truncate">Add</span>
+          </span>
+        </button>
+        {addOpen && <AddModal onClose={() => setAddOpen(false)} />}
+
+        <NavItem href="/profiles/new" icon={Search}>New</NavItem>
+
         <NavItem href="/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
         <NavItem href="/analyses" icon={History}>Analyses</NavItem>
 
-        <SectionLabel>Tools</SectionLabel>
-        <NavItem href="/cv" icon={FileText}>Profile</NavItem>
+        <SectionLabel>Profile</SectionLabel>
+        <NavItem href="/cv/details" icon={UserCircle2}>Details</NavItem>
+        <NavItem href="/cv" icon={FileText} exclude={["/cv/details", "/cv/credentials"]}>CVs</NavItem>
+        <NavItem href="/cv/credentials" icon={GraduationCap}>Credentials</NavItem>
         <NavItem href="/voice" icon={PenLine}>Writing voice</NavItem>
+
+        <SectionLabel>Settings</SectionLabel>
+        <NavItem href="/settings/account" icon={Mail}>Account</NavItem>
         <NavItem href="/billing" icon={CreditCard}>Billing</NavItem>
         <NavItem href="/settings/theme" icon={Palette}>Theme</NavItem>
-        <NavItem href="/settings/account" icon={Mail}>Account</NavItem>
-        <NavItem href="/privacy" icon={Lock}>Privacy policy</NavItem>
+        <NavItem href="/instructions" icon={BookOpen}>Instructions</NavItem>
 
       </nav>
 

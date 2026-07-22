@@ -151,3 +151,32 @@ Canonical sizing defined in `lib/button-sizes.ts`:
 `Button.tsx` and `IconButton.tsx` import these maps directly — sizing change in `button-sizes.ts` propagates everywhere they're used.
 `Chip.tsx` sizes are intentionally aligned to `BUTTON_SIZE` values.
 Inline `<button>` elements in feature code should use a `Button` component variant when possible; when a raw `<button>` is necessary (distinct visual like filter chips, dismiss links), use matching Tailwind classes from the table above.
+
+### Ponytail Mode — Lazy Guidance
+
+Active at `full` level every session via `opencode.json`. `ponytail:` comments
+mark deliberate shortcuts. Keep them; don't "fix" what isn't broken.
+
+**Laziness welcome here — the codebase already follows YAGNI:**
+- `Button.tsx` — minimal Slot (merges props, no dependency)
+- `AddModal.tsx` — inline URL input (stacked label breaks flex row)
+- `SmartToolbar.tsx` — inline selects + search input (stacked label breaks toolbar)
+- `ProfileForm.tsx` — inline input for auto-day sentence (stacked label breaks inline placement)
+- `LocationAutocomplete.tsx` — raw input for Downshift (controlled value/onChange/keyDown)
+
+**Laziness forbidden — never cut corners here:**
+- HMAC signing (HMAC-SHA256 comparison)
+- AES-GCM encryption/decryption (user AI keys)
+- RLS policies on every new table
+- Ownership checks on every API route
+- Rate limiting on state-changing endpoints
+- `requireUser()` / `requireAdmin()` guards
+- Supabase client choice (server vs browser vs admin)
+- Migration safety (additive only, never ALTER)
+
+**Common over-engineering traps in this codebase:**
+- Adding a dep when inline `<input type="date">` or CSS works
+- Creating an abstraction with one consumer
+- Wrapping a server action in a client-state layer when a plain `<form>` with `action` suffices
+- Building a factory/registry for one product
+- Writing a custom hook when a plain function works

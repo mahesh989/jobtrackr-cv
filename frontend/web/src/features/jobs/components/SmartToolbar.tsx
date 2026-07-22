@@ -20,7 +20,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { X, Star } from "lucide-react";
+import { X } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "../lib/jobFilters";
 import { shallowSetParams } from "../lib/shallowNav";
@@ -62,8 +62,7 @@ interface StageChip {
   countKey: keyof FunnelCounts;
 }
 
-// Favourite is rendered as its own star toggle (not a text pill) — see
-// FAVOURITE_CHIP usage in the Jobs row.
+// Favourite is rendered as a pill chip alongside other stage chips.
 const FAVOURITE_CHIP: StageChip =
   { id: "favourite", label: "Favourite", kind: "stage", value: "favourite", countKey: "favourite" as keyof FunnelCounts };
 
@@ -417,26 +416,27 @@ export function SmartToolbar({
             })}
           </div>
 
-          <div className="w-10" />
-          <div className="w-10" />
           {(() => {
             const favActive = isStageActive(FAVOURITE_CHIP);
             const favCount  = counts[FAVOURITE_CHIP.countKey] ?? 0;
             return (
               <button
+                key={FAVOURITE_CHIP.id}
                 type="button"
                 onClick={() => selectStageChip(FAVOURITE_CHIP)}
                 disabled={favCount === 0 && !favActive}
-                title={favActive ? "Showing favourite jobs only — click to clear" : "Show favourite jobs only"}
-                aria-pressed={favActive}
-                aria-label="Favourite jobs"
-                className={`inline-flex items-center justify-center shrink-0 rounded-full transition-colors ${
-                  favCount === 0 && !favActive ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface-2)]"
+                className={`inline-flex items-center gap-1.5 text-caption px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap ${
+                  favActive
+                    ? "bg-[var(--brand)] text-[var(--brand-fg)] border-[var(--brand)] font-medium"
+                    : favCount === 0
+                      ? "bg-surface text-text-3 border-border opacity-50 cursor-not-allowed"
+                      : "bg-surface text-text-2 border-border hover:bg-[var(--surface-2)]"
                 }`}
               >
-                <Star
-                  className={`w-10 h-10 ${favActive ? "fill-[var(--brand)] text-[var(--brand)]" : "text-text-3"}`}
-                />
+                {FAVOURITE_CHIP.label}
+                {favCount > 0 && (
+                  <span className={`tabular-nums ${favActive ? "text-white/80" : "text-text-3"}`}>{favCount}</span>
+                )}
               </button>
             );
           })()}

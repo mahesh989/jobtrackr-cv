@@ -182,7 +182,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
           title="Filters"
           subtitle="Applied to every source after fetching, before anything is saved."
         />
-        <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
+        <div className="space-y-4 rounded-md border border-border p-4">
 
           {/* Working rights lives in My CV (visa status) — the single source of
               truth. The eligibility matrix flags/drops per that setting; the
@@ -259,7 +259,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
       {/* ───── 4. Schedule ──────────────────────────────────────────── */}
       <section>
         <SectionHeader step={4} title="Schedule" />
-        <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
+        <div className="space-y-4 rounded-md border border-border p-4">
 
           <div>
             <Select
@@ -332,7 +332,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
           <FunnelChip label="Send"   status={sendActive ? "on" : "off"} detail={sendDetail} />
         </div>
 
-        <div className="space-y-4 rounded-md border border-border bg-[var(--surface-2)] p-4">
+        <div className="space-y-4 rounded-md border border-border p-4">
 
           {/* Tailor stage — directly maps to automation_enabled */}
           <div>
@@ -423,9 +423,7 @@ function FunnelChip({ label, status, detail }: { label: string; status: "always"
   return (
     <div
       className={`flex-1 rounded-md border px-3 py-2 ${
-        isOff
-          ? "border-border bg-[var(--surface-2)] text-text-3"
-          : "border-[var(--brand)]/40 bg-[var(--blue-light)] text-text"
+        isOff ? "border-border text-text-3" : "border-[var(--brand)]/40 text-text"
       }`}
     >
       <p className="text-label font-semibold leading-none">{label}</p>
