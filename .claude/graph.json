@@ -281,6 +281,10 @@
     {
       "id": "D30",
       "decision": "Activity-gated auto-fetch + new-jobs emails (commit 634f2a3, migration 079). Scheduled runs gated in worker gate.ts: warn email at 14d inactive, auto-pause at 30d or on dead subscription (canceled/unpaid/incomplete_expired, or trialing >24h past trial_end; MISSING subscriptions row = never paused — founder/beta safety). Manual runs never gated. Pause = is_active=false + BullMQ scheduler removed + profile_pause_state row; resume is explicit via banner on /dashboard/profiles, never automatic. New-jobs emails: auto runs only, 15-min sweep (notify-sweep global cron), 5-min settle window, one batched email per user, claim-based idempotency throughout. Unsubscribe = HMAC(JOBTRACKR_HMAC_SECRET)-signed link + notify_new_jobs toggle on My CV page. last_seen_at maintained by touch_user_engagement() SECURITY DEFINER RPC called fire-and-forget from dashboard layout (1h throttle in SQL)."
+    },
+    {
+      "id": "D31",
+      "decision": "Two-door checkout (2026-07-22): \"Choose <plan>\" = direct purchase charged today, period starts today; 3-day trial ONLY via explicit trial CTAs (withTrial flag, once per customer). Post-checkout lands on /instructions?tab=setup. Never-subscribed accounts (none/incomplete/incomplete_expired) are walled at /onboarding/plan by the dashboard layout."
     }
   ],
   "operational_notes": [
