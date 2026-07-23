@@ -12,7 +12,12 @@ import type { StoryNumber, StructuredCv, ToneTarget } from "@/lib/types";
 import type { AiProvider } from "@/lib/ai/models";
 export type { StoryNumber } from "@/lib/types";
 
-const BASE_URL = process.env.CV_BACKEND_URL;
+// Trailing slashes stripped defensively: the URL is joined by raw
+// concatenation with "/internal/..." paths, and a trailing slash in the env
+// value produces "https://host//internal/..." — which FastAPI 404s. That
+// misconfiguration surfaced as "CV text extraction failed (404)" with a
+// perfectly healthy backend.
+const BASE_URL = process.env.CV_BACKEND_URL?.replace(/\/+$/, "");
 const SECRET   = process.env.JOBTRACKR_HMAC_SECRET;
 
 export class CvBackendError extends Error {

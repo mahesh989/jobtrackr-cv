@@ -114,8 +114,15 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   } catch (err) {
     console.error("[/api/cv POST] extract failed:", err);
     await admin.storage.from("cvs").remove([storagePath]);
+    // Surface the backend's detail — "Not Found" (URL/deploy problem) vs
+    // "Could not fetch CV file" (storage problem) are different incidents,
+    // and a bare status code makes them indistinguishable.
+    const backendDetail =
+      err instanceof CvBackendError && err.detail && typeof err.detail === "object"
+        ? String((err.detail as { detail?: unknown }).detail ?? "")
+        : "";
     const message = err instanceof CvBackendError
-      ? `CV text extraction failed (${err.status})`
+      ? `CV text extraction failed (${err.status}${backendDetail ? `: ${backendDetail}` : ""})`
       : "CV text extraction unavailable — try again";
     return jsonError(message, 502);
   }
