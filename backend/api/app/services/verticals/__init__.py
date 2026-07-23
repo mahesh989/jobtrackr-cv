@@ -13,16 +13,34 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 from app.services.verticals.base import RoleFamilyProfile, VerticalPack  # noqa: F401
 
-from app.services.verticals.tech.config    import PROFILE as _TECH_PROFILE
-from app.services.verticals.nursing.config import PROFILE as _NURSING_PROFILE
-from app.services.verticals.manual.config  import PROFILE as _MANUAL_PROFILE
-from app.services.verticals.general.config import PROFILE as _GENERAL_PROFILE
+from app.services.verticals.tech.config    import PROFILE as _TECH_PROFILE, JD_ANALYSIS_HINTS as _TECH_HINTS
+from app.services.verticals.nursing.config import PROFILE as _NURSING_PROFILE, JD_ANALYSIS_HINTS as _NURSING_HINTS
+from app.services.verticals.manual.config  import PROFILE as _MANUAL_PROFILE, JD_ANALYSIS_HINTS as _CLEANING_HINTS
 
-from app.services.verticals.tech.prompts    import JD_ANALYSIS_HINTS as _TECH_HINTS
-from app.services.verticals.nursing.prompts import JD_ANALYSIS_HINTS as _NURSING_HINTS
-from app.services.verticals.manual.prompts  import JD_ANALYSIS_HINTS as _CLEANING_HINTS
+_GENERAL_PROFILE = RoleFamilyProfile(
+    id="master",
+    label="General (fallback)",
+    aliases=[],
+    section_order=[
+        "Career Highlights", "Professional Experience", "Education",
+        "Skills", "Projects", "Certifications",
+    ],
+    skills_categories=["Technical Skills", "Soft Skills", "Other Skills"],
+    cert_policy=CertPolicy.PLUS,
+    injection_policy=InjectionPolicy.DIRECT_ONLY,
+    metric_vocab=[
+        "%", "customers", "clients", "projects", "revenue", "cost", "time",
+        "teams", "stakeholders",
+    ],
+    identity_guidance=(
+        "IDENTITY: Use the candidate's actual role titles. Surface only "
+        "experience the CV truthfully supports. When unsure whether a keyword "
+        "can be added honestly, leave it as a gap rather than stretch."
+    ),
+)
 
 # nursing.hooks is self-contained (imports only verticals.base + stdlib),
 # so importing it here is safe — no circular import.

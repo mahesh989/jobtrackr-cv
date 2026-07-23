@@ -37,44 +37,6 @@ export interface CurlFetchResult {
 }
 
 /**
- * Fetch only the redirect Location header without following it or downloading
- * a body. Very fast — useful for resolving tracking URLs before fetching the
- * real target page separately.
- */
-export async function curlRedirect(
-  url:       string,
-  proxyUrl?: string,
-  timeoutMs: number = 15_000,
-): Promise<{ status: number; location: string }> {
-  return new Promise((resolve, reject) => {
-    const args: string[] = [PY_SCRIPT, url, "--no-redirect"];
-    if (proxyUrl) args.push("--proxy", proxyUrl);
-
-    const child = spawn("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (c: Buffer) => { stdout += c.toString(); });
-    child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
-
-    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("curlRedirect timed out")); }, timeoutMs);
-
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) { reject(new Error(`fetch_jd.py exited ${code}: ${stderr.trim()}`)); return; }
-      try {
-        const parsed = JSON.parse(stdout.trim()) as CurlFetchResult;
-        resolve({ status: parsed.status, location: parsed.location ?? "" });
-      } catch {
-        reject(new Error(`fetch_jd.py output not valid JSON: ${stdout.slice(0, 200)}`));
-      }
-    });
-
-    child.on("error", (err) => { clearTimeout(timer); reject(new Error(`spawn python3 failed: ${err.message}`)); });
-  });
-}
-
-/**
  * POST JSON to a URL using Python curl_cffi (Chrome 124 TLS impersonation).
  *
  * Same Cloudflare/bot-defence bypass as curlFetch, for JSON APIs that reject

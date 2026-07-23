@@ -48,33 +48,3 @@ export function scoreJob(job: NormalisedJob): number {
   return s;
 }
 
-/**
- * Given a group of candidate-duplicate jobs (same bucket key + matching
- * company prefix), pick the winner and label the rest.
- *
- * Returns:
- *   winner   — the job to keep as "original"
- *   strongLosers — drop entirely (same city as winner)
- *   weakLosers   — keep, mark "possible_duplicate" → UI badge (different city)
- */
-export function resolveDuplicates(
-  group: NormalisedJob[],
-  winnerCity: (j: NormalisedJob) => string
-): {
-  winner: NormalisedJob;
-  strongLosers: NormalisedJob[];
-  weakLosers: NormalisedJob[];
-} {
-  const sorted = [...group].sort((a, b) => scoreJob(b) - scoreJob(a));
-  const winner = sorted[0];
-  const winCity = winnerCity(winner);
-
-  const strongLosers: NormalisedJob[] = [];
-  const weakLosers:   NormalisedJob[] = [];
-
-  for (const j of sorted.slice(1)) {
-    if (winnerCity(j) === winCity) strongLosers.push(j);
-    else                            weakLosers.push(j);
-  }
-  return { winner, strongLosers, weakLosers };
-}

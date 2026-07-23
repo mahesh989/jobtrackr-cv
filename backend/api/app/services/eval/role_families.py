@@ -31,7 +31,6 @@ from app.services.verticals import ROLE_FAMILIES as ROLE_FAMILIES  # noqa: F401 
 from app.services.verticals.tech.config    import PROFILE as _TECH
 from app.services.verticals.nursing.config import PROFILE as _NURSING
 from app.services.verticals.manual.config  import PROFILE as _MANUAL
-from app.services.verticals.general.config import PROFILE as _MASTER
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +117,7 @@ def _resolve_base_family(
                 if re.search(r"\b" + re.escape(alias.strip()), haystack):
                     return fam
 
-    return _MASTER
+    return ROLE_FAMILIES["master"]
 
 
 _CATEGORY_KEYS = CATEGORY_KEYS

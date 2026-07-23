@@ -72,30 +72,6 @@ export function titleOnlyFilter(
 
 const TEASER_CHARS = 500;
 
-/**
- * Teaser rescue. For jobs that FAILED title-only, scan the first 500 chars
- * of the description for any of `phrases`. Recovers legit role variants
- * whose title doesn't carry the exact phrase (e.g. "Business Analyst
- * (Data & Reporting)" rescued by "Data Analyst") without opening up the
- * noise of full-description matching.
- *
- * Caller is expected to pass ONLY title-rejected jobs as `jobs`.
- */
-export function teaserRescueFilter(
-  jobs:    NormalisedJob[],
-  phrases: string[],
-): NormalisedJob[] {
-  if (phrases.length === 0) return [];
-  const matchers = buildMatchers(phrases);
-  const out: NormalisedJob[] = [];
-  for (const job of jobs) {
-    const teaser = (job.description ?? "").slice(0, TEASER_CHARS);
-    const matched = matchers.filter(({ match }) => match(teaser)).map((m) => m.kw);
-    if (matched.length > 0) out.push({ ...job, keywords_matched: matched });
-  }
-  return out;
-}
-
 // ── Orchestrator entry point ─────────────────────────────────────────────────
 
 /**
@@ -106,8 +82,7 @@ export function teaserRescueFilter(
  * "teaser rescue" pass also matched the first 500 chars of the description,
  * which silently admitted off-target roles — e.g. a "Disability Support Worker"
  * or "Registered Nurse" whose JD merely mentioned "AIN"/"care worker". That
- * contradicted the field's label and is removed. `teaserRescueFilter` is kept
- * exported for a possible future opt-in "also match description" toggle.)
+ * contradicted the field's label and is removed.)
  *
  * Phrase source priority:
  *   profile.must_include_phrases (if non-empty)  ← user's title filter

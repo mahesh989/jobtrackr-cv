@@ -13,7 +13,7 @@ Import chain (no cycles):
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, replace  # noqa: F401  (replace re-exported for callers)
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 
 from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
