@@ -2,8 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { assertCanCreateProfile } from "@/lib/billing/entitlements";
+import { assertCanCreateProfile, getEntitlement } from "@/lib/billing/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSetupStatus } from "@/lib/setupStatus";
+import { isSetupComplete } from "@/lib/setupSteps";
 import { authedClient, triggerScheduleSync, extractAdzunaFields, extractAutomationFields, extractSourceFields, extractSettingFilter } from "./_helpers";
 
 /**
@@ -101,14 +103,27 @@ export async function createProfile(formData: FormData) {
   revalidatePath("/profiles");
 
   // Guided setup: creating a profile IS the searchProfile step (no run
-  // required) — carry the wizard context forward so the destination still
-  // shows the stepper bar, and mark justCompleted so it can auto-advance to
-  // "Finish setup" without the user needing to click anything. A bare
-  // redirect("/profiles") silently dropped ?setup=1, which both hid the
-  // stepper AND meant the wizard never registered the step as done.
+  // required). If that was the last required step outstanding, jump straight
+  // to the finished checklist — computed HERE, server-side, so the redirect
+  // targets /instructions directly instead of /profiles?justCompleted=1 +a
+  // client-side effect that re-checks and redirects again. That two-hop path
+  // rendered a full /profiles page (list of every other search) for one
+  // visible frame before bouncing away — this skips it entirely.
   const setupActive = formData.get("setup") === "1";
   const step = (formData.get("step") as string | null) ?? "";
-  redirect(setupActive ? `/profiles?setup=1&step=${step}&justCompleted=1` : "/profiles");
+  if (setupActive) {
+    const [ent, { data: profileRows }] = await Promise.all([
+      getEntitlement(user.id),
+      supabase.from("search_profiles").select("id"),
+    ]);
+    const ids = ((profileRows ?? []) as Array<{ id: string }>).map((p) => p.id);
+    const status = await getSetupStatus(user.id, ids, ent.status !== "none");
+    if (isSetupComplete(status)) {
+      redirect("/instructions?tab=setup");
+    }
+    redirect(`/profiles?setup=1&step=${step}&justCompleted=1`);
+  }
+  redirect("/profiles");
 }
 
 export async function updateProfile(profileId: string, formData: FormData) {
