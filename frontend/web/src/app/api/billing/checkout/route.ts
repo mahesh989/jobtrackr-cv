@@ -101,9 +101,11 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     },
     client_reference_id: user.id,
     allow_promotion_codes: true,
-    // Success lands on the setup wizard, not the billing page — a brand-new
-    // subscriber's next job is profile + CV + first search, not invoices.
-    success_url: `${origin}/instructions?tab=setup&checkout=success`,
+    // Success routes through /api/billing/checkout/confirm first — it
+    // syncs the subscription synchronously (closing the webhook-lag race
+    // that could otherwise bounce a paying user back to /onboarding/plan)
+    // before landing on the setup wizard, not the billing page.
+    success_url: `${origin}/api/billing/checkout/confirm?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url:  `${origin}/onboarding/plan?checkout=cancelled`,
   });
 
