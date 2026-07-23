@@ -20,6 +20,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button, Input, Select, Textarea, Form, FormActions } from "@/components/ui";
 import { createProfile, updateProfile } from "@/lib/actions/profiles";
 import { LocationAutocomplete } from "@/features/profiles/components/LocationAutocomplete";
@@ -77,6 +78,7 @@ function SectionHeader({ step, title, subtitle }: { step: number; title: string;
 
 export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false }: Props) {
   const [pending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
 
   const defaultIsActive = defaults?.is_active ?? false;
   const [runMode, setRunMode] = useState<"auto" | "manual">(defaultIsActive ? "auto" : "manual");
@@ -98,6 +100,13 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    // Pass the guided-setup context through so createProfile can redirect
+    // back into the wizard (with a justCompleted marker) instead of a bare
+    // /profiles that silently drops out of setup.
+    if (searchParams.get("setup") === "1") {
+      fd.set("setup", "1");
+      fd.set("step", searchParams.get("step") ?? "");
+    }
     startTransition(async () => {
       if (mode === "create") await createProfile(fd);
       else await updateProfile(profileId!, fd);

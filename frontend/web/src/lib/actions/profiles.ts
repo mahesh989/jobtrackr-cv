@@ -99,7 +99,16 @@ export async function createProfile(formData: FormData) {
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");
   revalidatePath("/profiles");
-  redirect("/profiles");
+
+  // Guided setup: creating a profile IS the searchProfile step (no run
+  // required) — carry the wizard context forward so the destination still
+  // shows the stepper bar, and mark justCompleted so it can auto-advance to
+  // "Finish setup" without the user needing to click anything. A bare
+  // redirect("/profiles") silently dropped ?setup=1, which both hid the
+  // stepper AND meant the wizard never registered the step as done.
+  const setupActive = formData.get("setup") === "1";
+  const step = (formData.get("step") as string | null) ?? "";
+  redirect(setupActive ? `/profiles?setup=1&step=${step}&justCompleted=1` : "/profiles");
 }
 
 export async function updateProfile(profileId: string, formData: FormData) {

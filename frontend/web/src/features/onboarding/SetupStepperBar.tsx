@@ -14,9 +14,18 @@
  * step's button is "Finish setup" — the ONE place setup completion is
  * actually enforced: if a required step is still outstanding it shows an
  * info popup instead of silently redirecting.
+ *
+ * Auto-finish: when a required step's action itself lands here carrying
+ * `justCompleted=1` (currently: creating a search profile — see
+ * actions/profiles.ts createProfile) AND that was the last outstanding
+ * requirement, "Finish setup" fires on its own — the user shouldn't have to
+ * click a button to acknowledge something the app already knows is done.
+ * `justCompleted` deliberately does NOT show for a plain revisit (e.g. the
+ * checklist's "Review / edit" link), so looking at an already-done step
+ * never bounces you away from it.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
@@ -25,6 +34,8 @@ import { Button } from "@/components/ui";
 
 const SETUP_TAB = "/instructions?tab=setup";
 
+type StatusResponse = { complete: boolean; step: number; missingRequired: string[] };
+
 export function SetupStepperBar() {
   const params = useSearchParams();
   const router = useRouter();
@@ -32,14 +43,29 @@ export function SetupStepperBar() {
   const [missing, setMissing]   = useState<string[] | null>(null);
   const [nextStep, setNextStep] = useState(1);
 
-  if (params.get("setup") !== "1") return null;
+  const setupActive = params.get("setup") === "1";
+  const stepNum      = Number(params.get("step"));
+  const validStep    = Number.isFinite(stepNum) && stepNum >= 1 && stepNum <= SETUP_STEP_COUNT;
+  const isLast       = validStep && stepNum === SETUP_STEP_COUNT;
+  const justCompleted = params.get("justCompleted") === "1";
 
-  const stepNum = Number(params.get("step"));
-  if (!Number.isFinite(stepNum) || stepNum < 1 || stepNum > SETUP_STEP_COUNT) return null;
+  // Hooks must run unconditionally — this sits ABOVE the early returns below.
+  useEffect(() => {
+    if (!setupActive || !isLast || !justCompleted) return;
+    let cancelled = false;
+    fetch("/api/user/setup-status")
+      .then((r) => r.json())
+      .then((data: StatusResponse) => {
+        if (!cancelled && data.complete) router.replace(SETUP_TAB);
+      })
+      .catch(() => { /* leave the manual Finish button as fallback */ });
+    return () => { cancelled = true; };
+  }, [setupActive, isLast, justCompleted, router]);
+
+  if (!setupActive || !validStep) return null;
 
   const idx  = stepNum - 1;
   const step = SETUP_STEPS[idx];
-  const isLast = stepNum === SETUP_STEP_COUNT;
 
   // Next → the next step's card. Back → re-show this step's card.
   const nextHref = `${SETUP_TAB}&step=${stepNum + 1}`;
@@ -49,7 +75,7 @@ export function SetupStepperBar() {
     setChecking(true);
     try {
       const res  = await fetch("/api/user/setup-status");
-      const data = await res.json() as { complete: boolean; step: number; missingRequired: string[] };
+      const data = await res.json() as StatusResponse;
       if (data.complete) {
         router.push(SETUP_TAB);
       } else {
