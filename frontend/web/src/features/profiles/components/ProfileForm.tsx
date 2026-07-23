@@ -432,11 +432,13 @@ function FunnelChip({ label, status, detail }: { label: string; status: "always"
   return (
     <div
       className={`flex-1 rounded-md border px-3 py-2 ${
-        isOff ? "border-border text-text-3" : "border-[var(--brand)]/40 text-text"
+        isOff
+          ? "border-border bg-[var(--surface-2)] text-text-3"
+          : "border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-fg)]"
       }`}
     >
       <p className="text-label font-semibold leading-none">{label}</p>
-      <p className="text-micro mt-1 leading-none">{detail}</p>
+      <p className="text-micro mt-1 leading-none opacity-90">{detail}</p>
     </div>
   );
 }
