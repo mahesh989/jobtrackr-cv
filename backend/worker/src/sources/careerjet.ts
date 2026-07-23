@@ -31,7 +31,7 @@
 import { gotScraping } from "got-scraping";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
-import { getApifyProxyUrl, hasApifyProxy } from "../lib/proxy.js";
+import { getApifyProxyUrl } from "../lib/proxy.js";
 import { curlFetch } from "../lib/curlfetch.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────

@@ -1288,7 +1288,7 @@ def _persist_quality_flags(run_id: uuid.UUID, result: "WriterResult") -> None:
     }
     try:
         from app.database import get_supabase
-        from app.db import ANALYSIS_RUNS
+        from app.database import ANALYSIS_RUNS
         sb = get_supabase()
         sb.table(ANALYSIS_RUNS).update({"quality_flags": flags}).eq("id", str(run_id)).execute()
     except Exception as e:

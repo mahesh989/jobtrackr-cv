@@ -113,13 +113,27 @@ _PHONE_RE = re.compile(r"\+?\d[\d\s\-().]{8,}\d")
 _URL_RE = re.compile(r"https?://[^\s)]+")
 _PHONE_DIGITS_RE = re.compile(r"\d")
 
-# Per-component max points (must sum to 50 for Category 1).
-# Single source of truth lives in _scoring_weights.py.
 from app.enums import CATEGORY_KEYS  # noqa: E402
-from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
-    DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
-    resolve_keyword_weights as _resolve_kw_weights_shared,
-)
+
+DEFAULT_KEYWORD_WEIGHTS: dict[str, int] = {
+    "technical_required":        25,
+    "soft_skills_required":      10,
+    "domain_knowledge_required":  5,
+    "preferred_overall":         10,
+}
+
+
+def resolve_keyword_weights(jd_analysis: dict[str, Any] | None) -> dict[str, int]:
+    family_id = (jd_analysis or {}).get("role_family")
+    if family_id:
+        try:
+            from app.services.eval.role_families import resolve_role_family
+            rf = resolve_role_family(family_id, jd_analysis)
+            if rf and rf.keyword_weights:
+                return dict(rf.keyword_weights)
+        except Exception:
+            logger.warning("resolve_keyword_weights: failed for family %s; using defaults", family_id)
+    return dict(DEFAULT_KEYWORD_WEIGHTS)
 # v2: 50 / 40 / 10
 _EXPERIENCE_MAX = 40
 _FORMATTING_MAX = 10
@@ -143,7 +157,7 @@ def run_ats_scoring(
     # the headline competencies (Personal Care, Dementia Care, Forklift
     # Operation) live in domain_knowledge, not technical. Fallback to tech
     # defaults when no family is attached (legacy resumes / unknown vertical).
-    weights = _resolve_keyword_weights(jd_analysis)
+    weights = resolve_keyword_weights(jd_analysis)
 
     keyword_total, keyword_breakdown = _keyword_score(matching, weights)
     experience, experience_components = _experience_score(cv_text, matching, jd_analysis)
@@ -196,11 +210,6 @@ def run_ats_scoring(
 # ---------------------------------------------------------------------------
 # Category 1 — Keyword match (50 pts)
 # ---------------------------------------------------------------------------
-
-
-def _resolve_keyword_weights(jd_analysis: Dict[str, Any]) -> Dict[str, int]:
-    """Pick the per-family keyword weights, falling back to tech defaults."""
-    return _resolve_kw_weights_shared(jd_analysis)
 
 
 def _keyword_score(

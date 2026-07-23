@@ -155,8 +155,8 @@ class MatchStoriesRequest(BaseModel):
 class ScoredStory(BaseModel):
     """A single story's relevance score, keyed by DB UUID."""
 
-    story_id: str = Field(description="DB UUID from the stories table")
-    score: float = Field(ge=0.0, le=1.0, description="Normalised relevance score in [0, 1]")
+    story_id: str
+    score: float = Field(ge=0.0, le=1.0)
 
 
 class MatchStoriesResponse(BaseModel):

@@ -1512,7 +1512,7 @@ def _enforce_structure(
 
 
 def _upload_to_storage(user_id: uuid.UUID, run_id: uuid.UUID, markdown: str) -> str:
-    from app.db import upload_or_update
+    from app.database import upload_or_update
 
     settings = get_settings()
     supabase = get_supabase()

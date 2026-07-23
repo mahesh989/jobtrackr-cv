@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif, Plus_Jakarta_Sans, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // ── "Default" theme fonts (original JobTrackr look) ───────────────────────
@@ -74,7 +73,7 @@ export const metadata: Metadata = {
   // Resolves all relative URL-based metadata fields (openGraph.url, images,
   // canonicals) to absolute URLs. Derived from the shared SITE_URL so it stays
   // in lockstep with the sitemap and robots output.
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobtrackr.app"),
   title: DEFAULT_TITLE,
   description: DEFAULT_DESCRIPTION,
   openGraph: {

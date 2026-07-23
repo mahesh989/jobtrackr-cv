@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter
 
 from app.database import get_supabase
-from app.db import CV_VERSIONS
+from app.database import CV_VERSIONS
 
 router = APIRouter(tags=["health"])
 

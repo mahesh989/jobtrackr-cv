@@ -1,7 +1,8 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { CaptureClient, StoriesClient, type StoredStory } from "@/features/cv";
+import { CaptureClient } from "@/features/cv/voice/CaptureClient";
+import { StoriesClient, type StoredStory } from "@/features/cv/voice/StoriesClient";
 export const metadata = { title: "Writing voice — JobTrackr" };
 
 export default async function VoicePage() {

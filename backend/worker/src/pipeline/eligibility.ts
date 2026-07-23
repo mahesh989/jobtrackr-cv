@@ -73,15 +73,4 @@ export function computeEligibility(
   return "not_eligible";
 }
 
-/**
- * Soft warning: a capped student looking at a job that is exclusively
- * full-time. Not part of eligibility — students do still apply to some.
- */
-export function hoursCapConflict(
-  job: { employment_types?: string[] | null },
-  status: UserVisaStatus
-): boolean {
-  if (status !== "student_capped") return false;
-  const types = job.employment_types ?? [];
-  return types.length > 0 && types.every((t) => t === "full_time");
-}
+

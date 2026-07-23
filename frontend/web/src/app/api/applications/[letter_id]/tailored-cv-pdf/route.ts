@@ -26,7 +26,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { filenameSlug }              from "@/lib/filenameSlug";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
@@ -151,7 +150,7 @@ export const GET = withUser(async (
     .select("company")
     .eq("id", letter.job_id)
     .maybeSingle();
-  const companySlug = filenameSlug(job?.company as string | undefined);
+  const companySlug = (job?.company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
 
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,

@@ -4,8 +4,17 @@
  * Real data: run_logs, jobs table, global_jobs, search_coverage.
  * Source availability badges are placeholder — replace with real max(started_at) query.
  */
-import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { RangeFilter } from "@/features/admin";
+import { requireAdmin, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+
+function timeAgo(iso: string): string {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60)          return "just now";
+  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 

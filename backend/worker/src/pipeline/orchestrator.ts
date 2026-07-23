@@ -33,7 +33,7 @@ import {
   sliceDeltaDays,
   acquireSliceLocks,
   releaseSliceLocks,
-  COVERAGE_SOURCES,
+
   type CoverageSlice,
 } from "./coverage.js";
 import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, evictStaleBucket, BUCKET_RETENTION_DAYS } from "./bucket.js";
@@ -440,7 +440,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const candidateSources =
       profile.enabled_sources && profile.enabled_sources.length > 0
         ? profile.enabled_sources
-        : Array.from(COVERAGE_SOURCES);
+        : ["seek", "adzuna", "careerjet"];
     bucketSlices = resolveSlices(profile.keywords, profile.location, candidateSources);
     if (bucketSlices.length > 0 && !fullRefresh) {
       const coverage = await readCoverage(bucketSlices);

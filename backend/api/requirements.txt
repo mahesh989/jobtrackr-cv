@@ -1,7 +1,7 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pydantic-settings==2.6.1
-pydantic[email]==2.11.7
+pydantic==2.11.7
 supabase==2.29.0
 httpx==0.28.1
 sentry-sdk[fastapi]==2.19.2

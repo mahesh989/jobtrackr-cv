@@ -11,10 +11,29 @@ import { syncSchedules, registerGlobalSchedules } from "./queue/scheduler.js";
 import { runWeeklyDigest } from "./notifications/weeklyDigest.js";
 import { runNotifySweep } from "./notifications/newJobsSweep.js";
 import { sendWorkerRestartAlert } from "./notifications/errorAlert.js";
-import { markExpectedShutdown, wasShutdownExpected } from "./notifications/restartDetection.js";
 import { getLastKnownRun } from "./pipeline/runLog.js";
 import { db } from "./db/client.js";
 import { startHeartbeat } from "./queue/heartbeat.js";
+
+// Expected-shutdown marker — distinguishes a deploy-triggered SIGTERM
+// (expected, don't alert) from anything else the process didn't get a
+// chance to announce (crash, OOM-kill, force-stop — alert on next boot).
+const MARKER_KEY = "jobtrackr:worker:expected_shutdown";
+const MARKER_TTL_SECONDS = 10 * 60;
+
+async function markExpectedShutdown(): Promise<void> {
+  await connection.set(MARKER_KEY, "1", "EX", MARKER_TTL_SECONDS);
+}
+
+/** Call once at startup. Returns true if the previous shutdown was
+ *  expected (marker present — clears it), false if it wasn't (marker
+ *  absent — nothing to clear, caller should alert). */
+async function wasShutdownExpected(): Promise<boolean> {
+  const marker = await connection.get(MARKER_KEY);
+  if (marker === null) return false;
+  await connection.del(MARKER_KEY);
+  return true;
+}
 
 const worker = new Worker<PipelineJobData>(
   QUEUE_NAME,

@@ -11,10 +11,27 @@
  *   4. Recent user events — live activity feed
  *   5. Invite codes — manage (existing)
  */
-import { requireAdmin, formatCost, timeAgo } from "@/lib/admin/guard";
+import { requireAdmin } from "@/lib/admin/guard";
+
+function formatCost(millicents: number): string {
+  const dollars = millicents / 100_000;
+  if (dollars === 0) return "$0";
+  if (dollars < 0.001) return `$${dollars.toFixed(6)}`;
+  if (dollars < 0.10)  return `$${dollars.toFixed(4)}`;
+  if (dollars < 10)    return `$${dollars.toFixed(3)}`;
+  return `$${dollars.toFixed(2)}`;
+}
+function timeAgo(iso: string): string {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60)          return "just now";
+  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
 import { ADMIN_ROLES } from "@/lib/constants";
 import Link from "next/link";
-import { generateInviteCode, revokeInviteCode } from "@/lib/actions";
+import { generateInviteCode, revokeInviteCode } from "@/lib/actions/invites";
 import { Badge, Button } from "@/components/ui";
 
 export const metadata = { title: "Admin — JobTrackr" };

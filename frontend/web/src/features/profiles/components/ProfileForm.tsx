@@ -21,7 +21,7 @@
 import { useTransition, useState } from "react";
 import Link from "next/link";
 import { Button, Input, Select, Textarea, Form, FormActions } from "@/components/ui";
-import { createProfile, updateProfile } from "@/lib/actions";
+import { createProfile, updateProfile } from "@/lib/actions/profiles";
 import { LocationAutocomplete } from "@/features/profiles/components/LocationAutocomplete";
 import { SETTING_CATEGORY_META } from "@/lib/workSetting/categories";
 

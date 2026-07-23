@@ -40,7 +40,7 @@ import re
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
-from app.db import COVER_LETTERS, supabase_update, utcnow_iso
+from app.database import COVER_LETTERS, supabase_update, utcnow_iso
 from app.enums import CoverLetterStatus, Provider
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.company_name import normalise_company_in_body

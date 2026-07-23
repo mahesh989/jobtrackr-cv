@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui";
-import { getSavedJobsForRun } from "@/lib/actions";
+import { getSavedJobsForRun } from "@/lib/actions/runs";
 
 type SavedJob = Awaited<ReturnType<typeof getSavedJobsForRun>>[number];
 

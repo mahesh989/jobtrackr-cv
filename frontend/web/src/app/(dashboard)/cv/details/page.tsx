@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
-import { ProfileDetailsProvider, ContactSection, AvailabilitySection, ProfileSaveBar, VisaStatusSelect } from "@/features/cv";
+import { ProfileDetailsProvider, ContactSection, AvailabilitySection, ProfileSaveBar } from "@/features/cv/profile";
+import { VisaStatusSelect } from "@/features/cv/profile/VisaStatusSelect";
 import { isUserVisaStatus } from "@/lib/eligibility";
 import type { ContactDetails } from "@/lib/types";
 

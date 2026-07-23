@@ -59,7 +59,7 @@ _TOP_LEVEL_KEYS = {
     "experience_alignment",
     "raw_match_score",
 }
-from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
+from app.enums import BUCKET_KEYS as _BUCKETS, CATEGORY_KEYS as _CATEGORIES
 
 
 async def run_cv_jd_matching(

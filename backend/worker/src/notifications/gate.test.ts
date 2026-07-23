@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 // vars, same pattern as errorAlert.test.ts.
 vi.mock("../db/client.js", () => ({ db: {} }));
 vi.mock("../queue/scheduler.js", () => ({ removeProfileSchedule: vi.fn() }));
-vi.mock("./resendClient.js", () => ({ resend: null, fromEmail: "JobTrackr <noreply@jobtrackr.app>" }));
+vi.mock("resend", () => ({ Resend: vi.fn() }));
 vi.mock("./engagementEmails.js", () => ({
   sendInactivityWarningEmail: vi.fn(),
   sendPausedEmail: vi.fn(),

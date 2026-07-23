@@ -5,7 +5,7 @@ import {
   Sparkles, MapPin,
   Clock, AlertTriangle, Inbox } from "lucide-react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { bulkArchiveJobs, bulkStarJobs } from "@/lib/actions";
+import { bulkArchiveJobs, bulkStarJobs } from "@/lib/actions/jobs";
 import { jobNeedsJd, type BoardJob, type AtsBand, type JobGroup } from "../lib/jobFilters";
 import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";

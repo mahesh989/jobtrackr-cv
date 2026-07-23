@@ -4,7 +4,10 @@ import { CheckCircle2, AlertTriangle, CreditCard, Receipt, ExternalLink } from "
 import { getEntitlement, getUsageSummary } from "@/lib/billing/entitlements";
 import { getBillingSnapshot, formatAmount, type InvoiceRow } from "@/lib/billing/details";
 import { DENY_COPY, PUBLIC_PLANS, formatAud, type DenyReason, type PlanId } from "@/lib/billing/plans";
-import { UsageMeter, PlanCards, ManageButton, UpgradeOptions } from "@/features/billing";
+import { UsageMeter } from "@/features/billing/UsageMeter";
+import { PlanCards } from "@/features/billing/PlanCards";
+import { ManageButton } from "@/features/billing/ManageButton";
+import { UpgradeOptions } from "@/features/billing/UpgradeOptions";
 import { formatDate as fmtDate } from "@/lib/dates";
 
 export const metadata = { title: "Billing — JobTrackr" };

@@ -6,7 +6,7 @@ import { DisclosureButton } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
 import type { LetterStatus, RunStatus, StepState } from "@/lib/constants";
-import { cancelAnalysisRun }    from "@/lib/actions";
+import { cancelAnalysisRun }    from "@/lib/actions/runs";
 import { JdAnalysisCard }       from "@/features/cv/analysis/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/features/cv/analysis/CvJdMatchingCard";
 import { AtsScoreCard }         from "@/features/cv/analysis/AtsScoreCard";

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/features/auth/server";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { ThemeProvider, RunNotifier, SetupGateClient } from "@/components/providers";
-import { SetupStepperBar } from "@/features/onboarding";
+import { SetupStepperBar } from "@/features/onboarding/SetupStepperBar";
 import { getEntitlement } from "@/lib/billing/entitlements";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { ResizableSidebar } from "@/components/navigation/ResizableSidebar";

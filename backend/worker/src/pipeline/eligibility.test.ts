@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeEligibility, hoursCapConflict, isUserVisaStatus } from "./eligibility.js";
+import { computeEligibility, isUserVisaStatus } from "./eligibility.js";
 
 describe("computeEligibility", () => {
   it("citizen passes everything, including clearance roles", () => {
@@ -38,15 +38,6 @@ describe("computeEligibility", () => {
   it("unknown/missing requirement values fall back to not_stated", () => {
     expect(computeEligibility({ work_rights_requirement: "bogus" }, "student_capped")).toBe("eligible");
     expect(computeEligibility({}, "pr")).toBe("eligible");
-  });
-});
-
-describe("hoursCapConflict", () => {
-  it("warns a capped student on exclusively full-time jobs only", () => {
-    expect(hoursCapConflict({ employment_types: ["full_time"] }, "student_capped")).toBe(true);
-    expect(hoursCapConflict({ employment_types: ["full_time", "part_time"] }, "student_capped")).toBe(false);
-    expect(hoursCapConflict({ employment_types: [] }, "student_capped")).toBe(false);
-    expect(hoursCapConflict({ employment_types: ["full_time"] }, "pr")).toBe(false);
   });
 });
 

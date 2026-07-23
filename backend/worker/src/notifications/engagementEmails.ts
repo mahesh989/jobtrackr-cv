@@ -8,7 +8,10 @@
 
 import { createHmac } from "crypto";
 import { esc } from "./digestEmail.js";
-import { resend, fromEmail } from "./resendClient.js";
+import { Resend } from "resend";
+const _resendApiKey = process.env.RESEND_API_KEY ?? "";
+const resend = _resendApiKey ? new Resend(_resendApiKey) : null;
+const fromEmail = process.env.RESEND_FROM_EMAIL ?? "JobTrackr <noreply@jobtrackr.app>";
 import { db } from "../db/client.js";
 
 // APP_URL: no dedicated worker env exists for the public app origin today —

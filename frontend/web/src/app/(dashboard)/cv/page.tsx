@@ -1,7 +1,8 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { LibraryClient, ProfileDetailsProvider, VerticalsSection } from "@/features/cv";
+import { LibraryClient } from "@/features/cv/library/LibraryClient";
+import { ProfileDetailsProvider, VerticalsSection } from "@/features/cv/profile";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
 import type { ContactDetails } from "@/lib/types";

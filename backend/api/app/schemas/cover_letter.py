@@ -35,9 +35,9 @@ from app.enums import Provider
 class OpeningVariant(BaseModel):
     """One P1 opener option returned by /internal/generate-opening-variants."""
 
-    id: str = Field(description="Pattern identifier: 'A', 'B', 'C', or 'D'")
-    text: str = Field(min_length=1, description="The opener text (2-4 sentences, 30-60 words)")
-    pattern_label: str = Field(description="Human-readable pattern name shown in the picker UI")
+    id: str = Field()
+    text: str = Field(min_length=1)
+    pattern_label: str = Field()
 
 
 class GenerateCoverLetterRequest(BaseModel):
@@ -54,42 +54,26 @@ class GenerateCoverLetterRequest(BaseModel):
     """
 
     # ── Identity ───────────────────────────────────────────────────────────────
-    letter_id: str = Field(description="UUID of the cover_letters row (pre-created by web route)")
-    user_id:   str = Field(description="User UUID — used for Supabase service-role writes")
-    job_id:    str = Field(description="Job UUID — logged for audit, not used by generator")
+    letter_id: str
+    user_id:   str
+    job_id:    str
 
     # ── JD + CV inputs ─────────────────────────────────────────────────────────
-    jd_text:      str = Field(min_length=1, description="Full job description text")
-    role:         str = Field(min_length=1, description="Job title extracted from JD or job row")
-    company_name: str = Field(min_length=1, description="Company name from the job row")
-    cv_text:      str = Field(min_length=1, description="Candidate's master CV plain text")
+    jd_text:      str = Field(min_length=1)
+    role:         str = Field(min_length=1)
+    company_name: str = Field(min_length=1)
+    cv_text:      str = Field(min_length=1)
 
     # ── Voice profile inputs ───────────────────────────────────────────────────
     # voice_sample_text: DO NOT LOG. See privacy annotation above.
-    voice_sample_text: str = Field(
-        min_length=1,
-        description="Verbatim writing sample (150-200 words). NEVER logged.",
-    )
-    fingerprint: Dict[str, Any] = Field(
-        description="14-key VoiceFingerprint dict from voice_profiles.fingerprint"
-    )
+    voice_sample_text: str = Field(min_length=1)
+    fingerprint: Dict[str, Any] = Field()
 
     # ── Story input ────────────────────────────────────────────────────────────
-    story: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description=(
-            "Serialised Story dict: title, domain, year, one_line, detailed, numbers, tags. "
-            "The web route selects the top-scoring story from the match endpoint. "
-            "None when the CV yielded no stories — the generator falls back to "
-            "CV text as the letter's substance (format_story renders '(none available)')."
-        ),
-    )
+    story: Optional[Dict[str, Any]] = Field(default=None)
 
     # ── Company fact ───────────────────────────────────────────────────────────
-    company_hook_text: str = Field(
-        min_length=1,
-        description="The ONE selected company fact used as the paragraph 1 opener.",
-    )
+    company_hook_text: str = Field(min_length=1)
 
     # ── Generation parameters ──────────────────────────────────────────────────
     tone_target:      Literal["professional", "warm", "direct"] = Field(default="professional")
@@ -98,30 +82,16 @@ class GenerateCoverLetterRequest(BaseModel):
     # ── AI provider ────────────────────────────────────────────────────────────
     ai_provider: Provider
     ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
-    ai_model:    Optional[str] = Field(
-        default=None,
-        description=(
-            "The user's chosen model. Used for both the generation call and "
-            "the honesty gate. Falls back to a provider-specific default if None."
-        ),
-    )
+    ai_model:    Optional[str] = Field(default=None)
 
     # ── Phase 11: chosen opener ────────────────────────────────────────────────
-    chosen_opening: Optional[str] = Field(
-        default=None,
-        description=(
-            "If set, P1 is already chosen by the user. The generator writes "
-            "only P2-4, then prepends chosen_opening as the first paragraph "
-            "of the stored letter. Set by the /pick web route after the user "
-            "selects a variant from the picker UI."
-        ),
-    )
+    chosen_opening: Optional[str] = Field(default=None)
 
 
 class GenerateCoverLetterResponse(BaseModel):
     """Response from POST /internal/generate-cover-letter."""
 
-    letter_id: str = Field(description="UUID of the cover_letters row")
+    letter_id: str
     status:    Literal["accepted"] = "accepted"
 
 
@@ -138,8 +108,8 @@ class GenerateOpeningVariantsRequest(BaseModel):
     """
 
     # ── Identity ───────────────────────────────────────────────────────────────
-    user_id: str = Field(description="User UUID — logged for audit")
-    job_id:  str = Field(description="Job UUID — logged for audit")
+    user_id: str
+    job_id:  str
 
     # ── JD + CV inputs ─────────────────────────────────────────────────────────
     jd_text:      str = Field(min_length=1)
@@ -148,17 +118,14 @@ class GenerateOpeningVariantsRequest(BaseModel):
     cv_text:      str = Field(min_length=1)
 
     # ── Voice profile inputs ───────────────────────────────────────────────────
-    voice_sample_text: str = Field(min_length=1, description="Verbatim writing sample. NEVER logged.")
-    fingerprint:       Dict[str, Any] = Field(description="14-key VoiceFingerprint dict")
+    voice_sample_text: str = Field(min_length=1)
+    fingerprint:       Dict[str, Any] = Field()
 
     # ── Story input ────────────────────────────────────────────────────────────
-    story: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Top-scored story dict (title, one_line, detailed, numbers); None when the CV has no stories",
-    )
+    story: Optional[Dict[str, Any]] = Field(default=None)
 
     # ── Company fact ───────────────────────────────────────────────────────────
-    company_hook_text: str = Field(min_length=1, description="The selected company fact for paragraph 2")
+    company_hook_text: str = Field(min_length=1)
 
     # ── AI provider ────────────────────────────────────────────────────────────
     ai_provider: Provider
@@ -169,9 +136,7 @@ class GenerateOpeningVariantsRequest(BaseModel):
 class GenerateOpeningVariantsResponse(BaseModel):
     """Response from POST /internal/generate-opening-variants."""
 
-    variants: List[OpeningVariant] = Field(
-        description="3-4 structurally distinct P1 openers, one per named pattern"
-    )
+    variants: List[OpeningVariant]
 
 
 # ── /internal/voice-rewrite-email ─────────────────────────────────────────────
@@ -191,8 +156,8 @@ class VoiceRewriteEmailRequest(BaseModel):
     PRIVACY: voice_sample_text and boilerplate_body must not appear in logs.
     """
 
-    user_id:           str = Field(description="User UUID — logged for audit")
-    letter_id:         str = Field(description="Cover letter UUID — logged for audit")
+    user_id:           str
+    letter_id:         str
 
     # Kept for prompt context + logging only; the AI does not invent against
     # these — meaning lives in boilerplate_body.
@@ -201,11 +166,11 @@ class VoiceRewriteEmailRequest(BaseModel):
     hiring_manager:    Optional[str] = Field(default=None)
     user_name:         Optional[str] = Field(default=None)
 
-    voice_sample_text: str = Field(min_length=1, description="Verbatim writing sample. NEVER logged.")
+    voice_sample_text: str = Field(min_length=1)
 
     # The boilerplate body to rewrite. The AI preserves its meaning, paragraph
     # count, and order — only the rhythm/phrasing/formality changes.
-    boilerplate_body:  str = Field(min_length=1, description="Boilerplate email body. NEVER logged.")
+    boilerplate_body:  str = Field(min_length=1)
 
     ai_provider: Provider
     ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
@@ -215,4 +180,4 @@ class VoiceRewriteEmailRequest(BaseModel):
 class VoiceRewriteEmailResponse(BaseModel):
     """Response from POST /internal/voice-rewrite-email."""
 
-    body: str = Field(min_length=1, description="The rewritten email body text. No subject line, no markdown.")
+    body: str = Field(min_length=1)

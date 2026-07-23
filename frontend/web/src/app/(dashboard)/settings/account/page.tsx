@@ -1,8 +1,8 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect }          from "next/navigation";
-import { EmailIntegrationCard } from "@/features/integrations";
-import { NotificationsToggle } from "@/features/jobs";
+import { EmailIntegrationCard } from "@/features/integrations/EmailIntegrationCard";
+import { NotificationsToggle } from "@/features/jobs/components/NotificationsToggle";
 export const metadata = { title: "Account — JobTrackr" };
 
 interface PageProps {

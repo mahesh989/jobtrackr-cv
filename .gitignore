@@ -86,3 +86,7 @@ backend/worker/apify-actors/*/storage/
 .postman/resources.yaml
 postman/
 references/*
+
+# Design mockups / HTML prototypes — contain secrets, never committed
+form-patterns.html
+nav-mockup.html

@@ -21,7 +21,7 @@
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
-import { getApifyProxyUrl, hasApifyProxy } from "../lib/proxy.js";
+import { getApifyProxyUrl } from "../lib/proxy.js";
 import { curlFetch } from "../lib/curlfetch.js";
 
 // Match seek.ts cap so behaviour is interchangeable.
@@ -216,7 +216,7 @@ export const seekDirectAdapter: SourceAdapter = {
     console.log(
       `[seek-direct] keywords: ${profile.keywords.join(", ")} · location: "${profile.location}"` +
       ` · curl_cffi` +
-      (hasApifyProxy() ? " + Apify residential proxy" : " direct (no proxy)"),
+      (Boolean(process.env.APIFY_PROXY_PASSWORD) ? " + Apify residential proxy" : " direct (no proxy)"),
     );
 
     // Window the search to the orchestrator's lookback (28 on first run → 31;

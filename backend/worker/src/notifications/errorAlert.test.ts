@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const sendMock = vi.fn(async (_arg: unknown) => ({ data: { id: "test" }, error: null }));
 
-vi.mock("./resendClient.js", () => ({
-  resend: { emails: { send: (arg: unknown) => sendMock(arg) } },
-  fromEmail: "JobTrackr <noreply@jobtrackr.app>",
-}));
+vi.mock("resend", () => ({ Resend: vi.fn(() => ({ emails: { send: (arg: unknown) => sendMock(arg) } })) }));
 
 // Minimal Redis SET ... NX EX stand-in: first caller for a key gets "OK"
 // (permission to send), later callers for the same key get null (suppressed)
@@ -27,6 +24,7 @@ beforeEach(() => {
   store.clear();
   sendMock.mockClear();
   process.env.FOUNDER_ALERT_EMAIL = "founder@example.com";
+  process.env.RESEND_API_KEY = "test-key";
 });
 
 describe("sendPipelineFailureAlert dedup", () => {

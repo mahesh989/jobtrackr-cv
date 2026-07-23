@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Copy, Check, Mail } from "lucide-react";
 import { Modal, Button } from "@/components/ui";
-import { copyToClipboard } from "@/lib/clipboard";
+
 
 interface Props {
   letterId: string;
@@ -61,7 +61,11 @@ export function SentEmailModal({ letterId, jobLabel, onClose }: Props) {
   async function handleCopy() {
     if (!draft) return;
     const payload = `Subject: ${draft.subject}\n\n${draft.body}`;
-    const ok = await copyToClipboard(payload);
+    let ok = false;
+    if (navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(payload); ok = true; }
+      catch { ok = false; }
+    }
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

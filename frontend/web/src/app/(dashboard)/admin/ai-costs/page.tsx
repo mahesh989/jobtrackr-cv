@@ -10,8 +10,22 @@
  * Data source: ai_calls table (populated after migration 055 + TRACK_AI_USAGE=true).
  * Shows a "no data yet" state gracefully if the table is empty.
  */
-import { requireAdmin, formatCost, formatTokens, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { RangeFilter } from "@/features/admin";
+import { requireAdmin, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+
+function formatCost(millicents: number): string {
+  const dollars = millicents / 100_000;
+  if (dollars === 0) return "$0";
+  if (dollars < 0.001) return `$${dollars.toFixed(6)}`;
+  if (dollars < 0.10)  return `$${dollars.toFixed(4)}`;
+  if (dollars < 10)    return `$${dollars.toFixed(3)}`;
+  return `$${dollars.toFixed(2)}`;
+}
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import Link from "next/link";
 
 export const metadata = { title: "AI Costs — Admin — JobTrackr" };

@@ -20,7 +20,7 @@ import { NextRequest, NextResponse }                          from "next/server"
 import { createAdminClient }                                   from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cv/backend";
-import { type SourceTag } from "@/features/cv";
+import { type SourceTag } from "@/features/cv/voice/types";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";

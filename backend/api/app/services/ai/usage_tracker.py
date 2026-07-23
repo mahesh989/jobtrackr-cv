@@ -136,7 +136,7 @@ async def _emit(row: dict) -> None:
     """Insert one ai_calls row. Runs as a background task — never raises."""
     try:
         from app.database import get_supabase
-        from app.db import AI_CALLS
+        from app.database import AI_CALLS
         await asyncio.to_thread(
             lambda: get_supabase().table(AI_CALLS).insert(row).execute()
         )

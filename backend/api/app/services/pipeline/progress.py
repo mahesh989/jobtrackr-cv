@@ -15,7 +15,7 @@ import logging
 import uuid
 from typing import Any, Dict, Optional
 
-from app.db import ANALYSIS_RUNS, supabase_update, utcnow_iso
+from app.database import ANALYSIS_RUNS, supabase_update, utcnow_iso
 from app.enums import RunStatus, StepName, StepState
 
 logger = logging.getLogger(__name__)

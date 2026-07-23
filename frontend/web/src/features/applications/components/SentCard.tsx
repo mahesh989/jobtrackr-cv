@@ -10,7 +10,7 @@ import {
   ChevronRight, Mail, FileText, FileType,
   CheckCircle2, Archive, Loader2, Download } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { markJobDismissed, markJobUnapplied } from "@/lib/actions";
+import { markJobDismissed, markJobUnapplied } from "@/lib/actions/jobs";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import { downloadApplicationBundle } from "@/lib/downloadZip";
 import { SentEmailModal } from "./SentEmailModal";

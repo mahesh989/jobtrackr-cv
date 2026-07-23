@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { cancelRun } from "@/lib/actions";
-import { RunJobsTable, LiveRunStatus, LiveLogConsole } from "@/features/profiles";
+import { cancelRun } from "@/lib/actions/runs";
+import { RunJobsTable } from "@/features/profiles/components/RunJobsTable";
+import { LiveRunStatus } from "@/features/profiles/components/LiveRunStatus";
+import { LiveLogConsole } from "@/features/profiles/components/LiveLogConsole";
 import { Badge, Button } from "@/components/ui";
 import { ADMIN_ROLES } from "@/lib/constants";
 

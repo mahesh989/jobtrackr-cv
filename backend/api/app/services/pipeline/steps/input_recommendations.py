@@ -41,7 +41,7 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
+from app.enums import BUCKET_KEYS as _BUCKETS, CATEGORY_KEYS as _CATEGORIES
 
 # How many candidates to surface per "suggested addition" group.
 _SUGGEST_LIMIT_TECHNICAL = 10

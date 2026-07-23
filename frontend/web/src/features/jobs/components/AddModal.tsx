@@ -15,7 +15,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Link2, FileText, X } from "lucide-react";
 import { Modal, Button, Input, Textarea } from "@/components/ui";
-import { addManualJob } from "@/lib/actions";
+import { addManualJob } from "@/lib/actions/jobs";
 
 type Tab = "url" | "paste";
 

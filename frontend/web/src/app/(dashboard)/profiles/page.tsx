@@ -10,9 +10,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ProfilesTable, type ProfileRow, type ProfileRunRow, ResumePausedBanner } from "@/features/profiles";
-import { BackButton } from "@/features/dashboard";
-import { AddButton } from "@/features/jobs";
+import { ProfilesTable, type ProfileRow, type ProfileRunRow } from "@/features/profiles/components/ProfilesTable";
+import { ResumePausedBanner } from "@/features/profiles/components/ResumePausedBanner";
+import { BackButton } from "@/features/dashboard/BackButton";
+import { AddButton } from "@/features/jobs/components/AddButton";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui";
 

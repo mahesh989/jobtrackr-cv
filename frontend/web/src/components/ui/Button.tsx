@@ -1,7 +1,6 @@
 "use client";
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type ReactElement, type Ref, cloneElement, isValidElement } from "react";
-import { BUTTON_SIZE } from "@/lib/button-sizes";
 
 const variantClass = {
   default: "gh-btn",
@@ -17,7 +16,12 @@ const variantClass = {
   danger: "gh-btn gh-btn-danger",
 } as const;
 
-const sizeClass = BUTTON_SIZE;
+const sizeClass = {
+  xs: "text-caption px-2.5 py-1",
+  sm: "text-label px-3 py-1.5",
+  md: "text-body px-3 py-[5px]",
+  lg: "text-title px-4 py-2",
+} as const;
 
 /** ponytail: minimal Slot — merges props onto a single child element. No dependency needed. */
 function Slot({ children, ...props }: { children: ReactElement; [key: string]: unknown }) {

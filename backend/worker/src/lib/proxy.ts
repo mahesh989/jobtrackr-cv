@@ -58,10 +58,4 @@ export function getApifyProxyUrl(opts: {
   return `http://${username}:${safePass}@${APIFY_PROXY_HOST}:${APIFY_PROXY_PORT}`;
 }
 
-/**
- * True when an Apify proxy password is available — used by adapters that
- * want to log "proxy active" / "proxy missing" once per run for debugging.
- */
-export function hasApifyProxy(): boolean {
-  return Boolean(process.env.APIFY_PROXY_PASSWORD);
-}
+

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { markApplicationsSeen } from "@/lib/actions";
+import { markApplicationsSeen } from "@/lib/actions/applications";
 
 /**
  * Fires once on mount to stamp the user's applications_seen_at, clearing the

@@ -34,46 +34,8 @@ export async function requireAdmin(): Promise<{
   return { userId: user.id, email: user.email!, role: me.role as string, admin };
 }
 
-/** Format millicents (USD cents × 1000) → "$0.0042" */
-export function formatCost(millicents: number): string {
-  const dollars = millicents / 100_000;
-  if (dollars === 0) return "$0";
-  if (dollars < 0.001) return `$${dollars.toFixed(6)}`;
-  if (dollars < 0.10)  return `$${dollars.toFixed(4)}`;
-  if (dollars < 10)    return `$${dollars.toFixed(3)}`;
-  return `$${dollars.toFixed(2)}`;
-}
-
-/** Format token count → "1.2M", "45k", "892" */
-export function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
-/** Format latency ms → "1.2s", "842ms" */
-export function formatLatency(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
-}
-
-/** ISO date → "12 Jun" */
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-}
-
 /** ISO date → "12 Jun 2026, 14:32" */
 export const fmtDateTime = formatDateTime;
-
-/** Relative time → "2 mins ago", "3 days ago" */
-export function timeAgo(iso: string): string {
-  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (secs < 60)          return "just now";
-  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
-  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
-  return fmtDate(iso);
-}
 
 // ── Time-range helpers (used by admin pages with ?range= param) ──────────────
 

@@ -13,7 +13,7 @@ import {
   Copy, Check, Archive, Loader2, Send, Save, Download,
   Sparkles, MoreHorizontal } from "lucide-react";
 import { MenuItem, menuItemClass, SegmentedControl, IconButton } from "@/components/ui";
-import { markJobApplied, markJobDismissed } from "@/lib/actions";
+import { markJobApplied, markJobDismissed } from "@/lib/actions/jobs";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import type { ContactDetails } from "@/lib/types";
@@ -22,7 +22,6 @@ import { CvInlinePreview } from "./CvInlinePreview";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button, Input, Textarea } from "@/components/ui";
 import { relativeDate } from "@/lib/dates";
-import { copyToClipboard } from "@/lib/clipboard";
 import { useCoverLetter } from "../hooks/useCoverLetter";
 import { useEmailDraft } from "../hooks/useEmailDraft";
 import { useContactEmail } from "../hooks/useContactEmail";
@@ -100,7 +99,11 @@ export function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActione
     if (copied) return;
     setActionError(null);
     const payload = `Subject: ${email.subject}\n\n${email.body}`;
-    const ok = await copyToClipboard(payload);
+    let ok = false;
+    if (navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(payload); ok = true; }
+      catch { ok = false; }
+    }
     if (!ok) { setEmailFallback({ subject: email.subject, body: email.body }); return; }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

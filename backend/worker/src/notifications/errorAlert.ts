@@ -1,7 +1,10 @@
 // Pipeline failure alert — emails the founder when a pipeline run fatally fails.
 // No-ops silently when RESEND_API_KEY or FOUNDER_ALERT_EMAIL are not configured.
 
-import { resend, fromEmail } from "./resendClient.js";
+import { Resend } from "resend";
+const _resendApiKey = process.env.RESEND_API_KEY ?? "";
+const resend = _resendApiKey ? new Resend(_resendApiKey) : null;
+const fromEmail = process.env.RESEND_FROM_EMAIL ?? "JobTrackr <noreply@jobtrackr.app>";
 import { connection } from "../queue/connection.js";
 
 // Dedup/rate-limit: suppress repeat alerts for the same key within this

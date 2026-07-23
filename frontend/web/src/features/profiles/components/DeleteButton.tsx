@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, Modal } from "@/components/ui";
-import { deleteProfile } from "@/lib/actions";
+import { deleteProfile } from "@/lib/actions/profiles";
 
 export function DeleteButton({
   profileId,

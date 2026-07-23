@@ -12,7 +12,6 @@
 import { NextRequest, NextResponse }  from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
-import { filenameSlug }               from "@/lib/filenameSlug";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (
@@ -41,7 +40,7 @@ export const GET = withUser(async (
     .select("company")
     .eq("id", letter.job_id)
     .maybeSingle();
-  const companySlug = filenameSlug(job?.company);
+  const companySlug = (job?.company ?? "company").replace(/[^a-zA-Z0-9]/g, "_");
 
   let bytes: Buffer;
   try {

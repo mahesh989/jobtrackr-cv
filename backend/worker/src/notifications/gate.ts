@@ -21,7 +21,9 @@
 
 import { db } from "../db/client.js";
 import { removeProfileSchedule } from "../queue/scheduler.js";
-import { resend } from "./resendClient.js";
+import { Resend } from "resend";
+const _resendApiKey = process.env.RESEND_API_KEY ?? "";
+const resend = _resendApiKey ? new Resend(_resendApiKey) : null;
 import { sendInactivityWarningEmail, sendPausedEmail } from "./engagementEmails.js";
 
 export type GateAction =

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { markPoolDecision } from "@/lib/actions";
+import { markPoolDecision } from "@/lib/actions/jobs";
 
 export function useContactEmail(initial: string | null, jobId: string, profileId: string, onError?: (msg: string) => void) {
   const [email, setEmail] = useState<string | null>(initial);

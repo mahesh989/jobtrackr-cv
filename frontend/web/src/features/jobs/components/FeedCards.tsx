@@ -10,7 +10,7 @@
 import { createContext, useContext, useState } from "react";
 import {
   BarChart3, FileText, Mail, CheckCircle2, Inbox, FileWarning, FileQuestion, Star } from "lucide-react";
-import { markJobDismissed, toggleStarJob } from "@/lib/actions";
+import { markJobDismissed, toggleStarJob } from "@/lib/actions/jobs";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/features/cv/analysis/AnalyzeJobButton";
 import { JobEditModal } from "./JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob } from "../lib/jobFilters";

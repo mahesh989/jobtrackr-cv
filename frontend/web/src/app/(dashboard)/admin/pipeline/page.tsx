@@ -8,8 +8,21 @@
  *   - How often do AI transient errors fire and how effective is the retry?
  *   - What's the ATS uplift distribution across all runs?
  */
-import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { RangeFilter } from "@/features/admin";
+import { requireAdmin, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+
+function timeAgo(iso: string): string {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60)          return "just now";
+  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+function formatLatency(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
+}
+import { RangeFilter } from "@/features/admin/RangeFilter";
 import { adminForceCancelRun } from "@/lib/admin/actions";
 import Link from "next/link";
 

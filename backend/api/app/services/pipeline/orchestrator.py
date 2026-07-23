@@ -21,7 +21,7 @@ import uuid
 from typing import Optional
 
 from app.config import get_settings
-from app.db import ANALYSIS_RUNS
+from app.database import ANALYSIS_RUNS
 from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase

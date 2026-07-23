@@ -5,7 +5,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { SITE_URL } from "@/lib/site";
 import "./landing.css";
 
 const LANDING_TITLE = "JobTrackr — AI job search & CV tailoring for Australia";
@@ -42,6 +41,7 @@ export const metadata: Metadata = {
 // /pricing). Deliberately NO aggregateRating/review: the on-page
 // testimonials are illustrative, not verified, and fabricating rating
 // schema is both dishonest and a Google penalty risk.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobtrackr.app";
 const JSON_LD = {
   "@context": "https://schema.org",
   "@type": "WebApplication",

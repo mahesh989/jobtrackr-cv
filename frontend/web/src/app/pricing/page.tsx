@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlanCards } from "@/features/billing";
+import { PlanCards } from "@/features/billing/PlanCards";
 export const metadata = { title: "Pricing — JobTrackr" };
 
 /**

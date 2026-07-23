@@ -55,7 +55,7 @@ from app.services.pipeline.steps.cv_jd_matching import (
 
 logger = logging.getLogger(__name__)
 
-from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
+from app.enums import BUCKET_KEYS as _BUCKETS, CATEGORY_KEYS as _CATEGORIES
 
 
 # ---------------------------------------------------------------------------

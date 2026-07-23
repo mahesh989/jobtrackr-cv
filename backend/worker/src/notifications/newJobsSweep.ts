@@ -8,7 +8,9 @@
 // profile. Never runs for manual runs — those never write to this table.
 
 import { db } from "../db/client.js";
-import { resend } from "./resendClient.js";
+import { Resend } from "resend";
+const _resendApiKey = process.env.RESEND_API_KEY ?? "";
+const resend = _resendApiKey ? new Resend(_resendApiKey) : null;
 import { sendNewJobsEmail, type NewJobsProfileGroup, type NewJobsFlavorItem } from "./engagementEmails.js";
 
 const SETTLE_WINDOW_MINUTES = 5;

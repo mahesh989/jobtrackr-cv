@@ -21,10 +21,6 @@
 import { db } from "../db/client.js";
 import { normaliseCity } from "./normalise/keys.js";
 
-/** Sources whose coverage we track — the date-aware adapters only. Board-specific
- *  adapters (greenhouse, lever, RSS, gov health) are out of slice scope in v1. */
-export const COVERAGE_SOURCES = new Set(["seek", "adzuna", "careerjet"]);
-
 export interface CoverageSlice {
   keyword_norm: string;
   location_cell: string;
@@ -62,7 +58,7 @@ export function resolveSlices(
   const kws = Array.from(
     new Set(keywords.map(normaliseKeyword).filter((k) => k.length > 0)),
   );
-  const srcs = sourcesRun.filter((s) => COVERAGE_SOURCES.has(s));
+  const srcs = sourcesRun.filter((s) => new Set(["seek", "adzuna", "careerjet"]).has(s));
 
   const out: CoverageSlice[] = [];
   const seen = new Set<string>();

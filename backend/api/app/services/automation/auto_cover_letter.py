@@ -30,7 +30,7 @@ from typing import Any, Dict, Optional
 from postgrest.exceptions import APIError
 
 from app.database import get_supabase
-from app.db import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
+from app.database import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
 from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.generator import run_cover_letter_pipeline

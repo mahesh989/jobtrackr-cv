@@ -4,7 +4,16 @@
  * Real data: users, analysis_runs, cover_letters, user_events.
  * DAU/WAU/MAU and cohort grid are placeholder — not enough time-series data yet.
  */
-import { requireAdmin, timeAgo } from "@/lib/admin/guard";
+import { requireAdmin } from "@/lib/admin/guard";
+
+function timeAgo(iso: string): string {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60)          return "just now";
+  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
 import Link from "next/link";
 
 export const metadata = { title: "Retention — Admin — JobTrackr" };

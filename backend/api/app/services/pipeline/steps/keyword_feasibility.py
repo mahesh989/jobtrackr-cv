@@ -49,7 +49,7 @@ from app.services.skills.classifier import is_noise as _lex_is_noise
 
 logger = logging.getLogger(__name__)
 
-from app.services.pipeline.steps._scoring_weights import BUCKETS as _BUCKETS, CATEGORIES as _CATEGORIES
+from app.enums import BUCKET_KEYS as _BUCKETS, CATEGORY_KEYS as _CATEGORIES
 _FEASIBILITY_BUCKETS = (
     "inject_directly",
     "inject_as_extension",
@@ -104,8 +104,7 @@ def _is_filler_keyword(kw: str) -> bool:
     """True if `kw` is a JD-phrasing requirement fragment, not a real keyword."""
     return bool(_FILLER_KEYWORD_RE.search((kw or "").strip().lower()))
 
-# Single source of truth for ATS keyword weights — imported from _scoring_weights.
-from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
+from app.services.pipeline.steps.ats_scoring import (  # noqa: E402
     DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
     resolve_keyword_weights as _resolve_kw_weights_shared,
 )

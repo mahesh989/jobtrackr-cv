@@ -10,7 +10,7 @@ import asyncio
 
 from app.config import get_settings
 from app.database import get_supabase
-from app.db import upload_or_update
+from app.database import upload_or_update
 from app.services.cv.pdf_generator import generate_pdf_from_markdown
 
 

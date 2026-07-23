@@ -28,7 +28,4 @@ export async function isBlocked(adapterName: string): Promise<boolean> {
   return val !== null && parseInt(val, 10) >= MAX_FAILURES;
 }
 
-export async function getFailureCount(adapterName: string): Promise<number> {
-  const val = await connection.get(key(adapterName));
-  return val ? parseInt(val, 10) : 0;
-}
+
