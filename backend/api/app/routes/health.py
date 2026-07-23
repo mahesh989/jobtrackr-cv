@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter
 
 from app.database import get_supabase
@@ -14,7 +16,9 @@ async def health_check() -> dict:
 @router.get("/health/db")
 async def db_health_check() -> dict:
     """Readiness probe — verifies Supabase connectivity."""
-    client = get_supabase()
     # Lightweight check — confirms service-role key + network path work.
-    client.table("cv_versions").select("id").limit(1).execute()
+    # supabase-py is sync, so run in a worker thread to keep the loop free.
+    await asyncio.to_thread(
+        lambda: get_supabase().table("cv_versions").select("id").limit(1).execute()
+    )
     return {"status": "ok", "db": "connected"}

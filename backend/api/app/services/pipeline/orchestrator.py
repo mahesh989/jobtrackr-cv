@@ -645,9 +645,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 run_id, final_score, payload.min_final_ats,
             )
             try:
-                get_supabase().table(ANALYSIS_RUNS).update(
-                    {"cover_letter_status": "skipped:below_gate"}
-                ).eq("id", run_id).execute()
+                await asyncio.to_thread(
+                    lambda: get_supabase().table(ANALYSIS_RUNS).update(
+                        {"cover_letter_status": "skipped:below_gate"}
+                    ).eq("id", run_id).execute()
+                )
             except Exception as exc:  # noqa: BLE001 — best effort
                 logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
 

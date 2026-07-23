@@ -71,6 +71,11 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     research = CompanyResearch(**result_dict)
     return ResearchCompanyResponse(
