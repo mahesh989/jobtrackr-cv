@@ -3,9 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { suggestCredentialKeys } from "@/lib/cv/certSuggestions";
-import {
-  ProfileDetailsProvider, CredentialsSection, AutoSaveBadge,
-} from "@/features/cv/profile";
+import { ProfileDetailsProvider, CredentialsSection, AutoSaveBadge } from "@/features/cv";
 import type { ContactDetails } from "@/lib/types";
 
 export const metadata = { title: "Credentials — JobTrackr" };

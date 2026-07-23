@@ -26,21 +26,9 @@ import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
-import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
-import { StatCards } from "@/features/dashboard/StatCards";
-import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/PipelineDonut";
-import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
-import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
-import { JobBoard } from "@/features/jobs/components/JobBoard";
-import { atsBandFor, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
-import {
-  deriveProgress,
-  indexLatestByJob,
-  type AnalysisRunRef,
-  type CoverLetterRef,
-} from "@/features/jobs/lib/progressFlags";
-import { derivePipelineState, recomputeGates } from "@/features/jobs/lib/pipelineState";
-
+import { HowItWorksDeck } from "@/features/onboarding";
+import { StatCards, PipelineDonut, type PipelineLensData } from "@/features/dashboard";
+import { type FunnelCounts, ScrollToJobsOnFilter, JobBoard, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob, indexLatestByJob, type AnalysisRunRef, type CoverLetterRef, recomputeGates, deriveBoardJob } from "@/features/jobs";
 interface SearchParams {
   sort?:          string;
   dir?:           string;
@@ -332,49 +320,12 @@ export default async function DashboardPage({
   const letterByJob = indexLatestByJob((recentLetters ?? []) as CoverLetterRef[]);
 
   const typedJobs: BoardJob[] = jobList.map((j) => {
-    const run    = runByJob.get(j.id);
-    const letter = letterByJob.get(j.id);
-    const progress = deriveProgress(
-      { applied_at: j.applied_at },
-      run,
-      letter,
-    );
-    // Recompute gates LIVE from stored scores vs this profile's current
-    // thresholds, so state badges reflect threshold changes without re-analysis.
+    // Per-profile thresholds — gates + band recomputed LIVE inside
+    // deriveBoardJob so badges reflect threshold changes without re-analysis.
     const th = threshByProfile.get(j.profile_id) ?? { initial: DEFAULT_MIN_INITIAL, final: DEFAULT_MIN_FINAL };
-    const g = run ? recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final) : null;
-    const liveRun = run && g
-      ? { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal }
-      : run;
-    const pipelineState = derivePipelineState({
-      job: {
-        applied_at:   j.applied_at,
-        dismissed_at: (j.dismissed_at as string | null) ?? null,
-        has_email:    (j.has_email    as boolean | null) ?? null,
-        jd_quality:   (j.jd_quality   as string  | null) ?? null,
-        role_match:   (j.role_match   as string  | null) ?? null,
-      },
-      latestRun:    liveRun,
-      latestLetter: letter,
-    });
-    // Precompute the ATS band so the client can filter by it without re-deriving
-    // gates (mirrors the donut's ATS lens buckets exactly).
-    const atsBand = atsBandFor(
-      !!run,
-      run?.initial_ats_score ?? null,
-      run?.tailored_match_score ?? null,
-      th.initial,
-      th.final
-    );
     return {
-      ...(j as unknown as BoardJob),
-      profile_name:         profileNameById.get(j.profile_id) ?? null,
-      progress,
-      pipelineState,
-      atsBand,
-      atsThresholds:        th,
-      initial_ats_score:    run?.initial_ats_score    ?? null,
-      tailored_match_score: run?.tailored_match_score ?? null,
+      ...deriveBoardJob(j, runByJob.get(j.id), letterByJob.get(j.id), th),
+      profile_name: profileNameById.get(j.profile_id) ?? null,
     };
   });
 

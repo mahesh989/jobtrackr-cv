@@ -2,8 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { getEntitlement } from "@/lib/billing/entitlements";
-import { TrialHero } from "@/features/billing/TrialHero";
-import { PlanCards } from "@/features/billing/PlanCards";
+import { TrialHero, PlanCards } from "@/features/billing";
 import { Button } from "@/components/ui";
 
 export const metadata = { title: "Start your free trial — JobTrackr" };

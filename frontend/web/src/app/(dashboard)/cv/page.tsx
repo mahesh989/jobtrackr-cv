@@ -1,12 +1,9 @@
 import { createClient }       from "@/lib/supabase/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { redirect }           from "next/navigation";
-import { LibraryClient }    from "@/features/cv/library/LibraryClient";
+import { LibraryClient, ProfileDetailsProvider, VerticalsSection } from "@/features/cv";
 import { ensureSomeoneActive } from "@/lib/cv/ensureActive";
 import { resolveSkillLabels, type RoleFamily } from "@/lib/cv/skillLabels";
-import {
-  ProfileDetailsProvider, VerticalsSection,
-} from "@/features/cv/profile";
 import type { ContactDetails } from "@/lib/types";
 
 export const metadata = { title: "CVs — JobTrackr" };

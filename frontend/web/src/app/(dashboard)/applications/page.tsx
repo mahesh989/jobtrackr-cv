@@ -20,17 +20,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Inbox } from "lucide-react";
-import {
-  StatusTabs,
-  type ApplicationStatusCounts,
-  type ApplicationStatusKey,
-} from "@/features/applications/components/StatusTabs";
-import { type ApplicationRowV2 } from "@/features/applications/components/CardV2";
-import { CardListV2 } from "@/features/applications/components/CardListV2";
-import { PoolHowItWorks } from "@/features/applications/components/PoolHowItWorks";
-import { PoolSort, type PoolSortKey } from "@/features/applications/components/PoolSort";
-import { BackButton } from "@/features/dashboard/BackButton";
-import { MarkSeenOnLoad } from "@/features/applications/components/MarkSeenOnLoad";
+import { StatusTabs, type ApplicationStatusCounts, type ApplicationStatusKey, type ApplicationRowV2, CardListV2, PoolHowItWorks, PoolSort, type PoolSortKey, MarkSeenOnLoad } from "@/features/applications";
+import { BackButton } from "@/features/dashboard";
 import { Button } from "@/components/ui";
 
 type JobRow = {
