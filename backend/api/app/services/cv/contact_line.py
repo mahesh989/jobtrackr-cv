@@ -96,7 +96,12 @@ def _build_contact_parts(
 
     show_dev_links = role_family_id is None or role_family_id in _DEV_LINK_FAMILIES
 
+    # Location = "<suburb> <state>" (e.g. "Hurstville NSW"). The profile form
+    # stores the STATE in `address` (legacy field name) and the city/suburb in
+    # `suburb` — stamping only `address` rendered a bare state on the CV.
+    suburb = _clean(cd.get("suburb"))
     address = _clean(cd.get("address"))
+    address = " ".join(p for p in (suburb, address) if p)
     phone = _clean(cd.get("phone"))
     email = _clean(cd.get("email"))
     linkedin = _normalise_url(cd.get("linkedin"))
