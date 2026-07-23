@@ -70,8 +70,16 @@ export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",
 };
 
-/** Zero-based index of the first step not yet done (0 if all done). */
+/** Zero-based index of the first step not yet done (0 if all done).
+ *
+ * REQUIRED steps win over recommended/optional ones regardless of position:
+ * with voice (recommended) done but email (optional) and searchProfile
+ * (required) both pending, the wizard must target searchProfile — "Finish
+ * setup" landing on an optional card while a required step is still open was
+ * the "finish doesn't finish" bug. */
 export function firstIncompleteStep(status: SetupStatus): number {
+  const req = SETUP_STEPS.findIndex((s) => s.tag === "required" && !status[s.key]);
+  if (req !== -1) return req;
   const idx = SETUP_STEPS.findIndex((s) => !status[s.key]);
   return idx === -1 ? 0 : idx;
 }

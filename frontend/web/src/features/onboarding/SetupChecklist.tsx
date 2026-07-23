@@ -13,6 +13,10 @@ import { SETUP_STEPS, TAG_LABEL } from "@/lib/setupSteps";
 
 export function SetupChecklist({ status }: { status: SetupStatus }) {
   const doneCount = SETUP_STEPS.filter((s) => status[s.key]).length;
+  // Required steps are all done (that's why the checklist is showing) — any
+  // remaining ones are recommended/optional. Name them so "finish" is honest:
+  // setup IS finished, these are nice-to-haves the user can pick up anytime.
+  const skipped = SETUP_STEPS.filter((s) => !status[s.key]);
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -25,6 +29,15 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
           {doneCount} of {SETUP_STEPS.length} steps done — click any step to review or make changes.
         </p>
       </div>
+
+      {skipped.length > 0 && (
+        <div className="mb-4 rounded-lg border border-[var(--amber)]/30 bg-[var(--amber-light)] px-4 py-3 text-label text-text-2 anim-in">
+          <span className="font-medium text-text">Everything required is done.</span>{" "}
+          You skipped {skipped.map((s) => s.title.toLowerCase()).join(" and ")} —{" "}
+          {skipped.length === 1 ? "it's" : "they're"} {skipped.length === 1 && skipped[0].tag === "recommended" ? "recommended" : "optional"} and you can do
+          {skipped.length === 1 ? " it" : " them"} anytime from the list below.
+        </div>
+      )}
 
       <ol className="relative">
         {SETUP_STEPS.map((step, idx) => {
