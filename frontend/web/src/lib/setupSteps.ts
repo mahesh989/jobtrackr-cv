@@ -63,8 +63,12 @@ export const SETUP_STEPS: SetupStep[] = [
 
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
-/** Steps that gate "setup complete" — the recommended/optional ones don't. */
-const SETUP_REQUIRED_KEYS: SetupStepKey[] = ["billing", "details", "cv", "searchProfile"];
+/** Steps that gate "setup complete" — derived from each step's own tag so
+ *  this can never drift out of sync with SETUP_STEPS (recommended/optional
+ *  steps never block completion). */
+const SETUP_REQUIRED_KEYS: SetupStepKey[] = SETUP_STEPS
+  .filter((s) => s.tag === "required")
+  .map((s) => s.key);
 
 export const TAG_LABEL: Record<SetupTag, string> = {
   required: "Required", recommended: "Recommended", optional: "Optional",
@@ -87,6 +91,14 @@ export function firstIncompleteStep(status: SetupStatus): number {
 /** True once every required step is done. Drives the cards → checklist switch. */
 export function isSetupComplete(status: SetupStatus): boolean {
   return SETUP_REQUIRED_KEYS.every((k) => status[k]);
+}
+
+/** Titles of every REQUIRED step not yet done — powers the "Finish setup"
+ *  info popup ("these are still missing") instead of a silent redirect. */
+export function missingRequiredTitles(status: SetupStatus): string[] {
+  return SETUP_STEPS
+    .filter((s) => s.tag === "required" && !status[s.key])
+    .map((s) => s.title);
 }
 
 /** Clamp a 1-based step param into a valid 0-based index. */

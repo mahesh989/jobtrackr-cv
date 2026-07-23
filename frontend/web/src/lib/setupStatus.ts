@@ -26,6 +26,12 @@ export interface SetupStatus {
   apify:         boolean; // Apify token connected
   searchProfile: boolean; // a profile exists and a run was attempted (or jobs already exist)
   hasAnyJob:     boolean; // any job exists across the user's profiles
+  /** A search profile row exists, regardless of whether it's been run yet.
+   *  Lets the wizard distinguish "never created one" from "created it, just
+   *  hasn't run it" — the CTA and copy differ (create vs. go run it), and
+   *  conflating the two sent already-created-a-profile users straight back
+   *  into /profiles/new, reading as "it made me create a profile again". */
+  hasProfile:    boolean;
 }
 
 export async function getSetupStatus(
@@ -78,5 +84,8 @@ export async function getSetupStatus(
   // Step complete = the user created a profile and RAN it (run_logs row) —
   // or jobs already exist (covers pre-run_logs history). "Must find jobs"
   // was the old rule and it made setup impossible to finish on a 0-result run.
-  return { billing: hasBilling, details, cv, voice, aiKey, email, apify, searchProfile: hasAnyRun || hasAnyJob, hasAnyJob };
+  return {
+    billing: hasBilling, details, cv, voice, aiKey, email, apify,
+    searchProfile: hasAnyRun || hasAnyJob, hasAnyJob, hasProfile: hasIds,
+  };
 }

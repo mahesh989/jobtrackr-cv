@@ -3,10 +3,15 @@
 /**
  * SetupCards — the "Get set up" wizard, one explanation card at a time.
  *
- * Flow: read the card → press the dominant "Next" → land on that step's
- * screen (carrying ?setup=1&step=N so SetupStepperBar appears there) → finish
- * the task → the screen's "Next" brings you to the next card. "Back" steps to
- * the previous card (non-destructive). A green check marks steps already done.
+ * Flow: read the card → press the single "Next" / "Review / edit" → land on
+ * that step's screen (carrying ?setup=1&step=N so SetupStepperBar appears
+ * there). Getting back HERE (stepper "Next", "Finish setup") always moves
+ * forward through the cards regardless of whether the step you just visited
+ * is done — an optional/recommended step you deliberately skip must never
+ * trap you bouncing between the card and its screen. A green check + "Done"
+ * pill is the only completion signal on this card; the dot row below also
+ * reflects it. "Finish setup" (on the last card's screen) is the one place
+ * that enforces required steps — see SetupStepperBar.
  */
 
 import { useState } from "react";
@@ -49,8 +54,17 @@ export function SetupCards({
   const done = status[step.key];
   const doneCount = SETUP_STEPS.filter((s) => status[s.key]).length;
 
-  // Dominant CTA → this step's screen, in guided-setup mode.
-  const ctaHref = `${step.href}?setup=1&step=${i + 1}`;
+  // searchProfile is the one step whose task screen differs once the
+  // prerequisite (a profile row) already exists: /profiles/new would create
+  // a SECOND profile instead of letting the user run the one they already
+  // made — which read as "it's making me create a profile again."
+  const alreadyHasProfile = step.key === "searchProfile" && status.hasProfile && !done;
+  const stepHref = alreadyHasProfile ? "/profiles" : step.href;
+  const blurb = alreadyHasProfile
+    ? "You've already created a search profile — head to your profiles page and click Run now to fetch your first matches."
+    : step.blurb;
+
+  const ctaHref = `${stepHref}?setup=1&step=${i + 1}`;
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -86,43 +100,20 @@ export function SetupCards({
           )}
         </div>
 
-        <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{step.blurb}</p>
+        <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{blurb}</p>
 
-        {done ? (
-          // Completed card: the dominant action moves the flow FORWARD; the
-          // step screen stays reachable as a quiet secondary link. (When the
-          // primary went back into the screen, users kept looping into pages
-          // they'd already finished.)
-          <div className="flex flex-col items-center gap-2.5">
-            <Button
-              variant="blue"
-              className="text-title px-5 py-2.5"
-              onClick={() =>
-                i === SETUP_STEP_COUNT - 1
-                  ? router.refresh() // last card done → server re-render swaps cards for the checklist
-                  : setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))
-              }
-              icon={<ChevronRight className="w-4 h-4" />}
-            >
-              {i === SETUP_STEP_COUNT - 1 ? "Finish" : "Continue"}
-            </Button>
-            <button
-              onClick={() => router.push(ctaHref)}
-              className="text-label text-text-2 underline underline-offset-2 hover:text-text transition-colors"
-            >
-              Review / edit
-            </button>
-          </div>
-        ) : (
-          <Button
-            variant="blue"
-            className="text-title px-5 py-2.5"
-            onClick={() => router.push(ctaHref)}
-            icon={<ChevronRight className="w-4 h-4" />}
-          >
-            Next
-          </Button>
-        )}
+        {/* One CTA — no separate "Continue"/"Skip" pair. Forward movement
+            between cards is the stepper bar's job (always advances, done or
+            not) and the footer/dots below; this button's only job is "go do
+            (or revisit) the task". */}
+        <Button
+          variant="blue"
+          className="text-title px-5 py-2.5"
+          onClick={() => router.push(ctaHref)}
+          icon={<ChevronRight className="w-4 h-4" />}
+        >
+          {done ? "Review / edit" : alreadyHasProfile ? "Go run it" : "Next"}
+        </Button>
       </div>
 
       {/* Footer nav — Back to the previous card, dot row to jump */}
