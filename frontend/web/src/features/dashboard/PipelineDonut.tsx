@@ -62,8 +62,8 @@ function resolveLensMeta(lens: LensKey, t: { initial: number; final: number }): 
     ...LENS_META.ats,
     slices: [
       { label: `Above final (≥ ${t.final})`, color: "var(--chart-pos)" },
-      { label: `Below final (${t.initial}–${t.final - 1})`, color: "var(--chart-amber)", href: "/?triage=belowThreshold" },
-      { label: `Below initial (< ${t.initial})`, color: "var(--chart-danger)", href: "/?triage=belowThreshold" },
+      { label: `Below final (${t.initial}–${t.final - 1})`, color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
+      { label: `Below initial (< ${t.initial})`, color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
     ],
   };
 }
@@ -99,8 +99,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "JD readiness",
     centerLabel: "jobs",
     slices: [
-      { label: "Full JD",      color: "var(--chart-pos)", href: "/?triage=richJd" },
-      { label: "Thin JD",      color: "var(--chart-warn)", href: "/?triage=thinJd" },
+      { label: "Full JD",      color: "var(--chart-pos)", href: "/dashboard?triage=richJd" },
+      { label: "Thin JD",      color: "var(--chart-warn)", href: "/dashboard?triage=thinJd" },
       { label: "Unclassified", color: "var(--chart-neutral)" },
     ],
   },
@@ -108,8 +108,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     label: "Analysis",
     centerLabel: "saved",
     slices: [
-      { label: "Complete",     color: "var(--chart-pos)", href: "/?stage=letterReady" },
-      { label: "CV only",      color: "var(--chart-info)", href: "/?stage=cvReady" },
+      { label: "Complete",     color: "var(--chart-pos)", href: "/dashboard?stage=letterReady" },
+      { label: "CV only",      color: "var(--chart-info)", href: "/dashboard?stage=cvReady" },
       { label: "Not tailored", color: "var(--chart-neutral)" },
     ],
   },
@@ -120,8 +120,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     // actual thresholds at render time.
     slices: [
       { label: "Above final",  color: "var(--chart-pos)" },
-      { label: "Below final",  color: "var(--chart-amber)", href: "/?triage=belowThreshold" },
-      { label: "Below initial", color: "var(--chart-danger)", href: "/?triage=belowThreshold" },
+      { label: "Below final",  color: "var(--chart-amber)", href: "/dashboard?triage=belowThreshold" },
+      { label: "Below initial", color: "var(--chart-danger)", href: "/dashboard?triage=belowThreshold" },
     ],
   },
   applied: {
@@ -505,7 +505,7 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           {/* Thin JD nudge — JD lens */}
           {activeLens === "jd" && counts[1] > 0 && (
             <FilterAnchor
-              href="/?triage=thinJd"
+              href="/dashboard?triage=thinJd"
              
               apply={applyFilter}
               className="mt-2 inline-flex items-center gap-1.5 text-caption text-amber-600 hover:text-amber-700 transition-colors"
@@ -606,19 +606,19 @@ function DonutPopup({
           let href = "";
           let label = "";
           if (lens === "jd" && mode === 0 && data.jd.totals[0] > 0)
-            { href = "/?triage=richJd"; label = "View full-JD jobs →"; }
+            { href = "/dashboard?triage=richJd"; label = "View full-JD jobs →"; }
           else if (lens === "jd" && mode === 1 && data.jd.totals[1] > 0)
-            { href = "/?triage=thinJd"; label = `View ${data.jd.totals[1]} thin JD job${data.jd.totals[1] > 1 ? "s" : ""} →`; }
+            { href = "/dashboard?triage=thinJd"; label = `View ${data.jd.totals[1]} thin JD job${data.jd.totals[1] > 1 ? "s" : ""} →`; }
           else if (lens === "analysis" && mode === 0)
-            { href = "/?stage=letterReady"; label = "View letter-ready jobs →"; }
+            { href = "/dashboard?stage=letterReady"; label = "View letter-ready jobs →"; }
           else if (lens === "analysis" && mode === 1)
-            { href = "/?stage=cvReady"; label = "View CV-ready jobs →"; }
+            { href = "/dashboard?stage=cvReady"; label = "View CV-ready jobs →"; }
           else if (lens === "analysis" && mode === 2 && data.analysis.totals[2] > 0)
-            { href = "/?triage=notTailored"; label = "View not-tailored jobs →"; }
+            { href = "/dashboard?triage=notTailored"; label = "View not-tailored jobs →"; }
           else if (lens === "ats" && mode === 0 && data.ats.totals[0] > 0)
-            { href = "/?ats=above_final"; label = "View above-threshold jobs →"; }
+            { href = "/dashboard?ats=above_final"; label = "View above-threshold jobs →"; }
           else if (lens === "ats" && (mode === 1 || mode === 2))
-            { href = "/?triage=belowThreshold"; label = "View below-threshold jobs →"; }
+            { href = "/dashboard?triage=belowThreshold"; label = "View below-threshold jobs →"; }
           else if (lens === "applied" && (mode === 0 || mode === "center"))
             { href = "/applications?status=sent"; label = "View applied jobs →"; }
           else if (lens === "applied" && mode === 1)
