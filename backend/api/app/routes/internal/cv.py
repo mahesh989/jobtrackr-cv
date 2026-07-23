@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -27,39 +26,16 @@ from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.cv.references_extractor import extract_cv_references
 from app.services.cv.cv_structurizer import structurize_cv
 from app.services.cv.cv_renderer import render_canonical_cv
+from app.services.cv.text_extraction import (
+    DOCX_MAGIC,
+    PDF_MAGIC,
+    extract_docx_text_sync as _extract_docx_text_sync,
+    extract_pdf_text_sync as _extract_pdf_text_sync,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-def _extract_pdf_text_sync(pdf_bytes: bytes) -> str:
-    """
-    Sync pypdf extraction — must run in a worker thread so the event loop
-    doesn't block on large PDFs.
-
-    Fixes the original cv-magic bug: synchronous pypdf inside `async def`.
-    """
-    from pypdf import PdfReader
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    pages = []
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        pages.append(text)
-    return "\n\n".join(pages).strip()
-
-
-def _extract_docx_text_sync(docx_bytes: bytes) -> str:
-    """Sync python-docx extraction. Run in a worker thread (see above)."""
-    from docx import Document
-    doc = Document(io.BytesIO(docx_bytes))
-    paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
-    # Tables in CVs often hold contact lines + experience blocks — include them.
-    for tbl in doc.tables:
-        for row in tbl.rows:
-            for cell in row.cells:
-                if cell.text and cell.text.strip():
-                    paragraphs.append(cell.text.strip())
-    return "\n\n".join(paragraphs).strip()
 
 
 @router.post("/extract-cv-text", response_model=ExtractCvTextResponse)
@@ -101,14 +77,14 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     # payload could arrive as .pdf. PDF → "%PDF"; DOCX is a ZIP → "PK\x03\x04".
     lower = storage_key.lower()
     if lower.endswith(".pdf"):
-        if not file_bytes.startswith(b"%PDF"):
+        if not file_bytes.startswith(PDF_MAGIC):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="File is not a valid PDF.",
             )
         cv_text = await asyncio.to_thread(_extract_pdf_text_sync, file_bytes)
     elif lower.endswith(".docx"):
-        if not file_bytes.startswith(b"PK\x03\x04"):
+        if not file_bytes.startswith(DOCX_MAGIC):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="File is not a valid DOCX.",
