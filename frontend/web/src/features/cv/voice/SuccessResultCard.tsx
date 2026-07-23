@@ -19,7 +19,12 @@ export function SuccessResultCard({ result, onReset }: Props) {
         <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
         <p className="text-sm font-semibold text-emerald-800">Writing voice saved</p>
       </div>
-      <TrustBadge score={result.trust_score} />
+      {/* Badge on its own line — TrustBadge renders inline-flex and the reset
+          button below is inline too, so without a block wrapper the two share
+          one line box and visually collide. */}
+      <div>
+        <TrustBadge score={result.trust_score} />
+      </div>
 
       {result.matched_ai_phrases.length > 0 && (
         <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -37,9 +42,11 @@ export function SuccessResultCard({ result, onReset }: Props) {
           Sample is short ({result.word_count} words). Add more detail for a richer fingerprint.
         </p>
       )}
-      <button onClick={onReset} className="text-xs text-emerald-700 underline hover:no-underline">
-        Submit another sample
-      </button>
+      <div>
+        <button onClick={onReset} className="text-xs text-emerald-700 underline hover:no-underline">
+          Submit another sample
+        </button>
+      </div>
 
       <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
         <button onClick={() => setShowDetails((v) => !v)} className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors">
