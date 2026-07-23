@@ -13,7 +13,7 @@
  * Vercel's serverless function body limit entirely.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { extractCvText, extractStories, CvBackendError, type StructuredCv, type CategoriseCvResponse, type Story } from "@/lib/cv/backend";
@@ -210,11 +210,15 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     );
   }
 
-  // ── 6. Fire-and-forget story extraction — populates the stories tab automatically.
-  //      Non-fatal: if it fails the user can click "Re-extract from CV" on the
-  //      stories page.
+  // ── 6. Post-response story extraction — populates the stories tab
+  //      automatically. Runs via next/server after() so Vercel keeps the
+  //      function alive until it finishes — a bare fire-and-forget promise is
+  //      frozen with the lambda once the response is sent, which is why
+  //      stories silently never appeared in production (worked in local dev,
+  //      where the process stays alive). Non-fatal: if it fails the stories
+  //      page self-heals on next visit (and "Re-extract from CV" remains).
   if (creds && cvText.trim()) {
-    void (async () => {
+    after(async () => {
       try {
         const result = await extractStories({
           user_id:     user.id,
@@ -234,7 +238,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
       } catch (err) {
         console.warn("[/api/cv POST] auto story extraction failed (non-fatal):", (err as Error).message);
       }
-    })();
+    });
   }
 
   // Forced redirect: a freshly-parsed CV must be reviewed before it's used.

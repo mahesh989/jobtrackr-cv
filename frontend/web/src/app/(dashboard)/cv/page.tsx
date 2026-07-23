@@ -54,7 +54,7 @@ export default async function CvsPage() {
           </p>
         </div>
 
-        <ProfileDetailsProvider initial={contactDetails} activeCvId={activeCv?.id ?? null}>
+        <ProfileDetailsProvider initial={contactDetails} activeCvId={activeCv?.id ?? null} requireVertical>
           <VerticalsSection />
 
           <div className="pt-2">

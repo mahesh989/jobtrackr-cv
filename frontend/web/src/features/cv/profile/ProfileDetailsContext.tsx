@@ -138,11 +138,16 @@ export function useProfile(): Ctx {
 }
 
 export function ProfileDetailsProvider({
-  initial, activeCvId, children,
+  initial, activeCvId, children, requireVertical = false,
 }: {
   initial:    ContactDetails | null;
   activeCvId: string | null;
   children:   ReactNode;
+  /** Explicit Save validates role-type selection ONLY where the selector is
+   *  actually rendered (VerticalsSection on /cv). The details page has no
+   *  selector — blocking its Save on a field the user cannot see was the
+   *  "select a role type before saving" dead-end. */
+  requireVertical?: boolean;
 }) {
   const router = useRouter();
   const init = initial ?? {};
@@ -238,7 +243,7 @@ export function ProfileDetailsProvider({
       const missingContact = REQUIRED_CONTACT_KEYS.filter(
         (k) => !((cd as Record<string, string>)[k] ?? "").trim()
       );
-      const noVertical = family === null;
+      const noVertical = requireVertical && family === null;
       if (missingContact.length > 0 || noVertical) {
         dispatch({
           type: "saveValidationFailed",

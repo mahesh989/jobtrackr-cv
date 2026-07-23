@@ -88,14 +88,41 @@ export function SetupCards({
 
         <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{step.blurb}</p>
 
-        <Button
-          variant="blue"
-          className="text-title px-5 py-2.5"
-          onClick={() => router.push(ctaHref)}
-          icon={<ChevronRight className="w-4 h-4" />}
-        >
-          {done ? "Review / edit" : "Next"}
-        </Button>
+        {done ? (
+          // Completed card: the dominant action moves the flow FORWARD; the
+          // step screen stays reachable as a quiet secondary link. (When the
+          // primary went back into the screen, users kept looping into pages
+          // they'd already finished.)
+          <div className="flex flex-col items-center gap-2.5">
+            <Button
+              variant="blue"
+              className="text-title px-5 py-2.5"
+              onClick={() =>
+                i === SETUP_STEP_COUNT - 1
+                  ? router.refresh() // last card done → server re-render swaps cards for the checklist
+                  : setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))
+              }
+              icon={<ChevronRight className="w-4 h-4" />}
+            >
+              {i === SETUP_STEP_COUNT - 1 ? "Finish" : "Continue"}
+            </Button>
+            <button
+              onClick={() => router.push(ctaHref)}
+              className="text-label text-text-2 underline underline-offset-2 hover:text-text transition-colors"
+            >
+              Review / edit
+            </button>
+          </div>
+        ) : (
+          <Button
+            variant="blue"
+            className="text-title px-5 py-2.5"
+            onClick={() => router.push(ctaHref)}
+            icon={<ChevronRight className="w-4 h-4" />}
+          >
+            Next
+          </Button>
+        )}
       </div>
 
       {/* Footer nav — Back to the previous card, dot row to jump */}
@@ -111,7 +138,7 @@ export function SetupCards({
         </div>
 
         <button onClick={() => setI((n) => Math.min(SETUP_STEP_COUNT - 1, n + 1))} disabled={i === SETUP_STEP_COUNT - 1} className="inline-flex items-center gap-1 text-body text-text-2 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-          Skip <ChevronRight className="w-4 h-4" />
+          Next card <ChevronRight className="w-4 h-4" />
         </button>
       </div>
     </div>

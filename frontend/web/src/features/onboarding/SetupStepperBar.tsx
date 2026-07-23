@@ -32,8 +32,12 @@ export function SetupStepperBar() {
   const step = SETUP_STEPS[idx];
   const isLast = stepNum === SETUP_STEP_COUNT;
 
-  // Next → the next step's card (or finish → the completed checklist).
-  const nextHref = isLast ? SETUP_TAB : `${SETUP_TAB}&step=${stepNum + 1}`;
+  // Next → back to THIS step's card so the user sees it acknowledged (green
+  // Done badge + a "Continue" button) before advancing. Jumping straight to
+  // step N+1 was the "my finished step vanished" bug. Finish → the setup tab,
+  // which shows the completed checklist (or the first incomplete REQUIRED
+  // card if something still blocks completion).
+  const nextHref = isLast ? SETUP_TAB : `${SETUP_TAB}&step=${stepNum}`;
   // Back → re-show this step's card on the instructions tab.
   const backHref = `${SETUP_TAB}&step=${stepNum}`;
 

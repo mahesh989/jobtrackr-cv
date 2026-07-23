@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ChevronDown,
@@ -226,7 +226,22 @@ export function StoriesClient({ initialStories }: Props) {
     }
   }
 
-  async function handleReExtract() {
+  // Self-heal: upload-time extraction is best-effort (it can die on a
+  // serverless freeze or transient AI error) — when the page opens with zero
+  // stories, run extraction once per session automatically instead of making
+  // the user discover the Re-extract button. Silent on failure (e.g. no CV
+  // uploaded yet): the user didn't ask, so no scary error banner.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || stories.length > 0 || extracting) return;
+    if (sessionStorage.getItem("jt_stories_autoextract") === "1") return;
+    sessionStorage.setItem("jt_stories_autoextract", "1");
+    autoTried.current = true;
+    void handleReExtract({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
+  }, []);
+
+  async function handleReExtract(opts?: { silent?: boolean }) {
     setExtracting(true);
     setExtractErr(null);
     setDiagnostic(null);
@@ -239,7 +254,9 @@ export function StoriesClient({ initialStories }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setExtractErr((data as { error?: string }).error ?? "Extraction failed. Please try again.");
+        if (!opts?.silent) {
+          setExtractErr((data as { error?: string }).error ?? "Extraction failed. Please try again.");
+        }
         return;
       }
       const payload = data as { stories: StoredStory[]; diagnostic?: string | null };
@@ -253,7 +270,7 @@ export function StoriesClient({ initialStories }: Props) {
       setExpandedIds(new Set());
       setEditingId(null);
     } catch {
-      setExtractErr("Network error. Please try again.");
+      if (!opts?.silent) setExtractErr("Network error. Please try again.");
     } finally {
       setExtracting(false);
     }
@@ -272,7 +289,7 @@ export function StoriesClient({ initialStories }: Props) {
               : "No stories yet"}
           </span>
         </div>
-        <button onClick={handleReExtract} disabled={extracting} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-xs font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+        <button onClick={() => handleReExtract()} disabled={extracting} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--card-border)] text-xs font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
           {extracting
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <RefreshCw className="w-3.5 h-3.5" />}
