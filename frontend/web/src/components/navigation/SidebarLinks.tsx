@@ -33,6 +33,7 @@ import {
   ScrollText,
   Eye,
   ArrowLeft,
+  ArrowRight,
   Mail,
   Bookmark,
   ChevronRight,
@@ -325,6 +326,17 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userVi
                   ? "Show fewer"
                   : `+ ${profiles.length - MAX_VISIBLE} more`}
               </button>
+            )}
+            {/* Always available, even with ≤ MAX_VISIBLE profiles — the sidebar
+                only ever shows names; the full /profiles page is the one place
+                with keywords, schedule, run status, etc. per profile. */}
+            {profiles.length > 0 && (
+              <Link
+                href="/profiles"
+                className="flex items-center gap-1 text-left text-[11px] font-semibold px-3 py-1 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--brand)] hover:bg-[var(--sidebar-active-bg)] transition-colors"
+              >
+                View all as list <ArrowRight className="h-3 w-3" />
+              </Link>
             )}
           </div>
         )}
