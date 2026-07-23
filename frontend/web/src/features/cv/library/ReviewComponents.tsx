@@ -78,9 +78,12 @@ interface SaveToastProps {
   cancelCreate: () => void;
   saveDraft: () => void;
   saveFinish: () => void;
+  /** Review mode only — navigate back to /cv. The unmount flush in
+   *  ReviewClient saves any pending edits on the way out. */
+  backToProfile?: () => void;
 }
 
-export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreate, saveDraft, saveFinish }: SaveToastProps) {
+export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreate, saveDraft, saveFinish, backToProfile }: SaveToastProps) {
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md shadow-lg pl-4 pr-1 py-1">
@@ -119,6 +122,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
             </Button>
           </>
         ) : (
+          <>
             <Button
               variant="blue"
               size="sm"
@@ -129,6 +133,19 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
             >
               Save as draft
             </Button>
+            {backToProfile && (
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                onClick={backToProfile}
+                disabled={save === "saving"}
+                className="rounded-full px-4 py-1.5 text-body font-medium shrink-0"
+              >
+                Back to Profile
+              </Button>
+            )}
+          </>
         )}
       </div>
     </div>
