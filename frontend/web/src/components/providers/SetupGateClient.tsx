@@ -49,16 +49,28 @@ export function SetupGateClient() {
   const [covering, setCovering] = useState(false);
 
   useEffect(() => {
-    if (exempt) return; // banner render is also guarded on `exempt`
-    if (localStorage.getItem(COMPLETE_KEY) === "1") return;
+    // This component lives in the persistent dashboard layout — it does NOT
+    // unmount on navigation. The cover must therefore be cleared explicitly
+    // on every route change that doesn't need it; relying on unmount left the
+    // overlay up forever after the entry redirect (full white screen).
+    if (exempt) {
+      setCovering(false); // clear stale cover from the pre-redirect page
+      return; // banner render is also guarded on `exempt`
+    }
+    if (localStorage.getItem(COMPLETE_KEY) === "1") {
+      setCovering(false); // known complete: never cover
+      return;
+    }
 
     const firstEntry = sessionStorage.getItem(REDIRECTED_KEY) !== "1";
     // Cover the page while the entry check resolves — prevents the flash of
     // the wrong page a new user used to see before the redirect fired.
     // Intentional sync setState: the cover must go up on THIS commit, before
-    // the user perceives the page behind it.
+    // the user perceives the page behind it. Cleared on every outcome below,
+    // plus a failsafe timeout so a hung request can never brick the app.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (firstEntry) setCovering(true);
+    setCovering(firstEntry);
+    const failsafe = window.setTimeout(() => setCovering(false), 5000);
 
     let cancelled = false;
     fetch("/api/user/setup-status")
@@ -74,7 +86,8 @@ export function SetupGateClient() {
           // One guided redirect per session, then the user browses freely.
           sessionStorage.setItem(REDIRECTED_KEY, "1");
           router.replace(`/instructions?tab=setup&setup=1&step=${data.step}`);
-          // keep the cover up through the navigation — instructions unmounts us
+          // Cover stays up during the transition; the effect re-runs on the
+          // exempt /instructions pathname and clears it there.
           return;
         }
         setCovering(false);
@@ -83,10 +96,10 @@ export function SetupGateClient() {
         }
       })
       .catch(() => { if (!cancelled) setCovering(false); }); // fail open
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearTimeout(failsafe); };
   }, [router, exempt, pathname]);
 
-  if (covering) {
+  if (covering && !exempt) {
     return (
       <div
         className="fixed inset-0 z-50 bg-[var(--bg)]"
