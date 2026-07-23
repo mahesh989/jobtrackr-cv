@@ -33,6 +33,7 @@ import {
   type SaveStatus, type OptionalKey } from "./ReviewComponents";
 import { Section, Grid, GhostField, GhostTextarea, DatesField, BulletRow, SkillsBucket, TimelineEntry, EmptyState, AddBtn, RemoveBtn } from "./ReviewFields";
 import { joinDatesLabel, clientGaps, createGaps, expHasContent, expComplete, eduHasContent, eduComplete, validateCreate, emptyExperience, emptyEducation } from "./reviewValidation";
+import { withSetupParams } from "@/lib/setupParams";
 
 const AUTOSAVE_MS = 10_000;
 
@@ -211,8 +212,10 @@ export function ReviewClient({
     !(initialStructuredCv.summary ?? "").trim(),
   );
 
-  // Return to My CV scrolled to this CV's card (both flows land here on save).
-  const returnToCard = () => router.push(`/cv#cv-${cvId}`);
+  // Return to My CV scrolled to this CV's card (both flows land here on
+  // save). Preserves ?setup=1&step=N — dropping it here was the "upload
+  // succeeded, clicked Back to Profile, and setup context vanished" bug.
+  const returnToCard = () => router.push(withSetupParams(`/cv#cv-${cvId}`, searchParams));
 
   // Create mode: save as draft — no validation, stays unverified. User can
   // come back and finish later.
@@ -248,7 +251,7 @@ export function ReviewClient({
         /* best-effort — even if the delete fails, don't trap the user here */
       }
     }
-    router.push("/cv");
+    router.push(withSetupParams("/cv", searchParams));
   }
 
   const liveGaps = useMemo(() => isCreate ? createGaps(doc) : clientGaps(doc), [doc, isCreate]);
@@ -838,7 +841,7 @@ export function ReviewClient({
         cancelCreate={cancelCreate}
         saveDraft={saveDraft}
         saveFinish={saveFinish}
-        backToProfile={() => router.push("/cv")}
+        backToProfile={() => router.push(withSetupParams("/cv", searchParams))}
       />
     </div>
   );

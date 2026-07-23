@@ -10,6 +10,7 @@ import { UploadProgressModal, DeleteConfirmModal } from "@/features/cv/library/L
 import type { StructuredCv } from "@/lib/cv/backend";
 import type { CategorisedSkills } from "@/lib/types";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
+import { withSetupParams } from "@/lib/setupParams";
 import { CvRowCard } from "./LibraryCards";
 
 export interface CvRow {
@@ -99,15 +100,6 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
   const redirectRef  = useRef<string | null>(null); // where "OK" / auto-proceed goes
   const searchParams = useSearchParams();
 
-  // Guided setup: keep the wizard context (?setup=1&step=N) on any redirect
-  // into the review form, so the stepper bar stays visible there instead of
-  // the review page counting as "outside the wizard".
-  function withSetupParams(to: string): string {
-    if (searchParams.get("setup") !== "1") return to;
-    const step = searchParams.get("step");
-    return `${to}${to.includes("?") ? "&" : "?"}setup=1${step ? `&step=${step}` : ""}`;
-  }
-
   // Advance the status message on a timer while uploading (stops at the last).
   useEffect(() => {
     if (uploadPhase !== "uploading") return;
@@ -123,7 +115,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
     const id = window.setTimeout(() => {
       const to = redirectRef.current;
       setUploadPhase(null);
-      if (to) router.push(withSetupParams(to));
+      if (to) router.push(withSetupParams(to, searchParams));
     }, 3800);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- withSetupParams reads stable params
@@ -144,7 +136,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
   function proceedAfterUpload() {
     const to = redirectRef.current;
     setUploadPhase(null);
-    if (to) router.push(withSetupParams(to));
+    if (to) router.push(withSetupParams(to, searchParams));
   }
 
   // Inline review-expand state — only one CV expanded at a time so the
@@ -182,7 +174,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
       const res = await fetch("/api/cv/create", { method: "POST" });
       if (!res.ok) { setError(await readError(res)); return; }
       const json = await res.json() as { id: string; redirect_to: string };
-      router.push(withSetupParams(json.redirect_to));
+      router.push(withSetupParams(json.redirect_to, searchParams));
     } catch (err) {
       setError(err instanceof Error ? `Network error: ${err.message}` : "Could not create CV.");
     } finally {
@@ -437,32 +429,16 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
 
       {/* CV list — rounded-lg cards */}
       {cvs.length === 0 ? (
+        // Actions live in the header above (single source of truth) — this
+        // panel used to repeat "Build from scratch" / "Upload CV" a second
+        // time, which read as a redundant, disconnected duplicate of the
+        // header row directly above it.
         <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
           <FileText className="mx-auto mb-3 h-8 w-8 text-text-3" />
           <p className="text-text-3">No CV yet.</p>
           <p className="mt-1 text-sm text-text-3">
-            Upload a PDF or DOCX, or build one from scratch to get started.
+            Upload a PDF or DOCX, or build one from scratch to get started — use the buttons above.
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <Button
-              variant="default"
-              size="md"
-              onClick={handleCreate}
-              disabled={creating || uploading}
-            >
-              <FilePlus className="h-4 w-4" />
-              {creating ? "Creating…" : "Build from scratch"}
-            </Button>
-            <Button
-              variant="brand"
-              size="md"
-              onClick={openFilePicker}
-              disabled={uploading}
-            >
-              <Upload className="h-4 w-4" />
-              {uploading ? "Uploading…" : "Upload CV"}
-            </Button>
-          </div>
         </div>
       ) : (
         <div className="space-y-3">
