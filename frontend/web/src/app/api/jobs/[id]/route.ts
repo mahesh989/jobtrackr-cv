@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { classifySettingText }       from "@/lib/workSetting/classifier";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_JD_CHARS = 60_000;          // sane upper bound — tokens get expensive
@@ -38,7 +38,7 @@ export const PATCH = withUser(async (
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return jsonError("Invalid JSON body", 400);
   }
 
   // Build the update patch, only including fields the caller actually sent.
@@ -58,7 +58,7 @@ export const PATCH = withUser(async (
       }
       patch.manual_jd_text = trimmed.length === 0 ? null : trimmed;
     } else {
-      return NextResponse.json({ error: "manual_jd_text must be a string or null" }, { status: 400 });
+      return jsonError("manual_jd_text must be a string or null", 400);
     }
   }
 
@@ -76,7 +76,7 @@ export const PATCH = withUser(async (
       }
       patch.contact_email = trimmed;
     } else {
-      return NextResponse.json({ error: "contact_email must be a string or null" }, { status: 400 });
+      return jsonError("contact_email must be a string or null", 400);
     }
   }
 
@@ -88,7 +88,7 @@ export const PATCH = withUser(async (
       const trimmed = raw.trim();
       patch.hiring_manager = trimmed.length === 0 ? null : trimmed;
     } else {
-      return NextResponse.json({ error: "hiring_manager must be a string or null" }, { status: 400 });
+      return jsonError("hiring_manager must be a string or null", 400);
     }
   }
 
@@ -107,7 +107,7 @@ export const PATCH = withUser(async (
         .trim();
       patch.company_address = cleaned.length === 0 ? null : cleaned;
     } else {
-      return NextResponse.json({ error: "company_address must be a string or null" }, { status: 400 });
+      return jsonError("company_address must be a string or null", 400);
     }
   }
 
@@ -126,7 +126,7 @@ export const PATCH = withUser(async (
   }
 
   if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
+    return jsonError("No supported fields in request", 400);
   }
 
   const admin = createAdminClient();
@@ -138,7 +138,7 @@ export const PATCH = withUser(async (
     .select("id, profile_id")
     .eq("id", jobId)
     .maybeSingle();
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return jsonError("Job not found", 404);
 
   const { data: profile } = await admin
     .from("search_profiles")
@@ -146,7 +146,7 @@ export const PATCH = withUser(async (
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
 
   const { data: updated, error } = await admin
@@ -158,7 +158,7 @@ export const PATCH = withUser(async (
 
   if (error || !updated) {
     console.error("[/api/jobs/:id PATCH] update failed:", error?.message);
-    return NextResponse.json({ error: "Failed to update job" }, { status: 500 });
+    return jsonError("Failed to update job", 500);
   }
 
   return NextResponse.json(updated);

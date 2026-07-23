@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scrapeJobUrl } from "@/lib/scrapeJobUrl";
 import { rateLimit } from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 20;
@@ -32,7 +32,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     url = String(body?.url ?? "").trim();
     if (!url) throw new Error("missing url");
   } catch {
-    return NextResponse.json({ error: "Body must be { url: string }" }, { status: 400 });
+    return jsonError("Body must be { url: string }", 400);
   }
 
   try {
@@ -40,6 +40,6 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     return NextResponse.json(scraped);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Scrape failed";
-    return NextResponse.json({ error: msg }, { status: 422 });
+    return jsonError(msg, 422);
   }
 });

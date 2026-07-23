@@ -17,7 +17,7 @@ import { createAdminClient }          from "@/lib/supabase/admin";
 import { getActiveAiCredentials }     from "@/lib/ai/activeProvider";
 import { categoriseCv, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 // categoriseCv retries once (sequential) on a stored-model failure, so worst
@@ -35,7 +35,7 @@ export const POST = withUser(async (
 
   // Rate limit: 1 AI call (categoriseCv), builder "Suggest from experience".
   const rl = await rateLimit(`cv-extract-skills:${user.id}`, 12, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const admin = createAdminClient();
 
@@ -47,12 +47,12 @@ export const POST = withUser(async (
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!cv) return NextResponse.json({ error: "CV not found" }, { status: 404 });
+  if (!cv) return jsonError("CV not found", 404);
 
   // Client may send the current builder text directly (before saving) so we
   // can extract skills without forcing a save first.
-  let body: { cv_text?: string } = {};
-  try { body = await req.json().catch(() => ({})); } catch { /* no body */ }
+  // Absent/invalid body is fine — fall back to the stored CV text below.
+  const body: { cv_text?: string } = await req.json().catch(() => ({}));
 
   const cvText =
     (body.cv_text?.trim() ?? "").length >= 50
@@ -112,10 +112,10 @@ export const POST = withUser(async (
         });
       } catch (retryErr) {
         console.error("[/api/cv/:id/extract-skills] retry failed:", extractDetail(retryErr));
-        return NextResponse.json({ error: extractDetail(retryErr) }, { status: 502 });
+        return jsonError(extractDetail(retryErr), 502);
       }
     }
     console.error("[/api/cv/:id/extract-skills] failed:", extractDetail(firstErr));
-    return NextResponse.json({ error: extractDetail(firstErr) }, { status: 502 });
+    return jsonError(extractDetail(firstErr), 502);
   }
 });

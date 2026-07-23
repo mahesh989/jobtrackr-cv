@@ -3,7 +3,7 @@
 // Returns Content-Disposition: attachment so browsers download directly.
 
 import { NextRequest, NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 function escapeCsv(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -30,7 +30,7 @@ export const GET = withUser(async (
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
-  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!profile) return jsonError("Not found", 404);
 
   const sp = req.nextUrl.searchParams;
 

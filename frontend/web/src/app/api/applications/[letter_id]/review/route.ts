@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidatePath }            from "next/cache";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const MAX_SUBJECT_LEN = 300;
 const MAX_BODY_LEN    = 20_000;
@@ -27,15 +27,15 @@ export const POST = withUser(async (
 
   let body: { subject?: string; body?: string };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const subject = (body.subject ?? "").trim();
   const message = body.body ?? "";
 
-  if (!subject)                       return NextResponse.json({ error: "Subject is required" }, { status: 400 });
-  if (subject.length > MAX_SUBJECT_LEN) return NextResponse.json({ error: `Subject too long (>${MAX_SUBJECT_LEN})` }, { status: 400 });
-  if (!message.trim())                return NextResponse.json({ error: "Body is required" }, { status: 400 });
-  if (message.length > MAX_BODY_LEN)  return NextResponse.json({ error: `Body too long (>${MAX_BODY_LEN})` }, { status: 400 });
+  if (!subject)                       return jsonError("Subject is required", 400);
+  if (subject.length > MAX_SUBJECT_LEN) return jsonError(`Subject too long (>${MAX_SUBJECT_LEN})`, 400);
+  if (!message.trim())                return jsonError("Body is required", 400);
+  if (message.length > MAX_BODY_LEN)  return jsonError(`Body too long (>${MAX_BODY_LEN})`, 400);
 
   const admin = createAdminClient();
 
@@ -47,10 +47,10 @@ export const POST = withUser(async (
     .maybeSingle();
 
   if (!existing || existing.user_id !== user.id) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
   if (existing.email_sent_at) {
-    return NextResponse.json({ error: "Email has already been sent — review is no longer applicable" }, { status: 409 });
+    return jsonError("Email has already been sent — review is no longer applicable", 409);
   }
 
   const { error: updErr } = await admin
@@ -64,7 +64,7 @@ export const POST = withUser(async (
 
   if (updErr) {
     console.error("[review] update failed:", updErr.message);
-    return NextResponse.json({ error: "Save failed" }, { status: 500 });
+    return jsonError("Save failed", 500);
   }
 
   // Refresh the applications listing so the card moves tabs immediately.

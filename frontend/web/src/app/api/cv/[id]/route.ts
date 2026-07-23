@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidatePath }            from "next/cache";
 import { ensureSomeoneActive }       from "@/lib/cv/ensureActive";
-import { withUser }                  from "@/lib/api-utils";
+import { jsonError, withUser }                  from "@/lib/api-utils";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 
@@ -38,9 +38,9 @@ export const GET = withUser(async (
 
   if (error) {
     console.error("[/api/cv/:id] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
-  if (!data)  return NextResponse.json({ error: "CV not found" }, { status: 404 });
+  if (!data)  return jsonError("CV not found", 404);
 
   // Generate a short-lived signed URL so the browser can render the PDF.
   const { data: signed } = await admin
@@ -62,10 +62,10 @@ export const PATCH = withUser(async (
 
   let body: { is_active?: boolean };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   if (typeof body.is_active !== "boolean") {
-    return NextResponse.json({ error: "Body must include is_active: boolean" }, { status: 400 });
+    return jsonError("Body must include is_active: boolean", 400);
   }
 
   const admin = createAdminClient();
@@ -77,7 +77,7 @@ export const PATCH = withUser(async (
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!owned) return NextResponse.json({ error: "CV not found" }, { status: 404 });
+  if (!owned) return jsonError("CV not found", 404);
 
   if (body.is_active) {
     // Deactivate any currently active row first — the partial unique index
@@ -91,7 +91,7 @@ export const PATCH = withUser(async (
       .eq("is_active", true);
     if (deactivateErr) {
       console.error("[/api/cv/:id] deactivate error:", deactivateErr.message);
-      return NextResponse.json({ error: "Request failed" }, { status: 500 });
+      return jsonError("Request failed", 500);
     }
   }
 
@@ -101,7 +101,7 @@ export const PATCH = withUser(async (
     .eq("id", id);
   if (setErr) {
     console.error("[/api/cv/:id] set-active error:", setErr.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   // If the user just deactivated their only active CV, auto-promote a
@@ -131,7 +131,7 @@ export const DELETE = withUser(async (
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!row) return NextResponse.json({ error: "CV not found" }, { status: 404 });
+  if (!row) return jsonError("CV not found", 404);
 
   // Best-effort Storage cleanup — if it fails we still delete the row so the
   // user can recover, but log it for visibility. "Built in app" CVs (built://…)
@@ -146,7 +146,7 @@ export const DELETE = withUser(async (
   const { error } = await admin.from("cv_versions").delete().eq("id", id);
   if (error) {
     console.error("[/api/cv/:id] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   // If the deleted CV was the active one and there are other CVs left,

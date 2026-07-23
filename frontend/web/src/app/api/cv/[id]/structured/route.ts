@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { renderCanonicalCv, CvBackendError, type StructuredCv } from "@/lib/cv/backend";
-import { withUser }                  from "@/lib/api-utils";
+import { jsonError, withUser }                  from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;
@@ -36,7 +36,7 @@ export const GET = withUser(async (
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error || !data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (error || !data) return jsonError("Not found", 404);
   return NextResponse.json(data);
 });
 
@@ -51,10 +51,10 @@ export const PATCH = withUser(async (
 
   let body: { structured_cv?: unknown; verified?: boolean };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON", 400); }
 
   if (!body.structured_cv || typeof body.structured_cv !== "object") {
-    return NextResponse.json({ error: "structured_cv is required" }, { status: 400 });
+    return jsonError("structured_cv is required", 400);
   }
   const structuredCv = body.structured_cv as StructuredCv;
 
@@ -67,7 +67,7 @@ export const PATCH = withUser(async (
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!owned) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!owned) return jsonError("Not found", 404);
 
   // Re-render canonical text. This is the moment the user's edits flow into
   // what the pipeline reads next — if it fails, we MUST NOT persist a stale
@@ -81,7 +81,7 @@ export const PATCH = withUser(async (
       ? `cv-backend render failed (${err.status})`
       : "cv-backend render failed";
     console.error("[/api/cv/:id/structured PATCH] render failed:", err);
-    return NextResponse.json({ error: detail }, { status: 502 });
+    return jsonError(detail, 502);
   }
 
   // Persist. Status escalates parsed → edited → verified but never goes back.
@@ -115,7 +115,7 @@ export const PATCH = withUser(async (
 
   if (updateErr) {
     console.error("[/api/cv/:id/structured PATCH] update failed:", updateErr.message);
-    return NextResponse.json({ error: "Save failed" }, { status: 500 });
+    return jsonError("Save failed", 500);
   }
 
   // No profile-store referee seed here — referees are single-sourced from

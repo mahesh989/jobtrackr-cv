@@ -45,7 +45,7 @@ import {
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import type { ToneTarget } from "@/lib/types";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;  // generateOpeningVariants is synchronous (~5-15 s); allow headroom
@@ -85,7 +85,7 @@ export const POST = withUser(async (
 
   // Rate limit: opening-variant generation is a synchronous multi-call AI step.
   const rl = await rateLimit(`cover-letter:${user.id}`, 20, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { regenerate?: unknown; tone_target?: unknown } = {};
@@ -106,7 +106,7 @@ export const POST = withUser(async (
     .eq("id", jobId)
     .maybeSingle();
 
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return jsonError("Job not found", 404);
 
   const { data: profile } = await admin
     .from("search_profiles")
@@ -115,7 +115,7 @@ export const POST = withUser(async (
     .maybeSingle();
 
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
 
   // ── 3.5. Phase D-2 final-ATS gate ─────────────────────────────────────────────
@@ -479,7 +479,7 @@ export const POST = withUser(async (
   if (insertErr || !letterRow) {
     console.error("[POST /api/jobs/[id]/cover-letter] insert failed:", insertErr?.message);
     await release();
-    return NextResponse.json({ error: "Failed to create cover letter record." }, { status: 500 });
+    return jsonError("Failed to create cover letter record.", 500);
   }
 
   const letterId = letterRow.id as string;

@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse }      from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (
   req: Request,
@@ -18,7 +18,7 @@ export const GET = withUser(async (
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!profile) return jsonError("Not found", 404);
 
   let query = supabase.from("run_logs").select("id, status, current_stage, started_at").eq("profile_id", id);
   if (status) query = query.eq("status", status);
@@ -29,7 +29,7 @@ export const GET = withUser(async (
   const { data, error } = await query;
   if (error) {
     console.error("[/api/profiles/:id/runs] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   return NextResponse.json({ runs: data });
@@ -55,7 +55,7 @@ export const DELETE = withUser(async (
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  if (!profile) return jsonError("Profile not found", 404);
 
   // Mark all running logs for this profile as failed (admin client to bypass RLS)
   const admin = createAdminClient();
@@ -72,7 +72,7 @@ export const DELETE = withUser(async (
 
   if (error) {
     console.error("[/api/profiles/:id/runs] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   return NextResponse.json({ cancelled: cancelled?.length ?? 0 });

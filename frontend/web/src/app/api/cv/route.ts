@@ -19,7 +19,7 @@ import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { extractCvText, extractStories, CvBackendError, type StructuredCv, type CategoriseCvResponse, type Story } from "@/lib/cv/backend";
 import { runStructurizeAndCategorise } from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 // Extract (<=15s) + structurize/categorise in parallel (<=30s) + render
@@ -41,7 +41,7 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return jsonError(error.message, 500);
   return NextResponse.json({ cvs: data ?? [] });
 });
 
@@ -51,13 +51,13 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   // Rate limit: upload triggers 2 AI calls (structurize + categorise).
   const rl = await rateLimit(`cv-upload:${user.id}`, 5, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   let body: { cv_id?: string; label?: string; storage_path?: string };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return jsonError("Invalid JSON body", 400);
   }
 
   const cv_id        = (body.cv_id ?? "").trim();
@@ -65,10 +65,10 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const storagePath  = (body.storage_path ?? "").trim();
 
   if (!UUID_RE.test(cv_id)) {
-    return NextResponse.json({ error: "Invalid cv_id (must be a UUID)" }, { status: 400 });
+    return jsonError("Invalid cv_id (must be a UUID)", 400);
   }
   if (!label) {
-    return NextResponse.json({ error: "Missing label" }, { status: 400 });
+    return jsonError("Missing label", 400);
   }
   // Path must be exactly `${user.id}/${cv_id}.{pdf|docx}` — otherwise the
   // caller is trying to claim someone else's upload or a malformed path.
@@ -81,7 +81,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   }
   const ext = storagePath.slice(expectedPrefix.length).toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
-    return NextResponse.json({ error: `Unsupported extension .${ext}` }, { status: 415 });
+    return jsonError(`Unsupported extension .${ext}`, 415);
   }
 
   const admin = createAdminClient();
@@ -90,7 +90,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const { data: dup } = await admin
     .from("cv_versions").select("id").eq("id", cv_id).maybeSingle();
   if (dup) {
-    return NextResponse.json({ error: "This CV is already saved" }, { status: 409 });
+    return jsonError("This CV is already saved", 409);
   }
 
   // ── 1. Verify the Storage object actually exists at the claimed path.
@@ -117,7 +117,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     const message = err instanceof CvBackendError
       ? `CV text extraction failed (${err.status})`
       : "CV text extraction unavailable — try again";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return jsonError(message, 502);
   }
 
   if (!cvText.trim()) {

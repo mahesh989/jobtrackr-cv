@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -38,7 +38,7 @@ export const GET = withUser(async (req: NextRequest) => {
   const apiKey = process.env.PLACES_API_KEY;
   if (!apiKey) {
     console.error("[/api/places/autocomplete] PLACES_API_KEY is not set");
-    return NextResponse.json({ error: "Places not configured." }, { status: 500 });
+    return jsonError("Places not configured.", 500);
   }
 
   let data: AutocompleteResponse;
@@ -63,12 +63,12 @@ export const GET = withUser(async (req: NextRequest) => {
         res.status,
         (await res.text()).slice(0, 300),
       );
-      return NextResponse.json({ error: "Places lookup failed." }, { status: 502 });
+      return jsonError("Places lookup failed.", 502);
     }
     data = (await res.json()) as AutocompleteResponse;
   } catch (err) {
     console.error("[/api/places/autocomplete] fetch failed:", (err as Error).message);
-    return NextResponse.json({ error: "Places lookup failed." }, { status: 502 });
+    return jsonError("Places lookup failed.", 502);
   }
 
   const suggestions = (data.suggestions ?? [])

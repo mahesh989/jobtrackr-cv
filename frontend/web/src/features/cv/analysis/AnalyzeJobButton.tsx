@@ -253,13 +253,4 @@ export function FullAnalysisButton({
  * Trigger a re-analysis for a job (used by CardMenu's Re-analyze item).
  * Returns the new run_id on success, throws on failure.
  */
-export async function triggerReanalyze(jobId: string): Promise<string> {
-  const res  = await fetch(`/api/jobs/${jobId}/analyze`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({}),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((json.error as string) ?? `Failed (${res.status})`);
-  return json.run_id as string;
-}
+

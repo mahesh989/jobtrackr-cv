@@ -12,11 +12,12 @@ import {
   Filter,
 } from "lucide-react";
 import { formatDateTime as fmtDate } from "@/lib/dates";
+import type { RunStatus } from "@/lib/constants";
 
 export interface HistoryRun {
   id:                   string;
   job_id:               string;
-  status:               "pending" | "running" | "completed" | "failed";
+  status:               RunStatus;
   match_score:          number | null;
   tailored_match_score: number | null;
   ats_lift:             number | null;

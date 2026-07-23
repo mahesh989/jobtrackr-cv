@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const ALLOWED_EXT = new Set(["pdf", "docx"]);
 
@@ -26,11 +26,11 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { ext?: string };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const ext = (body.ext ?? "").toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
-    return NextResponse.json({ error: `Unsupported extension '${ext}'` }, { status: 400 });
+    return jsonError(`Unsupported extension '${ext}'`, 400);
   }
 
   const cv_id        = crypto.randomUUID();

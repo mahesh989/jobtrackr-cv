@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { filenameSlug }              from "@/lib/filenameSlug";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
@@ -91,16 +91,16 @@ export const PUT = withUser(async (
   const { letter_id } = await params;
   const admin = createAdminClient();
   const letter = await authLetter(admin, letter_id, user.id);
-  if (!letter) return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+  if (!letter) return jsonError("Letter not found", 404);
 
   const bytes = Buffer.from(await req.arrayBuffer());
   if (bytes.length === 0) {
-    return NextResponse.json({ error: "Empty body" }, { status: 400 });
+    return jsonError("Empty body", 400);
   }
   // %PDF magic — reject anything that isn't a PDF so a bad client can't poison
   // the cache with arbitrary content served inline.
   if (!(bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46)) {
-    return NextResponse.json({ error: "Body is not a PDF" }, { status: 400 });
+    return jsonError("Body is not a PDF", 400);
   }
 
   const key = pdfKey(user.id, letter_id);
@@ -116,7 +116,7 @@ export const PUT = withUser(async (
       .update(key, bytes, { contentType: "application/pdf" });
     if (updErr) {
       console.error("[tailored-cv-pdf] upload failed:", upErr.message, "|", updErr.message);
-      return NextResponse.json({ error: "Storage upload failed" }, { status: 500 });
+      return jsonError("Storage upload failed", 500);
     }
   }
 
@@ -133,7 +133,7 @@ export const GET = withUser(async (
   const { letter_id } = await params;
   const admin = createAdminClient();
   const letter = await authLetter(admin, letter_id, user.id);
-  if (!letter) return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+  if (!letter) return jsonError("Letter not found", 404);
 
   const { data: file, error: dlErr } = await admin
     .storage
@@ -142,7 +142,7 @@ export const GET = withUser(async (
   if (dlErr || !file) {
     // Not generated yet — the client PUTs it before enabling the link, so this
     // only happens if the link is hit directly before the render completes.
-    return NextResponse.json({ error: "Tailored CV PDF not generated yet" }, { status: 404 });
+    return jsonError("Tailored CV PDF not generated yet", 404);
   }
   const bytes = Buffer.from(await file.arrayBuffer());
 

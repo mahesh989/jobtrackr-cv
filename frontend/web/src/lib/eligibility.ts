@@ -10,7 +10,8 @@ export type UserVisaStatus =
   | "student_capped"
   | "needs_sponsorship";
 
-export type Eligibility = "eligible" | "not_eligible" | "unclear";
+export const ELIGIBILITY = ["eligible", "not_eligible", "unclear"] as const;
+export type Eligibility = (typeof ELIGIBILITY)[number];
 
 const CAPABILITY: Record<UserVisaStatus, number> = {
   citizen: 4,

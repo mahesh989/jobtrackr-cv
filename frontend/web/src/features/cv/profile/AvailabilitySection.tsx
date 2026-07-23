@@ -1,25 +1,14 @@
 "use client";
 
 import { Clock } from "lucide-react";
-import { ALL_EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
+import { ALL_EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS, normalizeWorkType } from "@/lib/constants";
 import { useProfile } from "./ProfileDetailsContext";
 import { SectionCard, CheckBox, Pill } from "./ProfileFormComponents";
 
-// Legacy Title-Case values (pre-Fix-3) → canonical snake_case tags, so values
-// saved by the old checkbox UI still show as selected here.
-const LEGACY_TO_CANONICAL: Record<string, string> = {
-  "Full Time": "full_time",
-  "Part Time": "part_time",
-  "Casual":    "casual",
-};
-
-function normalizeTag(v: string): string {
-  return LEGACY_TO_CANONICAL[v] ?? v;
-}
 
 export function AvailabilitySection() {
   const { creds, setCred } = useProfile();
-  const selected = new Set((creds.availability ?? []).map(normalizeTag));
+  const selected = new Set((creds.availability ?? []).map(normalizeWorkType));
   return (
     <SectionCard icon={Clock} title="Work types" subtitle="Which work types you're open to. Applies to all CVs, every role type. Off by default.">
       <p className="text-xs text-text-3">
@@ -36,7 +25,7 @@ export function AvailabilitySection() {
             label={EMPLOYMENT_TYPE_LABELS[tag]}
             selected={selected.has(tag)}
             onClick={() => {
-              const cur = new Set((creds.availability ?? []).map(normalizeTag));
+              const cur = new Set((creds.availability ?? []).map(normalizeWorkType));
               if (cur.has(tag)) cur.delete(tag); else cur.add(tag);
               setCred("availability", Array.from(cur));
             }}

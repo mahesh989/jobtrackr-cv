@@ -20,7 +20,7 @@ import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, CvBackendError } from "@/lib/cv/backend";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;
@@ -42,7 +42,7 @@ export const POST = withUser(async (
 
 
   const rl = await rateLimit(`analyze:${user.id}`, 20, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const admin = createAdminClient();
 
@@ -56,9 +56,9 @@ export const POST = withUser(async (
 
   if (runErr) {
     console.error("[/api/jobs/:id/analyze/:run_id/resume] run lookup failed:", runErr.message);
-    return NextResponse.json({ error: "Could not load the run." }, { status: 500 });
+    return jsonError("Could not load the run.", 500);
   }
-  if (!run) return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  if (!run) return jsonError("Run not found", 404);
 
   // ── Ownership: job → profile → user ──────────────────────────────────────
   const { data: job } = await admin
@@ -66,7 +66,7 @@ export const POST = withUser(async (
     .select("profile_id, title, company, location, source, url")
     .eq("id", jobId)
     .maybeSingle();
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return jsonError("Job not found", 404);
 
   const { data: profile } = await admin
     .from("search_profiles")
@@ -74,7 +74,7 @@ export const POST = withUser(async (
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
   // Role vertical comes from My CV (contact_details.role_families) — the user's
   // one global choice. The per-search-profile target_verticals is a legacy

@@ -3,7 +3,7 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { consumeRun } from "@/lib/billing/entitlements";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const QUEUE_NAME = "jobtrackr-pipeline";
 
@@ -33,11 +33,9 @@ export const POST = withUser(async (
     fullRefresh = body?.fullRefresh === true;
   } catch { /* no body → incremental */ }
 
-  // Auth check
-
   // Rate limit: each run enqueues a pipeline job that can incur Apify cost.
   const rl = await rateLimit(`run:${user.id}`, 10, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   // Verify profile belongs to this user
   const { data: profile } = await supabase
@@ -48,7 +46,7 @@ export const POST = withUser(async (
     .single();
 
   if (!profile) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    return jsonError("Profile not found", 404);
   }
 
   // Billing gate: read-only accounts blocked; run quota metered per period.
@@ -81,6 +79,6 @@ export const POST = withUser(async (
     return NextResponse.json({ ok: true, jobId: job.id });
   } catch (err) {
     console.error("[run] enqueue failed:", err instanceof Error ? err.message : String(err));
-    return NextResponse.json({ error: "Failed to start run. Please try again." }, { status: 500 });
+    return jsonError("Failed to start run. Please try again.", 500);
   }
 });

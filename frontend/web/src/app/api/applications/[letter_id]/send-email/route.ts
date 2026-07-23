@@ -20,7 +20,7 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { filenameSlug }              from "@/lib/filenameSlug";
 import { emitEvent }                 from "@/lib/admin/events";
 import type { ContactDetails }       from "@/lib/types";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 const MAX_SUBJECT_LEN = 300;
@@ -52,26 +52,26 @@ export const POST = withUser(async (
       if (cvField && typeof cvField === "object" && "arrayBuffer" in cvField) {
         const buf = Buffer.from(await cvField.arrayBuffer());
         if (buf.length > MAX_CV_PDF_BYTES) {
-          return NextResponse.json({ error: `Tailored CV PDF too large (>${MAX_CV_PDF_BYTES} bytes)` }, { status: 413 });
+          return jsonError(`Tailored CV PDF too large (>${MAX_CV_PDF_BYTES} bytes)`, 413);
         }
         clientCvPdfBuffer = buf;
       }
     } catch {
-      return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
+      return jsonError("Invalid multipart body", 400);
     }
   } else {
     try {
       const text = await req.text();
       if (text.trim()) override = JSON.parse(text);
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return jsonError("Invalid JSON body", 400);
     }
   }
   if (override.subject != null && (typeof override.subject !== "string" || override.subject.length > MAX_SUBJECT_LEN)) {
-    return NextResponse.json({ error: `Subject must be a string under ${MAX_SUBJECT_LEN} chars` }, { status: 400 });
+    return jsonError(`Subject must be a string under ${MAX_SUBJECT_LEN} chars`, 400);
   }
   if (override.body != null && (typeof override.body !== "string" || override.body.length > MAX_BODY_LEN)) {
-    return NextResponse.json({ error: `Body must be a string under ${MAX_BODY_LEN} chars` }, { status: 400 });
+    return jsonError(`Body must be a string under ${MAX_BODY_LEN} chars`, 400);
   }
 
   const admin = createAdminClient();
@@ -85,10 +85,10 @@ export const POST = withUser(async (
     .maybeSingle();
 
   if (lErr || !letter) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
   if (letter.email_sent_at) {
-    return NextResponse.json({ error: "Email already sent" }, { status: 409 });
+    return jsonError("Email already sent", 409);
   }
 
   // ── 2. Fetch job ─────────────────────────────────────────────────────────
@@ -103,13 +103,13 @@ export const POST = withUser(async (
 
   if (jobErr) {
     console.error("[send-email] job lookup failed:", jobErr.message);
-    return NextResponse.json({ error: "Job lookup failed" }, { status: 500 });
+    return jsonError("Job lookup failed", 500);
   }
   if (!job) {
-    return NextResponse.json({ error: "Job not found for this letter" }, { status: 404 });
+    return jsonError("Job not found for this letter", 404);
   }
   if (!job.contact_email) {
-    return NextResponse.json({ error: "Job has no contact email — add one in the pool first" }, { status: 422 });
+    return jsonError("Job has no contact email — add one in the pool first", 422);
   }
 
   // ── 3+4. Tailored CV PDF source ───────────────────────────────────────────
@@ -235,7 +235,7 @@ export const POST = withUser(async (
     .select("id")
     .maybeSingle();
   if (!claimed) {
-    return NextResponse.json({ error: "Email already sent" }, { status: 409 });
+    return jsonError("Email already sent", 409);
   }
 
   // ── 8. Send ───────────────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ export const POST = withUser(async (
       .update({ email_sent_at: null })
       .eq("id", letter_id);
     console.error("[send-email] send failed:", err instanceof Error ? err.message : String(err));
-    return NextResponse.json({ error: "Send failed — please try again." }, { status: 502 });
+    return jsonError("Send failed — please try again.", 502);
   }
 
   // ── 9. Record recipient + mark applied ───────────────────────────────────

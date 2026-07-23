@@ -21,7 +21,7 @@ import { createAdminClient }   from "@/lib/supabase/admin";
 import { assembleLetter } from "@/lib/coverLetterTemplate";
 import type { ContactDetails } from "@/lib/types";
 import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (
   req: NextRequest,
@@ -48,7 +48,7 @@ export const GET = withUser(async (
     .eq("user_id", user.id)
     .eq("job_id", jobId)
     .maybeSingle();
-  if (!letter) return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+  if (!letter) return jsonError("Letter not found", 404);
 
   // Job ownership chain (job → profile → user) as defence-in-depth. The letter
   // gate above is authoritative; this also loads the fields we render.
@@ -57,7 +57,7 @@ export const GET = withUser(async (
     .select("id, profile_id, company, location, hiring_manager, company_address")
     .eq("id", jobId)
     .maybeSingle();
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return jsonError("Job not found", 404);
 
   const { data: profile } = await admin
     .from("search_profiles")
@@ -65,7 +65,7 @@ export const GET = withUser(async (
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return jsonError("Forbidden", 403);
   }
 
   const { data: prefs } = await admin

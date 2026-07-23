@@ -24,7 +24,7 @@ import { NextResponse }                                  from "next/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
 import { extractStories, Story, CvBackendError }         from "@/lib/cv/backend";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s timeout
@@ -47,7 +47,7 @@ export const POST = withUser(async (_req, _ctx, { user }) => {
 
   if (cvErr) {
     console.error("[/api/user/stories/extract] cv fetch error:", cvErr.message);
-    return NextResponse.json({ error: "Failed to fetch active CV." }, { status: 500 });
+    return jsonError("Failed to fetch active CV.", 500);
   }
 
   if (!cv?.cv_text?.trim()) {

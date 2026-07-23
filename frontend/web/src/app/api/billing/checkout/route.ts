@@ -13,12 +13,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, priceIdForPlan } from "@/lib/billing/stripe";
-import { TRIAL_DAYS, type PlanId }   from "@/lib/billing/plans";
-import { withUser } from "@/lib/api-utils";
+import { PLAN_IDS, TRIAL_DAYS, type PlanId } from "@/lib/billing/plans";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
-const PURCHASABLE: PlanId[] = ["weekly", "monthly", "unlimited"];
+const PURCHASABLE: PlanId[] = PLAN_IDS.filter((p) => p !== "trial" && p !== "comp");
 
 export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
@@ -29,10 +29,10 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     plan = body.plan as PlanId;
     withTrial = body.withTrial === true;
   } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    return jsonError("Invalid body", 400);
   }
   if (!PURCHASABLE.includes(plan)) {
-    return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
+    return jsonError("Unknown plan", 400);
   }
 
   const priceId = priceIdForPlan(plan);

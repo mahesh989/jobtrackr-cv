@@ -8,7 +8,7 @@
  * Used by the /beta/skills-audit page.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { withAdmin, parseJsonBody } from "@/lib/api-utils";
+import { jsonError, withAdmin, parseJsonBody } from "@/lib/api-utils";
 import { callCvBackend }             from "@/lib/cv/backend";
 
 export const runtime     = "nodejs";
@@ -37,7 +37,7 @@ export const POST = withAdmin(async (req: NextRequest) => {
   if (parseErr) return parseErr;
 
   if (!Array.isArray(body!.items) || body!.items.length === 0) {
-    return NextResponse.json({ error: "items must be a non-empty array" }, { status: 422 });
+    return jsonError("items must be a non-empty array", 422);
   }
 
   try {
@@ -48,6 +48,6 @@ export const POST = withAdmin(async (req: NextRequest) => {
     return NextResponse.json(result);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return jsonError(msg, 502);
   }
 });

@@ -28,7 +28,7 @@
 import { NextRequest, NextResponse }                       from "next/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
 import { matchStories, CvBackendError, MatchStoriesStory } from "@/lib/cv/backend";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 15;   // deterministic scoring — no AI call needed
@@ -41,11 +41,11 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   // ── 2. Parse + validate body ─────────────────────────────────────────────────
   let body: { job_id?: unknown };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const jobId = typeof body.job_id === "string" ? body.job_id.trim() : "";
   if (!jobId) {
-    return NextResponse.json({ error: "job_id is required" }, { status: 400 });
+    return jsonError("job_id is required", 400);
   }
 
   const admin = createAdminClient();
@@ -58,7 +58,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     .eq("id", jobId)
     .maybeSingle();
 
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job) return jsonError("Job not found", 404);
 
   const { data: profile } = await admin
     .from("search_profiles")
@@ -67,7 +67,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     .maybeSingle();
 
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
 
   // ── 4. Resolve JD text ────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   if (batchErr || !storyRows) {
     console.error("[POST /api/user/stories/match] batch fetch failed:", batchErr?.message);
-    return NextResponse.json({ error: "Failed to fetch stories." }, { status: 500 });
+    return jsonError("Failed to fetch stories.", 500);
   }
 
   if (storyRows.length === 0) {

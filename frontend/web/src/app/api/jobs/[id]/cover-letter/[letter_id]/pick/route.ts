@@ -27,7 +27,7 @@ import { createAdminClient }             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }        from "@/lib/ai/activeProvider";
 import { generateCoverLetter, CvBackendError, OpeningVariant } from "@/lib/cv/backend";
 import type { ToneTarget }              from "@/lib/types";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 // Local type for the cover_letters columns we read in this route.
 // opening_variants is not yet in the generated Supabase types (migration 027
@@ -60,7 +60,7 @@ export const POST = withUser(async (
 
   const variantId = typeof body.variant_id === "string" ? body.variant_id.trim() : "";
   if (!variantId) {
-    return NextResponse.json({ error: "variant_id is required." }, { status: 400 });
+    return jsonError("variant_id is required.", 400);
   }
 
   const admin = createAdminClient();
@@ -82,13 +82,13 @@ export const POST = withUser(async (
 
   if (fetchErr) {
     console.error("[POST /pick] DB fetch error:", fetchErr.message);
-    return NextResponse.json({ error: "Failed to fetch cover letter." }, { status: 500 });
+    return jsonError("Failed to fetch cover letter.", 500);
   }
   if (!letter) {
-    return NextResponse.json({ error: "Cover letter not found." }, { status: 404 });
+    return jsonError("Cover letter not found.", 404);
   }
   if (letter.user_id !== user.id) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return jsonError("Forbidden.", 403);
   }
   if (letter.status !== "picking") {
     return NextResponse.json(
@@ -224,7 +224,7 @@ export const POST = withUser(async (
 
   if (patchErr) {
     console.error("[POST /pick] DB patch error:", patchErr.message);
-    return NextResponse.json({ error: "Failed to save selection." }, { status: 500 });
+    return jsonError("Failed to save selection.", 500);
   }
 
   // ── 8. Trigger cv-backend to generate P2-4 (BackgroundTask, 202) ─────────

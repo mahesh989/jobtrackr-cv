@@ -8,7 +8,7 @@
  * Only Next.js API routes (server-only) call this — never the browser.
  */
 import crypto from "node:crypto";
-import type { StoryNumber, ToneTarget } from "@/lib/types";
+import type { StoryNumber, StructuredCv, ToneTarget } from "@/lib/types";
 import type { AiProvider } from "@/lib/ai/models";
 export type { StoryNumber } from "@/lib/types";
 
@@ -169,95 +169,21 @@ export interface StructurizeCvPayload {
   ai_model?:   string | null;
 }
 
-interface StructuredCvSkills {
-  technical:        string[];
-  soft_skills:      string[];
-  domain_knowledge: string[];
-}
-
-export interface StructuredCvExperience {
-  employer:   string;
-  role:       string;
-  location:   string;
-  start_date: string;
-  end_date:   string;
-  is_current: boolean;
-  bullets:    string[];
-}
-
-export interface StructuredCvEducation {
-  institution:   string;
-  qualification: string;
-  location:      string;
-  start_date:    string;
-  end_date:      string;
-  completed:     boolean;
-  _moved_from_certifications?: boolean;
-}
-
-export interface StructuredCvCertification {
-  name:        string;
-  issuer:      string;
-  code:        string;
-  issued_date: string;
-}
-
-export interface StructuredCvAward {
-  name:        string;
-  issuer:      string;
-  location:    string;
-  date:        string;
-  description: string;
-}
-
-export interface StructuredCvLanguage {
-  language:    string;
-  proficiency: string;
-}
-
-export interface StructuredCvReferee {
-  name:      string;
-  job_title: string;
-  company:   string;
-  email:     string;
-}
-
-interface StructuredCvGap {
-  section:     string;
-  entry_index: string;
-  field:       string;
-  message:     string;
-}
-
-export interface CustomCvSection {
-  id:     string;
-  title:  string;
-  fields: Array<{ label: string; value: string }>;
-}
-
-export interface StructuredCvProject {
-  name:        string;
-  url:         string;
-  description: string;
-}
-
-export interface StructuredCv {
-  summary:         string;
-  experience:      StructuredCvExperience[];
-  education:       StructuredCvEducation[];
-  awards:          StructuredCvAward[];
-  languages:       StructuredCvLanguage[];
-  certifications:  StructuredCvCertification[];
-  skills:          StructuredCvSkills;
-  references:      StructuredCvReferee[];
-  gaps:            StructuredCvGap[];
-  projects?:       StructuredCvProject[];
-  custom_sections?: CustomCvSection[];
-  /** Parser-logic version. Server component on the review page silently
-   *  re-runs structurize when the stored value is below this constant. Mirror
-   *  of backend/api/app/services/cv/cv_structurizer.STRUCTURED_CV_VERSION. */
-  _version?:      number;
-}
+// StructuredCv* shapes are canonical shared types — they live in lib/types.ts
+// (they're consumed by client components via type-only imports; keeping them
+// here coupled client code to this server-only module). Re-exported so every
+// existing `from "@/lib/cv/backend"` import keeps working.
+export type {
+  StructuredCv,
+  StructuredCvExperience,
+  StructuredCvEducation,
+  StructuredCvCertification,
+  StructuredCvAward,
+  StructuredCvLanguage,
+  StructuredCvReferee,
+  StructuredCvProject,
+  CustomCvSection,
+} from "@/lib/types";
 
 /**
  * Bump in lockstep with the Python `STRUCTURED_CV_VERSION` constant whenever
@@ -309,14 +235,13 @@ export interface AnalyzePayload {
   jd_source_url?: string | null;
   jd_meta?:      Record<string, unknown> | null;
   cv_text:       string;
-  ai_provider:   "anthropic" | "openai" | "deepseek";
+  ai_provider:   AiProvider;
   ai_api_key:    string;
   ai_model?:     string | null;
   contact_details?: Record<string, unknown> | null;
-  // Gate thresholds — globally fixed at 60 / 70 since migration 041.
-  // cv-backend AnalyzeRequest defaults to those; web + worker omit these
-  // fields entirely. Left optional for backward compat with any caller
-  // that still sends them.
+  // Gate thresholds. cv-backend AnalyzeRequest defaults to 60/70; the
+  // analyze route sends per-vertical values from lib/atsThresholds
+  // (healthcare/nursing = 40/60, everything else 60/70).
   min_initial_ats?: number;
   min_final_ats?:   number;
   // Phase C-3 — true ONLY when the user clicked "Force tailoring
@@ -345,7 +270,7 @@ export function startAnalysis(payload: AnalyzePayload): Promise<{ run_id: string
 
 export interface VoiceFingerprintPayload {
   voice_sample_text: string;
-  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_provider:       AiProvider;
   ai_api_key:        string;
   ai_model?:         string | null;
 }
@@ -504,7 +429,7 @@ export interface ResearchCompanyPayload {
    *  flags wrong-country facts during AI distillation. Defends against
    *  same-name org conflations (the "Sanctuary" regression). */
   jd_location?:    string | null;
-  ai_provider:     "anthropic" | "openai" | "deepseek";
+  ai_provider:     AiProvider;
   ai_api_key:      string;
   ai_model?:       string | null;
 }
@@ -577,7 +502,7 @@ export interface GenerateOpeningVariantsPayload {
   fingerprint:       Record<string, unknown>;
   story:             Record<string, unknown> | null;
   company_hook_text: string;
-  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_provider:       AiProvider;
   ai_api_key:        string;
   ai_model?:         string;
 }
@@ -616,7 +541,7 @@ export interface GenerateCoverLetterPayload {
   company_hook_text: string;
   tone_target:       ToneTarget;
   word_count_target: number;
-  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_provider:       AiProvider;
   ai_api_key:        string;
   ai_model?:         string;
   /**
@@ -655,7 +580,7 @@ export interface VoiceRewriteEmailPayload {
   voice_sample_text: string;
   /** Boilerplate body to style-transfer. Never log this field. */
   boilerplate_body:  string;
-  ai_provider:       "anthropic" | "openai" | "deepseek";
+  ai_provider:       AiProvider;
   ai_api_key:        string;
   ai_model?:         string;
 }
