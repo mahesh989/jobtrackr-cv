@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui";
 import { Upload, CheckCircle2, FileText, FilePlus } from "lucide-react";
@@ -97,6 +97,16 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
   const [flash,       setFlash]       = useState<string | null>(null);
   const dismissedRef = useRef(false);            // user closed the box mid-upload
   const redirectRef  = useRef<string | null>(null); // where "OK" / auto-proceed goes
+  const searchParams = useSearchParams();
+
+  // Guided setup: keep the wizard context (?setup=1&step=N) on any redirect
+  // into the review form, so the stepper bar stays visible there instead of
+  // the review page counting as "outside the wizard".
+  function withSetupParams(to: string): string {
+    if (searchParams.get("setup") !== "1") return to;
+    const step = searchParams.get("step");
+    return `${to}${to.includes("?") ? "&" : "?"}setup=1${step ? `&step=${step}` : ""}`;
+  }
 
   // Advance the status message on a timer while uploading (stops at the last).
   useEffect(() => {
@@ -113,9 +123,10 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
     const id = window.setTimeout(() => {
       const to = redirectRef.current;
       setUploadPhase(null);
-      if (to) router.push(to);
+      if (to) router.push(withSetupParams(to));
     }, 3800);
     return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- withSetupParams reads stable params
   }, [uploadPhase, router]);
 
   function openUploadModal() {
@@ -133,7 +144,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
   function proceedAfterUpload() {
     const to = redirectRef.current;
     setUploadPhase(null);
-    if (to) router.push(to);
+    if (to) router.push(withSetupParams(to));
   }
 
   // Inline review-expand state — only one CV expanded at a time so the
@@ -171,7 +182,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
       const res = await fetch("/api/cv/create", { method: "POST" });
       if (!res.ok) { setError(await readError(res)); return; }
       const json = await res.json() as { id: string; redirect_to: string };
-      router.push(json.redirect_to);
+      router.push(withSetupParams(json.redirect_to));
     } catch (err) {
       setError(err instanceof Error ? `Network error: ${err.message}` : "Could not create CV.");
     } finally {
