@@ -53,23 +53,24 @@ export function SetupGateClient() {
     // unmount on navigation. The cover must therefore be cleared explicitly
     // on every route change that doesn't need it; relying on unmount left the
     // overlay up forever after the entry redirect (full white screen).
-    if (exempt) {
-      setCovering(false); // clear stale cover from the pre-redirect page
-      return; // banner render is also guarded on `exempt`
-    }
-    if (localStorage.getItem(COMPLETE_KEY) === "1") {
-      setCovering(false); // known complete: never cover
-      return;
-    }
-
+    //
+    // Cover the page ONLY while the FIRST entry check of the session is
+    // resolving — prevents the flash of the wrong page a new user used to
+    // see before the redirect fired. Every other outcome (exempt page,
+    // already-confirmed-complete, later navigations) must show the page
+    // immediately. Computed once so there is a single setState call below
+    // instead of one scattered across three early-return branches.
+    const alreadyComplete = localStorage.getItem(COMPLETE_KEY) === "1";
     const firstEntry = sessionStorage.getItem(REDIRECTED_KEY) !== "1";
-    // Cover the page while the entry check resolves — prevents the flash of
-    // the wrong page a new user used to see before the redirect fired.
-    // Intentional sync setState: the cover must go up on THIS commit, before
-    // the user perceives the page behind it. Cleared on every outcome below,
-    // plus a failsafe timeout so a hung request can never brick the app.
+    const shouldCover = !exempt && !alreadyComplete && firstEntry;
+    // Intentional sync setState: the cover must go up (or down) on THIS
+    // commit, before the user perceives the page behind it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCovering(firstEntry);
+    setCovering(shouldCover);
+
+    if (exempt || alreadyComplete) return; // banner render is also guarded on `exempt`
+
+    // Failsafe: a hung status request can never brick the app behind the cover.
     const failsafe = window.setTimeout(() => setCovering(false), 5000);
 
     let cancelled = false;
