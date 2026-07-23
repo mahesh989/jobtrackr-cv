@@ -1,4 +1,6 @@
 
+dist/
+
 # Local Scraper Tests
 careerjet_test.json
 scripts/careerjet_local.py

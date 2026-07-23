@@ -17,8 +17,6 @@
 // SEEK hard cap: 550 results per search (platform limit).
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
-import type { NormalisedJob } from "../pipeline/types.js";
-
 // Actor IDs: set via env vars after deploying.
 // Format: "<your-apify-username>~seek-au-scraper"
 const ACTOR_ID         = process.env.SEEK_ACTOR_ID    ?? "prospect_fuzz~seek-au-scraper";
@@ -198,64 +196,4 @@ export function createSeekAdapter(apifyToken: string): {
   };
 }
 
-// ── Enrichment ────────────────────────────────────────────────────────────────
-/**
- * Fetch full job descriptions for SEEK jobs that survived the filter + dedup
- * stages. Designed to be called by the orchestrator AFTER stage 5+6, so we
- * only pay for JDs of jobs that will actually be saved.
- *
- * Mutates nothing — returns a new array. Non-fatal: if the JD actor fails,
- * input jobs are returned unchanged (with their teaser-level descriptions).
- */
-export async function enrichWithFullJDs(
-  jobs:       NormalisedJob[],
-  apifyToken: string,
-  cap:        number = SEEK_JD_FETCH_CAP
-): Promise<{ jobs: NormalisedJob[]; costUsd: number; merged: number; fetched: number }> {
-  // Only SEEK jobs need this enrichment; everything else passes through.
-  const seekJobs   = jobs.filter((j) => j.source === "seek" && j.url);
-  const targetUrls = seekJobs.slice(0, cap).map((j) => j.url);
 
-  if (targetUrls.length === 0) {
-    return { jobs, costUsd: 0, merged: 0, fetched: 0 };
-  }
-
-  console.log(`[seek-jd] enriching ${targetUrls.length} SEEK survivors (cap ${cap})`);
-
-  try {
-    const res = await fetch(`${APIFY_JD_RUN_URL}?timeout=300`, {
-      method:  "POST",
-      headers: {
-        Authorization:  `Bearer ${apifyToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ urls: targetUrls, maxUrls: cap }),
-      signal: AbortSignal.timeout(310_000),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.warn(`[seek-jd] HTTP ${res.status}: ${body.slice(0, 200)} — keeping teasers`);
-      return { jobs, costUsd: COST_JD_RUN_USD, merged: 0, fetched: targetUrls.length };
-    }
-
-    const items = (await res.json()) as Array<{ url?: string; description?: string }>;
-    const descByUrl = new Map<string, string>();
-    for (const r of items) {
-      if (r.url && r.description) descByUrl.set(r.url, r.description);
-    }
-
-    let merged = 0;
-    const out = jobs.map((job) => {
-      const full = descByUrl.get(job.url);
-      if (full) { merged++; return { ...job, description: full }; }
-      return job;
-    });
-
-    console.log(`[seek-jd] merged ${merged}/${targetUrls.length} full descriptions`);
-    return { jobs: out, costUsd: COST_JD_RUN_USD, merged, fetched: targetUrls.length };
-  } catch (err) {
-    console.warn(`[seek-jd] failed: ${err instanceof Error ? err.message : err} — keeping teasers`);
-    return { jobs, costUsd: 0, merged: 0, fetched: targetUrls.length };
-  }
-}

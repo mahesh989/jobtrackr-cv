@@ -893,8 +893,6 @@ async def _targeted_bullet_rewrites(
     Returns the markdown unchanged when there are no missed items (zero latency
     cost on a clean run).
     """
-    import asyncio
-
     plan = (feasibility or {}).get("feasibility_plan") or {}
     extensions = plan.get("inject_as_extension") or []
     if not extensions:

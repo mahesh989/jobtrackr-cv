@@ -5,7 +5,6 @@ pydantic[email]==2.11.7
 supabase==2.29.0
 httpx==0.28.1
 sentry-sdk[fastapi]==2.19.2
-python-multipart==0.0.20
 pypdf==5.1.0
 python-docx==1.1.2
 anthropic==0.97.0
@@ -13,5 +12,4 @@ openai==1.109.1
 beautifulsoup4==4.12.3
 lxml==5.3.0
 reportlab==4.2.2
-tavily-python==0.5.0
 json-repair==0.61.0

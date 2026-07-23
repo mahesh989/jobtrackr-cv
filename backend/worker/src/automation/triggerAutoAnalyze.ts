@@ -428,6 +428,3 @@ export async function autoAnalyzeBatch(
   return { triggered, skipped };
 }
 
-// JD_RICH_MIN is exported for tests / future tuning (referenced indirectly
-// via jd_quality column populated by Migration 032).
-export const _JD_RICH_MIN_FOR_TESTS = JD_RICH_MIN;
