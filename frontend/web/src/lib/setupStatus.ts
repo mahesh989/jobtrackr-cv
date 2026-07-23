@@ -24,13 +24,13 @@ export interface SetupStatus {
   aiKey:         boolean; // the platform AI provider (admin-configured) is active + valid
   email:         boolean; // Gmail/Outlook connected
   apify:         boolean; // Apify token connected
-  searchProfile: boolean; // a profile exists and a run was attempted (or jobs already exist)
+  searchProfile: boolean; // a search profile row exists — creating it IS the step, no run required
   hasAnyJob:     boolean; // any job exists across the user's profiles
-  /** A search profile row exists, regardless of whether it's been run yet.
-   *  Lets the wizard distinguish "never created one" from "created it, just
-   *  hasn't run it" — the CTA and copy differ (create vs. go run it), and
-   *  conflating the two sent already-created-a-profile users straight back
-   *  into /profiles/new, reading as "it made me create a profile again". */
+  /** Same value as `searchProfile` — kept as a distinct field because the
+   *  wizard's CTA/href logic (SetupCards, SetupChecklist) reads this name
+   *  specifically to decide "/profiles" (go manage the one you made) vs
+   *  "/profiles/new" (make the first one), independent of how "done" is
+   *  defined for the step. */
   hasProfile:    boolean;
 }
 
@@ -50,7 +50,7 @@ export async function getSetupStatus(
   const admin    = createAdminClient();
   const hasIds   = profileIds.length > 0;
 
-  const [prefRes, cvRes, voiceRes, aiRes, emailRes, apifyRes, jobRes, runRes] = await Promise.all([
+  const [prefRes, cvRes, voiceRes, aiRes, emailRes, apifyRes, jobRes] = await Promise.all([
     supabase.from("user_preferences").select("contact_details").eq("user_id", userId).maybeSingle(),
     // Any CV in the library counts the step as done — the first upload
     // auto-becomes active, and an inactive CV is still progress the user
@@ -63,12 +63,6 @@ export async function getSetupStatus(
     hasIds
       ? supabase.from("jobs").select("id", { count: "exact", head: true }).in("profile_id", profileIds)
       : Promise.resolve({ count: 0 }),
-    // Any run attempted counts the searchProfile step as done — a first run
-    // that legitimately finds 0 jobs (narrow keywords, quiet hours) must NOT
-    // leave the user trapped in the setup wizard forever.
-    hasIds
-      ? admin.from("run_logs").select("id", { count: "exact", head: true }).in("profile_id", profileIds)
-      : Promise.resolve({ count: 0 }),
   ]);
 
   const cd      = (prefRes.data?.contact_details ?? {}) as Record<string, unknown>;
@@ -79,13 +73,13 @@ export async function getSetupStatus(
   const email   = !!emailRes.data?.from_address;
   const apify   = !!apifyRes.data;
   const hasAnyJob = (((jobRes as { count: number | null }).count) ?? 0) > 0;
-  const hasAnyRun = (((runRes as { count: number | null }).count) ?? 0) > 0;
 
-  // Step complete = the user created a profile and RAN it (run_logs row) —
-  // or jobs already exist (covers pre-run_logs history). "Must find jobs"
-  // was the old rule and it made setup impossible to finish on a 0-result run.
+  // Step complete = the user created a search profile. Running it is a
+  // separate, later action (Run now) — requiring a run here made the step
+  // impossible to finish on a legitimate 0-result first run, and creating
+  // the profile IS the onboarding task; running it isn't gated by setup.
   return {
     billing: hasBilling, details, cv, voice, aiKey, email, apify,
-    searchProfile: hasAnyRun || hasAnyJob, hasAnyJob, hasProfile: hasIds,
+    searchProfile: hasIds, hasAnyJob, hasProfile: hasIds,
   };
 }
