@@ -25,7 +25,7 @@ import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/bill
 import { resolveThresholds } from "@/lib/atsThresholds";
 import { MANUAL_JD_MIN_CHARS } from "@/features/jobs/lib/jobFilters";
 import { emitEvent } from "@/lib/admin/events";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
@@ -79,7 +79,7 @@ export const POST = withUser(async (
 
   // Rate limit: each analysis triggers a multi-call AI pipeline (BYOK) + scrape.
   const rl = await rateLimit(`analyze:${user.id}`, 20, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const admin = createAdminClient();
 
@@ -91,7 +91,7 @@ export const POST = withUser(async (
     .maybeSingle();
 
   if (jobErr || !job) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
 
   // ── Phase C-3 thin-JD pre-check (zero AI cost) ───────────────────────────
@@ -121,7 +121,7 @@ export const POST = withUser(async (
     .eq("id", job.profile_id)
     .maybeSingle();
   if (!profile || profile.user_id !== user.id) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
   // Role vertical is the user's ONE global choice from My CV
   // ("What roles are you applying for?" → contact_details.role_families),
@@ -333,7 +333,7 @@ export const POST = withUser(async (
   if (insertErr || !newRun) {
     console.error("[/api/jobs/:id/analyze] insert run failed:", insertErr?.message);
     await release(); // no run row → free the reservation
-    return NextResponse.json({ error: "Failed to create analysis run" }, { status: 500 });
+    return jsonError("Failed to create analysis run", 500);
   }
 
   // Link the reservation to the run so the analysis_runs trigger can commit it

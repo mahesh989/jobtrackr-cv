@@ -12,6 +12,7 @@
  */
 
 import type { Job } from "../components/JobTable";
+import { normalizeWorkType } from "@/lib/constants";
 
 /** Client-side resolveStage — mirrors the server's mapping of legacy params. */
 export function resolveStage(sp: URLSearchParams): string {
@@ -27,7 +28,13 @@ export function resolveStage(sp: URLSearchParams): string {
   return "all";
 }
 
-export type AtsBand = "above_final" | "below_final" | "below_initial" | "no_ats";
+export const AtsBand = {
+  ABOVE_FINAL: "above_final",
+  BELOW_FINAL: "below_final",
+  BELOW_INITIAL: "below_initial",
+  NO_ATS: "no_ats",
+} as const;
+export type AtsBand = (typeof AtsBand)[keyof typeof AtsBand];
 
 export type BoardJob = Job & {
   atsBand: AtsBand;
@@ -69,17 +76,11 @@ export const MANUAL_JD_MIN_CHARS = 1000;
  * the shared bucket) obey it too — keep the two in sync.
  * Accepts legacy Title-Case stored values ("Full Time") via normalization.
  */
-const LEGACY_WORK_TYPE: Record<string, string> = {
-  "Full Time": "full_time",
-  "Part Time": "part_time",
-  "Casual":    "casual",
-};
-
 export function normalizeWorkTypes(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values
     .filter((v): v is string => typeof v === "string")
-    .map((v) => LEGACY_WORK_TYPE[v] ?? v);
+    .map(normalizeWorkType);
 }
 
 export function passesWorkTypes(

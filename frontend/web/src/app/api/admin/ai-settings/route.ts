@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { withAdmin, parseJsonBody } from "@/lib/api-utils";
+import { jsonError, withAdmin, parseJsonBody } from "@/lib/api-utils";
 import { encryptApiKey }             from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { PROVIDER_ORDER, DEFAULT_MODELS, type AiProvider } from "@/lib/ai/models";
@@ -76,7 +76,7 @@ export const GET = withAdmin(async (_req: NextRequest, _ctx, { admin }) => {
     .select("provider, model, is_active, status, status_reason, last_validated_at, updated_at")
     .order("provider");
 
-  if (error) return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
+  if (error) return jsonError("Failed to load settings", 500);
 
   const rows = PROVIDER_ORDER.map((provider) => {
     const row = (data ?? []).find((r) => r.provider === provider);
@@ -106,12 +106,12 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   const provider = body!.provider;
   if (!provider || !PROVIDERS.has(provider as AiProvider)) {
-    return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
+    return jsonError("Unknown provider", 400);
   }
   const p = provider as AiProvider;
 
   const rl = await rateLimit(`admin-ai-settings:${userId}`, 20, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: userId };
 
@@ -134,7 +134,7 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
     .upsert({ provider: p, ...update }, { onConflict: "provider" });
   if (upsertErr) {
     console.error("[/api/admin/ai-settings PATCH] upsert failed:", upsertErr.message);
-    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
+    return jsonError("Failed to save settings", 500);
   }
 
   if (body!.setActive === true) {
@@ -157,7 +157,7 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
       .eq("provider", p);
     if (activateErr) {
       console.error("[/api/admin/ai-settings PATCH] activate failed:", activateErr.message);
-      return NextResponse.json({ error: "Failed to activate provider" }, { status: 500 });
+      return jsonError("Failed to activate provider", 500);
     }
   }
 

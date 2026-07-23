@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { triggerReanalyze } from "@/features/cv/analysis/AnalyzeJobButton";
+import { triggerReanalyze } from "@/lib/analyzeJob";
 import { IconButton, MenuItem } from "@/components/ui";
 import type { BoardJob } from "../lib/jobFilters";
 

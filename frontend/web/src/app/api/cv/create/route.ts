@@ -19,7 +19,7 @@
 
 import { NextResponse }       from "next/server";
 import { createAdminClient }  from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 import {
   STRUCTURED_CV_VERSION,
   type StructuredCv,
@@ -101,7 +101,7 @@ export const POST = withUser(async (_req, _ctx, { user }) => {
 
   if (insertErr || !row) {
     console.error("[/api/cv/create] insert failed:", insertErr?.message);
-    return NextResponse.json({ error: "Failed to create CV" }, { status: 500 });
+    return jsonError("Failed to create CV", 500);
   }
 
   return NextResponse.json({

@@ -23,7 +23,7 @@ import { createAdminClient }                           from "@/lib/supabase/admi
 import { getActiveAiCredentials }                      from "@/lib/ai/activeProvider";
 import { researchCompany, CompanyResearch, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE }                from "@/lib/rateLimit";
-import { withUser }                                    from "@/lib/api-utils";
+import { jsonError, withUser }                                    from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;  // Tavily + scrape + AI distill
@@ -34,7 +34,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return jsonError("Invalid JSON body.", 400);
   }
 
   const companyName = body.company_name?.trim();
@@ -68,11 +68,11 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   // Rate limit: company research spends the system Tavily key + an AI call and
   // triggers an outbound homepage fetch — cap per-user request volume.
   const rl = await rateLimit(`company-research:${user.id}`, 15, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   if (lookupErr) {
     console.error("[/api/company-research] lookup error:", lookupErr.message);
-    return NextResponse.json({ error: "Database error." }, { status: 500 });
+    return jsonError("Database error.", 500);
   }
 
   if (existing) {

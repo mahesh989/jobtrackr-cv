@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const MAX_LETTER_LEN = 20_000;   // generous — typical cover letter is ~2KB
 const MIN_LETTER_LEN = 50;       // some minimum sanity check
@@ -34,10 +34,10 @@ export const GET = withUser(async (
 
   if (error) {
     console.error("[/api/applications/:letter_id GET] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
   if (!letter || letter.user_id !== user.id) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
 
   return NextResponse.json({
@@ -58,14 +58,14 @@ export const PATCH = withUser(async (
 
   let body: { pass_3_final?: string };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON", 400); }
 
   const newText = (body.pass_3_final ?? "").trim();
   if (newText.length < MIN_LETTER_LEN) {
-    return NextResponse.json({ error: `Letter body too short (min ${MIN_LETTER_LEN} chars)` }, { status: 400 });
+    return jsonError(`Letter body too short (min ${MIN_LETTER_LEN} chars)`, 400);
   }
   if (newText.length > MAX_LETTER_LEN) {
-    return NextResponse.json({ error: `Letter body too long (max ${MAX_LETTER_LEN} chars)` }, { status: 400 });
+    return jsonError(`Letter body too long (max ${MAX_LETTER_LEN} chars)`, 400);
   }
 
   const admin = createAdminClient();
@@ -80,10 +80,10 @@ export const PATCH = withUser(async (
     .maybeSingle();
 
   if (!existing || existing.user_id !== user.id) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
   if (existing.email_sent_at) {
-    return NextResponse.json({ error: "Cannot edit a letter that has already been sent" }, { status: 409 });
+    return jsonError("Cannot edit a letter that has already been sent", 409);
   }
 
   // Stamp the new body. Clear pdf_storage_path so the next Letter download
@@ -104,7 +104,7 @@ export const PATCH = withUser(async (
 
   if (patchErr) {
     console.error("[/api/applications/:letter_id PATCH] db error:", patchErr.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   return NextResponse.json({ updated: true, length: newText.length });

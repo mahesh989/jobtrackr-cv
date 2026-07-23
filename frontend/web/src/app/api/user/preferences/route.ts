@@ -21,13 +21,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { revalidateTag }             from "next/cache";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 import type {
   Project,
   ProfileCredentials,
   RoleFamily,
   ContactDetails as BaseContactDetails,
 } from "@/lib/types";
+import { ALL_EMPLOYMENT_TYPES, normalizeWorkType } from "@/lib/constants";
 
 interface Referee {
   name?:      string;
@@ -113,14 +114,11 @@ function sanitise(input: unknown): { ok: true; value: ContactDetails } | { ok: f
     // the 3 legacy Title-Case values (pre-Fix-3 client) and normalizes them, so
     // a stale client version can't break saves. Output is always snake_case.
     if (Array.isArray(c.availability)) {
-      const CANONICAL = new Set(["full_time", "part_time", "casual", "contract", "temporary", "internship"]);
-      const LEGACY_TO_CANONICAL: Record<string, string> = {
-        "Full Time": "full_time", "Part Time": "part_time", "Casual": "casual",
-      };
+      const CANONICAL = new Set<string>(ALL_EMPLOYMENT_TYPES);
       const picked = c.availability
         .filter((v): v is string => typeof v === "string")
         .map((v) => v.trim())
-        .map((v) => LEGACY_TO_CANONICAL[v] ?? v)
+        .map(normalizeWorkType)
         .filter((v) => CANONICAL.has(v));
       if (picked.length > 0) creds.availability = [...new Set(picked)];
     }
@@ -195,10 +193,10 @@ export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { contact_details?: unknown };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const result = sanitise(body.contact_details);
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 422 });
+  if (!result.ok) return jsonError(result.error, 422);
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -210,7 +208,7 @@ export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   if (error) {
     console.error("[/api/user/preferences] upsert error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
   revalidateTag(`preferences-${user.id}`, "default");
   return NextResponse.json({ contact_details: result.value });

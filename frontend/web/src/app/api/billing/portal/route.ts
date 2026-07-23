@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe }                 from "@/lib/billing/stripe";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const customerId = (sub as { stripe_customer_id?: string } | null)?.stripe_customer_id ?? null;
 
   if (!customerId) {
-    return NextResponse.json({ error: "No billing account yet — start a plan first." }, { status: 422 });
+    return jsonError("No billing account yet — start a plan first.", 422);
   }
 
   const origin = req.headers.get("origin")

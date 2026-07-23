@@ -5,7 +5,7 @@ import { AlertTriangle, Zap, Loader2, StopCircle } from "lucide-react";
 import { DisclosureButton } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_INITIAL_ATS }      from "@/lib/atsThresholds";
-import type { StepState }       from "@/lib/constants";
+import type { LetterStatus, RunStatus, StepState } from "@/lib/constants";
 import { cancelAnalysisRun }    from "@/lib/actions";
 import { JdAnalysisCard }       from "@/features/cv/analysis/JdAnalysisCard";
 import { CvJdMatchingCard }     from "@/features/cv/analysis/CvJdMatchingCard";
@@ -20,7 +20,7 @@ import { AnalyzeJobButton }     from "@/features/cv/analysis/AnalyzeJobButton";
 export interface AnalysisRunRow {
   id:                          string;
   job_id?:                     string;
-  status:                      "pending" | "running" | "completed" | "failed";
+  status:                      RunStatus;
   step_status:                 Record<string, string>;
   /** Auto cover-letter outcome (migration 040). NULL = not attempted yet.
    *  See cv-backend auto_cover_letter.py for the value domain:
@@ -59,7 +59,7 @@ export interface AnalysisRunRow {
 
 interface CoverLetterRow {
   id:           string;
-  status:       string;   // 'pending' | 'running' | 'picking' | 'completed' | 'failed'
+  status:       LetterStatus;
   completed_at: string | null;
 }
 

@@ -11,6 +11,7 @@
  */
 
 import type { JobProgress } from "../lib/progressFlags";
+import type { JdQuality, RoleMatch } from "@/lib/constants";
 import type { PipelineState } from "../lib/pipelineState";
 
 export interface Job {
@@ -61,8 +62,8 @@ export interface Job {
   profile_name?:       string | null;
   // Phase A signals (backfilled for existing jobs, set during scraping
   // for new jobs once Phase C lands).
-  jd_quality?:         "rich" | "thin" | "unknown" | null;
-  role_match?:         "match" | "mismatch" | "uncertain" | null;
+  jd_quality?:         JdQuality | null;
+  role_match?:         RoleMatch | null;
   has_email?:          boolean | null;
   /** Driving distance from the profile's home_address. Null when no
    *  home_address is set, or the job location couldn't be geocoded. */

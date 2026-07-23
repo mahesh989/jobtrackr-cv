@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerScheduleSync } from "@/lib/actions/_helpers";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 /**
  * POST /api/profiles/resume-paused
@@ -27,7 +27,7 @@ export const POST = withUser(async (_req, _ctx, { user }) => {
     .eq("user_id", user.id);
 
   if (loadErr) {
-    return NextResponse.json({ error: loadErr.message }, { status: 500 });
+    return jsonError(loadErr.message, 500);
   }
 
   const profileIds = (pauseRows ?? []).map((r) => r.profile_id as string);

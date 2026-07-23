@@ -20,7 +20,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 10;
@@ -56,11 +56,11 @@ export const GET = withUser(async (
 
   if (error) {
     console.error("[GET /api/jobs/[id]/cover-letter/[letter_id]] DB error:", error.message);
-    return NextResponse.json({ error: "Failed to fetch cover letter." }, { status: 500 });
+    return jsonError("Failed to fetch cover letter.", 500);
   }
 
   if (!letter) {
-    return NextResponse.json({ error: "Cover letter not found." }, { status: 404 });
+    return jsonError("Cover letter not found.", 404);
   }
 
   return NextResponse.json({ letter });

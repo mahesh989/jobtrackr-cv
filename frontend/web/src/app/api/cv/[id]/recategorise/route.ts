@@ -13,7 +13,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { categoriseCv, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 // categoriseCv retries once (sequential) on a stored-model failure, so worst
@@ -29,7 +29,7 @@ export const POST = withUser(async (
 
   // Rate limit: 1 AI call (categoriseCv).
   const rl = await rateLimit(`cv-recategorise:${user.id}`, 10, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const admin = createAdminClient();
 
@@ -41,9 +41,9 @@ export const POST = withUser(async (
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!cv) return NextResponse.json({ error: "CV not found" }, { status: 404 });
+  if (!cv) return jsonError("CV not found", 404);
   if (!cv.cv_text || cv.cv_text.trim().length < 50) {
-    return NextResponse.json({ error: "CV has no extractable text — re-upload the file." }, { status: 422 });
+    return jsonError("CV has no extractable text — re-upload the file.", 422);
   }
 
   // Resolve the platform AI provider/key/model
@@ -81,11 +81,11 @@ export const POST = withUser(async (
         categorised = await categoriseCv({ cv_text: cv.cv_text, ai_provider: chosen, ai_api_key: apiKey, ai_model: null });
       } catch (retryErr) {
         console.error("[/api/cv/:id/recategorise] retry also failed:", extractDetail(retryErr));
-        return NextResponse.json({ error: extractDetail(retryErr) }, { status: 502 });
+        return jsonError(extractDetail(retryErr), 502);
       }
     } else {
       console.error("[/api/cv/:id/recategorise] categorisation failed:", extractDetail(firstErr));
-      return NextResponse.json({ error: extractDetail(firstErr) }, { status: 502 });
+      return jsonError(extractDetail(firstErr), 502);
     }
   }
 
@@ -97,7 +97,7 @@ export const POST = withUser(async (
 
   if (updateErr) {
     console.error("[/api/cv/:id/recategorise] update error:", updateErr.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   return NextResponse.json({ categorised_skills: categorised });

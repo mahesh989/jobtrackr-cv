@@ -13,7 +13,7 @@ import { NextRequest, NextResponse }  from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { ensureCoverLetterPdf }       from "@/lib/coverLetterPdfStore";
 import { filenameSlug }               from "@/lib/filenameSlug";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (
   _req: NextRequest,
@@ -33,7 +33,7 @@ export const GET = withUser(async (
     .maybeSingle();
 
   if (!letter) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
 
   const { data: job } = await admin
@@ -50,7 +50,7 @@ export const GET = withUser(async (
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cover-letter-pdf] generation failed:", msg);
-    return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
+    return jsonError("PDF generation failed", 500);
   }
 
   return new NextResponse(new Uint8Array(bytes), {

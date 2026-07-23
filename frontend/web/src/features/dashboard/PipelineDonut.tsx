@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { shallowSetParams } from "../jobs/lib/shallowNav";
+import { shallowSetParams } from "@/features/jobs/lib/shallowNav";
 import { FilterAnchor } from "./FilterAnchor";
 import { CalloutStrip } from "./CalloutStrip";
 import { Button, Chip, IconButton } from "@/components/ui";

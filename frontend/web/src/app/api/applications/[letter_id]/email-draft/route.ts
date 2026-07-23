@@ -16,7 +16,7 @@ import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cv/backend";
 import type { ContactDetails }       from "@/lib/types";
 import { filenameSlug }              from "@/lib/filenameSlug";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const TAILORED_CV_BUCKET = "tailored-cvs";
 
@@ -37,10 +37,10 @@ export const GET = withUser(async (
     .maybeSingle();
 
   if (!letter || letter.user_id !== user.id) {
-    return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+    return jsonError("Letter not found", 404);
   }
   if (letter.email_sent_at) {
-    return NextResponse.json({ error: "Email already sent" }, { status: 409 });
+    return jsonError("Email already sent", 409);
   }
 
   // 2. Job (no user_id column — letter ownership is the gate)
@@ -51,7 +51,7 @@ export const GET = withUser(async (
     .maybeSingle();
 
   if (!job) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    return jsonError("Job not found", 404);
   }
   // Contact email is OPTIONAL. The review flow drafts an email regardless;
   // when no contact_email is on file, the resulting draft is for the user

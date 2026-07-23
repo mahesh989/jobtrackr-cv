@@ -14,7 +14,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, priceIdForPlan } from "@/lib/billing/stripe";
 import { getEntitlement }            from "@/lib/billing/entitlements";
 import type { PlanId }               from "@/lib/billing/plans";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const targetPlan = body?.targetPlan as PlanId | undefined;
 
   if (!targetPlan || !(targetPlan in PLAN_RANK)) {
-    return NextResponse.json({ error: "Invalid target plan." }, { status: 400 });
+    return jsonError("Invalid target plan.", 400);
   }
 
   const ent = await getEntitlement(user.id);
@@ -54,7 +54,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const newPriceId = priceIdForPlan(targetPlan);
   if (!newPriceId) {
-    return NextResponse.json({ error: "Plan price not configured." }, { status: 500 });
+    return jsonError("Plan price not configured.", 500);
   }
 
   const admin = createAdminClient();
@@ -66,7 +66,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const subscriptionId = (sub as { stripe_subscription_id?: string } | null)?.stripe_subscription_id;
   if (!subscriptionId) {
-    return NextResponse.json({ error: "No active Stripe subscription found." }, { status: 422 });
+    return jsonError("No active Stripe subscription found.", 422);
   }
 
   const stripe = getStripe();
@@ -76,7 +76,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const itemId = stripeSub.items?.data?.[0]?.id;
   if (!itemId) {
-    return NextResponse.json({ error: "Could not locate subscription item." }, { status: 500 });
+    return jsonError("Could not locate subscription item.", 500);
   }
 
   await stripe.subscriptions.update(subscriptionId, {

@@ -4,7 +4,7 @@
 // regardless of which page the user is sitting on.
 
 import { NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 interface RunRow {
   id:             string;
@@ -28,7 +28,7 @@ export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
     .gte("started_at", since)
     .order("started_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return jsonError(error.message, 500);
 
   const runs = ((data ?? []) as unknown as RunRow[]).map((r) => ({
     id:            r.id,

@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { withAdmin, parseJsonBody } from "@/lib/api-utils";
+import { jsonError, withAdmin, parseJsonBody } from "@/lib/api-utils";
 import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
 import type { JobSource, SourceTier } from "@/lib/constants";
 
@@ -43,7 +43,7 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   const tier = body!.tier;
   if (tier !== "weekly" && tier !== "monthly" && tier !== "unlimited") {
-    return NextResponse.json({ error: "tier must be weekly, monthly, or unlimited" }, { status: 400 });
+    return jsonError("tier must be weekly, monthly, or unlimited", 400);
   }
 
   const update: Record<string, unknown> = {
@@ -68,7 +68,7 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   if (error) {
     console.error("[/api/admin/sources PATCH] update failed:", error.message);
-    return NextResponse.json({ error: "Save failed" }, { status: 500 });
+    return jsonError("Save failed", 500);
   }
   return NextResponse.json(data);
 });

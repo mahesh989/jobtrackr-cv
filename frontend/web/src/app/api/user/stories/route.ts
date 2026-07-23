@@ -20,7 +20,7 @@
 
 import { NextResponse }      from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -39,7 +39,7 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
 
   if (tsErr) {
     console.error("[GET /api/user/stories] timestamp query failed:", tsErr.message);
-    return NextResponse.json({ error: "Failed to fetch stories." }, { status: 500 });
+    return jsonError("Failed to fetch stories.", 500);
   }
 
   // No stories extracted yet — not an error.
@@ -57,7 +57,7 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
 
   if (batchErr) {
     console.error("[GET /api/user/stories] batch query failed:", batchErr.message);
-    return NextResponse.json({ error: "Failed to fetch stories." }, { status: 500 });
+    return jsonError("Failed to fetch stories.", 500);
   }
 
   return NextResponse.json({ stories: stories ?? [], count: (stories ?? []).length });

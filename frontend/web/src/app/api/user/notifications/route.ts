@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 /**
  * GET/PATCH /api/user/notifications — the "email me when new jobs are found"
@@ -27,12 +27,12 @@ export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabas
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return jsonError("Invalid JSON body", 400);
   }
 
   const notifyNewJobs = (body as { notify_new_jobs?: unknown })?.notify_new_jobs;
   if (typeof notifyNewJobs !== "boolean") {
-    return NextResponse.json({ error: "notify_new_jobs must be a boolean" }, { status: 400 });
+    return jsonError("notify_new_jobs must be a boolean", 400);
   }
 
   // user_engagement has no user INSERT policy (row creation is meant to go
@@ -47,6 +47,6 @@ export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabas
     .update({ notify_new_jobs: notifyNewJobs, updated_at: new Date().toISOString() })
     .eq("user_id", user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return jsonError(error.message, 500);
   return NextResponse.json({ notify_new_jobs: notifyNewJobs });
 });

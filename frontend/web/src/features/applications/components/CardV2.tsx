@@ -101,7 +101,8 @@ export interface ApplicationRowV2 {
   tailored_cv_storage_path:  string | null;
 }
 
-export type CardTabV2 = "pool" | "sent";
+import type { ApplicationStatusKey } from "./StatusTabs";
+export type CardTabV2 = ApplicationStatusKey;
 
 function scoreColor(n: number | null) {
   if (n == null) return "text-text-3";

@@ -13,7 +13,7 @@ import { NextResponse }              from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { encryptApiKey, decryptApiKey } from "@/lib/integrations/crypto";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { withUser }                  from "@/lib/api-utils";
+import { jsonError, withUser }                  from "@/lib/api-utils";
 
 const MONTHLY_BUDGET = 5.0;
 
@@ -83,15 +83,15 @@ export const POST = withUser(async (req, _ctx, { user }) => {
     const body = await req.json();
     token = (body.token ?? "").trim();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return jsonError("Invalid request body", 400);
   }
 
-  if (!token) return NextResponse.json({ error: "Token is required" }, { status: 400 });
+  if (!token) return jsonError("Token is required", 400);
 
   // Rate limit: POST validates the token against Apify's API — cap to prevent
   // using this endpoint as a token-validation oracle.
   const rl = await rateLimit(`apify-validate:${user.id}`, 10, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   // Validate with Apify before storing anything
   const { valid, error: validationError } = await validateApifyToken(token);
@@ -128,7 +128,7 @@ export const POST = withUser(async (req, _ctx, { user }) => {
 
   if (dbError) {
     console.error("[integrations/apify] db error:", dbError.message);
-    return NextResponse.json({ error: "Failed to save integration" }, { status: 500 });
+    return jsonError("Failed to save integration", 500);
   }
 
   return NextResponse.json({ valid: true });
@@ -148,7 +148,7 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
 
   if (error) {
     console.error("[/api/integrations/apify] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
   if (!data)  return NextResponse.json({ connected: false });
 
@@ -222,7 +222,7 @@ export const DELETE = withUser(async (_req, _ctx, { user }) => {
 
   if (error) {
     console.error("[/api/integrations/apify] db error:", error.message);
-    return NextResponse.json({ error: "Request failed" }, { status: 500 });
+    return jsonError("Request failed", 500);
   }
 
   return NextResponse.json({ disconnected: true });

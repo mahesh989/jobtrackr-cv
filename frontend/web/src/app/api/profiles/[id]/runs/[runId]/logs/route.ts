@@ -7,7 +7,7 @@
 // with the user-scoped client suffices.
 
 import { NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 interface RunLogRow {
   log_lines: { t: string; msg: string }[] | null;
@@ -28,7 +28,7 @@ export const GET = withUser(async (
     .eq("id", profileId)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!profile) return jsonError("Not found", 404);
 
   const { data, error } = await supabase
     .from("run_logs")
@@ -37,8 +37,8 @@ export const GET = withUser(async (
     .eq("profile_id", profileId)
     .maybeSingle<RunLogRow>();
 
-  if (error)   return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data)   return NextResponse.json({ error: "Not found" },   { status: 404 });
+  if (error)   return jsonError(error.message, 500);
+  if (!data)   return jsonError("Not found", 404);
 
   return NextResponse.json({
     lines:  data.log_lines ?? [],

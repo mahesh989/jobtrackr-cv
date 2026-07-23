@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { LetterStatus } from "@/lib/constants";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Textarea, Input, Button } from "@/components/ui";
@@ -19,7 +20,7 @@ interface OpeningVariant {
 
 export interface CoverLetterRow {
   id:                       string;
-  status:                   "pending" | "running" | "completed" | "failed" | "picking";
+  status:                   LetterStatus;
   generation_status:        GenerationStatus;
   pass_3_final:             string | null;
   burstiness_score:         number | null;

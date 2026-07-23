@@ -21,7 +21,7 @@
 
 import { NextRequest, NextResponse }  from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -41,14 +41,14 @@ export const PATCH = withUser(async (
   // ── 2. Parse body ─────────────────────────────────────────────────────────────
   let body: { tags?: unknown; one_line?: unknown };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const patch: Record<string, unknown> = {};
 
   if ("tags" in body) {
     const raw = body.tags;
     if (!Array.isArray(raw) || !raw.every((t) => typeof t === "string")) {
-      return NextResponse.json({ error: "tags must be an array of strings" }, { status: 400 });
+      return jsonError("tags must be an array of strings", 400);
     }
     const tags = raw as string[];
     if (tags.length > MAX_TAGS) {
@@ -70,7 +70,7 @@ export const PATCH = withUser(async (
   if ("one_line" in body) {
     const raw = body.one_line;
     if (typeof raw !== "string" || !raw.trim()) {
-      return NextResponse.json({ error: "one_line must be a non-empty string" }, { status: 400 });
+      return jsonError("one_line must be a non-empty string", 400);
     }
     if (raw.trim().length > MAX_ONE_LINE) {
       return NextResponse.json(
@@ -82,7 +82,7 @@ export const PATCH = withUser(async (
   }
 
   if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: "No supported fields in request" }, { status: 400 });
+    return jsonError("No supported fields in request", 400);
   }
 
   const admin = createAdminClient();
@@ -95,7 +95,7 @@ export const PATCH = withUser(async (
     .maybeSingle();
 
   if (!existing || existing.user_id !== user.id) {
-    return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    return jsonError("Story not found", 404);
   }
 
   // ── 4. Apply patch ────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export const PATCH = withUser(async (
 
   if (updateErr || !updated) {
     console.error("[PATCH /api/user/stories/:id] update failed:", updateErr?.message);
-    return NextResponse.json({ error: "Failed to update story." }, { status: 500 });
+    return jsonError("Failed to update story.", 500);
   }
 
   return NextResponse.json(updated);

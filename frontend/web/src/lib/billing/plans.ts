@@ -18,17 +18,15 @@
  * Weekly (capped sprint) → Monthly (best value) → Unlimited (no caps).
  */
 
-export type PlanId = "trial" | "weekly" | "monthly" | "unlimited" | "comp";
+export const PLAN_IDS = ["trial", "weekly", "monthly", "unlimited", "comp"] as const;
+export type PlanId = (typeof PLAN_IDS)[number];
 
-export type SubStatus =
-  | "trialing"
-  | "active"
-  | "past_due"
-  | "canceled"
-  | "unpaid"
-  | "incomplete"
-  | "incomplete_expired"
-  | "comp";
+/** Stripe subscription statuses + our synthetic 'comp' (grandfathered). */
+export const SUB_STATUSES = [
+  "trialing", "active", "past_due", "canceled",
+  "unpaid", "incomplete", "incomplete_expired", "comp",
+] as const;
+export type SubStatus = (typeof SUB_STATUSES)[number];
 
 /** A null cap means unlimited for that dimension. */
 export interface PlanLimits {
@@ -52,7 +50,7 @@ export interface PlanDisplay extends PlanLimits {
   highlights: string[];
 }
 
-/** Typed mirror of the seed in migration 051_billing.sql. */
+/** Typed mirror of the plans seed (shared/supabase/migrations/003_seed.sql). */
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   trial: {
     maxProfiles: 1, maxRuns: 1,
@@ -134,15 +132,11 @@ export const PUBLIC_PLANS: PlanDisplay[] = [
 export const TRIAL_DAYS = 3;
 
 /** Reason codes returned by the entitlement layer → mapped to UI copy. */
-export type DenyReason =
-  | "no_subscription"
-  | "read_only"
-  | "profile_cap"
-  | "run_cap"
-  | "cv_unique_cap"
-  | "cv_total_cap"
-  | "letter_unique_cap"
-  | "letter_total_cap";
+export const DENY_REASONS = [
+  "no_subscription", "read_only", "profile_cap", "run_cap",
+  "cv_unique_cap", "cv_total_cap", "letter_unique_cap", "letter_total_cap",
+] as const;
+export type DenyReason = (typeof DENY_REASONS)[number];
 
 export const DENY_COPY: Record<DenyReason, { title: string; body: string }> = {
   no_subscription: {

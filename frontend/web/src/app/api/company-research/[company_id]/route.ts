@@ -19,7 +19,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { researchCompany, CvBackendError } from "@/lib/cv/backend";
 import { rateLimit, RATE_LIMIT_MESSAGE }    from "@/lib/rateLimit";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;
@@ -42,11 +42,11 @@ export const GET = withUser(async (
 
   if (error) {
     console.error("[/api/company-research/[company_id]] GET error:", error.message);
-    return NextResponse.json({ error: "Database error." }, { status: 500 });
+    return jsonError("Database error.", 500);
   }
 
   if (!data) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
+    return jsonError("Not found.", 404);
   }
 
   return NextResponse.json({ research: data });
@@ -60,7 +60,7 @@ export const POST = withUser(async (
 
   // Rate limit: force-refresh re-runs Tavily + AI + an outbound homepage fetch.
   const rl = await rateLimit(`company-research:${user.id}`, 15, 60);
-  if (!rl.allowed) return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const { company_id } = await params;
   const admin = createAdminClient();
@@ -74,7 +74,7 @@ export const POST = withUser(async (
 
   if (lookupErr) {
     console.error("[/api/company-research/[company_id]] lookup error:", lookupErr.message);
-    return NextResponse.json({ error: "Database error." }, { status: 500 });
+    return jsonError("Database error.", 500);
   }
 
   if (!existing) {
@@ -143,6 +143,6 @@ export const POST = withUser(async (
       "[/api/company-research/[company_id]] refresh error:",
       err instanceof CvBackendError ? err.status : (err as Error).message,
     );
-    return NextResponse.json({ error: "Refresh failed." }, { status: 502 });
+    return jsonError("Refresh failed.", 502);
   }
 });

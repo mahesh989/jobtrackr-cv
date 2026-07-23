@@ -12,7 +12,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 // A real Storage object path. Excludes the "pending" placeholder and the
 // `built://…` sentinel used by from-scratch CVs (which have no Storage object).
@@ -63,7 +63,7 @@ export const DELETE = withUser(async (_req, _ctx, { user }) => {
   const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
   if (delErr) {
     console.error("[user/delete] auth deleteUser failed:", delErr.message);
-    return NextResponse.json({ error: "Account deletion failed. Please try again." }, { status: 500 });
+    return jsonError("Account deletion failed. Please try again.", 500);
   }
 
   return NextResponse.json({ deleted: true });

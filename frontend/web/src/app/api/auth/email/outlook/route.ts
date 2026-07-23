@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes }  from "crypto";
 import { cookies }      from "next/headers";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 const SCOPE = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access";
 
@@ -19,7 +19,7 @@ export const GET = withUser(async () => {
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const appUrl   = process.env.NEXT_PUBLIC_APP_URL;
   if (!clientId || !appUrl) {
-    return NextResponse.json({ error: "Outlook OAuth not configured" }, { status: 500 });
+    return jsonError("Outlook OAuth not configured", 500);
   }
 
   const state       = randomBytes(16).toString("hex");

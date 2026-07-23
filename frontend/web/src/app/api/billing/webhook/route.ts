@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe                   from "stripe";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, STRIPE_WEBHOOK_SECRET, planForPriceId } from "@/lib/billing/stripe";
+import { jsonError } from "@/lib/api-utils";
 
 export const runtime = "nodejs";
 
@@ -82,7 +83,7 @@ async function upsertFromSubscription(stripe: Stripe, sub: Stripe.Subscription) 
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return NextResponse.json({ error: "No signature" }, { status: 400 });
+  if (!sig) return jsonError("No signature", 400);
 
   const stripe = getStripe();
   const raw = await req.text();
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(raw, sig, STRIPE_WEBHOOK_SECRET());
   } catch (err) {
     console.error("[billing/webhook] signature verify failed:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    return jsonError("Invalid signature", 400);
   }
 
   const admin = createAdminClient();
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[billing/webhook] handler error:", err instanceof Error ? err.message : err);
     // 500 → Stripe retries with backoff (idempotency makes that safe).
-    return NextResponse.json({ error: "Handler failed" }, { status: 500 });
+    return jsonError("Handler failed", 500);
   }
 
   return NextResponse.json({ received: true });

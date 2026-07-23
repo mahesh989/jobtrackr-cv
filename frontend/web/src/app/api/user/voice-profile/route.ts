@@ -21,7 +21,7 @@ import { createAdminClient }                                   from "@/lib/supab
 import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cv/backend";
 import type { SourceTag }                                      from "@/features/cv/voice/types";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
@@ -48,11 +48,11 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { voice_sample_text?: unknown; source?: unknown };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+  catch { return jsonError("Invalid JSON body", 400); }
 
   const voiceSample = typeof body.voice_sample_text === "string" ? body.voice_sample_text.trim() : "";
   if (!voiceSample) {
-    return NextResponse.json({ error: "voice_sample_text is required" }, { status: 422 });
+    return jsonError("voice_sample_text is required", 422);
   }
 
   // Normalise the source tag. Defaults to in_app_capture so legacy clients
@@ -86,7 +86,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
     });
   } catch (err) {
     if (err instanceof CvBackendError && err.status === 422) {
-      return NextResponse.json({ error: "Voice sample is too short or empty." }, { status: 422 });
+      return jsonError("Voice sample is too short or empty.", 422);
     }
     console.error(
       "[/api/user/voice-profile] cv-backend error:",
@@ -117,7 +117,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   if (upsertErr) {
     console.error("[/api/user/voice-profile] upsert failed:", upsertErr.message);
-    return NextResponse.json({ error: "Failed to save voice profile" }, { status: 500 });
+    return jsonError("Failed to save voice profile", 500);
   }
 
   return NextResponse.json({
