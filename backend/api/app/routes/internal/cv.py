@@ -20,8 +20,9 @@ from app.schemas.internal import (
     StructurizeCvRequest,
     StructurizeCvResponse,
 )
+from app.routes.internal._helpers import build_ai_client_or_422
 from app.services.cv.cv_structurizer import normalise_structured_cv
-from app.services.ai.client import AIClientError, make_ai_client
+from app.services.ai.client import AIClientError
 from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.cv.references_extractor import extract_cv_references
 from app.services.cv.cv_structurizer import structurize_cv
@@ -113,10 +114,7 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
     domain_knowledge — extracted from the provided CV text by the AI provider
     the user has connected. JobTrackr calls this once at CV upload time.
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         result = await categorise_cv_skills(ai_client, body.cv_text)
@@ -146,10 +144,7 @@ async def extract_cv_references_route(
     {name, job_title, company, email}. Called on-demand from the web UI
     when a user clicks "Extract from active CV" in the References section.
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         referees = await extract_cv_references(ai_client, body.cv_text)
@@ -177,10 +172,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     the result is stored on cv_versions.structured_cv and edited in the
     review form. Dates are extracted verbatim (never inferred).
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         structured = await structurize_cv(ai_client, body.cv_text)

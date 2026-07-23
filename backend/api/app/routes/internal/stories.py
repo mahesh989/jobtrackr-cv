@@ -13,7 +13,8 @@ from app.schemas.stories import (
     MatchStoriesResponse,
     ScoredStory,
 )
-from app.services.ai.client import AIClientError, make_ai_client
+from app.routes.internal._helpers import build_ai_client_or_422
+from app.services.ai.client import AIClientError
 from app.services.stories.story_extractor import extract_stories
 from app.services.stories.story_matcher import score_stories
 
@@ -40,10 +41,7 @@ async def extract_stories_endpoint(
     NOTE: body.cv_text must not appear in logs. If request-body logging is
     ever added to this service, add cv_text to the redaction list.
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         result = await extract_stories(ai_client, body.cv_text)

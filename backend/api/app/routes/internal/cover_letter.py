@@ -4,7 +4,8 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
-from app.services.ai.client import AIClientError, make_ai_client
+from app.routes.internal._helpers import build_ai_client_or_422
+from app.services.ai.client import AIClientError
 from app.schemas.cover_letter import (
     GenerateCoverLetterRequest,
     GenerateCoverLetterResponse,
@@ -41,13 +42,7 @@ async def generate_opening_variants_endpoint(
         body.user_id, body.job_id, body.ai_provider,
     )
 
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid AI client configuration: {exc}",
-        ) from exc
+    ai_client = build_ai_client_or_422(body, detail_prefix="Invalid AI client configuration: ")
 
     try:
         variants = await generate_opening_variants(ai_client, body)
