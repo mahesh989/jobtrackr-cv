@@ -227,7 +227,7 @@ class ClassifiedSkillItem(BaseModel):
     category:     Optional[str]  # domain_knowledge | soft_skills | technical | None
     canonical:    Optional[str]
     is_noise:     bool
-    action:       str  # correct | should_be_care_skills | should_be_stripped | add_to_lexicon
+    action:       str  # correct | correct_technical | should_be_care_skills | should_be_stripped | add_to_lexicon
 
 
 class ClassifySkillsResponse(BaseModel):

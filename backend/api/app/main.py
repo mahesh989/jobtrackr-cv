@@ -1,5 +1,5 @@
 """
-CV Magic — FastAPI application entry point.
+JobTrackr CV Pipeline (cv-backend) — FastAPI application entry point.
 """
 from __future__ import annotations
 
@@ -185,7 +185,7 @@ app.add_middleware(RequestIdMiddleware)
 
 
 @app.middleware("http")
-async def access_log(request: Request, call_next):
+async def access_log(request: Request, call_next) -> Response:
     """Log one structured line per request with method, path, status, latency."""
     start = time.perf_counter()
     try:

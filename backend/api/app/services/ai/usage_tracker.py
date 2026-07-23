@@ -136,7 +136,7 @@ async def _emit(row: dict) -> None:
             lambda: get_supabase().table("ai_calls").insert(row).execute()
         )
     except Exception as exc:  # noqa: BLE001
-        logger.debug("usage_tracker: failed to emit ai_calls row: %s", exc)
+        logger.warning("usage_tracker: failed to emit ai_calls row: %s", exc)
 
 
 def track(

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     SUPABASE_TAILORED_CV_BUCKET: str = "tailored-cvs"
 
     # -------------------------------------------------------------------------
-    # AI defaults — actual key is BYOK, supplied by JobTrackr per-request in 2d.
+    # AI defaults — actual key is BYOK, supplied by JobTrackr per-request.
     # -------------------------------------------------------------------------
     DEFAULT_AI_PROVIDER: Provider = Provider.ANTHROPIC
     DEFAULT_AI_MODEL: str = "claude-3-5-sonnet-20241022"
@@ -63,8 +63,8 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_ANALYSES: int = 4
 
     # -------------------------------------------------------------------------
-    # HMAC shared secret with JobTrackr (set in commit 2c, deployed in 2f).
-    # cv-backend rejects requests whose signature does not verify with this.
+    # HMAC shared secret with JobTrackr — must match JOBTRACKR_HMAC_SECRET on
+    # Vercel. cv-backend rejects requests whose signature does not verify.
     # -------------------------------------------------------------------------
     JOBTRACKR_HMAC_SECRET: str = ""
 

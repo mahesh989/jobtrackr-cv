@@ -1,7 +1,9 @@
 """
-Eval harness — additive, isolated package for the beta A/B/C/D screen.
+Eval package — writer variants, enforcement, verification, role families.
 
-Nothing in here is imported by the production pipeline (orchestrator.py).
-It REUSES the existing pipeline steps to reproduce each writer variant
-faithfully, but never modifies them. Safe to delete wholesale on rollback.
+Historically the isolated beta A/B harness; now ON THE PRODUCTION PATH:
+the orchestrator imports run_tailored_cv_w8_verified (the default writer)
+from eval.writers, and role_families.py routes every run. The /analyze-eval
+harness endpoints remain the beta surface, but this package is NOT safe to
+delete or treat as experimental.
 """

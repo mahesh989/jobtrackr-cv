@@ -7,15 +7,18 @@ payload (JD text, CV text, BYOK key) — no DB lookups for inputs.
 
 Writes step state + results back to analysis_runs via Supabase REST.
 
-⚠️ Phase 2 (this commit) — scaffolding only. Just marks the run running +
-   completed so we can verify the write path is wired. Actual pipeline steps
-   are added back in Phase 5 (step 1) and Phase 6 (steps 2–6.6).
+Runs the full pipeline: JD analysis (+ deterministic enrichment), CV↔JD
+matching, ATS scoring + initial gate, input recommendations, keyword
+feasibility, tailored CV (w8_verified by default) + PDF render, tailored
+rescoring + structural validation, final gate + auto cover letter.
 """
 from __future__ import annotations
 
 import logging
 
 import asyncio
+import uuid
+from typing import Optional
 
 from app.config import get_settings
 from app.db import ANALYSIS_RUNS, upload_or_update
@@ -72,7 +75,7 @@ class _CancelledByUser(Exception):
     """
 
 
-async def _check_cancelled(run_id) -> None:
+async def _check_cancelled(run_id: uuid.UUID) -> None:
     """Raise _CancelledByUser if the run row was marked failed by the user.
 
     Called before each expensive step. Cheap (single indexed read) — adds
@@ -99,7 +102,7 @@ async def _check_cancelled(run_id) -> None:
         raise _CancelledByUser()
 
 
-async def _load_cached_results(run_id) -> dict:
+async def _load_cached_results(run_id: uuid.UUID) -> dict:
     """Fetch the already-saved early-step outputs for a resume.
 
     Returns the run row's jd_analysis_result / cv_jd_matching_result /
@@ -202,7 +205,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 )
                 _boilerplate_blob = f" {_ground_norm(_bp_bodies)} "
         except Exception:  # noqa: BLE001 — provenance is best-effort
-            logger.debug("boilerplate blob build: failed", exc_info=True)
+            logger.warning("boilerplate blob build: failed", exc_info=True)
 
         # ── Step 1 — JD analysis ───────────────────────────────────────────────
         jd_analysis = cached.get("jd_analysis_result")
@@ -347,7 +350,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                     ),
                 }
             except Exception:  # noqa: BLE001
-                logger.debug("credential scan: failed", exc_info=True)
+                logger.warning("credential scan: failed", exc_info=True)
 
             # Essential vs Desirable deterministic clamp — move skills between
             # required ↔ preferred where the JD's section headers contradict
@@ -358,7 +361,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 from app.services.skills.post_process import clamp_by_jd_sections
                 jd_analysis = clamp_by_jd_sections(jd_analysis, payload.jd_text)
             except Exception:  # noqa: BLE001 — never block on a heuristic
-                logger.debug("section clamp: failed", exc_info=True)
+                logger.warning("section clamp: failed", exc_info=True)
 
             # Off-setting boilerplate demotion: for a residential aged-care JD
             # whose About-Us / brand prose leaks "disability support" or
@@ -371,7 +374,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 _setting = _classify_jd_setting(payload.jd_text, jd_analysis)
                 jd_analysis = demote_off_setting_keywords(jd_analysis, _setting)
             except Exception:  # noqa: BLE001 — never block on a heuristic
-                logger.debug("off-setting demotion: failed", exc_info=True)
+                logger.warning("off-setting demotion: failed", exc_info=True)
 
             # Best-effort: record any unknown phrases (lexicon gaps) to the
             # rolling JSONL log so weekly reviews can promote high-frequency

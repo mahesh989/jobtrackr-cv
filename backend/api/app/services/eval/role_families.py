@@ -16,7 +16,6 @@ master.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
 from typing import Any, Dict, List
 
 # RoleFamilyProfile now lives in verticals/base.py to avoid circular imports.
@@ -34,14 +33,8 @@ from app.services.verticals.general.config import PROFILE as _MASTER
 
 
 # ---------------------------------------------------------------------------
-# Families (local aliases kept for the routing logic below)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
-
 
 # Nursing subtype detection now lives in verticals/nursing/hooks.py.
 # Re-export as private names so existing callers in this module keep working.
