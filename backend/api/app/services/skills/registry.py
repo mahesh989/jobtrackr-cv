@@ -34,8 +34,8 @@ from app.services.eval.enforce import (
 # post_process._AU_UNIT_PREFIXES and cv_jd_matching._CREDENTIAL_PHRASE_RE.
 from app.services.skills.post_process import _AU_UNIT_PREFIXES as AU_UNIT_PREFIXES
 
-# Canonical category tuple — currently redefined in 5 modules.
-CATEGORIES: tuple[str, ...] = ("technical", "soft_skills", "domain_knowledge")
+# Canonical category tuple — re-exported from app.enums (the single source).
+from app.enums import CATEGORY_KEYS as CATEGORIES  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Unified non-skill predicate

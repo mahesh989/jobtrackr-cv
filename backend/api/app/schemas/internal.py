@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.enums import Provider
+from app.enums import Provider, SkillCategory
 from app.schemas._byok import BYOK
 from app.schemas.stories import ExtractStoriesResponse  # noqa: F401 — re-exported
 from app.schemas.voice import VoiceFingerprint
@@ -224,10 +224,16 @@ class ClassifySkillsRequest(BaseModel):
 
 class ClassifiedSkillItem(BaseModel):
     item:         str
-    category:     Optional[str]  # domain_knowledge | soft_skills | technical | None
+    category:     Optional[SkillCategory]
     canonical:    Optional[str]
     is_noise:     bool
-    action:       str  # correct | correct_technical | should_be_care_skills | should_be_stripped | add_to_lexicon
+    action:       Literal[
+        "correct",
+        "correct_technical",
+        "should_be_care_skills",
+        "should_be_stripped",
+        "add_to_lexicon",
+    ]
 
 
 class ClassifySkillsResponse(BaseModel):

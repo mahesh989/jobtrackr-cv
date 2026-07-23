@@ -88,10 +88,8 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
             detail=f"Could not fetch CV file: {exc}",
         ) from exc
 
-    # Size cap — the signed-upload flow doesn't enforce one at the edge, so a
-    # huge/crafted file could otherwise be handed straight to pypdf/python-docx.
-    _MAX_CV_BYTES = 10 * 1024 * 1024  # 10 MB — generous; real CVs are ~80-300 KB
-    if len(file_bytes) > _MAX_CV_BYTES:
+    # Size cap — see Settings.MAX_CV_UPLOAD_BYTES for rationale.
+    if len(file_bytes) > settings.MAX_CV_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="CV file is too large.",

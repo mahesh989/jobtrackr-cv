@@ -21,6 +21,42 @@ class SkillCategory(StrEnum):
     DOMAIN_KNOWLEDGE = "domain_knowledge"
 
 
+class RequirementBucket(StrEnum):
+    REQUIRED = "required"
+    PREFERRED = "preferred"
+
+
+# Canonical iteration tuples — the single source for the ("technical",
+# "soft_skills", "domain_knowledge") / ("required", "preferred") tuples that
+# were historically redefined per module. Order is load-bearing (display
+# order, weight resolution) — do not reorder.
+CATEGORY_KEYS: tuple[str, ...] = tuple(c.value for c in SkillCategory)
+BUCKET_KEYS:   tuple[str, ...] = tuple(b.value for b in RequirementBucket)
+
+
+class KnockoutStatus(StrEnum):
+    FAIL = "fail"
+    VERIFY = "verify"
+    PASS = "pass"
+
+
+class CertPolicy(StrEnum):
+    FIRST_CLASS = "first_class"
+    PLUS = "plus"
+    RARE = "rare"
+
+
+class InjectionPolicy(StrEnum):
+    AGGRESSIVE = "aggressive"
+    DIRECT_ONLY = "direct_only"
+    NONE = "none"
+
+
+class HeadlineBucket(StrEnum):
+    TECHNICAL = "technical"
+    DOMAIN_KNOWLEDGE = "domain_knowledge"
+
+
 class StepName(StrEnum):
     JD_ANALYSIS = "jd_analysis"
     CV_JD_MATCHING = "cv_jd_matching"

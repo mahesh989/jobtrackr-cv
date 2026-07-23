@@ -5,7 +5,7 @@ the per-vertical config modules import the dataclass without creating a
 circular dependency.
 
 Import chain (no cycles):
-  verticals/base.py          ← no project imports
+  verticals/base.py          ← imports only app.enums (a leaf module)
   verticals/<id>/config.py   ← imports RoleFamilyProfile from verticals.base
   verticals/__init__.py      ← imports from verticals.base + verticals/<id>/config.py
   eval/role_families.py      ← imports RoleFamilyProfile + ROLE_FAMILIES from verticals
@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace  # noqa: F401  (replace re-exported for callers)
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 
 
 @dataclass(frozen=True)
@@ -24,15 +26,15 @@ class RoleFamilyProfile:
     aliases: List[str]                 # router keyword match (substrings, lowercased)
     section_order: List[str]           # exact ## section order
     skills_categories: List[str]       # the 3 skills-line labels for this family
-    cert_policy: str                   # "first_class" | "plus" | "rare"
-    injection_policy: str              # "aggressive" | "direct_only" | "none"
+    cert_policy: CertPolicy            # StrEnum — values are plain strings at runtime
+    injection_policy: InjectionPolicy
     metric_vocab: List[str]            # domain metric words (for relevance/coverage)
     identity_guidance: str             # short prompt block: how to frame identity
     extra_rules: str = ""              # any family-specific rule text
     # Which internal bucket carries this family's HEADLINE competencies.
-    headline_bucket: str = "technical"  # "technical" | "domain_knowledge"
+    headline_bucket: HeadlineBucket = HeadlineBucket.TECHNICAL
     # Verified equivalences: (jd_facing_term, [cv_terms_that_justify_it], category).
-    equivalences: List[tuple] = field(default_factory=list)
+    equivalences: List[Tuple[str, List[str], str]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     # Per-family ATS keyword weights — sum to 50 (the Keyword Match half of the
     # 100-point ATS score).

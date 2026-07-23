@@ -30,14 +30,16 @@ from typing import Any, Dict, Optional
 from postgrest.exceptions import APIError
 
 from app.database import get_supabase
+from app.db import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
 from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.generator import run_cover_letter_pipeline
 
 logger = logging.getLogger(__name__)
 
-_COVER_LETTERS  = "cover_letters"
-_ANALYSIS_RUNS  = "analysis_runs"
+# Table-name aliases — canonical constants live in app.db.
+_COVER_LETTERS  = COVER_LETTERS
+_ANALYSIS_RUNS  = ANALYSIS_RUNS
 
 # Strong references to in-flight generator tasks. asyncio.create_task returns
 # a weakly-held task — without a reference the GC can collect it mid-run and
@@ -193,7 +195,7 @@ async def auto_generate_cover_letter(
         # ── 3. Voice profile ─────────────────────────────────────────────────
         try:
             voice_row = await asyncio.to_thread(
-                lambda: sb.table("voice_profiles")
+                lambda: sb.table(VOICE_PROFILES)
                 .select("fingerprint, voice_sample_raw")
                 .eq("user_id", user_id).limit(1).execute()
             )
@@ -214,7 +216,7 @@ async def auto_generate_cover_letter(
         # ── 4. Story ─────────────────────────────────────────────────────────
         try:
             story_row = await asyncio.to_thread(
-                lambda: sb.table("stories")
+                lambda: sb.table(STORIES)
                 .select("id, title, domain, year, one_line, detailed, numbers, tags")
                 .eq("user_id", user_id)
                 .order("extraction_timestamp", desc=True)
@@ -239,7 +241,7 @@ async def auto_generate_cover_letter(
         )
         try:
             hook_row = await asyncio.to_thread(
-                lambda: sb.table("company_research_facts")
+                lambda: sb.table(COMPANY_RESEARCH_FACTS)
                 .select("hook_text")
                 .eq("company_slug", _make_slug(company_name))
                 .limit(1).execute()

@@ -26,6 +26,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from app.enums import BUCKET_KEYS
+
 logger = logging.getLogger(__name__)
 
 # Env-overridable path. Default puts the file under the repo's writable
@@ -91,7 +93,7 @@ def _collect_unknown(lexicon_meta: Dict[str, Any]) -> List[tuple[str, str, str]]
     unparseable is silently dropped.
     """
     out: List[tuple[str, str, str]] = []
-    for bucket in ("required", "preferred"):
+    for bucket in BUCKET_KEYS:
         side = lexicon_meta.get(bucket) or {}
         unknown_list = side.get("unknown") or []
         if not isinstance(unknown_list, list):

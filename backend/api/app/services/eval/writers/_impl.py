@@ -24,10 +24,13 @@ writers is the AI prompt that produced the markdown.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import uuid
+
+from app.enums import CATEGORY_KEYS
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
@@ -495,10 +498,8 @@ def _log_tailoring_report(
 
     counts = (matching or {}).get("counts") or {}
     req = counts.get("required") or {}
-    req_matched = sum(int((req.get(c) or {}).get("matched") or 0) for c in
-                      ("technical", "soft_skills", "domain_knowledge"))
-    req_total = sum(int((req.get(c) or {}).get("total") or 0) for c in
-                    ("technical", "soft_skills", "domain_knowledge"))
+    req_matched = sum(int((req.get(c) or {}).get("matched") or 0) for c in CATEGORY_KEYS)
+    req_total = sum(int((req.get(c) or {}).get("total") or 0) for c in CATEGORY_KEYS)
 
     logger.info(
         "tailoring report: family=%s | req_matched=%d/%d | feasibility direct=%d ext=%d inf=%d gaps=%d | "
@@ -1272,7 +1273,8 @@ async def run_tailored_cv_w8_verified(
     # Persist the honesty_guard rewrite notes alongside the run. Best-effort —
     # if migration 057 (analysis_runs.quality_flags) hasn't been applied yet,
     # this writes nothing rather than failing the pipeline.
-    _persist_quality_flags(run_id, result)
+    # Sync supabase write — run in a worker thread so the event loop stays free.
+    await asyncio.to_thread(_persist_quality_flags, run_id, result)
     return md, storage_path
 
 
@@ -1288,8 +1290,9 @@ def _persist_quality_flags(run_id: uuid.UUID, result: "WriterResult") -> None:
     }
     try:
         from app.database import get_supabase
+        from app.db import ANALYSIS_RUNS
         sb = get_supabase()
-        sb.table("analysis_runs").update({"quality_flags": flags}).eq("id", str(run_id)).execute()
+        sb.table(ANALYSIS_RUNS).update({"quality_flags": flags}).eq("id", str(run_id)).execute()
     except Exception as e:
         msg = str(e)
         if "quality_flags" in msg or "column" in msg.lower():

@@ -21,6 +21,9 @@ ANALYSIS_RUNS = "analysis_runs"
 COVER_LETTERS = "cover_letters"
 AI_CALLS      = "ai_calls"
 CV_VERSIONS   = "cv_versions"
+VOICE_PROFILES         = "voice_profiles"
+STORIES                = "stories"
+COMPANY_RESEARCH_FACTS = "company_research_facts"
 
 
 # ── Timestamp ─────────────────────────────────────────────────────────────────

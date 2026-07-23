@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     SUPABASE_CV_BUCKET: str = "cvs"
     SUPABASE_TAILORED_CV_BUCKET: str = "tailored-cvs"
 
+    # Max CV file size accepted by /internal/extract-cv-text. The signed-upload
+    # flow doesn't enforce one at the edge, so a huge/crafted file could
+    # otherwise be handed straight to pypdf/python-docx. Generous — real CVs
+    # are ~80-300 KB.
+    MAX_CV_UPLOAD_BYTES: int = 10 * 1024 * 1024
+
     # -------------------------------------------------------------------------
     # AI defaults — actual key is BYOK, supplied by JobTrackr per-request.
     # -------------------------------------------------------------------------

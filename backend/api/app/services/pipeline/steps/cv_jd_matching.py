@@ -418,13 +418,24 @@ def _build_au_unit_re() -> _re.Pattern:
     )
 
 
-_CREDENTIAL_PHRASE_RE = _build_au_unit_re()
+# Lazily compiled on first use. Building it at import time triggered a latent
+# circular import (registry → eval.writers → _impl → pipeline → orchestrator →
+# this module → registry) whenever skills.registry was the first module
+# imported — masked in the full test suite only by collection order.
+_CREDENTIAL_PHRASE_RE: "_re.Pattern | None" = None
+
+
+def _get_credential_phrase_re() -> "_re.Pattern":
+    global _CREDENTIAL_PHRASE_RE
+    if _CREDENTIAL_PHRASE_RE is None:
+        _CREDENTIAL_PHRASE_RE = _build_au_unit_re()
+    return _CREDENTIAL_PHRASE_RE
 
 
 def _looks_like_credential(keyword: str) -> bool:
     """True when the phrase matches a credential pattern — should not be
     scored as a skill keyword."""
-    return bool(_CREDENTIAL_PHRASE_RE.search(keyword or ""))
+    return bool(_get_credential_phrase_re().search(keyword or ""))
 
 
 def _extract_credential_sidecar(

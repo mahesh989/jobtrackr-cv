@@ -14,6 +14,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.enums import BUCKET_KEYS, CATEGORY_KEYS
 from app.services.eval.enforce import DEFAULT_SKILL_CAPS, _ROLE_CATEGORY_LABELS
 from app.services.eval.writers.skills_section import _SKILLS_LINE_RE, _is_non_skill_phrase
 from app.services.pipeline.steps.tailored_cv import (
@@ -32,8 +33,8 @@ logger = logging.getLogger(__name__)
 # surface exact terms you honestly have; add nothing else.
 # ---------------------------------------------------------------------------
 
-_SURFACE_BUCKETS = ("required", "preferred")
-_SURFACE_CATS = ("technical", "soft_skills", "domain_knowledge")
+_SURFACE_BUCKETS = BUCKET_KEYS
+_SURFACE_CATS = CATEGORY_KEYS
 
 
 def _matched_surface_terms(matching: Dict[str, Any]) -> list[str]:

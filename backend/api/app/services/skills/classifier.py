@@ -53,7 +53,8 @@ NoiseT = Literal["credential", "eligibility", "noise"]
 MatchKindT = Literal["exact", "normalised", "fuzzy"]
 
 _VERTICALS: Tuple[VerticalT, ...] = ("nursing", "cleaning", "tech")
-_CATEGORIES: Tuple[CategoryT, ...] = ("technical", "soft_skills", "domain_knowledge")
+from app.enums import CATEGORY_KEYS as _CATEGORY_KEYS  # noqa: E402 — canonical source
+_CATEGORIES: Tuple[CategoryT, ...] = _CATEGORY_KEYS  # type: ignore[assignment]
 _NOISE_TYPES: Tuple[NoiseT, ...] = ("credential", "eligibility", "noise")
 
 

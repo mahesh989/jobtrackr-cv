@@ -8,11 +8,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.enums import BUCKET_KEYS, CATEGORY_KEYS
+
 logger = logging.getLogger(__name__)
 
-# Canonical bucket and category tuples — used across pipeline steps.
-BUCKETS   = ("required", "preferred")
-CATEGORIES = ("technical", "soft_skills", "domain_knowledge")
+# Canonical bucket and category tuples — re-exported from app.enums (the
+# single source). Kept under their historical names for existing importers.
+BUCKETS    = BUCKET_KEYS
+CATEGORIES = CATEGORY_KEYS
 
 # Per-component max points (Category 1 totals 50 pts).
 DEFAULT_KEYWORD_WEIGHTS: dict[str, int] = {

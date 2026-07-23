@@ -136,8 +136,9 @@ async def _emit(row: dict) -> None:
     """Insert one ai_calls row. Runs as a background task — never raises."""
     try:
         from app.database import get_supabase
+        from app.db import AI_CALLS
         await asyncio.to_thread(
-            lambda: get_supabase().table("ai_calls").insert(row).execute()
+            lambda: get_supabase().table(AI_CALLS).insert(row).execute()
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("usage_tracker: failed to emit ai_calls row: %s", exc)
