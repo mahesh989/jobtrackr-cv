@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
 import type { SetupStatus } from "@/lib/setupStatus";
-import { SETUP_STEPS, TAG_LABEL } from "@/lib/setupSteps";
+import { SETUP_STEPS, TAG_LABEL, resolveStepHref } from "@/lib/setupSteps";
 
 export function SetupChecklist({ status }: { status: SetupStatus }) {
   const doneCount = SETUP_STEPS.filter((s) => status[s.key]).length;
@@ -63,7 +63,7 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
               </span>
 
               <Link
-                href={`${step.href}?setup=1&step=${idx + 1}`}
+                href={`${resolveStepHref(step, status)}?setup=1&step=${idx + 1}`}
                 className="group flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)] transition-colors"
               >
                 <span className="flex-1 min-w-0">

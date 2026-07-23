@@ -18,7 +18,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { SetupStatus } from "@/lib/setupStatus";
-import { SETUP_STEPS, SETUP_STEP_COUNT, TAG_LABEL, type SetupTag } from "@/lib/setupSteps";
+import { SETUP_STEPS, SETUP_STEP_COUNT, TAG_LABEL, resolveStepHref, type SetupTag } from "@/lib/setupSteps";
 import { Button } from "@/components/ui";
 
 const TAG_CLASS: Record<SetupTag, string> = {
@@ -54,17 +54,7 @@ export function SetupCards({
   const done = status[step.key];
   const doneCount = SETUP_STEPS.filter((s) => status[s.key]).length;
 
-  // searchProfile is the one step whose task screen differs once the
-  // prerequisite (a profile row) already exists: /profiles/new would create
-  // a SECOND profile instead of letting the user run the one they already
-  // made — which read as "it's making me create a profile again."
-  const alreadyHasProfile = step.key === "searchProfile" && status.hasProfile && !done;
-  const stepHref = alreadyHasProfile ? "/profiles" : step.href;
-  const blurb = alreadyHasProfile
-    ? "You've already created a search profile — head to your profiles page and click Run now to fetch your first matches."
-    : step.blurb;
-
-  const ctaHref = `${stepHref}?setup=1&step=${i + 1}`;
+  const ctaHref = `${resolveStepHref(step, status)}?setup=1&step=${i + 1}`;
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -100,7 +90,7 @@ export function SetupCards({
           )}
         </div>
 
-        <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{blurb}</p>
+        <p className="text-body text-text-2 leading-relaxed mb-6 max-w-md mx-auto">{step.blurb}</p>
 
         {/* One CTA — no separate "Continue"/"Skip" pair. Forward movement
             between cards is the stepper bar's job (always advances, done or
@@ -112,7 +102,7 @@ export function SetupCards({
           onClick={() => router.push(ctaHref)}
           icon={<ChevronRight className="w-4 h-4" />}
         >
-          {done ? "Review / edit" : alreadyHasProfile ? "Go run it" : "Next"}
+          {done ? "Review / edit" : "Next"}
         </Button>
       </div>
 

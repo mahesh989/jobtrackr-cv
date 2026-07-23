@@ -106,3 +106,15 @@ export function clampStepIndex(oneBased: number, fallback = 0): number {
   if (!Number.isFinite(oneBased)) return fallback;
   return Math.min(Math.max(oneBased - 1, 0), SETUP_STEP_COUNT - 1);
 }
+
+/** The href for a step's CTA/link, given the user's status.
+ *
+ * searchProfile is the one step whose task screen differs once its
+ * prerequisite already exists: /profiles/new would create a SECOND profile
+ * instead of letting the user manage the one they already made — reading as
+ * "it's making me create a profile again." Single source so SetupCards and
+ * SetupChecklist can't drift out of sync on this. */
+export function resolveStepHref(step: SetupStep, status: SetupStatus): string {
+  if (step.key === "searchProfile" && status.hasProfile) return "/profiles";
+  return step.href;
+}
