@@ -9,7 +9,7 @@
  *   - What's the ATS uplift distribution across all runs?
  */
 import { requireAdmin, timeAgo, formatLatency, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { RangeFilter } from "@/features/admin/RangeFilter";
+import { RangeFilter } from "@/features/admin";
 import { adminForceCancelRun } from "@/lib/admin/actions";
 import Link from "next/link";
 

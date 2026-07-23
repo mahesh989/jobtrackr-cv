@@ -5,7 +5,7 @@
  * Source availability badges are placeholder — replace with real max(started_at) query.
  */
 import { requireAdmin, timeAgo, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
-import { RangeFilter } from "@/features/admin/RangeFilter";
+import { RangeFilter } from "@/features/admin";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 

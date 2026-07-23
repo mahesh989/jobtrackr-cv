@@ -1,8 +1,7 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect }          from "next/navigation";
-import { AnalysisHistoryClient, type HistoryRun, type HistoryJob } from "@/features/cv/analysis/AnalysisHistoryClient";
-
+import { AnalysisHistoryClient, type HistoryRun, type HistoryJob } from "@/features/cv";
 export const metadata = { title: "Analyses — JobTrackr" };
 
 export default async function AnalysesPage() {

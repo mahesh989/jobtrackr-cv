@@ -1,9 +1,7 @@
 import { createClient }      from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
-import { AnalysisRunClient, type AnalysisRunRow } from "@/features/cv/analysis/AnalysisRunClient";
-import { CoverLetterPanel, type CoverLetterRow }  from "@/features/cv/analysis/CoverLetterPanel";
-
+import { AnalysisRunClient, type AnalysisRunRow, CoverLetterPanel, type CoverLetterRow } from "@/features/cv";
 interface Props {
   params: Promise<{ id: string; run_id: string }>;
 }

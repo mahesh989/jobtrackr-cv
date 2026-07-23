@@ -26,21 +26,9 @@ import { cookies } from "next/headers";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS, resolveThresholds } from "@/lib/atsThresholds";
 import { Suspense } from "react";
 import Link from "next/link";
-import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
-import { StatCards } from "@/features/dashboard/StatCards";
-import { PipelineDonut, type PipelineLensData } from "@/features/dashboard/PipelineDonut";
-import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
-import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
-import { JobBoard } from "@/features/jobs/components/JobBoard";
-import { jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
-import {
-  indexLatestByJob,
-  type AnalysisRunRef,
-  type CoverLetterRef,
-} from "@/features/jobs/lib/progressFlags";
-import { recomputeGates } from "@/features/jobs/lib/pipelineState";
-import { deriveBoardJob } from "@/features/jobs/lib/boardDerivation";
-
+import { HowItWorksDeck } from "@/features/onboarding";
+import { StatCards, PipelineDonut, type PipelineLensData } from "@/features/dashboard";
+import { type FunnelCounts, ScrollToJobsOnFilter, JobBoard, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob, indexLatestByJob, type AnalysisRunRef, type CoverLetterRef, recomputeGates, deriveBoardJob } from "@/features/jobs";
 interface SearchParams {
   sort?:          string;
   dir?:           string;
