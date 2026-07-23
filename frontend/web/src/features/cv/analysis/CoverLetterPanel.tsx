@@ -241,7 +241,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         if (res.status === 422 && data.action === "below_final_gate") {
           setBelowFinalGate({
             score:     (data.tailored_score as number | null) ?? null,
-            threshold: (data.threshold      as number)         ?? 75,
+            threshold: (data.threshold      as number)         ?? 70,
           });
           return;
         }
@@ -500,14 +500,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 A cover letter built on a low tailored score rarely wins interviews — consider improving the CV first, or generate the letter anyway if you want to send it as-is.
               </p>
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => handleGenerate(true)}
-              disabled={loading}
-              className="mt-3 rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? "Starting…" : "Try again"}
-            </button>
-                <button onClick={() => setBelowFinalGate(null)} className="px-2.5 py-1 text-label text-amber-700 hover:text-amber-900 transition-colors">
+                <button
+                  onClick={() => handleGenerate(true, false, "final_gate")}
+                  disabled={loading}
+                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {loading ? "Starting…" : "Generate anyway"}
+                </button>
+                <button onClick={() => setBelowFinalGate(null)} className="rounded px-3 py-1.5 text-label text-amber-700 hover:text-amber-900 transition-colors">
                   Dismiss
                 </button>
               </div>

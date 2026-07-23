@@ -33,6 +33,8 @@ import logging
 import re
 from typing import Any, Dict, List, Tuple
 
+from app.enums import BUCKET_KEYS, CATEGORY_KEYS
+
 logger = logging.getLogger(__name__)
 
 # Words the writer is allowed to use in the Profile only if they are
@@ -911,9 +913,9 @@ def _build_jd_vocabulary(jd_analysis: Dict[str, Any]) -> set[str]:
         return bag
 
     keywords = jd_analysis.get("keywords") or {}
-    for bucket in ("required", "preferred"):
+    for bucket in BUCKET_KEYS:
         cats = keywords.get(bucket) or {}
-        for cat in ("technical", "soft_skills", "domain_knowledge"):
+        for cat in CATEGORY_KEYS:
             for kw in cats.get(cat) or []:
                 bag.update(_tokenise_for_relevance(str(kw)))
 

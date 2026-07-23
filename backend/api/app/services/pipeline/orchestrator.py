@@ -7,24 +7,32 @@ payload (JD text, CV text, BYOK key) — no DB lookups for inputs.
 
 Writes step state + results back to analysis_runs via Supabase REST.
 
-⚠️ Phase 2 (this commit) — scaffolding only. Just marks the run running +
-   completed so we can verify the write path is wired. Actual pipeline steps
-   are added back in Phase 5 (step 1) and Phase 6 (steps 2–6.6).
+Runs the full pipeline: JD analysis (+ deterministic enrichment), CV↔JD
+matching, ATS scoring + initial gate, input recommendations, keyword
+feasibility, tailored CV (w8_verified by default) + PDF render, tailored
+rescoring + structural validation, final gate + auto cover letter.
 """
 from __future__ import annotations
 
 import logging
 
 import asyncio
+import uuid
+from typing import Optional
 
 from app.config import get_settings
-from app.db import ANALYSIS_RUNS, upload_or_update
+from app.db import ANALYSIS_RUNS
 from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
 from app.schemas.internal import AnalyzeRequest
 from app.services.ai.client import AIBillingError, AIClientError, AIRateLimitError, make_ai_client
-from app.services.cv.pdf_generator import generate_pdf_from_markdown
+from app.services.pipeline.pdf_output import render_and_upload_tailored_pdf
+from app.services.pipeline.jd_enrichment import (
+    attach_role_family_labels,
+    build_boilerplate_blob,
+    enrich_jd_analysis,
+)
 from app.services.pipeline.jd_expiry import detect_jd_expiry
 from app.services.pipeline.progress import (
     DEFAULT_STEP_STATUS,
@@ -72,7 +80,7 @@ class _CancelledByUser(Exception):
     """
 
 
-async def _check_cancelled(run_id) -> None:
+async def _check_cancelled(run_id: uuid.UUID) -> None:
     """Raise _CancelledByUser if the run row was marked failed by the user.
 
     Called before each expensive step. Cheap (single indexed read) — adds
@@ -99,7 +107,7 @@ async def _check_cancelled(run_id) -> None:
         raise _CancelledByUser()
 
 
-async def _load_cached_results(run_id) -> dict:
+async def _load_cached_results(run_id: uuid.UUID) -> dict:
     """Fetch the already-saved early-step outputs for a resume.
 
     Returns the run row's jd_analysis_result / cv_jd_matching_result /
@@ -187,30 +195,17 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # full unmodified JD. Deterministic + cheap → safe to recompute on
         # resume. Falls back to the raw text when no skill sections are found.
         jd_text_for_llm, _jd_section_map = clean_jd_text(payload.jd_text)
-        # Belt-and-suspenders provenance for the section gates below: the bodies
-        # of sections the cleaner discarded as boilerplate (perks/benefits/About
-        # Us). A credential or soft skill whose only support is here is a leak.
-        # Empty on the fallback path (no '_boilerplate' key) → gates no-op.
-        _boilerplate_blob = ""
-        try:
-            _bp_headings = (_jd_section_map.get("_boilerplate") or "")
-            if _bp_headings:
-                from app.services.skills.post_process import _ground_norm
-                _bp_bodies = " ".join(
-                    _jd_section_map.get(h.strip(), "")
-                    for h in _bp_headings.split(",")
-                )
-                _boilerplate_blob = f" {_ground_norm(_bp_bodies)} "
-        except Exception:  # noqa: BLE001 — provenance is best-effort
-            logger.debug("boilerplate blob build: failed", exc_info=True)
+        # Provenance blob of cleaner-discarded boilerplate sections — feeds the
+        # credential/soft-skill gates inside enrich_jd_analysis below.
+        _boilerplate_blob = build_boilerplate_blob(_jd_section_map)
 
         # ── Step 1 — JD analysis ───────────────────────────────────────────────
         jd_analysis = cached.get("jd_analysis_result")
         if jd_analysis is not None:
             logger.info("run %s: reusing cached JD analysis (resume)", run_id)
-            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "completed")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, StepState.COMPLETED)
         else:
-            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "running")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, StepState.RUNNING)
             # Phase 2 — pre-resolve the role's vertical from the cleaned JD
             # text so the LLM gets vertical-specific bucketing hints (e.g.
             # "CALD → soft skill, not domain"). This is a best-effort hint
@@ -232,25 +227,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 ai_client, jd_text_for_llm, vertical=_vertical_hint
             )
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
-            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, "completed")
+            await mark_step(run_id, step_status, StepName.JD_ANALYSIS, StepState.COMPLETED)
 
-        # Attach the resolved role family + family-aware category labels so every
-        # downstream step and the UI render category-1 as "Clinical Skills"
-        # (nursing) / "Technical Skills" (tech) / "Core Skills" (manual) instead
-        # of the IT-default "Technical". Rides in the jd_analysis_result JSON, so
-        # no migration. Idempotent — recomputes only when absent (handles old
-        # cached analyses on resume).
-        # Keyed on category_order so a resume of a run enriched by an older
-        # label scheme recomputes against the current one.
-        if not jd_analysis.get("category_order"):
-            from app.services.eval.role_families import (
-                category_labels, category_order, resolve_role_family,
-            )
-            _explicit = getattr(payload, "target_vertical", None)
-            _rf = resolve_role_family(_explicit, jd_analysis)
-            jd_analysis["role_family"] = _rf.id
-            jd_analysis["category_labels"] = category_labels(_rf)
-            jd_analysis["category_order"] = category_order(_rf)
+        # Attach the resolved role family + family-aware category labels
+        # (idempotent — see attach_role_family_labels for the full rationale).
+        if attach_role_family_labels(jd_analysis, payload.target_vertical):
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
         # Lexicon post-process — re-classify the LLM's raw skill buckets via
@@ -262,154 +243,34 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # for downstream routing (credentials → Registration & Licences) and
         # diagnostics. Idempotent — keyed on the presence of `lexicon_meta`.
         if "lexicon_meta" not in jd_analysis:
-            # JD-body lexicon scan — surface canonical domain_knowledge skills
-            # the IT-centric JD analysis prompt missed in prose-heavy
-            # responsibilities. Closes the ATS-score variance caused by an
-            # empty domain bucket triggering presence-aware redistribution.
-            # Runs BEFORE post_process_jd_analysis so injected canonicals flow
-            # through the same dedup / sidecar path as LLM-extracted ones.
-            from app.services.skills import (
-                drop_ungrounded_soft_skills,
-                enrich_required_skills_from_jd_body,
-                post_process_jd_analysis,
-                verify_skill_evidence,
-            )
-            from app.services.skills.post_process import (
-                _dedup_keep_order,
-                extract_credentials_from_jd,
-            )
-            # Phase-1 groundedness gate — drop LLM-extracted skills whose
-            # evidence quote isn't in the JD (hallucinations) BEFORE the
-            # deterministic floor below adds any lexicon-verified extras.
-            # Gate only sees the LLM's output; the floor is trusted by
-            # construction (it's a curated regex against the JD body).
-            jd_analysis = verify_skill_evidence(
+            jd_analysis = enrich_jd_analysis(
                 jd_analysis,
-                payload.jd_text,
-                role_family_id=str(jd_analysis.get("role_family") or "master"),
+                jd_text=payload.jd_text,
+                jd_text_for_llm=jd_text_for_llm,
+                boilerplate_blob=_boilerplate_blob,
             )
-            # Soft-skill grounding gate — drop LLM soft skills with no verbatim
-            # canonical/variant in the JD (e.g. "reliability"/"flexibility"
-            # inferred from employer-preference prose). Runs before the floor,
-            # which re-adds any genuinely grounded soft skill.
-            jd_analysis = drop_ungrounded_soft_skills(
-                jd_analysis,
-                payload.jd_text,
-                role_family_id=str(jd_analysis.get("role_family") or "master"),
-                skill_text=jd_text_for_llm,
-            )
-            jd_analysis = enrich_required_skills_from_jd_body(
-                jd_analysis,
-                payload.jd_text,
-                role_family_id=str(jd_analysis.get("role_family") or "master"),
-                skill_text=jd_text_for_llm,
-            )
-            jd_analysis = post_process_jd_analysis(
-                jd_analysis,
-                role_family_id=str(jd_analysis.get("role_family") or "master"),
-            )
-
-            # Deterministic credential scan over the cleaned JD text — catches
-            # credentials the LLM correctly excluded from skills (so the sidecar
-            # is empty) but that are explicitly listed in the JD. Merges with
-            # any sidecar-derived credentials already in jd_analysis["credentials"].
-            try:
-                _cred_drops: list = []
-                scanned = extract_credentials_from_jd(
-                    jd_text_for_llm,
-                    boilerplate_blob=_boilerplate_blob,
-                    drops_out=_cred_drops,
-                )
-                if _cred_drops:
-                    _meta = dict(jd_analysis.get("lexicon_meta") or {})
-                    _meta["boilerplate_dropped_credentials"] = (
-                        list(_meta.get("boilerplate_dropped_credentials") or [])
-                        + _cred_drops
-                    )
-                    jd_analysis["lexicon_meta"] = _meta
-                    logger.info(
-                        "credential scan: dropped %d offer/boilerplate phrases — %s",
-                        len(_cred_drops), [d["phrase"] for d in _cred_drops],
-                    )
-                existing_creds = jd_analysis.get("credentials") or {}
-                jd_analysis["credentials"] = {
-                    "required":    _dedup_keep_order(
-                        list(existing_creds.get("required") or [])
-                        + scanned["required"]
-                    ),
-                    "preferred":   _dedup_keep_order(
-                        list(existing_creds.get("preferred") or [])
-                        + scanned["preferred"]
-                    ),
-                    "eligibility": _dedup_keep_order(
-                        list(existing_creds.get("eligibility") or [])
-                        + scanned["eligibility"]
-                    ),
-                }
-            except Exception:  # noqa: BLE001
-                logger.debug("credential scan: failed", exc_info=True)
-
-            # Essential vs Desirable deterministic clamp — move skills between
-            # required ↔ preferred where the JD's section headers contradict
-            # the LLM's bucketing (classic miss: "Basic computer and smartphone
-            # working knowledge" sits under Desirable but the LLM put it in
-            # required.technical). Idempotent; no-op when no section headers.
-            try:
-                from app.services.skills.post_process import clamp_by_jd_sections
-                jd_analysis = clamp_by_jd_sections(jd_analysis, payload.jd_text)
-            except Exception:  # noqa: BLE001 — never block on a heuristic
-                logger.debug("section clamp: failed", exc_info=True)
-
-            # Off-setting boilerplate demotion: for a residential aged-care JD
-            # whose About-Us / brand prose leaks "disability support" or
-            # "mental health support" into required skills, move them to
-            # preferred so they don't drive the required-match score.
-            # Deterministic; conservative (only RESIDENTIAL currently).
-            try:
-                from app.services.eval.writers import _classify_jd_setting
-                from app.services.skills.post_process import demote_off_setting_keywords
-                _setting = _classify_jd_setting(payload.jd_text, jd_analysis)
-                jd_analysis = demote_off_setting_keywords(jd_analysis, _setting)
-            except Exception:  # noqa: BLE001 — never block on a heuristic
-                logger.debug("off-setting demotion: failed", exc_info=True)
-
-            # Best-effort: record any unknown phrases (lexicon gaps) to the
-            # rolling JSONL log so weekly reviews can promote high-frequency
-            # phrases into the lexicon. Pipeline never blocks on tracking.
-            try:
-                from datetime import datetime
-                from app.services.skills.unknown_tracker import record_unknown_phrases
-                record_unknown_phrases(
-                    role_family_id=str(jd_analysis.get("role_family") or "master"),
-                    job_title=str(jd_analysis.get("job_title") or "") or None,
-                    lexicon_meta=jd_analysis.get("lexicon_meta"),
-                    timestamp=datetime.utcnow().isoformat(),
-                )
-            except Exception:  # noqa: BLE001 — observability must never block
-                logger.debug("unknown_tracker: failed to record", exc_info=True)
-
             await save_step_result(run_id, "jd_analysis_result", jd_analysis)
 
         # ── Step 2 — CV ↔ JD matching ──────────────────────────────────────────
         matching = cached.get("cv_jd_matching_result")
         if matching is not None:
             logger.info("run %s: reusing cached CV↔JD matching (resume)", run_id)
-            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "completed")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, StepState.COMPLETED)
         else:
-            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "running")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, StepState.RUNNING)
             matching = await run_cv_jd_matching(
                 ai_client, payload.cv_text, jd_analysis,
                 contact_details=payload.contact_details,
             )
             await save_step_result(run_id, "cv_jd_matching_result", matching)
-            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, "completed")
+            await mark_step(run_id, step_status, StepName.CV_JD_MATCHING, StepState.COMPLETED)
 
         # ── Step 3 — ATS scoring (deterministic) ───────────────────────────────
         ats = cached.get("ats_scoring_result")
         if ats is not None:
-            await mark_step(run_id, step_status, StepName.ATS_SCORING, "completed")
+            await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.COMPLETED)
         else:
-            await mark_step(run_id, step_status, StepName.ATS_SCORING, "running")
+            await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.RUNNING)
             ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
             await save_step_result(run_id, "ats_scoring_result", ats)
             await save_step_result(run_id, "match_score", ats.get("overall_score"))
@@ -423,7 +284,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             passed_initial_gate = initial_score >= payload.min_initial_ats
             await save_step_result(run_id, "initial_ats_score", initial_score)
             await save_step_result(run_id, "passed_initial_gate", passed_initial_gate)
-        await mark_step(run_id, step_status, StepName.ATS_SCORING, "completed")
+        await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.COMPLETED)
 
         # ── Phase C-3 early-stop: gate failed AND no override ─────────────────
         # Saves the tailored-CV + downstream AI calls (~3 calls per job).
@@ -449,23 +310,23 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             return
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
-        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, "running")
+        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.RUNNING)
         input_recs = run_input_recommendations(payload.cv_text, jd_analysis, matching, ats)
         await save_step_result(run_id, "input_recommendations", input_recs)
-        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, "completed")
+        await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.COMPLETED)
 
         # ── Step 4.5 — Keyword feasibility classifier ──────────────────────────
         # Decides which missed JD keywords can be legitimately surfaced in the
         # tailored CV vs which are honest gaps. The tailored-CV writer below
         # only injects entries this step approves.
         await _check_cancelled(run_id)
-        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, "running")
+        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, StepState.RUNNING)
         feasibility = await run_keyword_feasibility(
             ai_client, payload.cv_text, jd_analysis, matching, input_recs,
             contact_details=payload.contact_details,
         )
         await save_step_result(run_id, "keyword_feasibility", feasibility)
-        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, "completed")
+        await mark_step(run_id, step_status, StepName.KEYWORD_FEASIBILITY, StepState.COMPLETED)
 
         # ── Step 5 — AI recommendations (markdown) ─────────────────────────────
         # The w8_verified writer composes from the feasibility plan directly and
@@ -478,12 +339,12 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             step_status[StepName.AI_RECOMMENDATIONS] = StepState.SKIPPED
             await save_step_result(run_id, "step_status", step_status)
         else:
-            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, "running")
+            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, StepState.RUNNING)
             recs_md = await run_ai_recommendations(
                 ai_client, payload.cv_text, jd_analysis, matching, input_recs, feasibility,
             )
             await save_step_result(run_id, "ai_recommendations", recs_md)
-            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, "completed")
+            await mark_step(run_id, step_status, StepName.AI_RECOMMENDATIONS, StepState.COMPLETED)
 
         # ── Step 6 — Tailored CV (markdown + PDF render) ───────────────────────
         # contact_details (when present) stamps the user's canonical contact
@@ -491,7 +352,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # portfolio URL. The 'projects' sub-array is already merged into
         # cv_text upstream by JobTrackr's analyze route.
         await _check_cancelled(run_id)
-        await mark_step(run_id, step_status, StepName.TAILORED_CV, "running")
+        await mark_step(run_id, step_status, StepName.TAILORED_CV, StepState.RUNNING)
         if use_w8:
             # Validated beta writer (role-family composition + deterministic
             # enforce + entailment verify). Reuses the upstream artifacts above
@@ -514,25 +375,12 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
 
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
-        # ReportLab is CPU-bound, so wrap in asyncio.to_thread to keep the event
-        # loop free. Non-fatal — if PDF render fails we keep the markdown only;
-        # user can still copy the markdown out of the UI.
+        # Non-fatal — if PDF render fails we keep the markdown only; user can
+        # still copy the markdown out of the UI.
         try:
-            settings = get_settings()
-            supabase = get_supabase()
-            pdf_path = f"{payload.user_id}/{run_id}.pdf"
-
-            def _render_and_upload() -> None:
-                pdf_bytes = generate_pdf_from_markdown(tailored_md)
-                upload_or_update(
-                    settings.SUPABASE_TAILORED_CV_BUCKET,
-                    pdf_path,
-                    pdf_bytes,
-                    "application/pdf",
-                    supabase=supabase,
-                )
-
-            await asyncio.to_thread(_render_and_upload)
+            pdf_path = await render_and_upload_tailored_pdf(
+                str(payload.user_id), str(run_id), tailored_md,
+            )
             await save_step_result(run_id, "tailored_pdf_storage_path", pdf_path)
             logger.info("run %s: tailored PDF rendered → %s", run_id, pdf_path)
         except Exception as exc:
@@ -600,7 +448,7 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             "honest_gaps":           rescore["honest_gaps"],
             "fabricated":            rescore.get("fabricated_keywords") or [],
         })
-        await mark_step(run_id, step_status, StepName.TAILORED_CV, "completed")
+        await mark_step(run_id, step_status, StepName.TAILORED_CV, StepState.COMPLETED)
 
         await mark_run_completed(run_id)
         logger.info("run %s: pipeline completed (score=%s tailored=%s lift=%s)",
@@ -642,9 +490,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 run_id, final_score, payload.min_final_ats,
             )
             try:
-                get_supabase().table(ANALYSIS_RUNS).update(
-                    {"cover_letter_status": "skipped:below_gate"}
-                ).eq("id", run_id).execute()
+                await asyncio.to_thread(
+                    lambda: get_supabase().table(ANALYSIS_RUNS).update(
+                        {"cover_letter_status": "skipped:below_gate"}
+                    ).eq("id", run_id).execute()
+                )
             except Exception as exc:  # noqa: BLE001 — best effort
                 logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
 

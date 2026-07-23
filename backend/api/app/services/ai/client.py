@@ -109,6 +109,14 @@ class AIClientError(Exception):
     """Raised when the AI client fails (auth, network, parsing)."""
 
 
+# User-facing provider display names (shared by the error classes below).
+_PROVIDER_DISPLAY = {
+    Provider.ANTHROPIC: "Anthropic",
+    Provider.OPENAI: "OpenAI",
+    Provider.DEEPSEEK: "DeepSeek",
+}
+
+
 class AIBillingError(AIClientError):
     """Raised when the provider rejects the call because the user's account
     has no remaining credit / quota. Distinct from AIClientError so the
@@ -117,7 +125,7 @@ class AIBillingError(AIClientError):
 
     `provider` and `top_up_url` are surfaced verbatim to the UI."""
 
-    _PROVIDER_DISPLAY = {Provider.ANTHROPIC: "Anthropic", Provider.OPENAI: "OpenAI", Provider.DEEPSEEK: "DeepSeek"}
+    _PROVIDER_DISPLAY = _PROVIDER_DISPLAY
 
     def __init__(self, provider: str, top_up_url: str, raw: str = ""):
         self.provider = provider
@@ -136,7 +144,7 @@ class AIRateLimitError(AIClientError):
     Distinct from AIClientError so the UI can say 'rate-limited' instead of
     'internal error'."""
 
-    _PROVIDER_DISPLAY = {Provider.ANTHROPIC: "Anthropic", Provider.OPENAI: "OpenAI", Provider.DEEPSEEK: "DeepSeek"}
+    _PROVIDER_DISPLAY = _PROVIDER_DISPLAY
 
     def __init__(self, provider: str, raw: str = ""):
         self.provider = provider

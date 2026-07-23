@@ -27,6 +27,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+from app.enums import CATEGORY_KEYS
 from app.services.ai.client import AIClient, AIClientError
 from app.services.ai.prompts import (
     CV_STRUCTURIZATION_SYSTEM,
@@ -302,7 +303,7 @@ def _normalise_skills_from_ai(skills: Any) -> Dict[str, List[str]]:
     lowercase, drop blanks. Never raises."""
     skills = skills if isinstance(skills, dict) else {}
     out: Dict[str, List[str]] = {}
-    for key in ("technical", "soft_skills", "domain_knowledge"):
+    for key in CATEGORY_KEYS:
         v = skills.get(key)
         cleaned: List[str] = []
         seen: set[str] = set()

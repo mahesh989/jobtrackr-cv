@@ -1,6 +1,7 @@
 """Manual/service vertical — RoleFamilyProfile config."""
 from __future__ import annotations
 
+from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 from app.services.verticals.base import RoleFamilyProfile
 
 PROFILE = RoleFamilyProfile(
@@ -15,9 +16,9 @@ PROFILE = RoleFamilyProfile(
         "Summary", "Work Experience", "Skills", "Certifications & Checks", "Availability",
     ],
     skills_categories=["Core Skills", "Soft Skills", "Other Skills"],
-    headline_bucket="domain_knowledge",
-    cert_policy="first_class",
-    injection_policy="none",
+    headline_bucket=HeadlineBucket.DOMAIN_KNOWLEDGE,
+    cert_policy=CertPolicy.FIRST_CLASS,
+    injection_policy=InjectionPolicy.NONE,
     metric_vocab=[
         "sites", "shifts", "rooms", "areas", "deliveries", "hours",
         "vehicles", "pallets", "customers",

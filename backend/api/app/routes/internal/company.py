@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.config import get_settings
 from app.enums import CompanyResearchStatus
-from app.services.ai.client import AIClientError, make_ai_client
+from app.routes.internal._helpers import build_ai_client_or_422
 from app.services.company.researcher import CompanyResearchError, research_company
 from app.services.company.fact_selector import select_facts
 from app.schemas.company import (
@@ -46,17 +46,7 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
         body.ai_provider,
     )
 
-    try:
-        ai_client = make_ai_client(
-            provider=body.ai_provider,
-            api_key=body.ai_api_key,
-            model=body.ai_model,
-        )
-    except AIClientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid AI client configuration: {exc}",
-        ) from exc
+    ai_client = build_ai_client_or_422(body, detail_prefix="Invalid AI client configuration: ")
 
     try:
         result_dict = await research_company(
@@ -69,6 +59,11 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
     except CompanyResearchError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
 

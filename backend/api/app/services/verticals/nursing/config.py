@@ -1,6 +1,7 @@
 """Nursing vertical — RoleFamilyProfile config."""
 from __future__ import annotations
 
+from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 from app.services.verticals.base import RoleFamilyProfile
 
 PROFILE = RoleFamilyProfile(
@@ -22,9 +23,9 @@ PROFILE = RoleFamilyProfile(
     # (Care Skills / Clinical Skills / Core Skills — see nursing/hooks.py);
     # "Clinical Skills" is the base default for an unclassified clinical role.
     skills_categories=["Clinical Skills", "Soft Skills", "Other Skills"],
-    headline_bucket="domain_knowledge",
-    cert_policy="first_class",
-    injection_policy="direct_only",
+    headline_bucket=HeadlineBucket.DOMAIN_KNOWLEDGE,
+    cert_policy=CertPolicy.FIRST_CLASS,
+    injection_policy=InjectionPolicy.DIRECT_ONLY,
     metric_vocab=[
         "patients", "beds", "shifts", "rounds", "medications", "wait times",
         "caseload", "incidents", "compliance", "ratios", "handovers",

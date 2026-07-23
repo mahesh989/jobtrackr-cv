@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
-  Trophy, BadgeCheck, Users, AlignLeft, FileText, ArrowLeft, Loader2,
+  Trophy, BadgeCheck, Users, AlignLeft, FileText, Loader2,
   FolderGit2, ExternalLink,
 } from "lucide-react";
 import type {
@@ -415,9 +415,6 @@ export function ReviewClient({
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <button type="button" onClick={() => router.push("/cv")} className="inline-flex items-center gap-1 text-label text-text-3 hover:text-text transition-colors mb-2"><ArrowLeft className="h-3.5 w-3.5" /> 
-            Back to Profile
-          </button>
           {isCreate ? (
             <>
               <p className="text-caption uppercase tracking-wider text-text-3 font-medium">New CV · built in app</p>
@@ -841,6 +838,7 @@ export function ReviewClient({
         cancelCreate={cancelCreate}
         saveDraft={saveDraft}
         saveFinish={saveFinish}
+        backToProfile={() => router.push("/cv")}
       />
     </div>
   );

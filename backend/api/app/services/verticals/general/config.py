@@ -1,6 +1,7 @@
 """General/master vertical — RoleFamilyProfile config (fallback for unknown roles)."""
 from __future__ import annotations
 
+from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 from app.services.verticals.base import RoleFamilyProfile
 
 PROFILE = RoleFamilyProfile(
@@ -12,8 +13,8 @@ PROFILE = RoleFamilyProfile(
         "Skills", "Projects", "Certifications",
     ],
     skills_categories=["Technical Skills", "Soft Skills", "Other Skills"],
-    cert_policy="plus",
-    injection_policy="direct_only",
+    cert_policy=CertPolicy.PLUS,
+    injection_policy=InjectionPolicy.DIRECT_ONLY,
     metric_vocab=[
         "%", "customers", "clients", "projects", "revenue", "cost", "time",
         "teams", "stakeholders",

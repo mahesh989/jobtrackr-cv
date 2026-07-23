@@ -51,7 +51,7 @@ _TOP_LEVEL_KEYS = {
     "required_skills",
     "preferred_skills",
 }
-_CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
+from app.enums import CATEGORY_KEYS as _CATEGORY_KEYS  # noqa: E402 — canonical source
 
 
 async def run_jd_analysis(

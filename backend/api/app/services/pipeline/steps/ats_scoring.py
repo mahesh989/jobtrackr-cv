@@ -115,6 +115,7 @@ _PHONE_DIGITS_RE = re.compile(r"\d")
 
 # Per-component max points (must sum to 50 for Category 1).
 # Single source of truth lives in _scoring_weights.py.
+from app.enums import CATEGORY_KEYS  # noqa: E402
 from app.services.pipeline.steps._scoring_weights import (  # noqa: E402
     DEFAULT_KEYWORD_WEIGHTS as _KEYWORD_WEIGHTS,
     resolve_keyword_weights as _resolve_kw_weights_shared,
@@ -228,10 +229,8 @@ def _keyword_score(
     soft = required.get("soft_skills") or {"matched": 0, "total": 0}
     domain = required.get("domain_knowledge") or {"matched": 0, "total": 0}
 
-    pref_matched = sum((preferred.get(c) or {}).get("matched", 0) for c in
-                       ("technical", "soft_skills", "domain_knowledge"))
-    pref_total = sum((preferred.get(c) or {}).get("total", 0) for c in
-                     ("technical", "soft_skills", "domain_knowledge"))
+    pref_matched = sum((preferred.get(c) or {}).get("matched", 0) for c in CATEGORY_KEYS)
+    pref_total = sum((preferred.get(c) or {}).get("total", 0) for c in CATEGORY_KEYS)
 
     raw = {
         "technical_required":        (tech["matched"], tech["total"]),

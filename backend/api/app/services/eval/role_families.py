@@ -16,8 +16,9 @@ master.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
 from typing import Any, Dict, List
+
+from app.enums import BUCKET_KEYS, CATEGORY_KEYS
 
 # RoleFamilyProfile now lives in verticals/base.py to avoid circular imports.
 # Re-export it so all existing callers (`from role_families import RoleFamilyProfile`)
@@ -34,14 +35,8 @@ from app.services.verticals.general.config import PROFILE as _MASTER
 
 
 # ---------------------------------------------------------------------------
-# Families (local aliases kept for the routing logic below)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
-
 
 # Nursing subtype detection now lives in verticals/nursing/hooks.py.
 # Re-export as private names so existing callers in this module keep working.
@@ -113,7 +108,7 @@ def _resolve_base_family(
         for block in ("required_skills", "preferred_skills"):
             skills = jd_analysis.get(block) or {}
             if isinstance(skills, dict):
-                for cat in ("technical", "soft_skills", "domain_knowledge"):
+                for cat in CATEGORY_KEYS:
                     haystack_parts.extend(str(x) for x in (skills.get(cat) or []))
     haystack = " ".join(haystack_parts).lower()
 
@@ -126,7 +121,7 @@ def _resolve_base_family(
     return _MASTER
 
 
-_CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
+_CATEGORY_KEYS = CATEGORY_KEYS
 
 
 # Role-family id → curated lexicon vertical.  Single source of truth now
@@ -274,8 +269,8 @@ def apply_equivalences(
 # Match-time equivalences + qualification hierarchy
 # ---------------------------------------------------------------------------
 
-_MATCH_BUCKETS = ("required", "preferred")
-_MATCH_CATS = ("technical", "soft_skills", "domain_knowledge")
+_MATCH_BUCKETS = BUCKET_KEYS
+_MATCH_CATS = CATEGORY_KEYS
 
 # Aged-care / personal-care qualification streams treated as interchangeable for
 # AIN / personal-care / aged-care roles. A higher AQF certificate level in the

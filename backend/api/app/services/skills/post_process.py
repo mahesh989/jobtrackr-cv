@@ -395,7 +395,7 @@ def _demote_conditional_required_to_preferred(
 
 
 # Order matters here — the JD/CV pipeline emits skill dicts with these keys.
-_CATEGORIES: Tuple[str, ...] = ("technical", "soft_skills", "domain_knowledge")
+from app.enums import CATEGORY_KEYS as _CATEGORIES  # noqa: E402 — canonical source
 
 # role_family.id → lexicon vertical.  Single source of truth lives in the
 # verticals registry; imported here to eliminate the drift risk.

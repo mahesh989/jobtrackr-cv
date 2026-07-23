@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse }                      from "next/server";
 import { createAdminClient }                               from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                          from "@/lib/ai/activeProvider";
-import { MIN_FINAL_ATS }                                   from "@/lib/atsThresholds";
+import { resolveThresholds }                               from "@/lib/atsThresholds";
 import {
   generateOpeningVariants,
   matchStories,
@@ -90,7 +90,7 @@ export async function startCoverLetter(
 
   const { data: profile } = await admin
     .from("search_profiles")
-    .select("user_id")
+    .select("user_id, target_verticals")
     .eq("id", job.profile_id)
     .maybeSingle();
 
@@ -125,8 +125,22 @@ export async function startCoverLetter(
       .maybeSingle();
 
     if (latestRun?.passed_final_gate === false) {
-      // Global threshold since migration 041 — see lib/atsThresholds.
-      const threshold      = MIN_FINAL_ATS;
+      // Per-vertical threshold — the SAME resolution the analyze route used
+      // when cv-backend evaluated passed_final_gate (My CV role_families
+      // preferred, search-profile target_verticals as legacy fallback), so
+      // the number shown matches the gate that actually fired
+      // (healthcare/nursing = 60, everything else = 70).
+      const { data: prefRow } = await admin
+        .from("user_preferences")
+        .select("contact_details")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const cd = prefRow?.contact_details as import("@/lib/types").ContactDetails | null;
+      const myCvFamilies = (cd?.role_families ?? []).filter(Boolean);
+      const profileVerticals =
+        (profile as { target_verticals?: string[] | null }).target_verticals ?? [];
+      const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : profileVerticals;
+      const threshold      = resolveThresholds(effectiveVerticals).final;
       const tailoredScore  = latestRun.tailored_match_score as number | null;
       return NextResponse.json(
         {

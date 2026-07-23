@@ -41,6 +41,10 @@ logger = logging.getLogger(__name__)
 # Feature flag — flip to 'true' in Fly secrets after applying migration 055.
 _ENABLED = os.getenv("TRACK_AI_USAGE", "false").lower() == "true"
 
+# Strong references to in-flight emit tasks — create_task results are weakly
+# held, so an unreferenced task can be GC'd before it runs. Discarded on done.
+_PENDING_TASKS: set = set()
+
 # ── Model price table ─────────────────────────────────────────────────────────
 # Cost in millicents per token (USD cents × 1000 per token).
 # Sources: Anthropic pricing page / OpenAI pricing page.
@@ -132,11 +136,12 @@ async def _emit(row: dict) -> None:
     """Insert one ai_calls row. Runs as a background task — never raises."""
     try:
         from app.database import get_supabase
+        from app.db import AI_CALLS
         await asyncio.to_thread(
-            lambda: get_supabase().table("ai_calls").insert(row).execute()
+            lambda: get_supabase().table(AI_CALLS).insert(row).execute()
         )
     except Exception as exc:  # noqa: BLE001
-        logger.debug("usage_tracker: failed to emit ai_calls row: %s", exc)
+        logger.warning("usage_tracker: failed to emit ai_calls row: %s", exc)
 
 
 def track(
@@ -192,7 +197,9 @@ def track(
 
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(_emit(row))
+        task = loop.create_task(_emit(row))
+        _PENDING_TASKS.add(task)
+        task.add_done_callback(_PENDING_TASKS.discard)
     except RuntimeError:
         # No running event loop (e.g. sync test context) — silently skip.
         pass

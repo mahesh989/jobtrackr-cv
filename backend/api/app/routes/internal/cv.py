@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 
 from fastapi import APIRouter, HTTPException, status
@@ -21,45 +20,23 @@ from app.schemas.internal import (
     StructurizeCvRequest,
     StructurizeCvResponse,
 )
+from app.routes.internal._helpers import build_ai_client_or_422
 from app.services.cv.cv_structurizer import normalise_structured_cv
-from app.services.ai.client import AIClientError, make_ai_client
+from app.services.ai.client import AIClientError
 from app.services.cv.skill_categoriser import categorise_cv_skills
 from app.services.cv.references_extractor import extract_cv_references
 from app.services.cv.cv_structurizer import structurize_cv
 from app.services.cv.cv_renderer import render_canonical_cv
+from app.services.cv.text_extraction import (
+    DOCX_MAGIC,
+    PDF_MAGIC,
+    extract_docx_text_sync as _extract_docx_text_sync,
+    extract_pdf_text_sync as _extract_pdf_text_sync,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-def _extract_pdf_text_sync(pdf_bytes: bytes) -> str:
-    """
-    Sync pypdf extraction — must run in a worker thread so the event loop
-    doesn't block on large PDFs.
-
-    Fixes the original cv-magic bug: synchronous pypdf inside `async def`.
-    """
-    from pypdf import PdfReader
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    pages = []
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        pages.append(text)
-    return "\n\n".join(pages).strip()
-
-
-def _extract_docx_text_sync(docx_bytes: bytes) -> str:
-    """Sync python-docx extraction. Run in a worker thread (see above)."""
-    from docx import Document
-    doc = Document(io.BytesIO(docx_bytes))
-    paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
-    # Tables in CVs often hold contact lines + experience blocks — include them.
-    for tbl in doc.tables:
-        for row in tbl.rows:
-            for cell in row.cells:
-                if cell.text and cell.text.strip():
-                    paragraphs.append(cell.text.strip())
-    return "\n\n".join(paragraphs).strip()
 
 
 @router.post("/extract-cv-text", response_model=ExtractCvTextResponse)
@@ -88,10 +65,8 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
             detail=f"Could not fetch CV file: {exc}",
         ) from exc
 
-    # Size cap — the signed-upload flow doesn't enforce one at the edge, so a
-    # huge/crafted file could otherwise be handed straight to pypdf/python-docx.
-    _MAX_CV_BYTES = 10 * 1024 * 1024  # 10 MB — generous; real CVs are ~80-300 KB
-    if len(file_bytes) > _MAX_CV_BYTES:
+    # Size cap — see Settings.MAX_CV_UPLOAD_BYTES for rationale.
+    if len(file_bytes) > settings.MAX_CV_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="CV file is too large.",
@@ -103,14 +78,14 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     # payload could arrive as .pdf. PDF → "%PDF"; DOCX is a ZIP → "PK\x03\x04".
     lower = storage_key.lower()
     if lower.endswith(".pdf"):
-        if not file_bytes.startswith(b"%PDF"):
+        if not file_bytes.startswith(PDF_MAGIC):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="File is not a valid PDF.",
             )
         cv_text = await asyncio.to_thread(_extract_pdf_text_sync, file_bytes)
     elif lower.endswith(".docx"):
-        if not file_bytes.startswith(b"PK\x03\x04"):
+        if not file_bytes.startswith(DOCX_MAGIC):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="File is not a valid DOCX.",
@@ -139,10 +114,7 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
     domain_knowledge — extracted from the provided CV text by the AI provider
     the user has connected. JobTrackr calls this once at CV upload time.
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         result = await categorise_cv_skills(ai_client, body.cv_text)
@@ -172,10 +144,7 @@ async def extract_cv_references_route(
     {name, job_title, company, email}. Called on-demand from the web UI
     when a user clicks "Extract from active CV" in the References section.
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         referees = await extract_cv_references(ai_client, body.cv_text)
@@ -203,10 +172,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     the result is stored on cv_versions.structured_cv and edited in the
     review form. Dates are extracted verbatim (never inferred).
     """
-    try:
-        ai_client = make_ai_client(body.ai_provider, body.ai_api_key, body.ai_model)
-    except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    ai_client = build_ai_client_or_422(body)
 
     try:
         structured = await structurize_cv(ai_client, body.cv_text)

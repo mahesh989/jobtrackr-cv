@@ -27,7 +27,7 @@ from app.services.ai.prompts import (
 
 logger = logging.getLogger(__name__)
 
-CATEGORY_KEYS = ("technical", "soft_skills", "domain_knowledge")
+from app.enums import CATEGORY_KEYS  # noqa: E402 — canonical source
 
 # Hard ceiling on CV text we send to the model — the prompt is the cheap
 # part, but extremely long CVs blow the token budget for no benefit.

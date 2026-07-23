@@ -30,14 +30,21 @@ from typing import Any, Dict, Optional
 from postgrest.exceptions import APIError
 
 from app.database import get_supabase
+from app.db import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
 from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.generator import run_cover_letter_pipeline
 
 logger = logging.getLogger(__name__)
 
-_COVER_LETTERS  = "cover_letters"
-_ANALYSIS_RUNS  = "analysis_runs"
+# Table-name aliases — canonical constants live in app.db.
+_COVER_LETTERS  = COVER_LETTERS
+_ANALYSIS_RUNS  = ANALYSIS_RUNS
+
+# Strong references to in-flight generator tasks. asyncio.create_task returns
+# a weakly-held task — without a reference the GC can collect it mid-run and
+# silently drop the letter generation. Discarded on completion.
+_PENDING_TASKS: set[asyncio.Task] = set()
 
 _ALLOWED_STATUSES   = frozenset(CoverLetterStatus)
 _INITIAL_STATUS     = CoverLetterStatus.PENDING
@@ -67,18 +74,21 @@ def _make_slug(name: str) -> str:
     return s[:80].rstrip("_") or "unknown_company"
 
 
-def _record_outcome(run_id: str, outcome: str) -> None:
+async def _record_outcome(run_id: str, outcome: str) -> None:
     """Persist the auto-cover-letter outcome to analysis_runs.cover_letter_status.
 
     Best-effort — must not raise. Used from every code path in
     auto_generate_cover_letter so the UI can always tell what happened.
+    supabase-py is sync, so the write runs in a worker thread.
     """
     if len(outcome) > 200:  # text column is unbounded but keep it tidy
         outcome = outcome[:200]
     try:
-        get_supabase().table(_ANALYSIS_RUNS).update(
-            {"cover_letter_status": outcome}
-        ).eq("id", run_id).execute()
+        await asyncio.to_thread(
+            lambda: get_supabase().table(_ANALYSIS_RUNS).update(
+                {"cover_letter_status": outcome}
+            ).eq("id", run_id).execute()
+        )
     except Exception as exc:  # noqa: BLE001  — best effort, never re-raise
         logger.warning("auto-cover-letter: could not record outcome %r on run %s: %s",
                        outcome, run_id, exc)
@@ -115,16 +125,16 @@ async def auto_generate_cover_letter(
     try:
         # ── 1. Resolve job_id from the analysis run ──────────────────────────
         try:
-            run_row = (
-                sb.table(_ANALYSIS_RUNS).select("job_id").eq("id", run_id).single().execute()
+            run_row = await asyncio.to_thread(
+                lambda: sb.table(_ANALYSIS_RUNS).select("job_id").eq("id", run_id).single().execute()
             )
         except APIError as exc:
             logger.warning("auto-cover-letter: run %s lookup failed: %s", run_id, exc)
-            _record_outcome(run_id, f"failed:run_lookup:{exc.code or '?'}")
+            await _record_outcome(run_id, f"failed:run_lookup:{exc.code or '?'}")
             return
         if not run_row.data:
             logger.warning("auto-cover-letter: run %s not found", run_id)
-            _record_outcome(run_id, "failed:run_not_found")
+            await _record_outcome(run_id, "failed:run_not_found")
             return
         job_id: str = run_row.data["job_id"]
 
@@ -132,8 +142,8 @@ async def auto_generate_cover_letter(
         # A 'completed' letter always blocks regeneration. A 'failed' or
         # OLD 'pending'/'running'/'picking' letter gets auto-retired so it
         # can't permanently block.
-        existing = (
-            sb.table(_COVER_LETTERS)
+        existing = await asyncio.to_thread(
+            lambda: sb.table(_COVER_LETTERS)
             .select("id, status, created_at")
             .eq("job_id", job_id)
             .eq("user_id", user_id)
@@ -166,12 +176,14 @@ async def auto_generate_cover_letter(
                 "(status=%s) — skipping",
                 job_id, [r.get("status") for r in truly_blocking],
             )
-            _record_outcome(run_id, "skipped:duplicate")
+            await _record_outcome(run_id, "skipped:duplicate")
             return
 
         for r in to_retire:
             try:
-                sb.table(_COVER_LETTERS).update({"is_stale": True}).eq("id", r["id"]).execute()
+                await asyncio.to_thread(
+                    lambda r=r: sb.table(_COVER_LETTERS).update({"is_stale": True}).eq("id", r["id"]).execute()
+                )
                 logger.info(
                     "auto-cover-letter: job %s — retired stale letter %s (status=%s)",
                     job_id, r["id"], r.get("status"),
@@ -182,29 +194,29 @@ async def auto_generate_cover_letter(
 
         # ── 3. Voice profile ─────────────────────────────────────────────────
         try:
-            voice_row = (
-                sb.table("voice_profiles")
+            voice_row = await asyncio.to_thread(
+                lambda: sb.table(VOICE_PROFILES)
                 .select("fingerprint, voice_sample_raw")
                 .eq("user_id", user_id).limit(1).execute()
             )
         except APIError as exc:
             logger.warning("auto-cover-letter: voice fetch failed: %s", exc)
-            _record_outcome(run_id, f"failed:voice_fetch:{exc.code or '?'}")
+            await _record_outcome(run_id, f"failed:voice_fetch:{exc.code or '?'}")
             return
         if not voice_row.data:
             logger.info("auto-cover-letter: job %s — no voice profile, skipping", job_id)
-            _record_outcome(run_id, "skipped:no_voice")
+            await _record_outcome(run_id, "skipped:no_voice")
             return
         voice = voice_row.data[0]
         if not voice.get("fingerprint") or not voice.get("voice_sample_raw"):
             logger.info("auto-cover-letter: job %s — incomplete voice profile, skipping", job_id)
-            _record_outcome(run_id, "skipped:no_voice")
+            await _record_outcome(run_id, "skipped:no_voice")
             return
 
         # ── 4. Story ─────────────────────────────────────────────────────────
         try:
-            story_row = (
-                sb.table("stories")
+            story_row = await asyncio.to_thread(
+                lambda: sb.table(STORIES)
                 .select("id, title, domain, year, one_line, detailed, numbers, tags")
                 .eq("user_id", user_id)
                 .order("extraction_timestamp", desc=True)
@@ -212,7 +224,7 @@ async def auto_generate_cover_letter(
             )
         except APIError as exc:
             logger.warning("auto-cover-letter: stories fetch failed: %s", exc)
-            _record_outcome(run_id, f"failed:stories_fetch:{exc.code or '?'}")
+            await _record_outcome(run_id, f"failed:stories_fetch:{exc.code or '?'}")
             return
         # No stories is NOT a blocker — the generator handles story=None
         # (format_story renders "(none available)"; the letter draws its
@@ -228,8 +240,8 @@ async def auto_generate_cover_letter(
             "excited about this opportunity."
         )
         try:
-            hook_row = (
-                sb.table("company_research_facts")
+            hook_row = await asyncio.to_thread(
+                lambda: sb.table(COMPANY_RESEARCH_FACTS)
                 .select("hook_text")
                 .eq("company_slug", _make_slug(company_name))
                 .limit(1).execute()
@@ -250,20 +262,22 @@ async def auto_generate_cover_letter(
                 "auto-cover-letter: refusing to INSERT — status %r not in CHECK set %s",
                 _INITIAL_STATUS, sorted(_ALLOWED_STATUSES),
             )
-            _record_outcome(run_id, f"failed:bad_status_constant:{_INITIAL_STATUS}")
+            await _record_outcome(run_id, f"failed:bad_status_constant:{_INITIAL_STATUS}")
             return
 
         letter_id = str(uuid.uuid4())
         try:
-            sb.table(_COVER_LETTERS).insert({
-                "id":              letter_id,
-                "user_id":         user_id,
-                "job_id":          job_id,
-                "analysis_run_id": run_id,
-                "status":          _INITIAL_STATUS,
-                "is_stale":        False,
-                "ai_provider":     ai_provider,
-            }).execute()
+            await asyncio.to_thread(
+                lambda: sb.table(_COVER_LETTERS).insert({
+                    "id":              letter_id,
+                    "user_id":         user_id,
+                    "job_id":          job_id,
+                    "analysis_run_id": run_id,
+                    "status":          _INITIAL_STATUS,
+                    "is_stale":        False,
+                    "ai_provider":     ai_provider,
+                }).execute()
+            )
         except APIError as exc:
             # Most likely cause now: schema drift (unknown column, missing
             # NOT NULL, FK violation). Surface the Postgres code so the UI
@@ -272,7 +286,7 @@ async def auto_generate_cover_letter(
                 "auto-cover-letter: INSERT failed for run %s job %s: code=%s msg=%s",
                 run_id, job_id, exc.code, exc.message,
             )
-            _record_outcome(run_id, f"failed:insert:{exc.code or '?'}")
+            await _record_outcome(run_id, f"failed:insert:{exc.code or '?'}")
             return
 
         # ── 7. Kick off the generator pipeline ───────────────────────────────
@@ -299,9 +313,11 @@ async def auto_generate_cover_letter(
         # succeeded and outcome is recorded. If this process restarts before
         # the generator finishes, the row is in 'running' state and the
         # self-healing idempotency above will retire it after 15 min.
-        asyncio.create_task(run_cover_letter_pipeline(payload))
+        task = asyncio.create_task(run_cover_letter_pipeline(payload))
+        _PENDING_TASKS.add(task)
+        task.add_done_callback(_PENDING_TASKS.discard)
 
-        _record_outcome(run_id, "triggered")
+        await _record_outcome(run_id, "triggered")
         logger.info(
             "auto-cover-letter: job %s — letter %s triggered (run %s)",
             job_id, letter_id, run_id,
@@ -309,4 +325,4 @@ async def auto_generate_cover_letter(
 
     except Exception as exc:  # noqa: BLE001 — last-resort safety net
         logger.exception("auto-cover-letter: unhandled error for run %s: %s", run_id, exc)
-        _record_outcome(run_id, f"failed:unhandled:{type(exc).__name__}")
+        await _record_outcome(run_id, f"failed:unhandled:{type(exc).__name__}")
