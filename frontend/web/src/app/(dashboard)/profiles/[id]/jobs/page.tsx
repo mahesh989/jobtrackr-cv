@@ -29,14 +29,14 @@ import { LiveLogConsole } from "@/features/profiles/components/LiveLogConsole";
 import { type FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import { ProfileJobBoard } from "@/features/jobs/components/ProfileJobBoard";
 import { Button } from "@/components/ui";
-import { atsBandFor, jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
+import { jobNeedsJd, normalizeWorkTypes, passesWorkTypes, type BoardJob } from "@/features/jobs/lib/jobFilters";
 import {
-  deriveProgress,
   indexLatestByJob,
   type AnalysisRunRef,
   type CoverLetterRef,
 } from "@/features/jobs/lib/progressFlags";
-import { derivePipelineState, recomputeGates } from "@/features/jobs/lib/pipelineState";
+import { recomputeGates } from "@/features/jobs/lib/pipelineState";
+import { deriveBoardJob } from "@/features/jobs/lib/boardDerivation";
 import { computeEligibility, hoursCapConflict, isUserVisaStatus } from "@/lib/eligibility";
 import { ADMIN_ROLES } from "@/lib/constants";
 
@@ -243,42 +243,9 @@ export default async function JobsPage({
 
   // ── Derive progress + pipeline state + ATS band ──────────────────────────
   const boardJobs: BoardJob[] = jobList.map((j) => {
-    const run    = runByJob.get(j.id);
-    const letter = letterByJob.get(j.id);
-    const progress = deriveProgress({ applied_at: j.applied_at }, run, letter);
-    const liveRun = run
-      ? (() => {
-          const g = recomputeGates(run.initial_ats_score, run.tailored_match_score, th.initial, th.final);
-          return { ...run, passed_initial_gate: g.passedInitial, passed_final_gate: g.passedFinal };
-        })()
-      : run;
-    const pipelineState = derivePipelineState({
-      job: {
-        applied_at:   j.applied_at,
-        dismissed_at: (j.dismissed_at as string | null) ?? null,
-        has_email:    (j.has_email    as boolean | null) ?? null,
-        jd_quality:   (j.jd_quality   as string  | null) ?? null,
-        role_match:   (j.role_match   as string  | null) ?? null,
-      },
-      latestRun:    liveRun,
-      latestLetter: letter,
-    });
-    const atsBand = atsBandFor(
-      !!run,
-      run?.initial_ats_score ?? null,
-      run?.tailored_match_score ?? null,
-      th.initial,
-      th.final
-    );
     const jobShape = j as unknown as BoardJob;
     return {
-      ...jobShape,
-      progress,
-      pipelineState,
-      atsBand,
-      atsThresholds:        th,
-      initial_ats_score:    run?.initial_ats_score    ?? null,
-      tailored_match_score: run?.tailored_match_score ?? null,
+      ...deriveBoardJob(j, runByJob.get(j.id), letterByJob.get(j.id), th),
       // Eligibility badge (080): user's My CV visa status × the JD's stated
       // work-rights requirement. Null status → no badge (legacy behaviour).
       eligibility:        userVisaStatus ? computeEligibility(jobShape, userVisaStatus) : null,
