@@ -30,12 +30,12 @@ from app.services.cv.experience_parser import (
     vertical_alignment_ratio,
 )
 from app.services.pipeline.steps.ats_scoring import (
+    DEFAULT_KEYWORD_WEIGHTS,
     _EXP_RESPONSIBILITY_MAX,
     _EXP_TENURE_MAX,
     _EXP_VERTICAL_MAX,
     _EXPERIENCE_MAX,
     _FORMATTING_MAX,
-    _KEYWORD_WEIGHTS,
     _count_responsibilities_covered,
     _experience_score,
     _formatting_score,
@@ -51,7 +51,7 @@ class TestWeightsSumCorrectly:
     """Guards against accidental drift of the v2 envelope."""
 
     def test_keyword_weights_sum_to_50(self):
-        assert sum(_KEYWORD_WEIGHTS.values()) == 50
+        assert sum(DEFAULT_KEYWORD_WEIGHTS.values()) == 50
 
     def test_experience_max_is_40(self):
         assert _EXPERIENCE_MAX == 40
@@ -63,7 +63,7 @@ class TestWeightsSumCorrectly:
         assert _EXP_RESPONSIBILITY_MAX + _EXP_TENURE_MAX + _EXP_VERTICAL_MAX == 40
 
     def test_overall_envelope_is_100(self):
-        assert sum(_KEYWORD_WEIGHTS.values()) + _EXPERIENCE_MAX + _FORMATTING_MAX == 100
+        assert sum(DEFAULT_KEYWORD_WEIGHTS.values()) + _EXPERIENCE_MAX + _FORMATTING_MAX == 100
 
 
 # ---------------------------------------------------------------------------
