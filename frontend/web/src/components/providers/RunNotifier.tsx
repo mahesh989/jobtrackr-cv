@@ -15,6 +15,23 @@ interface RunSnapshot {
   finished_at:   string | null;
 }
 
+/** A CV-analysis run (analysis_runs), as served by /api/user/analysis-runs. */
+interface AnalysisSnapshot {
+  id:                   string;
+  job_id:               string;
+  job_title:            string;
+  company:              string | null;
+  status:               string;
+  match_score:          number | null;
+  tailored_match_score: number | null;
+}
+
+/** analysis_runs rows are inserted `pending` and only flip to `running` once a
+ *  worker picks them up, so both count as in-flight for transition detection. */
+function isAnalysisActive(status: string | undefined): boolean {
+  return status === "pending" || status === "running";
+}
+
 interface Toast {
   id:    string;
   kind:  "success" | "error";
@@ -36,18 +53,87 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const prev   = useRef<Record<string, string>>({});
   const seeded = useRef(false);
+  const prevAnalysis   = useRef<Record<string, string>>({});
+  const seededAnalysis = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
+    let analysisInFlight = false;
     const timeoutHandles: ReturnType<typeof setTimeout>[] = [];
 
     function schedule(delay: number) {
       if (cancelled || document.hidden) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(poll, delay);
+      timer = setTimeout(pollAll, delay);
+    }
+
+    function pollAll() {
+      poll();
+      pollAnalysis();
+    }
+
+    function pushToast(toast: Toast) {
+      setToasts((t) => (t.some((x) => x.id === toast.id) ? t : [...t, toast]));
+      const h = setTimeout(() => {
+        setToasts((t) => t.filter((x) => x.id !== toast.id));
+      }, TOAST_MS);
+      timeoutHandles.push(h);
+    }
+
+    /** CV-analysis runs. Mirrors poll() but for analysis_runs, which previously
+     *  had no notifier at all — a finished analysis changed nothing on screen
+     *  until the user manually refreshed. */
+    async function pollAnalysis() {
+      if (cancelled || analysisInFlight) return;
+      analysisInFlight = true;
+      try {
+        const res = await fetch("/api/user/analysis-runs", { cache: "no-store" });
+        if (!res.ok) return;
+        const { runs }: { runs: AnalysisSnapshot[] } = await res.json();
+        if (cancelled) return;
+
+        const next: Record<string, string> = {};
+        for (const r of runs) next[r.id] = r.status;
+
+        // First pass seeds only — don't toast for runs that finished before mount.
+        if (!seededAnalysis.current) {
+          prevAnalysis.current = next;
+          seededAnalysis.current = true;
+          return;
+        }
+
+        let anyTransition = false;
+        for (const r of runs) {
+          const was = prevAnalysis.current[r.id];
+          if (!isAnalysisActive(was) || isAnalysisActive(r.status)) continue;
+          anyTransition = true;
+          const isSuccess = r.status === "completed";
+          const lift =
+            r.match_score != null && r.tailored_match_score != null
+              ? `ATS ${r.match_score} → ${r.tailored_match_score}`
+              : "Click to view the result";
+          pushToast({
+            id:    `analysis:${r.id}:${r.status}`,
+            kind:  isSuccess ? "success" : "error",
+            title: isSuccess
+              ? `${r.job_title} — analysis complete`
+              : `${r.job_title} — analysis failed`,
+            sub:   isSuccess ? lift : "Click to open the job",
+            // Deep-links straight into the board's detail pane for that job.
+            href:  `/dashboard?job=${r.job_id}`,
+          });
+        }
+
+        prevAnalysis.current = next;
+        if (anyTransition) router.refresh();
+      } catch {
+        /* silent */
+      } finally {
+        analysisInFlight = false;
+      }
     }
 
     async function poll() {
@@ -93,11 +179,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
                 ? `/profiles/${r.profile_id}/jobs`
                 : `/profiles/${r.profile_id}/runs`,
             };
-            setToasts((t) => (t.some((x) => x.id === toastId) ? t : [...t, toast]));
-            const h = setTimeout(() => {
-              setToasts((t) => t.filter((x) => x.id !== toastId));
-            }, TOAST_MS);
-            timeoutHandles.push(h);
+            pushToast(toast);
           }
         }
 
@@ -134,23 +216,39 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       )
       .subscribe();
 
+    // Same primary path for CV analysis. RLS restricts delivery to this user's
+    // rows; the payload lacks the job title, so a terminal flip triggers the
+    // enriched re-fetch above.
+    const analysisChannel = supabase
+      .channel("analysis_runs:user")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "analysis_runs" },
+        (payload) => {
+          const status = (payload.new as { status?: string }).status;
+          if (status === "completed" || status === "failed") pollAnalysis();
+        },
+      )
+      .subscribe();
+
     // Pause the backstop poll when the tab is hidden; resume (and poll once)
     // when it returns. Realtime keeps delivering toasts while hidden.
     function onVisibility() {
       if (document.hidden) {
         if (timer) { clearTimeout(timer); timer = null; }
       } else {
-        poll();
+        pollAll();
       }
     }
 
-    poll();
+    pollAll();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
+      supabase.removeChannel(analysisChannel);
       document.removeEventListener("visibilitychange", onVisibility);
       for (const h of timeoutHandles) clearTimeout(h);
     };

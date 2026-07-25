@@ -19,6 +19,7 @@ import { JobEditModal } from "../JobEditModal";
 import { Distance } from "../FeedCards";
 import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
 import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
+import { useJobRunStatus } from "../../lib/useJobRunStatus";
 import type { BoardJob } from "../../lib/jobFilters";
 
 const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
@@ -35,10 +36,21 @@ export function DetailHeader({
   onChanged: () => void;
 }) {
   const [showEdit, setShowEdit] = useState(false);
-  const [analysing, setAnalysing]     = useState(false);
+  // `submitting` covers only the enqueue request. Whether the *pipeline* is
+  // running comes from the analysis_runs row over Realtime, so the indicator
+  // survives closing the pane, switching jobs, and refreshes — and clears when
+  // the run genuinely finishes rather than when the POST resolves.
+  const [submitting, setSubmitting]   = useState(false);
   const [applying, setApplying]       = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
+
+  const { running } = useJobRunStatus(
+    job.id,
+    job.progress.latest_run_status,
+    onChanged,
+  );
+  const analysing = submitting || running;
 
   const meta = PIPELINE_STATE_META[job.pipelineState ?? "discovered"];
   const badgeVariant = TONE_BADGE[meta.tone] ?? "gray";
@@ -64,7 +76,7 @@ export function DetailHeader({
 
   async function runAnalyze(override?: "thin_jd" | "initial_gate" | "all") {
     if (analysing) return;
-    setAnalysing(true); setError(null);
+    setSubmitting(true); setError(null);
     try {
       const url = override ? `/api/jobs/${job.id}/analyze?override=${override}` : `/api/jobs/${job.id}/analyze`;
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -74,20 +86,24 @@ export function DetailHeader({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis failed to start");
     } finally {
-      setAnalysing(false);
+      // Hand over to the Realtime-backed `running` flag. If the run row is not
+      // visible yet the button briefly returns to idle, which is honest — the
+      // insert either happened (Realtime takes over within a tick) or failed
+      // (the error above says so).
+      setSubmitting(false);
     }
   }
 
   async function onReanalyze() {
     if (analysing) return;
-    setAnalysing(true); setError(null);
+    setSubmitting(true); setError(null);
     try {
       await triggerReanalyze(job.id);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not re-analyse");
     } finally {
-      setAnalysing(false);
+      setSubmitting(false);
     }
   }
 
