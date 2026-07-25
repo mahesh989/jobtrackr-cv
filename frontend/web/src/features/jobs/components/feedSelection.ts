@@ -11,6 +11,13 @@ export interface JobSelectionCtx {
   isSelected: (id: string) => boolean;
   toggle:     (id: string) => void;
   setMany:    (ids: string[], selected: boolean) => void;
+  /** Master-detail: open a job's detail pane. Optional — only the top-level
+   *  SmartFeed provider sets it; absent means the detail pane isn't wired up
+   *  (shouldn't happen in practice, but keeps this context safely reusable). */
+  onOpenDetail?: (id: string) => void;
+  /** id of the job currently shown in the detail pane, for the card's
+   *  "active" highlight ring. */
+  activeJobId?: string | null;
 }
 export const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
 
