@@ -7,10 +7,11 @@
    to <html> by ThemeProvider; absence of any theme class = Default.
    ───────────────────────────────────────────────────────────────── */
 :root {
-  /* Per-theme typography + radii. Default uses JobTrackr's original
-     pairing (Sofia Sans / DM Serif Display). cv-magic themes override
-     these to Manrope / Noto Serif. */
-  --font-sans-active:  var(--font-sans);
+  /* One sans face app-wide: the system stack, matching the v5 board
+     design. Themes deliberately do NOT override --font-sans-active — they
+     vary colour, radius and the serif face instead, so body text and
+     .label-luxury (which also reads this token) never diverge. */
+  --font-sans-active:  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-serif-active: var(--font-serif);
   --radius:            6px;
   --sidebar-width:     220px;
@@ -71,7 +72,6 @@
 
 /* ─── Theme: Classic (cv-magic clean light interface) ─────────── */
 :root.theme-classic {
-  --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            8px;
   --sidebar-width:     256px;        /* cv-magic w-64 */
@@ -113,7 +113,6 @@
 
 /* ─── Theme: Gilded Noir (dark gold luxury) ───────────────────── */
 :root.theme-gilded-noir {
-  --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            18px;
   --sidebar-width:     256px;
@@ -165,7 +164,6 @@
 
 /* ─── Theme: Notion (lavender canvas, deep purple) ────────────── */
 :root.theme-notion {
-  --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            8px;
   --sidebar-width:     256px;
@@ -210,7 +208,6 @@
 
 /* ─── Theme: Clay (bold cream canvas, hot-pink pop) ───────────── */
 :root.theme-clay {
-  --font-sans-active:  var(--font-cv-sans);
   --font-serif-active: var(--font-cv-serif);
   --radius:            12px;
   --sidebar-width:     256px;
@@ -309,9 +306,10 @@
 body {
   background: var(--bg);
   color: var(--text);
-  /* Themes swap the typography pair: Default uses Sofia Sans, the four
-     cv-magic themes (Classic / Gilded Noir / Notion / Clay) swap to
-     Manrope via --font-sans-active. */
+  /* Read the theme variable rather than hardcoding a stack — .label-luxury
+     also resolves --font-sans-active, so a literal stack here would split
+     body and heading typography apart. The Default theme sets it to the
+     system stack; other themes swap in their own face. */
   font-family: var(--font-sans-active), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* --ui-scale is the user's Density control (Compact / Comfortable / Spacious).
      Default 1 = no change for every existing theme. */
@@ -357,7 +355,7 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 }
 
 /* ─── Scrollbar — uses brand colour so each theme gets its own tint ─ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--brand) 35%, transparent);
@@ -764,7 +762,6 @@ input[type="radio"] {
 
 /* ---------- Tokens: Aurora Dark (hero) ---------- */
 :root.theme-aurora-dark {
-  --font-sans-active:    var(--font-jakarta);
   --font-serif-active:   var(--font-grotesk);
   --font-display-active: var(--font-grotesk);
   --font-mono-active:    var(--font-jbmono);
@@ -823,7 +820,6 @@ input[type="radio"] {
 
 /* ---------- Tokens: Aurora Light (twin) ---------- */
 :root.theme-aurora-light {
-  --font-sans-active:    var(--font-jakarta);
   --font-serif-active:   var(--font-grotesk);
   --font-display-active: var(--font-grotesk);
   --font-mono-active:    var(--font-jbmono);
