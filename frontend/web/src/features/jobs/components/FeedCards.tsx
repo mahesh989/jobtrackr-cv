@@ -273,13 +273,20 @@ export function CardShell({
           } ${selectable ? "pl-10" : ""} ${
             isFlash ? "bg-green-light" : ""
           } ${savedFlicker ? "jd-saved-flicker" : ""}`}
-          style={hero ? undefined : {
-            borderWidth: "1px",
-            borderStyle: "solid",
-            borderColor: isFlash ? "#22c55e" : checked || isActive ? "#2563eb" : "var(--border)",
-            borderLeft: !!job.applied_at ? "2px solid #22c55e" : undefined,
-            boxShadow: checked || isActive ? "0 0 0 3px rgba(37,99,235,0.12)" : undefined,
-          }}
+          style={hero ? undefined : (() => {
+            // Never mix a `borderLeft` shorthand with `borderWidth/Style/Color`
+            // in one style object — React's style diffing drops the left-side
+            // longhands on client re-render (cards lose their left border until
+            // a full reload). Use 4-value shorthands for the applied accent.
+            const tone = isFlash ? "#22c55e" : checked || isActive ? "#2563eb" : "var(--border)";
+            const applied = !!job.applied_at;
+            return {
+              borderWidth: applied ? "1px 1px 1px 2px" : "1px",
+              borderStyle: "solid",
+              borderColor: applied ? `${tone} ${tone} ${tone} #22c55e` : tone,
+              boxShadow: checked || isActive ? "0 0 0 3px rgba(37,99,235,0.12)" : undefined,
+            };
+          })()}
         >
           <CardActionsContext.Provider value={{ onDismiss, onEdit: () => setShowEdit(true), onToggleStar, starred, pending }}>
             {children}
