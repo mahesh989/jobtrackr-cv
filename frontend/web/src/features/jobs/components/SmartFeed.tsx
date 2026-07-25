@@ -18,6 +18,7 @@ import {
   clampInt, isPostedToday, byDistanceAsc } from "@/features/jobs/lib/smartFeedUtils";
 import { DistanceRibbon } from "./DistanceRibbon";
 import { BulkActionBar } from "./BulkActionBar";
+import { BoardDetailPanel, EmptyDetail } from "./detail/BoardDetailPanel";
 
 // ── smart-section bucketing ─────────────────────────────────────────────
 
@@ -76,9 +77,17 @@ export function SmartFeed({
   thresholds?:     AtsThresholds;
   excludeKeywords?: string;
 }) {
-  const router = useRouter();
-  const sp     = useSearchParams();
+  const router   = useRouter();
+  const sp       = useSearchParams();
+  const pathname = usePathname();
   const isFavouriteFilter = sp.get("stage") === "favourite";
+
+  const selectedJobId = sp.get("job");
+  const openDetail = useCallback((id: string) => {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    next.set("job", id);
+    shallowSetParams(pathname, next);
+  }, [sp, pathname]);
 
   const [activeSelectModes, setActiveSelectModes] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -107,8 +116,14 @@ export function SmartFeed({
   }, []);
 
   const selectionValue = useMemo<JobSelectionCtx>(
-    () => ({ selectMode: false, isSelected: (id) => selected.has(id), toggle, setMany }),
-    [selected, toggle, setMany],
+    () => ({
+      selectMode: false,
+      isSelected: (id) => selected.has(id),
+      toggle, setMany,
+      onOpenDetail: openDetail,
+      activeJobId:  selectedJobId,
+    }),
+    [selected, toggle, setMany, openDetail, selectedJobId],
   );
 
   const toggleSelectMode = useCallback((sectionId: string, sectionJobs?: BoardJob[]) => {
@@ -243,6 +258,37 @@ export function SmartFeed({
 
   const hasJobs = visibleJobs.length > 0;
 
+  const ribbonMax = 50;
+  const minDist   = clampInt(sp.get("min_distance"), 0, ribbonMax, 0);
+  const maxDist   = clampInt(sp.get("max_distance"), 0, ribbonMax, ribbonMax);
+  const range: [number, number] = [minDist, maxDist];
+
+  function setRange(r: [number, number]) {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    if (r[0] > 0)         next.set("min_distance", String(r[0])); else next.delete("min_distance");
+    if (r[1] < ribbonMax) next.set("max_distance", String(r[1])); else next.delete("max_distance");
+    shallowSetParams(pathname, next);
+  }
+
+  const defaultJobId = useRef<string | null>(null);
+  if (!selectedJobId && hasJobs) defaultJobId.current ??= visibleJobs[0].id;
+
+  const resolvedJobId = selectedJobId ?? defaultJobId.current;
+
+  const selectedJob = useMemo(
+    () => {
+      if (resolvedJobId) return visibleJobs.find((j) => j.id === resolvedJobId) ?? (visibleJobs[0] ?? null);
+      return null;
+    },
+    [visibleJobs, resolvedJobId],
+  );
+
+  function closeDetail() {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    next.delete("job");
+    shallowSetParams(pathname, next);
+  }
+
   return (
     <div className="space-y-5">
       <SmartToolbar
@@ -252,37 +298,66 @@ export function SmartFeed({
         thresholds={thresholds}
       />
 
-      {visibleJobs.length === 0 ? (
-        <EmptyState favourite={isFavouriteFilter} />
-      ) : (
-        <JobSelectionContext.Provider value={selectionValue}>
-          <SmartFeedBody
-            jobs={visibleJobs}
-            groups={visibleGroups}
-            hasActiveFilter={hasActiveFilter}
-            currentTab={currentTab}
-            distanceMax={distanceMax}
-            cardRefs={cardRefs}
-            scrollToJob={scrollToJob}
-            activeSelectModes={activeSelectModes}
-            onToggleSelectMode={hasJobs ? toggleSelectMode : undefined}
-            excludeKeywords={excludeKeywords}
-          />
-        </JobSelectionContext.Provider>
+      {distanceMax > 0 && (
+        <DistanceRibbon
+          jobs={visibleJobs}
+          maxKm={ribbonMax}
+          range={range}
+          onRangeChange={setRange}
+          onJobClick={scrollToJob}
+        />
       )}
 
-      <BulkActionBar
-        selectedCount={selected.size}
-        isAnySelectMode={isAnySelectMode}
-        progress={progress}
-        confirmAnalyse={confirmAnalyse}
-        bulkPending={bulkPending}
-        onStar={runBulkStar}
-        onArchive={runBulkArchive}
-        onConfirmAnalyse={runBulkAnalyse}
-        onSetConfirmAnalyse={setConfirmAnalyse}
-        onStop={exitAllSelectModes}
-      />
+      <div className="flex gap-0 -mx-4 sm:-mx-6">
+        <div className="w-[440px] min-w-[400px] shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100vh - 2rem)" }}>
+          <div className="h-full flex flex-col">
+            <div className="flex-1 overflow-y-auto p-5 pb-7">
+              {visibleJobs.length === 0 ? (
+                <EmptyState favourite={isFavouriteFilter} />
+              ) : (
+                <JobSelectionContext.Provider value={selectionValue}>
+                  <SmartFeedBody
+                    jobs={visibleJobs}
+                    groups={visibleGroups}
+                    hasActiveFilter={hasActiveFilter}
+                    currentTab={currentTab}
+                    cardRefs={cardRefs}
+                    activeSelectModes={activeSelectModes}
+                    onToggleSelectMode={hasJobs ? toggleSelectMode : undefined}
+                    excludeKeywords={excludeKeywords}
+                  />
+                </JobSelectionContext.Provider>
+              )}
+            </div>
+
+            <BulkActionBar
+              selectedCount={selected.size}
+              isAnySelectMode={isAnySelectMode}
+              progress={progress}
+              confirmAnalyse={confirmAnalyse}
+              bulkPending={bulkPending}
+              onStar={runBulkStar}
+              onArchive={runBulkArchive}
+              onConfirmAnalyse={runBulkAnalyse}
+              onSetConfirmAnalyse={setConfirmAnalyse}
+              onStop={exitAllSelectModes}
+            />
+          </div>
+        </div>
+
+        <div
+          className="hidden lg:block flex-1 min-w-[540px] bg-surface self-start overflow-hidden"
+          style={{ height: "calc(100vh - 2rem)" }}
+        >
+          {selectedJob ? <BoardDetailPanel job={selectedJob} onClose={closeDetail} /> : <EmptyDetail />}
+        </div>
+      </div>
+
+      {selectedJob && (
+        <div className="lg:hidden">
+          <BoardDetailPanel job={selectedJob} onClose={closeDetail} mobile />
+        </div>
+      )}
     </div>
   );
 }
@@ -290,15 +365,13 @@ export function SmartFeed({
 // ── feed body ───────────────────────────────────────────────────────────
 
 function SmartFeedBody({
-  jobs, groups, hasActiveFilter, currentTab, distanceMax, cardRefs, scrollToJob,
+  jobs, groups, hasActiveFilter, currentTab, cardRefs,
   activeSelectModes, onToggleSelectMode, excludeKeywords }: {
   jobs: BoardJob[];
   groups?: JobGroup[];
   hasActiveFilter: boolean;
   currentTab: string;
-  distanceMax: number;
   cardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
-  scrollToJob: (id: string) => void;
   activeSelectModes: Set<string>;
   onToggleSelectMode?: (sectionId: string, sectionJobs?: BoardJob[]) => void;
   excludeKeywords?: string;
@@ -323,30 +396,8 @@ function SmartFeedBody({
     [groupSections, hasActiveFilter, jobs],
   );
 
-  const ribbonMax = 50;
-  const minDist   = clampInt(sp.get("min_distance"), 0, ribbonMax, 0);
-  const maxDist   = clampInt(sp.get("max_distance"), 0, ribbonMax, ribbonMax);
-  const range: [number, number] = [minDist, maxDist];
-
-  function setRange(r: [number, number]) {
-    const next = new URLSearchParams(Array.from(sp.entries()));
-    if (r[0] > 0)         next.set("min_distance", String(r[0])); else next.delete("min_distance");
-    if (r[1] < ribbonMax) next.set("max_distance", String(r[1])); else next.delete("max_distance");
-    shallowSetParams(pathname, next);
-  }
-
   return (
     <>
-      {distanceMax > 0 && (
-        <DistanceRibbon
-          jobs={jobs}
-          maxKm={ribbonMax}
-          range={range}
-          onRangeChange={setRange}
-          onJobClick={scrollToJob}
-        />
-      )}
-
       {sections ? (
         <div className="space-y-7">
           {sections.map((sec) => (
