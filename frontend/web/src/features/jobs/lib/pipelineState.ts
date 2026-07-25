@@ -126,7 +126,7 @@ export const PIPELINE_STATE_META: Record<PipelineState, PipelineStateMeta> = {
   // inline with the location, and the Analyze button surfaces a clear
   // toast + "Run anyway" option when clicked. A separate State badge
   // would be redundant.
-  needs_jd:        { label: "Needs JD",       tone: "warning", short: "Job description too short to analyse — paste the full JD to continue", showAsBadge: false },
+  needs_jd:        { label: "Needs full JD",  tone: "warning", short: "Job description too short to analyse — paste the full JD to continue", showAsBadge: false },
   discovered:      { label: "—",              tone: "neutral", short: "Not yet processed",                                                 showAsBadge: false },
 };
 
