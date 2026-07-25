@@ -591,3 +591,46 @@ def test_promote_no_op_for_non_first_class_policy():
     assert _promote_qualification_cert_to_education(md, cert_policy="plus") == md
     assert _promote_qualification_cert_to_education(md, cert_policy="") == md
 
+
+
+def test_extract_employers_ignores_education_and_certification_sections():
+    """Education/Certification entries also render as '### Institution | ...'
+    with date spans; they must not register as employers. Regression for the
+    Shanti Giri AIN CV, where '### CQ University, Sydney, Australia' under
+    '## Education' (Jul 2025 – Present) became a top-2 "employer" and the
+    anchor enforcer appended 'at Akala Motors Private Limited and CQ
+    University, Sydney, Australia.' onto the summary's education sentence."""
+    cv_text = (
+        "## Experience\n\n"
+        "### Akala Motors Private Limited | Pokhara, Nepal\n"
+        "*Junior Accountant | Jan 2024 – May 2025*\n"
+        "- Maintained financial records.\n\n"
+        "## Education\n\n"
+        "### CQ University, Sydney, Australia | Sydney, Australia\n"
+        "*Master of Professional Accounting | Jul 2025 – Present*\n\n"
+        "### Pokhara University, Pokhara, Nepal | Pokhara, Nepal\n"
+        "*Bachelor of Business Administration | 2017 – 2021*\n"
+    )
+    employers = _extract_employers_from_cv(cv_text)
+    assert employers == ["Akala Motors Private Limited"]
+
+
+def test_enforce_company_anchor_no_op_when_only_education_pads_the_count():
+    """With Education scoped out there is only one true employer, so the
+    anchor enforcer must leave the summary untouched (no 'at X and Y' tail)."""
+    cv_text = (
+        "## Experience\n\n"
+        "### Akala Motors Private Limited | Pokhara, Nepal\n"
+        "*Junior Accountant | Jan 2024 – May 2025*\n"
+        "- Maintained financial records.\n\n"
+        "## Education\n\n"
+        "### CQ University, Sydney, Australia | Sydney, Australia\n"
+        "*Master of Professional Accounting | Jul 2025 – Present*\n"
+    )
+    md = (
+        "## Professional Summary\n\n"
+        "Aged Care Support Worker with a Certificate IV in Ageing Support. "
+        "Currently advancing professional expertise through a Master of "
+        "Professional Accounting at CQ University Sydney.\n"
+    )
+    assert _enforce_company_anchor(md, cv_text) == md

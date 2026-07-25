@@ -688,6 +688,19 @@ def _enforce_summary_opener(
 # Heading pattern that starts an Experience entry ("### Employer | Location").
 _EXP_ENTRY_RE = re.compile(r"^###\s+(.+?)\s*(?:\|.*)?$")
 
+# "## Experience"-style section headings (the normalizer emits "## Experience";
+# tailored markdown uses "## Professional Experience"). Education/Certification
+# entries also render as "### Institution | ..." with date spans, so the
+# employer scan must not cross into those sections — a Master's degree is not
+# an employer, and treating it as one injected garbage like "...Master of
+# Professional Accounting at CQ University Sydney at Akala Motors and CQ
+# University, Sydney, Australia." into the summary.
+_EXP_SECTION_RE = re.compile(
+    r"^##\s+(?:(?:professional|work|clinical)\s+)?experience\s*$"
+    r"|^##\s+(?:employment|work|career)\s+history\s*$",
+    re.IGNORECASE,
+)
+
 
 def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
     """Return employer names from the CV's Experience section that have
@@ -695,9 +708,20 @@ def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
     or 'Mar 2026 – Present'). True placement entries (lines containing 'placement'
     with no genuine date span) are excluded; lines that merely mention weekly hours
     ('38 hrs/week') alongside a real date range are legitimate and included.
-    Returns names in order of appearance (most recent first)."""
+    Returns names in order of appearance (most recent first).
+
+    When the CV has "## <section>" headings, only "### " entries inside an
+    Experience-titled section count; a CV with bare "### " entries and no
+    section headings is scanned whole (the legacy shape used by callers that
+    pass experience-only fragments)."""
     employers: list[str] = []
     current_employer: str | None = None
+    lines = [raw.strip() for raw in cv_text.split("\n")]
+    # Whole-document scan only when the CV has no ## sections at all.
+    has_sections = any(
+        ln.startswith("## ") and not ln.startswith("###") for ln in lines
+    )
+    in_experience = not has_sections
     _DATE_SPAN_RE = re.compile(
         r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present)"
         r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
@@ -717,8 +741,13 @@ def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
                 employers.append(name)
         return True
 
-    for raw_line in cv_text.split("\n"):
-        line = raw_line.strip()
+    for line in lines:
+        if has_sections and line.startswith("## ") and not line.startswith("###"):
+            in_experience = bool(_EXP_SECTION_RE.match(line))
+            current_employer = None
+            continue
+        if not in_experience:
+            continue
         m = _EXP_ENTRY_RE.match(line)
         if m:
             current_employer = m.group(1).strip()
