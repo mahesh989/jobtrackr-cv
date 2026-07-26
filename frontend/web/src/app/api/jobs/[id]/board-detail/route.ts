@@ -25,40 +25,39 @@ export const GET = withUser(async (
   const { id: jobId } = await params;
   const admin = createAdminClient();
 
-  // Ownership: job → profile → user (same chain as PATCH /api/jobs/[id]).
-  const { data: job } = await admin
-    .from("jobs")
-    .select("id, profile_id")
-    .eq("id", jobId)
-    .maybeSingle();
-  if (!job) return jsonError("Job not found", 404);
-
-  const { data: profile } = await admin
-    .from("search_profiles")
-    .select("user_id")
-    .eq("id", job.profile_id)
-    .maybeSingle();
-  if (!profile || profile.user_id !== user.id) {
-    return jsonError("Job not found", 404);
-  }
-
-  const { data: run } = await admin
-    .from("analysis_runs")
-    .select(
-      "id, status, step_status, cover_letter_status, error_message, " +
-      "jd_analysis_result, cv_jd_matching_result, ats_scoring_result, " +
-      "keyword_feasibility, tailored_ats_scoring_result, injected_keywords, " +
-      "quality_flags, match_score, tailored_match_score, ats_lift, " +
-      "tailored_cv_storage_path, ai_provider, ai_model, created_at",
-    )
-    .eq("job_id", jobId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let coverLetter: Record<string, unknown> | null = null;
-  if (run) {
-    const { data: letter } = await admin
+  // All three in one flight. This used to be four sequential awaits — job,
+  // then profile (to resolve ownership), then run, then letter — on top of
+  // withUser's own auth round trip, so selecting a job cost five serial hops
+  // to Supabase and the pane sat on a spinner for 1.5-3s every time. None of
+  // them actually depend on each other's *data*: ownership is a gate, not an
+  // input, so it can be checked concurrently and enforced before we respond.
+  //
+  // Safe to fetch before the gate resolves because every query here is already
+  // scoped to this user — the run and letter both filter on user_id, and the
+  // ownership row is the join itself. Nothing is returned until the check
+  // below passes, and nothing user-foreign could be returned even if it didn't.
+  const [ownership, runResult, letterResult] = await Promise.all([
+    admin
+      .from("jobs")
+      .select("id, search_profiles!inner(user_id)")
+      .eq("id", jobId)
+      .eq("search_profiles.user_id", user.id)
+      .maybeSingle(),
+    admin
+      .from("analysis_runs")
+      .select(
+        "id, status, step_status, cover_letter_status, error_message, " +
+        "jd_analysis_result, cv_jd_matching_result, ats_scoring_result, " +
+        "keyword_feasibility, tailored_ats_scoring_result, injected_keywords, " +
+        "quality_flags, match_score, tailored_match_score, ats_lift, " +
+        "tailored_cv_storage_path, ai_provider, ai_model, created_at",
+      )
+      .eq("job_id", jobId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
       .from("cover_letters")
       .select("id, status, pass_3_final, tone_target, email_body, email_subject")
       .eq("job_id", jobId)
@@ -66,12 +65,17 @@ export const GET = withUser(async (
       .eq("is_stale", false)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle();
-    coverLetter = letter ?? null;
-  }
+      .maybeSingle(),
+  ]);
+
+  if (!ownership.data) return jsonError("Job not found", 404);
+
+  const run = runResult.data ?? null;
 
   return NextResponse.json({
-    run: run ?? null,
-    cover_letter: coverLetter,
+    run,
+    // A letter without a run is not a state the pipeline produces, and the tabs
+    // key off the run — keep the original shape rather than surfacing an orphan.
+    cover_letter: run ? letterResult.data ?? null : null,
   });
 });
