@@ -32,7 +32,13 @@ interface Toast {
 // already reports completion in place, and the toast's router.refresh() was
 // re-rendering the dashboard mid-run, which is what scrolled the page back to
 // the top while an analysis was in flight.
-const BACKSTOP_MS = 20000; // safety-net poll, visible tabs only
+// Realtime is the primary path and has proven reliable, so this only has to
+// cover a genuinely dropped event. At 20s it was re-hitting a ~1s endpoint
+// three times a minute on every open tab for the entire time the app was
+// open — far more traffic than a safety net warrants. 3 minutes still catches
+// a missed event well within the time it takes a pipeline run to matter, and
+// the visibilitychange handler polls immediately on tab focus regardless.
+const BACKSTOP_MS = 180000; // safety-net poll, visible tabs only
 const TOAST_MS    = 8000;
 
 export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {

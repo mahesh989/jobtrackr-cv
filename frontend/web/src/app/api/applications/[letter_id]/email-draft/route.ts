@@ -28,13 +28,29 @@ export const GET = withUser(async (
   const { letter_id } = await params;
   const admin = createAdminClient();
 
-  // 1. Letter (ownership gate + has-it-been-sent guard)
-  const { data: letter } = await admin
-    .from("cover_letters")
-    .select("id, user_id, job_id, email_sent_at, reviewed_at, email_subject, email_body")
-    .eq("id", letter_id)
-    .maybeSingle();
+  // Opening the More tab (and the Apply popup) calls this route, and it used
+  // to be six round trips in a straight line — letter → job → prefs → run →
+  // storage download — costing ~2s on every single open. Only the genuine
+  // data dependencies are sequential now: everything keyed on the letter's
+  // job_id waits for the letter, and the CV download waits for the run. The
+  // rest rides along in parallel.
+  //
+  // WAVE 1 — the letter (gate) and the user's own preferences, which need
+  // nothing but user.id.
+  const [letterRes, prefsRes] = await Promise.all([
+    admin
+      .from("cover_letters")
+      .select("id, user_id, job_id, email_sent_at, reviewed_at, email_subject, email_body")
+      .eq("id", letter_id)
+      .maybeSingle(),
+    admin
+      .from("user_preferences")
+      .select("contact_details")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
+  const letter = letterRes.data;
   if (!letter || letter.user_id !== user.id) {
     return jsonError("Letter not found", 404);
   }
@@ -42,13 +58,31 @@ export const GET = withUser(async (
     return jsonError("Email already sent", 409);
   }
 
-  // 2. Job (no user_id column — letter ownership is the gate)
-  const { data: job } = await admin
-    .from("jobs")
-    .select("id, title, company, contact_email, hiring_manager")
-    .eq("id", letter.job_id)
-    .maybeSingle();
+  const contactDetails = (prefsRes.data?.contact_details as ContactDetails | null) ?? null;
+  const userName = (contactDetails?.name ?? "").trim() || null;
 
+  // WAVE 2 — both keyed on the letter's job_id, so they go together.
+  // The run gives the CV markdown path; we want the markdown (not the legacy
+  // pdf_storage_path) because the modal renders fresh client-side using the
+  // same pipeline as the analysis page.
+  const [jobRes, runRes] = await Promise.all([
+    admin
+      .from("jobs")
+      .select("id, title, company, contact_email, hiring_manager")
+      .eq("id", letter.job_id)
+      .maybeSingle(),
+    admin
+      .from("analysis_runs")
+      .select("tailored_cv_storage_path")
+      .eq("job_id", letter.job_id)
+      .eq("user_id", user.id)
+      .eq("is_stale", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const job = jobRes.data;
   if (!job) {
     return jsonError("Job not found", 404);
   }
@@ -56,34 +90,10 @@ export const GET = withUser(async (
   // when no contact_email is on file, the resulting draft is for the user
   // to copy and paste into their own mail client.
 
-  // 3. Contact details from preferences — name for the signoff AND the full
-  //    contact block which the modal re-stamps onto the CV markdown before
-  //    rendering (so the attached PDF reflects whatever the user has saved
-  //    NOW, not whatever was there when the analysis originally ran).
-  const { data: prefs } = await admin
-    .from("user_preferences")
-    .select("contact_details")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const contactDetails = (prefs?.contact_details as ContactDetails | null) ?? null;
-  const userName = (contactDetails?.name ?? "").trim() || null;
+  const cvMarkdownPath = runRes.data?.tailored_cv_storage_path ?? null;
 
-  // 4. Latest non-stale analysis run — for the CV markdown path. We want the
-  //    markdown (not the legacy pdf_storage_path), because the modal renders
-  //    fresh client-side using the same pipeline as the analysis page.
-  const { data: run } = await admin
-    .from("analysis_runs")
-    .select("tailored_cv_storage_path")
-    .eq("job_id", letter.job_id)
-    .eq("user_id", user.id)
-    .eq("is_stale", false)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const cvMarkdownPath = run?.tailored_cv_storage_path ?? null;
-
-  // 4b. Pull the markdown contents so the modal doesn't need a Storage round-trip.
-  //     A tailored CV is ~5-10KB of text — safe to inline in the response.
+  // WAVE 3 — pull the markdown contents so the modal doesn't need a Storage
+  // round-trip. A tailored CV is ~5-10KB of text — safe to inline.
   let cvMarkdown: string | null = null;
   if (cvMarkdownPath) {
     const { data: mdBlob } = await admin.storage.from(TAILORED_CV_BUCKET).download(cvMarkdownPath);
