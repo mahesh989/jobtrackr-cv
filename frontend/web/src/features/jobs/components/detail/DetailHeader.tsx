@@ -56,6 +56,7 @@ export function DetailHeader({
   // the run genuinely finishes rather than when the POST resolves.
   const [submitting, setSubmitting]   = useState(false);
   const [showApply, setShowApply]     = useState(false);
+  const [appliedNow, setAppliedNow]   = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
@@ -63,15 +64,16 @@ export function DetailHeader({
   // chip and progress popup don't spin forever on a run that died days ago.
   // Realtime events are live by definition and always take over.
   const seedStatus = job.pipelineState === "analysing" ? job.progress.latest_run_status : null;
-  // Refresh is deferred until the user closes the popup. Refreshing the moment
-  // the run settled re-rendered the board underneath, which yanked the page
-  // back to the top and tore the popup away before it could be read — the
-  // reported "card disappears and jumps to the top of the dashboard".
-  const [refreshOnClose, setRefreshOnClose] = useState(false);
+  // Refresh fires the instant the run settles — `onChanged` (`refresh` in
+  // BoardDetailPanel) only bumps local state to refetch this pane's own
+  // board-detail payload, so it can't reset the board's scroll or tear away
+  // the popup (that was true of an older version wired to router.refresh(),
+  // which is why this used to be deferred until the popup was dismissed —
+  // the deferral just meant "no manual refresh needed" wasn't actually true).
   const { status, running, steps, runId } = useJobRunStatus(
     job.id,
     seedStatus,
-    () => setRefreshOnClose(true),
+    onChanged,
     job.progress.latest_run_id,
   );
   const analysing = submitting || running;
@@ -157,7 +159,12 @@ export function DetailHeader({
     }
   }
 
-  const isApplied = !!job.applied_at;
+  // `job.applied_at` comes from the server-rendered list and only catches up
+  // on the next real navigation (see BoardDetailPanel — refresh() is pane-local
+  // on purpose). Without this, a successful Apply leaves this same header
+  // still reading "Apply now" right after its own popup just confirmed the
+  // opposite.
+  const isApplied = !!job.applied_at || appliedNow;
   const needsJd   = job.pipelineState === "needs_jd";
   const failed    = job.progress.latest_run_status === "failed";
   const notAnalysed = !job.progress.has_analysis && !needsJd && !failed;
@@ -181,20 +188,6 @@ export function DetailHeader({
             {" · "}
             <span className="uppercase font-semibold" style={{ fontSize: 11 }}>{job.source}</span>
           </p>
-          <div className="flex items-start gap-2 mt-2">
-            <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-              <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${TONE_CLASSES[meta.tone]?.pill ?? ""}`}>
-                <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
-                {meta.label}
-              </span>
-              <span className="text-label text-text-2">{statusSubtext(job)}</span>
-            </div>
-            {lastAnalysedAt && (
-              <span className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
-                Last analysed {relativeDate(lastAnalysedAt)}
-              </span>
-            )}
-          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -283,6 +276,25 @@ export function DetailHeader({
         </div>
       </div>
 
+      {/* Own row, spanning the full panel width — nesting this inside the title
+          column above only right-aligned "Last analysed" to that column's edge
+          (short of the actions on the right), not the panel's actual right
+          edge, and a long subtext line wrapped the two onto separate rows. */}
+      <div className="flex items-start gap-2 mt-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+          <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${TONE_CLASSES[meta.tone]?.pill ?? ""}`}>
+            <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
+            {meta.label}
+          </span>
+          <span className="text-label text-text-2">{statusSubtext(job)}</span>
+        </div>
+        {lastAnalysedAt && (
+          <span className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
+            Last analysed {relativeDate(lastAnalysedAt)}
+          </span>
+        )}
+      </div>
+
       {error && <p className="text-label text-red-600 mt-2">{error}</p>}
 
       {showEdit && (
@@ -306,7 +318,8 @@ export function DetailHeader({
           job={job}
           letterId={letterId}
           onClose={() => setShowApply(false)}
-          onApplied={onChanged}
+          onApplied={() => { setAppliedNow(true); onChanged(); }}
+          onChanged={onChanged}
         />
       )}
 
@@ -321,9 +334,8 @@ export function DetailHeader({
           onDismiss={() => {
             setProgressDismissed(phase);
             if (phase !== "running") setWasOpen(false);
-            // Pull the new scores/tabs in only now, so the board doesn't
-            // re-render (and scroll-jump) while the user is still reading.
-            if (refreshOnClose) { setRefreshOnClose(false); onChanged(); }
+            // The pane's own data already refreshed the moment the run settled
+            // (see useJobRunStatus above) — nothing left to pull in here.
           }}
         />
       )}

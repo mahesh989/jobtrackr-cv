@@ -8,6 +8,12 @@
  *   - contact_email:  recruiter contact for future MCP email-send flow.
  *   - hiring_manager: name of the hiring manager for cover letter salutation.
  *   - company_address: multi-line postal address for cover letter employer block.
+ *   - applied_at:     stamp (or clear, with null) when the user applies. An API
+ *                     route rather than the `markJobApplied` server action so
+ *                     callers that are already on-screen (the board's detail
+ *                     pane) don't trigger revalidatePath's implicit route
+ *                     refresh — that refetches the whole server-rendered board
+ *                     and resets its scroll to the top out from under the user.
  *
  * Ownership chain: job → search_profile → user. Service-role write only after
  * we verify the chain — service-role bypasses RLS, so the check must run.
@@ -34,6 +40,7 @@ export const PATCH = withUser(async (
     contact_email?:   string | null;
     hiring_manager?:  string | null;
     company_address?: string | null;
+    applied_at?:      string | null;
   };
   try {
     body = await req.json();
@@ -125,6 +132,17 @@ export const PATCH = withUser(async (
     }
   }
 
+  if ("applied_at" in body) {
+    const raw = body.applied_at;
+    if (raw === null) {
+      patch.applied_at = null;
+    } else if (typeof raw === "string" && !Number.isNaN(Date.parse(raw))) {
+      patch.applied_at = raw;
+    } else {
+      return jsonError("applied_at must be an ISO date string or null", 400);
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     return jsonError("No supported fields in request", 400);
   }
@@ -153,7 +171,7 @@ export const PATCH = withUser(async (
     .from("jobs")
     .update(patch)
     .eq("id", jobId)
-    .select("id, manual_jd_text, contact_email, hiring_manager, company_address, setting_category, setting_confidence, setting_evidence")
+    .select("id, manual_jd_text, contact_email, hiring_manager, company_address, applied_at, setting_category, setting_confidence, setting_evidence")
     .single();
 
   if (error || !updated) {
