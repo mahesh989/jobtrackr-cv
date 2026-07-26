@@ -43,8 +43,16 @@ export function useJobRunStatus(
   jobId: string,
   initialStatus: string | null,
   onSettled?: () => void,
-): { status: string | null; running: boolean } {
+): {
+  status: string | null;
+  running: boolean;
+  /** Per-step state from analysis_runs.step_status, for the progress panel.
+   *  Null until the first Realtime event — the server-rendered seed carries the
+   *  run's status but not its steps. */
+  steps: Record<string, string> | null;
+} {
   const [status, setStatus] = useState<string | null>(initialStatus);
+  const [steps, setSteps] = useState<Record<string, string> | null>(null);
 
   // Re-seed when the pane switches to a different job. BoardDetailPanel keys on
   // job.id so this normally remounts; seeding defensively keeps the hook correct
@@ -54,6 +62,7 @@ export function useJobRunStatus(
   if (seededFor !== jobId) {
     setSeededFor(jobId);
     setStatus(initialStatus);
+    setSteps(null);
   }
 
   // Latest-callback ref so an inline closure from the parent doesn't churn the
@@ -78,9 +87,16 @@ export function useJobRunStatus(
           filter: `job_id=eq.${jobId}`,
         },
         (payload) => {
-          const row = payload.new as { id?: string; status?: string } | null;
+          const row = payload.new as {
+            id?: string;
+            status?: string;
+            step_status?: Record<string, string> | null;
+          } | null;
           if (!row?.status) return;
           setStatus(row.status);
+          if (row.step_status && typeof row.step_status === "object") {
+            setSteps(row.step_status);
+          }
           const terminal =
             row.status === RunStatus.COMPLETED || row.status === RunStatus.FAILED;
           if (terminal && row.id && !settledRunIds.has(row.id)) {
@@ -94,5 +110,5 @@ export function useJobRunStatus(
     return () => { supabase.removeChannel(channel); };
   }, [jobId]);
 
-  return { status, running: isActive(status) };
+  return { status, running: isActive(status), steps };
 }
