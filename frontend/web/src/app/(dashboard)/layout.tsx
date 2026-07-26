@@ -52,7 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </ResizableSidebar>
 
       {/* Main content area */}
-      <div data-scroll-container className="flex-1 flex flex-col min-w-0 bg-sidebar-bg overflow-y-auto">
+      <div data-scroll-container="main" className="flex-1 flex flex-col min-w-0 bg-sidebar-bg overflow-y-auto">
         <Header />
         <ScrollRestoration />
 

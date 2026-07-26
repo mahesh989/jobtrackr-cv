@@ -311,7 +311,10 @@ export function SmartFeed({
       <div className="flex gap-0 -mx-4 sm:-mx-6">
         <div className="w-[440px] min-w-[400px] shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100vh - 2rem)" }}>
           <div className="h-full flex flex-col">
-            <div className="flex-1 overflow-y-auto p-5 pb-7">
+            {/* The feed's own scroller — the outer main column doesn't move
+                with it, so ScrollRestoration has to know about this one to put
+                the user back on the card they were reading. */}
+            <div data-scroll-container="board-list" className="flex-1 overflow-y-auto p-5 pb-7">
               {visibleJobs.length === 0 ? (
                 <EmptyState favourite={isFavouriteFilter} />
               ) : (

@@ -85,7 +85,13 @@ function BoardDetailPanelInner({
         </div>
       )}
 
-      <DetailHeader job={job} onClosed={onClose} onChanged={refresh} mobile={mobile} />
+      <DetailHeader
+        job={job}
+        letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
+        onClosed={onClose}
+        onChanged={refresh}
+        mobile={mobile}
+      />
 
       {error ? (
         <div className="flex-1 flex items-center justify-center px-6">
