@@ -10,6 +10,7 @@ import { getEntitlement } from "@/lib/billing/entitlements";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { ResizableSidebar } from "@/components/navigation/ResizableSidebar";
 import { Header } from "@/components/navigation/Header";
+import { ScrollRestoration } from "@/components/providers/ScrollRestoration";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthUser();
@@ -51,8 +52,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </ResizableSidebar>
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-sidebar-bg overflow-y-auto">
+      <div data-scroll-container className="flex-1 flex flex-col min-w-0 bg-sidebar-bg overflow-y-auto">
         <Header />
+        <ScrollRestoration />
 
         <Suspense fallback={null}>
           <SetupStepperBar />
