@@ -20,6 +20,7 @@ import { Distance } from "../FeedCards";
 import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
 import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
+import { AnalysisProgressModal } from "./AnalysisProgressModal";
 import type { BoardJob } from "../../lib/jobFilters";
 
 const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
@@ -45,12 +46,25 @@ export function DetailHeader({
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
-  const { running } = useJobRunStatus(
+  const { status, running, steps } = useJobRunStatus(
     job.id,
     job.progress.latest_run_status,
     onChanged,
   );
   const analysing = submitting || running;
+
+  // The popup opens on its own whenever a run is live for this job — including
+  // runs started from the ⋯ menu, from the card, or in another tab. Dismissing
+  // only hides it; `progressDismissedFor` is keyed by phase so a later
+  // completion still surfaces, and the header chip reopens it at any time.
+  const [progressDismissed, setProgressDismissed] = useState<string | null>(null);
+  const phase: "running" | "completed" | "failed" =
+    analysing ? "running" : status === "failed" ? "failed" : "completed";
+  // Only ever auto-show for a live run; terminal phases show only if the popup
+  // was already open when the run settled (so it can report the outcome).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (analysing && !wasOpen) setWasOpen(true);
+  const showProgress = wasOpen && progressDismissed !== phase;
 
   const meta = PIPELINE_STATE_META[job.pipelineState ?? "discovered"];
   const badgeVariant = TONE_BADGE[meta.tone] ?? "gray";
@@ -138,6 +152,22 @@ export function DetailHeader({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Always-visible running indicator. The action buttons below only
+              show "Analysing…" on the Analyse/Retry branches, which aren't
+              rendered for an already-analysed job — so without this,
+              re-analysing showed nothing at all. Doubles as the way back into
+              the progress popup after dismissing it. */}
+          {analysing && (
+            <button
+              type="button"
+              onClick={() => { setWasOpen(true); setProgressDismissed(null); }}
+              title="Show analysis progress"
+              className="inline-flex items-center gap-1.5 px-[12px] py-[7px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/30 hover:bg-[var(--brand)]/15 transition-colors"
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Analysing…
+            </button>
+          )}
           {analysisHref && (
             <a href={analysisHref}
               className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[#eef3ff] text-[#2563eb] border border-[#cdddff] hover:bg-[#e2ecff] transition-colors"
@@ -213,6 +243,18 @@ export function DetailHeader({
           initialCompanyAddress={job.company_address ?? null}
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); onChanged(); }}
+        />
+      )}
+
+      {showProgress && (
+        <AnalysisProgressModal
+          jobTitle={job.title}
+          steps={steps}
+          phase={phase}
+          onDismiss={() => {
+            setProgressDismissed(phase);
+            if (phase !== "running") setWasOpen(false);
+          }}
         />
       )}
     </div>
