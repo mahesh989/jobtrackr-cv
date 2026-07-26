@@ -22,7 +22,6 @@ import { jsonError } from "@/lib/api-utils";
 
 // Pipeline calls AI multiple times; keep some headroom for the BackgroundTask
 // scheduling on cv-backend (the actual long-running work is on Fly, not here).
-import type { User } from "@supabase/supabase-js";
 
 const JD_FULL_THRESHOLD  = 1000;   // chars — below this we try a fresh scrape. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
@@ -57,7 +56,7 @@ function spliceStructuredReferees(
 export async function analyzeJob(
   req: NextRequest,
   jobId: string,
-  user: User,
+  user: { id: string },
 ): Promise<Response> {
 
   // ── Phase C-3 override flag ─────────────────────────────────────────────

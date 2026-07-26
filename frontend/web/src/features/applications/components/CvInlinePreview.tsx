@@ -33,6 +33,36 @@ interface Props {
   storagePath: string | null;
 }
 
+/**
+ * The user's own contact block, fetched once per tab rather than once per
+ * preview. Opening the Tailored CV tab re-mounts this component, and each
+ * mount was spending ~520ms re-fetching a value that cannot change while the
+ * user sits on the board. The in-flight promise is cached (not just the
+ * result) so two previews mounting together share one request.
+ */
+let contactPromise: Promise<ContactDetails | null> | null = null;
+
+function loadContactDetails(): Promise<ContactDetails | null> {
+  contactPromise ??= (async () => {
+    try {
+      const res = await fetch("/api/user/preferences");
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (!json?.contact_details) return null;
+      const { projects: _projects, ...cd } = json.contact_details;
+      void _projects;
+      return cd as ContactDetails;
+    } catch {
+      // Non-fatal — the preview renders without the stamped contact block.
+      // Clear the cache so a later mount can retry rather than inheriting
+      // a one-off network failure for the rest of the session.
+      contactPromise = null;
+      return null;
+    }
+  })();
+  return contactPromise;
+}
+
 export function CvInlinePreview({ storagePath }: Props) {
   const [rawMd,   setRawMd]   = useState<string | null>(null);
   const [contact, setContact] = useState<ContactDetails | null>(null);
@@ -61,18 +91,9 @@ export function CvInlinePreview({ storagePath }: Props) {
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/user/preferences");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (active && json?.contact_details) {
-          const { projects: _projects, ...cd } = json.contact_details ?? {};
-          void _projects;
-          setContact(cd as ContactDetails);
-        }
-      } catch { /* non-fatal */ }
-    })();
+    loadContactDetails().then((cd) => {
+      if (active && cd) setContact(cd);
+    });
     return () => { active = false; };
   }, []);
 

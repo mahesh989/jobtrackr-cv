@@ -25,7 +25,6 @@ import { consumeCoverLetter, linkUsageEvent, releaseUsageEvent } from "@/lib/bil
 import type { ToneTarget } from "@/lib/types";
 import { jsonError } from "@/lib/api-utils";
 
-import type { User } from "@supabase/supabase-js";
 
 const JD_MIN_CHARS = 50;
 
@@ -47,7 +46,7 @@ function makeCompanySlug(name: string): string {
 export async function startCoverLetter(
   req: NextRequest,
   jobId: string,
-  user: User,
+  user: { id: string },
 ): Promise<Response> {
 
   // ── Phase D-2 final-gate override ──────────────────────────────────────────

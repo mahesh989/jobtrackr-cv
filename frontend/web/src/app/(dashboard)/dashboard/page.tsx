@@ -70,16 +70,23 @@ export default async function DashboardPage({
   // Send them straight to the admin overview instead — UNLESS they've opted
   // into "View as user" (jt_user_view cookie), in which case let them see the
   // user dashboard with their own data.
-  const { data: userRoleRow } = await supabase
-    .from("users").select("role").eq("id", user.id).single();
+  // These three only need `user.id`, so they go together rather than in a
+  // three-deep chain — this prologue ran before ANY of the parallel batches
+  // below and put ~2 serial round trips in front of every dashboard load.
+  // getCachedProfiles is unstable_cache (30 s TTL per user, busted by
+  // revalidateTag(`profiles-${user.id}`) on profile create/update/delete), so
+  // it is usually free; the two queries are the real cost.
+  // The admin redirect below still fires correctly — it just no longer blocks
+  // the other two from starting. Admins pay a little wasted work on a request
+  // they are redirecting away from anyway, which is the right trade.
+  const [{ data: userRoleRow }, { data: prefRow }, profileRows] = await Promise.all([
+    supabase.from("users").select("role").eq("id", user.id).single(),
+    supabase.from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
+    getCachedProfiles(user.id),
+  ]);
   const userRole = (userRoleRow as { role?: string } | null)?.role ?? "";
   const inUserView = (await cookies()).get("jt_user_view")?.value === "1";
   if ((ADMIN_ROLES as readonly string[]).includes(userRole) && !inUserView) redirect("/admin");
-
-  // getCachedProfiles is unstable_cache — 30 s TTL per user, instant on repeat
-  // visits within a session. Busted by revalidateTag(`profiles-${user.id}`)
-  // on createProfile / updateProfile / deleteProfile.
-  const profileRows = await getCachedProfiles(user.id);
 
   const profiles = profileRows as Array<{
     id: string; name: string; is_active: boolean;
@@ -98,8 +105,7 @@ export default async function DashboardPage({
   // — the same source the analysis pipeline uses — so the board bands match the
   // gate the analysis actually applied. Per-profile target_verticals is a legacy
   // fallback for users without a My CV selection.
-  const { data: prefRow } = await supabase
-    .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle();
+  // prefRow is fetched in the parallel prologue above.
   const myCvVerticals = (
     (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
   ).filter(Boolean);
