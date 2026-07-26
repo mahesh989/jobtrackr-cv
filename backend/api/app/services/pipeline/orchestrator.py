@@ -377,6 +377,13 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
         # Non-fatal — if PDF render fails we keep the markdown only; user can
         # still copy the markdown out of the UI.
+        #
+        # Stop is only observed at these checkpoints, and the tailored-CV step is
+        # by far the longest stretch between them: writer → PDF → re-score →
+        # cover letter. Without a check here, pressing Stop during "Creating
+        # tailored CV" left the pipeline running for minutes. An in-flight AI
+        # call can't be aborted mid-request, but everything after it can be.
+        await _check_cancelled(run_id)
         try:
             pdf_path = await render_and_upload_tailored_pdf(
                 str(payload.user_id), str(run_id), tailored_md,
@@ -462,6 +469,10 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # machine. The 3-pass generation pipeline IS still detached as a
         # background task inside that function; only the trigger + INSERT
         # are awaited here (~200ms overhead, predictable).
+        # Last chance to honour Stop — the cover letter spawns its own detached
+        # 3-pass generation, which would otherwise keep burning tokens well
+        # after the user asked the run to stop.
+        await _check_cancelled(run_id)
         if final_score is not None and final_score >= payload.min_final_ats:
             logger.info(
                 "auto-cover-letter: run %s — tailored score %s >= final gate %s — triggering",

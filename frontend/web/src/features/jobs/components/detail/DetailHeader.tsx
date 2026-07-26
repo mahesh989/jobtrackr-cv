@@ -58,10 +58,15 @@ export function DetailHeader({
   // chip and progress popup don't spin forever on a run that died days ago.
   // Realtime events are live by definition and always take over.
   const seedStatus = job.pipelineState === "analysing" ? job.progress.latest_run_status : null;
+  // Refresh is deferred until the user closes the popup. Refreshing the moment
+  // the run settled re-rendered the board underneath, which yanked the page
+  // back to the top and tore the popup away before it could be read — the
+  // reported "card disappears and jumps to the top of the dashboard".
+  const [refreshOnClose, setRefreshOnClose] = useState(false);
   const { status, running, steps, runId } = useJobRunStatus(
     job.id,
     seedStatus,
-    onChanged,
+    () => setRefreshOnClose(true),
     job.progress.latest_run_id,
   );
   const analysing = submitting || running;
@@ -312,6 +317,9 @@ export function DetailHeader({
           onDismiss={() => {
             setProgressDismissed(phase);
             if (phase !== "running") setWasOpen(false);
+            // Pull the new scores/tabs in only now, so the board doesn't
+            // re-render (and scroll-jump) while the user is still reading.
+            if (refreshOnClose) { setRefreshOnClose(false); onChanged(); }
           }}
         />
       )}
