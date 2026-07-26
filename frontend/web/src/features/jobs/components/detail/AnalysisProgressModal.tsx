@@ -51,7 +51,7 @@ export function AnalysisProgressModal({
   jobTitle: string;
   /** analysis_runs.step_status; null until the first Realtime event arrives. */
   steps: Record<string, string> | null;
-  phase: "running" | "completed" | "failed";
+  phase: "running" | "completed" | "failed" | "cancelled";
   onDismiss: () => void;
   /** Omitted when the run can't be cancelled (no run id yet). */
   onStop?: () => void;
@@ -105,6 +105,8 @@ export function AnalysisProgressModal({
             <Loader2 className="h-10 w-10 animate-spin text-[var(--brand)]" aria-hidden />
           ) : phase === "completed" ? (
             <CheckCircle2 className="h-10 w-10 text-green-500" aria-hidden />
+          ) : phase === "cancelled" ? (
+            <StopCircle className="h-10 w-10 text-text-3" aria-hidden />
           ) : (
             <AlertTriangle className="h-10 w-10 text-red-500" aria-hidden />
           )}
@@ -112,6 +114,7 @@ export function AnalysisProgressModal({
           <p className="mt-3 text-lead font-semibold text-text" aria-live="polite">
             {phase === "running"   ? "Analysing this job…"
              : phase === "completed" ? "Analysis complete"
+             : phase === "cancelled" ? "Analysis stopped"
              :                         "Analysis failed"}
           </p>
           <p className="mt-1 text-body text-text-2 line-clamp-2">{jobTitle}</p>

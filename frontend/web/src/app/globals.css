@@ -301,6 +301,24 @@
    unlayered silently broke every mx-auto on the site. */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+  /* Tailwind v4's preflight dropped the browser default `cursor: pointer` on
+     buttons (v3 kept it), so every <button> that didn't happen to carry an
+     explicit `cursor-pointer` class showed an arrow instead of the hand —
+     inconsistently across the app depending on who remembered the class.
+     Restore it once, here, for everything genuinely clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 body {
