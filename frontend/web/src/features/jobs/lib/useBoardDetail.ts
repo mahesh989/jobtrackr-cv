@@ -14,11 +14,14 @@ interface State {
  * changes; a stale request whose job changed before it resolved is dropped
  * (guards against fast card-to-card clicking racing the response order).
  */
-export function useBoardDetail(jobId: string | null) {
+export function useBoardDetail(jobId: string | null, enabled: boolean = true) {
   const [state, setState] = useState<State>({ data: null, loading: true, error: null });
   const activeId = useRef<string | null>(null);
 
   useEffect(() => {
+    // `enabled` is false for the off-screen twin of the detail pane (SmartFeed
+    // mounts a desktop and a mobile copy; CSS hides one but both used to fetch).
+    if (!enabled) return;
     if (!jobId) return; // nothing to fetch — the early return below covers this render
     activeId.current = jobId;
 
@@ -40,7 +43,7 @@ export function useBoardDetail(jobId: string | null) {
         setState({ data: null, loading: false, error: e instanceof Error ? e.message : "Network error" });
       }
     })();
-  }, [jobId]);
+  }, [jobId, enabled]);
 
   if (!jobId) return { data: null, loading: false, error: null };
   return state;

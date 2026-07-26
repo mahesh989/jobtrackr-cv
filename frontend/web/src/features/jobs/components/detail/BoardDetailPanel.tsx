@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { Tabs } from "@/components/ui";
 import { useBoardDetail } from "../../lib/useBoardDetail";
+import { useIsDesktop } from "../../lib/useIsDesktop";
 import type { BoardJob } from "../../lib/jobFilters";
 import { DetailHeader } from "./DetailHeader";
 import { JobDescriptionTab } from "./JobDescriptionTab";
@@ -41,7 +42,11 @@ function BoardDetailPanelInner({
   mobile: boolean;
 }) {
   const router = useRouter();
-  const { data, loading, error } = useBoardDetail(job.id);
+  // Only the pane the viewport actually shows does the data work; its
+  // off-screen twin stays inert (see useIsDesktop).
+  const isDesktop = useIsDesktop();
+  const active = mobile ? !isDesktop : isDesktop;
+  const { data, loading, error } = useBoardDetail(job.id, active);
   const [tab, setTab] = useState("jd");
 
   function refresh() {
