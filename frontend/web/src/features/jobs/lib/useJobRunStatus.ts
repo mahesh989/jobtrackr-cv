@@ -36,8 +36,15 @@ let channelSeq = 0;
  * `initialStatus` seeds from the server-rendered row so an in-flight run shows
  * immediately on mount, before any Realtime event arrives.
  *
- * `onSettled` fires once per run when it reaches a terminal status, so the
- * caller can refresh the panel to pick up the new scores and tabs.
+ * `onSettled` fires when there is new content for the caller to pick up. That
+ * is NOT just "the run finished": the orchestrator calls mark_run_completed()
+ * as soon as the tailored CV is scored, then triggers the auto cover letter,
+ * whose 3-pass generation runs as a DETACHED background task and lands in
+ * `cover_letters` a minute or two later. Firing only on the run's terminal
+ * status therefore refreshed the pane at the one moment the letter was
+ * guaranteed to be missing — which is why the Cover letter and More tabs never
+ * showed up without a manual page refresh. So we also watch `cover_letters`
+ * for this job and fire again when a letter lands.
  */
 export function useJobRunStatus(
   jobId: string,
@@ -84,7 +91,7 @@ export function useJobRunStatus(
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`analysis_runs:job:${jobId}:${++channelSeq}`)
+      .channel(`job-detail:${jobId}:${++channelSeq}`)
       .on(
         "postgres_changes",
         {
@@ -111,6 +118,23 @@ export function useJobRunStatus(
             settledRunIds.add(row.id);
             settledRef.current?.();
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event:  "*",
+          schema: "public",
+          table:  "cover_letters",
+          filter: `job_id=eq.${jobId}`,
+        },
+        (payload) => {
+          // The letter is written in passes; only the finished text unlocks the
+          // Cover letter and More tabs, so anything earlier is not worth a
+          // refetch. No once-per-row guard here: a regenerate legitimately
+          // completes the same row twice.
+          const row = payload.new as { pass_3_final?: string | null } | null;
+          if (row?.pass_3_final) settledRef.current?.();
         },
       )
       .subscribe();

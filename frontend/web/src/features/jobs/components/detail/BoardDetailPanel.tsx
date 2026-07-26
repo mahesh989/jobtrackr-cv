@@ -108,7 +108,7 @@ function BoardDetailPanelInner({
           </Tabs.List>
 
           <div className="flex-1 min-h-0 overflow-y-auto px-8 py-5 pb-9 text-[14.5px] leading-relaxed" style={{ maxWidth: 860 }}>
-            <Tabs.Content value="jd"><JobDescriptionTab job={job} detail={data} /></Tabs.Content>
+            <Tabs.Content value="jd"><JobDescriptionTab job={job} detail={data} loading={loading} /></Tabs.Content>
             {hasScore && (
               <Tabs.Content value="match">
                 {loading ? pending : <MatchScoreTab job={job} detail={data} />}

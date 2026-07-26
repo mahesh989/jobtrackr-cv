@@ -107,6 +107,9 @@ export function ApplyModal({
   const [done, setDone] = useState<
     null | { via: "email"; to: string } | { via: "source"; opened: boolean }
   >(null);
+  /** Set once the listing has been handed off and we're waiting to hear
+   *  whether the user actually went through with it. */
+  const [confirmSource, setConfirmSource] = useState<null | { opened: boolean }>(null);
 
   // Set once this modal generates a letter itself. `letterId` (the prop) won't
   // catch up until the pane refetches its board-detail payload — this is what
@@ -116,6 +119,10 @@ export function ApplyModal({
   const effectiveLetterId = letterId ?? localLetterId;
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  /** Company name while its research call is in flight — that leg alone can
+   *  take 15-45s (Tavily + scrape + AI distill), so the progress line names it
+   *  rather than leaving the user on a generic "writing…" for a minute. */
+  const [researching, setResearching] = useState<string | null>(null);
 
   // The board already knows whether a cover letter exists, so we can tell
   // "no message for this job" apart from "the pane hasn't fetched it yet"
@@ -157,16 +164,32 @@ export function ApplyModal({
     const startJson = await startRes.json().catch(() => ({}));
 
     if (!startRes.ok) {
-      if (startRes.status === 422 && startJson.action === "research_company" && !didAutoResearch) {
-        const companyName = startJson.company_name ?? job.company ?? "this company";
-        const researchRes = await fetch("/api/company-research", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ company_name: companyName }),
-        });
-        if (!researchRes.ok) {
+      if (startRes.status === 422 && startJson.action === "research_company") {
+        // Second time through means research reported success but generation
+        // still can't see a row. Repeating the raw "Company research has not
+        // been run" copy here reads as though nothing was attempted, which is
+        // what made this look like a dead "Try again" loop — say what actually
+        // happened instead.
+        if (didAutoResearch) {
+          throw new Error(
+            `We researched ${job.company ?? "this company"} but the result didn't save, so the ` +
+            "letter still can't be written. This is a server-side problem, not something " +
+            "you can fix by retrying — please report it.",
+          );
+        }
+        setResearching(startJson.company_name ?? job.company ?? "this company");
+        try {
+          const researchRes = await fetch("/api/company-research", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ company_name: startJson.company_name ?? job.company }),
+          });
           const rj = await researchRes.json().catch(() => ({}));
-          throw new Error(rj.error ?? "Company research failed. Try again.");
+          if (!researchRes.ok) {
+            throw new Error(rj.error ?? "Company research failed. Try again.");
+          }
+        } finally {
+          setResearching(null);
         }
         return startGeneration(true);
       }
@@ -280,16 +303,32 @@ export function ApplyModal({
     }
   }
 
-  async function applyViaSource() {
+  /** Opens the listing and hands off — deliberately WITHOUT marking the job
+   *  applied yet. We have no way to know the user actually completed the
+   *  employer's form: they may hit a login wall, find the ad expired, or
+   *  simply change their mind. Stamping applied_at on the click made the board
+   *  assert an application that may never have happened, and undoing it means
+   *  hunting the job down in the Applied pile. So the click hands off and the
+   *  next card asks.
+   *
+   *  Asked for on the source path whether or not a contact email exists — the
+   *  uncertainty is identical either way. The email path needs no such
+   *  confirmation because there we did the sending ourselves. */
+  function openListing() {
+    if (busy) return;
+    setError(null);
+    // Opened synchronously so it still counts as part of the click gesture —
+    // popup blockers reject a window.open issued after an await. `win` comes
+    // back null when the blocker actually intervenes (Chrome/Firefox), which
+    // the confirm card below reads so it can offer a manual link instead of
+    // pretending a tab appeared.
+    const win = window.open(job.url, "_blank", "noopener,noreferrer");
+    setConfirmSource({ opened: !!win });
+  }
+
+  async function confirmApplied(opened: boolean) {
     if (busy) return;
     setBusy("source"); setError(null);
-    // Opened before the await so it counts as part of the click gesture —
-    // popup blockers reject a window.open that comes after one. `win` comes
-    // back null when the blocker actually intervenes (Chrome/Firefox); the
-    // success card below reads it to say what really happened rather than
-    // claiming a tab opened when the click silently did nothing.
-    const win = window.open(job.url, "_blank", "noopener,noreferrer");
-    const opened = !!win;
     try {
       const res = await fetch(`/api/jobs/${job.id}`, {
         method:  "PATCH",
@@ -303,11 +342,7 @@ export function ApplyModal({
       setDone({ via: "source", opened });
       onApplied();
     } catch {
-      setError(
-        opened
-          ? "Opened the listing, but couldn't mark this job as applied."
-          : "Your browser blocked the listing from opening, and marking this job as applied also failed.",
-      );
+      setError("Couldn't mark this job as applied — try again.");
     } finally {
       setBusy(null);
     }
@@ -339,6 +374,15 @@ export function ApplyModal({
 
         {done ? (
           <SuccessCard job={job} done={done} onClose={onClose} />
+        ) : confirmSource ? (
+          <ConfirmSourceCard
+            job={job}
+            opened={confirmSource.opened}
+            busy={busy === "source"}
+            error={error}
+            onYes={() => confirmApplied(confirmSource.opened)}
+            onNo={onClose}
+          />
         ) : (
           <>
             <div className="flex flex-col items-center text-center pt-3">
@@ -436,8 +480,9 @@ export function ApplyModal({
               {generating && (
                 <p className="flex items-center gap-2 text-label text-text-3">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Writing your cover letter… this can take a minute or two (longer the first
-                  time for a new company — we research it first).
+                  {researching
+                    ? `Researching ${researching} first — paragraph 2 needs a real fact about them to anchor on. This takes 15-45 seconds.`
+                    : "Writing your cover letter… this can take a minute or two."}
                 </p>
               )}
               {generateError && (
@@ -473,7 +518,7 @@ export function ApplyModal({
               )}
               <button
                 type="button"
-                onClick={applyViaSource}
+                onClick={openListing}
                 disabled={!!busy}
                 className={
                   canSend
@@ -481,12 +526,8 @@ export function ApplyModal({
                     : "inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 }
               >
-                {busy === "source"
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <ExternalLink className="h-4 w-4" />}
-                {busy === "source"
-                  ? "Opening…"
-                  : canSend ? `Apply on ${job.source} instead` : `Apply on ${job.source}`}
+                <ExternalLink className="h-4 w-4" />
+                {canSend ? `Apply on ${job.source} instead` : `Apply on ${job.source}`}
               </button>
             </div>
           </>
@@ -494,6 +535,77 @@ export function ApplyModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** The hand-off checkpoint: the listing is open, we can't see what happens
+ *  there, so ask instead of assuming. "Not yet" is the safe default — the job
+ *  stays exactly where it was and Apply can be clicked again. */
+function ConfirmSourceCard({
+  job, opened, busy, error, onYes, onNo,
+}: {
+  job: BoardJob;
+  opened: boolean;
+  busy: boolean;
+  error: string | null;
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center text-center pt-3">
+      <ExternalLink className="h-10 w-10 text-[var(--brand)]" aria-hidden />
+      <p className="mt-3 text-lead font-semibold text-text">
+        {opened ? `Opened on ${job.source}` : `Open this on ${job.source}`}
+      </p>
+      <p className="mt-1 text-body text-text-2 line-clamp-2">
+        {job.title} · {job.company}
+      </p>
+      <p className="mt-3 text-label text-text-2">
+        {opened ? (
+          <>
+            Finish the application in the new tab, then come back and tell us how it went — we
+            won&apos;t mark it applied until you say so.
+          </>
+        ) : (
+          <>
+            Your browser blocked the new tab —{" "}
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--brand)] hover:underline"
+            >
+              open the listing here
+            </a>
+            , then come back and tell us how it went.
+          </>
+        )}
+      </p>
+
+      {error && <p className="mt-3 text-label text-red-600">{error}</p>}
+
+      <div className="mt-5 flex w-full flex-col gap-2">
+        <button
+          type="button"
+          onClick={onYes}
+          disabled={busy}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {busy ? "Saving…" : "I applied — mark it"}
+        </button>
+        <Button
+          variant="default"
+          size="sm"
+          type="button"
+          onClick={onNo}
+          disabled={busy}
+          className="w-full rounded-full py-2 text-body font-medium"
+        >
+          Not yet
+        </Button>
+      </div>
+    </div>
   );
 }
 
