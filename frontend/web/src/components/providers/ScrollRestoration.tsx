@@ -32,11 +32,16 @@ import { usePathname } from "next/navigation";
 const KEY_PREFIX = "jt_scroll:";
 const SELECTOR = "[data-scroll-container]";
 
-/** Give up re-applying after this long. Restoring stops early the moment it
- *  succeeds — or the moment the user touches anything — so this only bounds
- *  the streaming-content case. Generous on purpose: a cold dashboard can take
- *  the better part of ten seconds to stream its board in. */
-const RESTORE_WINDOW_MS = 15000;
+/** Backstop only — NOT the normal stop condition. Restoring stops early the
+ *  moment it succeeds or the user touches anything; those two fire on every
+ *  real navigation. A fixed give-up window was tried first here and measured
+ *  against the real dashboard route: a single server round trip (Supabase +
+ *  the HMAC-signing proxy in front of it) ran 3.6-11s on its own in practice,
+ *  and a cold Suspense-streamed board can chain several of those before its
+ *  container ever mounts — no fixed window is provably long enough, so a
+ *  timeout can't be the primary gate. This just stops a permanently-broken
+ *  page (container never mounts, ever) from polling forever. */
+const RESTORE_BACKSTOP_MS = 120000;
 const TICK_MS = 50;
 /** Ticks the offset must hold before we call it restored — content arriving
  *  late can grow the container after the first successful apply. */
@@ -96,7 +101,7 @@ export function ScrollRestoration() {
     // setTimeout rather than requestAnimationFrame: rAF is suspended while the
     // tab is hidden, which would leave a backgrounded restore permanently
     // half-done.
-    const deadline = Date.now() + RESTORE_WINDOW_MS;
+    const backstop = Date.now() + RESTORE_BACKSTOP_MS;
     let stable = 0;
 
     /** True once every saved slot is mounted and sitting at its offset. */
@@ -117,7 +122,7 @@ export function ScrollRestoration() {
     function tick() {
       if (disposed || !restoring) return;
       stable = applyOnce() ? stable + 1 : 0;
-      if (stable >= STABLE_TICKS || Date.now() > deadline) {
+      if (stable >= STABLE_TICKS || Date.now() > backstop) {
         restoring = false;
         return;
       }

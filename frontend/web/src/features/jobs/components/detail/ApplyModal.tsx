@@ -12,10 +12,33 @@
  *   drafted message, no email       → the message is there to copy, plus an
  *                                     inline "+ Add email" that unlocks the
  *                                     send path (PATCH /api/jobs/[id]).
+ *   no cover letter at all          → a "Write my cover letter" button. Below
+ *                                     the final gate is the ONLY reason a job
+ *                                     reaches this branch (the pipeline skips
+ *                                     cover-letter generation there unless
+ *                                     forced — see statusSubtext's "cover
+ *                                     letter skipped" in DetailHeader), so
+ *                                     "Apply anyway" generating one anyway is
+ *                                     the button living up to its name. One
+ *                                     click runs the whole thing — generate
+ *                                     opening variants, auto-pick the first
+ *                                     (no picking UI exists in this board yet;
+ *                                     that only lives on the full analysis
+ *                                     page), then poll until the letter's
+ *                                     `pass_3_final` lands — and falls through
+ *                                     to the normal send/copy flow above.
  *   neither                         → open the listing and mark it applied.
  *
  * Applying via the listing stays available in every branch: an email address on
  * file doesn't mean email is the right channel for that employer.
+ *
+ * Marking "applied" from here goes through PATCH /api/jobs/[id] rather than
+ * the `markJobApplied` server action the card list uses — that action calls
+ * revalidatePath, which triggers Next's implicit route refresh the instant a
+ * server action resolves. On the board's own page that refetches the whole
+ * server-rendered list and resets its scroll to the top right as this popup's
+ * success card appears — exactly the "why did it jump" bug this pane exists to
+ * avoid. An API route has no such side effect.
  *
  * Endpoints and copy are shared with the More tab (see MoreTab's EmailSection);
  * the card's shape follows AnalysisProgressModal so the two popups read as one
@@ -24,9 +47,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, CheckCircle2, X, Mail, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, X, Mail, ExternalLink, PenLine } from "lucide-react";
 import { Button } from "@/components/ui";
-import { markJobApplied } from "@/lib/actions/jobs";
 import type { BoardJob } from "../../lib/jobFilters";
 
 interface EmailDraft {
@@ -36,13 +58,23 @@ interface EmailDraft {
   body: string;
 }
 
+/** Generation is a one-shot AI cost, so it polls rather than subscribing —
+ *  simpler than wiring a Realtime channel for something this pane only ever
+ *  waits on once. cv-backend writes P2-4 as a background task after `pick`. */
+const GENERATE_POLL_MS   = 2000;
+const GENERATE_TIMEOUT_MS = 90_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 /** Mirrors AnalysisProgressModal — `document` doesn't exist during the server
  *  render of a client component, and useSyncExternalStore is the lint-clean way
  *  to ask "am I on the client?" without a setState-in-effect. */
 const subscribeNoop = () => () => {};
 
 export function ApplyModal({
-  job, letterId, onClose, onApplied,
+  job, letterId, onClose, onApplied, onChanged,
 }: {
   job: BoardJob;
   /** Cover letter for this job's latest run, when one exists. Null while the
@@ -51,6 +83,11 @@ export function ApplyModal({
   onClose: () => void;
   /** Fired once the job is marked applied, so the pane and the board catch up. */
   onApplied: () => void;
+  /** Fired once a cover letter this modal generated finishes writing, so the
+   *  pane refetches and picks up the new Cover letter / More tabs. Distinct
+   *  from `onApplied` — generating a letter doesn't mean the job was applied
+   *  to yet, the user might still back out before sending. */
+  onChanged: () => void;
 }) {
   const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
@@ -69,17 +106,26 @@ export function ApplyModal({
   /** Set once the job is applied — the card flips to the success view. */
   const [done, setDone] = useState<null | { via: "email"; to: string } | { via: "source" }>(null);
 
+  // Set once this modal generates a letter itself. `letterId` (the prop) won't
+  // catch up until the pane refetches its board-detail payload — this is what
+  // lets the send/copy flow below activate the instant writing finishes,
+  // without waiting on that round trip.
+  const [localLetterId, setLocalLetterId] = useState<string | null>(null);
+  const effectiveLetterId = letterId ?? localLetterId;
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
   // The board already knows whether a cover letter exists, so we can tell
   // "no message for this job" apart from "the pane hasn't fetched it yet"
   // rather than flashing the wrong branch.
-  const awaitingLetter = !letterId && job.progress.has_cover_letter;
+  const awaitingLetter = !letterId && !localLetterId && job.progress.has_cover_letter;
 
   useEffect(() => {
-    if (!letterId) return;
+    if (!effectiveLetterId) return;
     let active = true;
     (async () => {
       try {
-        const res = await fetch(`/api/applications/${letterId}/email-draft`);
+        const res = await fetch(`/api/applications/${effectiveLetterId}/email-draft`);
         if (!active) return;
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
@@ -93,7 +139,62 @@ export function ApplyModal({
       }
     })();
     return () => { active = false; };
-  }, [letterId]);
+  }, [effectiveLetterId]);
+
+  /** One click runs generate → auto-pick the first opener → poll to
+   *  completion. `override=final_gate` because this only ever fires for a
+   *  below-gate job (see the module doc) — the pipeline's own reason for
+   *  skipping the letter in the first place, and exactly what "anyway" means. */
+  async function generateCoverLetter() {
+    if (generating) return;
+    setGenerating(true); setGenerateError(null);
+    try {
+      const startRes = await fetch(`/api/jobs/${job.id}/cover-letter?override=final_gate`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      const startJson = await startRes.json().catch(() => ({}));
+      if (!startRes.ok) throw new Error(startJson.error ?? `Could not start (${startRes.status})`);
+      const newLetterId = startJson.letter_id as string;
+
+      if (startJson.status === "picking") {
+        const variants = Array.isArray(startJson.variants) ? startJson.variants : [];
+        const firstVariant = variants[0];
+        if (!firstVariant?.id) throw new Error("No opening options came back — try again.");
+        const pickRes = await fetch(`/api/jobs/${job.id}/cover-letter/${newLetterId}/pick`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ variant_id: firstVariant.id }),
+        });
+        const pickJson = await pickRes.json().catch(() => ({}));
+        if (!pickRes.ok) throw new Error(pickJson.error ?? `Could not start writing (${pickRes.status})`);
+      }
+      // "cached" means a non-stale letter already existed and is done — the
+      // poll below resolves on its first pass either way.
+
+      const deadline = Date.now() + GENERATE_TIMEOUT_MS;
+      for (;;) {
+        const statusRes = await fetch(`/api/jobs/${job.id}/cover-letter/${newLetterId}`);
+        if (statusRes.ok) {
+          const { letter } = await statusRes.json();
+          if (letter?.status === "completed") break;
+          if (letter?.status === "failed") {
+            throw new Error(letter?.error_message || "Generation failed — try again.");
+          }
+        }
+        if (Date.now() > deadline) {
+          throw new Error("Still writing — this is taking longer than expected. Try again shortly.");
+        }
+        await sleep(GENERATE_POLL_MS);
+      }
+
+      setLocalLetterId(newLetterId);
+      onChanged();
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "Could not generate a cover letter");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function saveEmail() {
     const trimmed = emailInput.trim();
@@ -130,10 +231,10 @@ export function ApplyModal({
   }
 
   async function sendEmail() {
-    if (busy || !letterId || !contactEmail) return;
+    if (busy || !effectiveLetterId || !contactEmail) return;
     setBusy("email"); setError(null);
     try {
-      const res = await fetch(`/api/applications/${letterId}/send-email`, { method: "POST" });
+      const res = await fetch(`/api/applications/${effectiveLetterId}/send-email`, { method: "POST" });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Send failed (${res.status})`);
@@ -155,7 +256,15 @@ export function ApplyModal({
     // popup blockers reject a window.open that comes after one.
     window.open(job.url, "_blank", "noopener,noreferrer");
     try {
-      await markJobApplied(job.id, job.profile_id);
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ applied_at: new Date().toISOString() }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Failed (${res.status})`);
+      }
       setDone({ via: "source" });
       onApplied();
     } catch {
@@ -167,7 +276,7 @@ export function ApplyModal({
 
   if (!mounted) return null;
 
-  const canSend = !!letterId && !!contactEmail && !!draft;
+  const canSend = !!effectiveLetterId && !!contactEmail && !!draft;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -243,7 +352,7 @@ export function ApplyModal({
               {emailError && <p className="text-label text-red-600">{emailError}</p>}
 
               {/* ── drafted message ───────────────────────────────────── */}
-              {(awaitingLetter || (letterId && !draft)) && !draftError && (
+              {(awaitingLetter || (effectiveLetterId && !draft)) && !draftError && (
                 <p className="flex items-center gap-2 text-label text-text-3">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading your drafted message…
                 </p>
@@ -270,11 +379,38 @@ export function ApplyModal({
                 </div>
               )}
 
-              {!letterId && !awaitingLetter && (
-                <p className="text-label text-text-3">
-                  No cover letter has been generated for this job, so there&apos;s no message to
-                  send — apply on the listing instead.
+              {!effectiveLetterId && !awaitingLetter && !generating && (
+                <div className="rounded-[10px] border border-dashed border-[var(--border)] px-3.5 py-3">
+                  <p className="text-label text-text-2">
+                    No cover letter has been generated for this job yet — the ATS score didn&apos;t
+                    clear the bar to write one automatically.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={generateCoverLetter}
+                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-label font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
+                  >
+                    <PenLine className="w-3.5 h-3.5" /> Write my cover letter
+                  </button>
+                </div>
+              )}
+              {generating && (
+                <p className="flex items-center gap-2 text-label text-text-3">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Writing your cover letter… this can take up to a minute.
                 </p>
+              )}
+              {generateError && (
+                <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
+                  <p className="text-label text-red-600">{generateError}</p>
+                  <button
+                    type="button"
+                    onClick={generateCoverLetter}
+                    className="mt-1.5 text-label font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
               )}
             </div>
 

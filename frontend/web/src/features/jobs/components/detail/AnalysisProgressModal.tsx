@@ -21,15 +21,19 @@ import { createPortal } from "react-dom";
 import { Loader2, CheckCircle2, X, AlertTriangle, MinusCircle, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui";
 
-/** Pipeline steps in execution order, labelled to match the full analysis page
- *  (AnalysisRunClient's STEPS) so the two surfaces don't drift apart. */
+/** Pipeline steps shown in this compact popup, labelled to match the full
+ *  analysis page (AnalysisRunClient's STEPS) for the ones both surfaces show.
+ *  Deliberately narrower than the backend's real step list: "ai_recommendations"
+ *  is a real step (it always runs when the pipeline reaches this far) but skips
+ *  for any job that stops at an earlier gate — which is most below-gate jobs —
+ *  so it spent most of its time here reading as a permanent "— skipped" row
+ *  rather than useful progress. It's still visible on the full analysis page. */
 const STEPS: { key: string; label: string }[] = [
   { key: "jd_analysis",           label: "Analysing job description" },
   { key: "cv_jd_matching",        label: "Matching CV to JD" },
   { key: "ats_scoring",           label: "ATS scoring" },
   { key: "input_recommendations", label: "Building recommendations" },
   { key: "keyword_feasibility",   label: "Classifying keyword feasibility" },
-  { key: "ai_recommendations",    label: "Generating AI advice" },
   { key: "tailored_cv",           label: "Creating tailored CV" },
 ];
 
