@@ -10,6 +10,7 @@
  * when the last run errored before producing anything.
  */
 
+import { Loader2 } from "lucide-react";
 import { SKILL_CATEGORY_LABELS, type SkillCategory } from "@/lib/types";
 import type { BoardJob } from "../../lib/jobFilters";
 import type { BoardDetailPayload } from "../../lib/boardDetailTypes";
@@ -22,8 +23,28 @@ function toCategorised(v: string[] | Record<string, string[]> | undefined): Reco
   return v;
 }
 
-export function JobDescriptionTab({ job, detail }: { job: BoardJob; detail: BoardDetailPayload | null }) {
+export function JobDescriptionTab({
+  job, detail, loading = false,
+}: {
+  job: BoardJob;
+  detail: BoardDetailPayload | null;
+  /** True while the pane's board-detail payload is still in flight. */
+  loading?: boolean;
+}) {
   const run = detail?.run ?? null;
+
+  // The structured JD lives in the fetched payload, but the raw description is
+  // already on the board row — so rendering "no analysis yet" logic against a
+  // null payload showed every analysed job its raw scraped ad for the length of
+  // the fetch, then swapped it for the structured view. `has_analysis` is known
+  // up front, so wait for the real thing rather than flashing the wrong one.
+  if (loading && !detail && job.progress.has_analysis) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-label text-text-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
 
   if (run?.status === "failed") {
     return (

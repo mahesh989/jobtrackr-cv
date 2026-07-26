@@ -67,6 +67,7 @@ export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: 
 
 function CardFooter({ job }: { job: BoardJob }) {
   const ctx = useContext(CardActionsContext);
+  const selection = useJobSelection();
   const state = job.pipelineState ?? "discovered";
   const meta = PIPELINE_STATE_META[state];
   const score = job.tailored_match_score ?? job.initial_ats_score;
@@ -125,6 +126,13 @@ function CardFooter({ job }: { job: BoardJob }) {
   async function onAnalyse(e: React.MouseEvent) {
     e.stopPropagation();
     if (ctx.pending || analysing) return;
+    // Select this job first. The progress popup lives in the detail pane's
+    // header (it needs the run's step-by-step state, which only that pane
+    // subscribes to), so analysing from a card while a *different* job was
+    // selected started a run the user got no popup for — the reported
+    // "works in the right panel, not in the job board". Opening the job here
+    // means the same popup appears from either entry point.
+    selection?.onOpenDetail?.(job.id);
     setSubmitting(true); setAnalyseError(null);
     try {
       const res = await fetch(`/api/jobs/${job.id}/analyze`, {

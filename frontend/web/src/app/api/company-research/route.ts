@@ -153,11 +153,20 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   if (upsertErr) {
     console.error("[/api/company-research] upsert error:", upsertErr.message);
-    // Research succeeded but write failed — return the data anyway so the
-    // caller can still use it; log the failure for debugging.
+    // Previously this returned 200 with `write_error: true`. That reads as
+    // success to every caller that only checks res.ok — including the
+    // cover-letter flow, whose whole reason for calling us is that generation
+    // is BLOCKED until a company_research row exists. Reporting success when
+    // no row was written sent it straight back into the same
+    // "Company research has not been run" 422 with nothing to show for the
+    // round trip. A failed write is a failed request.
     return NextResponse.json(
-      { status: "completed", research: result.research, write_error: true },
-      { status: 200 },
+      {
+        error: `Company research ran but could not be saved: ${upsertErr.message}`,
+        research: result.research,
+        write_error: true,
+      },
+      { status: 500 },
     );
   }
 
