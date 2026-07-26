@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
-import { markJobApplied, markJobDismissed } from "@/lib/actions/jobs";
+import { markJobDismissed } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
 import { JobEditModal } from "../JobEditModal";
@@ -22,6 +22,7 @@ import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
 import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
 import { AnalysisProgressModal } from "./AnalysisProgressModal";
+import { ApplyModal } from "./ApplyModal";
 import type { BoardJob } from "../../lib/jobFilters";
 
 const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
@@ -29,9 +30,13 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 };
 
 export function DetailHeader({
-  job, onClosed, onChanged, mobile = false,
+  job, letterId = null, onClosed, onChanged, mobile = false,
 }: {
   job: BoardJob;
+  /** Cover letter for the latest run, from the pane's payload — lets the Apply
+   *  popup offer the drafted message and the send-email path. Null while that
+   *  payload is still loading, or when the job has no letter. */
+  letterId?: string | null;
   /** Called after a dismiss/archive so the parent can clear ?job= and drop the card. */
   onClosed: () => void;
   /** Called after any mutation that should refresh both this panel and the list. */
@@ -50,7 +55,7 @@ export function DetailHeader({
   // survives closing the pane, switching jobs, and refreshes — and clears when
   // the run genuinely finishes rather than when the POST resolves.
   const [submitting, setSubmitting]   = useState(false);
-  const [applying, setApplying]       = useState(false);
+  const [showApply, setShowApply]     = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
@@ -117,20 +122,6 @@ export function DetailHeader({
   async function onDismiss() {
     try { await markJobDismissed(job.id, job.profile_id); onClosed(); }
     catch { setError("Could not archive this job."); }
-  }
-
-  async function onApply() {
-    if (applying) return;
-    setApplying(true);
-    try {
-      window.open(job.url, "_blank", "noopener,noreferrer");
-      await markJobApplied(job.id, job.profile_id);
-      onChanged();
-    } catch {
-      setError("Could not mark this job as applied.");
-    } finally {
-      setApplying(false);
-    }
   }
 
   async function runAnalyze(override?: "thin_jd" | "initial_gate" | "all") {
@@ -265,19 +256,11 @@ export function DetailHeader({
               {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
               {analysing ? "Analysing…" : "Analyse this job"}
             </button>
-          ) : belowGate ? (
-            <button type="button" onClick={onApply} disabled={applying}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-              {applying ? "Applying…" : "Apply anyway"}
-            </button>
           ) : (
-            <button type="button" onClick={onApply} disabled={applying}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            <button type="button" onClick={() => setShowApply(true)}
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
             >
-              {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-              {applying ? "Applying…" : "Apply now"}
+              {belowGate ? "Apply anyway" : "Apply now"}
             </button>
           )}
 
@@ -313,6 +296,17 @@ export function DetailHeader({
           initialCompanyAddress={job.company_address ?? null}
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); onChanged(); }}
+        />
+      )}
+
+      {/* No `mobile` guard, unlike the progress popup: this one only opens on a
+          click, and CSS only ever lets the user click the pane it is showing. */}
+      {showApply && (
+        <ApplyModal
+          job={job}
+          letterId={letterId}
+          onClose={() => setShowApply(false)}
+          onApplied={onChanged}
         />
       )}
 
