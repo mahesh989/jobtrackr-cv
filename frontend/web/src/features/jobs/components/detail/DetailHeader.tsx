@@ -54,9 +54,13 @@ export function DetailHeader({
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
+  // Seed as idle when the stored run is a stale zombie (see isRunLive), so the
+  // chip and progress popup don't spin forever on a run that died days ago.
+  // Realtime events are live by definition and always take over.
+  const seedStatus = job.pipelineState === "analysing" ? job.progress.latest_run_status : null;
   const { status, running, steps, runId } = useJobRunStatus(
     job.id,
-    job.progress.latest_run_status,
+    seedStatus,
     onChanged,
     job.progress.latest_run_id,
   );
@@ -155,6 +159,9 @@ export function DetailHeader({
   const notAnalysed = !job.progress.has_analysis && !needsJd && !failed;
   const belowGate  = job.pipelineState === "below_final" || job.pipelineState === "below_initial" || job.pipelineState === "role_mismatch";
   const analysisHref = job.progress.latest_run_id ? `/jobs/${job.id}/analyze/${job.progress.latest_run_id}` : null;
+  // When the analysis last produced a result — shown right-aligned on the
+  // status line so "Ready to apply · ATS 67 → 81" gains a recency anchor.
+  const lastAnalysedAt = job.progress.has_analysis ? job.progress.last_progress_at : null;
 
   return (
     <div className="border-b border-border px-8 pt-4 pb-3">
@@ -176,6 +183,11 @@ export function DetailHeader({
               {meta.label}
             </span>
             <span className="text-label text-text-2">{statusSubtext(job)}</span>
+            {lastAnalysedAt && (
+              <span className="ml-auto text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
+                Last analysed {relativeDate(lastAnalysedAt)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -224,14 +236,14 @@ export function DetailHeader({
             <button type="button" onClick={() => setShowEdit(true)}
               className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
             >Add job description</button>
-          ) : failed ? (
+          ) : failed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
               className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
               {analysing ? "Analysing…" : "Retry analysis"}
             </button>
-          ) : notAnalysed ? (
+          ) : notAnalysed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
               className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
             >
@@ -296,6 +308,7 @@ export function DetailHeader({
           phase={phase}
           onStop={runId ? stopAnalysis : undefined}
           stopping={cancelling}
+          analysisHref={runId ? `/jobs/${job.id}/analyze/${runId}` : analysisHref}
           onDismiss={() => {
             setProgressDismissed(phase);
             if (phase !== "running") setWasOpen(false);

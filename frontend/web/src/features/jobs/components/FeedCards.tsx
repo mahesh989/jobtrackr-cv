@@ -427,18 +427,26 @@ export function CardChips({ job }: { job: BoardJob }) {
 }
 
 export function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) {
-  return (
+  const link = (
     <a
       href={job.url}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`font-semibold text-text hover:text-[var(--brand)] leading-snug ${inline ? "break-words" : "block"} ${!inline ? "flex-1 min-w-0" : ""}`}
+      // `inline` deliberately: as a block/flex-1 element the anchor stretched
+      // across the whole card row, so clicking the empty space beside a short
+      // title opened the job posting. Keeping it inline confines the hit area
+      // to the words themselves — everywhere else on the card selects the job
+      // into the detail pane instead.
+      className="inline font-semibold text-text hover:text-[var(--brand)] leading-snug break-words"
       style={!inline ? { fontSize: 15, lineHeight: 1.4 } : undefined}
     >
       {job.title}
     </a>
   );
+  // The card layout still needs the flex child to claim the row's free space;
+  // only the anchor inside it shrinks to the text.
+  return inline ? link : <span className="block flex-1 min-w-0">{link}</span>;
 }
 
 export function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean }) {

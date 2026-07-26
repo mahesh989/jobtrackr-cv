@@ -49,10 +49,22 @@ function BoardDetailPanelInner({
   }
 
   const run = data?.run ?? null;
-  const hasScore  = run?.match_score != null;
-  const hasCv     = !!run?.tailored_cv_storage_path;
-  const hasLetter = !!data?.cover_letter?.pass_3_final;
+  // Which tabs exist is decided from the board's own progress flags, which are
+  // already in memory, rather than from the fetched payload. Waiting for the
+  // fetch meant the whole pane sat on a spinner for every selection even though
+  // the answer was known up front; now the shell and the Job description tab
+  // paint immediately and only the data-backed tab bodies fill in.
+  // Once the payload lands it wins, so a stale flag self-corrects.
+  const hasScore  = data ? run?.match_score != null           : job.progress.has_analysis;
+  const hasCv     = data ? !!run?.tailored_cv_storage_path    : job.progress.has_tailored_cv;
+  const hasLetter = data ? !!data.cover_letter?.pass_3_final  : job.progress.has_cover_letter;
   const hasMore   = hasCv || hasLetter;
+
+  const pending = (
+    <div className="flex items-center gap-2 py-6 text-label text-text-3">
+      <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+    </div>
+  );
 
   return (
     <div className={mobile ? "fixed inset-0 z-40 bg-surface flex flex-col" : "flex flex-col h-full overflow-hidden"}>
@@ -66,11 +78,7 @@ function BoardDetailPanelInner({
 
       <DetailHeader job={job} onClosed={onClose} onChanged={refresh} mobile={mobile} />
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center text-text-3">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
-        </div>
-      ) : error ? (
+      {error ? (
         <div className="flex-1 flex items-center justify-center px-6">
           <p className="text-label text-red-600">{error}</p>
         </div>
@@ -87,16 +95,26 @@ function BoardDetailPanelInner({
           <div className="flex-1 min-h-0 overflow-y-auto px-8 py-5 pb-9 text-[14.5px] leading-relaxed" style={{ maxWidth: 860 }}>
             <Tabs.Content value="jd"><JobDescriptionTab job={job} detail={data} /></Tabs.Content>
             {hasScore && (
-              <Tabs.Content value="match"><MatchScoreTab job={job} detail={data} /></Tabs.Content>
+              <Tabs.Content value="match">
+                {loading ? pending : <MatchScoreTab job={job} detail={data} />}
+              </Tabs.Content>
             )}
-            {hasCv && run && (
-              <Tabs.Content value="cv"><TailoredCvTab run={run} /></Tabs.Content>
+            {hasCv && (
+              <Tabs.Content value="cv">
+                {run ? <TailoredCvTab run={run} /> : pending}
+              </Tabs.Content>
             )}
-            {hasLetter && data?.cover_letter && (
-              <Tabs.Content value="cover"><CoverLetterTab jobId={job.id} letter={data.cover_letter} /></Tabs.Content>
+            {hasLetter && (
+              <Tabs.Content value="cover">
+                {data?.cover_letter
+                  ? <CoverLetterTab jobId={job.id} letter={data.cover_letter} />
+                  : pending}
+              </Tabs.Content>
             )}
-            {hasMore && run && (
-              <Tabs.Content value="more"><MoreTab job={job} run={run} letter={data?.cover_letter ?? null} /></Tabs.Content>
+            {hasMore && (
+              <Tabs.Content value="more">
+                {run ? <MoreTab job={job} run={run} letter={data?.cover_letter ?? null} /> : pending}
+              </Tabs.Content>
             )}
           </div>
         </Tabs.Root>
