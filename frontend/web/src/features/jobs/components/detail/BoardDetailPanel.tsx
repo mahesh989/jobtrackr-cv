@@ -16,7 +16,6 @@
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { Tabs } from "@/components/ui";
 import { useBoardDetail } from "../../lib/useBoardDetail";
@@ -41,17 +40,22 @@ function BoardDetailPanelInner({
   onClose: () => void;
   mobile: boolean;
 }) {
-  const router = useRouter();
   // Only the pane the viewport actually shows does the data work; its
   // off-screen twin stays inert (see useIsDesktop).
   const isDesktop = useIsDesktop();
   const active = mobile ? !isDesktop : isDesktop;
-  const { data, loading, error } = useBoardDetail(job.id, active);
-  const [tab, setTab] = useState("jd");
-
+  // Re-pull this pane's own payload so a finished run's new score, tabs and
+  // tailored CV appear straight away. router.refresh() is deliberately NOT
+  // called: re-rendering the whole dashboard is what reset the board's scroll
+  // position to the top, and the pane is the only thing that needs new data —
+  // the left card's chip catches up on the next natural navigation.
+  const [reloadToken, setReloadToken] = useState(0);
   function refresh() {
-    router.refresh();
+    setReloadToken((n) => n + 1);
   }
+
+  const { data, loading, error } = useBoardDetail(job.id, active, reloadToken);
+  const [tab, setTab] = useState("jd");
 
   const run = data?.run ?? null;
   // Which tabs exist is decided from the board's own progress flags, which are

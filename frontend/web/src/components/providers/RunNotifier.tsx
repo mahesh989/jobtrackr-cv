@@ -15,23 +15,6 @@ interface RunSnapshot {
   finished_at:   string | null;
 }
 
-/** A CV-analysis run (analysis_runs), as served by /api/user/analysis-runs. */
-interface AnalysisSnapshot {
-  id:                   string;
-  job_id:               string;
-  job_title:            string;
-  company:              string | null;
-  status:               string;
-  match_score:          number | null;
-  tailored_match_score: number | null;
-}
-
-/** analysis_runs rows are inserted `pending` and only flip to `running` once a
- *  worker picks them up, so both count as in-flight for transition detection. */
-function isAnalysisActive(status: string | undefined): boolean {
-  return status === "pending" || status === "running";
-}
-
 interface Toast {
   id:    string;
   kind:  "success" | "error";
@@ -43,9 +26,12 @@ interface Toast {
 // Run-status changes arrive via Supabase Realtime (postgres_changes on
 // run_logs — see migration 052), so there's no steady polling. A slow backstop
 // poll only covers the rare dropped event and seeds initial state on mount;
-// it pauses while the tab is hidden (Realtime still pushes instant toasts
-// there). Previously this was a fixed 3s heartbeat that ran forever regardless
-// of activity — ~1,200 needless requests/hour/tab.
+// it pauses while the tab is hidden.
+//
+// CV-analysis runs deliberately do NOT toast here: the board's progress popup
+// already reports completion in place, and the toast's router.refresh() was
+// re-rendering the dashboard mid-run, which is what scrolled the page back to
+// the top while an analysis was in flight.
 const BACKSTOP_MS = 20000; // safety-net poll, visible tabs only
 const TOAST_MS    = 8000;
 
@@ -53,26 +39,18 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const prev   = useRef<Record<string, string>>({});
   const seeded = useRef(false);
-  const prevAnalysis   = useRef<Record<string, string>>({});
-  const seededAnalysis = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
-    let analysisInFlight = false;
     const timeoutHandles: ReturnType<typeof setTimeout>[] = [];
 
     function schedule(delay: number) {
       if (cancelled || document.hidden) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(pollAll, delay);
-    }
-
-    function pollAll() {
-      poll();
-      pollAnalysis();
+      timer = setTimeout(poll, delay);
     }
 
     function pushToast(toast: Toast) {
@@ -81,59 +59,6 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
         setToasts((t) => t.filter((x) => x.id !== toast.id));
       }, TOAST_MS);
       timeoutHandles.push(h);
-    }
-
-    /** CV-analysis runs. Mirrors poll() but for analysis_runs, which previously
-     *  had no notifier at all — a finished analysis changed nothing on screen
-     *  until the user manually refreshed. */
-    async function pollAnalysis() {
-      if (cancelled || analysisInFlight) return;
-      analysisInFlight = true;
-      try {
-        const res = await fetch("/api/user/analysis-runs", { cache: "no-store" });
-        if (!res.ok) return;
-        const { runs }: { runs: AnalysisSnapshot[] } = await res.json();
-        if (cancelled) return;
-
-        const next: Record<string, string> = {};
-        for (const r of runs) next[r.id] = r.status;
-
-        // First pass seeds only — don't toast for runs that finished before mount.
-        if (!seededAnalysis.current) {
-          prevAnalysis.current = next;
-          seededAnalysis.current = true;
-          return;
-        }
-
-        let anyTransition = false;
-        for (const r of runs) {
-          const was = prevAnalysis.current[r.id];
-          if (!isAnalysisActive(was) || isAnalysisActive(r.status)) continue;
-          anyTransition = true;
-          const isSuccess = r.status === "completed";
-          const lift =
-            r.match_score != null && r.tailored_match_score != null
-              ? `ATS ${r.match_score} → ${r.tailored_match_score}`
-              : "Click to view the result";
-          pushToast({
-            id:    `analysis:${r.id}:${r.status}`,
-            kind:  isSuccess ? "success" : "error",
-            title: isSuccess
-              ? `${r.job_title} — analysis complete`
-              : `${r.job_title} — analysis failed`,
-            sub:   isSuccess ? lift : "Click to open the job",
-            // Deep-links straight into the board's detail pane for that job.
-            href:  `/dashboard?job=${r.job_id}`,
-          });
-        }
-
-        prevAnalysis.current = next;
-        if (anyTransition) router.refresh();
-      } catch {
-        /* silent */
-      } finally {
-        analysisInFlight = false;
-      }
     }
 
     async function poll() {
@@ -216,39 +141,23 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       )
       .subscribe();
 
-    // Same primary path for CV analysis. RLS restricts delivery to this user's
-    // rows; the payload lacks the job title, so a terminal flip triggers the
-    // enriched re-fetch above.
-    const analysisChannel = supabase
-      .channel("analysis_runs:user")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "analysis_runs" },
-        (payload) => {
-          const status = (payload.new as { status?: string }).status;
-          if (status === "completed" || status === "failed") pollAnalysis();
-        },
-      )
-      .subscribe();
-
     // Pause the backstop poll when the tab is hidden; resume (and poll once)
     // when it returns. Realtime keeps delivering toasts while hidden.
     function onVisibility() {
       if (document.hidden) {
         if (timer) { clearTimeout(timer); timer = null; }
       } else {
-        pollAll();
+        poll();
       }
     }
 
-    pollAll();
+    poll();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
-      supabase.removeChannel(analysisChannel);
       document.removeEventListener("visibilitychange", onVisibility);
       for (const h of timeoutHandles) clearTimeout(h);
     };

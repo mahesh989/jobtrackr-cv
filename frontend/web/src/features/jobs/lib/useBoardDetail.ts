@@ -14,7 +14,7 @@ interface State {
  * changes; a stale request whose job changed before it resolved is dropped
  * (guards against fast card-to-card clicking racing the response order).
  */
-export function useBoardDetail(jobId: string | null, enabled: boolean = true) {
+export function useBoardDetail(jobId: string | null, enabled: boolean = true, reloadToken: number = 0) {
   const [state, setState] = useState<State>({ data: null, loading: true, error: null });
   const activeId = useRef<string | null>(null);
 
@@ -43,7 +43,7 @@ export function useBoardDetail(jobId: string | null, enabled: boolean = true) {
         setState({ data: null, loading: false, error: e instanceof Error ? e.message : "Network error" });
       }
     })();
-  }, [jobId, enabled]);
+  }, [jobId, enabled, reloadToken]);
 
   if (!jobId) return { data: null, loading: false, error: null };
   return state;
