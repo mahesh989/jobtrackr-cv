@@ -104,7 +104,9 @@ export function ApplyModal({
   const [error, setError]   = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   /** Set once the job is applied — the card flips to the success view. */
-  const [done, setDone] = useState<null | { via: "email"; to: string } | { via: "source" }>(null);
+  const [done, setDone] = useState<
+    null | { via: "email"; to: string } | { via: "source"; opened: boolean }
+  >(null);
 
   // Set once this modal generates a letter itself. `letterId` (the prop) won't
   // catch up until the pane refetches its board-detail payload — this is what
@@ -141,35 +143,64 @@ export function ApplyModal({
     return () => { active = false; };
   }, [effectiveLetterId]);
 
-  /** One click runs generate → auto-pick the first opener → poll to
-   *  completion. `override=final_gate` because this only ever fires for a
-   *  below-gate job (see the module doc) — the pipeline's own reason for
-   *  skipping the letter in the first place, and exactly what "anyway" means. */
+  /** Starts generation, auto-researching the company once if that's the only
+   *  thing blocking it. Mirrors CoverLetterPanel's handleGenerate on the full
+   *  analysis page: a below-gate job here is often also a job whose company
+   *  has never been researched (research is itself normally triggered as
+   *  part of generating a letter — which below-gate jobs skip), so hitting
+   *  this gate on the very first "Apply anyway" is the expected case, not a
+   *  fluke. `didAutoResearch` stops it from retrying more than once. */
+  async function startGeneration(didAutoResearch: boolean): Promise<string> {
+    const startRes = await fetch(`/api/jobs/${job.id}/cover-letter?override=final_gate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    const startJson = await startRes.json().catch(() => ({}));
+
+    if (!startRes.ok) {
+      if (startRes.status === 422 && startJson.action === "research_company" && !didAutoResearch) {
+        const companyName = startJson.company_name ?? job.company ?? "this company";
+        const researchRes = await fetch("/api/company-research", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ company_name: companyName }),
+        });
+        if (!researchRes.ok) {
+          const rj = await researchRes.json().catch(() => ({}));
+          throw new Error(rj.error ?? "Company research failed. Try again.");
+        }
+        return startGeneration(true);
+      }
+      throw new Error(startJson.error ?? `Could not start (${startRes.status})`);
+    }
+
+    const newLetterId = startJson.letter_id as string;
+    if (startJson.status === "picking") {
+      const variants = Array.isArray(startJson.variants) ? startJson.variants : [];
+      const firstVariant = variants[0];
+      if (!firstVariant?.id) throw new Error("No opening options came back — try again.");
+      const pickRes = await fetch(`/api/jobs/${job.id}/cover-letter/${newLetterId}/pick`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ variant_id: firstVariant.id }),
+      });
+      const pickJson = await pickRes.json().catch(() => ({}));
+      if (!pickRes.ok) throw new Error(pickJson.error ?? `Could not start writing (${pickRes.status})`);
+    }
+    // "cached" means a non-stale letter already existed and is done — the
+    // poll below resolves on its first pass either way.
+    return newLetterId;
+  }
+
+  /** One click runs generate (auto-researching the company first if needed)
+   *  → auto-pick the first opener → poll to completion. `override=final_gate`
+   *  because this only ever fires for a below-gate job (see the module doc)
+   *  — the pipeline's own reason for skipping the letter in the first place,
+   *  and exactly what "anyway" means. */
   async function generateCoverLetter() {
     if (generating) return;
     setGenerating(true); setGenerateError(null);
     try {
-      const startRes = await fetch(`/api/jobs/${job.id}/cover-letter?override=final_gate`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
-      });
-      const startJson = await startRes.json().catch(() => ({}));
-      if (!startRes.ok) throw new Error(startJson.error ?? `Could not start (${startRes.status})`);
-      const newLetterId = startJson.letter_id as string;
-
-      if (startJson.status === "picking") {
-        const variants = Array.isArray(startJson.variants) ? startJson.variants : [];
-        const firstVariant = variants[0];
-        if (!firstVariant?.id) throw new Error("No opening options came back — try again.");
-        const pickRes = await fetch(`/api/jobs/${job.id}/cover-letter/${newLetterId}/pick`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ variant_id: firstVariant.id }),
-        });
-        const pickJson = await pickRes.json().catch(() => ({}));
-        if (!pickRes.ok) throw new Error(pickJson.error ?? `Could not start writing (${pickRes.status})`);
-      }
-      // "cached" means a non-stale letter already existed and is done — the
-      // poll below resolves on its first pass either way.
+      const newLetterId = await startGeneration(false);
 
       const deadline = Date.now() + GENERATE_TIMEOUT_MS;
       for (;;) {
@@ -253,8 +284,12 @@ export function ApplyModal({
     if (busy) return;
     setBusy("source"); setError(null);
     // Opened before the await so it counts as part of the click gesture —
-    // popup blockers reject a window.open that comes after one.
-    window.open(job.url, "_blank", "noopener,noreferrer");
+    // popup blockers reject a window.open that comes after one. `win` comes
+    // back null when the blocker actually intervenes (Chrome/Firefox); the
+    // success card below reads it to say what really happened rather than
+    // claiming a tab opened when the click silently did nothing.
+    const win = window.open(job.url, "_blank", "noopener,noreferrer");
+    const opened = !!win;
     try {
       const res = await fetch(`/api/jobs/${job.id}`, {
         method:  "PATCH",
@@ -265,10 +300,14 @@ export function ApplyModal({
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Failed (${res.status})`);
       }
-      setDone({ via: "source" });
+      setDone({ via: "source", opened });
       onApplied();
     } catch {
-      setError("Opened the listing, but couldn't mark this job as applied.");
+      setError(
+        opened
+          ? "Opened the listing, but couldn't mark this job as applied."
+          : "Your browser blocked the listing from opening, and marking this job as applied also failed.",
+      );
     } finally {
       setBusy(null);
     }
@@ -397,7 +436,8 @@ export function ApplyModal({
               {generating && (
                 <p className="flex items-center gap-2 text-label text-text-3">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Writing your cover letter… this can take up to a minute.
+                  Writing your cover letter… this can take a minute or two (longer the first
+                  time for a new company — we research it first).
                 </p>
               )}
               {generateError && (
@@ -461,7 +501,7 @@ function SuccessCard({
   job, done, onClose,
 }: {
   job: BoardJob;
-  done: { via: "email"; to: string } | { via: "source" };
+  done: { via: "email"; to: string } | { via: "source"; opened: boolean };
   onClose: () => void;
 }) {
   return (
@@ -479,10 +519,23 @@ function SuccessCard({
             Sent to <b className="text-text break-all">{done.to}</b> with your tailored CV and
             cover letter attached. This job now sits in your Applied pile.
           </>
-        ) : (
+        ) : done.opened ? (
           <>
             The listing is open in a new tab — finish the application there. We&apos;ve moved this
             job to your Applied pile so you can track it.
+          </>
+        ) : (
+          <>
+            Your browser blocked the listing from opening automatically —{" "}
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--brand)] hover:underline"
+            >
+              open it here
+            </a>
+            . We&apos;ve still moved this job to your Applied pile so you can track it.
           </>
         )}
       </p>

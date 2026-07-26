@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui";
 import { CardMenu } from "./CardMenu";
 import { PIPELINE_STATE_META } from "@/features/jobs/lib/pipelineState";
+import { useJobRunStatus } from "../lib/useJobRunStatus";
 
 // ── smart-section bucketing ─────────────────────────────────────────────
 
@@ -71,6 +72,17 @@ function CardFooter({ job }: { job: BoardJob }) {
   const score = job.tailored_match_score ?? job.initial_ats_score;
   const bothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
   const [applying, setApplying] = useState(false);
+  // `submitting` covers only the enqueue POST; whether the pipeline is
+  // actually running comes from Realtime (mirrors DetailHeader's own
+  // useJobRunStatus). Without this the card's Analyse button fired the
+  // request and gave no feedback at all — no spinner, no disabled state,
+  // nothing — because the old code awaited the fetch and then just dropped
+  // the result on the floor.
+  const [submitting, setSubmitting] = useState(false);
+  const [analyseError, setAnalyseError] = useState<string | null>(null);
+  const seedStatus = state === "analysing" ? job.progress.latest_run_status : null;
+  const { running } = useJobRunStatus(job.id, seedStatus, undefined, job.progress.latest_run_id);
+  const analysing = submitting || running;
 
   const toneColors: Record<string, string> = {
     success: "bg-green-light text-green-700 border-green-500/30",
@@ -112,15 +124,35 @@ function CardFooter({ job }: { job: BoardJob }) {
 
   async function onAnalyse(e: React.MouseEvent) {
     e.stopPropagation();
-    if (ctx.pending) return;
-    const url = `/api/jobs/${job.id}/analyze`;
+    if (ctx.pending || analysing) return;
+    setSubmitting(true); setAnalyseError(null);
     try {
-      await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    } catch {}
+      const res = await fetch(`/api/jobs/${job.id}/analyze`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Failed (${res.status})`);
+      }
+    } catch (err) {
+      setAnalyseError(err instanceof Error ? err.message : "Could not start analysis");
+    } finally {
+      // Hand over to the Realtime-backed `running` flag, same as DetailHeader.
+      setSubmitting(false);
+    }
   }
 
   let actionButton: React.ReactNode = null;
-  if (state === "applied") {
+  if (analysing) {
+    // Checked before the state branches below: a click here can happen while
+    // `job.pipelineState` (server-rendered) still reads "discovered" — the
+    // Realtime-backed `running` flag is what actually knows a run is live.
+    actionButton = (
+      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)]/10 text-[var(--brand)]">
+        <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
+      </span>
+    );
+  } else if (state === "applied") {
     actionButton = <span className="badge badge-green text-micro font-semibold">✓ Applied</span>;
   } else if (state === "ready_to_apply" || state === "ready_to_send") {
     actionButton = (
@@ -157,14 +189,17 @@ function CardFooter({ job }: { job: BoardJob }) {
   }
 
   return (
-    <div className="flex items-center gap-2 mt-0.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
-      <SourcePill source={job.source} />
-      <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${toneColors[meta.tone] ?? toneColors.neutral}`}>
-        <span className={`inline-block w-[6px] h-[6px] rounded-full ${dotColors[meta.tone] ?? dotColors.neutral}`} />
-        {chipDisplay}
-      </span>
-      <div className="flex-1" />
-      {actionButton}
+    <div onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+        <SourcePill source={job.source} />
+        <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${toneColors[meta.tone] ?? toneColors.neutral}`}>
+          <span className={`inline-block w-[6px] h-[6px] rounded-full ${dotColors[meta.tone] ?? dotColors.neutral}`} />
+          {chipDisplay}
+        </span>
+        <div className="flex-1" />
+        {actionButton}
+      </div>
+      {analyseError && <p className="text-micro text-red-600 mt-1">{analyseError}</p>}
     </div>
   );
 }
