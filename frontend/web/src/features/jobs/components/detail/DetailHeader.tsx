@@ -72,6 +72,7 @@ export function DetailHeader({
   const analysing = submitting || running;
 
   const [cancelling, setCancelling] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
   /** Stop the live run. The orchestrator polls its own row before each
    *  AI-heavy step and aborts when it sees status=failed + "Cancelled…", so
    *  this both updates the UI (via Realtime) and genuinely halts the pipeline.
@@ -83,6 +84,7 @@ export function DetailHeader({
     setError(null);
     try {
       await cancelAnalysisRun(runId);
+      setCancelled(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not stop the analysis");
     } finally {
@@ -95,8 +97,14 @@ export function DetailHeader({
   // only hides it; `progressDismissedFor` is keyed by phase so a later
   // completion still surfaces, and the header chip reopens it at any time.
   const [progressDismissed, setProgressDismissed] = useState<string | null>(null);
-  const phase: "running" | "completed" | "failed" =
-    analysing ? "running" : status === "failed" ? "failed" : "completed";
+  // A user-cancelled run lands as status=failed with "Cancelled by user" (the
+  // contract the orchestrator polls for), so reporting it as "Analysis failed"
+  // told the user their own Stop was an error. Track it as its own phase.
+  const phase: "running" | "completed" | "failed" | "cancelled" =
+    analysing ? "running"
+    : cancelled ? "cancelled"
+    : status === "failed" ? "failed"
+    : "completed";
   // Only ever auto-show for a live run; terminal phases show only if the popup
   // was already open when the run settled (so it can report the outcome).
   const [wasOpen, setWasOpen] = useState(false);
@@ -182,14 +190,16 @@ export function DetailHeader({
             {" · "}
             <span className="uppercase font-semibold" style={{ fontSize: 11 }}>{job.source}</span>
           </p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${TONE_CLASSES[meta.tone]?.pill ?? ""}`}>
-              <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
-              {meta.label}
-            </span>
-            <span className="text-label text-text-2">{statusSubtext(job)}</span>
+          <div className="flex items-start gap-2 mt-2">
+            <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+              <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${TONE_CLASSES[meta.tone]?.pill ?? ""}`}>
+                <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
+                {meta.label}
+              </span>
+              <span className="text-label text-text-2">{statusSubtext(job)}</span>
+            </div>
             {lastAnalysedAt && (
-              <span className="ml-auto text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
+              <span className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
                 Last analysed {relativeDate(lastAnalysedAt)}
               </span>
             )}
@@ -331,10 +341,6 @@ function statusSubtext(job: BoardJob): string {
   const state = job.pipelineState ?? "discovered";
   const parts: string[] = [];
   const hasBothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
-
-  if (job.applied_at) {
-    parts.push(relativeDate(job.applied_at)?.toLowerCase() ?? "");
-  }
 
   if (state === "applied") {
     if (hasBothScores) parts.push(`ATS ${job.initial_ats_score} → ${job.tailored_match_score}`);
