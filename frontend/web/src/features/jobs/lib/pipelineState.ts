@@ -79,6 +79,29 @@ export interface PipelineStateInput {
   latestLetter?: CoverLetterRef;
 }
 
+/**
+ * A run counts as live only while it is plausibly still executing.
+ *
+ * The backend can die mid-pipeline (a deploy, a crashed machine) and leave its
+ * row at `running`/`pending` forever — there is no reconciler. Seven such rows
+ * have sat untouched for 7.5 days, four frozen on `tailored_cv`. Treating them
+ * as live froze the analysis page on "Pipeline running…" and, worse, stripped
+ * the card and detail pane of every action button, because "analysing" is a
+ * state with no available actions. The job became permanently unusable.
+ *
+ * Real runs finish in roughly 30 s and are re-analysable at will, so anything
+ * this old is dead rather than slow. Falling through lets the job present its
+ * true state (and its Analyse / Apply buttons) again.
+ */
+const RUN_STALE_AFTER_MS = 15 * 60 * 1000;
+
+export function isRunLive(run: AnalysisRunRef | undefined): boolean {
+  if (run?.status !== "running" && run?.status !== "pending") return false;
+  const startedMs = Date.parse(run.created_at ?? "");
+  if (Number.isNaN(startedMs)) return true; // no timestamp — assume live
+  return Date.now() - startedMs < RUN_STALE_AFTER_MS;
+}
+
 export function derivePipelineState(input: PipelineStateInput): PipelineState {
   const { job, latestRun, latestLetter } = input;
 
@@ -91,7 +114,7 @@ export function derivePipelineState(input: PipelineStateInput): PipelineState {
 
   if (latestRun?.passed_final_gate   === false) return "below_final";
   if (latestRun?.passed_initial_gate === false) return "below_initial";
-  if (latestRun?.status === "running")          return "analysing";
+  if (isRunLive(latestRun))                     return "analysing";
 
   if (job.role_match === "mismatch") return "role_mismatch";
   if (job.jd_quality === "thin")     return "needs_jd";

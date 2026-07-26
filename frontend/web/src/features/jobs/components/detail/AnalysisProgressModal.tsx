@@ -16,7 +16,7 @@
  * header's "Analysing…" chip reopens it.
  */
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, CheckCircle2, X, AlertTriangle, MinusCircle, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -33,6 +33,10 @@ const STEPS: { key: string; label: string }[] = [
   { key: "tailored_cv",           label: "Creating tailored CV" },
 ];
 
+/** Never-changing subscription — this store only distinguishes server from
+ *  client, so there is nothing to subscribe to. */
+const subscribeNoop = () => () => {};
+
 function StepIcon({ state }: { state: string | undefined }) {
   if (state === "completed") return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" aria-hidden />;
   if (state === "running")   return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--brand)]" aria-hidden />;
@@ -42,7 +46,7 @@ function StepIcon({ state }: { state: string | undefined }) {
 }
 
 export function AnalysisProgressModal({
-  jobTitle, steps, phase, onDismiss, onStop, stopping = false,
+  jobTitle, steps, phase, onDismiss, onStop, stopping = false, analysisHref = null,
 }: {
   jobTitle: string;
   /** analysis_runs.step_status; null until the first Realtime event arrives. */
@@ -52,6 +56,9 @@ export function AnalysisProgressModal({
   /** Omitted when the run can't be cancelled (no run id yet). */
   onStop?: () => void;
   stopping?: boolean;
+  /** Full analysis page for the finished run — the natural next step once the
+   *  pipeline completes, so the completion card offers it directly. */
+  analysisHref?: string | null;
 }) {
   // Portal only after mount: `document` doesn't exist during the server render
   // of this client component, and a run that is already live when the page
@@ -59,8 +66,10 @@ export function AnalysisProgressModal({
   // the dashboard's server render with "document is not defined". Deferring to
   // an effect also keeps the server and first client render identical, so there
   // is no hydration mismatch.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  // useSyncExternalStore is the lint-clean way to ask "am I on the client?":
+  // it returns the server snapshot (false) during SSR and the client snapshot
+  // (true) afterwards, with no setState-in-effect.
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   // Steps arrive only once the pipeline writes its first update, so an early
   // modal would otherwise render seven blank rows.
@@ -148,15 +157,25 @@ export function AnalysisProgressModal({
         )}
 
         {phase !== "running" && (
-          <Button
-            variant="primary"
-            size="sm"
-            type="button"
-            onClick={onDismiss}
-            className="mt-5 w-full rounded-full py-2 text-body font-medium"
-          >
-            OK
-          </Button>
+          <div className="mt-5 flex flex-col gap-2">
+            {analysisHref && (
+              <a
+                href={analysisHref}
+                className="inline-flex w-full items-center justify-center rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
+              >
+                See full analysis ↗
+              </a>
+            )}
+            <Button
+              variant="default"
+              size="sm"
+              type="button"
+              onClick={onDismiss}
+              className="w-full rounded-full py-2 text-body font-medium"
+            >
+              Close
+            </Button>
+          </div>
         )}
       </div>
     </div>,

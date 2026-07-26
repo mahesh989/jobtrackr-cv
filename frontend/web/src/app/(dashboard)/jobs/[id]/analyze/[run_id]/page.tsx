@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect, notFound } from "next/navigation";
 import { AnalysisRunClient, type AnalysisRunRow } from "@/features/cv/analysis/AnalysisRunClient";
 import { CoverLetterPanel, type CoverLetterRow } from "@/features/cv/analysis/CoverLetterPanel";
+import { BackToBoardButton } from "@/features/cv/analysis/BackToBoardButton";
 interface Props {
   params: Promise<{ id: string; run_id: string }>;
 }
@@ -116,13 +117,9 @@ export default async function AnalyzeRunPage({ params }: Props) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <a
-          href="/analyses"
-          className="inline-flex items-center text-label text-text-3 hover:text-text"
-        >
-          ← Back to analyses
-        </a>
-        <h1 className="mt-1 text-h2 font-serif font-bold text-text">Analysis Run</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+        <h1 className="text-h2 font-serif font-bold text-text">Analysis Run</h1>
         <p className="text-label text-text-3 italic mt-0.5">{subtitleText}</p>
         <p className="text-caption text-text-3 mt-1 truncate">
           <span className="font-medium text-text-2">{job?.title ?? "Job"}</span>
@@ -137,6 +134,9 @@ export default async function AnalyzeRunPage({ params }: Props) {
             </>
           )}
         </p>
+          </div>
+          <BackToBoardButton />
+        </div>
       </div>
 
       <div className="px-4 sm:px-6 pt-6 pb-24">
