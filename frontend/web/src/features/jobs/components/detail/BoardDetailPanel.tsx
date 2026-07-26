@@ -64,7 +64,7 @@ function BoardDetailPanelInner({
         </div>
       )}
 
-      <DetailHeader job={job} onClosed={onClose} onChanged={refresh} />
+      <DetailHeader job={job} onClosed={onClose} onChanged={refresh} mobile={mobile} />
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-3">

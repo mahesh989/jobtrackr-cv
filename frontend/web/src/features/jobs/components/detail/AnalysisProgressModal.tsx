@@ -16,8 +16,9 @@
  * header's "Analysing…" chip reopens it.
  */
 
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, CheckCircle2, X, AlertTriangle, MinusCircle } from "lucide-react";
+import { Loader2, CheckCircle2, X, AlertTriangle, MinusCircle, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui";
 
 /** Pipeline steps in execution order, labelled to match the full analysis page
@@ -41,20 +42,34 @@ function StepIcon({ state }: { state: string | undefined }) {
 }
 
 export function AnalysisProgressModal({
-  jobTitle, steps, phase, onDismiss,
+  jobTitle, steps, phase, onDismiss, onStop, stopping = false,
 }: {
   jobTitle: string;
   /** analysis_runs.step_status; null until the first Realtime event arrives. */
   steps: Record<string, string> | null;
   phase: "running" | "completed" | "failed";
   onDismiss: () => void;
+  /** Omitted when the run can't be cancelled (no run id yet). */
+  onStop?: () => void;
+  stopping?: boolean;
 }) {
+  // Portal only after mount: `document` doesn't exist during the server render
+  // of this client component, and a run that is already live when the page
+  // loads makes the parent render this on the very first pass — which crashed
+  // the dashboard's server render with "document is not defined". Deferring to
+  // an effect also keeps the server and first client render identical, so there
+  // is no hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Steps arrive only once the pipeline writes its first update, so an early
   // modal would otherwise render seven blank rows.
   const started = steps != null;
   const doneCount = started
     ? STEPS.filter((s) => steps[s.key] === "completed" || steps[s.key] === "skipped").length
     : 0;
+
+  if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -116,6 +131,21 @@ export function AnalysisProgressModal({
             );
           })}
         </ol>
+
+        {phase === "running" && onStop && (
+          <button
+            type="button"
+            onClick={onStop}
+            disabled={stopping}
+            title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
+            className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-red-200 bg-red-50 py-2 text-body font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 disabled:opacity-50"
+          >
+            {stopping
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <StopCircle className="h-4 w-4" />}
+            {stopping ? "Stopping…" : "Stop analysis"}
+          </button>
+        )}
 
         {phase !== "running" && (
           <Button

@@ -43,6 +43,7 @@ export function useJobRunStatus(
   jobId: string,
   initialStatus: string | null,
   onSettled?: () => void,
+  initialRunId: string | null = null,
 ): {
   status: string | null;
   running: boolean;
@@ -50,9 +51,14 @@ export function useJobRunStatus(
    *  Null until the first Realtime event — the server-rendered seed carries the
    *  run's status but not its steps. */
   steps: Record<string, string> | null;
+  /** Id of the run this status describes — needed to cancel it. Seeded from the
+   *  server-rendered latest run, then kept current by Realtime (a re-analyse
+   *  creates a NEW row, so the seed goes stale the moment one starts). */
+  runId: string | null;
 } {
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [steps, setSteps] = useState<Record<string, string> | null>(null);
+  const [runId, setRunId] = useState<string | null>(initialRunId);
 
   // Re-seed when the pane switches to a different job. BoardDetailPanel keys on
   // job.id so this normally remounts; seeding defensively keeps the hook correct
@@ -63,6 +69,7 @@ export function useJobRunStatus(
     setSeededFor(jobId);
     setStatus(initialStatus);
     setSteps(null);
+    setRunId(initialRunId);
   }
 
   // Latest-callback ref so an inline closure from the parent doesn't churn the
@@ -94,6 +101,7 @@ export function useJobRunStatus(
           } | null;
           if (!row?.status) return;
           setStatus(row.status);
+          if (row.id) setRunId(row.id);
           if (row.step_status && typeof row.step_status === "object") {
             setSteps(row.step_status);
           }
@@ -110,5 +118,5 @@ export function useJobRunStatus(
     return () => { supabase.removeChannel(channel); };
   }, [jobId]);
 
-  return { status, running: isActive(status), steps };
+  return { status, running: isActive(status), steps, runId };
 }

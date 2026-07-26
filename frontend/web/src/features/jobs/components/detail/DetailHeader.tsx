@@ -11,9 +11,10 @@
  */
 
 import { useState } from "react";
-import { Loader2, MoreHorizontal } from "lucide-react";
+import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
 import { markJobApplied, markJobDismissed } from "@/lib/actions/jobs";
+import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
 import { JobEditModal } from "../JobEditModal";
 import { Distance } from "../FeedCards";
@@ -28,13 +29,20 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 };
 
 export function DetailHeader({
-  job, onClosed, onChanged,
+  job, onClosed, onChanged, mobile = false,
 }: {
   job: BoardJob;
   /** Called after a dismiss/archive so the parent can clear ?job= and drop the card. */
   onClosed: () => void;
   /** Called after any mutation that should refresh both this panel and the list. */
   onChanged: () => void;
+  /** SmartFeed mounts BoardDetailPanel twice — a desktop pane (`hidden lg:block`)
+   *  and a mobile one (`lg:hidden`) — so this header renders twice at every
+   *  breakpoint. CSS hides the wrong one, but the progress popup is a portal to
+   *  document.body and escapes that hiding, which stacked two identical modals.
+   *  Only the desktop instance renders it; being display:none doesn't stop a
+   *  portal, so the single modal still shows correctly on mobile. */
+  mobile?: boolean;
 }) {
   const [showEdit, setShowEdit] = useState(false);
   // `submitting` covers only the enqueue request. Whether the *pipeline* is
@@ -46,12 +54,32 @@ export function DetailHeader({
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
-  const { status, running, steps } = useJobRunStatus(
+  const { status, running, steps, runId } = useJobRunStatus(
     job.id,
     job.progress.latest_run_status,
     onChanged,
+    job.progress.latest_run_id,
   );
   const analysing = submitting || running;
+
+  const [cancelling, setCancelling] = useState(false);
+  /** Stop the live run. The orchestrator polls its own row before each
+   *  AI-heavy step and aborts when it sees status=failed + "Cancelled…", so
+   *  this both updates the UI (via Realtime) and genuinely halts the pipeline.
+   *  Steps already finished keep their spent tokens — only the remaining ones
+   *  are prevented. */
+  async function stopAnalysis() {
+    if (!runId || cancelling) return;
+    setCancelling(true);
+    setError(null);
+    try {
+      await cancelAnalysisRun(runId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not stop the analysis");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   // The popup opens on its own whenever a run is live for this job — including
   // runs started from the ⋯ menu, from the card, or in another tab. Dismissing
@@ -158,15 +186,30 @@ export function DetailHeader({
               re-analysing showed nothing at all. Doubles as the way back into
               the progress popup after dismissing it. */}
           {analysing && (
-            <button
-              type="button"
-              onClick={() => { setWasOpen(true); setProgressDismissed(null); }}
-              title="Show analysis progress"
-              className="inline-flex items-center gap-1.5 px-[12px] py-[7px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/30 hover:bg-[var(--brand)]/15 transition-colors"
-            >
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Analysing…
-            </button>
+            <span className="inline-flex items-center rounded-[9px] border border-[var(--brand)]/30 bg-[var(--brand)]/10 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => { setWasOpen(true); setProgressDismissed(null); }}
+                title="Show analysis progress"
+                className="inline-flex items-center gap-1.5 px-[12px] py-[7px] text-[13px] font-semibold whitespace-nowrap text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Analysing…
+              </button>
+              <button
+                type="button"
+                onClick={stopAnalysis}
+                disabled={cancelling || !runId}
+                title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
+                aria-label="Stop analysis"
+                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {cancelling
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <StopCircle className="w-3.5 h-3.5" />}
+                Stop
+              </button>
+            </span>
           )}
           {analysisHref && (
             <a href={analysisHref}
@@ -246,11 +289,13 @@ export function DetailHeader({
         />
       )}
 
-      {showProgress && (
+      {showProgress && !mobile && (
         <AnalysisProgressModal
           jobTitle={job.title}
           steps={steps}
           phase={phase}
+          onStop={runId ? stopAnalysis : undefined}
+          stopping={cancelling}
           onDismiss={() => {
             setProgressDismissed(phase);
             if (phase !== "running") setWasOpen(false);
