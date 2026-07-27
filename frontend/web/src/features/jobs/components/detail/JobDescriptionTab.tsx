@@ -54,7 +54,7 @@ export function JobDescriptionTab({
             The last analysis failed before it could start{run.error_message ? ` (${run.error_message})` : ""}. Nothing was scored. This usually clears on retry.
           </p>
         </div>
-        <RawDescription job={job} />
+        <RawDescription detail={detail} loading={loading} />
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function JobDescriptionTab({
             </p>
           </div>
         )}
-        <RawDescription job={job} />
+        <RawDescription detail={detail} loading={loading} />
       </div>
     );
   }
@@ -162,8 +162,24 @@ export function JobDescriptionTab({
   );
 }
 
-function RawDescription({ job }: { job: BoardJob }) {
-  const text = (job.manual_jd_text ?? job.description ?? "").trim();
+function RawDescription({
+  detail, loading,
+}: {
+  detail: BoardDetailPayload | null;
+  loading?: boolean;
+}) {
+  // The JD text now arrives with the per-job payload rather than on the board
+  // row, so "not here yet" and "genuinely empty" are different states — without
+  // this guard every job would flash "No description available" for the length
+  // of the fetch.
+  if (loading && !detail) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-label text-text-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
+  const text = (detail?.manual_jd_text ?? detail?.description ?? "").trim();
   if (!text) return <p className="text-label text-text-3 italic">No description available.</p>;
   return <p className="text-[15px] text-text whitespace-pre-wrap leading-relaxed">{text}</p>;
 }

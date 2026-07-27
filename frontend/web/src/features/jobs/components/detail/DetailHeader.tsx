@@ -30,9 +30,18 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 };
 
 export function DetailHeader({
-  job, letterId = null, onClosed, onChanged, mobile = false,
+  job, description = null, manualJdText = null, detailLoaded = false,
+  letterId = null, onClosed, onChanged, mobile = false,
 }: {
   job: BoardJob;
+  /** Raw JD text from the pane's per-job payload (no longer on the board row).
+   *  Null until that fetch resolves — see `detailLoaded`. */
+  description?: string | null;
+  manualJdText?: string | null;
+  /** False while the per-job payload is still in flight. The edit modal must
+   *  not compare the user's text against a not-yet-loaded original, or it would
+   *  store a redundant copy of the scrape as a manual override. */
+  detailLoaded?: boolean;
   /** Cover letter for the latest run, from the pane's payload — lets the Apply
    *  popup offer the drafted message and the send-email path. Null while that
    *  payload is still loading, or when the job has no letter. */
@@ -286,7 +295,7 @@ export function DetailHeader({
             <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
             {meta.label}
           </span>
-          <span className="text-label text-text-2">{statusSubtext(job)}</span>
+          <span className="text-label text-text-2">{statusSubtext(job, description, detailLoaded)}</span>
         </div>
         {lastAnalysedAt && (
           <span className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
@@ -301,8 +310,8 @@ export function DetailHeader({
         <JobEditModal
           jobId={job.id}
           jobUrl={job.url}
-          originalJd={job.description ?? ""}
-          initialManual={job.manual_jd_text ?? null}
+          originalJd={detailLoaded ? description ?? "" : undefined}
+          initialManual={manualJdText ?? job.manual_jd_text ?? null}
           initialEmail={job.contact_email ?? null}
           initialHiringMgr={job.hiring_manager ?? null}
           initialCompanyAddress={job.company_address ?? null}
@@ -343,7 +352,11 @@ export function DetailHeader({
   );
 }
 
-function statusSubtext(job: BoardJob): string {
+function statusSubtext(
+  job: BoardJob,
+  description: string | null,
+  detailLoaded: boolean,
+): string {
   const state = job.pipelineState ?? "discovered";
   const parts: string[] = [];
   const hasBothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
@@ -377,8 +390,10 @@ function statusSubtext(job: BoardJob): string {
   } else if (state === "needs_jd") {
     const types = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
     if (types.length) parts.push(types.join(", "));
-    const descLen = (job.description ?? "").length;
-    if (descLen > 0) parts.push(`only ${descLen} characters scraped`);
+    // Only claim a length once the JD payload has actually arrived — before
+    // that we'd assert "only 0 characters scraped" for every job.
+    const descLen = (description ?? "").length;
+    if (detailLoaded && descLen > 0) parts.push(`only ${descLen} characters scraped`);
   } else {
     if (job.progress.has_analysis) {
       if (job.initial_ats_score != null) parts.push(`ATS ${job.initial_ats_score}`);

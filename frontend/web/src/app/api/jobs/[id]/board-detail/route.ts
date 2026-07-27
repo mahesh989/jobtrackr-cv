@@ -39,7 +39,7 @@ export const GET = withUser(async (
   const [ownership, runResult, letterResult] = await Promise.all([
     admin
       .from("jobs")
-      .select("id, search_profiles!inner(user_id)")
+      .select("id, description, manual_jd_text, search_profiles!inner(user_id)")
       .eq("id", jobId)
       .eq("search_profiles.user_id", user.id)
       .maybeSingle(),
@@ -71,11 +71,22 @@ export const GET = withUser(async (
   if (!ownership.data) return jsonError("Job not found", 404);
 
   const run = runResult.data ?? null;
+  const job = ownership.data as unknown as {
+    description: string | null;
+    manual_jd_text: string | null;
+  };
 
   return NextResponse.json({
     run,
     // A letter without a run is not a state the pipeline produces, and the tabs
     // key off the run — keep the original shape rather than surfacing an orphan.
     cover_letter: run ? letterResult.data ?? null : null,
+    // The JD text rides along on this per-job fetch rather than on every row of
+    // the board list. It is by far the largest column on `jobs` (~2KB/row), and
+    // shipping it for all ~120 cards cost ~480ms of query time and ~230KB of
+    // payload to render list items that never display it. Free to add here —
+    // the ownership query already reads this exact row.
+    description:    job?.description ?? null,
+    manual_jd_text: job?.manual_jd_text ?? null,
   });
 });

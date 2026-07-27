@@ -155,6 +155,10 @@ export interface BoardDetailCoverLetter {
 export interface BoardDetailPayload {
   run:          BoardDetailRun | null;
   cover_letter: BoardDetailCoverLetter | null;
+  /** Raw scraped JD. Fetched per-job here instead of on every board row —
+   *  see the note in the board-detail route. Null until the fetch resolves. */
+  description:    string | null;
+  manual_jd_text: string | null;
 }
 
 export const CAT_ORDER: readonly SkillCategory[] = ["domain_knowledge", "soft_skills", "technical"];
