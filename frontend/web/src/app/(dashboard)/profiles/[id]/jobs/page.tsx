@@ -70,25 +70,30 @@ export default async function JobsPage({
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("search_profiles")
-    .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals, adzuna_exclude_keywords")
-    .eq("id", id).eq("user_id", user.id).single();
+  // These three only need `user.id` (and the route's `id`), never each other's
+  // results, so they go out together — run serially they were three full
+  // Supabase round trips stacked in front of every other query on the page,
+  // and this route's TTFB was ~1.2s largely because of it.
+  const [{ data: profile }, { data: meRow }, { data: prefRow }] = await Promise.all([
+    supabase
+      .from("search_profiles")
+      .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals, adzuna_exclude_keywords")
+      .eq("id", id).eq("user_id", user.id).single(),
+    // Pipeline console + run history are internal/diagnostic surfaces — admin
+    // only. Gated on ROLE, deliberately NOT on the jt_user_view cookie, so an
+    // admin browsing in "view as user" mode keeps them.
+    supabase
+      .from("users").select("role").eq("id", user.id).single(),
+    // Per-vertical cutoffs (healthcare/nursing = 55/65). Drives live re-bucketing
+    // so the ATS tabs/counts match the gate the analysis actually used. The
+    // vertical is the user's ONE global My CV choice (contact_details.role_families)
+    // — same source the pipeline uses — with the per-profile field as legacy fallback.
+    supabase
+      .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
+  ]);
   if (!profile) redirect("/dashboard");
 
-  // Pipeline console + run history are internal/diagnostic surfaces — admin
-  // only. Gated on ROLE, deliberately NOT on the jt_user_view cookie, so an
-  // admin browsing in "view as user" mode keeps them.
-  const { data: meRow } = await supabase
-    .from("users").select("role").eq("id", user.id).single();
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes((meRow?.role as string) ?? "");
-
-  // Per-vertical cutoffs (healthcare/nursing = 55/65). Drives live re-bucketing
-  // so the ATS tabs/counts match the gate the analysis actually used. The
-  // vertical is the user's ONE global My CV choice (contact_details.role_families)
-  // — same source the pipeline uses — with the per-profile field as legacy fallback.
-  const { data: prefRow } = await supabase
-    .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle();
   const myCvVerticals = (
     (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
   ).filter(Boolean);
@@ -360,7 +365,12 @@ export default async function JobsPage({
 
           {/* Actions — wrap on mobile */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
-            <Link
+            {/* Plain anchor, not <Link>: this points at a route HANDLER that
+                streams a CSV, not at a page. <Link> treated it as a navigable
+                route and prefetched it on sight — which ran the whole export
+                query server-side, twice per page load, for a file nobody had
+                asked to download. */}
+            <a
               href={`/api/profiles/${id}/jobs/export?${exportParams.toString()}`}
               className="shrink-0 whitespace-nowrap"
             >
@@ -370,7 +380,7 @@ export default async function JobsPage({
                 </svg>
                 Export CSV
               </Button>
-            </Link>
+            </a>
             {isAdmin && (
               <Link href={`/profiles/${id}/runs`} className="shrink-0 whitespace-nowrap">
                 <Button size="sm" className="px-2.5 py-1">Run history</Button>
@@ -424,9 +434,10 @@ export default async function JobsPage({
               <span>·</span>
             </>
           )}
-          <Link href={`/api/profiles/${id}/jobs/export`} className="hover:text-text transition-colors">
+          {/* Route handler, not a page — see the Export CSV button above. */}
+          <a href={`/api/profiles/${id}/jobs/export`} className="hover:text-text transition-colors">
             Export all as CSV
-          </Link>
+          </a>
           <span>·</span>
           <Link href={`/profiles/${id}/edit`} className="hover:text-text transition-colors">
             Edit profile

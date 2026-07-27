@@ -6,7 +6,7 @@
  * revisit or edit anything. Shown once the required steps are complete.
  */
 
-import Link from "next/link";
+import { HoverPrefetchLink } from "@/components/ui";
 import { Check, ChevronRight } from "lucide-react";
 import type { SetupStatus } from "@/lib/setupStatus";
 import { SETUP_STEPS, TAG_LABEL, resolveStepHref } from "@/lib/setupSteps";
@@ -62,7 +62,7 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
                 {done ? <Check className="w-4 h-4" strokeWidth={3} /> : <Icon className="w-4 h-4" />}
               </span>
 
-              <Link
+              <HoverPrefetchLink
                 href={`${resolveStepHref(step, status)}?setup=1&step=${idx + 1}`}
                 className="group flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)] transition-colors"
               >
@@ -78,7 +78,7 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
                   </span>
                 </span>
                 <ChevronRight className="w-4 h-4 text-text-3 group-hover:text-[var(--brand)] shrink-0 transition-colors" />
-              </Link>
+              </HoverPrefetchLink>
             </li>
           );
         })}

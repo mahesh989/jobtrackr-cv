@@ -4,7 +4,7 @@
  * SentCard — minimal done-state card on the Sent/Applied tab (split out of
  * CardV2.tsx). Surfaces the sent email message + un-apply/un-archive.
  */
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, Mail, FileText, FileType,
@@ -19,8 +19,6 @@ import { Button } from "@/components/ui";
 import { relativeDate } from "@/lib/dates";
 
 import { presentBlob, loadCvInputs } from "../lib/cvPdfClient";
-import { useTailoredCvPdf } from "../hooks/useTailoredCvPdf";
-import { TailoredCvButton } from "./TailoredCvButton";
 import { scoreColor, type ApplicationRowV2 } from "./CardV2";
 
 export function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActioned?: () => void }) {
@@ -35,10 +33,6 @@ export function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActione
 
   const isApplied  = !!row.job_applied_at;
   const isArchived = !!row.job_dismissed_at && !isApplied;
-
-  const cvPdf = useTailoredCvPdf(row, setActionError);
-  const ensureCvPdf = cvPdf.ensure;
-  useEffect(() => { if (row.letter_id) ensureCvPdf(); }, [row.letter_id, ensureCvPdf]);
 
   async function previewTailoredCv() {
     if (cvPreviewing || !row.tailored_cv_storage_path) return;
@@ -146,16 +140,12 @@ export function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActione
           </Button>
         )}
         {row.tailored_cv_storage_path && (
-          cvPdf.url
-            ? <TailoredCvButton cvPdf={cvPdf} />
-            : (
-              <Button onClick={previewTailoredCv} disabled={cvPreviewing} isLoading={cvPreviewing}
-                size="xs"
-                icon={<FileText className="w-3 h-3" />}
-                title="Open tailored CV PDF in new tab">
-                Tailored CV
-              </Button>
-            )
+          <Button onClick={previewTailoredCv} disabled={cvPreviewing} isLoading={cvPreviewing}
+            size="xs"
+            icon={<FileText className="w-3 h-3" />}
+            title="Open tailored CV PDF in new tab">
+            Tailored CV
+          </Button>
         )}
         {row.tailored_cv_storage_path && row.letter_id && (
           <Button onClick={handleDownloadZip} disabled={zipping} isLoading={zipping}

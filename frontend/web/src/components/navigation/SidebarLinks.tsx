@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
-import { Button } from "@/components/ui";
+import { Button, HoverPrefetchLink } from "@/components/ui";
 import { AddModal } from "@/features/jobs/components/AddModal";
 import {
   LayoutDashboard,
@@ -99,7 +98,7 @@ function NavItem({
   }
 
   return (
-    <Link
+    <HoverPrefetchLink
       href={href}
       className={
         "sidebar-item flex items-center justify-between gap-2 px-3 rounded-[var(--sidebar-item-radius)] " +
@@ -121,7 +120,7 @@ function NavItem({
           {badge > 99 ? "99+" : badge}
         </span>
       )}
-    </Link>
+    </HoverPrefetchLink>
   );
 }
 
@@ -140,12 +139,12 @@ function UserFooter({ email }: { email: string }) {
     <div className="shrink-0">
       <div className="flex items-center gap-2.5 px-3 py-1.5">
         <Lock className="w-3.5 h-3.5 text-[var(--sidebar-text-dim)] shrink-0" />
-        <Link
+        <HoverPrefetchLink
           href="/privacy"
           className="text-caption font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors"
         >
           Privacy policy
-        </Link>
+        </HoverPrefetchLink>
       </div>
       <div className="flex items-center gap-2.5 px-3 py-2.5 border-t border-[var(--sidebar-border)]">
         <div className="w-7 h-7 rounded-full bg-[var(--sidebar-avatar-bg)] flex items-center justify-center shrink-0">
@@ -297,7 +296,7 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userVi
               const href = `/profiles/${p.id}/jobs`;
               const active = pathname === href || pathname.startsWith(href + "/");
               return (
-                <Link
+                <HoverPrefetchLink
                   key={p.id}
                   href={href}
                   className={
@@ -314,7 +313,7 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userVi
                     style={{ color: p.isRunning ? "#22C55E" : undefined }}
                   />
                   <span className="truncate text-[13px]">{p.name}</span>
-                </Link>
+                </HoverPrefetchLink>
               );
             })}
             {hasMore && (
@@ -331,12 +330,12 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userVi
                 only ever shows names; the full /profiles page is the one place
                 with keywords, schedule, run status, etc. per profile. */}
             {profiles.length > 0 && (
-              <Link
+              <HoverPrefetchLink
                 href="/profiles"
                 className="flex items-center gap-1 text-left text-[11px] font-semibold px-3 py-1 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--brand)] hover:bg-[var(--sidebar-active-bg)] transition-colors"
               >
                 View all as list <ArrowRight className="h-3 w-3" />
-              </Link>
+              </HoverPrefetchLink>
             )}
           </div>
         )}
