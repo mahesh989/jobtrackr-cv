@@ -10,7 +10,10 @@ import { matchedExclusions } from "@/lib/descExclusion";
 interface Props {
   jobId:              string;
   jobUrl?:            string | null;
-  originalJd:         string;
+  /** The raw scrape, when the caller already has it. Board cards no longer
+   *  carry the JD text (it is ~64% of the list payload), so they omit this and
+   *  the modal fetches it itself — see the effect below. */
+  originalJd?:        string;
   initialManual:      string | null;
   initialEmail:       string | null;
   initialHiringMgr:   string | null;
@@ -31,6 +34,12 @@ export function JobEditModal({
   jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, excludeKeywords, onClose, onSaved,
 }: Props) {
   const [text, setText]       = useState<string>(initialManual ?? originalJd ?? "");
+  // The scrape we compare against when deciding whether the user actually
+  // overrode it. `jdReady` gates saving: comparing against a JD that hasn't
+  // loaded would look like "user replaced the scrape" and store a duplicate
+  // copy of it as a manual override.
+  const [resolvedJd, setResolvedJd] = useState<string>(originalJd ?? "");
+  const [jdReady, setJdReady]       = useState<boolean>(originalJd !== undefined);
   const [email, setEmail]     = useState<string>(initialEmail ?? "");
   const [hiringMgr, setHiringMgr] = useState<string>(initialHiringMgr ?? "");
   const [companyAddress, setCompanyAddress] = useState<string>(initialCompanyAddress ?? "");
@@ -50,6 +59,31 @@ export function JobEditModal({
   useEffect(() => {
     taRef.current?.focus();
   }, []);
+
+  // Opened from a board card, which no longer carries the JD text: fetch it.
+  // Seeds the textarea only if it is still empty, so a pasted manual override
+  // (or anything typed while this was in flight) is never clobbered.
+  useEffect(() => {
+    if (originalJd !== undefined) return;
+    let cancelled = false;
+    (async () => {
+      let jd = "";
+      try {
+        const res = await fetch(`/api/jobs/${jobId}/board-detail`);
+        if (res.ok) {
+          const json = await res.json();
+          if (typeof json?.description === "string") jd = json.description;
+        }
+      } catch {
+        // Leave jd as "" — the modal still works, it just cannot pre-fill.
+      }
+      if (cancelled) return;
+      setResolvedJd(jd);
+      setJdReady(true);
+      setText((prev) => (prev === "" ? jd : prev));
+    })();
+    return () => { cancelled = true; };
+  }, [jobId, originalJd]);
 
   function handleSave() {
     if (exclusionHits.length > 0 && !confirmExclusion) {
@@ -74,7 +108,7 @@ export function JobEditModal({
     //   - empty                          → null
     //   - anything else                  → trimmedText
     const manualForApi =
-      trimmedText === "" || trimmedText === (originalJd ?? "").trim()
+      trimmedText === "" || trimmedText === resolvedJd.trim()
         ? null
         : trimmedText;
 
@@ -146,7 +180,7 @@ export function JobEditModal({
   }
 
   function resetToOriginal() {
-    setText(originalJd ?? "");
+    setText(resolvedJd);
   }
 
   const charCount = text.length;
@@ -311,9 +345,10 @@ export function JobEditModal({
           <Button
             variant="brand"
             onClick={handleSave}
-            disabled={busy}
+            // Held until the scrape is in hand — see `jdReady`.
+            disabled={busy || !jdReady}
           >
-            {busy ? "Saving…" : "Save"}
+            {busy ? "Saving…" : !jdReady ? "Loading…" : "Save"}
           </Button>
         </div>
     </Modal>

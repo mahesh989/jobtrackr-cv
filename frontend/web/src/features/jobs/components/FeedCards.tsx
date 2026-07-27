@@ -341,7 +341,8 @@ export function CardShell({
         <JobEditModal
           jobId={job.id}
           jobUrl={job.url}
-          originalJd={job.description ?? ""}
+          // Omitted on purpose: board rows no longer carry the JD text, so the
+          // modal fetches it for this one job when it opens.
           initialManual={manualJd}
           initialEmail={contactEmail}
           initialHiringMgr={hiringMgr}

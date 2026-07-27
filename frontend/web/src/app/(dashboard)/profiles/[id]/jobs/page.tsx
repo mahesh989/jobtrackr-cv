@@ -72,7 +72,9 @@ export default async function JobsPage({
 
   const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
 
-  const JOBS_BASE_COLS = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence";
+  // `description` is deliberately absent — see the note on the dashboard's
+  // JOB_SELECT. Fetched per-job by /api/jobs/[id]/board-detail on selection.
+  const JOBS_BASE_COLS = "id, profile_id, url, title, company, location, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence";
   const JOBS_M080_COLS = ", salary_min, salary_max, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
 
   const buildJobsQuery = (cols: string) => {

@@ -87,6 +87,9 @@ function BoardDetailPanelInner({
 
       <DetailHeader
         job={job}
+        description={data?.description ?? null}
+        manualJdText={data?.manual_jd_text ?? null}
+        detailLoaded={!!data}
         letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
         onClosed={onClose}
         onChanged={refresh}

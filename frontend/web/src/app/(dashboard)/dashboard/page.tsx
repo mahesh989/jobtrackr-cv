@@ -137,7 +137,10 @@ export default async function DashboardPage({
   }
   interface DonutLetterRow { job_id: string }
 
-  const JOB_SELECT = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
+  // `description` is deliberately absent: it is ~64% of this query's payload
+  // (~230KB across ~120 rows) and no board card renders it. The detail pane and
+  // the edit modal fetch it per-job from /api/jobs/[id]/board-detail instead.
+  const JOB_SELECT = "id, profile_id, url, title, company, location, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
 
   // Active jobs (non-dismissed). location/source/posted_within narrow the dataset.
   let q = supabase.from("jobs").select(JOB_SELECT)
