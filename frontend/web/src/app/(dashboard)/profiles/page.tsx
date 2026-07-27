@@ -22,14 +22,14 @@ export default async function ProfilesListPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const [{ data: profileRows }, { data: pauseRows }] = await Promise.all([
-    supabase
-      .from("search_profiles")
-      .select("id, name, is_active, is_manual, keywords, location, schedule_cron")
-      .order("created_at", { ascending: false }),
-    supabase.from("profile_pause_state").select("profile_id"),
-  ]);
-  const pausedCount = pauseRows?.length ?? 0;
+  // pauseRows doesn't feed the ids/queries below — fired here but not awaited
+  // until the end, so it overlaps with BATCH below instead of gating it.
+  const pauseRowsPromise = supabase.from("profile_pause_state").select("profile_id");
+
+  const { data: profileRows } = await supabase
+    .from("search_profiles")
+    .select("id, name, is_active, is_manual, keywords, location, schedule_cron")
+    .order("created_at", { ascending: false });
 
   const profiles = (profileRows ?? []) as ProfileRow[];
 
@@ -44,6 +44,7 @@ export default async function ProfilesListPage() {
     { data: unseenRows },
     { data: appliedRows },
     { data: runRows },
+    { data: pauseRows },
   ] = await Promise.all([
     supabase.from("jobs").select("profile_id").in("profile_id", ids)
       .eq("is_expired", false).eq("is_dead_link", false).is("dismissed_at", null),
@@ -53,7 +54,9 @@ export default async function ProfilesListPage() {
     supabase.from("run_logs")
       .select("profile_id, status, started_at, finished_at, jobs_saved, error_message")
       .in("profile_id", ids).order("started_at", { ascending: false }).limit(ids.length * 5),
+    pauseRowsPromise,
   ]);
+  const pausedCount = pauseRows?.length ?? 0;
 
   function countBy(rows: { profile_id: string }[] | null) {
     return ((rows ?? []) as { profile_id: string }[]).reduce<Record<string, number>>(

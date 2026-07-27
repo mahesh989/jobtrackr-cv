@@ -7,26 +7,23 @@ import { CopyButton } from "@/features/profiles/components/CopyButton";
 export default async function EditProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  // getUser() + both reads go out together — none depend on each other's
+  // result (profiles_select_own / user_preferences RLS already scope each
+  // read to the caller via auth.uid(), same as the cookie-based getUser()
+  // check), so there's no reason to wait on getUser() before firing them.
+  const [{ data: { user } }, { data: prefRow }, { data }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("user_preferences").select("contact_details").maybeSingle(),
+    supabase.from("search_profiles").select("*").eq("id", id).single(),
+  ]);
   if (!user) redirect("/auth/login");
 
   // Work-setting filter is only relevant to healthcare/nursing users — gate the
   // ProfileForm section on the user's My CV role family (contact_details).
-  const { data: prefRow } = await supabase
-    .from("user_preferences")
-    .select("contact_details")
-    .eq("user_id", user.id)
-    .maybeSingle();
   const roleFamilies =
     ((prefRow?.contact_details as { role_families?: string[] } | null)?.role_families) ?? [];
   const showWorkSetting = roleFamilies.includes("nursing");
-
-  const { data } = await supabase
-    .from("search_profiles")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
 
   if (!data) redirect("/dashboard");
   const profile = data as {

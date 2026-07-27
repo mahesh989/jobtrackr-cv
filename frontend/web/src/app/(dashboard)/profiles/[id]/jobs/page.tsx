@@ -70,11 +70,50 @@ export default async function JobsPage({
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  // These three only need `user.id` (and the route's `id`), never each other's
-  // results, so they go out together — run serially they were three full
-  // Supabase round trips stacked in front of every other query on the page,
-  // and this route's TTFB was ~1.2s largely because of it.
-  const [{ data: profile }, { data: meRow }, { data: prefRow }] = await Promise.all([
+  const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
+
+  const JOBS_BASE_COLS = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence";
+  const JOBS_M080_COLS = ", salary_min, salary_max, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
+
+  const buildJobsQuery = (cols: string) => {
+    let query = supabase
+      .from("jobs")
+      .select(cols)
+      .eq("profile_id", id)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false);
+    if (isDismissedView) query = query.not("dismissed_at", "is", null);
+    else                 query = query.is("dismissed_at", null);
+    if (sp.location) query = query.ilike("location", `%${sp.location}%`);
+    if (sp.posted_within && sp.posted_within !== "any") {
+      const days = parseInt(sp.posted_within, 10);
+      if (!isNaN(days)) {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        query = query.gte("posted_at", d.toISOString());
+      }
+    }
+    return query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
+  };
+
+  // Migration-080 columns with pre-migration fallback: retry on the base
+  // column set if the DB doesn't have them yet (board keeps working either way).
+  const fetchJobsWithFallback = async () => {
+    let res = await buildJobsQuery(JOBS_BASE_COLS + JOBS_M080_COLS);
+    if (res.error && /column|42703|PGRST/i.test(res.error.message)) {
+      res = await buildJobsQuery(JOBS_BASE_COLS);
+    }
+    return res;
+  };
+
+  // Everything below needs only `user.id`/`id`/`sp` — none of it depends on
+  // another entry's result — so it all goes out in one batch instead of
+  // stacking as "who am I" (profile/meRow/prefRow) then "what are the jobs"
+  // (jobs/countRows/activeRunData/completedRuns) as two separate round trips.
+  const [
+    { data: profile }, { data: meRow }, { data: prefRow },
+    { data: jobs }, { data: countRows }, { data: activeRunData }, { data: completedRuns },
+  ] = await Promise.all([
     supabase
       .from("search_profiles")
       .select("id, name, is_active, is_manual, keywords, schedule_cron, home_address, target_verticals, adzuna_exclude_keywords")
@@ -90,6 +129,22 @@ export default async function JobsPage({
     // — same source the pipeline uses — with the per-profile field as legacy fallback.
     supabase
       .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
+    fetchJobsWithFallback(),
+    supabase
+      .from("jobs")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
+      .eq("profile_id", id)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false),
+    supabase.from("run_logs").select("id").eq("profile_id", id).eq("status", "running").maybeSingle(),
+    // Recent completed runs — the ?view=new "latest fetch" floor is derived
+    // from these (jobs discovered since the newest run that found anything).
+    supabase.from("run_logs")
+      .select("started_at")
+      .eq("profile_id", id)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false })
+      .limit(25),
   ]);
   if (!profile) redirect("/dashboard");
 
@@ -127,68 +182,6 @@ export default async function JobsPage({
     role_match: string | null; has_email: boolean | null;
     employment_types?: string[] | null;
   }
-
-  const isDismissedView = sp.stage === "dismissed" || sp.status === "dismissed";
-
-  const JOBS_BASE_COLS = "id, profile_id, url, title, company, location, description, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, setting_category, setting_confidence, setting_evidence";
-  const JOBS_M080_COLS = ", salary_min, salary_max, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
-
-  const buildJobsQuery = (cols: string) => {
-    let query = supabase
-      .from("jobs")
-      .select(cols)
-      .eq("profile_id", id)
-      .eq("is_expired", false)
-      .eq("is_dead_link", false);
-    if (isDismissedView) query = query.not("dismissed_at", "is", null);
-    else                 query = query.is("dismissed_at", null);
-    if (sp.location) query = query.ilike("location", `%${sp.location}%`);
-    if (sp.posted_within && sp.posted_within !== "any") {
-      const days = parseInt(sp.posted_within, 10);
-      if (!isNaN(days)) {
-        const d = new Date();
-        d.setDate(d.getDate() - days);
-        query = query.gte("posted_at", d.toISOString());
-      }
-    }
-    return query.order("posted_at", { ascending: false, nullsFirst: false }).limit(200);
-  };
-
-  // Migration-080 columns with pre-migration fallback: retry on the base
-  // column set if the DB doesn't have them yet (board keeps working either way).
-  const fetchJobsWithFallback = async () => {
-    let res = await buildJobsQuery(JOBS_BASE_COLS + JOBS_M080_COLS);
-    if (res.error && /column|42703|PGRST/i.test(res.error.message)) {
-      res = await buildJobsQuery(JOBS_BASE_COLS);
-    }
-    return res;
-  };
-  const query = fetchJobsWithFallback();
-
-  // ── BATCH 1 — four parallel queries (all need only profile `id`) ─────────
-  const [
-    { data: jobs },
-    { data: countRows },
-    { data: activeRunData },
-    { data: completedRuns },
-  ] = await Promise.all([
-    query,
-    supabase
-      .from("jobs")
-      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
-      .eq("profile_id", id)
-      .eq("is_expired", false)
-      .eq("is_dead_link", false),
-    supabase.from("run_logs").select("id").eq("profile_id", id).eq("status", "running").maybeSingle(),
-    // Recent completed runs — the ?view=new "latest fetch" floor is derived
-    // from these (jobs discovered since the newest run that found anything).
-    supabase.from("run_logs")
-      .select("started_at")
-      .eq("profile_id", id)
-      .eq("status", "completed")
-      .order("started_at", { ascending: false })
-      .limit(25),
-  ]);
 
   const isRunning     = !!activeRunData;
   const jobListRaw    = (jobs ?? []) as unknown as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;

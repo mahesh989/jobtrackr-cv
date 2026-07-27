@@ -118,20 +118,6 @@ export default async function DashboardPage({
     ]),
   );
 
-  // ── First-run gate ────────────────────────────────────────────────────────
-  // Show the "ready to scan" empty state until jobs exist. The setup wizard
-  // redirect is handled by SetupGateClient in the layout (client-side),
-  // so we only need to handle the no-jobs case here.
-  let hasAnyJob = false;
-  if (ids.length > 0) {
-    const { count } = await supabase
-      .from("jobs").select("id", { count: "exact", head: true }).in("profile_id", ids);
-    hasAnyJob = (count ?? 0) > 0;
-  }
-  if (!hasAnyJob) {
-    return <ReadyToScanScreen hasProfiles={ids.length > 0} />;
-  }
-
   const profileNameById = new Map(profiles.map((p) => [p.id, p.name]));
 
   // ── Resolve stage + build board query (sync) ─────────────────────────────
@@ -178,16 +164,21 @@ export default async function DashboardPage({
   if (sp.source)   dq = dq.eq("source", sp.source);
   dq = dq.order("dismissed_at", { ascending: false, nullsFirst: false }).limit(100);
 
-  // ── BATCH 1 — four parallel queries (all only need `ids`) ─────────────────
+  // ── BATCH 1 — five parallel queries (all only need `ids`) ─────────────────
   // Previously: 6 sequential round-trips. Now: 1 parallel batch.
   // The 3 legacy KPI queries (jobRows/unseenRows/appliedRows) are eliminated —
   // totalJobs / totalNew / totalApplied are derived from countRows below.
+  // The first-run "any job at all" count rides along here too (was its own
+  // serial round-trip between batch 0 and this batch) — for the common case
+  // (user already has jobs) this saves a full network hop; for the rare
+  // zero-job first-run case, this batch's other queries just come back empty.
   const [
     { data: jobs },
     { data: dismissedJobs },
     { data: countRows },
     { data: runLogData },
     { data: completedRuns },
+    { count: anyJobCount },
   ] = await Promise.all([
     q,
     dq,
@@ -210,7 +201,18 @@ export default async function DashboardPage({
       .eq("status", "completed")
       .order("started_at", { ascending: false })
       .limit(300),
+    ids.length > 0
+      ? supabase.from("jobs").select("id", { count: "exact", head: true }).in("profile_id", ids)
+      : Promise.resolve({ count: 0 }),
   ]);
+
+  // ── First-run gate ────────────────────────────────────────────────────────
+  // Show the "ready to scan" empty state until jobs exist. The setup wizard
+  // redirect is handled by SetupGateClient in the layout (client-side), so we
+  // only need to handle the no-jobs case here.
+  if (!((anyJobCount ?? 0) > 0)) {
+    return <ReadyToScanScreen hasProfiles={ids.length > 0} />;
+  }
 
   // ── ?status=new — latest fetched batch (cross-profile) ───────────────────
   // "New jobs" = per profile, jobs first discovered (created_at) since the

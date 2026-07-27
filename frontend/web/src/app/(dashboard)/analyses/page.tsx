@@ -11,14 +11,18 @@ export default async function AnalysesPage() {
 
   const admin = createAdminClient();
 
-  // Load every run for this user (most-recent first)
+  // Most recent runs for this user — capped like every other run/job list in
+  // the app (dashboard, per-profile boards) instead of loading full history
+  // unbounded, which grows without limit as usage accumulates.
+  const RUN_HISTORY_LIMIT = 200;
   const { data: runs } = await admin
     .from("analysis_runs")
     .select(
       "id, job_id, status, match_score, tailored_match_score, ats_lift, is_stale, error_message, created_at, completed_at",
     )
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(RUN_HISTORY_LIMIT);
 
   const safeRuns = (runs ?? []) as HistoryRun[];
 
@@ -39,8 +43,9 @@ export default async function AnalysesPage() {
         <div>
           <h1 className="page-title text-text">Analyses</h1>
           <p className="page-subtitle">
-            Every CV-tailoring analysis you&apos;ve run, grouped by job. Click any
-            row to view the full breakdown.
+            {safeRuns.length >= RUN_HISTORY_LIMIT
+              ? `Your ${RUN_HISTORY_LIMIT} most recent CV-tailoring analyses, grouped by job. Click any row to view the full breakdown.`
+              : "Every CV-tailoring analysis you've run, grouped by job. Click any row to view the full breakdown."}
           </p>
         </div>
         <AnalysisHistoryClient initialRuns={safeRuns} jobs={jobs} />

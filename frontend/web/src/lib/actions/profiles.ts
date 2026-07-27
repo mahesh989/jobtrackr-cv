@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertCanCreateProfile, getEntitlement } from "@/lib/billing/entitlements";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSetupStatus } from "@/lib/setupStatus";
 import { isSetupComplete } from "@/lib/setupSteps";
@@ -127,7 +128,12 @@ export async function createProfile(formData: FormData) {
 }
 
 export async function updateProfile(profileId: string, formData: FormData) {
-  const { supabase, user } = await authedClient();
+  // Built directly (not via authedClient()) so getUser() and the
+  // home_address pre-read below can go out over the wire together instead of
+  // sequentially — both only need the cookie-scoped client, and
+  // profiles_select_own RLS already restricts the read to the caller's own
+  // row without an explicit user_id filter.
+  const supabase = await createClient();
 
   const keywords = (formData.get("keywords") as string)
     .split(",").map((k) => k.trim()).filter(Boolean);
@@ -147,15 +153,15 @@ export async function updateProfile(profileId: string, formData: FormData) {
   // Detect home_address change so we can invalidate the cached lat/lng and let
   // the worker re-geocode on the next run.
   const newHome = ((formData.get("home_address") as string) ?? "").trim() || null;
-  const { data: prev } = await supabase
-    .from("search_profiles")
-    .select("home_address")
-    .eq("id", profileId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+
+  const [{ data: { user } }, { data: prev }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("search_profiles").select("home_address").eq("id", profileId).maybeSingle(),
+  ]);
+  if (!user) redirect("/auth/login");
   const homeChanged = (prev?.home_address ?? null) !== newHome;
 
-  const { error } = await supabase
+  const isActiveUpdate = supabase
     .from("search_profiles")
     .update({
       name: formData.get("name") as string,
@@ -177,16 +183,19 @@ export async function updateProfile(profileId: string, formData: FormData) {
     .eq("id", profileId)
     .eq("user_id", user.id);
 
-  if (error) throw new Error(error.message);
-
   // If the user manually re-activated a paused profile, clear its pause row
   // so the resume banner (Deliverable 7) can't show a profile they already
   // resumed themselves through this form. profile_pause_state has no user
   // write policy (service-role only) — use the admin client for the delete.
-  if (isActive) {
-    const admin = createAdminClient();
-    await admin.from("profile_pause_state").delete().eq("profile_id", profileId).eq("user_id", user.id);
-  }
+  // Independent of the update above (different table), so it runs alongside
+  // it rather than after.
+  const pauseClear = isActive
+    ? createAdminClient().from("profile_pause_state").delete().eq("profile_id", profileId).eq("user_id", user.id)
+    : Promise.resolve({ error: null });
+
+  const [{ error }] = await Promise.all([isActiveUpdate, pauseClear]);
+
+  if (error) throw new Error(error.message);
 
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");

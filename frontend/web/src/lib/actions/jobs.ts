@@ -229,16 +229,12 @@ export async function bulkArchiveJobs(jobIds: string[]) {
 }
 
 export async function markProfileJobsSeen(profileId: string) {
-  const { supabase, user } = await authedClient();
-  // Verify profile ownership before bulk-marking
-  const { data: profile } = await supabase
-    .from("search_profiles")
-    .select("id")
-    .eq("id", profileId)
-    .eq("user_id", user.id)
-    .single();
-  if (!profile) return;
-
+  const { supabase } = await authedClient();
+  // No separate ownership pre-check — jobs_update_own RLS (join to
+  // search_profiles on user_id = auth.uid()) already scopes this update to
+  // the caller's own profile, same as markJobApplied/markPoolDecision/etc.
+  // in this file. The pre-check cost a full extra round trip on every
+  // profile-jobs page visit for no additional protection.
   await supabase
     .from("jobs")
     .update({ seen_at: new Date().toISOString() })
