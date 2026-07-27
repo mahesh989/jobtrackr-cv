@@ -109,9 +109,10 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
     }
   }
 
-  // Phase D-2: when the API returns 422 + action=below_final_gate, surface
-  // an inline override prompt with the actual score + threshold so the
-  // user can decide whether to spend the ~5-15s AI call anyway.
+  // When the API returns 422 + action=below_final_gate, we auto-retry with
+  // override=final_gate (same pattern as the research_company auto-retry
+  // below) instead of stopping for a click. This banner is purely
+  // informational once the letter is generated — it does not block anything.
   const [belowFinalGate, setBelowFinalGate] = useState<{
     score:     number | null;
     threshold: number;
@@ -205,14 +206,18 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
   // override (Phase D-2) is set when the user clicks "Generate anyway" on
   // a below-final-gate prompt — forwarded to the API as ?override=final_gate.
   async function handleGenerate(
-    regenerate     = false,
-    didAutoResearch = false,
-    override?:    "final_gate",
+    regenerate         = false,
+    didAutoResearch     = false,
+    override?:          "final_gate",
+    didAutoOverrideGate = false,
   ) {
     setLoading(true);
     setError(null);
     setPaywall(null);
-    setBelowFinalGate(null);
+    // Only clear on a genuinely fresh call — the below_final_gate auto-retry
+    // recurses through this same function, and clearing here would wipe the
+    // info banner state we just set before the retry's fetch even starts.
+    if (!didAutoResearch && !didAutoOverrideGate) setBelowFinalGate(null);
 
     try {
       const url = override
@@ -235,14 +240,26 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           return;
         }
 
-        // Phase D-2: tailored score below user's final-ATS threshold.
-        // Show an inline override prompt so the user can decide whether to
-        // spend the AI call anyway.
+        // Tailored score below user's final-ATS threshold. Auto-retry with
+        // the override once (same shape as the research_company auto-retry
+        // below) instead of stopping for a click — the score/threshold are
+        // kept for the informational banner shown once generation starts.
         if (res.status === 422 && data.action === "below_final_gate") {
-          setBelowFinalGate({
+          const gateInfo = {
             score:     (data.tailored_score as number | null) ?? null,
             threshold: (data.threshold      as number)         ?? 70,
-          });
+          };
+          setBelowFinalGate(gateInfo);
+          if (didAutoOverrideGate) {
+            // Defensive only — override permanently bypasses this check
+            // server-side, so a second 422 here would mean the retry didn't
+            // carry the override through. Stop instead of looping.
+            setError(
+              `Tailored CV scored ${gateInfo.score ?? "—"}, below the final-ATS threshold of ${gateInfo.threshold}. Could not generate automatically — try Regenerate.`,
+            );
+            return;
+          }
+          await handleGenerate(regenerate, didAutoResearch, "final_gate", true);
           return;
         }
 
@@ -483,36 +500,17 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         </div>
       </div>
 
-      {/* Phase D-2 — final-ATS gate override prompt */}
-      {belowFinalGate && (
-        <div className="mx-5 mt-4 rounded border-2 border-amber-300 bg-amber-50 px-3 py-3">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-micro font-bold text-amber-900">!</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-body font-semibold text-amber-900 leading-snug">
-                Below your final-ATS threshold
-              </p>
-              <p className="mt-1 text-label text-amber-800 leading-relaxed">
-                Tailored CV scored{" "}
-                <span className="font-bold tabular-nums">{belowFinalGate.score ?? "—"}</span>
-                {" "}/ 100, below your configured threshold of{" "}
-                <span className="font-bold tabular-nums">{belowFinalGate.threshold}</span>.
-                A cover letter built on a low tailored score rarely wins interviews — consider improving the CV first, or generate the letter anyway if you want to send it as-is.
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => handleGenerate(true, false, "final_gate")}
-                  disabled={loading}
-                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {loading ? "Starting…" : "Generate anyway"}
-                </button>
-                <button onClick={() => setBelowFinalGate(null)} className="rounded px-3 py-1.5 text-label text-amber-700 hover:text-amber-900 transition-colors">
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Below final-ATS threshold — informational only; generation proceeds
+          automatically (see handleGenerate's below_final_gate auto-retry).
+          A persistent note also shows on the finished letter below via
+          quality_flags.generated_below_final_gate. */}
+      {belowFinalGate && !letter?.pass_3_final && (
+        <div className="mx-5 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
+          Tailored CV scored{" "}
+          <span className="font-bold tabular-nums">{belowFinalGate.score ?? "—"}</span>
+          {" "}/ 100, below your configured threshold of{" "}
+          <span className="font-bold tabular-nums">{belowFinalGate.threshold}</span>.
+          {" "}Generating the cover letter anyway.
         </div>
       )}
 
@@ -655,6 +653,9 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
               honesty_retried?: boolean;
               honesty_passed_after_retry?: boolean;
               low_quality_company_research?: boolean;
+              generated_below_final_gate?: boolean;
+              final_gate_score?: number | null;
+              final_gate_threshold?: number;
             };
             const claims = Array.isArray(flags.unsupported_claims) ? flags.unsupported_claims : [];
             return (
@@ -672,6 +673,15 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                     Company research returned limited information for this employer.
                     Paragraph 2 falls back to the job description — read it carefully
                     before sending.
+                  </div>
+                )}
+                {flags.generated_below_final_gate && (
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
+                    Generated with a tailored CV score of{" "}
+                    <span className="font-bold tabular-nums">{flags.final_gate_score ?? "—"}</span>
+                    {" "}/ 100, below your configured threshold of{" "}
+                    <span className="font-bold tabular-nums">{flags.final_gate_threshold ?? "—"}</span>.
+                    Consider improving the CV before sending.
                   </div>
                 )}
                 {claims.length === 0 && flags.honesty_inconclusive && (
