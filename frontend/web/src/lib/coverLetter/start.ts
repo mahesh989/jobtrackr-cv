@@ -98,11 +98,10 @@ export async function startCoverLetter(
     return jsonError("Job not found", 404);
   }
 
-  // ── 3.5. Phase D-2 final-ATS gate ─────────────────────────────────────────────
+  // ── 3.5. Final-ATS gate ────────────────────────────────────────────────────────
   // Mirrors the C-3 initial-gate pattern (on /analyze) but for the
   // cover-letter call. Reads passed_final_gate from the latest non-stale
-  // analysis_run. When the gate failed and no override flag is set, blocks
-  // with a 422 the UI converts into an inline "Generate anyway" prompt.
+  // analysis_run.
   //
   // Why on the web side and not cv-backend: the gate decision is a cheap
   // boolean read + an early-return. Doing it here means we never spend the
@@ -114,7 +113,13 @@ export async function startCoverLetter(
   // do NOT block in that case — the user might be drafting without a prior
   // analysis. The strict `=== false` check only fires when the gate has
   // actually been evaluated and failed.
-  if (!override) {
+  //
+  // Without override: block with a 422 the UI auto-retries with
+  // ?override=final_gate (no click — see CoverLetterPanel.handleGenerate).
+  // With override: don't block, but still resolve the score/threshold below
+  // so the letter row can carry a quality_flags note for the finished panel.
+  let belowFinalGateInfo: { score: number | null; threshold: number } | null = null;
+  {
     const { data: latestRun } = await admin
       .from("analysis_runs")
       .select("tailored_match_score, passed_final_gate")
@@ -142,17 +147,22 @@ export async function startCoverLetter(
       const effectiveVerticals = myCvFamilies.length > 0 ? myCvFamilies : profileVerticals;
       const threshold      = resolveThresholds(effectiveVerticals).final;
       const tailoredScore  = latestRun.tailored_match_score as number | null;
-      return NextResponse.json(
-        {
-          error:
-            `Tailored CV scored ${tailoredScore ?? "—"}, below the final-ATS threshold of ${threshold}. ` +
-            `A cover letter built on a low tailored score rarely wins interviews. Generate anyway?`,
-          action:         "below_final_gate",
-          tailored_score: tailoredScore,
-          threshold,
-        },
-        { status: 422 },
-      );
+
+      if (!override) {
+        return NextResponse.json(
+          {
+            error:
+              `Tailored CV scored ${tailoredScore ?? "—"}, below the final-ATS threshold of ${threshold}. ` +
+              `A cover letter built on a low tailored score rarely wins interviews. Generate anyway?`,
+            action:         "below_final_gate",
+            tailored_score: tailoredScore,
+            threshold,
+          },
+          { status: 422 },
+        );
+      }
+
+      belowFinalGateInfo = { score: tailoredScore, threshold };
     }
   }
 
@@ -448,9 +458,16 @@ export async function startCoverLetter(
   // ── 11. Create cover_letters row (picking) ────────────────────────────────────
   // quality_flags pre-populated with web-layer warnings; cv-backend merges
   // its own honesty-gate flags on top at the end without clobbering these.
-  const initialQualityFlags = lowQualityResearch
-    ? { low_quality_company_research: true }
-    : {};
+  const initialQualityFlags = {
+    ...(lowQualityResearch ? { low_quality_company_research: true } : {}),
+    ...(belowFinalGateInfo
+      ? {
+          generated_below_final_gate: true,
+          final_gate_score:           belowFinalGateInfo.score,
+          final_gate_threshold:       belowFinalGateInfo.threshold,
+        }
+      : {}),
+  };
 
   const { data: letterRow, error: insertErr } = await admin
     .from("cover_letters")
