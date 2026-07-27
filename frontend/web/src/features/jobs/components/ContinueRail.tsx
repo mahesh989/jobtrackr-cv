@@ -14,9 +14,8 @@
  */
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
-import { IconButton } from "@/components/ui";
+import { IconButton, HoverPrefetchLink } from "@/components/ui";
 import type { JobProgress } from "../lib/progressFlags";
 import { nextAction } from "../lib/progressFlags";
 
@@ -105,12 +104,12 @@ export function ContinueRail({ jobs, currentTab }: { jobs: RailJob[]; currentTab
               <div className="flex items-center justify-between gap-2 mt-0.5">
                 <ProgressDots p={job.progress} />
                 {action.href ? (
-                  <Link
+                  <HoverPrefetchLink
                     href={action.href}
                     className="text-caption font-medium text-[var(--brand)] hover:underline whitespace-nowrap"
                   >
                     {action.label} →
-                  </Link>
+                  </HoverPrefetchLink>
                 ) : (
                   <span className="text-caption font-medium text-text-3 italic whitespace-nowrap">
                     {action.label}

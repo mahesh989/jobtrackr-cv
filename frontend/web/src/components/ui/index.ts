@@ -15,3 +15,4 @@ export { Chip, type ChipProps } from "./Chip";
 export { SegmentedControl, type SegmentedOption } from "./SegmentedControl";
 export { DisclosureButton } from "./Disclosure";
 export { ToggleSwitch } from "./ToggleSwitch";
+export { HoverPrefetchLink } from "./HoverPrefetchLink";

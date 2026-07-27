@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function useCoverLetter(letterId: string | null, onError?: (msg: string) => void) {
+/**
+ * @param enabled Gate the fetch on the card actually being expanded. A pool
+ *   list renders one PoolCard per application — 61 of them on a real account —
+ *   and every one of those cards mounts this hook while its body is still
+ *   collapsed behind `{open && …}`. Fetching on mount therefore cost one
+ *   request per row for content nobody had asked to see, and because the
+ *   browser only opens ~6 connections per origin the tail of that queue was
+ *   still draining 16s later, delaying every page the user clicked next.
+ */
+export function useCoverLetter(letterId: string | null, onError?: (msg: string) => void, enabled: boolean = true) {
   const router = useRouter();
   const [loaded, setLoaded]   = useState(false);
   const [loading, setLoading] = useState(false);
@@ -13,6 +22,7 @@ export function useCoverLetter(letterId: string | null, onError?: (msg: string) 
   const loadStarted = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!letterId || loaded || loadStarted.current) return;
     loadStarted.current = true;
     (async () => {
@@ -34,7 +44,7 @@ export function useCoverLetter(letterId: string | null, onError?: (msg: string) 
         setLoading(false);
       }
     })();
-  }, [letterId, loaded, onError]);
+  }, [letterId, loaded, onError, enabled]);
 
   async function save() {
     if (saving || !letterId) return;

@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function useEmailDraft(letterId: string | null, onError?: (msg: string) => void) {
+/**
+ * @param enabled Gate the fetch on the card actually being expanded — see the
+ *   note on useCoverLetter. This one was the more expensive half of that pair:
+ *   its median server time was ~1.1s against ~390ms for the letter fetch, so
+ *   61 collapsed rows queued up over 16s of email drafts nobody had opened.
+ */
+export function useEmailDraft(letterId: string | null, onError?: (msg: string) => void, enabled: boolean = true) {
   const [loaded, setLoaded]       = useState(false);
   const [loading, setLoading]     = useState(false);
   const [subject, setSubject]     = useState("");
@@ -14,6 +20,7 @@ export function useEmailDraft(letterId: string | null, onError?: (msg: string) =
   const loadStarted = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!letterId || loaded || loadStarted.current) return;
     loadStarted.current = true;
     (async () => {
@@ -37,7 +44,7 @@ export function useEmailDraft(letterId: string | null, onError?: (msg: string) =
         setLoading(false);
       }
     })();
-  }, [letterId, loaded, onError]);
+  }, [letterId, loaded, onError, enabled]);
 
   async function save() {
     if (saving || !letterId) return;

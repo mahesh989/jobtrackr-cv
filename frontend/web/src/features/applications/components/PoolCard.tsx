@@ -38,8 +38,11 @@ export function PoolCard({ row, onActioned }: { row: ApplicationRowV2; onActione
   const [hidden, setHidden]         = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const cover   = useCoverLetter(row.letter_id, setActionError);
-  const email   = useEmailDraft(row.letter_id, setActionError);
+  // Gated on `open` for the same reason ensureCvPdf below is: everything these
+  // two feed lives inside the `{open && …}` block, so fetching them on mount
+  // bought nothing and cost one request each per collapsed row.
+  const cover   = useCoverLetter(row.letter_id, setActionError, open);
+  const email   = useEmailDraft(row.letter_id, setActionError, open);
   const contact = useContactEmail(row.job_contact_email, row.job_id, row.profile_id, setActionError);
 
   const [sending, setSending]       = useState(false);

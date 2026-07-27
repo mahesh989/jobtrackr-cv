@@ -9,8 +9,7 @@
  * (which are client components themselves).
  */
 
-import Link from "next/link";
-import { Button } from "@/components/ui";
+import { Button, HoverPrefetchLink } from "@/components/ui";
 import { relativeDate } from "@/lib/dates";
 import { RunNowButton }       from "@/features/profiles/components/RunNowButton";
 import { DeleteButton } from "@/features/profiles/components/DeleteButton";
@@ -95,12 +94,12 @@ export function ProfilesTable({
                 </span>
               )}
               <div className="min-w-0">
-                <Link
+                <HoverPrefetchLink
                   href={`/profiles/${p.id}/jobs`}
                   className="text-body font-semibold text-text hover:text-[var(--brand)] truncate flex items-center gap-1.5 transition-colors"
                 >
                   {p.name}
-                </Link>
+                </HoverPrefetchLink>
                 {!p.is_manual && (
                   <span className={`text-caption ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
                     {p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
@@ -164,11 +163,11 @@ export function ProfilesTable({
                 <>
                   <RunNowButton profileId={p.id} compact initialIsRunning={isRunning} />
                   <Button asChild variant="default" className={`text-label px-2.5 py-1 shrink-0 whitespace-nowrap ${newJobs > 0 ? "border-[var(--brand)]/40 text-[var(--brand)]" : ""}`}>
-                    <Link
+                    <HoverPrefetchLink
                       href={`/profiles/${p.id}/jobs${newJobs > 0 ? "?view=new" : ""}`}
                     >
                       {newJobs > 0 ? `${newJobs} new →` : "Jobs →"}
-                    </Link>
+                    </HoverPrefetchLink>
                   </Button>
                   <CopyButton profileId={p.id} compact />
                   <DeleteButton profileId={p.id} profileName={p.name} compact />
