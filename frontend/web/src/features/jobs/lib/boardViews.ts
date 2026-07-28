@@ -34,29 +34,35 @@ export interface BoardView {
  * view would read as a bug.
  */
 export const VIEW_PARAM_KEYS = [
-  "stage", "triage", "ats", "jd",
+  "stage", "triage", "ats", "jd", "not_applied",
   "max_distance", "min_distance", "min_keywords",
   "sort", "dir",
 ] as const;
 
+/**
+ * Every view sets `not_applied`. A view answers "what should I work on next",
+ * and a job you already applied to is finished — it was showing up because the
+ * stage filters describe what a job HAS (a cover letter) rather than what is
+ * left to do with it.
+ */
 export const BOARD_VIEWS: BoardView[] = [
   {
     id:    "ready",
     label: "Ready to apply",
-    hint:  "Cover letter written, ATS above the final gate, within 25 km — best score first",
-    params: { stage: "letterReady", ats: "above_final", max_distance: "25", sort: "ats_score", dir: "desc" },
+    hint:  "Not yet applied, cover letter written, ATS above the final gate, within 25 km — best score first",
+    params: { stage: "letterReady", ats: "above_final", max_distance: "25", not_applied: "1", sort: "ats_score", dir: "desc" },
   },
   {
     id:    "triage",
     label: "Needs analysis",
-    hint:  "No ATS score yet — newest first",
-    params: { ats: "no_ats", sort: "posted_at" },
+    hint:  "Not yet applied and no ATS score yet — newest first",
+    params: { ats: "no_ats", not_applied: "1", sort: "posted_at" },
   },
   {
     id:    "near",
     label: "Close & strong",
-    hint:  "ATS above the final gate and within 15 km — nearest first",
-    params: { ats: "above_final", max_distance: "15", sort: "distance" },
+    hint:  "Not yet applied, ATS above the final gate and within 15 km — nearest first",
+    params: { ats: "above_final", max_distance: "15", not_applied: "1", sort: "distance" },
   },
 ];
 
@@ -68,6 +74,7 @@ export function viewFilters(view: BoardView): ViewFilters {
     triage:      p.triage      ?? "",
     ats:         p.ats         ?? "",
     jd:          p.jd          ?? "",
+    notApplied:  p.not_applied ?? "",
     minKeywords: p.min_keywords ?? "",
     maxDistance: p.max_distance ?? "",
     minDistance: p.min_distance ?? "",

@@ -5,12 +5,11 @@ import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
-import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
 import { useToolbarCounts } from "../lib/useToolbarCounts";
 import { shallowSetParams } from "../lib/shallowNav";
-import { ThinJdBanner } from "./ThinJdBanner";
+import { ThinJdModal } from "./ThinJdModal";
 
 // ── Suggested sort per stage ────────────────────────────────────────────
 // Nudges the most useful sort when the user clicks a stage in the funnel.
@@ -57,13 +56,11 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
 export function JobBoard({
   jobs,
   counts,
-  railJobs = [],
   sourceParam,
   excludeKeywords,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
-  railJobs?:   RailJob[];
   sourceParam?: string;
   excludeKeywords?: string;
 }) {
@@ -74,6 +71,7 @@ export function JobBoard({
   const triage      = sp.get("triage") || "";
   const ats         = sp.get("ats") || "";
   const jd          = sp.get("jd") || "";
+  const notApplied  = sp.get("not_applied") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const minDistance = sp.get("min_distance") || "";
@@ -86,8 +84,8 @@ export function JobBoard({
     // Dashboard spans multiple profiles but each job carries its own
     // distance_km from its profile's home_address, so the range filter
     // (min/max km) still applies meaningfully across the global feed.
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
-    [jobs, stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, notApplied, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
+    [jobs, stage, triage, ats, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 
   // Group mode is decided from the URL state — Analysed/Not-analysed → time
@@ -101,7 +99,7 @@ export function JobBoard({
   // Every badge in the toolbar equals what clicking it will actually show —
   // see useToolbarCounts for the rule.
   const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
-    stage, triage, jd, minKeywords, maxDistance, minDistance, sortCol,
+    stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
   });
 
   // Active view-filter labels for the heading (dismissed = a server tab, not a
@@ -198,9 +196,8 @@ export function JobBoard({
         </div>
       </div>
 
-      <ThinJdBanner count={counts.thinJd} />
+      <ThinJdModal count={counts.thinJd} />
 
-      <ContinueRail jobs={railJobs} currentTab={stage} />
 
       {/* Card-based smart feed with embedded SmartToolbar (location search,
           sort dropdown, stage chips, ATS band chips — replaces the old

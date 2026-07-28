@@ -9,7 +9,6 @@ import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
 import { useToolbarCounts } from "../lib/useToolbarCounts";
 import { shallowSetParams } from "../lib/shallowNav";
-import { ThinJdBanner } from "./ThinJdBanner";
 import { type AtsThresholds } from "@/lib/atsThresholds";
 
 // Suggested sort per stage — same as the dashboard JobBoard.
@@ -75,6 +74,7 @@ export function ProfileJobBoard({
   const triage      = sp.get("triage") || "";
   const ats         = sp.get("ats") || "";
   const jd          = sp.get("jd") || "";
+  const notApplied  = sp.get("not_applied") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const minDistance = sp.get("min_distance") || "";
@@ -84,8 +84,8 @@ export function ProfileJobBoard({
   const eligibleOnly = sp.get("eligible") || "";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sort: sortCol, employment, eligibleOnly }), sortCol, asc),
-    [jobs, stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sortCol, asc, employment, eligibleOnly],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, notApplied, minKeywords, maxDistance, minDistance, sort: sortCol, employment, eligibleOnly }), sortCol, asc),
+    [jobs, stage, triage, ats, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol, asc, employment, eligibleOnly],
   );
 
   // Group mode mirrors JobBoard — Analysed/Not-analysed → time buckets;
@@ -99,7 +99,7 @@ export function ProfileJobBoard({
   // Same fix as JobBoard: compute from the stage/triage/distance-filtered set
   // (ATS excluded) so badge counts match what clicking the chip will actually show.
   const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
-    stage, triage, jd, minKeywords, maxDistance, minDistance, sortCol,
+    stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
     employment, eligibleOnly,
   });
 
@@ -185,8 +185,6 @@ export function ProfileJobBoard({
           </>
         )}
       </div>
-
-      <ThinJdBanner count={counts.thinJd} />
 
       {/* When the user picks any sort other than the default "Date posted",
           skip the smart-section grouping (Closest / Fresh /

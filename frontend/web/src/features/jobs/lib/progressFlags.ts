@@ -6,7 +6,7 @@
  * boolean progress flags + a score + the most-recent timestamp.
  *
  * Single source of truth for: JobTable (progress column),
- * JobProgressChips (counts), ContinueRail (sort by last_progress_at),
+ * JobProgressChips (counts),
  * the jobs page (chip filter + sort).
  *
  * At million-user scale, the four booleans here should be denormalised

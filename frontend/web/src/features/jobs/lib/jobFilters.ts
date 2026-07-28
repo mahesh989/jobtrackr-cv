@@ -55,6 +55,13 @@ export interface ViewFilters {
    *  callouts link to directly, and folding a multi-select into it would make
    *  those links ambiguous. Both values selected == no narrowing. */
   jd?:         string;
+  /** "1" → drop jobs that have already been applied to.
+   *
+   *  Stage filters describe what a job HAS (a letter, a CV), not what is left
+   *  to do with it, so `letterReady` happily matched jobs that were written,
+   *  sent and done. Every saved view is a "what should I work on next"
+   *  question, so they all set this. */
+  notApplied?: string;
   minKeywords: string;   // numeric string
   maxDistance: string;
   minDistance?: string;
@@ -199,6 +206,9 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
       && !x.progress.has_cover_letter
       && x.applied_at == null,
     );
+
+  // Already-applied jobs are finished work — no saved view should surface them.
+  if (f.notApplied === "1") out = out.filter((x) => x.applied_at == null);
 
   // JD quality — multi-select. Selecting both values is the same as selecting
   // neither (every job is one or the other), so it deliberately no-ops rather
@@ -519,6 +529,26 @@ export function pickGroupMode(args: {
   sortCol: string;
 }): GroupMode | null {
   const { stage, ats, sortCol } = args;
+
+  // The sort the user picked wins over any automatic grouping.
+  //
+  // Grouping only re-orders WITHIN a group, so a grouping keyed on something
+  // other than the active sort silently scrambles it: picking
+  // "Distance (nearest)" on the Not-analysed tab produced time buckets sorted
+  // by distance inside each one, which restarts the distance run at every
+  // heading and reads as a broken sort. It was the same defect as the smart
+  // sections force-sorting by distance — the chosen sort appearing to do
+  // nothing.
+  //
+  //   distance  → distance bands. Monotonic in distance, so the list still
+  //               reads nearest-first end to end; the bands just label it.
+  //   posted_at → the default, and consistent with time buckets, so the
+  //               stage/ATS rules below still apply.
+  //   anything  → flat. No grouping can preserve an arbitrary sort, and
+  //   else        showing the order asked for beats showing headings.
+  if (sortCol === "distance") return { kind: "distance" };
+  if (sortCol !== "posted_at") return null;
+
   // "Recently analysed" → time buckets keyed on last_progress_at (the
   // "when did this last move" lens). "Analysed" (stage=analysed) is the
   // flat distance-sorted view — no grouping at all.
@@ -526,7 +556,6 @@ export function pickGroupMode(args: {
   if (ats === "no_ats")     return { kind: "time", field: "posted_at" };
   if (stage === "cvReady" || stage === "letterReady" || stage === "applied")
     return { kind: "distance" };
-  if (sortCol === "distance") return { kind: "distance" };
   return null;
 }
 

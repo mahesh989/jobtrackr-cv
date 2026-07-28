@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
@@ -9,6 +9,7 @@ import { Shell } from "./Shell";
 import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
 import { Input } from "@/components/ui";
+import { THIN_JD_HIDE_KEY } from "@/features/jobs/components/ThinJdModal";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -24,6 +25,15 @@ export function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [captchaToken, setCaptchaToken]   = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileBoxHandle>(null);
+
+  // Reaching the login page means a new sign-in is starting, so anything a
+  // previous session chose to suppress "for this session" is reset here.
+  // sessionStorage survives a sign-out within the same tab, so without this a
+  // user who ticked "don't show me again", signed out and signed back in would
+  // never see it again until they closed the tab.
+  useEffect(() => {
+    try { sessionStorage.removeItem(THIN_JD_HIDE_KEY); } catch { /* storage disabled */ }
+  }, []);
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);

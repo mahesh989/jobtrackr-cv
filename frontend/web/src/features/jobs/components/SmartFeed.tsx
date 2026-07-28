@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, MapPin,
   Clock, AlertTriangle, Inbox, CheckCircle2 } from "lucide-react";
@@ -331,10 +331,16 @@ export function SmartFeed({
     shallowSetParams(pathname, next);
   }
 
-  const defaultJobId = useRef<string | null>(null);
-  if (!selectedJobId && hasJobs) defaultJobId.current ??= visibleJobs[0].id;
+  // State rather than a ref: reading a ref during render is exactly the
+  // cascading-render smell the lint config flags, and this value IS render
+  // input — it decides which job the detail pane shows on first paint.
+  // Assigning during render is the sanctioned derive-state pattern, and the
+  // `=== null` guard makes it fire once (the first job stays selected even as
+  // filtering reorders the list underneath).
+  const [defaultJobId, setDefaultJobId] = useState<string | null>(null);
+  if (!selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
 
-  const resolvedJobId = selectedJobId ?? defaultJobId.current;
+  const resolvedJobId = selectedJobId ?? defaultJobId;
 
   const selectedJob = useMemo(
     () => {
@@ -349,6 +355,28 @@ export function SmartFeed({
     next.delete("job");
     shallowSetParams(pathname, next);
   }
+
+  // Changing the query means a different list, so the old scroll offset is
+  // meaningless — it dropped you into the middle of results you had never
+  // seen, at whatever depth you happened to be when you reached up to click a
+  // tab. Back to the top.
+  //
+  // `job` is deliberately not in the key: selecting a card changes the URL too,
+  // and yanking the list to the top every time someone opened a job would be
+  // its own bug.
+  const listRef = useRef<HTMLDivElement>(null);
+  const queryKey = [
+    "stage", "triage", "ats", "jd", "not_applied",
+    "sort", "dir", "max_distance", "min_distance", "min_keywords",
+    "employment", "eligible", "location",
+  ].map((k) => sp.get(k) ?? "").join("|");
+  const prevQueryKey = useRef(queryKey);
+  useEffect(() => {
+    if (prevQueryKey.current === queryKey) return;
+    prevQueryKey.current = queryKey;
+    listRef.current?.scrollTo({ top: 0 });
+  }, [queryKey]);
+
 
   return (
     <div className="space-y-5">
@@ -377,7 +405,7 @@ export function SmartFeed({
             {/* The feed's own scroller — the outer main column doesn't move
                 with it, so ScrollRestoration has to know about this one to put
                 the user back on the card they were reading. */}
-            <div data-scroll-container="board-list" className="flex-1 overflow-y-auto p-5 pb-7">
+            <div ref={listRef} data-scroll-container="board-list" className="flex-1 overflow-y-auto p-5 pb-7">
               {visibleJobs.length === 0 ? (
                 <EmptyState favourite={isFavouriteFilter} />
               ) : (

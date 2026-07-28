@@ -21,6 +21,7 @@ export interface ToolbarCountInputs {
   stage:        string;
   triage:       string;
   jd:           string;
+  notApplied:   string;
   minKeywords:  string;
   maxDistance:  string;
   minDistance:  string;
@@ -31,7 +32,7 @@ export interface ToolbarCountInputs {
 
 export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
   const {
-    stage, triage, jd, minKeywords, maxDistance, minDistance,
+    stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance,
     sortCol, employment = "", eligibleOnly = "",
   } = f;
 
@@ -39,10 +40,10 @@ export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
   // each band.
   const atsCountBase = useMemo(
     () => filterJobs(jobs, {
-      stage, triage, jd, ats: "", minKeywords, maxDistance, minDistance,
+      stage, triage, jd, notApplied, ats: "", minKeywords, maxDistance, minDistance,
       sort: sortCol, employment, eligibleOnly,
     }),
-    [jobs, stage, triage, jd, minKeywords, maxDistance, minDistance, sortCol, employment, eligibleOnly],
+    [jobs, stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol, employment, eligibleOnly],
   );
 
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {
@@ -55,10 +56,10 @@ export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
   // uses, so these agree with the list.
   const distanceCountBase = useMemo(
     () => filterJobs(jobs, {
-      stage, triage, jd, ats: "", minKeywords, maxDistance: "", minDistance: "",
+      stage, triage, jd, notApplied, ats: "", minKeywords, maxDistance: "", minDistance: "",
       sort: sortCol, employment, eligibleOnly,
     }),
-    [jobs, stage, triage, jd, minKeywords, sortCol, employment, eligibleOnly],
+    [jobs, stage, triage, jd, notApplied, minKeywords, sortCol, employment, eligibleOnly],
   );
 
   const distanceCounts = useMemo<Record<string, number>>(() => {
