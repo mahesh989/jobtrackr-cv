@@ -27,6 +27,7 @@ import { AnalysisProgressModal } from "./AnalysisProgressModal";
 import { ApplyModal } from "./ApplyModal";
 import { DownloadMenu } from "./DownloadMenu";
 import type { BoardJob } from "../../lib/jobFilters";
+import type { BoardDetailRun } from "../../lib/boardDetailTypes";
 
 const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
   success: "green", warning: "amber", danger: "red", info: "blue", neutral: "gray",
@@ -34,7 +35,8 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 
 export function DetailHeader({
   job, description = null, manualJdText = null, detailLoaded = false,
-  letterId = null, cvStoragePath = null, onClosed, onChanged, mobile = false,
+  letterId = null, letterSubject = null, letterBody = null,
+  cvStoragePath = null, run = null, onClosed, onChanged, onApplied, mobile = false,
 }: {
   job: BoardJob;
   /** Raw JD text from the pane's per-job payload (no longer on the board row).
@@ -49,13 +51,27 @@ export function DetailHeader({
    *  popup offer the drafted message and the send-email path. Null while that
    *  payload is still loading, or when the job has no letter. */
   letterId?: string | null;
+  /** Stored message for that letter, straight off the pane's payload. Handed to
+   *  the Apply popup so it can render without a round trip — see its module note. */
+  letterSubject?: string | null;
+  letterBody?: string | null;
   /** Tailored-CV markdown path for the latest run — feeds the Download menu.
    *  Null while the payload loads, or when no CV was generated. */
   cvStoragePath?: string | null;
+  /** The latest run from the pane's own payload. `job.progress` comes from the
+   *  server-rendered list and does not catch up until a real navigation, so
+   *  after an analysis finishes in place it still claims the job was never
+   *  analysed — which left this header offering "Analyse this job" on a job
+   *  that had just produced a score. Where this is present it wins. */
+  run?: BoardDetailRun | null;
   /** Called after a dismiss/archive so the parent can clear ?job= and drop the card. */
   onClosed: () => void;
   /** Called after any mutation that should refresh both this panel and the list. */
   onChanged: () => void;
+  /** Called once the job has actually been marked applied, so the board list can
+   *  patch its own copy of the row. Separate from `onChanged`, which only
+   *  refetches this pane. */
+  onApplied?: () => void;
   /** SmartFeed mounts BoardDetailPanel twice — a desktop pane (`hidden lg:block`)
    *  and a mobile one (`lg:hidden`) — so this header renders twice at every
    *  breakpoint. CSS hides the wrong one, but the progress popup is a portal to
@@ -212,10 +228,29 @@ export function DetailHeader({
   // opposite.
   const isApplied = !!job.applied_at || appliedNow;
   const needsJd   = job.pipelineState === "needs_jd";
-  const failed    = job.progress.latest_run_status === "failed";
-  const notAnalysed = !job.progress.has_analysis && !needsJd && !failed;
-  const belowGate  = job.pipelineState === "below_final" || job.pipelineState === "below_initial" || job.pipelineState === "role_mismatch";
-  const analysisHref = job.progress.latest_run_id ? `/jobs/${job.id}/analyze/${job.progress.latest_run_id}` : null;
+
+  // Everything below prefers the pane's freshly-fetched run over the board row
+  // it was rendered from. Without this the whole action row stays frozen on
+  // whatever was true when the page was server-rendered: finishing an analysis
+  // repainted the tabs (they read the payload) but left the button saying
+  // "Analyse this job", and only a manual refresh fixed it.
+  const liveScore   = run ? run.tailored_match_score ?? run.match_score : null;
+  const hasAnalysis = job.progress.has_analysis || liveScore != null;
+  const failed      = run ? run.status === "failed" : job.progress.latest_run_status === "failed";
+  const notAnalysed = !hasAnalysis && !needsJd && !failed;
+
+  const thresholds = job.atsThresholds ?? { initial: 60, final: 70 };
+  // A score that hasn't cleared the final gate is what "Apply anyway" names.
+  // pipelineState carries this for jobs the server already knew about; for one
+  // analysed a moment ago the run's own score is the only source.
+  const belowGate =
+    job.pipelineState === "below_final" ||
+    job.pipelineState === "below_initial" ||
+    job.pipelineState === "role_mismatch" ||
+    (!job.progress.has_analysis && liveScore != null && liveScore < thresholds.final);
+
+  const latestRunId  = run?.id ?? job.progress.latest_run_id;
+  const analysisHref = latestRunId ? `/jobs/${job.id}/analyze/${latestRunId}` : null;
   // When the analysis last produced a result — shown right-aligned on the
   // status line so "Ready to apply · ATS 67 → 81" gains a recency anchor.
   const lastAnalysedAt = job.progress.has_analysis ? job.progress.last_progress_at : null;
@@ -279,7 +314,7 @@ export function DetailHeader({
               so the control paints with the rest of the header instead of
               popping in a beat later; individual items stay disabled until
               `detailLoaded` gives them real storage paths. */}
-          {(job.progress.has_tailored_cv || job.progress.has_cover_letter) && (
+          {(job.progress.has_tailored_cv || job.progress.has_cover_letter || !!cvStoragePath || !!letterId) && (
             <DownloadMenu
               jobId={job.id}
               company={job.company}
@@ -378,8 +413,10 @@ export function DetailHeader({
         <ApplyModal
           job={job}
           letterId={letterId}
+          letterSubject={letterSubject}
+          letterBody={letterBody}
           onClose={closeApply}
-          onApplied={() => { setAppliedNow(true); onChanged(); }}
+          onApplied={() => { setAppliedNow(true); onApplied?.(); onChanged(); }}
           onChanged={onChanged}
         />
       )}

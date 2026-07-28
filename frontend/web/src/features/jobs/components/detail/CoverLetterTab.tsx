@@ -1,31 +1,25 @@
 "use client";
 
 /**
- * Cover letter tab — the editing home for BOTH artifacts a job carries:
+ * Cover letter tab — edits the letter itself, and nothing else.
  *
- *   • Cover letter      — the PDF that gets attached
- *   • Message to employer — the email body, or the text pasted into a listing's
- *                           "message to the hiring manager" box
- *
- * They are separate things and users don't hold that distinction on their own,
- * so both are labelled explicitly.
- *
- * This replaces the old read-only preview plus the More tab's email section,
- * which let you type into a textarea and then silently threw the edit away
- * (it copied and sent `draft.body`, never the edited value).
+ * The short message to the employer (email body / the text you paste into a
+ * listing's "message to the hiring manager" box) deliberately does NOT live
+ * here. It is only ever used at the moment of applying, so it is edited in the
+ * Apply popup, next to the Send button that consumes it. Editing it in two
+ * places meant two save buttons for one piece of text.
  *
  * Once the application email has gone out the letter is frozen: PATCH the
  * letter, POST /review and GET /email-draft all 409 from that point. Rather
- * than mount editors that can only fail, the sent case renders the stored
- * copy straight off the board payload — which is also how someone who applied
- * on a job board and forgot to copy their message gets it back.
+ * than mount an editor that can only fail, the sent case renders the stored
+ * copy straight off the board payload — including the message that was sent,
+ * which is otherwise unreachable once the Apply popup stops offering it.
  */
 
 import { useState } from "react";
 import { Copy, Check, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useCoverLetter } from "@/features/applications/hooks/useCoverLetter";
-import { useEmailDraft } from "@/features/applications/hooks/useEmailDraft";
 import type { BoardDetailCoverLetter } from "../../lib/boardDetailTypes";
 
 const TEXTAREA_CLS =
@@ -90,19 +84,24 @@ function DirtyDot() {
 }
 
 export function CoverLetterTab({
-  jobId, letter, onChanged,
+  jobId, letter, applied = false, onChanged,
 }: {
   jobId:      string;
   letter:     BoardDetailCoverLetter;
+  /** The job is marked applied. Applying on a listing persists the message but
+   *  never sets `email_sent_at` (nothing was emailed), so without this the one
+   *  case the message most needs recovering in — "I applied on Seek, what did I
+   *  paste into their form?" — would show no message at all. */
+  applied?:   boolean;
   onChanged?: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const sent = !!letter.email_sent_at;
+  const showSentMessage = (sent || applied) && !!letter.email_body?.trim();
 
-  // Passing null/false rather than branching the call — hooks stay unconditional
-  // and neither one fires a request that the send lock would 409.
+  // Passing null/false rather than branching the call — the hook stays
+  // unconditional and never fires a request that the send lock would 409.
   const cover = useCoverLetter(sent ? null : letter.id, setError, !sent, onChanged);
-  const email = useEmailDraft(sent ? null : letter.id, setError, !sent);
 
   const pdfHref = `/api/jobs/${jobId}/cover-letter/${letter.id}/download?format=pdf`;
 
@@ -206,11 +205,22 @@ export function CoverLetterTab({
         </SectionShell>
       )}
 
-      {/* ── Message to employer ──────────────────────────────────── */}
-      {sent ? (
+      {/* ── Message to employer — sent applications only ─────────────
+          The editable copy lives in the Apply popup, which is where the
+          message is actually used and the only place it can be sent from.
+          Keeping a second editor here meant the same text in two places with
+          two save buttons. What stays is the read-only record of what went
+          out: once an application is sent that message is unreachable
+          anywhere else, and "what did I actually say to them?" is a question
+          that gets asked weeks later, before an interview. */}
+      {showSentMessage && (
         <SectionShell
           title="Message to employer"
-          meta={<span className="text-[12px] text-text-3">What was sent</span>}
+          meta={
+            <span className="text-[12px] text-text-3">
+              {sent ? "What was sent" : "What you used to apply"}
+            </span>
+          }
           footer={<CopyButton text={letter.email_body ?? ""} />}
         >
           {letter.email_subject && (
@@ -219,75 +229,9 @@ export function CoverLetterTab({
               <b className="font-semibold">{letter.email_subject}</b>
             </p>
           )}
-          {letter.email_body?.trim() ? (
-            <p className="text-[14px] text-text whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-              {letter.email_body}
-            </p>
-          ) : (
-            <p className="text-[13px] text-text-3 italic">No message was stored for this application.</p>
-          )}
-        </SectionShell>
-      ) : (
-        <SectionShell
-          title="Message to employer"
-          meta={
-            <>
-              {email.dirty && <DirtyDot />}
-              <span className="text-[12px] text-text-3">Email body, or paste it into the listing&apos;s message box</span>
-            </>
-          }
-          footer={
-            <>
-              <CopyButton text={email.body} />
-              <span className="text-[12px] text-text-3">
-                {email.dirty ? "Unsaved changes" : "Saved"}
-              </span>
-              {email.dirty && (
-                <Button
-                  variant="brand" size="xs" className="ml-auto"
-                  onClick={email.save} disabled={email.saving} isLoading={email.saving}
-                  icon={<Save className="w-3 h-3" />}
-                >
-                  {email.saving ? "Saving…" : "Save changes"}
-                </Button>
-              )}
-            </>
-          }
-        >
-          {email.loading ? (
-            <div className="py-8 flex items-center justify-center text-text-3 text-[13px]">
-              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading your drafted message…
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              <label className="block">
-                <span className="block text-[11px] font-semibold text-text-3 mb-1">Subject</span>
-                <input
-                  type="text"
-                  value={email.subject}
-                  onChange={(e) => email.setSubject(e.target.value)}
-                  disabled={email.saving}
-                  maxLength={300}
-                  className="w-full rounded-[8px] border border-border bg-surface text-text px-3 py-2 text-[14px] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-[11px] font-semibold text-text-3 mb-1">Message</span>
-                <textarea
-                  value={email.body}
-                  onChange={(e) => email.setBody(e.target.value)}
-                  disabled={email.saving}
-                  rows={8}
-                  maxLength={20_000}
-                  spellCheck
-                  className={TEXTAREA_CLS}
-                />
-              </label>
-              <p className="text-[11.5px] text-text-3">
-                Save your edits before sending — the tailored CV and cover letter go as PDF attachments, so keep this short.
-              </p>
-            </div>
-          )}
+          <p className="text-[14px] text-text whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
+            {letter.email_body}
+          </p>
         </SectionShell>
       )}
     </div>

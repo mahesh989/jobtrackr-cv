@@ -20,11 +20,13 @@
  * the user's edits away on send.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { Tabs } from "@/components/ui";
 import { useBoardDetail } from "../../lib/useBoardDetail";
 import { useIsDesktop } from "../../lib/useIsDesktop";
+import { deriveProgress } from "../../lib/progressFlags";
+import { derivePipelineState, recomputeGates } from "../../lib/pipelineState";
 import type { BoardJob } from "../../lib/jobFilters";
 import { DetailHeader } from "./DetailHeader";
 import { JobDescriptionTab } from "./JobDescriptionTab";
@@ -38,10 +40,15 @@ import { CoverLetterTab } from "./CoverLetterTab";
  * lint config flags as a cascading-render smell).
  */
 function BoardDetailPanelInner({
-  job, onClose, mobile,
+  job, onClose, onPatchJob, mobile,
 }: {
   job: BoardJob;
   onClose: () => void;
+  /** Optimistically patch this job's row in the board list. The pane refreshes
+   *  its own payload rather than calling router.refresh() (which resets the
+   *  board's scroll), so without this the card on the left keeps showing
+   *  "Ready to apply" after the popup has just confirmed the application. */
+  onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
   mobile: boolean;
 }) {
   // Only the pane the viewport actually shows does the data work; its
@@ -84,6 +91,76 @@ function BoardDetailPanelInner({
     (tab === "cover" && hasLetter);
   const activeTab = tabExists ? tab : "jd";
 
+  // Push a finished run back onto the board's own copy of this row.
+  //
+  // The pane learns a run finished over Realtime and refetches its payload, so
+  // its tabs and header update in place — but the card on the left is rendered
+  // from the server's `jobs` array, which nothing refreshes until a genuine
+  // navigation. That is why an analysis could complete, the tabs appear, and
+  // the card underneath still read "Analyse" until a manual reload.
+  //
+  // Both derivations are the same pure functions the server page uses, so the
+  // patched row is what the next real fetch would have produced anyway.
+  const syncedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onPatchJob || !data?.run) return;
+    const r = data.run;
+    const letterDone = !!data.cover_letter?.pass_3_final;
+
+    // Already agrees — nothing to patch, and recording the key stops this from
+    // re-running on every unrelated render.
+    const boardIsCurrent =
+      job.progress.latest_run_id === r.id &&
+      job.progress.latest_run_status === r.status &&
+      job.progress.has_cover_letter === letterDone;
+
+    const key = `${r.id}:${r.status}:${letterDone}`;
+    if (boardIsCurrent || syncedKey.current === key) {
+      syncedKey.current = key;
+      return;
+    }
+    syncedKey.current = key;
+
+    const runRef = {
+      id:                        r.id,
+      job_id:                    job.id,
+      status:                    r.status,
+      tailored_pdf_storage_path: null,
+      tailored_cv_storage_path:  r.tailored_cv_storage_path,
+      completed_at:              r.status === "completed" ? r.created_at : null,
+      created_at:                r.created_at,
+    };
+    const letterRef = data.cover_letter
+      ? {
+          id:           data.cover_letter.id,
+          job_id:       job.id,
+          status:       letterDone ? "completed" : data.cover_letter.status,
+          completed_at: null,
+          created_at:   r.created_at,
+        }
+      : undefined;
+
+    const th    = job.atsThresholds ?? { initial: 60, final: 70 };
+    const gates = recomputeGates(r.match_score, r.tailored_match_score, th.initial, th.final);
+
+    onPatchJob(job.id, {
+      progress: deriveProgress({ applied_at: job.applied_at }, runRef, letterRef),
+      initial_ats_score:    r.match_score ?? job.initial_ats_score,
+      tailored_match_score: r.tailored_match_score ?? job.tailored_match_score,
+      pipelineState: derivePipelineState({
+        job: {
+          applied_at:   job.applied_at,
+          dismissed_at: job.dismissed_at,
+          has_email:    job.has_email ?? null,
+          jd_quality:   job.jd_quality ?? null,
+          role_match:   job.role_match ?? null,
+        },
+        latestRun: { ...runRef, passed_initial_gate: gates.passedInitial, passed_final_gate: gates.passedFinal },
+        latestLetter: letterRef,
+      }),
+    });
+  }, [data, job, onPatchJob]);
+
   const pending = (
     <div className="flex items-center gap-2 py-6 text-label text-text-3">
       <Loader2 className="w-4 h-4 animate-spin" /> Loading…
@@ -106,9 +183,13 @@ function BoardDetailPanelInner({
         manualJdText={data?.manual_jd_text ?? null}
         detailLoaded={!!data}
         letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
+        letterSubject={data?.cover_letter?.email_subject ?? null}
+        letterBody={data?.cover_letter?.email_body ?? null}
         cvStoragePath={run?.tailored_cv_storage_path ?? null}
+        run={run}
         onClosed={onClose}
         onChanged={refresh}
+        onApplied={() => onPatchJob?.(job.id, { applied_at: new Date().toISOString() })}
         mobile={mobile}
       />
 
@@ -126,6 +207,10 @@ function BoardDetailPanelInner({
           </Tabs.List>
 
           <div className="flex-1 min-h-0 overflow-y-auto px-8 py-5 pb-9 text-[14.5px] leading-relaxed" style={{ maxWidth: 860 }}>
+            {/* keepMounted on the two tabs that own fetched state (the CV
+                preview downloads and renders a PDF; the letter loads its own
+                body). Unmounting them threw that work away, so every visit to
+                a tab the user had already opened started again from a spinner. */}
             <Tabs.Content value="jd"><JobDescriptionTab job={job} detail={data} loading={loading} /></Tabs.Content>
             {hasScore && (
               <Tabs.Content value="match">
@@ -133,14 +218,19 @@ function BoardDetailPanelInner({
               </Tabs.Content>
             )}
             {hasCv && (
-              <Tabs.Content value="cv">
+              <Tabs.Content value="cv" keepMounted>
                 {run ? <TailoredCvTab run={run} /> : pending}
               </Tabs.Content>
             )}
             {hasLetter && (
-              <Tabs.Content value="cover">
+              <Tabs.Content value="cover" keepMounted>
                 {data?.cover_letter
-                  ? <CoverLetterTab jobId={job.id} letter={data.cover_letter} onChanged={refresh} />
+                  ? <CoverLetterTab
+                      jobId={job.id}
+                      letter={data.cover_letter}
+                      applied={!!job.applied_at}
+                      onChanged={refresh}
+                    />
                   : pending}
               </Tabs.Content>
             )}
@@ -152,14 +242,23 @@ function BoardDetailPanelInner({
 }
 
 export function BoardDetailPanel({
-  job, onClose, mobile = false,
+  job, onClose, onPatchJob, mobile = false,
 }: {
   job: BoardJob;
   onClose: () => void;
+  onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
   /** Renders as a full-screen overlay with a back button (mobile drawer). */
   mobile?: boolean;
 }) {
-  return <BoardDetailPanelInner key={job.id} job={job} onClose={onClose} mobile={mobile} />;
+  return (
+    <BoardDetailPanelInner
+      key={job.id}
+      job={job}
+      onClose={onClose}
+      onPatchJob={onPatchJob}
+      mobile={mobile}
+    />
+  );
 }
 
 export function EmptyDetail() {
