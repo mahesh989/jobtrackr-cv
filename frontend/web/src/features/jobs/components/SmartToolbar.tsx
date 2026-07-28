@@ -358,6 +358,12 @@ export function SmartToolbar({
   if (distanceValue) {
     tokens.push({ key: "dist", label: distanceLabel, onClear: () => setDistance("") });
   }
+  // Set by every saved view. Shown so the view's most surprising rule — that it
+  // hides work you've already done — is visible and reversible rather than
+  // being an invisible property of the button you clicked.
+  if (sp.get("not_applied") === "1") {
+    tokens.push({ key: "notApplied", label: "Not yet applied", onClear: () => setOne("not_applied", "") });
+  }
   if (currentLocation) {
     tokens.push({ key: "loc", label: `“${currentLocation}”`, onClear: () => setOne("location", "") });
   }

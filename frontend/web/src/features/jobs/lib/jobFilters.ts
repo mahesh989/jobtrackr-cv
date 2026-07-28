@@ -55,6 +55,13 @@ export interface ViewFilters {
    *  callouts link to directly, and folding a multi-select into it would make
    *  those links ambiguous. Both values selected == no narrowing. */
   jd?:         string;
+  /** "1" → drop jobs that have already been applied to.
+   *
+   *  Stage filters describe what a job HAS (a letter, a CV), not what is left
+   *  to do with it, so `letterReady` happily matched jobs that were written,
+   *  sent and done. Every saved view is a "what should I work on next"
+   *  question, so they all set this. */
+  notApplied?: string;
   minKeywords: string;   // numeric string
   maxDistance: string;
   minDistance?: string;
@@ -199,6 +206,9 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
       && !x.progress.has_cover_letter
       && x.applied_at == null,
     );
+
+  // Already-applied jobs are finished work — no saved view should surface them.
+  if (f.notApplied === "1") out = out.filter((x) => x.applied_at == null);
 
   // JD quality — multi-select. Selecting both values is the same as selecting
   // neither (every job is one or the other), so it deliberately no-ops rather

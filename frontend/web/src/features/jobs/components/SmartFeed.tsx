@@ -331,10 +331,16 @@ export function SmartFeed({
     shallowSetParams(pathname, next);
   }
 
-  const defaultJobId = useRef<string | null>(null);
-  if (!selectedJobId && hasJobs) defaultJobId.current ??= visibleJobs[0].id;
+  // State rather than a ref: reading a ref during render is exactly the
+  // cascading-render smell the lint config flags, and this value IS render
+  // input — it decides which job the detail pane shows on first paint.
+  // Assigning during render is the sanctioned derive-state pattern, and the
+  // `=== null` guard makes it fire once (the first job stays selected even as
+  // filtering reorders the list underneath).
+  const [defaultJobId, setDefaultJobId] = useState<string | null>(null);
+  if (!selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
 
-  const resolvedJobId = selectedJobId ?? defaultJobId.current;
+  const resolvedJobId = selectedJobId ?? defaultJobId;
 
   const selectedJob = useMemo(
     () => {
@@ -349,6 +355,7 @@ export function SmartFeed({
     next.delete("job");
     shallowSetParams(pathname, next);
   }
+
 
   return (
     <div className="space-y-5">
