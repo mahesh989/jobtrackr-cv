@@ -44,7 +44,17 @@ export type BoardJob = Job & {
 export interface ViewFilters {
   stage:       string;   // analysed | cvReady | letterReady | thinJd | applied | all | dismissed | favourite
   triage:      string;   // needsJd | thinJd | richJd | roleMismatch | belowThreshold | hasEmail | notTailored
-  ats:         string;   // above_final | below_final | below_initial | no_ats
+  /** One or more ATS bands, comma-separated: `above_final,below_final`.
+   *  Multi-value because "Above OR Fair" is a query people actually want and
+   *  the old single-select could not express it. A bare single value still
+   *  parses, so existing links keep working. */
+  ats:         string;
+  /** JD-quality multi-select, comma-separated: `full`, `thin`, or both.
+   *  Separate from `triage` on purpose — triage carries several unrelated
+   *  one-shot filters (roleMismatch, passedNoLetter, …) that the dashboard
+   *  callouts link to directly, and folding a multi-select into it would make
+   *  those links ambiguous. Both values selected == no narrowing. */
+  jd?:         string;
   minKeywords: string;   // numeric string
   maxDistance: string;
   minDistance?: string;
@@ -190,8 +200,25 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
       && x.applied_at == null,
     );
 
-  // ATS band
-  if (f.ats) out = out.filter((x) => x.atsBand === f.ats);
+  // JD quality — multi-select. Selecting both values is the same as selecting
+  // neither (every job is one or the other), so it deliberately no-ops rather
+  // than intersecting to nothing.
+  if (f.jd) {
+    const want = new Set(f.jd.split(",").map((s) => s.trim()).filter(Boolean));
+    if (want.size === 1) {
+      out = want.has("thin")
+        ? out.filter(jobNeedsJd)
+        : out.filter((x) => !jobNeedsJd(x));
+    }
+  }
+
+  // ATS band — multi-select, comma-separated. An unrecognised value filters to
+  // nothing rather than silently passing everything, so a typo'd URL is
+  // visible instead of looking like the filter was ignored.
+  if (f.ats) {
+    const bands = new Set(f.ats.split(",").map((s) => s.trim()).filter(Boolean));
+    if (bands.size > 0) out = out.filter((x) => bands.has(x.atsBand));
+  }
 
   // Min keywords matched
   if (f.minKeywords) {
@@ -519,6 +546,25 @@ export const FILTER_LABELS: Record<string, string> = {
   thinJd: "Thin JD", applied: "Applied", dismissed: "Archived",
   richJd: "Full JD", roleMismatch: "Role mismatch", belowThreshold: "Below threshold",
   hasEmail: "Has email", notTailored: "Not tailored", needsJd: "Thin JD",
-  above_final: "Above final", below_final: "Below final",
-  below_initial: "Below initial", no_ats: "No ATS",
+  above_final: "ATS Above", below_final: "ATS Fair",
+  below_initial: "ATS Below", no_ats: "Not analysed",
+  // `favourite` was missing, so the filtered heading rendered the raw
+  // lowercase param ("favourite") instead of a label.
+  favourite: "Favourite",
+  full: "Full JD", thin: "Thin JD",
 };
+
+/**
+ * Human labels for a possibly-comma-separated filter value.
+ *
+ * `ats` and `jd` became multi-select, so a bare `FILTER_LABELS[value]` lookup
+ * misses on "above_final,below_final" and the board heading falls back to
+ * printing the raw param.
+ */
+export function filterLabelsFor(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((v) => FILTER_LABELS[v] ?? v);
+}

@@ -81,6 +81,7 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 export function SmartFeed({
   jobs, groups, hasActiveFilter, currentTab, counts, atsCounts,
+  viewCounts, distanceCounts,
   homeAddress = null, thresholds, excludeKeywords }: {
   jobs:            BoardJob[];
   groups?:         JobGroup[];
@@ -88,6 +89,10 @@ export function SmartFeed({
   currentTab:      string;
   counts:          FunnelCounts;
   atsCounts:       Record<AtsBand, number>;
+  /** Saved-view and distance-option badge counts — computed by the board from
+   *  the unfiltered job set, since this component only ever sees the filtered one. */
+  viewCounts?:     Record<string, number>;
+  distanceCounts?: Record<string, number>;
   homeAddress?:    string | null;
   thresholds?:     AtsThresholds;
   excludeKeywords?: string;
@@ -350,6 +355,8 @@ export function SmartFeed({
       <SmartToolbar
         counts={counts}
         atsCounts={atsCounts}
+        viewCounts={viewCounts}
+        distanceCounts={distanceCounts}
         homeAddress={homeAddress}
         thresholds={thresholds}
       />
