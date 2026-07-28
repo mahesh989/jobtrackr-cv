@@ -151,17 +151,30 @@ export interface ContentProps {
   value: string;
   children: ReactNode;
   className?: string;
+  /**
+   * Keep the panel mounted while another tab is selected, hiding it with
+   * `hidden` instead of unmounting.
+   *
+   * Unmounting throws away whatever the panel had fetched, so a tab holding a
+   * component that loads on mount re-runs that load on every single visit —
+   * which is why switching to Cover letter and back showed a spinner each time
+   * even though nothing had changed. Off by default: only panels that own
+   * fetched state need it, and always-mounted panels cost render work.
+   */
+  keepMounted?: boolean;
 }
 
-export function Content({ value, children, className = "" }: ContentProps) {
+export function Content({ value, children, className = "", keepMounted = false }: ContentProps) {
   const { value: selected } = useCtx("Content");
-  if (selected !== value) return null;
+  const active = selected === value;
+  if (!active && !keepMounted) return null;
 
   return (
     <div
       id={`panel-${value}`}
       role="tabpanel"
       aria-labelledby={`tab-${value}`}
+      hidden={!active}
       className={className}
     >
       {children}

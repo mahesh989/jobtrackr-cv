@@ -7,7 +7,8 @@ import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive
 import { type FunnelCounts } from "./PipelineFunnel";
 import { ContinueRail, type RailJob } from "./ContinueRail";
 import { SmartFeed } from "./SmartFeed";
-import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, resolveStage, type BoardJob, type AtsBand } from "../lib/jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
+import { useToolbarCounts } from "../lib/useToolbarCounts";
 import { shallowSetParams } from "../lib/shallowNav";
 import { ThinJdBanner } from "./ThinJdBanner";
 
@@ -72,6 +73,7 @@ export function JobBoard({
   const stage       = resolveStage(sp);
   const triage      = sp.get("triage") || "";
   const ats         = sp.get("ats") || "";
+  const jd          = sp.get("jd") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const minDistance = sp.get("min_distance") || "";
@@ -84,8 +86,8 @@ export function JobBoard({
     // Dashboard spans multiple profiles but each job carries its own
     // distance_km from its profile's home_address, so the range filter
     // (min/max km) still applies meaningfully across the global feed.
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
-    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sort: sortCol }), sortCol, asc),
+    [jobs, stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sortCol, asc],
   );
 
   // Group mode is decided from the URL state — Analysed/Not-analysed → time
@@ -96,27 +98,19 @@ export function JobBoard({
     [filtered, stage, ats, sortCol],
   );
 
-  // ATS-band counts derived from the stage/triage/distance-filtered set —
-  // identical params to `filtered` but with ats:"" so the chip badge shows how
-  // many jobs in the *current view* match each band. Clicking a chip will show
-  // exactly that count (no "5 shown / 0 results" surprise from archived jobs or
-  // a conflicting stage filter).
-  const atsCountBase = useMemo(
-    () => filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance, minDistance, sort: sortCol }),
-    [jobs, stage, triage, minKeywords, maxDistance, minDistance, sortCol],
-  );
-  const atsCounts = useMemo<Record<AtsBand, number>>(() => {
-    const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
-    for (const j of atsCountBase) out[j.atsBand]++;
-    return out;
-  }, [atsCountBase]);
+  // Every badge in the toolbar equals what clicking it will actually show —
+  // see useToolbarCounts for the rule.
+  const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
+    stage, triage, jd, minKeywords, maxDistance, minDistance, sortCol,
+  });
 
   // Active view-filter labels for the heading (dismissed = a server tab, not a
   // view filter, so it isn't shown as a removable chip here).
   const activeFilters: string[] = [];
   if (stage !== "all" && stage !== "dismissed") activeFilters.push(FILTER_LABELS[stage] ?? stage);
   if (triage) activeFilters.push(FILTER_LABELS[triage] ?? triage);
-  if (ats)    activeFilters.push(FILTER_LABELS[ats] ?? ats);
+  if (ats)    activeFilters.push(...filterLabelsFor(ats));
+  if (jd)     activeFilters.push(...filterLabelsFor(jd));
 
   const hasActiveFilter = activeFilters.length > 0;
 
@@ -225,6 +219,8 @@ export function JobBoard({
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
+        viewCounts={viewCounts}
+        distanceCounts={distanceCounts}
         excludeKeywords={excludeKeywords}
       />
     </>

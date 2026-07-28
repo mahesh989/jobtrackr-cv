@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { visaKey, VISA_COLOR, VISA_LABEL } from "@/features/jobs/lib/smartFeedUtils";
 import type { BoardJob } from "../lib/jobFilters";
 
@@ -11,6 +12,12 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
   onRangeChange: (r: [number, number]) => void;
   onJobClick: (id: string) => void;
 }) {
+  // Collapsible, but OPEN by default. The scatter is the fastest read of "where
+  // are these jobs actually" on the whole page, and a user who has set a home
+  // address has already said distance matters to them — starting it collapsed
+  // would hide the answer behind a click for the people most likely to want it.
+  // Collapsing is there for the long-list case, not as the resting state.
+  const [open, setOpen] = useState(true);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState<"min" | "max" | null>(null);
 
@@ -63,30 +70,43 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
   const displayRange = dragging ? localRange : range;
   const rangeActive  = displayRange[0] > 0 || displayRange[1] < maxKm;
 
+  const plotted = jobs.filter((j) => j.distance_km != null);
+
   return (
-    <div className="rounded-md border border-border bg-[var(--surface-2)] p-4">
-      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <p className="text-caption font-semibold text-text-2 uppercase tracking-wider">
+    <div className="rounded-md border border-border bg-[var(--surface-2)]">
+      <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 text-caption font-semibold text-text-2 uppercase tracking-wider hover:text-text transition-colors"
+        >
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`} />
           Distance from home
-          {rangeActive && (
-            <span className="text-text font-normal normal-case ml-1">
-              · {displayRange[0]}–{displayRange[1]} km
-              <button
-                onClick={() => onRangeChange([0, maxKm])}
-                className="ml-1 text-[var(--brand)] hover:underline"
-              >clear</button>
-            </span>
-          )}
-        </p>
-        <div className="flex items-center gap-3 text-micro text-text-2">
-          <Legend color={VISA_COLOR.yes}     label="Sponsored" />
-          <Legend color={VISA_COLOR.unknown} label="Unknown" />
-          <Legend color={VISA_COLOR.pr_only} label="PR only" />
-          <Legend color={VISA_COLOR.no}      label="No sponsor" />
-        </div>
+          <span className="font-normal normal-case text-text-3">
+            {plotted.length} job{plotted.length === 1 ? "" : "s"} · 0–{maxKm} km
+          </span>
+        </button>
+        {rangeActive && (
+          <span className="text-caption text-text">
+            {displayRange[0]}–{displayRange[1]} km
+            <button
+              onClick={() => onRangeChange([0, maxKm])}
+              className="ml-1.5 text-[var(--brand)] hover:underline"
+            >clear</button>
+          </span>
+        )}
+        {open && (
+          <div className="flex items-center gap-3 text-micro text-text-2 ml-auto">
+            <Legend color={VISA_COLOR.yes}     label="Sponsored" />
+            <Legend color={VISA_COLOR.unknown} label="Unknown" />
+            <Legend color={VISA_COLOR.pr_only} label="PR only" />
+            <Legend color={VISA_COLOR.no}      label="No sponsor" />
+          </div>
+        )}
       </div>
 
-      <div ref={trackRef} className="relative h-14 select-none">
+      <div ref={trackRef} className={`relative h-14 select-none mx-4 mb-4 ${open ? "" : "hidden"}`}>
         <div className="absolute left-0 right-0 top-7 h-px bg-border" />
         <div
           className="absolute top-[26px] h-[3px] bg-[var(--brand)]/40 rounded"

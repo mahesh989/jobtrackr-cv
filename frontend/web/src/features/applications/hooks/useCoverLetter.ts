@@ -11,8 +11,18 @@ import { useRouter } from "next/navigation";
  *   request per row for content nobody had asked to see, and because the
  *   browser only opens ~6 connections per origin the tail of that queue was
  *   still draining 16s later, delaying every page the user clicked next.
+ * @param onSaved Called after a successful save INSTEAD of router.refresh().
+ *   The board's detail pane needs this: refreshing the route re-renders the
+ *   whole dashboard, which is what resets the board's scroll position to the
+ *   top (see the note in BoardDetailPanel). It passes its own local `refresh`
+ *   so only the pane re-pulls. Callers that omit it keep the router refresh.
  */
-export function useCoverLetter(letterId: string | null, onError?: (msg: string) => void, enabled: boolean = true) {
+export function useCoverLetter(
+  letterId: string | null,
+  onError?: (msg: string) => void,
+  enabled: boolean = true,
+  onSaved?: () => void,
+) {
   const router = useRouter();
   const [loaded, setLoaded]   = useState(false);
   const [loading, setLoading] = useState(false);
@@ -58,7 +68,8 @@ export function useCoverLetter(letterId: string | null, onError?: (msg: string) 
       const json = await res.json();
       if (!res.ok) { onError?.(json.error ?? `Save failed (${res.status})`); return; }
       setSaved(text);
-      router.refresh();
+      if (onSaved) onSaved();
+      else router.refresh();
     } catch (e) {
       onError?.(e instanceof Error ? e.message : "Network error");
     } finally {
@@ -67,5 +78,5 @@ export function useCoverLetter(letterId: string | null, onError?: (msg: string) 
   }
 
   const dirty = loaded && text !== saved;
-  return { text, setText, dirty, saving, loading, save };
+  return { text, setText, dirty, saving, loading, loaded, save };
 }

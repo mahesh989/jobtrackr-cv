@@ -3,7 +3,7 @@
 import { createContext, useContext, useState } from "react";
 import {
   BarChart3, FileText, Mail, CheckCircle2, Inbox, Star, Loader2 } from "lucide-react";
-import { markJobApplied, markJobDismissed, toggleStarJob } from "@/lib/actions/jobs";
+import { markJobDismissed, toggleStarJob } from "@/lib/actions/jobs";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/features/cv/analysis/AnalyzeJobButton";
 import { JobEditModal } from "./JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob } from "../lib/jobFilters";
@@ -72,7 +72,6 @@ function CardFooter({ job }: { job: BoardJob }) {
   const meta = PIPELINE_STATE_META[state];
   const score = job.tailored_match_score ?? job.initial_ats_score;
   const bothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
-  const [applying, setApplying] = useState(false);
   // `submitting` covers only the enqueue POST; whether the pipeline is
   // actually running comes from Realtime (mirrors DetailHeader's own
   // useJobRunStatus). Without this the card's Analyse button fired the
@@ -111,16 +110,20 @@ function CardFooter({ job }: { job: BoardJob }) {
     chipDisplay = meta.label;
   }
 
-  async function onApply(e: React.MouseEvent) {
+  /** Hands off to the detail pane's Apply popup instead of applying here.
+   *  This used to open the listing and call markJobApplied in the same click —
+   *  no confirmation — so a misclick stamped `applied_at` and the job left the
+   *  active list for good. The popup asks first, and it is the same flow the
+   *  panel's own Apply button uses. */
+  function onApply(e: React.MouseEvent) {
     e.stopPropagation();
-    if (applying) return;
-    setApplying(true);
-    try {
-      window.open(job.url, "_blank", "noopener,noreferrer");
-      await markJobApplied(job.id, job.profile_id);
-    } finally {
-      setApplying(false);
+    if (selection?.onOpenDetailAndApply) {
+      selection.onOpenDetailAndApply(job.id);
+      return;
     }
+    // Only reachable if a card is ever rendered outside the board's provider.
+    // Open the listing rather than silently marking the job applied.
+    window.open(job.url, "_blank", "noopener,noreferrer");
   }
 
   async function onAnalyse(e: React.MouseEvent) {
@@ -164,10 +167,10 @@ function CardFooter({ job }: { job: BoardJob }) {
     actionButton = <span className="badge badge-green text-micro font-semibold">✓ Applied</span>;
   } else if (state === "ready_to_apply" || state === "ready_to_send") {
     actionButton = (
-      <button type="button" onClick={onApply} disabled={applying}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+      <button type="button" onClick={onApply}
+        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
       >
-        {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+        Apply
       </button>
     );
   } else if (state === "needs_jd") {

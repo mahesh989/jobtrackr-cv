@@ -1,67 +1,51 @@
 "use client";
 
 /**
- * Apply popup — what "Apply now" in the detail pane opens instead of silently
- * punting the user to the job site.
+ * Apply popup — what "Apply now" / "Apply anyway" in the detail pane opens
+ * instead of silently punting the user to the job site.
  *
- * Three ways to apply, picked from what's actually on file for this job:
+ * Layout is two columns and both are always on screen:
  *
- *   contact email + drafted message → send it from here, CV and cover letter
- *                                     attached (POST …/send-email, which also
- *                                     stamps jobs.applied_at server-side).
- *   drafted message, no email       → the message is there to copy, plus an
- *                                     inline "+ Add email" that unlocks the
- *                                     send path (PATCH /api/jobs/[id]).
- *   no cover letter at all          → a "Write my cover letter" button. Below
- *                                     the final gate is the ONLY reason a job
- *                                     reaches this branch (the pipeline skips
- *                                     cover-letter generation there unless
- *                                     forced — see statusSubtext's "cover
- *                                     letter skipped" in DetailHeader), so
- *                                     "Apply anyway" generating one anyway is
- *                                     the button living up to its name. One
- *                                     click runs the whole thing — generate
- *                                     opening variants, auto-pick the first
- *                                     (no picking UI exists in this board yet;
- *                                     that only lives on the full analysis
- *                                     page), then poll until the letter's
- *                                     `pass_3_final` lands — and falls through
- *                                     to the normal send/copy flow above.
- *   neither                         → open the listing and mark it applied.
+ *   left   the message to the employer, editable, with Copy. This is the only
+ *          editor for it — the Cover letter tab holds the letter, this holds
+ *          the message, and neither duplicates the other.
+ *   right  BOTH ways to apply at once: send it as an email from here, or open
+ *          the listing and confirm afterwards. Which one is right depends on
+ *          the employer, not on what we happen to know about them, so both are
+ *          offered rather than the popup guessing and hiding the other.
  *
- * Applying via the listing stays available in every branch: an email address on
- * file doesn't mean email is the right channel for that employer.
+ * Nothing here ever replaces the whole body with a different screen. An older
+ * version swapped in a confirmation card after "Apply on {source}", which took
+ * the message off screen at exactly the moment the user was standing in the
+ * employer's form wanting to paste it.
  *
- * Marking "applied" from here goes through PATCH /api/jobs/[id] rather than
- * the `markJobApplied` server action the card list uses — that action calls
- * revalidatePath, which triggers Next's implicit route refresh the instant a
- * server action resolves. On the board's own page that refetches the whole
- * server-rendered list and resets its scroll to the top right as this popup's
- * success card appears — exactly the "why did it jump" bug this pane exists to
- * avoid. An API route has no such side effect.
+ * WHY THE MESSAGE APPEARS INSTANTLY
+ * `/email-draft` re-runs an AI voice rewrite on every call for any letter the
+ * user hasn't explicitly approved, which costs 15-45s. The board payload
+ * already carries the stored `email_body`, so when there is one we render it
+ * immediately and never call that route. Sending or copying persists the text
+ * via POST /review, which stamps `reviewed_at` — from then on the route's own
+ * tier-1 path trusts the stored body too.
  *
- * Endpoints and copy are shared with the More tab (see MoreTab's EmailSection);
- * the card's shape follows AnalysisProgressModal so the two popups read as one
- * family.
+ * Marking "applied" goes through PATCH /api/jobs/[id] rather than the
+ * `markJobApplied` server action the card list used to use — that action calls
+ * revalidatePath, which refetches the whole server-rendered board and resets
+ * its scroll to the top just as this popup's success card appears.
  */
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, CheckCircle2, X, Mail, ExternalLink, PenLine } from "lucide-react";
+import {
+  Loader2, CheckCircle2, X, Mail, ExternalLink, PenLine, Copy, Check, Link2,
+} from "lucide-react";
 import { Button } from "@/components/ui";
+import { buildDefaultEmailDraft } from "@/lib/email/draftBody";
 import type { BoardJob } from "../../lib/jobFilters";
-
-interface EmailDraft {
-  to: string;
-  to_email: string | null;
-  subject: string;
-  body: string;
-}
 
 /** Generation is a one-shot AI cost, so it polls rather than subscribing —
  *  simpler than wiring a Realtime channel for something this pane only ever
  *  waits on once. cv-backend writes P2-4 as a background task after `pick`. */
-const GENERATE_POLL_MS   = 2000;
+const GENERATE_POLL_MS    = 2000;
 const GENERATE_TIMEOUT_MS = 90_000;
 
 function sleep(ms: number): Promise<void> {
@@ -74,47 +58,68 @@ function sleep(ms: number): Promise<void> {
 const subscribeNoop = () => () => {};
 
 export function ApplyModal({
-  job, letterId, onClose, onApplied, onChanged,
+  job, letterId, letterSubject = null, letterBody = null,
+  onClose, onApplied, onChanged,
 }: {
   job: BoardJob;
   /** Cover letter for this job's latest run, when one exists. Null while the
    *  pane's payload is still in flight — see `awaitingLetter` below. */
   letterId: string | null;
+  /** Stored message off the board payload. When present the message renders on
+   *  the first frame and `/email-draft` is never called — see the module note. */
+  letterSubject?: string | null;
+  letterBody?: string | null;
   onClose: () => void;
   /** Fired once the job is marked applied, so the pane and the board catch up. */
   onApplied: () => void;
   /** Fired once a cover letter this modal generated finishes writing, so the
-   *  pane refetches and picks up the new Cover letter / More tabs. Distinct
-   *  from `onApplied` — generating a letter doesn't mean the job was applied
-   *  to yet, the user might still back out before sending. */
+   *  pane refetches and picks up the new Cover letter tab. Distinct from
+   *  `onApplied` — generating a letter doesn't mean the job was applied to yet,
+   *  the user might still back out before sending. */
   onChanged: () => void;
 }) {
   const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   const [contactEmail, setContactEmail] = useState<string | null>(job.contact_email ?? null);
-  const [showAddEmail, setShowAddEmail] = useState(false);
+  const [showAddEmail, setShowAddEmail] = useState(!job.contact_email);
   const [emailInput, setEmailInput]     = useState(job.contact_email ?? "");
   const [savingEmail, setSavingEmail]   = useState(false);
   const [emailError, setEmailError]     = useState<string | null>(null);
 
-  const [draft, setDraft]         = useState<EmailDraft | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  // Seeded straight from the board payload when it has a stored body, so the
+  // message is on screen before the first paint. `subject` has no UI of its own
+  // — it rides along so a send doesn't fall back to the server default.
+  // A letter can have a stored body with no stored subject — that column is
+  // only written once something approves a draft. Recomputing the server's own
+  // default from the same helper it uses keeps the two byte-identical (see that
+  // module's note) and, crucially, stops us POSTing an empty subject, which
+  // would otherwise send a real email with a blank subject line.
+  const defaultSubject = buildDefaultEmailDraft({
+    jobTitle:      job.title,
+    company:       job.company,
+    hiringManager: job.hiring_manager,
+    userName:      null,
+  }).subject;
+  const [subject, setSubject] = useState<string>(letterSubject ?? "");
+  const [body, setBody]       = useState<string>(letterBody ?? "");
+  const [bodyLoaded, setBodyLoaded]   = useState<boolean>(!!letterBody?.trim());
+  const [draftError, setDraftError]   = useState<string | null>(null);
 
   const [busy, setBusy]     = useState<null | "email" | "source">(null);
   const [error, setError]   = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  /** Set once the job is applied — the card flips to the success view. */
+  /** Set once the job is applied — the right column flips to the success view. */
   const [done, setDone] = useState<
     null | { via: "email"; to: string } | { via: "source"; opened: boolean }
   >(null);
-  /** Set once the listing has been handed off and we're waiting to hear
-   *  whether the user actually went through with it. */
-  const [confirmSource, setConfirmSource] = useState<null | { opened: boolean }>(null);
+  /** True once the listing has been handed off, so the confirm row can say so
+   *  without taking the message off screen. */
+  const [openedListing, setOpenedListing] = useState<null | { opened: boolean }>(null);
 
   // Set once this modal generates a letter itself. `letterId` (the prop) won't
   // catch up until the pane refetches its board-detail payload — this is what
-  // lets the send/copy flow below activate the instant writing finishes,
-  // without waiting on that round trip.
+  // lets the send/copy flow activate the instant writing finishes, without
+  // waiting on that round trip.
   const [localLetterId, setLocalLetterId] = useState<string | null>(null);
   const effectiveLetterId = letterId ?? localLetterId;
   const [generating, setGenerating] = useState(false);
@@ -129,8 +134,16 @@ export function ApplyModal({
   // rather than flashing the wrong branch.
   const awaitingLetter = !letterId && !localLetterId && job.progress.has_cover_letter;
 
+  // `onChanged` is called from inside the fetch below but must not be a dep —
+  // it is a fresh closure every render, and depending on it would re-run the
+  // request on every keystroke in the message box.
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+
+  // Only ever runs when the payload had no stored body — the first time this
+  // job's message is needed. Everything after that is served from state.
   useEffect(() => {
-    if (!effectiveLetterId) return;
+    if (!effectiveLetterId || bodyLoaded) return;
     let active = true;
     (async () => {
       try {
@@ -142,21 +155,46 @@ export function ApplyModal({
           return;
         }
         const json = await res.json();
-        setDraft({ to: json.to, to_email: json.to_email, subject: json.subject, body: json.body });
+        if (!active) return;
+        setSubject((s) => s || (json.subject ?? ""));
+        setBody(json.body ?? "");
+        setBodyLoaded(true);
+        // That route caches what it just composed onto the letter row, but the
+        // pane is still holding the payload it fetched before there was one.
+        // Refreshing it now means closing and reopening this popup reads the
+        // stored body and skips the AI call entirely.
+        onChangedRef.current?.();
       } catch (e) {
         if (active) setDraftError(e instanceof Error ? e.message : "Network error");
       }
     })();
     return () => { active = false; };
-  }, [effectiveLetterId]);
+  }, [effectiveLetterId, bodyLoaded]);
+
+  /** Persist the message so the Applied record shows what the user actually
+   *  used, and so `/email-draft` stops re-rewriting it (POST /review sets
+   *  `reviewed_at`, which is that route's "the user approved this" signal).
+   *  Best-effort: a failure here must not block applying. */
+  async function persistMessage(): Promise<void> {
+    if (!effectiveLetterId || !body.trim()) return;
+    try {
+      await fetch(`/api/applications/${effectiveLetterId}/review`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ subject: subject.trim() || defaultSubject, body }),
+      });
+    } catch {
+      // Non-fatal — the send below carries the same text as an explicit
+      // override, so nothing the user typed is lost either way.
+    }
+  }
 
   /** Starts generation, auto-researching the company once if that's the only
-   *  thing blocking it. Mirrors CoverLetterPanel's handleGenerate on the full
-   *  analysis page: a below-gate job here is often also a job whose company
-   *  has never been researched (research is itself normally triggered as
-   *  part of generating a letter — which below-gate jobs skip), so hitting
-   *  this gate on the very first "Apply anyway" is the expected case, not a
-   *  fluke. `didAutoResearch` stops it from retrying more than once. */
+   *  thing blocking it. A below-gate job here is often also a job whose company
+   *  has never been researched (research is normally triggered as part of
+   *  generating a letter — which below-gate jobs skip), so hitting this gate on
+   *  the very first "Apply anyway" is the expected case, not a fluke.
+   *  `didAutoResearch` stops it retrying more than once. */
   async function startGeneration(didAutoResearch: boolean): Promise<string> {
     const startRes = await fetch(`/api/jobs/${job.id}/cover-letter?override=final_gate`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
@@ -165,11 +203,6 @@ export function ApplyModal({
 
     if (!startRes.ok) {
       if (startRes.status === 422 && startJson.action === "research_company") {
-        // Second time through means research reported success but generation
-        // still can't see a row. Repeating the raw "Company research has not
-        // been run" copy here reads as though nothing was attempted, which is
-        // what made this look like a dead "Try again" loop — say what actually
-        // happened instead.
         if (didAutoResearch) {
           throw new Error(
             `We researched ${job.company ?? "this company"} but the result didn't save, so the ` +
@@ -209,16 +242,13 @@ export function ApplyModal({
       const pickJson = await pickRes.json().catch(() => ({}));
       if (!pickRes.ok) throw new Error(pickJson.error ?? `Could not start writing (${pickRes.status})`);
     }
-    // "cached" means a non-stale letter already existed and is done — the
-    // poll below resolves on its first pass either way.
     return newLetterId;
   }
 
   /** One click runs generate (auto-researching the company first if needed)
    *  → auto-pick the first opener → poll to completion. `override=final_gate`
-   *  because this only ever fires for a below-gate job (see the module doc)
-   *  — the pipeline's own reason for skipping the letter in the first place,
-   *  and exactly what "anyway" means. */
+   *  because this only ever fires for a below-gate job — the pipeline's own
+   *  reason for skipping the letter, and exactly what "anyway" means. */
   async function generateCoverLetter() {
     if (generating) return;
     setGenerating(true); setGenerateError(null);
@@ -273,11 +303,15 @@ export function ApplyModal({
     }
   }
 
-  async function copyDraft() {
-    if (!draft) return;
+  async function copyMessage() {
+    if (!body.trim()) return;
     try {
-      await navigator.clipboard.writeText(draft.body);
+      await navigator.clipboard.writeText(body);
       setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+      // Copying almost always means it's about to be pasted into someone
+      // else's form, so treat it as the user committing to this wording.
+      void persistMessage();
     } catch {
       // Clipboard can be unavailable (permissions, insecure origin) — the
       // message is on screen to select by hand either way.
@@ -288,7 +322,15 @@ export function ApplyModal({
     if (busy || !effectiveLetterId || !contactEmail) return;
     setBusy("email"); setError(null);
     try {
-      const res = await fetch(`/api/applications/${effectiveLetterId}/send-email`, { method: "POST" });
+      await persistMessage();
+      const res = await fetch(`/api/applications/${effectiveLetterId}/send-email`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        // Sent as an explicit override so what goes out is exactly the text on
+        // screen. The old call sent no body at all, which meant an edit here
+        // was silently replaced by whatever was stored.
+        body:    JSON.stringify({ subject: subject.trim() || defaultSubject, body }),
+      });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Send failed (${res.status})`);
@@ -304,32 +346,26 @@ export function ApplyModal({
   }
 
   /** Opens the listing and hands off — deliberately WITHOUT marking the job
-   *  applied yet. We have no way to know the user actually completed the
-   *  employer's form: they may hit a login wall, find the ad expired, or
-   *  simply change their mind. Stamping applied_at on the click made the board
-   *  assert an application that may never have happened, and undoing it means
-   *  hunting the job down in the Applied pile. So the click hands off and the
-   *  next card asks.
-   *
-   *  Asked for on the source path whether or not a contact email exists — the
-   *  uncertainty is identical either way. The email path needs no such
-   *  confirmation because there we did the sending ourselves. */
+   *  applied. We have no way to know the user completed the employer's form:
+   *  they may hit a login wall, find the ad expired, or change their mind.
+   *  The confirm row below is always visible, so this only has to record that
+   *  the tab was opened. */
   function openListing() {
     if (busy) return;
     setError(null);
     // Opened synchronously so it still counts as part of the click gesture —
     // popup blockers reject a window.open issued after an await. `win` comes
-    // back null when the blocker actually intervenes (Chrome/Firefox), which
-    // the confirm card below reads so it can offer a manual link instead of
-    // pretending a tab appeared.
+    // back null when the blocker actually intervenes.
     const win = window.open(job.url, "_blank", "noopener,noreferrer");
-    setConfirmSource({ opened: !!win });
+    setOpenedListing({ opened: !!win });
+    void persistMessage();
   }
 
-  async function confirmApplied(opened: boolean) {
+  async function confirmApplied() {
     if (busy) return;
     setBusy("source"); setError(null);
     try {
+      await persistMessage();
       const res = await fetch(`/api/jobs/${job.id}`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -339,7 +375,7 @@ export function ApplyModal({
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Failed (${res.status})`);
       }
-      setDone({ via: "source", opened });
+      setDone({ via: "source", opened: openedListing?.opened ?? false });
       onApplied();
     } catch {
       setError("Couldn't mark this job as applied — try again.");
@@ -350,7 +386,11 @@ export function ApplyModal({
 
   if (!mounted) return null;
 
-  const canSend = !!effectiveLetterId && !!contactEmail && !!draft;
+  const hasMessage = bodyLoaded && !!body.trim();
+  const canSend    = !!effectiveLetterId && !!contactEmail && hasMessage;
+  // Nothing has been written for this job yet and nothing is on its way — the
+  // only state where the generate button is the right thing to show.
+  const needsGeneration = !effectiveLetterId && !awaitingLetter && !generating;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -359,7 +399,7 @@ export function ApplyModal({
         role="dialog"
         aria-modal="true"
         aria-label="Apply for this job"
-        className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl max-h-[85vh] overflow-y-auto"
+        className="relative w-full max-w-3xl rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl max-h-[88vh] overflow-y-auto"
       >
         <Button
           variant="default"
@@ -372,240 +412,311 @@ export function ApplyModal({
           <X className="h-4 w-4" />
         </Button>
 
-        {done ? (
-          <SuccessCard job={job} done={done} onClose={onClose} />
-        ) : confirmSource ? (
-          <ConfirmSourceCard
-            job={job}
-            opened={confirmSource.opened}
-            busy={busy === "source"}
-            error={error}
-            onYes={() => confirmApplied(confirmSource.opened)}
-            onNo={onClose}
-          />
-        ) : (
-          <>
-            <div className="flex flex-col items-center text-center pt-3">
-              <Mail className="h-10 w-10 text-[var(--brand)]" aria-hidden />
-              <p className="mt-3 text-lead font-semibold text-text">Apply for this job</p>
-              <p className="mt-1 text-body text-text-2 line-clamp-2">
-                {job.title} · {job.company}
-              </p>
+        <div className="pr-8">
+          <p className="text-lead font-semibold text-text">Apply for this job</p>
+          <p className="mt-0.5 text-body text-text-2 line-clamp-2">
+            {job.title} · {job.company}
+          </p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+
+          {/* ── left: the message, in every state ─────────────────────── */}
+          <div className="min-w-0 flex flex-col">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-caption uppercase tracking-wide font-bold text-text">
+                Message to employer
+              </span>
+              {hasMessage && (
+                <Button
+                  size="xs"
+                  className="ml-auto"
+                  onClick={copyMessage}
+                  icon={copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              )}
             </div>
 
-            <div className="mt-5 space-y-4 text-left">
-              {/* ── recipient ─────────────────────────────────────────── */}
-              {contactEmail ? (
-                <div className="flex items-center gap-2 text-label flex-wrap">
-                  <span className="text-text-3">To:</span>
-                  <span className="font-semibold text-text break-all">{contactEmail}</span>
-                  <button
-                    type="button"
-                    onClick={() => { setShowAddEmail((v) => !v); setEmailError(null); }}
-                    className="text-[var(--brand)] hover:underline font-medium"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-[10px] bg-[#f7f8fa] border border-border px-3.5 py-2.5 text-body text-text-2">
-                  <b className="text-text">No contact email on file</b> for this listing — apply
-                  on {job.source} instead, or add an address if you find one.
-                </div>
-              )}
-
-              {!contactEmail && !showAddEmail && (
-                <Button size="sm" onClick={() => setShowAddEmail(true)}>+ Add email</Button>
-              )}
-
-              {showAddEmail && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="contact@company.com"
-                    className="field text-label py-1.5 flex-1 min-w-0"
-                  />
-                  <Button variant="brand" size="sm" onClick={saveEmail} disabled={savingEmail || !emailInput.trim()}>
-                    {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-                  </Button>
-                </div>
-              )}
-              {emailError && <p className="text-label text-red-600">{emailError}</p>}
-
-              {/* ── drafted message ───────────────────────────────────── */}
-              {(awaitingLetter || (effectiveLetterId && !draft)) && !draftError && (
-                <p className="flex items-center gap-2 text-label text-text-3">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading your drafted message…
+            {/* Two different waits, and they deserve different words. Either the
+                pane's payload hasn't arrived yet (fast), or this letter has
+                never had a message written for it and the server is composing
+                one in the user's voice (slow — an AI call). Saying "loading"
+                for the second one is what made it look hung. */}
+            {(awaitingLetter || (!!effectiveLetterId && !bodyLoaded)) && !draftError && (
+              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+                <p className="flex items-center gap-2 text-label font-medium text-text">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  {awaitingLetter ? "Loading your message…" : "Writing your message…"}
                 </p>
-              )}
-              {draftError && <p className="text-label text-red-600">{draftError}</p>}
-              {draft && (
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-caption uppercase tracking-wide font-bold text-text">
-                      Your message
-                    </span>
-                    <Button size="xs" className="ml-auto" onClick={copyDraft}>
-                      {copied ? "Copied ✓" : "Copy"}
-                    </Button>
-                  </div>
-                  <div className="rounded-[10px] border border-border bg-[#fafbfc] px-4 py-3 max-h-[180px] overflow-y-auto">
-                    <p className="text-label text-text whitespace-pre-wrap leading-relaxed">{draft.body}</p>
-                  </div>
+                {!awaitingLetter && (
                   <p className="mt-1.5 text-caption text-text-3">
-                    {contactEmail
-                      ? "Your tailored CV and cover letter go out as attachments."
-                      : "Copy this into your own email — the CV and cover letter are on the More tab."}
+                    First time for this job — we&apos;re drafting the note in your writing voice.
+                    It&apos;s saved afterwards, so opening this again is instant.
                   </p>
-                </div>
-              )}
+                )}
+              </div>
+            )}
+            {draftError && <p className="text-label text-red-600">{draftError}</p>}
 
-              {!effectiveLetterId && !awaitingLetter && !generating && (
-                <div className="rounded-[10px] border border-dashed border-[var(--border)] px-3.5 py-3">
-                  <p className="text-label text-text-2">
-                    No cover letter has been generated for this job yet — the ATS score didn&apos;t
-                    clear the bar to write one automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={generateCoverLetter}
-                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-label font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
-                  >
-                    <PenLine className="w-3.5 h-3.5" /> Write my cover letter
-                  </button>
-                </div>
-              )}
-              {generating && (
-                <p className="flex items-center gap-2 text-label text-text-3">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {researching
-                    ? `Researching ${researching} first — paragraph 2 needs a real fact about them to anchor on. This takes 15-45 seconds.`
-                    : "Writing your cover letter… this can take a minute or two."}
+            {hasMessage && (
+              <>
+                <textarea
+                  aria-label="Message to employer"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={12}
+                  maxLength={20_000}
+                  spellCheck
+                  className="w-full rounded-[10px] border border-border bg-surface text-text px-3.5 py-3 text-[13.5px] leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+                />
+                <p className="mt-1.5 text-caption text-text-3">
+                  {contactEmail
+                    ? "Edit it freely — this is the email body, and your tailored CV and cover letter go with it as attachments."
+                    : "Edit it freely, then Copy — you'll paste this into the employer's form. Your tailored CV and cover letter are under Download in the panel header."}
                 </p>
-              )}
-              {generateError && (
-                <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
-                  <p className="text-label text-red-600">{generateError}</p>
-                  <button
-                    type="button"
-                    onClick={generateCoverLetter}
-                    className="mt-1.5 text-label font-medium text-[var(--brand)] hover:underline"
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
-            </div>
+              </>
+            )}
 
-            {error && <p className="mt-3 text-label text-red-600">{error}</p>}
-
-            {/* ── actions ─────────────────────────────────────────────── */}
-            <div className="mt-5 flex flex-col gap-2">
-              {canSend && (
+            {/* No letter, nothing in flight: offer to write one. This is only
+                reachable below the final ATS gate, where the pipeline skips
+                letter generation on purpose. */}
+            {needsGeneration && (
+              <div className="rounded-[10px] border border-dashed border-[var(--border)] px-3.5 py-3">
+                <p className="text-label text-text-2">
+                  Nothing has been written for this job yet — its ATS score didn&apos;t clear the
+                  bar for us to do it automatically.
+                </p>
                 <button
                   type="button"
-                  onClick={sendEmail}
-                  disabled={!!busy}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                  onClick={generateCoverLetter}
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-label font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
                 >
-                  {busy === "email"
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Mail className="h-4 w-4" />}
-                  {busy === "email" ? "Sending…" : "Send application email"}
+                  <PenLine className="w-3.5 h-3.5" /> Write my cover letter and message
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={openListing}
-                disabled={!!busy}
-                className={
-                  canSend
-                    ? "inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[var(--border)] py-2 text-body font-medium text-text transition-colors hover:bg-[var(--bg)] disabled:opacity-50"
-                    : "inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-                }
-              >
-                <ExternalLink className="h-4 w-4" />
-                {canSend ? `Apply on ${job.source} instead` : `Apply on ${job.source}`}
-              </button>
-            </div>
-          </>
-        )}
+              </div>
+            )}
+
+            {/* Naming both artifacts matters: the panel above says "Message to
+                employer", so a bare "writing your cover letter" reads as though
+                the wrong thing is being produced. */}
+            {generating && (
+              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+                <p className="flex items-center gap-2 text-label font-medium text-text">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  {researching
+                    ? `Researching ${researching}…`
+                    : "Writing your cover letter and this message…"}
+                </p>
+                <p className="mt-1.5 text-caption text-text-3">
+                  {researching
+                    ? "Paragraph 2 of the letter needs a real fact about them to anchor on. 15-45 seconds."
+                    : "Two things are being produced: the cover letter that gets attached as a PDF, and the short message shown here. This usually takes a minute or two."}
+                </p>
+              </div>
+            )}
+            {generateError && (
+              <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
+                <p className="text-label text-red-600">{generateError}</p>
+                <button
+                  type="button"
+                  onClick={generateCoverLetter}
+                  className="mt-1.5 text-label font-medium text-[var(--brand)] hover:underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── right: both ways to apply, always both on screen ──────── */}
+          <div className="min-w-0 md:border-l md:border-[var(--border)] md:pl-5">
+            {done ? (
+              <SuccessCard job={job} done={done} onClose={onClose} />
+            ) : (
+              <>
+                <p className="text-caption uppercase tracking-wide font-bold text-text-3 mb-2.5">
+                  How would you like to apply?
+                </p>
+
+                {/* ── option 1: send it from here ── */}
+                <div className="rounded-[10px] border border-[var(--border)] px-3.5 py-3">
+                  <p className="flex items-center gap-1.5 text-body font-semibold text-text">
+                    <Mail className="w-4 h-4 text-[var(--brand)]" /> Send via email
+                  </p>
+                  <p className="mt-0.5 text-caption text-text-3">
+                    We&apos;ll attach your tailored CV and cover letter, and send the message on the left.
+                  </p>
+
+                  {contactEmail && !showAddEmail ? (
+                    <div className="mt-2.5 flex items-center gap-2 text-label flex-wrap">
+                      <span className="text-text-3">To:</span>
+                      <span className="font-semibold text-text break-all">{contactEmail}</span>
+                      <button
+                        type="button"
+                        onClick={() => { setShowAddEmail(true); setEmailError(null); }}
+                        className="text-[var(--brand)] hover:underline font-medium"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="recruiter@company.com"
+                        className="field text-label py-1.5 flex-1 min-w-0"
+                      />
+                      <Button
+                        variant="brand" size="sm"
+                        onClick={saveEmail}
+                        disabled={savingEmail || !emailInput.trim()}
+                      >
+                        {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                  )}
+                  {emailError && <p className="mt-1.5 text-label text-red-600">{emailError}</p>}
+
+                  <button
+                    type="button"
+                    onClick={sendEmail}
+                    disabled={!canSend || !!busy}
+                    title={
+                      !contactEmail   ? "Add the employer's email address first"
+                      : !hasMessage   ? "There's no message to send yet"
+                      : "Sends the message with your CV and cover letter attached"
+                    }
+                    className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {busy === "email"
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Mail className="h-4 w-4" />}
+                    {busy === "email" ? "Sending…" : "Send with CV & cover letter"}
+                  </button>
+                </div>
+
+                <div className="my-3 flex items-center gap-2">
+                  <span className="h-px flex-1 bg-[var(--border)]" />
+                  <span className="text-caption uppercase tracking-wide font-bold text-text-3">or</span>
+                  <span className="h-px flex-1 bg-[var(--border)]" />
+                </div>
+
+                {/* ── option 2: apply on the listing, confirm afterwards ──
+                    The confirm row is visible from the start rather than
+                    appearing only after the hand-off. Someone who applied on
+                    the listing in another session comes back to this popup
+                    wanting exactly this button, and hiding it behind "open the
+                    tab again" made them re-open a form they'd already sent. */}
+                <div className="rounded-[10px] border border-[var(--border)] overflow-hidden">
+                  <div className="px-3.5 py-3">
+                    <p className="flex items-center gap-1.5 text-body font-semibold text-text">
+                      <Link2 className="w-4 h-4 text-[var(--brand)]" /> Apply on {job.source}
+                    </p>
+                    <p className="mt-0.5 text-caption text-text-3">
+                      Copy the message first — you&apos;ll need it on their form.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openListing}
+                      disabled={!!busy}
+                      className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[var(--border)] py-2 text-body font-medium text-text transition-colors hover:bg-[var(--bg)] disabled:opacity-50"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open {job.source} ↗
+                    </button>
+                    {openedListing && (
+                      <p className="mt-2 text-caption text-text-3">
+                        {openedListing.opened ? (
+                          <>Opened in a new tab — finish there, then confirm below.</>
+                        ) : (
+                          <>
+                            Your browser blocked the new tab —{" "}
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-[var(--brand)] hover:underline"
+                            >
+                              open the listing here
+                            </a>
+                            .
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* The confirm step only appears once the listing has been
+                      handed off — asking "did you apply?" before the user has
+                      been anywhere is premature, and it made the panel look
+                      like it was pushing them to claim an application.
+                      It appears in place, underneath, rather than replacing
+                      the body: the message on the left has to stay on screen
+                      for the form they now have open. */}
+                  {openedListing ? (
+                    <div className="border-t border-[var(--border)] bg-[var(--amber-soft,#fffbeb)] px-3.5 py-3">
+                      <p className="text-caption text-text-2">
+                        Finished on {job.source}? We&apos;ll move this job to Applied — we never
+                        mark it for you.
+                      </p>
+                      <div className="mt-2.5 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={confirmApplied}
+                          disabled={!!busy}
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[var(--green,#10b981)] py-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                          {busy === "source"
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <CheckCircle2 className="h-4 w-4" />}
+                          {busy === "source" ? "Saving…" : "Yes, I applied"}
+                        </button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          type="button"
+                          onClick={onClose}
+                          disabled={!!busy}
+                          className="flex-1 rounded-full py-2 text-body font-medium"
+                        >
+                          Not yet
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Someone who applied in an earlier session still needs a
+                       way in, but it stays a quiet text link rather than a
+                       button competing with the two real actions above. */
+                    <div className="border-t border-[var(--border)] px-3.5 py-2.5">
+                      <button
+                        type="button"
+                        onClick={confirmApplied}
+                        disabled={!!busy}
+                        className="text-caption text-text-3 hover:text-[var(--brand)] hover:underline disabled:opacity-50"
+                      >
+                        {busy === "source" ? "Saving…" : "Already applied to this job? Mark it as applied"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {error && <p className="mt-3 text-label text-red-600">{error}</p>}
+              </>
+            )}
+          </div>
+        </div>
+
+        <p className="mt-5 border-t border-[var(--border)] pt-3 text-caption text-text-3">
+          Once this job is applied, the message you used stays on its{" "}
+          <b className="font-semibold text-text-2">Cover letter</b> tab — copy it from there any time.
+        </p>
       </div>
     </div>,
     document.body,
-  );
-}
-
-/** The hand-off checkpoint: the listing is open, we can't see what happens
- *  there, so ask instead of assuming. "Not yet" is the safe default — the job
- *  stays exactly where it was and Apply can be clicked again. */
-function ConfirmSourceCard({
-  job, opened, busy, error, onYes, onNo,
-}: {
-  job: BoardJob;
-  opened: boolean;
-  busy: boolean;
-  error: string | null;
-  onYes: () => void;
-  onNo: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center text-center pt-3">
-      <ExternalLink className="h-10 w-10 text-[var(--brand)]" aria-hidden />
-      <p className="mt-3 text-lead font-semibold text-text">
-        {opened ? `Opened on ${job.source}` : `Open this on ${job.source}`}
-      </p>
-      <p className="mt-1 text-body text-text-2 line-clamp-2">
-        {job.title} · {job.company}
-      </p>
-      <p className="mt-3 text-label text-text-2">
-        {opened ? (
-          <>
-            Finish the application in the new tab, then come back and tell us how it went — we
-            won&apos;t mark it applied until you say so.
-          </>
-        ) : (
-          <>
-            Your browser blocked the new tab —{" "}
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-[var(--brand)] hover:underline"
-            >
-              open the listing here
-            </a>
-            , then come back and tell us how it went.
-          </>
-        )}
-      </p>
-
-      {error && <p className="mt-3 text-label text-red-600">{error}</p>}
-
-      <div className="mt-5 flex w-full flex-col gap-2">
-        <button
-          type="button"
-          onClick={onYes}
-          disabled={busy}
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-          {busy ? "Saving…" : "I applied — mark it"}
-        </button>
-        <Button
-          variant="default"
-          size="sm"
-          type="button"
-          onClick={onNo}
-          disabled={busy}
-          className="w-full rounded-full py-2 text-body font-medium"
-        >
-          Not yet
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -631,23 +742,10 @@ function SuccessCard({
             Sent to <b className="text-text break-all">{done.to}</b> with your tailored CV and
             cover letter attached. This job now sits in your Applied pile.
           </>
-        ) : done.opened ? (
-          <>
-            The listing is open in a new tab — finish the application there. We&apos;ve moved this
-            job to your Applied pile so you can track it.
-          </>
         ) : (
           <>
-            Your browser blocked the listing from opening automatically —{" "}
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-[var(--brand)] hover:underline"
-            >
-              open it here
-            </a>
-            . We&apos;ve still moved this job to your Applied pile so you can track it.
+            We&apos;ve moved this job to your Applied pile so you can track it. The message you
+            used is kept on its Cover letter tab.
           </>
         )}
       </p>

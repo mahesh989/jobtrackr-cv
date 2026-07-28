@@ -6,7 +6,8 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
 import { SmartFeed } from "./SmartFeed";
-import { filterJobs, sortJobs, FILTER_LABELS, pickGroupMode, buildGroups, resolveStage, type BoardJob, type AtsBand } from "../lib/jobFilters";
+import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
+import { useToolbarCounts } from "../lib/useToolbarCounts";
 import { shallowSetParams } from "../lib/shallowNav";
 import { ThinJdBanner } from "./ThinJdBanner";
 import { type AtsThresholds } from "@/lib/atsThresholds";
@@ -73,6 +74,7 @@ export function ProfileJobBoard({
   const stage       = resolveStage(sp);
   const triage      = sp.get("triage") || "";
   const ats         = sp.get("ats") || "";
+  const jd          = sp.get("jd") || "";
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const minDistance = sp.get("min_distance") || "";
@@ -82,8 +84,8 @@ export function ProfileJobBoard({
   const eligibleOnly = sp.get("eligible") || "";
 
   const filtered = useMemo(
-    () => sortJobs(filterJobs(jobs, { stage, triage, ats, minKeywords, maxDistance, minDistance, sort: sortCol, employment, eligibleOnly }), sortCol, asc),
-    [jobs, stage, triage, ats, minKeywords, maxDistance, minDistance, sortCol, asc, employment, eligibleOnly],
+    () => sortJobs(filterJobs(jobs, { stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sort: sortCol, employment, eligibleOnly }), sortCol, asc),
+    [jobs, stage, triage, ats, jd, minKeywords, maxDistance, minDistance, sortCol, asc, employment, eligibleOnly],
   );
 
   // Group mode mirrors JobBoard — Analysed/Not-analysed → time buckets;
@@ -96,15 +98,10 @@ export function ProfileJobBoard({
 
   // Same fix as JobBoard: compute from the stage/triage/distance-filtered set
   // (ATS excluded) so badge counts match what clicking the chip will actually show.
-  const atsCountBase = useMemo(
-    () => filterJobs(jobs, { stage, triage, ats: "", minKeywords, maxDistance, minDistance, sort: sortCol }),
-    [jobs, stage, triage, minKeywords, maxDistance, minDistance, sortCol],
-  );
-  const atsCounts = useMemo<Record<AtsBand, number>>(() => {
-    const out: Record<AtsBand, number> = { above_final: 0, below_final: 0, below_initial: 0, no_ats: 0 };
-    for (const j of atsCountBase) out[j.atsBand]++;
-    return out;
-  }, [atsCountBase]);
+  const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
+    stage, triage, jd, minKeywords, maxDistance, minDistance, sortCol,
+    employment, eligibleOnly,
+  });
 
   // Scroll to the feed whenever the stage changes (carries over from the
   // pre-redesign behaviour where clicking a funnel stage scrolled to the
@@ -123,7 +120,8 @@ export function ProfileJobBoard({
   const activeFilters: string[] = [];
   if (stage !== "all" && stage !== "dismissed") activeFilters.push(FILTER_LABELS[stage] ?? stage);
   if (triage) activeFilters.push(FILTER_LABELS[triage] ?? triage);
-  if (ats)    activeFilters.push(FILTER_LABELS[ats] ?? ats);
+  if (ats)    activeFilters.push(...filterLabelsFor(ats));
+  if (jd)     activeFilters.push(...filterLabelsFor(jd));
 
   const hasActiveFilter = activeFilters.length > 0;
 
@@ -201,6 +199,8 @@ export function ProfileJobBoard({
         currentTab={stage}
         counts={counts}
         atsCounts={atsCounts}
+        viewCounts={viewCounts}
+        distanceCounts={distanceCounts}
         homeAddress={homeAddress}
         thresholds={thresholds}
         excludeKeywords={excludeKeywords}
