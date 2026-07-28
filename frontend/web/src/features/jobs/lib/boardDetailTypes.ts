@@ -150,6 +150,11 @@ export interface BoardDetailCoverLetter {
   tone_target:   string | null;
   email_body:    string | null;
   email_subject: string | null;
+  /** Set once the application email has gone out. Every edit route
+   *  (PATCH the letter, POST /review, GET /email-draft) 409s from this point
+   *  on, so the Cover letter tab renders read-only rather than mounting
+   *  editors that can only fail. */
+  email_sent_at: string | null;
 }
 
 export interface BoardDetailPayload {

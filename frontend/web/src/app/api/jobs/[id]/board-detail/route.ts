@@ -59,7 +59,7 @@ export const GET = withUser(async (
       .maybeSingle(),
     admin
       .from("cover_letters")
-      .select("id, status, pass_3_final, tone_target, email_body, email_subject")
+      .select("id, status, pass_3_final, tone_target, email_body, email_subject, email_sent_at")
       .eq("job_id", jobId)
       .eq("user_id", user.id)
       .eq("is_stale", false)

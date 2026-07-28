@@ -11,11 +11,13 @@
  */
 
 import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
 import { markJobDismissed } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
+import { shallowSetParams } from "../../lib/shallowNav";
 import { JobEditModal } from "../JobEditModal";
 import { Distance } from "../FeedCards";
 import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
@@ -23,6 +25,7 @@ import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/sma
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
 import { AnalysisProgressModal } from "./AnalysisProgressModal";
 import { ApplyModal } from "./ApplyModal";
+import { DownloadMenu } from "./DownloadMenu";
 import type { BoardJob } from "../../lib/jobFilters";
 
 const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
@@ -31,7 +34,7 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 
 export function DetailHeader({
   job, description = null, manualJdText = null, detailLoaded = false,
-  letterId = null, onClosed, onChanged, mobile = false,
+  letterId = null, cvStoragePath = null, onClosed, onChanged, mobile = false,
 }: {
   job: BoardJob;
   /** Raw JD text from the pane's per-job payload (no longer on the board row).
@@ -46,6 +49,9 @@ export function DetailHeader({
    *  popup offer the drafted message and the send-email path. Null while that
    *  payload is still loading, or when the job has no letter. */
   letterId?: string | null;
+  /** Tailored-CV markdown path for the latest run — feeds the Download menu.
+   *  Null while the payload loads, or when no CV was generated. */
+  cvStoragePath?: string | null;
   /** Called after a dismiss/archive so the parent can clear ?job= and drop the card. */
   onClosed: () => void;
   /** Called after any mutation that should refresh both this panel and the list. */
@@ -68,6 +74,37 @@ export function DetailHeader({
   const [appliedNow, setAppliedNow]   = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
+
+  // A card's Apply button hands off via `?job=<id>&apply=1` rather than
+  // applying inline, so the popup (and its confirmation step) is the only way
+  // a job gets stamped. Consumed once and stripped from the URL so a reload
+  // doesn't reopen it.
+  //
+  // Only the desktop twin acts on it. SmartFeed mounts this header twice and
+  // CSS hides one, but ApplyModal is a portal to document.body and escapes
+  // that hiding — without the guard a card click renders two stacked popups
+  // (the same reason AnalysisProgressModal is desktop-only).
+  const sp       = useSearchParams();
+  const pathname = usePathname();
+  const [applyConsumed, setApplyConsumed] = useState(false);
+  const wantsApply = !mobile && sp.get("apply") === "1" && sp.get("job") === job.id;
+  if (wantsApply && !applyConsumed) {
+    setApplyConsumed(true);
+    setShowApply(true);
+  }
+  // Re-arm once the param is gone (closeApply strips it). Without this, closing
+  // the popup and clicking the same card's Apply again would re-add `apply=1`
+  // to a component that had already marked it consumed, and nothing would open.
+  if (!wantsApply && applyConsumed) setApplyConsumed(false);
+
+  function closeApply() {
+    setShowApply(false);
+    if (sp.get("apply")) {
+      const next = new URLSearchParams(Array.from(sp.entries()));
+      next.delete("apply");
+      shallowSetParams(pathname, next);
+    }
+  }
 
   // Seed as idle when the stored run is a stale zombie (see isRunLive), so the
   // chip and progress popup don't spin forever on a run that died days ago.
@@ -238,6 +275,21 @@ export function DetailHeader({
             >Full analysis ↗</a>
           )}
 
+          {/* Gated on the board's own progress flags, not the fetched payload,
+              so the control paints with the rest of the header instead of
+              popping in a beat later; individual items stay disabled until
+              `detailLoaded` gives them real storage paths. */}
+          {(job.progress.has_tailored_cv || job.progress.has_cover_letter) && (
+            <DownloadMenu
+              jobId={job.id}
+              company={job.company}
+              hiringManager={job.hiring_manager ?? null}
+              cvStoragePath={cvStoragePath}
+              letterId={letterId}
+              loaded={detailLoaded}
+            />
+          )}
+
           {isApplied ? (
             <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-[var(--green-soft)] text-[var(--green)]">✓ Applied</span>
           ) : needsJd ? (
@@ -326,7 +378,7 @@ export function DetailHeader({
         <ApplyModal
           job={job}
           letterId={letterId}
-          onClose={() => setShowApply(false)}
+          onClose={closeApply}
           onApplied={() => { setAppliedNow(true); onChanged(); }}
           onChanged={onChanged}
         />

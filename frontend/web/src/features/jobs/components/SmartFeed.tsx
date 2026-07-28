@@ -88,6 +88,15 @@ export function SmartFeed({
     next.set("job", id);
     shallowSetParams(pathname, next);
   }, [sp, pathname]);
+  // `apply=1` is a one-shot request the detail header consumes and strips. It
+  // rides the URL rather than a callback because the header is mounted twice
+  // (desktop + mobile twins) and neither instance is a child of the card.
+  const openDetailAndApply = useCallback((id: string) => {
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    next.set("job", id);
+    next.set("apply", "1");
+    shallowSetParams(pathname, next);
+  }, [sp, pathname]);
 
   const [activeSelectModes, setActiveSelectModes] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -121,9 +130,10 @@ export function SmartFeed({
       isSelected: (id) => selected.has(id),
       toggle, setMany,
       onOpenDetail: openDetail,
+      onOpenDetailAndApply: openDetailAndApply,
       activeJobId:  selectedJobId,
     }),
-    [selected, toggle, setMany, openDetail, selectedJobId],
+    [selected, toggle, setMany, openDetail, openDetailAndApply, selectedJobId],
   );
 
   const toggleSelectMode = useCallback((sectionId: string, sectionJobs?: BoardJob[]) => {

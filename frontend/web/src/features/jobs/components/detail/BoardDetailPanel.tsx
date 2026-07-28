@@ -8,11 +8,16 @@
  *   always            → Job description
  *   has a run w/ score → Match & score
  *   has tailored CV    → Tailored CV
- *   has cover letter   → Cover letter
- *   has CV or letter   → More (downloads + email)
+ *   has cover letter   → Cover letter  (letter + message, both editable)
  *
  * Not-analysed / needs-JD / failed jobs show Job description only — no
  * empty tabs pretending data exists when it doesn't.
+ *
+ * There used to be a fifth "More" tab holding downloads and a second copy of
+ * the email draft. Downloads moved to the header (they're an action on the
+ * job, not something you read) and the draft moved into the Cover letter tab
+ * next to the letter it belongs with — that copy was also the one that threw
+ * the user's edits away on send.
  */
 
 import { useState } from "react";
@@ -26,7 +31,6 @@ import { JobDescriptionTab } from "./JobDescriptionTab";
 import { MatchScoreTab } from "./MatchScoreTab";
 import { TailoredCvTab } from "./TailoredCvTab";
 import { CoverLetterTab } from "./CoverLetterTab";
-import { MoreTab } from "./MoreTab";
 
 /**
  * Keyed by job.id at the call site below — remounting on job change is what
@@ -67,7 +71,18 @@ function BoardDetailPanelInner({
   const hasScore  = data ? run?.match_score != null           : job.progress.has_analysis;
   const hasCv     = data ? !!run?.tailored_cv_storage_path    : job.progress.has_tailored_cv;
   const hasLetter = data ? !!data.cover_letter?.pass_3_final  : job.progress.has_cover_letter;
-  const hasMore   = hasCv || hasLetter;
+
+  // A tab whose condition flips false while it is the selected one leaves the
+  // body area blank: its Trigger unregisters but `tab` still points at it and
+  // every Content returns null. Fall back to the one tab that always exists.
+  // Reachable whenever a stale progress flag self-corrects once the payload
+  // lands — and for anyone whose last selection was the now-deleted More tab.
+  const tabExists =
+    tab === "jd" ||
+    (tab === "match" && hasScore) ||
+    (tab === "cv" && hasCv) ||
+    (tab === "cover" && hasLetter);
+  const activeTab = tabExists ? tab : "jd";
 
   const pending = (
     <div className="flex items-center gap-2 py-6 text-label text-text-3">
@@ -91,6 +106,7 @@ function BoardDetailPanelInner({
         manualJdText={data?.manual_jd_text ?? null}
         detailLoaded={!!data}
         letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
+        cvStoragePath={run?.tailored_cv_storage_path ?? null}
         onClosed={onClose}
         onChanged={refresh}
         mobile={mobile}
@@ -101,13 +117,12 @@ function BoardDetailPanelInner({
           <p className="text-label text-red-600">{error}</p>
         </div>
       ) : (
-        <Tabs.Root value={tab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0">
+        <Tabs.Root value={activeTab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0">
           <Tabs.List className="flex items-center gap-1 border-b border-border px-8 shrink-0 mt-3.5 bg-[#fafbfc]">
             <Tabs.Trigger value="jd" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Job description</Tabs.Trigger>
             {hasScore && <Tabs.Trigger value="match" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Match &amp; score</Tabs.Trigger>}
             {hasCv && <Tabs.Trigger value="cv" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Tailored CV</Tabs.Trigger>}
             {hasLetter && <Tabs.Trigger value="cover" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Cover letter</Tabs.Trigger>}
-            {hasMore && <Tabs.Trigger value="more" className="text-[13.5px] font-semibold px-[14px] py-[10px]">More</Tabs.Trigger>}
           </Tabs.List>
 
           <div className="flex-1 min-h-0 overflow-y-auto px-8 py-5 pb-9 text-[14.5px] leading-relaxed" style={{ maxWidth: 860 }}>
@@ -125,13 +140,8 @@ function BoardDetailPanelInner({
             {hasLetter && (
               <Tabs.Content value="cover">
                 {data?.cover_letter
-                  ? <CoverLetterTab jobId={job.id} letter={data.cover_letter} />
+                  ? <CoverLetterTab jobId={job.id} letter={data.cover_letter} onChanged={refresh} />
                   : pending}
-              </Tabs.Content>
-            )}
-            {hasMore && (
-              <Tabs.Content value="more">
-                {run ? <MoreTab job={job} run={run} letter={data?.cover_letter ?? null} /> : pending}
               </Tabs.Content>
             )}
           </div>

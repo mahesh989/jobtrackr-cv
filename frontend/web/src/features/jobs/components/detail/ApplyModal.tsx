@@ -40,9 +40,14 @@
  * success card appears — exactly the "why did it jump" bug this pane exists to
  * avoid. An API route has no such side effect.
  *
- * Endpoints and copy are shared with the More tab (see MoreTab's EmailSection);
- * the card's shape follows AnalysisProgressModal so the two popups read as one
- * family.
+ * Layout is two columns: the drafted message on the left in EVERY state, the
+ * action for the current state on the right. The message used to live in a
+ * branch that the confirm card replaced wholesale, so clicking "Apply on
+ * {source}" took it off screen at precisely the moment the user had the
+ * employer's form open and wanted to paste it.
+ *
+ * The message's durable home is the Cover letter tab — this popup only shows a
+ * copy of it, so nothing here is the last chance to grab it.
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -359,7 +364,7 @@ export function ApplyModal({
         role="dialog"
         aria-modal="true"
         aria-label="Apply for this job"
-        className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl max-h-[85vh] overflow-y-auto"
+        className="relative w-full max-w-2xl rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl max-h-[85vh] overflow-y-auto"
       >
         <Button
           variant="default"
@@ -372,166 +377,185 @@ export function ApplyModal({
           <X className="h-4 w-4" />
         </Button>
 
-        {done ? (
-          <SuccessCard job={job} done={done} onClose={onClose} />
-        ) : confirmSource ? (
-          <ConfirmSourceCard
-            job={job}
-            opened={confirmSource.opened}
-            busy={busy === "source"}
-            error={error}
-            onYes={() => confirmApplied(confirmSource.opened)}
-            onNo={onClose}
-          />
-        ) : (
-          <>
-            <div className="flex flex-col items-center text-center pt-3">
-              <Mail className="h-10 w-10 text-[var(--brand)]" aria-hidden />
-              <p className="mt-3 text-lead font-semibold text-text">Apply for this job</p>
-              <p className="mt-1 text-body text-text-2 line-clamp-2">
-                {job.title} · {job.company}
-              </p>
-            </div>
+        <div className="pr-8">
+          <p className="text-lead font-semibold text-text">Apply for this job</p>
+          <p className="mt-0.5 text-body text-text-2 line-clamp-2">
+            {job.title} · {job.company}
+          </p>
+        </div>
 
-            <div className="mt-5 space-y-4 text-left">
-              {/* ── recipient ─────────────────────────────────────────── */}
-              {contactEmail ? (
-                <div className="flex items-center gap-2 text-label flex-wrap">
-                  <span className="text-text-3">To:</span>
-                  <span className="font-semibold text-text break-all">{contactEmail}</span>
-                  <button
-                    type="button"
-                    onClick={() => { setShowAddEmail((v) => !v); setEmailError(null); }}
-                    className="text-[var(--brand)] hover:underline font-medium"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-[10px] bg-[#f7f8fa] border border-border px-3.5 py-2.5 text-body text-text-2">
-                  <b className="text-text">No contact email on file</b> for this listing — apply
-                  on {job.source} instead, or add an address if you find one.
-                </div>
-              )}
+        {/* Two columns, stacking on narrow viewports. The split exists so the
+            message stays on screen through EVERY state: previously, clicking
+            "Apply on {source}" swapped the whole body for the confirm card, so
+            the drafted message vanished at the exact moment the user was
+            standing in the listing's form wanting to paste it. */}
+        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
 
-              {!contactEmail && !showAddEmail && (
-                <Button size="sm" onClick={() => setShowAddEmail(true)}>+ Add email</Button>
-              )}
-
-              {showAddEmail && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="contact@company.com"
-                    className="field text-label py-1.5 flex-1 min-w-0"
-                  />
-                  <Button variant="brand" size="sm" onClick={saveEmail} disabled={savingEmail || !emailInput.trim()}>
-                    {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-                  </Button>
-                </div>
-              )}
-              {emailError && <p className="text-label text-red-600">{emailError}</p>}
-
-              {/* ── drafted message ───────────────────────────────────── */}
-              {(awaitingLetter || (effectiveLetterId && !draft)) && !draftError && (
-                <p className="flex items-center gap-2 text-label text-text-3">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading your drafted message…
-                </p>
-              )}
-              {draftError && <p className="text-label text-red-600">{draftError}</p>}
+          {/* ── left: the message, in every state ─────────────────────── */}
+          <div className="min-w-0 flex flex-col">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-caption uppercase tracking-wide font-bold text-text">
+                Message to employer
+              </span>
               {draft && (
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-caption uppercase tracking-wide font-bold text-text">
-                      Your message
-                    </span>
-                    <Button size="xs" className="ml-auto" onClick={copyDraft}>
-                      {copied ? "Copied ✓" : "Copy"}
-                    </Button>
-                  </div>
-                  <div className="rounded-[10px] border border-border bg-[#fafbfc] px-4 py-3 max-h-[180px] overflow-y-auto">
-                    <p className="text-label text-text whitespace-pre-wrap leading-relaxed">{draft.body}</p>
-                  </div>
-                  <p className="mt-1.5 text-caption text-text-3">
-                    {contactEmail
-                      ? "Your tailored CV and cover letter go out as attachments."
-                      : "Copy this into your own email — the CV and cover letter are on the More tab."}
-                  </p>
-                </div>
-              )}
-
-              {!effectiveLetterId && !awaitingLetter && !generating && (
-                <div className="rounded-[10px] border border-dashed border-[var(--border)] px-3.5 py-3">
-                  <p className="text-label text-text-2">
-                    No cover letter has been generated for this job yet — the ATS score didn&apos;t
-                    clear the bar to write one automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={generateCoverLetter}
-                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-label font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
-                  >
-                    <PenLine className="w-3.5 h-3.5" /> Write my cover letter
-                  </button>
-                </div>
-              )}
-              {generating && (
-                <p className="flex items-center gap-2 text-label text-text-3">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {researching
-                    ? `Researching ${researching} first — paragraph 2 needs a real fact about them to anchor on. This takes 15-45 seconds.`
-                    : "Writing your cover letter… this can take a minute or two."}
-                </p>
-              )}
-              {generateError && (
-                <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
-                  <p className="text-label text-red-600">{generateError}</p>
-                  <button
-                    type="button"
-                    onClick={generateCoverLetter}
-                    className="mt-1.5 text-label font-medium text-[var(--brand)] hover:underline"
-                  >
-                    Try again
-                  </button>
-                </div>
+                <Button size="xs" className="ml-auto" onClick={copyDraft}>
+                  {copied ? "Copied ✓" : "Copy"}
+                </Button>
               )}
             </div>
 
-            {error && <p className="mt-3 text-label text-red-600">{error}</p>}
+            {(awaitingLetter || (effectiveLetterId && !draft)) && !draftError && (
+              <p className="flex items-center gap-2 text-label text-text-3">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading your drafted message…
+              </p>
+            )}
+            {draftError && <p className="text-label text-red-600">{draftError}</p>}
 
-            {/* ── actions ─────────────────────────────────────────────── */}
-            <div className="mt-5 flex flex-col gap-2">
-              {canSend && (
+            {draft && (
+              <div className="rounded-[10px] border border-border bg-[#fafbfc] px-4 py-3 max-h-[260px] overflow-y-auto">
+                <p className="text-label text-text whitespace-pre-wrap leading-relaxed">{draft.body}</p>
+              </div>
+            )}
+
+            {!effectiveLetterId && !awaitingLetter && !generating && (
+              <div className="rounded-[10px] border border-dashed border-[var(--border)] px-3.5 py-3">
+                <p className="text-label text-text-2">
+                  No cover letter has been generated for this job yet — the ATS score didn&apos;t
+                  clear the bar to write one automatically.
+                </p>
                 <button
                   type="button"
-                  onClick={sendEmail}
-                  disabled={!!busy}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                  onClick={generateCoverLetter}
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 py-1.5 text-label font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90"
                 >
-                  {busy === "email"
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Mail className="h-4 w-4" />}
-                  {busy === "email" ? "Sending…" : "Send application email"}
+                  <PenLine className="w-3.5 h-3.5" /> Write my cover letter
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={openListing}
-                disabled={!!busy}
-                className={
-                  canSend
-                    ? "inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[var(--border)] py-2 text-body font-medium text-text transition-colors hover:bg-[var(--bg)] disabled:opacity-50"
-                    : "inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-                }
-              >
-                <ExternalLink className="h-4 w-4" />
-                {canSend ? `Apply on ${job.source} instead` : `Apply on ${job.source}`}
-              </button>
-            </div>
-          </>
-        )}
+              </div>
+            )}
+            {generating && (
+              <p className="flex items-center gap-2 text-label text-text-3">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {researching
+                  ? `Researching ${researching} first — paragraph 2 needs a real fact about them to anchor on. This takes 15-45 seconds.`
+                  : "Writing your cover letter… this can take a minute or two."}
+              </p>
+            )}
+            {generateError && (
+              <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
+                <p className="text-label text-red-600">{generateError}</p>
+                <button
+                  type="button"
+                  onClick={generateCoverLetter}
+                  className="mt-1.5 text-label font-medium text-[var(--brand)] hover:underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {draft && (
+              <p className="mt-1.5 text-caption text-text-3">
+                {contactEmail
+                  ? "Your tailored CV and cover letter go out as attachments."
+                  : "Copy this into your own email — get the CV and cover letter from Download above."}
+              </p>
+            )}
+          </div>
+
+          {/* ── right: what to do about it ────────────────────────────── */}
+          <div className="min-w-0 md:border-l md:border-[var(--border)] md:pl-5">
+            {done ? (
+              <SuccessCard job={job} done={done} onClose={onClose} />
+            ) : confirmSource ? (
+              <ConfirmSourceCard
+                job={job}
+                opened={confirmSource.opened}
+                busy={busy === "source"}
+                error={error}
+                onYes={() => confirmApplied(confirmSource.opened)}
+                onNo={() => setConfirmSource(null)}
+              />
+            ) : (
+              <>
+                <div className="space-y-3 text-left">
+                  {contactEmail ? (
+                    <div className="flex items-center gap-2 text-label flex-wrap">
+                      <span className="text-text-3">To:</span>
+                      <span className="font-semibold text-text break-all">{contactEmail}</span>
+                      <button
+                        type="button"
+                        onClick={() => { setShowAddEmail((v) => !v); setEmailError(null); }}
+                        className="text-[var(--brand)] hover:underline font-medium"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-[10px] bg-[#f7f8fa] border border-border px-3.5 py-2.5 text-body text-text-2">
+                      <b className="text-text">No contact email on file</b> for this listing — apply
+                      on {job.source} instead, or add an address if you find one.
+                    </div>
+                  )}
+
+                  {!contactEmail && !showAddEmail && (
+                    <Button size="sm" onClick={() => setShowAddEmail(true)}>+ Add email</Button>
+                  )}
+
+                  {showAddEmail && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="contact@company.com"
+                        className="field text-label py-1.5 flex-1 min-w-0"
+                      />
+                      <Button variant="brand" size="sm" onClick={saveEmail} disabled={savingEmail || !emailInput.trim()}>
+                        {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                  )}
+                  {emailError && <p className="text-label text-red-600">{emailError}</p>}
+                  {error && <p className="text-label text-red-600">{error}</p>}
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2">
+                  {canSend && (
+                    <button
+                      type="button"
+                      onClick={sendEmail}
+                      disabled={!!busy}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {busy === "email"
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Mail className="h-4 w-4" />}
+                      {busy === "email" ? "Sending…" : "Send application email"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openListing}
+                    disabled={!!busy}
+                    className={
+                      canSend
+                        ? "inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[var(--border)] py-2 text-body font-medium text-text transition-colors hover:bg-[var(--bg)] disabled:opacity-50"
+                        : "inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[var(--brand)] py-2 text-body font-medium text-[var(--brand-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {canSend ? `Apply on ${job.source} instead` : `Apply on ${job.source}`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <p className="mt-5 border-t border-[var(--border)] pt-3 text-caption text-text-3">
+          This message is kept on the job&apos;s <b className="font-semibold text-text-2">Cover letter</b> tab —
+          copy it there any time, including after you&apos;ve applied.
+        </p>
       </div>
     </div>,
     document.body,
@@ -540,7 +564,9 @@ export function ApplyModal({
 
 /** The hand-off checkpoint: the listing is open, we can't see what happens
  *  there, so ask instead of assuming. "Not yet" is the safe default — the job
- *  stays exactly where it was and Apply can be clicked again. */
+ *  stays exactly where it was and the popup drops back to the compose view
+ *  (it used to close outright, which meant reopening Apply and re-fetching the
+ *  draft just to read the message again). */
 function ConfirmSourceCard({
   job, opened, busy, error, onYes, onNo,
 }: {
