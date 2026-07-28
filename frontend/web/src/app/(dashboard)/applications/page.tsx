@@ -83,7 +83,7 @@ export default async function ApplicationsPage({
   ] = await Promise.all([
     supabase.from("search_profiles").select("id, name").eq("user_id", user.id),
     supabase.from("cover_letters")
-      .select("id, job_id, completed_at, created_at")
+      .select("id, job_id, completed_at, created_at, email_sent_at, email_sent_to")
       .eq("user_id", user.id)
       .eq("status", "completed")
       .eq("is_stale", false)
@@ -96,6 +96,7 @@ export default async function ApplicationsPage({
   );
   const letterRows = (letters ?? []) as Array<{
     id: string; job_id: string; completed_at: string | null; created_at: string;
+    email_sent_at: string | null; email_sent_to: string | null;
   }>;
   const letterJobIds = Array.from(new Set(letterRows.map((l) => l.job_id)));
 
@@ -183,6 +184,8 @@ export default async function ApplicationsPage({
       job_applied_at:            j.applied_at,
       job_dismissed_at:          j.dismissed_at,
       job_contact_email:         j.contact_email,
+      letter_email_sent_at:      l.email_sent_at ?? null,
+      letter_email_sent_to:      l.email_sent_to ?? null,
       job_hiring_manager:        j.hiring_manager,
       job_posted_at:             j.posted_at,
       job_distance_km:           j.distance_km,
@@ -202,6 +205,8 @@ export default async function ApplicationsPage({
     allRows.push({
       letter_id:                 null,
       letter_completed_at:       null,
+      letter_email_sent_at:      null,
+      letter_email_sent_to:      null,
       job_id:                    j.id,
       job_title:                 j.title ?? "(untitled)",
       job_company:               j.company ?? "",

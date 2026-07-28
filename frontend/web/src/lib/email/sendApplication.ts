@@ -123,17 +123,23 @@ export async function sendApplicationEmail(
   //       Kept for backward-compat (older callers / no-multipart paths);
   //       does NOT match the analysis-tab render but is better than no CV.
   let cvPdfBuffer: Buffer | null = clientCvPdfBuffer;
+  // Whether this job is SUPPOSED to have a CV attached. A job that was never
+  // tailored legitimately has nothing to send; a job that was tailored and
+  // arrives here with no bytes is a failure, not a variation.
+  let expectsCv = false;
 
   if (!cvPdfBuffer) {
     const { data: run } = await admin
       .from("analysis_runs")
-      .select("tailored_pdf_storage_path")
+      .select("tailored_pdf_storage_path, tailored_cv_storage_path")
       .eq("job_id", letter.job_id)
       .eq("user_id", user.id)
       .eq("is_stale", false)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    expectsCv = !!(run?.tailored_pdf_storage_path || run?.tailored_cv_storage_path);
 
     if (run?.tailored_pdf_storage_path) {
       const { data: pdfData } = await admin
@@ -144,6 +150,25 @@ export async function sendApplicationEmail(
         cvPdfBuffer = Buffer.from(await pdfData.arrayBuffer());
       }
     }
+  }
+
+  // Refuse rather than quietly send a worse application.
+  //
+  // This used to fall through: no client PDF, storage download fails or the
+  // legacy path is null, and the email went out with the cover letter alone —
+  // no error, "Application sent ✓". The next line claims `email_sent_at`, and
+  // from that moment FOUR paths 409 (send-email pre-flight, the atomic claim,
+  // PATCH letter, POST review). So the one send the user gets is the broken
+  // one and the correct version can never go out, from anywhere in the app.
+  //
+  // Failing here costs a retry. Sending here costs the application.
+  if (!cvPdfBuffer && expectsCv) {
+    return jsonError(
+      "Your tailored CV couldn't be attached, so nothing was sent — the application is "
+      + "unchanged and you can try again. If this keeps happening, open the job and use "
+      + "Download to check the CV still generates.",
+      422,
+    );
   }
 
   // ── 4b. Generate (or fetch) cover letter PDF (Phase G) ──────────────────

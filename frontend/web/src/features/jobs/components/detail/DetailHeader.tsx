@@ -415,6 +415,7 @@ export function DetailHeader({
           letterId={letterId}
           letterSubject={letterSubject}
           letterBody={letterBody}
+          cvStoragePath={cvStoragePath}
           onClose={closeApply}
           onApplied={() => { setAppliedNow(true); onApplied?.(); onChanged(); }}
           onChanged={onChanged}
