@@ -188,7 +188,7 @@ function BoardDetailPanelInner({
       run={run}
       onClosed={onClose}
       onChanged={refresh}
-      onApplied={() => onPatchJob?.(job.id, { applied_at: new Date().toISOString() })}
+      onAppliedChanged={(appliedAt) => onPatchJob?.(job.id, { applied_at: appliedAt })}
       mobile={mobile}
     />
   );

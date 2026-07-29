@@ -38,7 +38,7 @@ const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = 
 export function DetailHeader({
   job, description = null, manualJdText = null, detailLoaded = false,
   letterId = null, letterSubject = null, letterBody = null,
-  cvStoragePath = null, run = null, onClosed, onChanged, onApplied, mobile = false,
+  cvStoragePath = null, run = null, onClosed, onChanged, onAppliedChanged, mobile = false,
 }: {
   job: BoardJob;
   /** Raw JD text from the pane's per-job payload (no longer on the board row).
@@ -70,10 +70,11 @@ export function DetailHeader({
   onClosed: () => void;
   /** Called after any mutation that should refresh both this panel and the list. */
   onChanged: () => void;
-  /** Called once the job has actually been marked applied, so the board list can
-   *  patch its own copy of the row. Separate from `onChanged`, which only
-   *  refetches this pane. */
-  onApplied?: () => void;
+  /** Called once the job's applied state has actually changed, so the board list
+   *  can patch its own copy of the row — a timestamp when it was applied, null
+   *  when that was undone. Separate from `onChanged`, which only refetches this
+   *  pane. */
+  onAppliedChanged?: (appliedAt: string | null) => void;
   /** SmartFeed mounts BoardDetailPanel twice — a desktop pane (`hidden lg:block`)
    *  and a mobile one (`lg:hidden`) — so this header renders twice at every
    *  breakpoint. CSS hides the wrong one, but the progress popup is a portal to
@@ -89,7 +90,12 @@ export function DetailHeader({
   // the run genuinely finishes rather than when the POST resolves.
   const [submitting, setSubmitting]   = useState(false);
   const [showApply, setShowApply]     = useState(false);
-  const [appliedNow, setAppliedNow]   = useState(false);
+  // Tri-state, not a boolean: this pane deliberately never calls
+  // router.refresh(), so `job.applied_at` stays frozen at whatever the server
+  // render said until a real navigation. It has to be able to override that
+  // in BOTH directions — `false` alone couldn't express "just un-applied".
+  const [appliedOverride, setAppliedOverride] = useState<boolean | null>(null);
+  const [unapplying, setUnapplying]   = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
@@ -207,6 +213,39 @@ export function DetailHeader({
     catch { setError("Could not archive this job."); }
   }
 
+  /** Undo an applied mark. Nothing else on the board can do this — a card's
+   *  Apply button stamps `applied_at` with no confirmation, and until this
+   *  existed the only way back was the /applications Sent tab's "Move back to
+   *  pool".
+   *
+   *  PATCH rather than the `markJobUnapplied` server action for the same reason
+   *  ApplyModal avoids `markJobApplied`: that action calls revalidatePath, which
+   *  refetches the whole server-rendered board and resets its scroll out from
+   *  under the user — here it would also tear this row out of the flat Applied
+   *  list mid-click. The route already accepts `applied_at: null`. */
+  async function onUnapply() {
+    if (unapplying) return;
+    setUnapplying(true); setError(null);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ applied_at: null }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Failed (${res.status})`);
+      }
+      setAppliedOverride(false);
+      onAppliedChanged?.(null);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not undo this application");
+    } finally {
+      setUnapplying(false);
+    }
+  }
+
   async function runAnalyze(override?: "thin_jd" | "initial_gate" | "all") {
     if (analysing) return;
     setSubmitting(true); setError(null);
@@ -247,7 +286,7 @@ export function DetailHeader({
   // on purpose). Without this, a successful Apply leaves this same header
   // still reading "Apply now" right after its own popup just confirmed the
   // opposite.
-  const isApplied = !!job.applied_at || appliedNow;
+  const isApplied = appliedOverride ?? !!job.applied_at;
   const needsJd   = job.pipelineState === "needs_jd";
 
   // Everything below prefers the pane's freshly-fetched run over the board row
@@ -394,6 +433,11 @@ export function DetailHeader({
                   <MenuItem onClick={() => { setMenuOpen(false); runAnalyze("all"); }} disabled={analysing}>Force full analysis</MenuItem>
                 )}
                 <MenuItem onClick={() => { setMenuOpen(false); window.open(job.url, "_blank", "noopener,noreferrer"); }}>View job posting ↗</MenuItem>
+                {isApplied && (
+                  <MenuItem onClick={() => { setMenuOpen(false); onUnapply(); }} disabled={unapplying}>
+                    {unapplying ? "Undoing…" : "Mark as not applied"}
+                  </MenuItem>
+                )}
                 <MenuItem onClick={() => { setMenuOpen(false); onDismiss(); }} danger>Dismiss</MenuItem>
               </div>
             )}
@@ -446,7 +490,11 @@ export function DetailHeader({
           letterBody={letterBody}
           cvStoragePath={cvStoragePath}
           onClose={closeApply}
-          onApplied={() => { setAppliedNow(true); onApplied?.(); onChanged(); }}
+          onApplied={() => {
+            setAppliedOverride(true);
+            onAppliedChanged?.(new Date().toISOString());
+            onChanged();
+          }}
           onChanged={onChanged}
         />
       )}

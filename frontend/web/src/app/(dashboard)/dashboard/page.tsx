@@ -167,6 +167,45 @@ export default async function DashboardPage({
   if (sp.source)   dq = dq.eq("source", sp.source);
   dq = dq.order("dismissed_at", { ascending: false, nullsFirst: false }).limit(100);
 
+  // Jobs the user has ACTED on — applied to or starred — fetched uncapped and
+  // unfiltered, then folded into the active set below.
+  //
+  // `?stage=applied` and `?stage=favourite` are flat VIEWS of the board (see
+  // SmartFeed's isFlatStage): they render whatever `q` returned, narrowed
+  // client-side. So a job the user applied to silently disappeared from their
+  // Applied list once it fell outside the newest 200 by posted_at — and
+  // immediately if its listing had since expired or gone dead, since `q`
+  // filters both out. That is precisely backwards: scrape freshness is a
+  // reason to hide a job you have never touched, and no reason at all to hide
+  // one you already applied to. These rows are the user's own record of what
+  // they did, so nothing but an explicit archive removes them.
+  //
+  // Deliberately skips the location/source/posted_within narrowing above too —
+  // the flat views render no toolbar, so those params can only be leftovers
+  // from the main board, and applying them would hide applied jobs based on a
+  // filter the user cannot see or clear from that screen.
+  //
+  // Only issued for those two views. Every id this adds is also an id in the
+  // `.in("job_id", jobIds)` runs/letters queries below, and that list rides in
+  // the request URL — growing it on every dashboard load to fix a screen the
+  // user isn't looking at would trade a rare bug for a broad one. The main
+  // board's own Applied membership is unchanged (still the capped page); its
+  // funnel counts already come from the uncapped `countRows`.
+  // Must agree with the client's `resolveStage` — including its legacy
+  // `?status=applied` alias, which SmartFeed resolves to the same flat view.
+  // Testing `sp.stage` alone left that URL rendering the flat list off the
+  // capped page, i.e. the bug this query exists to fix.
+  const resolvedStage = sp.stage || (sp.status === "applied" ? "applied" : "");
+  const isFlatStageView = resolvedStage === "applied" || resolvedStage === "favourite";
+  const aq = isFlatStageView
+    ? supabase.from("jobs").select(JOB_SELECT)
+        .in("profile_id", ids)
+        .is("dismissed_at", null)
+        .or("applied_at.not.is.null,starred_at.not.is.null")
+        .order("applied_at", { ascending: false, nullsFirst: false })
+        .limit(400)
+    : Promise.resolve({ data: [] });
+
   // ── BATCH 1 — five parallel queries (all only need `ids`) ─────────────────
   // Previously: 6 sequential round-trips. Now: 1 parallel batch.
   // The 3 legacy KPI queries (jobRows/unseenRows/appliedRows) are eliminated —
@@ -178,6 +217,7 @@ export default async function DashboardPage({
   const [
     { data: jobs },
     { data: dismissedJobs },
+    { data: actionedJobs },
     { data: countRows },
     { data: runLogData },
     { data: completedRuns },
@@ -185,6 +225,7 @@ export default async function DashboardPage({
   ] = await Promise.all([
     q,
     dq,
+    aq,
     supabase
       .from("jobs")
       .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
@@ -224,9 +265,23 @@ export default async function DashboardPage({
   // consumed on first view). Profiles with no completed run yet keep all their
   // jobs (the first fetch IS the first batch).
   const isNewView = sp.status === "new";
-  let activeJobs = (jobs ?? []) as Array<{
+  type ActiveJobRow = {
     id: string; profile_id: string; created_at?: string | null; [k: string]: unknown;
-  }>;
+  };
+  // Fold the acted-on rows (see `aq`) into the capped page of active jobs,
+  // deduped by id — the two queries overlap for anything recent enough to be in
+  // both. Done BEFORE the ?status=new narrowing below so an old applied job
+  // can't leak into "jobs from the latest fetch".
+  let activeJobs = (() => {
+    const merged = [...((jobs ?? []) as ActiveJobRow[])];
+    const seen = new Set(merged.map((j) => j.id));
+    for (const j of (actionedJobs ?? []) as ActiveJobRow[]) {
+      if (seen.has(j.id)) continue;
+      seen.add(j.id);
+      merged.push(j);
+    }
+    return merged;
+  })();
   if (isNewView) {
     const runsByProfile = new Map<string, number[]>(); // newest-first (query desc)
     for (const r of (completedRuns ?? []) as Array<{ profile_id: string; started_at: string }>) {
