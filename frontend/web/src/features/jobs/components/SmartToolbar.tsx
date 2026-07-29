@@ -366,7 +366,13 @@ export function SmartToolbar({
             }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             placeholder="Location or company…"
-            className="field w-full pl-8 pr-8 text-label py-1.5"
+            className="field w-full text-label py-1.5"
+            // `.field`'s own `padding: 8px 10px` shorthand (globals.css) lives
+            // outside Tailwind's layer and wins the cascade over `pl-8`/`pr-8`
+            // at equal specificity — without the inline override here, the
+            // search icon and the text/placeholder both sat at the same 10px
+            // offset instead of the icon making room for the text.
+            style={{ paddingLeft: 32, paddingRight: 32 }}
           />
           {currentLocation && (
             <button

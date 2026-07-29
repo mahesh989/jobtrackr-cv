@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { Button, HoverPrefetchLink } from "@/components/ui";
+import { resetScrollFor } from "@/components/providers/ScrollRestoration";
 import { AddModal } from "@/features/jobs/components/AddModal";
 import {
   LayoutDashboard,
@@ -85,6 +86,7 @@ function NavItem({
   badge,
   exact,
   exclude,
+  onClick,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -94,6 +96,7 @@ function NavItem({
   /** Path prefixes to exclude from matching (prevents parent paths like
    *  `/cv` from matching sub-pages like `/cv/details`). */
   exclude?: string[];
+  onClick?: () => void;
 }) {
   const pathname = usePathname();
   let active = exact ? pathname === href : pathname.startsWith(href);
@@ -104,6 +107,7 @@ function NavItem({
   return (
     <HoverPrefetchLink
       href={href}
+      onClick={onClick}
       className={
         "sidebar-item flex items-center justify-between gap-2 px-3 rounded-[var(--sidebar-item-radius)] " +
         "text-body font-semibold transition-colors group " +
@@ -172,13 +176,23 @@ function UserFooter({ email }: { email: string }) {
   );
 }
 
-function Logo() {
+function Logo({ href }: { href: string }) {
   return (
-    <div className="sidebar-logo flex items-center px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0">
+    <HoverPrefetchLink
+      href={href}
+      // "Take me home" — unlike an in-board filter change or opening a job
+      // (which the user expects to return them to the same scroll spot), the
+      // logo means "start over at the top", so it deliberately bypasses
+      // ScrollRestoration's saved position for this pathname instead of
+      // relying on it. See resetScrollFor's own note for why both a clear and
+      // an immediate zero are needed.
+      onClick={() => resetScrollFor(href)}
+      className="sidebar-logo flex items-center px-4 h-16 border-b border-[var(--sidebar-border)] shrink-0"
+    >
       {/* The logo is the full "JobTrackr" wordmark, so no separate text label. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo-wordmark.png" alt="JobTrackr" className="h-7 w-auto shrink-0 object-contain" />
-    </div>
+    </HoverPrefetchLink>
   );
 }
 
@@ -197,7 +211,7 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCou
   if (isAdmin && !userView) {
     return (
       <aside className="flex flex-col h-full min-h-0 w-full overflow-y-auto select-none">
-        <Logo />
+        <Logo href="/admin" />
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
           <SectionLabel>Operations</SectionLabel>
@@ -250,7 +264,7 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCou
 
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
-      <Logo />
+      <Logo href="/dashboard" />
 
       {/* Nav body */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -266,7 +280,8 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCou
           </a>
         )}
 
-        <NavItem href="/dashboard" icon={LayoutDashboard} exact>Dashboard</NavItem>
+        {/* Same "take me home" reasoning as the logo — see its comment. */}
+        <NavItem href="/dashboard" icon={LayoutDashboard} exact onClick={() => resetScrollFor("/dashboard")}>Dashboard</NavItem>
 
         <SectionLabel>Jobs</SectionLabel>
 

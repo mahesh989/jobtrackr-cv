@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useState } from "react";
 import {
-  BarChart3, FileText, Mail, CheckCircle2, Inbox, Star, Loader2, ChevronRight, ExternalLink } from "lucide-react";
+  BarChart3, FileText, Mail, CheckCircle2, Inbox, Star, Loader2, ChevronRight, ExternalLink, StopCircle } from "lucide-react";
 import { markJobDismissed, toggleStarJob } from "@/lib/actions/jobs";
+import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { AnalyzeJobButton, FullAnalysisButton } from "@/features/cv/analysis/AnalyzeJobButton";
 import { JobEditModal } from "./JobEditModal";
 import { jobNeedsJd, MANUAL_JD_MIN_CHARS, type BoardJob } from "../lib/jobFilters";
@@ -140,8 +141,23 @@ function CardFooter({ job }: { job: BoardJob }) {
   const [submitting, setSubmitting] = useState(false);
   const [analyseError, setAnalyseError] = useState<string | null>(null);
   const seedStatus = state === "analysing" ? job.progress.latest_run_status : null;
-  const { running } = useJobRunStatus(job.id, seedStatus, undefined, job.progress.latest_run_id);
+  const { running, runId, markStarted } = useJobRunStatus(job.id, seedStatus, undefined, job.progress.latest_run_id);
   const analysing = submitting || running;
+  const [cancelling, setCancelling] = useState(false);
+
+  /** Same Stop the detail header offers, mirrored here so the card the user
+   *  started the run from can also end it — the run keeps going across a
+   *  refresh or a pane close, so "how do I stop this?" has to be answerable
+   *  from wherever the job is visible. */
+  async function onStop(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!runId || cancelling) return;
+    setCancelling(true);
+    setAnalyseError(null);
+    try { await cancelAnalysisRun(runId); }
+    catch { setAnalyseError("Could not stop the analysis"); }
+    finally { setCancelling(false); }
+  }
 
   const toneColors: Record<string, string> = {
     success: "bg-green-light text-green-700 border-green-500/30",
@@ -200,10 +216,13 @@ function CardFooter({ job }: { job: BoardJob }) {
       const res = await fetch(`/api/jobs/${job.id}/analyze`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Failed (${res.status})`);
-      }
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? `Failed (${res.status})`);
+      // Seed `running` before `submitting` drops — same race the detail header
+      // hits; see markStarted in useJobRunStatus. Both buttons read the same
+      // run row, so fixing it in one place and not the other would leave the
+      // card and the panel disagreeing about the very same analysis.
+      if (j.run_id) markStarted(j.run_id);
     } catch (err) {
       setAnalyseError(err instanceof Error ? err.message : "Could not start analysis");
     } finally {
@@ -218,8 +237,30 @@ function CardFooter({ job }: { job: BoardJob }) {
     // `job.pipelineState` (server-rendered) still reads "discovered" — the
     // Realtime-backed `running` flag is what actually knows a run is live.
     actionButton = (
-      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)]/10 text-[var(--brand)]">
-        <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
+      <span className="inline-flex items-center rounded-[8px] border border-[var(--brand)]/30 bg-[var(--brand)]/10 overflow-hidden">
+        {/* Clicking the label reopens the detail pane (and with it the progress
+            popup), so a dismissed popup is recoverable from the card too. */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); selection?.onOpenDetail?.(job.id); }}
+          title="Show analysis progress"
+          className="inline-flex items-center gap-1.5 px-[13px] py-[6px] text-[12.5px] font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
+        >
+          <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
+        </button>
+        <button
+          type="button"
+          onClick={onStop}
+          disabled={cancelling || !runId}
+          title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
+          aria-label="Stop analysis"
+          className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[6px] text-[12.5px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+        >
+          {cancelling
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <StopCircle className="w-3 h-3" />}
+          Stop
+        </button>
       </span>
     );
   } else if (state === "applied") {

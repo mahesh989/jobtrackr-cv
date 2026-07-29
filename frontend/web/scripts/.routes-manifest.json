@@ -1,0 +1,816 @@
+{
+  "generatedAt": "static-scan",
+  "pages": [
+    {
+      "route": "/admin/activity",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/ai-costs",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/ai-settings",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/audit",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/metrics",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/pipeline",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/quality",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/retention",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/revenue",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/sourcing",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/admin/users/[id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ]
+    },
+    {
+      "route": "/admin/users",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/analyses",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/analytics",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/applications",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/billing",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/cv/[id]/review",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ]
+    },
+    {
+      "route": "/cv/credentials",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/cv/details",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/cv",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/dashboard",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/instructions",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/integrations",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/jobs/[id]/analyze/[run_id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "run_id"
+      ]
+    },
+    {
+      "route": "/profiles/[id]/edit",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ]
+    },
+    {
+      "route": "/profiles/[id]/jobs",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ]
+    },
+    {
+      "route": "/profiles/[id]/runs",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ]
+    },
+    {
+      "route": "/profiles/new",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/profiles",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/settings/account",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/settings/ai-keys",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/settings/profile",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/settings/theme",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/voice",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/auth/forgot-password",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/auth/login",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/auth/signup",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/auth/update-password",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/onboarding/plan",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/page.tsx",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/pricing",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/privacy",
+      "dynamic": false,
+      "dynamicParams": []
+    },
+    {
+      "route": "/terms",
+      "dynamic": false,
+      "dynamicParams": []
+    }
+  ],
+  "api": [
+    {
+      "route": "/api/admin/ai-settings",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/admin/sources",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/admin/view-as",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]/cover-letter-pdf",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]/email-draft",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]/review",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]/send-email",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/applications/[letter_id]/tailored-cv-pdf",
+      "dynamic": true,
+      "dynamicParams": [
+        "letter_id"
+      ],
+      "methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "route": "/api/auth/email/disconnect",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/auth/email/google/callback",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/auth/email/google",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/auth/email/outlook/callback",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/auth/email/outlook",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/auth/forgot-password",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/billing/checkout/confirm",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/billing/checkout",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/billing/portal",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/billing/upgrade",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/billing/webhook",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/company-research/[company_id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "company_id"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/company-research/facts/select",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/company-research",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv/[id]/extract-skills",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv/[id]/recategorise",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv/[id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "route": "/api/cv/[id]/structured",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/cv/[id]/structurize",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv/create",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/cv/upload-url",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/integrations/apify",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ]
+    },
+    {
+      "route": "/api/internal/classify-skills",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/analyze/[run_id]/resume",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "run_id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/analyze",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/board-detail",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/cover-letter/[letter_id]/download",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "letter_id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/cover-letter/[letter_id]/pick",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "letter_id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/cover-letter/[letter_id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "letter_id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]/cover-letter",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/jobs/[id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/jobs/scrape-url",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/notifications/unsubscribe",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/places/autocomplete",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/profiles/[id]/jobs/export",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/profiles/[id]/run",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/profiles/[id]/runs/[runId]/logs",
+      "dynamic": true,
+      "dynamicParams": [
+        "id",
+        "runId"
+      ],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/profiles/[id]/runs",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "GET",
+        "DELETE"
+      ]
+    },
+    {
+      "route": "/api/profiles/resume-paused",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/user/delete",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "DELETE"
+      ]
+    },
+    {
+      "route": "/api/user/export",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/user/notifications",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/user/preferences",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/user/runs",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/user/setup-status",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/user/stories/[id]",
+      "dynamic": true,
+      "dynamicParams": [
+        "id"
+      ],
+      "methods": [
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/user/stories/extract",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/user/stories/match",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "route": "/api/user/stories",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/api/user/visa-status",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "route": "/api/user/voice-profile",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "route": "/auth/confirm",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "route": "/auth/signout",
+      "dynamic": false,
+      "dynamicParams": [],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    }
+  ]
+}

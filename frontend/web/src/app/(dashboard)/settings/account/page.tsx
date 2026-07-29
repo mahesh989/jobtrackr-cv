@@ -7,8 +7,9 @@ export const metadata = { title: "Account — JobTrackr" };
 
 interface PageProps {
   searchParams: Promise<{
-    email_connected?: "google" | "outlook";
-    email_error?:     string;
+    email_connected?:     "google" | "outlook";
+    email_error?:         string;
+    email_error_detail?:  string;
   }>;
 }
 

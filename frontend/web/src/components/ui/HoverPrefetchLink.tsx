@@ -34,12 +34,14 @@ export function HoverPrefetchLink({
   className,
   style,
   title,
+  onClick,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
   title?: string;
+  onClick?: () => void;
 }) {
   const router = useRouter();
   return (
@@ -47,6 +49,7 @@ export function HoverPrefetchLink({
       href={href}
       prefetch={false}
       onMouseEnter={() => router.prefetch(href)}
+      onClick={onClick}
       className={className}
       style={style}
       title={title}

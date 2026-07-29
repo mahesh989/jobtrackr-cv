@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { RunStatus } from "@/lib/constants";
 
@@ -21,6 +21,29 @@ function isActive(status: string | null | undefined): boolean {
  *  switching between jobs in production. A per-subscription suffix sidesteps
  *  the shared registry entirely. */
 let channelSeq = 0;
+
+/**
+ * Cross-instance "a run just started" bridge, keyed by job id.
+ *
+ * The card in the board list and the detail-pane header each call this hook
+ * separately, so they hold INDEPENDENT state for the very same run. Realtime
+ * eventually tells both, but until the first event lands the component that
+ * did not start the run knows nothing — which is how one job could read
+ * "Analysing…" on its card and still offer "Analyse this job" in the panel
+ * beside it, for the same click.
+ *
+ * Publishing the new run id here flips every mounted instance for that job at
+ * once. It is deliberately module-level rather than context: the two consumers
+ * live in different subtrees, and this is a short-lived hand-off that Realtime
+ * takes over from within a tick or two.
+ */
+const startedRuns = new Map<string, string>();
+const startListeners = new Set<() => void>();
+
+function publishStarted(jobId: string, runId: string) {
+  startedRuns.set(jobId, runId);
+  startListeners.forEach((l) => l());
+}
 
 /**
  * Live analysis-run status for one job, sourced from the `analysis_runs` row
@@ -62,6 +85,17 @@ export function useJobRunStatus(
    *  server-rendered latest run, then kept current by Realtime (a re-analyse
    *  creates a NEW row, so the seed goes stale the moment one starts). */
   runId: string | null;
+  /** Call with the run_id the enqueue POST returned, to mark this job as running
+   *  immediately.
+   *
+   *  Without it there is a gap: callers used to hold their own `submitting`
+   *  boolean and clear it when the POST resolved, but the first Realtime event
+   *  for the new row lands some time AFTER that. In the gap `running` was still
+   *  false, so the UI read the run as finished and the progress popup flipped
+   *  straight to "Analysis complete" with every step unchecked, seconds into a
+   *  1–2 minute pipeline. Seeding `pending` here (the same status the row is
+   *  actually inserted with) closes it; Realtime then takes over normally. */
+  markStarted: (runId: string) => void;
 } {
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [steps, setSteps] = useState<Record<string, string> | null>(null);
@@ -84,11 +118,35 @@ export function useJobRunStatus(
   const settledRef = useRef(onSettled);
   useEffect(() => { settledRef.current = onSettled; }, [onSettled]);
 
-  useEffect(() => {
-    // Scoped per subscription, so it resets naturally when the job changes.
-    // Guards the settle callback against duplicate or replayed events.
-    const settledRunIds = new Set<string>();
+  // Guards the settle callback against duplicate or replayed events. Shared by
+  // the Realtime handler and the backstop poll below so whichever sees a run
+  // finish first is the only one that fires.
+  const settledRunIds = useRef<Set<string>>(new Set());
 
+  /** Fold one observed run row into state, from either source. */
+  const applyRow = useCallback((row: {
+    id?: string | null;
+    status?: string | null;
+    step_status?: Record<string, string> | null;
+  }) => {
+    if (!row?.status) return;
+    setStatus(row.status);
+    if (row.id) setRunId(row.id);
+    if (row.step_status && typeof row.step_status === "object") setSteps(row.step_status);
+
+    const terminal = row.status === RunStatus.COMPLETED || row.status === RunStatus.FAILED;
+    if (!terminal) return;
+    // Real status now governs — drop the optimistic hand-off so a
+    // late-mounting instance can't re-adopt this finished run as if it had
+    // just started.
+    if (row.id && startedRuns.get(jobId) === row.id) startedRuns.delete(jobId);
+    if (row.id && !settledRunIds.current.has(row.id)) {
+      settledRunIds.current.add(row.id);
+      settledRef.current?.();
+    }
+  }, [jobId]);
+
+  useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`job-detail:${jobId}:${++channelSeq}`)
@@ -101,23 +159,7 @@ export function useJobRunStatus(
           filter: `job_id=eq.${jobId}`,
         },
         (payload) => {
-          const row = payload.new as {
-            id?: string;
-            status?: string;
-            step_status?: Record<string, string> | null;
-          } | null;
-          if (!row?.status) return;
-          setStatus(row.status);
-          if (row.id) setRunId(row.id);
-          if (row.step_status && typeof row.step_status === "object") {
-            setSteps(row.step_status);
-          }
-          const terminal =
-            row.status === RunStatus.COMPLETED || row.status === RunStatus.FAILED;
-          if (terminal && row.id && !settledRunIds.has(row.id)) {
-            settledRunIds.add(row.id);
-            settledRef.current?.();
-          }
+          applyRow(payload.new as Parameters<typeof applyRow>[0]);
         },
       )
       .on(
@@ -140,7 +182,57 @@ export function useJobRunStatus(
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, [jobId, applyRow]);
+
+  // Backstop poll — armed ONLY while we believe a run is live, and it stops
+  // itself the moment the row reports terminal.
+  //
+  // Realtime is the primary path, but events do get dropped. That used to be
+  // invisible because the UI treated "not running" as "completed", so a missed
+  // terminal event still landed on the right answer by accident. Now that
+  // completion is only ever claimed when the row actually says so (which is
+  // what stopped the popup lying seconds into a run), a dropped event would
+  // instead strand the job on "Analysing…" forever — exactly the failure this
+  // catches. Also covers the pipeline finishing while the tab was closed.
+  useEffect(() => {
+    if (!isActive(status)) return;
+    let cancelled = false;
+
+    async function check() {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}/board-detail`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled && data?.run) applyRow(data.run);
+      } catch { /* transient — the next tick retries */ }
+    }
+
+    const id = setInterval(check, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [jobId, status, applyRow]);
+
+  // Adopt a run started by ANY instance for this job (including this one —
+  // markStarted publishes rather than setting state directly, so both paths
+  // go through here and stay identical).
+  const adoptedRun = useRef<string | null>(null);
+  useEffect(() => {
+    const sync = () => {
+      const startedId = startedRuns.get(jobId);
+      if (!startedId || adoptedRun.current === startedId) return;
+      adoptedRun.current = startedId;
+      setRunId(startedId);
+      setStatus(RunStatus.PENDING);
+      // A re-analyse is a NEW row; the previous run's steps are not this one's.
+      setSteps(null);
+    };
+    sync();
+    startListeners.add(sync);
+    return () => { startListeners.delete(sync); };
   }, [jobId]);
 
-  return { status, running: isActive(status), steps, runId };
+  const markStarted = useCallback((newRunId: string) => {
+    publishStarted(jobId, newRunId);
+  }, [jobId]);
+
+  return { status, running: isActive(status), steps, runId, markStarted };
 }

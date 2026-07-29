@@ -83,13 +83,6 @@ export default async function ProfilesListPage() {
             <div className="mb-1.5">
               <BackButton />
             </div>
-            <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
-              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <span className="text-text-2">Job Searches</span>
-            </div>
             <h1 className="text-lead font-semibold text-text">Job Searches</h1>
             <p className="text-label text-text-2 mt-0.5">
               {profiles.length} search{profiles.length !== 1 ? "es" : ""} · {activeCount} auto-scheduled

@@ -14,6 +14,7 @@ import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
+import { RunStatus } from "@/lib/constants";
 import { markJobDismissed } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
@@ -23,6 +24,7 @@ import { Distance } from "../FeedCards";
 import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
 import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
+import { useIsDesktop } from "../../lib/useIsDesktop";
 import { AnalysisProgressModal } from "./AnalysisProgressModal";
 import { ApplyModal } from "./ApplyModal";
 import { DownloadMenu } from "./DownloadMenu";
@@ -96,14 +98,26 @@ export function DetailHeader({
   // a job gets stamped. Consumed once and stripped from the URL so a reload
   // doesn't reopen it.
   //
-  // Only the desktop twin acts on it. SmartFeed mounts this header twice and
-  // CSS hides one, but ApplyModal is a portal to document.body and escapes
-  // that hiding — without the guard a card click renders two stacked popups
-  // (the same reason AnalysisProgressModal is desktop-only).
+  // Only ONE twin acts on it — SmartFeed mounts this header twice and CSS
+  // hides one, but ApplyModal is a portal to document.body and escapes that
+  // hiding, so both instances setting showApply would stack two identical
+  // popups. This used to be hardcoded to the desktop twin (`!mobile`), which
+  // silently broke on any viewport under the `lg` breakpoint (~1024px,
+  // including a perfectly ordinary non-maximized desktop window): the visible
+  // pane there is the MOBILE twin, but the DESKTOP twin still portal-rendered
+  // the modal per the old rule — and that twin's own useBoardDetail fetch is
+  // gated off at that same viewport (see useIsDesktop), so its `data` never
+  // arrives and the message showed "Loading your message…" forever, even
+  // though the letter had been sitting fully generated in the database the
+  // whole time. Gating on `isThisInstanceLive` instead ties "which twin shows
+  // the modal" to "which twin actually has data" — they're now the same
+  // question, so they can't disagree.
+  const isDesktopViewport = useIsDesktop();
+  const isThisInstanceLive = mobile ? !isDesktopViewport : isDesktopViewport;
   const sp       = useSearchParams();
   const pathname = usePathname();
   const [applyConsumed, setApplyConsumed] = useState(false);
-  const wantsApply = !mobile && sp.get("apply") === "1" && sp.get("job") === job.id;
+  const wantsApply = isThisInstanceLive && sp.get("apply") === "1" && sp.get("job") === job.id;
   if (wantsApply && !applyConsumed) {
     setApplyConsumed(true);
     setShowApply(true);
@@ -132,7 +146,7 @@ export function DetailHeader({
   // the popup (that was true of an older version wired to router.refresh(),
   // which is why this used to be deferred until the popup was dismissed —
   // the deferral just meant "no manual refresh needed" wasn't actually true).
-  const { status, running, steps, runId } = useJobRunStatus(
+  const { status, running, steps, runId, markStarted } = useJobRunStatus(
     job.id,
     seedStatus,
     onChanged,
@@ -169,11 +183,16 @@ export function DetailHeader({
   // A user-cancelled run lands as status=failed with "Cancelled by user" (the
   // contract the orchestrator polls for), so reporting it as "Analysis failed"
   // told the user their own Stop was an error. Track it as its own phase.
+  // "completed" is asserted only when the run row actually says so. It used to
+  // be the catch-all `else`, which meant any moment `analysing` read false —
+  // notably the gap between the enqueue POST resolving and the first Realtime
+  // event — was reported to the user as a finished analysis, steps and all.
   const phase: "running" | "completed" | "failed" | "cancelled" =
     analysing ? "running"
     : cancelled ? "cancelled"
-    : status === "failed" ? "failed"
-    : "completed";
+    : status === RunStatus.FAILED ? "failed"
+    : status === RunStatus.COMPLETED ? "completed"
+    : "running";
   // Only ever auto-show for a live run; terminal phases show only if the popup
   // was already open when the run settled (so it can report the outcome).
   const [wasOpen, setWasOpen] = useState(false);
@@ -196,14 +215,15 @@ export function DetailHeader({
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Failed (${res.status})`);
+      // Seed `running` from the id we just got back, BEFORE dropping
+      // `submitting` — see markStarted. Without it the UI reads the run as
+      // finished during the gap before the first Realtime event, and the
+      // progress popup flips to "Analysis complete" with no steps done.
+      if (json.run_id) markStarted(json.run_id);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis failed to start");
     } finally {
-      // Hand over to the Realtime-backed `running` flag. If the run row is not
-      // visible yet the button briefly returns to idle, which is honest — the
-      // insert either happened (Realtime takes over within a tick) or failed
-      // (the error above says so).
       setSubmitting(false);
     }
   }
@@ -212,7 +232,8 @@ export function DetailHeader({
     if (analysing) return;
     setSubmitting(true); setError(null);
     try {
-      await triggerReanalyze(job.id);
+      const newRunId = await triggerReanalyze(job.id);
+      if (newRunId) markStarted(newRunId);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not re-analyse");
@@ -257,8 +278,16 @@ export function DetailHeader({
 
   return (
     <div className="border-b border-border px-8 pt-4 pb-3">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+      {/* flex-wrap + a guaranteed minimum width on the title column: the
+          action-button row doesn't shrink (there's nothing sensible to trim
+          off "Full analysis"/"Download"/"Applied"), so at narrower widths
+          (this header now also renders full-width, unconstrained, in the
+          Applied/Favourite accordion — see BoardDetailPanel's `inline` mode)
+          it used to just take the space it needed and leave the flex-1 title
+          column with 0px, wrapping the title one word per line. Wrapping the
+          actions onto their own row instead keeps the title readable. */}
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="min-w-[220px] flex-1">
           <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-[19px] font-bold text-text hover:text-[var(--brand)] leading-tight tracking-tight">
             {job.title}
           </a>

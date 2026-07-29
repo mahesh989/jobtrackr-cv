@@ -15,8 +15,8 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "@vercel/speed-insights": "^2.0.0",
-    "html2canvas-pro": "^1.5.8",
     "bullmq": "^5.13.0",
+    "html2canvas-pro": "^1.5.8",
     "ioredis": "^5.4.1",
     "jspdf": "^2.5.2",
     "jszip": "^3.10.1",
@@ -37,6 +37,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "playwright": "^1.62.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -549,31 +549,29 @@ export default async function DashboardPage({
     },
   };
 
+  // Favourite/Applied are opened from their own sidebar links, not from a
+  // funnel click inside the dashboard — the user came here for the filtered
+  // board, not the account-wide stats. Skip the header/StatCards/PipelineDonut
+  // so the board panels start right at the top of the page.
+  const isFocusedStage = sp.stage === "favourite" || sp.stage === "applied";
+
   return (
     <div className="min-h-full">
-      {/* Page header */}
-      <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lead font-semibold text-text">Dashboard</h1>
-            <p className="text-label text-text-2 mt-0.5">
-              {profiles.length} profile{profiles.length !== 1 ? "s" : ""} · {activeCount} auto-scheduled
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="px-4 sm:px-6 py-5 space-y-6">
-        {/* ── KPI bar (interactive) ── */}
-        <StatCards
-          totalJobs={totalJobs}
-          totalNew={totalNew}
-          totalApplied={totalApplied}
-          activeCount={activeCount}
-        />
+        {!isFocusedStage && (
+          <>
+            {/* ── KPI bar (interactive) ── */}
+            <StatCards
+              totalJobs={totalJobs}
+              totalNew={totalNew}
+              totalApplied={totalApplied}
+              activeCount={activeCount}
+            />
 
-        {/* ── Pipeline analytics donut ── */}
-        <PipelineDonut data={lensData} />
+            {/* ── Pipeline analytics donut ── */}
+            <PipelineDonut data={lensData} />
+          </>
+        )}
 
         {/* ── Unified jobs board (client-side instant filtering) ── */}
         <div id="jobs-board" className="anim-in anim-delay-2 space-y-4 pt-2 scroll-mt-4">

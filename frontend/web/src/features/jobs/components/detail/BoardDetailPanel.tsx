@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, ChevronUp } from "lucide-react";
 import { Tabs } from "@/components/ui";
 import { useBoardDetail } from "../../lib/useBoardDetail";
 import { useIsDesktop } from "../../lib/useIsDesktop";
@@ -40,7 +40,7 @@ import { CoverLetterTab } from "./CoverLetterTab";
  * lint config flags as a cascading-render smell).
  */
 function BoardDetailPanelInner({
-  job, onClose, onPatchJob, mobile,
+  job, onClose, onPatchJob, mobile, inline,
 }: {
   job: BoardJob;
   onClose: () => void;
@@ -50,11 +50,19 @@ function BoardDetailPanelInner({
    *  "Ready to apply" after the popup has just confirmed the application. */
   onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
   mobile: boolean;
+  /** Accordion mode: the flat Applied/Favourite list expands a job in place
+   *  (full width, natural height, no internal scroll) instead of opening a
+   *  split-pane detail — the page itself scrolls, so the other rows stay
+   *  reachable above and below. A small "Collapse" bar replaces the mobile
+   *  drawer's "Back to list". */
+  inline?: boolean;
 }) {
   // Only the pane the viewport actually shows does the data work; its
-  // off-screen twin stays inert (see useIsDesktop).
+  // off-screen twin stays inert (see useIsDesktop). `inline` mounts a single
+  // instance per expanded row rather than a desktop+mobile pair, so it's
+  // always the active one.
   const isDesktop = useIsDesktop();
-  const active = mobile ? !isDesktop : isDesktop;
+  const active = inline ? true : (mobile ? !isDesktop : isDesktop);
   // Re-pull this pane's own payload so a finished run's new score, tabs and
   // tailored CV appear straight away. router.refresh() is deliberately NOT
   // called: re-rendering the whole dashboard is what reset the board's scroll
@@ -167,46 +175,65 @@ function BoardDetailPanelInner({
     </div>
   );
 
+  const header = (
+    <DetailHeader
+      job={job}
+      description={data?.description ?? null}
+      manualJdText={data?.manual_jd_text ?? null}
+      detailLoaded={!!data}
+      letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
+      letterSubject={data?.cover_letter?.email_subject ?? null}
+      letterBody={data?.cover_letter?.email_body ?? null}
+      cvStoragePath={run?.tailored_cv_storage_path ?? null}
+      run={run}
+      onClosed={onClose}
+      onChanged={refresh}
+      onApplied={() => onPatchJob?.(job.id, { applied_at: new Date().toISOString() })}
+      mobile={mobile}
+    />
+  );
+
   return (
-    <div className={mobile ? "fixed inset-0 z-40 bg-surface flex flex-col" : "flex flex-col h-full overflow-hidden"}>
-      {mobile && (
+    <div className={mobile ? "fixed inset-0 z-40 bg-surface flex flex-col" : inline ? "flex flex-col" : "flex flex-col h-full overflow-hidden"}>
+      {(mobile || inline) && (
         <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
           <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 text-label text-text-2 hover:text-text">
-            <X className="w-4 h-4" /> Back to list
+            {mobile ? <><X className="w-4 h-4" /> Back to list</> : <><ChevronUp className="w-4 h-4" /> Collapse</>}
           </button>
         </div>
       )}
 
-      <DetailHeader
-        job={job}
-        description={data?.description ?? null}
-        manualJdText={data?.manual_jd_text ?? null}
-        detailLoaded={!!data}
-        letterId={data?.cover_letter?.pass_3_final ? data.cover_letter.id : null}
-        letterSubject={data?.cover_letter?.email_subject ?? null}
-        letterBody={data?.cover_letter?.email_body ?? null}
-        cvStoragePath={run?.tailored_cv_storage_path ?? null}
-        run={run}
-        onClosed={onClose}
-        onChanged={refresh}
-        onApplied={() => onPatchJob?.(job.id, { applied_at: new Date().toISOString() })}
-        mobile={mobile}
-      />
-
       {error ? (
-        <div className="flex-1 flex items-center justify-center px-6">
-          <p className="text-label text-red-600">{error}</p>
-        </div>
+        <>
+          {header}
+          <div className="flex-1 flex items-center justify-center px-6">
+            <p className="text-label text-red-600">{error}</p>
+          </div>
+        </>
       ) : (
-        <Tabs.Root value={activeTab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0">
-          <Tabs.List className="flex items-center gap-1 border-b border-border px-8 shrink-0 mt-3.5 bg-[#fafbfc]">
-            <Tabs.Trigger value="jd" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Job description</Tabs.Trigger>
-            {hasScore && <Tabs.Trigger value="match" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Match &amp; score</Tabs.Trigger>}
-            {hasCv && <Tabs.Trigger value="cv" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Tailored CV</Tabs.Trigger>}
-            {hasLetter && <Tabs.Trigger value="cover" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Cover letter</Tabs.Trigger>}
-          </Tabs.List>
+        <Tabs.Root value={activeTab} onValueChange={setTab} className={inline ? "flex flex-col" : "flex flex-col flex-1 min-h-0"}>
+          {/* Inline (accordion) mode has no internal scroll region — the page
+              itself scrolls through the expanded job — so without `sticky`
+              the header+tabs would scroll away with the description. `sticky`
+              keeps them pinned together at the top of the viewport for
+              exactly as long as this job's box is on screen, then releases
+              naturally once the box scrolls past (native sticky behaviour,
+              no JS needed). `bg-surface` so the scrolling description doesn't
+              show through underneath. */}
+          <div className={inline ? "sticky top-0 z-10 bg-surface" : ""}>
+            {header}
+            <Tabs.List className="flex items-center gap-1 border-b border-border px-8 shrink-0 mt-3.5 bg-[#fafbfc]">
+              <Tabs.Trigger value="jd" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Job description</Tabs.Trigger>
+              {hasScore && <Tabs.Trigger value="match" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Match &amp; score</Tabs.Trigger>}
+              {hasCv && <Tabs.Trigger value="cv" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Tailored CV</Tabs.Trigger>}
+              {hasLetter && <Tabs.Trigger value="cover" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Cover letter</Tabs.Trigger>}
+            </Tabs.List>
+          </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-8 py-5 pb-9 text-[14.5px] leading-relaxed" style={{ maxWidth: 860 }}>
+          <div
+            className={`px-8 py-5 pb-9 text-[14.5px] leading-relaxed ${inline ? "" : "flex-1 min-h-0 overflow-y-auto"}`}
+            style={inline ? undefined : { maxWidth: 860 }}
+          >
             {/* keepMounted on the two tabs that own fetched state (the CV
                 preview downloads and renders a PDF; the letter loads its own
                 body). Unmounting them threw that work away, so every visit to
@@ -242,13 +269,16 @@ function BoardDetailPanelInner({
 }
 
 export function BoardDetailPanel({
-  job, onClose, onPatchJob, mobile = false,
+  job, onClose, onPatchJob, mobile = false, inline = false,
 }: {
   job: BoardJob;
   onClose: () => void;
   onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
   /** Renders as a full-screen overlay with a back button (mobile drawer). */
   mobile?: boolean;
+  /** Renders full-width, natural height, no internal scroll — the flat
+   *  Applied/Favourite list's accordion-style "expand in place" row. */
+  inline?: boolean;
 }) {
   return (
     <BoardDetailPanelInner
@@ -257,6 +287,7 @@ export function BoardDetailPanel({
       onClose={onClose}
       onPatchJob={onPatchJob}
       mobile={mobile}
+      inline={inline}
     />
   );
 }

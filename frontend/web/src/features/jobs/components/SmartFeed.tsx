@@ -395,7 +395,12 @@ export function SmartFeed({
             <JobSelectionContext.Provider value={selectionValue}>
               {visibleJobs.map((job) =>
                 job.id === selectedJob?.id ? (
-                  <div key={job.id} className="bg-surface border border-[var(--brand)]/40 rounded-lg overflow-hidden">
+                  // No `overflow-hidden` here (only rounded corners): it would clip to
+                  // this box's own bounds for CSS purposes, which makes it the
+                  // "scrollport" position:sticky resolves against — since this box
+                  // itself never scrolls, the sticky header+tabs inside would just
+                  // sit static instead of tracking the page's real scroll.
+                  <div key={job.id} className="bg-surface border border-[var(--brand)]/40 rounded-lg">
                     <BoardDetailPanel job={job} onClose={closeDetail} onPatchJob={patchJob} inline />
                   </div>
                 ) : (

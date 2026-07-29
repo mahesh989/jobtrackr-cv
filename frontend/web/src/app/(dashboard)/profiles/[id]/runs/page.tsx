@@ -24,12 +24,11 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
 
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id, name")
+    .select("id")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
   if (!profile) redirect("/dashboard");
-  const p = profile as { id: string; name: string };
 
   const { data: runs } = await supabase
     .from("run_logs")
@@ -65,23 +64,6 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1">
-              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <Link href="/profiles" className="hover:text-text transition-colors">Job Searches</Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <Link href={`/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[200px]">
-                {p.name}
-              </Link>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <span className="text-text-2">Run history</span>
-            </div>
             <h1 className="text-lead font-semibold text-text">Run history</h1>
           </div>
           <Link href={`/profiles/${id}/jobs`}>

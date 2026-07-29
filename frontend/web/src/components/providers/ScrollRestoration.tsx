@@ -32,6 +32,25 @@ import { usePathname } from "next/navigation";
 const KEY_PREFIX = "jt_scroll:";
 const SELECTOR = "[data-scroll-container]";
 
+/**
+ * Forces a fresh-visit scroll reset for `pathname`, bypassing the "return to
+ * where I left off" restore above. Wire this to the couple of entry points
+ * that mean "take me to the top of the dashboard" rather than "continue
+ * where I was" — the sidebar's Dashboard link and the logo — since without it
+ * they inherited the same restore-my-position behavior as an in-board filter
+ * change, which is right for the latter and wrong for the former.
+ *
+ * Two parts, because a click to a pathname you're ALREADY on doesn't remount
+ * anything and so never re-runs the restore effect above:
+ *   1. Clear the saved offsets so a later navigation away-and-back doesn't
+ *      resurrect them.
+ *   2. Zero every live scroller right now, for the same-pathname case.
+ */
+export function resetScrollFor(pathname: string) {
+  try { sessionStorage.removeItem(KEY_PREFIX + pathname); } catch { /* private mode */ }
+  document.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => { el.scrollTop = 0; });
+}
+
 /** Backstop only — NOT the normal stop condition. Restoring stops early the
  *  moment it succeeds or the user touches anything; those two fire on every
  *  real navigation. A fixed give-up window was tried first here and measured

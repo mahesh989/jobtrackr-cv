@@ -1,23 +1,24 @@
 "use client";
 
 /**
- * Cover letter tab — edits the letter itself, and nothing else.
+ * Cover letter tab — edits the letter, and (once there's a drafted message to
+ * edit) the message to employer alongside it.
  *
- * The short message to the employer (email body / the text you paste into a
- * listing's "message to the hiring manager" box) deliberately does NOT live
- * here. It is only ever used at the moment of applying, so it is edited in the
- * Apply popup, next to the Send button that consumes it. Editing it in two
- * places meant two save buttons for one piece of text.
+ * Once the application email has gone out the letter AND the message are both
+ * frozen: PATCH the letter, POST /review and GET /email-draft all 409 from
+ * that point (`cover_letters.email_sent_at` is the gate the backend checks).
+ * Rather than mount editors that can only fail, the sent case renders the
+ * stored copy straight off the board payload — including the message that was
+ * sent, which is otherwise unreachable once the Apply popup stops offering it.
  *
- * Once the application email has gone out the letter is frozen: PATCH the
- * letter, POST /review and GET /email-draft all 409 from that point. Rather
- * than mount an editor that can only fail, the sent case renders the stored
- * copy straight off the board payload — including the message that was sent,
- * which is otherwise unreachable once the Apply popup stops offering it.
+ * Before that point — including the "applied on the listing, nothing emailed"
+ * case, which sets `applied_at` but never `email_sent_at` — the same POST
+ * /review the Apply popup itself uses is still open, so the message is edited
+ * and saved right here instead of only being reachable from that one-shot popup.
  */
 
 import { useState } from "react";
-import { Copy, Check, Loader2, Save } from "lucide-react";
+import { Copy, Check, Loader2, Save, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useCoverLetter } from "@/features/applications/hooks/useCoverLetter";
 import type { BoardDetailCoverLetter } from "../../lib/boardDetailTypes";
@@ -56,21 +57,34 @@ function CopyButton({ text, label = "Copy message" }: { text: string; label?: st
 }
 
 function SectionShell({
-  title, meta, children, footer,
+  title, meta, children, footer, collapsible = false, defaultOpen = true,
 }: {
   title: string;
   meta?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Starts folded and toggles open on header click — used for the
+   *  "Message to employer" record, which is a look-up-later reference rather
+   *  than the reason someone opens this tab, and reads better as a fold-out
+   *  than always-on screen space above the letter. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(!collapsible || defaultOpen);
   return (
     <section className="rounded-[10px] border border-border overflow-hidden bg-surface">
-      <header className="flex items-center gap-2 flex-wrap px-[14px] py-[9px] border-b border-[var(--border-muted)] bg-[#fafbfc]">
+      <header
+        className={`flex items-center gap-2 flex-wrap px-[14px] py-[9px] bg-[#fafbfc] ${open ? "border-b border-[var(--border-muted)]" : ""} ${collapsible ? "cursor-pointer select-none" : ""}`}
+        onClick={collapsible ? () => setOpen((v) => !v) : undefined}
+      >
+        {collapsible && (
+          <ChevronRight className={`w-3.5 h-3.5 text-text-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+        )}
         <h4 className="text-[11px] font-bold uppercase tracking-[0.05em] text-text-3">{title}</h4>
         {meta}
       </header>
-      <div className="px-[14px] py-3">{children}</div>
-      {footer && (
+      {open && <div className="px-[14px] py-3">{children}</div>}
+      {open && footer && (
         <footer className="flex items-center gap-2 flex-wrap px-[14px] py-[9px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
           {footer}
         </footer>
@@ -97,11 +111,46 @@ export function CoverLetterTab({
 }) {
   const [error, setError] = useState<string | null>(null);
   const sent = !!letter.email_sent_at;
-  const showSentMessage = (sent || applied) && !!letter.email_body?.trim();
+  const showMessage = (sent || applied) && !!letter.email_body?.trim();
 
   // Passing null/false rather than branching the call — the hook stays
   // unconditional and never fires a request that the send lock would 409.
   const cover = useCoverLetter(sent ? null : letter.id, setError, !sent, onChanged);
+
+  // Message-to-employer edit state. Local rather than a fetch-backed hook like
+  // `cover` — the subject/body are already on the board payload, no round trip
+  // needed to start editing. `POST /review` is the same endpoint the Apply
+  // popup's own Approve button uses, and it stays open right up until
+  // `email_sent_at` is set, so this is not a second implementation of saving,
+  // just a second place to reach the one that already exists.
+  const [subject, setSubject] = useState(letter.email_subject ?? "");
+  const [body, setBody] = useState(letter.email_body ?? "");
+  const [savedSubject, setSavedSubject] = useState(letter.email_subject ?? "");
+  const [savedBody, setSavedBody] = useState(letter.email_body ?? "");
+  const [messageSaving, setMessageSaving] = useState(false);
+  const messageDirty = subject !== savedSubject || body !== savedBody;
+
+  async function saveMessage() {
+    if (messageSaving) return;
+    setMessageSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/applications/${letter.id}/review`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ subject, body }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `Save failed (${res.status})`);
+      setSavedSubject(subject);
+      setSavedBody(body);
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save message");
+    } finally {
+      setMessageSaving(false);
+    }
+  }
 
   const pdfHref = `/api/jobs/${jobId}/cover-letter/${letter.id}/download?format=pdf`;
 
@@ -205,34 +254,80 @@ export function CoverLetterTab({
         </SectionShell>
       )}
 
-      {/* ── Message to employer — sent applications only ─────────────
-          The editable copy lives in the Apply popup, which is where the
-          message is actually used and the only place it can be sent from.
-          Keeping a second editor here meant the same text in two places with
-          two save buttons. What stays is the read-only record of what went
-          out: once an application is sent that message is unreachable
-          anywhere else, and "what did I actually say to them?" is a question
-          that gets asked weeks later, before an interview. */}
-      {showSentMessage && (
-        <SectionShell
-          title="Message to employer"
-          meta={
-            <span className="text-[12px] text-text-3">
-              {sent ? "What was sent" : "What you used to apply"}
-            </span>
-          }
-          footer={<CopyButton text={letter.email_body ?? ""} />}
-        >
-          {letter.email_subject && (
-            <p className="text-[13px] text-text mb-2">
-              <span className="text-text-3">Subject: </span>
-              <b className="font-semibold">{letter.email_subject}</b>
+      {/* ── Message to employer ──────────────────────────────────────
+          Sent applications: a frozen, read-only record — once an email has
+          gone out that message is unreachable anywhere else, and "what did I
+          actually say to them?" is a question that gets asked weeks later,
+          before an interview. Everything else (including "applied on the
+          listing, nothing emailed"): editable and saveable right here via the
+          same POST /review the Apply popup itself uses. */}
+      {showMessage && (
+        sent ? (
+          <SectionShell
+            title="Message to employer"
+            collapsible
+            defaultOpen={false}
+            meta={<span className="text-[12px] text-text-3">What was sent</span>}
+            footer={<CopyButton text={letter.email_body ?? ""} />}
+          >
+            {letter.email_subject && (
+              <p className="text-[13px] text-text mb-2">
+                <span className="text-text-3">Subject: </span>
+                <b className="font-semibold">{letter.email_subject}</b>
+              </p>
+            )}
+            <p className="text-[14px] text-text whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
+              {letter.email_body}
             </p>
-          )}
-          <p className="text-[14px] text-text whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-            {letter.email_body}
-          </p>
-        </SectionShell>
+          </SectionShell>
+        ) : (
+          <SectionShell
+            title="Message to employer"
+            collapsible
+            defaultOpen={false}
+            meta={
+              <>
+                {messageDirty && <DirtyDot />}
+                <span className="text-[12px] text-text-3">What you used to apply</span>
+              </>
+            }
+            footer={
+              <>
+                <span className="text-[12px] text-text-3">
+                  {messageDirty ? "Unsaved changes" : "Saved"}
+                </span>
+                {messageDirty && (
+                  <Button
+                    variant="brand" size="xs" className="ml-auto"
+                    onClick={saveMessage} disabled={messageSaving} isLoading={messageSaving}
+                    icon={<Save className="w-3 h-3" />}
+                  >
+                    {messageSaving ? "Saving…" : "Save changes"}
+                  </Button>
+                )}
+                {!messageDirty && <CopyButton text={savedBody} />}
+              </>
+            }
+          >
+            <input
+              aria-label="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              disabled={messageSaving}
+              placeholder="Subject"
+              className="w-full rounded-[8px] border border-border bg-surface text-text px-3.5 py-2 text-[13px] mb-2 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60"
+            />
+            <textarea
+              aria-label="Message to employer"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              disabled={messageSaving}
+              rows={8}
+              spellCheck
+              className={TEXTAREA_CLS}
+            />
+          </SectionShell>
+        )
       )}
     </div>
   );

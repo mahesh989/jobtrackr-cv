@@ -57,8 +57,10 @@ export async function GET(req: NextRequest) {
   });
 
   if (!tokenRes.ok) {
+    const body = await tokenRes.text();
+    console.error("[google/callback] token exchange failed:", tokenRes.status, body);
     return NextResponse.redirect(
-      `${appUrl}/settings/account?email_error=token_exchange_failed`,
+      `${appUrl}/settings/account?email_error=token_exchange_failed&email_error_detail=${encodeURIComponent(body.slice(0, 200))}`,
     );
   }
 

@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { ProfileForm } from "@/features/profiles/components/ProfileForm";
 import { DeleteButton } from "@/features/profiles/components/DeleteButton";
 import { CopyButton } from "@/features/profiles/components/CopyButton";
@@ -56,23 +55,6 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="flex items-center gap-1.5 text-caption text-text-3 mb-1 flex-wrap">
-              <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <Link href="/profiles" className="hover:text-text transition-colors">Job Searches</Link>
-              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <Link href={`/profiles/${id}/jobs`} className="hover:text-text transition-colors truncate max-w-[140px]">
-                {profile.name}
-              </Link>
-              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-              <span className="text-text-2">Edit</span>
-            </div>
             <h1 className="text-lead font-semibold text-text">Edit profile</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

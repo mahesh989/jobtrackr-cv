@@ -12,12 +12,7 @@ export function DistanceRibbon({ jobs, maxKm, range, onRangeChange, onJobClick }
   onRangeChange: (r: [number, number]) => void;
   onJobClick: (id: string) => void;
 }) {
-  // Collapsible, but OPEN by default. The scatter is the fastest read of "where
-  // are these jobs actually" on the whole page, and a user who has set a home
-  // address has already said distance matters to them — starting it collapsed
-  // would hide the answer behind a click for the people most likely to want it.
-  // Collapsing is there for the long-list case, not as the resting state.
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState<"min" | "max" | null>(null);
 
