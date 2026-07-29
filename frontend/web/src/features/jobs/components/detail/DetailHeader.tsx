@@ -218,11 +218,11 @@ export function DetailHeader({
    *  existed the only way back was the /applications Sent tab's "Move back to
    *  pool".
    *
-   *  PATCH rather than the `markJobUnapplied` server action for the same reason
-   *  ApplyModal avoids `markJobApplied`: that action calls revalidatePath, which
-   *  refetches the whole server-rendered board and resets its scroll out from
-   *  under the user — here it would also tear this row out of the flat Applied
-   *  list mid-click. The route already accepts `applied_at: null`. */
+   *  PATCH rather than a revalidatePath-based server action, for the same reason
+   *  ApplyModal takes the route: revalidatePath refetches the whole
+   *  server-rendered board and resets its scroll out from under the user — here
+   *  it would also tear this row out of the flat Applied list mid-click. The
+   *  route already accepts `applied_at: null`. */
   async function onUnapply() {
     if (unapplying) return;
     setUnapplying(true); setError(null);

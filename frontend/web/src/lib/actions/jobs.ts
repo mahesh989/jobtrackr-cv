@@ -73,41 +73,6 @@ export async function addManualJob(input: {
   return { jobId: job.id, alreadyExisted: false };
 }
 
-export async function markJobApplied(jobId: string, profileId: string) {
-  const { supabase } = await authedClient();
-  const { error, data } = await supabase
-    .from("jobs")
-    .update({ applied_at: new Date().toISOString(), seen_at: new Date().toISOString() })
-    .eq("id", jobId)
-    .select();
-
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
-
-  revalidatePath(`/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard"); // dashboard hosts a unified jobs board too
-}
-
-/**
- * Undo an accidental "applied" mark. Clears applied_at so the job returns to
- * the Application pool tab. Safe to call if the user accidentally clicked
- * "Apply now" without actually applying on the job site.
- */
-export async function markJobUnapplied(jobId: string, profileId: string) {
-  const { supabase } = await authedClient();
-  const { error, data } = await supabase
-    .from("jobs")
-    .update({ applied_at: null })
-    .eq("id", jobId)
-    .select();
-
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
-
-  revalidatePath(`/profiles/${profileId}/jobs`);
-  revalidatePath("/dashboard");
-}
-
 export async function markJobDismissed(jobId: string, profileId: string) {
   const { supabase } = await authedClient();
   const { error, data } = await supabase
@@ -125,34 +90,6 @@ export async function markJobDismissed(jobId: string, profileId: string) {
   // gone from the UI, creating a jarring flash. Funnel counts update on the
   // next full navigation to the board (acceptable trade-off for instant feel).
   void profileId; // suppress unused-var lint
-}
-
-/**
- * Pool decision — user chose how to apply for this job.
- * email provided → Ready to email tab (contact_email + has_email set)
- * no email       → Ready to apply tab (manual apply)
- */
-export async function markPoolDecision(jobId: string, profileId: string, email?: string) {
-  const { supabase } = await authedClient();
-  // Note: jobs.has_email is a GENERATED column (contact_email IS NOT NULL).
-  // We must NOT write to it directly — Postgres rejects writes to GENERATED ALWAYS.
-  // Setting contact_email below automatically updates has_email via the generation expression.
-  const patch: Record<string, unknown> = {
-    pool_decision_at: new Date().toISOString(),
-  };
-  if (email && email.trim()) {
-    patch.contact_email = email.trim();
-  }
-  const { error, data } = await supabase
-    .from("jobs")
-    .update(patch)
-    .eq("id", jobId)
-    .select();
-
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
-
-  revalidatePath(`/profiles/${profileId}/jobs`);
 }
 
 /**
@@ -228,8 +165,8 @@ export async function markProfileJobsSeen(profileId: string) {
   const { supabase } = await authedClient();
   // No separate ownership pre-check — jobs_update_own RLS (join to
   // search_profiles on user_id = auth.uid()) already scopes this update to
-  // the caller's own profile, same as markJobApplied/markPoolDecision/etc.
-  // in this file. The pre-check cost a full extra round trip on every
+  // the caller's own profile, same as the other mutations in this file.
+  // The pre-check cost a full extra round trip on every
   // profile-jobs page visit for no additional protection.
   await supabase
     .from("jobs")

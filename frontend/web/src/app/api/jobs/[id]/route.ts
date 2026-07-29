@@ -9,11 +9,13 @@
  *   - hiring_manager: name of the hiring manager for cover letter salutation.
  *   - company_address: multi-line postal address for cover letter employer block.
  *   - applied_at:     stamp (or clear, with null) when the user applies. An API
- *                     route rather than the `markJobApplied` server action so
- *                     callers that are already on-screen (the board's detail
- *                     pane) don't trigger revalidatePath's implicit route
- *                     refresh — that refetches the whole server-rendered board
- *                     and resets its scroll to the top out from under the user.
+ *                     route rather than a server action so callers that are
+ *                     already on-screen (the board's detail pane) don't trigger
+ *                     revalidatePath's implicit route refresh — that refetches
+ *                     the whole server-rendered board and resets its scroll to
+ *                     the top out from under the user. This route is now the
+ *                     ONLY writer of applied_at; the server actions it replaced
+ *                     were deleted once they had no callers left.
  *
  * Ownership chain: job → search_profile → user. Service-role write only after
  * we verify the chain — service-role bypasses RLS, so the check must run.

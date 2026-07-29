@@ -28,9 +28,9 @@
  * tier-1 path trusts the stored body too.
  *
  * Marking "applied" goes through PATCH /api/jobs/[id] rather than the
- * `markJobApplied` server action the card list used to use — that action calls
- * revalidatePath, which refetches the whole server-rendered board and resets
- * its scroll to the top just as this popup's success card appears.
+ * revalidatePath-based server action the card list used to use — revalidatePath
+ * refetches the whole server-rendered board and resets its scroll to the top
+ * just as this popup's success card appears.
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
