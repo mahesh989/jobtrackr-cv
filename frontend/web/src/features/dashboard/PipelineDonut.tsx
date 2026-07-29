@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { shallowSetParams } from "@/features/jobs/lib/shallowNav";
-import { APPLIED_HREF, READY_TO_APPLY_HREF } from "@/features/jobs/lib/boardViews";
+import { APPLIED_HREF, LETTER_READY_HREF } from "@/features/jobs/lib/boardViews";
 import { FilterAnchor } from "./FilterAnchor";
 import { CalloutStrip } from "./CalloutStrip";
 import { Button, Chip, IconButton } from "@/components/ui";
 
 // View-filter params the donut can set; cleared before applying a new one so
 // the chosen slice is shown cleanly (dataset filters like location are kept).
-const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips"];
+// `job` belongs here too: it's leftover detail-pane selection state, not a
+// dataset filter, and a stale one survives this merge otherwise — landing on
+// the Applied flat list with the previously-open job pre-expanded even though
+// that view's whole design is "no auto-expand, detail only on explicit click".
+const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips", "job"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,9 +134,12 @@ const LENS_META: Record<LensKey, LensMeta> = {
     centerLabel: "applied",
     visibleSlices: 2,
     slices: [
-      { label: "Applied",        color: "var(--chart-applied)", href: APPLIED_HREF },
-      { label: "Ready to apply", color: "var(--chart-info)", href: READY_TO_APPLY_HREF },
-      { label: "Not yet",        color: "var(--chart-neutral)" },
+      { label: "Applied",     color: "var(--chart-applied)", href: APPLIED_HREF },
+      // "Letter ready", not "Ready to apply" — that phrase names the
+      // toolbar's stricter saved view (ATS above the final gate + full JD, no
+      // letter needed), a different set. See LETTER_READY_HREF.
+      { label: "Letter ready", color: "var(--chart-info)", href: LETTER_READY_HREF },
+      { label: "Not yet",      color: "var(--chart-neutral)" },
     ],
   },
 };
@@ -623,7 +630,7 @@ function DonutPopup({
           else if (lens === "applied" && (mode === 0 || mode === "center"))
             { href = APPLIED_HREF; label = "View applied jobs →"; }
           else if (lens === "applied" && mode === 1)
-            { href = READY_TO_APPLY_HREF; label = "View ready to apply →"; }
+            { href = LETTER_READY_HREF; label = "View letter-ready jobs →"; }
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">

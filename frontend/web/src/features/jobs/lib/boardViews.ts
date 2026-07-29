@@ -72,14 +72,28 @@ export function hrefForView(view: BoardView, basePath = "/dashboard"): string {
   return `${basePath}?${p.toString()}`;
 }
 
-/** The board's "what should I work on next" queue — the nearest equivalent of
- *  the retired /applications pool tab. */
-export const READY_TO_APPLY_HREF = hrefForView(
-  BOARD_VIEWS.find((v) => v.id === "ready") ?? BOARD_VIEWS[0],
-);
-
 /** Every applied job, as a flat list. Replaces /applications?status=sent. */
 export const APPLIED_HREF = "/dashboard?stage=applied";
+
+/**
+ * Every job with a completed cover letter that hasn't been applied to yet —
+ * the SAME predicate pipelineState.ts:112 calls ready_to_send/ready_to_apply,
+ * and the one the dashboard's "N ready to apply" callout + Applied-lens donut
+ * slice actually count (appliedTotals[1] in dashboard/page.tsx).
+ *
+ * This used to be READY_TO_APPLY_HREF, pointed at the toolbar's "ready" SAVED
+ * VIEW instead (analysed + ATS above the final gate + full JD — no letter
+ * required at all). The two are genuinely different sets, not two readings of
+ * the same one: a full-JD job that cleared the ATS gate but never got a
+ * letter counted in the saved view but not here; a thin-JD job with a letter
+ * counted here but not there. Linking the callout's own count to the saved
+ * view's count meant the number on screen and the number one click away could
+ * — and on real data, did — disagree (75 vs 73). Use THIS for anything
+ * counting/labelled "ready to apply" that means "has a letter"; reach for
+ * `BOARD_VIEWS.find(v => v.id === "ready")` (via `paramsForView`, as the
+ * toolbar itself does) for the stricter best-score queue.
+ */
+export const LETTER_READY_HREF = "/dashboard?stage=letterReady&not_applied=1";
 
 /** The view's params expressed as the filter shape `filterJobs` consumes. */
 export function viewFilters(view: BoardView): ViewFilters {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FilterAnchor } from "./FilterAnchor";
-import { READY_TO_APPLY_HREF } from "@/features/jobs/lib/boardViews";
+import { LETTER_READY_HREF } from "@/features/jobs/lib/boardViews";
 import type { PipelineLensData } from "./PipelineDonut";
 
 export function CalloutStrip({ callouts, applyFilter }: {
@@ -23,9 +23,13 @@ export function CalloutStrip({ callouts, applyFilter }: {
           → {callouts.passedButNoLetter} passed ATS, no letter yet
         </FilterAnchor>
       )}
+      {/* "Ready to apply" here means pipelineState's ready_to_apply/ready_to_send
+          combined — has a cover letter, hasn't been sent — NOT the toolbar's
+          "Ready to apply" saved view (ATS above the final gate + full JD, no
+          letter needed). Those are different sets; see LETTER_READY_HREF. */}
       {callouts.readyToApply > 0 && (
-        <Link href={READY_TO_APPLY_HREF} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
-          ✓ {callouts.readyToApply} ready to apply
+        <Link href={LETTER_READY_HREF} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium bg-pink-50 border border-pink-200 text-pink-700 hover:bg-pink-100 transition-colors">
+          ✓ {callouts.readyToApply} cover letter{callouts.readyToApply > 1 ? "s" : ""} ready to send or apply
         </Link>
       )}
     </div>
