@@ -27,8 +27,9 @@ function describeError(key: string): string {
 
 export default async function AccountSettingsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const connected = sp.email_connected ?? null;
-  const errorKey  = sp.email_error     ?? null;
+  const connected   = sp.email_connected    ?? null;
+  const errorKey    = sp.email_error        ?? null;
+  const errorDetail = sp.email_error_detail  ?? null;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -70,6 +71,13 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
           <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
             <p className="text-body font-medium text-red-800 dark:text-red-300">✗ Email connection failed</p>
             <p className="text-label text-red-700 dark:text-red-400 mt-0.5">{describeError(errorKey)}</p>
+            {/* Provider's own error body — the only thing that distinguishes a bad
+                client secret from an unregistered redirect URI or a spent code. */}
+            {errorDetail && (
+              <p className="text-label text-red-700/80 dark:text-red-400/80 mt-1 font-mono break-all">
+                {errorDetail}
+              </p>
+            )}
           </div>
         )}
 
