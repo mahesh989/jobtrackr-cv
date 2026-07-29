@@ -40,6 +40,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { buildDefaultEmailDraft } from "@/lib/email/draftBody";
+import { loadCvInputs } from "@/features/applications/lib/cvPdfClient";
+import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import type { BoardJob } from "../../lib/jobFilters";
 
 /** Generation is a one-shot AI cost, so it polls rather than subscribing —
@@ -58,7 +60,7 @@ function sleep(ms: number): Promise<void> {
 const subscribeNoop = () => () => {};
 
 export function ApplyModal({
-  job, letterId, letterSubject = null, letterBody = null,
+  job, letterId, letterSubject = null, letterBody = null, cvStoragePath = null,
   onClose, onApplied, onChanged,
 }: {
   job: BoardJob;
@@ -69,6 +71,10 @@ export function ApplyModal({
    *  the first frame and `/email-draft` is never called — see the module note. */
   letterSubject?: string | null;
   letterBody?: string | null;
+  /** Tailored-CV markdown path for this job's latest run. The send renders the
+   *  PDF from it in the browser so the attachment is the same bytes the panel
+   *  previewed — see sendEmail. */
+  cvStoragePath?: string | null;
   onClose: () => void;
   /** Fired once the job is marked applied, so the pane and the board catch up. */
   onApplied: () => void;
@@ -323,13 +329,40 @@ export function ApplyModal({
     setBusy("email"); setError(null);
     try {
       await persistMessage();
+
+      // Render the CV here rather than letting the server fall back to the
+      // stored ReportLab PDF. That fallback is a different renderer from the
+      // one the Tailored CV tab and Download use, so the employer received a
+      // document the user had never seen. This is the same client render the
+      // Applications screen has always used — html2canvas + jsPDF over the
+      // tailored markdown — so the attachment is the previewed bytes.
+      const form = new FormData();
+      form.set("subject", subject.trim() || defaultSubject);
+      form.set("body", body);
+
+      if (cvStoragePath) {
+        try {
+          const { markdown, contactDetails } = await loadCvInputs(cvStoragePath);
+          const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
+          const slug = (job.company || "company").replace(/[^a-zA-Z0-9]/g, "_");
+          form.set("cv_pdf", pdfBlob, `TailoredCV_${slug}.pdf`);
+        } catch (e) {
+          // Stop here rather than posting without it. The server would then
+          // reach for the legacy PDF or refuse, and neither outcome is worth
+          // spending this letter's single send on.
+          throw new Error(
+            `Couldn't prepare your tailored CV, so nothing was sent: ${
+              e instanceof Error ? e.message : "render failed"
+            }. Try again.`,
+          );
+        }
+      }
+
       const res = await fetch(`/api/applications/${effectiveLetterId}/send-email`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        // Sent as an explicit override so what goes out is exactly the text on
-        // screen. The old call sent no body at all, which meant an edit here
-        // was silently replaced by whatever was stored.
-        body:    JSON.stringify({ subject: subject.trim() || defaultSubject, body }),
+        method: "POST",
+        // Multipart, not JSON — subject/body still ride along as explicit
+        // overrides so what goes out is exactly the text on screen.
+        body:   form,
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));

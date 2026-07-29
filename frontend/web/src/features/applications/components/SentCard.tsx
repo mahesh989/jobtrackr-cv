@@ -110,7 +110,11 @@ export function SentCard({ row, onActioned }: { row: ApplicationRowV2; onActione
           </p>
           <p className="text-caption text-text-3 mt-1 flex items-center gap-1.5">
             {isApplied
-              ? <><CheckCircle2 className="w-3 h-3 text-emerald-600" /> {row.job_contact_email ? `Emailed ${row.job_contact_email}` : "Applied via job link"} · {relativeDate(row.job_applied_at)}</>
+              /* Keyed on the send record, not on job_contact_email. Having an
+                 address on file is not evidence anything was sent to it, so
+                 this line used to claim "Emailed someone@…" for applications
+                 the user had made themselves on the job site. */
+              ? <><CheckCircle2 className="w-3 h-3 text-emerald-600" /> {row.letter_email_sent_at ? `Emailed ${row.letter_email_sent_to ?? row.job_contact_email}` : "Applied via job link"} · {relativeDate(row.job_applied_at)}</>
               : <><Archive className="w-3 h-3" /> Dismissed · {relativeDate(row.job_dismissed_at)}</>}
           </p>
         </div>

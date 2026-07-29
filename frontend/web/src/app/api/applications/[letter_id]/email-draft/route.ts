@@ -40,7 +40,7 @@ export const GET = withUser(async (
   const [letterRes, prefsRes] = await Promise.all([
     admin
       .from("cover_letters")
-      .select("id, user_id, job_id, email_sent_at, reviewed_at, email_subject, email_body")
+      .select("id, user_id, job_id, email_sent_at, email_sent_to, reviewed_at, email_subject, email_body")
       .eq("id", letter_id)
       .maybeSingle(),
     admin
@@ -54,8 +54,32 @@ export const GET = withUser(async (
   if (!letter || letter.user_id !== user.id) {
     return jsonError("Letter not found", 404);
   }
-  if (letter.email_sent_at) {
-    return jsonError("Email already sent", 409);
+  // Once the email is out, this becomes a read-only record of what was sent
+  // rather than an editable draft.
+  //
+  // It used to 409 outright, which is right for a compose surface and wrong for
+  // this one: the Sent tab's "Email message" button reads from here, so the one
+  // place you could check what you actually said to an employer answered
+  // "Email already sent". The 409 was also doing a second job by accident —
+  // stopping the voice rewrite below from burning an AI call on a letter nobody
+  // can edit any more — so the sent path returns the stored copy directly and
+  // skips everything downstream.
+  const alreadySent = !!letter.email_sent_at;
+  if (alreadySent) {
+    return NextResponse.json({
+      to:            letter.email_sent_to ?? "",
+      to_email:      letter.email_sent_to ?? null,
+      subject:       letter.email_subject ?? "",
+      body:          letter.email_body ?? "",
+      sent_at:       letter.email_sent_at,
+      read_only:     true,
+      attachments:   [],
+      has_tailored_cv: false,
+      voice_rewritten: false,
+      reviewed_at:   letter.reviewed_at,
+      cv_markdown:   null,
+      contact_details: null,
+    });
   }
 
   const contactDetails = (prefsRes.data?.contact_details as ContactDetails | null) ?? null;

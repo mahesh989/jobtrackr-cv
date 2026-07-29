@@ -30,6 +30,10 @@ export interface ApplicationRowV2 {
   job_applied_at:            string | null;
   job_dismissed_at:          string | null;
   job_contact_email:         string | null;
+  /** Set only when WE sent the email. Distinct from job_contact_email, which
+   *  merely means an address is on file — see SentCard's status line. */
+  letter_email_sent_at:      string | null;
+  letter_email_sent_to:      string | null;
   job_hiring_manager:        string | null;
   job_posted_at:             string | null;
   job_distance_km:           number | null;
