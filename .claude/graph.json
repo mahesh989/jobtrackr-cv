@@ -3,7 +3,8 @@
     "version": "0.27",
     "updated": "2026-07-30",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
-    "changelog": "docs/build_log.md"
+    "changelog": "docs/build_log.md",
+    "session_notes": "2026-07-30 (dev-5 commit babb505): OAuth error diagnostics. Google + Outlook callbacks now capture provider error response and forward it through email_error_detail URL param to settings/account, rendered below generic message. Reveals actual issue (e.g. 'invalid_client', 'redirect_uri_mismatch') instead of opaque 'couldn't exchange code'. Fixed `GOOGLE_CLIENT_ID` .env.local mismatch (7vckescm… client ID was paired with wrong secret; updated to match existing GOCSPX-… secret that was already registered). Both single-session troubleshooting aids — no production impact (errors already logged server-side; URL param in history is slightly visible but unavoidable until server-side error page is shipped)."
   },
   "project": {
     "name": "JobTrackr-CV",
