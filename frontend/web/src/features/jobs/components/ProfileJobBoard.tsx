@@ -3,21 +3,21 @@
 import { useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
-import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
+import { Sparkles, BarChart3, FileText, Mail, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
 import { useToolbarCounts } from "../lib/useToolbarCounts";
 import { shallowSetParams } from "../lib/shallowNav";
-import { type AtsThresholds } from "@/lib/atsThresholds";
 
-// Suggested sort per stage — same as the dashboard JobBoard.
+// Suggested sort per stage — same as the dashboard JobBoard. `applied`/
+// `favourite` have no entries — their headline row is hidden entirely for
+// those two stages (see isFlatStage).
 const SUGGESTED_SORT: Record<string, { col: string; label: string } | undefined> = {
   analysed:     { col: "most_progressed",     label: "Most progressed" },
   cvReady:      { col: "most_progressed",     label: "Most progressed" },
   letterReady:  { col: "most_progressed",     label: "Most progressed" },
   thinJd:       { col: "created_at",          label: "Date added (newest)" },
-  applied:      { col: "recently_progressed", label: "Recently progressed" },
 };
 
 const STAGE_ICON: Record<string, typeof BarChart3> = {
@@ -25,7 +25,6 @@ const STAGE_ICON: Record<string, typeof BarChart3> = {
   recentlyAnalysed: BarChart3,
   cvReady:          FileText,
   letterReady:      Mail,
-  applied:          CheckCircle2,
   thinJd:           FileWarning,
   dismissed:        Archive,
 };
@@ -52,17 +51,11 @@ const SORT_LABEL_FOR_COL: Record<string, string> = {
 export function ProfileJobBoard({
   jobs,
   counts,
-  homeAddress = null,
-  thresholds,
   isManual = false,
   excludeKeywords,
 }: {
   jobs:        BoardJob[];
   counts:      FunnelCounts;
-  /** Profile's home_address (Migration 048). When set, the toolbar shows the
-   *  "Within X km" distance filter and the distance ribbon renders. */
-  homeAddress?: string | null;
-  thresholds?:  AtsThresholds;
   /** When true (Saved Jobs profile), always renders flat list — no smart sections. */
   isManual?:    boolean;
   excludeKeywords?: string;
@@ -90,15 +83,18 @@ export function ProfileJobBoard({
 
   // Group mode mirrors JobBoard — Analysed/Not-analysed → time buckets;
   // CV/Letter/Applied + sort=distance → distance buckets. Saved-Jobs profile
-  // (isManual) skips grouping entirely so the manual list stays flat.
+  // (isManual) skips grouping entirely so the manual list stays flat, and so
+  // do Applied/Favourite — they render as SmartFeed's flat accordion list
+  // (see isFlatStage there) and never read this prop.
+  const isFlatStage = stage === "favourite" || stage === "applied";
   const groups = useMemo(
-    () => (isManual ? null : buildGroups(filtered, pickGroupMode({ stage, ats, sortCol }))),
-    [filtered, stage, ats, sortCol, isManual],
+    () => (isManual || isFlatStage ? null : buildGroups(filtered, pickGroupMode({ stage, ats, sortCol }))),
+    [filtered, stage, ats, sortCol, isManual, isFlatStage],
   );
 
   // Same fix as JobBoard: compute from the stage/triage/distance-filtered set
   // (ATS excluded) so badge counts match what clicking the chip will actually show.
-  const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
+  const { atsCounts, viewCounts } = useToolbarCounts(jobs, {
     stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
     employment, eligibleOnly,
   });
@@ -141,7 +137,10 @@ export function ProfileJobBoard({
 
   return (
     <>
-      {/* Headline row — same big-title treatment as the dashboard */}
+      {/* Favourite/Applied are their own sidebar destinations with a flat,
+          curated list (see SmartFeed's isFlatStage) — no heading, count, sort
+          subtitle, or "clear filter" chip to layer on top. */}
+      {!isFlatStage && (
       <div ref={feedRef} className="flex items-baseline gap-2.5 flex-wrap mb-3">
         {hasActiveFilter ? (
           <>
@@ -185,6 +184,7 @@ export function ProfileJobBoard({
           </>
         )}
       </div>
+      )}
 
       {/* When the user picks any sort other than the default "Date posted",
           skip the smart-section grouping (Closest / Fresh /
@@ -198,9 +198,6 @@ export function ProfileJobBoard({
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
-        distanceCounts={distanceCounts}
-        homeAddress={homeAddress}
-        thresholds={thresholds}
         excludeKeywords={excludeKeywords}
       />
     </>

@@ -49,20 +49,14 @@ export const BOARD_VIEWS: BoardView[] = [
   {
     id:    "ready",
     label: "Ready to apply",
-    hint:  "Not yet applied, cover letter written, ATS above the final gate, within 25 km — best score first",
-    params: { stage: "letterReady", ats: "above_final", max_distance: "25", not_applied: "1", sort: "ats_score", dir: "desc" },
-  },
-  {
-    id:    "triage",
-    label: "Needs analysis",
-    hint:  "Not yet applied and no ATS score yet — newest first",
-    params: { ats: "no_ats", not_applied: "1", sort: "posted_at" },
+    hint:  "Analysed, ATS above the final gate, full job description — best score first",
+    params: { stage: "analysed", ats: "above_final", jd: "full", not_applied: "1", sort: "ats_score", dir: "desc" },
   },
   {
     id:    "near",
     label: "Close & strong",
-    hint:  "Not yet applied, ATS above the final gate and within 15 km — nearest first",
-    params: { ats: "above_final", max_distance: "15", not_applied: "1", sort: "distance" },
+    hint:  "ATS above the final gate, within 10 km — nearest first",
+    params: { ats: "above_final", max_distance: "10", not_applied: "1", sort: "distance" },
   },
 ];
 

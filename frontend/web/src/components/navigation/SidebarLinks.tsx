@@ -35,10 +35,12 @@ import {
   ArrowRight,
   Mail,
   Bookmark,
+  CheckCircle2,
   ChevronRight,
   Search,
   GraduationCap,
   PlusCircle,
+  Star,
 } from "lucide-react";
 
 interface Profile {
@@ -53,6 +55,8 @@ interface Props {
   profiles: Profile[];
   /** Count of completed-letter jobs awaiting the To-review pool decision. */
   poolCount?: number;
+  /** Count of starred (favourited) jobs. */
+  favouriteCount?: number;
   /** users.role — drives which nav items are visible. founder/admin see the
    *  full nav (Analytics, Integrations); paid users see the product-only
    *  subset. Mirrors the role gate used by getEntitlement(). */
@@ -178,7 +182,7 @@ function Logo() {
   );
 }
 
-export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userView = false }: Props) {
+export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
   const pathname = usePathname();
   const [savedOpen, setSavedOpen] = useState(false);
@@ -358,6 +362,8 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, role, userVi
 
         <NavItem href="/profiles/new" icon={Search}>New</NavItem>
 
+        <NavItem href="/dashboard?stage=favourite" icon={Star} badge={favouriteCount || undefined}>Favourite</NavItem>
+        <NavItem href="/dashboard?stage=applied" icon={CheckCircle2}>Applied</NavItem>
         <NavItem href="/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
         <NavItem href="/analyses" icon={History}>Analyses</NavItem>
 

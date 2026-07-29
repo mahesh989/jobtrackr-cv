@@ -55,7 +55,7 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
     .is("jobs.dismissed_at", null);
   if (applicationsSeenAt) poolLetters = poolLetters.gt("completed_at", applicationsSeenAt);
 
-  const [{ data: unseenRows }, { data: runRows }, { data: letterRowsForBadge }] =
+  const [{ data: unseenRows }, { data: runRows }, { data: letterRowsForBadge }, { count: starredCount }] =
     await Promise.all([
       supabase
         .from("jobs")
@@ -71,6 +71,12 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         .in("profile_id", fullProfileIds)
         .eq("status", "running"),
       poolLetters,
+      supabase
+        .from("jobs")
+        .select("*", { count: "exact", head: true })
+        .in("profile_id", fullProfileIds)
+        .not("starred_at", "is", null)
+        .is("dismissed_at", null),
     ]);
 
   let poolCount = 0;
@@ -118,6 +124,7 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         email={email}
         profiles={sidebarProfiles}
         poolCount={poolCount ?? 0}
+        favouriteCount={starredCount ?? 0}
         role={role}
         userView={userView}
       />
@@ -128,6 +135,7 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
           email={email}
           profiles={sidebarProfiles}
           poolCount={poolCount ?? 0}
+          favouriteCount={starredCount ?? 0}
           role={role}
           userView={userView}
         />

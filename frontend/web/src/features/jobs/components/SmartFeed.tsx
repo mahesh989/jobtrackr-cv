@@ -11,9 +11,8 @@ import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { JobSelectionContext, useJobSelection, type JobSelectionCtx } from "./feedSelection";
-import { HeroCard, JobCard, EmptyState } from "./FeedCards";
+import { HeroCard, JobCard, EmptyState, AppliedRow } from "./FeedCards";
 import { shallowSetParams } from "../lib/shallowNav";
-import { type AtsThresholds } from "@/lib/atsThresholds";
 import {
   clampInt, isPostedToday, byDistanceAsc } from "@/features/jobs/lib/smartFeedUtils";
 import { DistanceRibbon } from "./DistanceRibbon";
@@ -81,20 +80,14 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 export function SmartFeed({
   jobs, groups, hasActiveFilter, currentTab, counts, atsCounts,
-  viewCounts, distanceCounts,
-  homeAddress = null, thresholds, excludeKeywords }: {
+  viewCounts, excludeKeywords }: {
   jobs:            BoardJob[];
   groups?:         JobGroup[];
   hasActiveFilter: boolean;
   currentTab:      string;
   counts:          FunnelCounts;
   atsCounts:       Record<AtsBand, number>;
-  /** Saved-view and distance-option badge counts — computed by the board from
-   *  the unfiltered job set, since this component only ever sees the filtered one. */
   viewCounts?:     Record<string, number>;
-  distanceCounts?: Record<string, number>;
-  homeAddress?:    string | null;
-  thresholds?:     AtsThresholds;
   excludeKeywords?: string;
 }) {
   const router   = useRouter();
@@ -337,8 +330,13 @@ export function SmartFeed({
   // Assigning during render is the sanctioned derive-state pattern, and the
   // `=== null` guard makes it fire once (the first job stays selected even as
   // filtering reorders the list underneath).
+  // Applied/Favourite are a flat list first, detail only on an explicit click
+  // (see isFlatStage below) — they don't auto-open the first row the way the
+  // split-pane board auto-fills its (otherwise empty-looking) detail column.
+  const isFlatStage = currentTab === "applied" || currentTab === "favourite";
+
   const [defaultJobId, setDefaultJobId] = useState<string | null>(null);
-  if (!selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
+  if (!isFlatStage && !selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
 
   const resolvedJobId = selectedJobId ?? defaultJobId;
 
@@ -378,15 +376,45 @@ export function SmartFeed({
   }, [queryKey]);
 
 
+  if (isFlatStage) {
+    // No SmartToolbar/DistanceRibbon here — Applied/Favourite are curated,
+    // fixed-membership lists (you either applied or you didn't), so the
+    // stage/ATS/JD-quality/distance filter apparatus that narrows the main
+    // board has nothing meaningful to narrow here.
+    //
+    // Expanding a job is an accordion, not a navigation: the clicked row's
+    // box grows in place to the full detail (BoardDetailPanel's `inline`
+    // mode), while every other row stays in the list around it — the page
+    // scrolls, not an inner pane, so the rest of the list is still reachable.
+    return (
+      <div className="space-y-5">
+        {visibleJobs.length === 0 ? (
+          <EmptyState favourite={isFavouriteFilter} />
+        ) : (
+          <div ref={listRef} data-scroll-container="board-list" className="space-y-2.5">
+            <JobSelectionContext.Provider value={selectionValue}>
+              {visibleJobs.map((job) =>
+                job.id === selectedJob?.id ? (
+                  <div key={job.id} className="bg-surface border border-[var(--brand)]/40 rounded-lg overflow-hidden">
+                    <BoardDetailPanel job={job} onClose={closeDetail} onPatchJob={patchJob} inline />
+                  </div>
+                ) : (
+                  <AppliedRow key={job.id} job={job} showAppliedDate={currentTab === "applied"} />
+                ),
+              )}
+            </JobSelectionContext.Provider>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <SmartToolbar
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
-        distanceCounts={distanceCounts}
-        homeAddress={homeAddress}
-        thresholds={thresholds}
       />
 
       {distanceMax > 0 && (
@@ -496,10 +524,11 @@ function SmartFeedBody({
     <>
       {sections ? (
         <div className="space-y-7">
-          {sections.map((sec) => (
+          {sections.map((sec, idx) => (
             <FeedSectionView
               key={sec.id}
               section={sec}
+              isFirst={idx === 0}
               currentTab={currentTab}
               refSetter={(id) => (el: HTMLDivElement | null) => { cardRefs.current[id] = el; }}
               selectMode={activeSelectModes.has(sec.id)}
@@ -546,13 +575,19 @@ function SmartFeedBody({
 // ── section ─────────────────────────────────────────────────────────────
 
 function FeedSectionView({
-  section, currentTab, refSetter, selectMode, onToggleSelectMode, excludeKeywords }: {
+  section, currentTab, refSetter, selectMode, onToggleSelectMode, excludeKeywords, isFirst = false }: {
   section: FeedSection;
   currentTab: string;
   refSetter: (id: string) => (el: HTMLDivElement | null) => void;
   selectMode: boolean;
   onToggleSelectMode?: () => void;
   excludeKeywords?: string;
+  /** The very first section sits flush under the scroller's own top padding —
+   *  no sticky bar has scrolled past yet, so it doesn't need the pt-6 breathing
+   *  room the others reserve for clearing one. Without this, the board list's
+   *  first heading sat ~24px lower than the detail pane's title on the right,
+   *  even though both panels start at the same list. */
+  isFirst?: boolean;
 }) {
   const parentCtx = useJobSelection();
   const selectionValue = useMemo(() => ({
@@ -574,7 +609,7 @@ function FeedSectionView({
           heading. The negative inline margins cancel the scroller's p-5 so the
           bar spans the full rail width and cards pass underneath it rather than
           beside it. */}
-      <div className="sticky -top-5 z-10 -mx-5 px-5 pt-6 pb-2 -mt-1 mb-2.5 bg-[var(--bg)] border-b border-[var(--border-muted)] flex items-baseline justify-between gap-3">
+      <div className={`sticky -top-5 z-10 -mx-5 px-5 ${isFirst ? "pt-0" : "pt-6"} pb-2 -mt-1 mb-2.5 bg-[var(--bg)] border-b border-[var(--border-muted)] flex items-baseline justify-between gap-3`}>
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
           <h3 className="text-lead font-semibold text-text">{section.label}</h3>

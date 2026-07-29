@@ -36,8 +36,6 @@ export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
     sortCol, employment = "", eligibleOnly = "",
   } = f;
 
-  // ATS released — how many of the jobs you're currently looking at fall in
-  // each band.
   const atsCountBase = useMemo(
     () => filterJobs(jobs, {
       stage, triage, jd, notApplied, ats: "", minKeywords, maxDistance, minDistance,
@@ -52,33 +50,7 @@ export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
     return out;
   }, [atsCountBase]);
 
-  // Distance released. Null distances pass every band — same rule filterJobs
-  // uses, so these agree with the list.
-  const distanceCountBase = useMemo(
-    () => filterJobs(jobs, {
-      stage, triage, jd, notApplied, ats: "", minKeywords, maxDistance: "", minDistance: "",
-      sort: sortCol, employment, eligibleOnly,
-    }),
-    [jobs, stage, triage, jd, notApplied, minKeywords, sortCol, employment, eligibleOnly],
-  );
-
-  const distanceCounts = useMemo<Record<string, number>>(() => {
-    const within = (km: number) =>
-      distanceCountBase.filter((j) => j.distance_km == null || j.distance_km <= km).length;
-    return {
-      any:    distanceCountBase.length,
-      "5":    within(5),
-      "10":   within(10),
-      "25":   within(25),
-      "50":   within(50),
-      over50: distanceCountBase.filter((j) => j.distance_km == null || j.distance_km >= 50).length,
-    };
-  }, [distanceCountBase]);
-
-  // Saved views are absolute queries, so they count against the whole set —
-  // a view badge answers "how many would this view show", not "how many of
-  // what I'm looking at".
   const viewCounts = useMemo(() => countAllViews(jobs), [jobs]);
 
-  return { atsCounts, distanceCounts, viewCounts };
+  return { atsCounts, viewCounts };
 }

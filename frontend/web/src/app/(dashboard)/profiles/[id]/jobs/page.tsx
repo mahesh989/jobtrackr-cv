@@ -322,17 +322,6 @@ export default async function JobsPage({
 
       {/* Header */}
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-1.5 text-caption text-text-3 mb-2">
-          <Link href="/dashboard" className="hover:text-text transition-colors">Dashboard</Link>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-          <Link href="/profiles" className="hover:text-text transition-colors">Job Searches</Link>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-          <span className="text-text font-medium truncate max-w-[160px]">{p.name}</span>
-        </div>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -412,8 +401,6 @@ export default async function JobsPage({
           <ProfileJobBoard
             jobs={visibleBoardJobs}
             counts={funnelCounts}
-            homeAddress={p.home_address}
-            thresholds={th}
             isManual={p.is_manual ?? false}
             excludeKeywords={(profile as { adzuna_exclude_keywords?: string | null }).adzuna_exclude_keywords ?? undefined}
           />

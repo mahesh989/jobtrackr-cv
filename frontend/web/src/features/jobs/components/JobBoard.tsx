@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
-import { Sparkles, BarChart3, FileText, Mail, CheckCircle2, FileWarning, Archive, ArrowRight } from "lucide-react";
+import { Sparkles, BarChart3, FileText, Mail, FileWarning, Archive, ArrowRight } from "lucide-react";
 import { type FunnelCounts } from "./PipelineFunnel";
 import { SmartFeed } from "./SmartFeed";
 import { filterJobs, sortJobs, FILTER_LABELS, filterLabelsFor, pickGroupMode, buildGroups, resolveStage, type BoardJob } from "../lib/jobFilters";
@@ -14,12 +14,13 @@ import { ThinJdModal } from "./ThinJdModal";
 // ── Suggested sort per stage ────────────────────────────────────────────
 // Nudges the most useful sort when the user clicks a stage in the funnel.
 // Click the pill to apply — never auto-changes the URL.
+// `applied`/`favourite` have no entries here — their headline row (which is
+// what these fed) is hidden entirely for those two stages (see isFlatStage).
 const SUGGESTED_SORT: Record<string, { col: string; label: string } | undefined> = {
   analysed:     { col: "most_progressed",     label: "Most progressed" },
   cvReady:      { col: "most_progressed",     label: "Most progressed" },
   letterReady:  { col: "most_progressed",     label: "Most progressed" },
   thinJd:       { col: "created_at",          label: "Date added (newest)" },
-  applied:      { col: "recently_progressed", label: "Recently progressed" },
 };
 
 // Stage icon for the big-title heading.
@@ -28,7 +29,6 @@ const STAGE_ICON: Record<string, typeof BarChart3> = {
   recentlyAnalysed: BarChart3,
   cvReady:          FileText,
   letterReady:      Mail,
-  applied:          CheckCircle2,
   thinJd:           FileWarning,
   dismissed:        Archive,
 };
@@ -91,14 +91,16 @@ export function JobBoard({
   // Group mode is decided from the URL state — Analysed/Not-analysed → time
   // buckets, CV/Letter/Applied + sort=distance → distance buckets. Once a
   // grouping is active, jobs inside each bucket honour the current sort.
+  // Applied/Favourite render as SmartFeed's flat accordion list regardless
+  // (see isFlatStage there) and never read this prop — skip the computation.
   const groups = useMemo(
-    () => buildGroups(filtered, pickGroupMode({ stage, ats, sortCol })),
+    () => (stage === "favourite" || stage === "applied" ? null : buildGroups(filtered, pickGroupMode({ stage, ats, sortCol }))),
     [filtered, stage, ats, sortCol],
   );
 
   // Every badge in the toolbar equals what clicking it will actually show —
   // see useToolbarCounts for the rule.
-  const { atsCounts, distanceCounts, viewCounts } = useToolbarCounts(jobs, {
+  const { atsCounts, viewCounts } = useToolbarCounts(jobs, {
     stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
   });
 
@@ -141,6 +143,11 @@ export function JobBoard({
             · Filter on  → BIG 28px brand-coloured heading with stage icon,
                            the count, sort-context subtitle, and a suggested
                            sort pill when relevant. */}
+      {/* Favourite/Applied are their own sidebar destinations with a flat,
+          curated list (see SmartFeed's isFlatStage) — no heading, count, sort
+          subtitle, or "clear filter" chip to layer on top; the sidebar nav
+          itself is the way in and out. */}
+      {stage !== "favourite" && stage !== "applied" && (
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2.5 flex-wrap">
           {hasActiveFilter ? (
@@ -195,6 +202,7 @@ export function JobBoard({
           )}
         </div>
       </div>
+      )}
 
       <ThinJdModal count={counts.thinJd} />
 
@@ -217,7 +225,6 @@ export function JobBoard({
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
-        distanceCounts={distanceCounts}
         excludeKeywords={excludeKeywords}
       />
     </>
