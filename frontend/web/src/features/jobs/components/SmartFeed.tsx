@@ -360,6 +360,23 @@ export function SmartFeed({
     [visibleJobs, resolvedJobId],
   );
 
+  // The job the user actually asked for, ignoring the auto-selected default.
+  //
+  // `defaultJobId` exists to fill the desktop split's right-hand column, which
+  // would otherwise sit empty on arrival. Below `lg` there IS no such column —
+  // the detail renders as a `fixed inset-0` full-screen overlay — so feeding it
+  // the default meant every narrow-viewport visit to the board opened straight
+  // into a job detail and the user never saw their list at all.
+  //
+  // Deliberately NOT gated on useIsDesktop(): that hook's server snapshot is
+  // `true`, so the SSR HTML would contain the overlay and only shed it on
+  // hydration — a visible flash on exactly the viewports this is fixing. The
+  // distinction is about intent, not width, and the URL already carries it.
+  const explicitJob = useMemo(
+    () => (selectedJobId ? visibleJobs.find((j) => j.id === selectedJobId) ?? null : null),
+    [visibleJobs, selectedJobId],
+  );
+
   function closeDetail() {
     const next = new URLSearchParams(Array.from(sp.entries()));
     next.delete("job");
@@ -445,7 +462,16 @@ export function SmartFeed({
       )}
 
       <div className="flex gap-0 -mx-4 sm:-mx-6">
-        <div className="w-[440px] min-w-[400px] shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100vh - 2rem)" }}>
+        {/* Fixed-width master column ONLY where there is a detail pane beside
+            it. Below `lg` the pane is a full-screen overlay, so this is the
+            whole screen — and `w-[440px] min-w-[400px] shrink-0` unconditionally
+            meant a 440px column inside a 375px viewport, with `min-w` forbidding
+            the shrink that would have saved it. Every card inherited the
+            overflow: titles clipped, the Apply button sliced in half, and an
+            ancestor's overflow-hidden swallowed the rest rather than letting the
+            page scroll to it. `min-w-0` is load-bearing — without it the flex
+            item's automatic minimum size re-floors at its content width. */}
+        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100vh - 2rem)" }}>
           <div className="h-full flex flex-col">
             {/* The feed's own scroller — the outer main column doesn't move
                 with it, so ScrollRestoration has to know about this one to put
@@ -494,9 +520,13 @@ export function SmartFeed({
         </div>
       </div>
 
-      {selectedJob && (
+      {/* `explicitJob`, not `selectedJob` — see its definition. This overlay
+          covers the whole screen, so it may only ever appear because the user
+          opened a job, never because one was auto-selected for the desktop
+          column that isn't rendered at this width. */}
+      {explicitJob && (
         <div className="lg:hidden">
-          <BoardDetailPanel job={selectedJob} onClose={closeDetail} onPatchJob={patchJob} mobile />
+          <BoardDetailPanel job={explicitJob} onClose={closeDetail} onPatchJob={patchJob} mobile />
         </div>
       )}
     </div>
