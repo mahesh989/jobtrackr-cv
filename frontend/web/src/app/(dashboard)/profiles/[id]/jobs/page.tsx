@@ -6,6 +6,9 @@
  *   2. Fetch the capped (≤200) non-dismissed job set, filtered by:
  *        location, posted_within   ← dataset filters (change which rows arrive)
  *      Applied / dismissed switch still goes through the server too.
+ *      EXCEPTION: on ?stage=applied / ?stage=favourite an additional uncapped
+ *      query fetches every acted-on job and merges it in, because those two are
+ *      flat views narrowed client-side and the cap silently truncated them.
  *   3. Fetch analysis_runs + cover_letters to derive progress/pipeline state.
  *   4. Compute funnelCounts from a separate lightweight query.
  *   5. Attach atsBand to each job (needed for the shared filterJobs helper).
@@ -108,13 +111,44 @@ export default async function JobsPage({
     return res;
   };
 
+  // Jobs the user ACTED on (applied/starred), uncapped — the same fix the
+  // unified dashboard board carries, for the same reason. `?stage=applied` and
+  // `?stage=favourite` are flat views filtered client-side out of whatever the
+  // capped query above returned, so an applied job dropped off the list once it
+  // fell outside the newest 200 by posted_at, and instantly if its listing had
+  // expired or gone dead (both filtered above). Freshness is a reason to hide a
+  // job nobody has touched, never one already applied to.
+  //
+  // Mirrors the dashboard in only firing for those two views, so the
+  // runs/letters `.in("job_id", jobIds)` URL doesn't grow on ordinary loads, and
+  // in honouring resolveStage's legacy `?status=applied` alias.
+  const resolvedStage   = sp.stage || (sp.status === "applied" ? "applied" : "");
+  const isFlatStageView = resolvedStage === "applied" || resolvedStage === "favourite";
+  const buildActedOnQuery = (cols: string) =>
+    supabase
+      .from("jobs")
+      .select(cols)
+      .eq("profile_id", id)
+      .is("dismissed_at", null)
+      .or("applied_at.not.is.null,starred_at.not.is.null")
+      .order("applied_at", { ascending: false, nullsFirst: false })
+      .limit(400);
+  const fetchActedOnWithFallback = async () => {
+    if (!isFlatStageView) return { data: [], error: null };
+    let res = await buildActedOnQuery(JOBS_BASE_COLS + JOBS_M080_COLS);
+    if (res.error && /column|42703|PGRST/i.test(res.error.message)) {
+      res = await buildActedOnQuery(JOBS_BASE_COLS);
+    }
+    return res;
+  };
+
   // Everything below needs only `user.id`/`id`/`sp` — none of it depends on
   // another entry's result — so it all goes out in one batch instead of
   // stacking as "who am I" (profile/meRow/prefRow) then "what are the jobs"
   // (jobs/countRows/activeRunData/completedRuns) as two separate round trips.
   const [
     { data: profile }, { data: meRow }, { data: prefRow },
-    { data: jobs }, { data: countRows }, { data: activeRunData }, { data: completedRuns },
+    { data: jobs }, { data: actedOnJobs }, { data: countRows }, { data: activeRunData }, { data: completedRuns },
   ] = await Promise.all([
     supabase
       .from("search_profiles")
@@ -132,6 +166,7 @@ export default async function JobsPage({
     supabase
       .from("user_preferences").select("contact_details").eq("user_id", user.id).maybeSingle(),
     fetchJobsWithFallback(),
+    fetchActedOnWithFallback(),
     supabase
       .from("jobs")
       .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
@@ -186,7 +221,19 @@ export default async function JobsPage({
   }
 
   const isRunning     = !!activeRunData;
-  const jobListRaw    = (jobs ?? []) as unknown as Array<{ id: string; profile_id: string; applied_at: string | null; [k: string]: unknown }>;
+  type ProfileJobRow  = { id: string; profile_id: string; applied_at: string | null; [k: string]: unknown };
+  // Capped page + the uncapped acted-on rows, deduped by id (they overlap for
+  // anything recent enough to appear in both).
+  const jobListRaw    = (() => {
+    const merged = [...((jobs ?? []) as unknown as ProfileJobRow[])];
+    const seen   = new Set(merged.map((j) => j.id));
+    for (const j of ((actedOnJobs ?? []) as unknown as ProfileJobRow[])) {
+      if (seen.has(j.id)) continue;
+      seen.add(j.id);
+      merged.push(j);
+    }
+    return merged;
+  })();
   // Work-type preference filter (board-read mirror of the worker's fetch
   // filter). Applied/starred jobs stay visible regardless — the user acted
   // on them; hiding them would orphan tracked applications.

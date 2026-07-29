@@ -208,7 +208,19 @@ export function SmartFeed({
       // pipelineState drives the card's chip and its footer button, and it is
       // derived server-side — so patching applied_at alone would flip the row's
       // accent but leave it still offering "Apply".
-      if (patch.applied_at) next.pipelineState = "applied";
+      //
+      // Keyed on presence, not truthiness: un-applying patches applied_at to
+      // null, and a falsy check left the state stuck at "applied", so the panel
+      // showed a green "Applied" chip directly above its own "Apply now" button.
+      // The un-apply target always had a letter (that is how it got applied), so
+      // it returns to the same ready_* split derivePipelineState uses — see
+      // pipelineState.ts:112. A full client-side re-derivation isn't possible
+      // here: the run/letter gate facts it needs aren't all on the board row.
+      if ("applied_at" in patch) {
+        next.pipelineState = patch.applied_at
+          ? "applied"
+          : next.has_email ? "ready_to_send" : "ready_to_apply";
+      }
       return next;
     });
   }, [jobs, jobPatches]);
