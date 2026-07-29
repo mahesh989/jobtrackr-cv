@@ -54,7 +54,12 @@ export async function sendApplicationEmail(
         if (buf.length > MAX_CV_PDF_BYTES) {
           return jsonError(`Tailored CV PDF too large (>${MAX_CV_PDF_BYTES} bytes)`, 413);
         }
-        clientCvPdfBuffer = buf;
+        // Only kept when it actually has bytes. An empty Buffer is still a
+        // truthy object, so assigning one would satisfy the `!cvPdfBuffer`
+        // check further down and attach a 0-byte CV — the same silent-bad-send
+        // that check exists to prevent. Null instead, so the legacy storage
+        // path gets a look and the guard can fire.
+        clientCvPdfBuffer = buf.length > 0 ? buf : null;
       }
     } catch {
       return jsonError("Invalid multipart body", 400);
@@ -147,7 +152,9 @@ export async function sendApplicationEmail(
         .from(TAILORED_CV_BUCKET)
         .download(run.tailored_pdf_storage_path);
       if (pdfData) {
-        cvPdfBuffer = Buffer.from(await pdfData.arrayBuffer());
+        // Same zero-length reasoning as the client upload above.
+        const buf = Buffer.from(await pdfData.arrayBuffer());
+        cvPdfBuffer = buf.length > 0 ? buf : null;
       }
     }
   }
@@ -177,10 +184,42 @@ export async function sendApplicationEmail(
   let letterPdfBuffer: Buffer | null = null;
   try {
     const ensured = await ensureCoverLetterPdf(letter_id, user.id);
-    letterPdfBuffer = ensured.bytes;
+    // Zero bytes is a failed render that didn't throw — an empty attachment is
+    // no better than a missing one, so treat the two the same.
+    letterPdfBuffer = ensured.bytes.length > 0 ? ensured.bytes : null;
   } catch (err) {
-    // Non-fatal — we'll send with cover letter as email body only.
-    console.warn("[send-email] cover letter PDF generation failed (non-fatal):", err);
+    console.warn(
+      "[send-email] cover letter PDF generation failed:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // Refuse, exactly as the CV does one block up. This was the other half of
+  // that bug and it outlived the first fix.
+  //
+  // It was treated as non-fatal on the stated grounds that we would "send with
+  // cover letter as email body only". That is not what happens. The outgoing
+  // body is a short covering note that POINTS AT the attachments — "Please find
+  // my tailored CV and cover letter attached... The cover letter sets out, in
+  // more detail, how my experience maps to the responsibilities" — and
+  // buildDefaultEmailDraft is written deliberately NOT to duplicate the letter
+  // (see its own comment). So the employer got an email citing a cover letter
+  // that wasn't attached, `email_sent_at` was stamped regardless, and from then
+  // on the same four paths 409: the user could never send the intact version.
+  //
+  // Gated on the letter having text, mirroring `expectsCv`: a row with no
+  // pass_3_final has no letter to attach and never did, which is a different
+  // situation from one whose render failed.
+  //
+  // Placed before the atomic claim below, so a refusal leaves no stamp to
+  // roll back and the retry is clean.
+  if (!letterPdfBuffer && (letter.pass_3_final ?? "").trim()) {
+    return jsonError(
+      "Your cover letter couldn't be attached, so nothing was sent — the application is "
+      + "unchanged and you can try again. The email would have referred the employer to a "
+      + "cover letter that wasn't there.",
+      422,
+    );
   }
 
   // ── 5. Get valid OAuth access token ──────────────────────────────────────
