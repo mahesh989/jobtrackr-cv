@@ -23,14 +23,12 @@ interface Profile {
 export function MobileNav({
   email,
   profiles,
-  poolCount,
   favouriteCount = 0,
   role,
   userView,
 }: {
   email: string;
   profiles: Profile[];
-  poolCount: number;
   favouriteCount?: number;
   role?: string;
   userView?: boolean;
@@ -97,7 +95,6 @@ export function MobileNav({
         <SidebarLinks
           email={email}
           profiles={profiles}
-          poolCount={poolCount}
           favouriteCount={favouriteCount}
           role={role}
           userView={userView}

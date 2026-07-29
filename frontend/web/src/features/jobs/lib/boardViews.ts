@@ -60,6 +60,27 @@ export const BOARD_VIEWS: BoardView[] = [
   },
 ];
 
+/**
+ * Link straight to a view. Derived from the same `params` the toolbar applies,
+ * so an href elsewhere in the app can't drift from what clicking the view does —
+ * which is what happened to the links into the old /applications screen, several
+ * of which still pointed at tabs that had been removed in a redesign.
+ */
+export function hrefForView(view: BoardView, basePath = "/dashboard"): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(view.params)) if (v) p.set(k, v);
+  return `${basePath}?${p.toString()}`;
+}
+
+/** The board's "what should I work on next" queue — the nearest equivalent of
+ *  the retired /applications pool tab. */
+export const READY_TO_APPLY_HREF = hrefForView(
+  BOARD_VIEWS.find((v) => v.id === "ready") ?? BOARD_VIEWS[0],
+);
+
+/** Every applied job, as a flat list. Replaces /applications?status=sent. */
+export const APPLIED_HREF = "/dashboard?stage=applied";
+
 /** The view's params expressed as the filter shape `filterJobs` consumes. */
 export function viewFilters(view: BoardView): ViewFilters {
   const p = view.params;

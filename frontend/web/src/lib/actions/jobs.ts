@@ -86,7 +86,6 @@ export async function markJobApplied(jobId: string, profileId: string) {
 
   revalidatePath(`/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard"); // dashboard hosts a unified jobs board too
-  revalidatePath("/applications"); // outbox bucket may change
 }
 
 /**
@@ -107,7 +106,6 @@ export async function markJobUnapplied(jobId: string, profileId: string) {
 
   revalidatePath(`/profiles/${profileId}/jobs`);
   revalidatePath("/dashboard");
-  revalidatePath("/applications");
 }
 
 export async function markJobDismissed(jobId: string, profileId: string) {
@@ -155,7 +153,6 @@ export async function markPoolDecision(jobId: string, profileId: string, email?:
   if (!data || data.length === 0) throw new Error(`Failed to update job ${jobId} — RLS or ID mismatch`);
 
   revalidatePath(`/profiles/${profileId}/jobs`);
-  revalidatePath("/applications");
 }
 
 /**
@@ -223,7 +220,6 @@ export async function bulkArchiveJobs(jobIds: string[]) {
     revalidatePath(`/profiles/${pid}/runs`);
   }
   revalidatePath("/profiles");
-  revalidatePath("/applications");
   revalidatePath("/dashboard");
   return { updated: data?.length ?? 0 };
 }

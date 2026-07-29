@@ -43,7 +43,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <ResizableSidebar>
         <Suspense fallback={null}>
           <Sidebar
-            userId={user.id}
             email={user.email!}
             role={ent.role}
             userView={userView}

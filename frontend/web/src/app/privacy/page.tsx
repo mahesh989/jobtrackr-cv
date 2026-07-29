@@ -120,7 +120,7 @@ export default async function PrivacyPage() {
         <div className="flex h-screen overflow-hidden bg-[var(--sidebar-bg)]">
           <div className="shrink-0 hidden md:flex md:flex-col" style={{ minWidth: "var(--sidebar-width)" }}>
             <Suspense fallback={null}>
-              <Sidebar userId={user.id} email={user.email!} role={ent.role} userView={false} />
+              <Sidebar email={user.email!} role={ent.role} userView={false} />
             </Suspense>
           </div>
           <div className="flex-1 flex flex-col min-w-0 bg-bg overflow-y-auto">

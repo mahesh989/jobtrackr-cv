@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { shallowSetParams } from "@/features/jobs/lib/shallowNav";
+import { APPLIED_HREF, READY_TO_APPLY_HREF } from "@/features/jobs/lib/boardViews";
 import { FilterAnchor } from "./FilterAnchor";
 import { CalloutStrip } from "./CalloutStrip";
 import { Button, Chip, IconButton } from "@/components/ui";
@@ -129,8 +130,8 @@ const LENS_META: Record<LensKey, LensMeta> = {
     centerLabel: "applied",
     visibleSlices: 2,
     slices: [
-      { label: "Applied",        color: "var(--chart-applied)", href: "/applications?status=sent" },
-      { label: "Ready to apply", color: "var(--chart-info)", href: "/applications" },
+      { label: "Applied",        color: "var(--chart-applied)", href: APPLIED_HREF },
+      { label: "Ready to apply", color: "var(--chart-info)", href: READY_TO_APPLY_HREF },
       { label: "Not yet",        color: "var(--chart-neutral)" },
     ],
   },
@@ -620,9 +621,9 @@ function DonutPopup({
           else if (lens === "ats" && (mode === 1 || mode === 2))
             { href = "/dashboard?triage=belowThreshold"; label = "View below-threshold jobs →"; }
           else if (lens === "applied" && (mode === 0 || mode === "center"))
-            { href = "/applications?status=sent"; label = "View applied jobs →"; }
+            { href = APPLIED_HREF; label = "View applied jobs →"; }
           else if (lens === "applied" && mode === 1)
-            { href = "/applications"; label = "View ready to apply →"; }
+            { href = READY_TO_APPLY_HREF; label = "View ready to apply →"; }
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">

@@ -6,7 +6,7 @@
  * Replaces the old status tab bar — each card is now a navigation trigger:
  *   Total jobs     → scroll to (or pulse) the jobs board, highlight while in view
  *   New · unseen   → filter the board to unseen jobs (inactive when count is 0)
- *   Applied        → /applications
+ *   Applied        → the board's flat Applied view
  *   Auto-scheduled → /profiles?autoScheduled=true
  *
  * The jobs board is server-rendered; this client component targets it by the
@@ -15,6 +15,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { APPLIED_HREF } from "@/features/jobs/lib/boardViews";
 
 const JOBS_BOARD_ID = "jobs-board";
 
@@ -85,7 +86,7 @@ export function StatCards({
 
   function handleAppliedClick() {
     rememberOrigin();
-    router.push("/applications?status=sent");
+    router.push(APPLIED_HREF);
   }
 
   function handleAutoScheduledClick() {

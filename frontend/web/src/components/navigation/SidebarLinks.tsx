@@ -18,7 +18,6 @@ import {
   BarChart3,
   LogOut,
   Sparkles,
-  Send,
   BookOpen,
   CreditCard,
   ShieldCheck,
@@ -55,7 +54,6 @@ interface Props {
   email: string;
   profiles: Profile[];
   /** Count of completed-letter jobs awaiting the To-review pool decision. */
-  poolCount?: number;
   /** Count of starred (favourited) jobs. */
   favouriteCount?: number;
   /** users.role — drives which nav items are visible. founder/admin see the
@@ -196,7 +194,7 @@ function Logo({ href }: { href: string }) {
   );
 }
 
-export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCount = 0, role, userView = false }: Props) {
+export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
   const pathname = usePathname();
   const [savedOpen, setSavedOpen] = useState(false);
@@ -379,7 +377,6 @@ export function SidebarLinks({ email, profiles = [], poolCount = 0, favouriteCou
 
         <NavItem href="/dashboard?stage=favourite" icon={Star} badge={favouriteCount || undefined}>Favourite</NavItem>
         <NavItem href="/dashboard?stage=applied" icon={CheckCircle2}>Applied</NavItem>
-        <NavItem href="/applications" icon={Send} badge={poolCount || undefined}>Applications</NavItem>
         <NavItem href="/analyses" icon={History}>Analyses</NavItem>
 
         <SectionLabel>Profile</SectionLabel>

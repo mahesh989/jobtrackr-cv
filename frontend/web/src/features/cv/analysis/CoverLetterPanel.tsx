@@ -706,10 +706,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 {downloadingZip ? "Preparing ZIP…" : "Download ZIP"}
               </Button>
             )}
-            {/* Jump to the Applications "Application pool" tab so the user
-                can queue this letter for review without hunting through the nav. */}
+            {/* Straight into this job's own Apply popup on the board —
+                `apply=1` is the one-shot handoff its detail header consumes
+                (see DetailHeader), so the message, the send-by-email path and
+                the apply-on-the-listing path all open on the letter the user
+                is looking at. This used to land on the /applications pool and
+                leave them to find the row again. */}
             <Button asChild variant="brand" size="xs" className="ml-auto">
-              <Link href="/applications" className="inline-flex items-center gap-1">
+              <Link href={`/dashboard?job=${jobId}&apply=1`} className="inline-flex items-center gap-1">
                 Apply now
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>

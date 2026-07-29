@@ -390,7 +390,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
             const trailing = cl.state === "completed" && coverLetter
               ? (
                 <a
-                  href="/applications?status=email"
+                  href={run.job_id ? `/dashboard?job=${run.job_id}` : "/dashboard"}
                   className="text-caption font-semibold text-[var(--brand)] hover:underline"
                 >
                   View letter →

@@ -10,52 +10,34 @@ interface SidebarProfile {
 }
 
 interface Props {
-  userId: string;
   email: string;
   role: string;
   userView: boolean;
 }
 
 /**
- * Fetches sidebar data (profiles, unseen counts, running status, pool count)
- * and renders the desktop SidebarLinks. Wrapped in Suspense by the layout so
- * the page content streams immediately while this loads.
+ * Fetches sidebar data (profiles, unseen counts, running status) and renders
+ * the desktop SidebarLinks. Wrapped in Suspense by the layout so the page
+ * content streams immediately while this loads.
  *
- * The pool count is the expensive part (3-step join). Profiles, unseen counts,
- * and running status are fast parallel queries.
+ * All queries here are fast and parallel. The Applications pool badge — a
+ * 3-step join plus a serial follow-up query on EVERY page load, by far the
+ * most expensive thing the sidebar did — went with the /applications screen it
+ * counted for. The board's own "Ready to apply" saved view carries that count
+ * in the toolbar, computed client-side from jobs already in memory.
  */
-export async function Sidebar({ userId, email, role, userView }: Props) {
+export async function Sidebar({ email, role, userView }: Props) {
   const supabase = await createClient();
 
-  const [{ data: profileRows }, { data: userRow }] = await Promise.all([
-    supabase
-      .from("search_profiles")
-      .select("id, name")
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("users")
-      .select("applications_seen_at")
-      .eq("id", userId)
-      .single(),
-  ]);
+  const { data: profileRows } = await supabase
+    .from("search_profiles")
+    .select("id, name")
+    .order("created_at", { ascending: true });
 
   const profiles = (profileRows ?? []) as { id: string; name: string }[];
   const fullProfileIds = profiles.map((p) => p.id);
-  const applicationsSeenAt =
-    (userRow as { applications_seen_at: string | null } | null)?.applications_seen_at ?? null;
 
-  // Pool badge — must match the Applications page filter exactly.
-  let poolLetters = supabase
-    .from("cover_letters")
-    .select("id, job_id, completed_at, jobs!inner(applied_at, dismissed_at)")
-    .eq("user_id", userId)
-    .eq("status", "completed")
-    .eq("is_stale", false)
-    .is("jobs.applied_at", null)
-    .is("jobs.dismissed_at", null);
-  if (applicationsSeenAt) poolLetters = poolLetters.gt("completed_at", applicationsSeenAt);
-
-  const [{ data: unseenRows }, { data: runRows }, { data: letterRowsForBadge }, { count: starredCount }] =
+  const [{ data: unseenRows }, { data: runRows }, { count: starredCount }] =
     await Promise.all([
       supabase
         .from("jobs")
@@ -70,7 +52,6 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         .select("profile_id, status")
         .in("profile_id", fullProfileIds)
         .eq("status", "running"),
-      poolLetters,
       supabase
         .from("jobs")
         .select("*", { count: "exact", head: true })
@@ -78,28 +59,6 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         .not("starred_at", "is", null)
         .is("dismissed_at", null),
     ]);
-
-  let poolCount = 0;
-  const letterJobIds = Array.from(
-    new Set(((letterRowsForBadge ?? []) as { job_id: string }[]).map((l) => l.job_id)),
-  );
-  if (letterJobIds.length > 0) {
-    const { data: runsForBadge } = await supabase
-      .from("analysis_runs")
-      .select("job_id, tailored_pdf_storage_path, tailored_cv_storage_path")
-      .in("job_id", letterJobIds)
-      .eq("is_stale", false);
-    const completeJobs = new Set(
-      ((runsForBadge ?? []) as {
-        job_id: string;
-        tailored_pdf_storage_path: string | null;
-        tailored_cv_storage_path: string | null;
-      }[])
-        .filter((r) => !!(r.tailored_pdf_storage_path || r.tailored_cv_storage_path))
-        .map((r) => r.job_id),
-    );
-    poolCount = letterJobIds.filter((id) => completeJobs.has(id)).length;
-  }
 
   const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<
     Record<string, number>
@@ -123,7 +82,6 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
       <MobileNav
         email={email}
         profiles={sidebarProfiles}
-        poolCount={poolCount ?? 0}
         favouriteCount={starredCount ?? 0}
         role={role}
         userView={userView}
@@ -134,7 +92,6 @@ export async function Sidebar({ userId, email, role, userView }: Props) {
         <SidebarLinks
           email={email}
           profiles={sidebarProfiles}
-          poolCount={poolCount ?? 0}
           favouriteCount={starredCount ?? 0}
           role={role}
           userView={userView}

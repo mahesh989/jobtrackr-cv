@@ -11,7 +11,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { revalidatePath }            from "next/cache";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 const MAX_SUBJECT_LEN = 300;
@@ -68,6 +67,5 @@ export const POST = withUser(async (
   }
 
   // Refresh the applications listing so the card moves tabs immediately.
-  revalidatePath("/applications");
   return NextResponse.json({ reviewed: true });
 });
