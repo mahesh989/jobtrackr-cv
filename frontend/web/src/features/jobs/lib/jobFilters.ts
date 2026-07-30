@@ -158,8 +158,13 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
     out = out.filter((x) => x.dismissed_at == null);
   }
 
-  // If sorting by last analysed, restrict to analysed jobs only
-  if (f.sort === "last_analysed") {
+  // If sorting by last analysed, restrict to analysed jobs only — except on
+  // Applied, where this sort is the tab's own default (see JobBoard.tsx) and
+  // membership is already fully decided by applied_at below. A job marked
+  // applied without ever being analysed in this app (e.g. "already applied
+  // to this job? mark it as applied") must not silently vanish from its own
+  // Applied tab; the sort comparator already floats such jobs to the bottom.
+  if (f.sort === "last_analysed" && f.stage !== "applied") {
     out = out.filter((x) => x.progress.has_analysis);
   }
 

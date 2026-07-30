@@ -447,7 +447,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      // `.remove()` rather than `parentNode.removeChild(a)` — some browsers
+      // detach the anchor themselves as part of starting the download, so by
+      // the time this line runs `a` may already have no parent.
+      // `removeChild` throws NotFoundError in that case; `.remove()` is a
+      // no-op on an already-detached node. Matches every other temporary-
+      // anchor download in this codebase (cvPdfClient.ts, TailoredCvCard.tsx,
+      // useTailoredCvPdfAction.ts, downloadZip.ts) — this was the one holdout.
+      a.remove();
       URL.revokeObjectURL(url);
 
       setShowDownloadModal(false);

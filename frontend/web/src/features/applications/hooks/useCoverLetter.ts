@@ -31,6 +31,31 @@ export function useCoverLetter(
   const [saving, setSaving]   = useState(false);
   const loadStarted = useRef(false);
 
+  // Re-arm the one-shot load guard if this hook is ever handed a DIFFERENT
+  // letter id without unmounting (its one call site now remounts via `key`
+  // instead — see CoverLetterTab — but that only protects that one site).
+  // Without this, `loaded`/`loadStarted` staying true from the first id
+  // means a later id change would never fetch: `text`/`saved` stay frozen on
+  // the first letter's content while `save()` PATCHes whatever `letterId`
+  // the closure currently holds — a silent mismatch between what's on screen
+  // and what a save would overwrite.
+  const [seededFor, setSeededFor] = useState(letterId);
+  if (seededFor !== letterId) {
+    setSeededFor(letterId);
+    setLoaded(false);
+    setText("");
+    setSaved("");
+  }
+
+  // Refs can't be written during render (would break under concurrent
+  // rendering) — this re-arms `loadStarted` in an effect instead, declared
+  // before the fetch effect below so it always runs first within the same
+  // commit and the fetch effect (which also depends on `letterId`) sees the
+  // reset value.
+  useEffect(() => {
+    loadStarted.current = false;
+  }, [letterId]);
+
   useEffect(() => {
     if (!enabled) return;
     if (!letterId || loaded || loadStarted.current) return;

@@ -211,6 +211,46 @@ export function useJobRunStatus(
     return () => { cancelled = true; clearInterval(id); };
   }, [jobId, status, applyRow]);
 
+  // Cover-letter settle backstop — armed once a run reaches COMPLETED, for the
+  // same reason as the `cover_letters` Realtime subscription above: the
+  // orchestrator marks the run completed before the detached auto-letter task
+  // finishes, so the very first refetch after completion can land before the
+  // letter exists, and if that one `cover_letters` Realtime message is then
+  // also dropped, nothing left ever refetches — the Cover letter tab (and the
+  // header's derived state) stays stuck until a manual reload. This polls
+  // `board-detail` until the letter's outcome is known, then stops itself:
+  // immediately if no letter was ever triggered (skipped/below-gate runs),
+  // once it lands, or after a few minutes if it never does.
+  useEffect(() => {
+    if (status !== RunStatus.COMPLETED) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+    const MAX_MS = 5 * 60 * 1000;
+
+    async function check() {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/jobs/${jobId}/board-detail`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (!cancelled) {
+            const cls        = data?.run?.cover_letter_status ?? null;
+            const letterDone = !!data?.cover_letter?.pass_3_final;
+            if (cls !== "triggered") return; // nothing was ever coming — settled
+            if (letterDone) { settledRef.current?.(); return; } // landed — one more refresh, then stop
+          }
+        }
+      } catch { /* transient — retry on the next tick */ }
+      if (!cancelled && Date.now() - startedAt < MAX_MS) {
+        timer = setTimeout(check, 8000);
+      }
+    }
+
+    timer = setTimeout(check, 8000);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [jobId, status]);
+
   // Adopt a run started by ANY instance for this job (including this one —
   // markStarted publishes rather than setting state directly, so both paths
   // go through here and stay identical).

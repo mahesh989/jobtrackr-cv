@@ -26,12 +26,19 @@ interface Props {
     hiring_manager:  string | null;
     company_address: string | null;
   }): void;
+  /** When the freshly-pasted JD auto-triggers analysis, hands the new run id
+   *  to the caller instead of this modal deciding what UI to show. Lets a
+   *  caller that already has its own useJobRunStatus/markStarted (the board's
+   *  right-side detail panel) fold this into the SAME in-place progress popup
+   *  its "Re-analyse" menu item uses. Callers without one (e.g. the plain
+   *  card modal) omit this and get the legacy router.refresh() behaviour. */
+  onAnalysisStarted?(runId: string): void;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function JobEditModal({
-  jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, excludeKeywords, onClose, onSaved,
+  jobId, jobUrl, originalJd, initialManual, initialEmail, initialHiringMgr, initialCompanyAddress, excludeKeywords, onClose, onSaved, onAnalysisStarted,
 }: Props) {
   const [text, setText]       = useState<string>(initialManual ?? originalJd ?? "");
   // The scrape we compare against when deciding whether the user actually
@@ -156,13 +163,21 @@ export function JobEditModal({
         // fetch to land. Failure dispatches a "failed" event that clears it.
         window.dispatchEvent(new CustomEvent("jobtrackr:analysis-started", { detail: { jobId } }));
         triggerReanalyze(jobId)
-          .then(() => {
-            // Once the run row is created, refresh the board so the card
-            // picks up has_analysis = true on completion. The board is
-            // wired to Realtime postgres_changes on analysis_runs, so the
-            // refresh just primes the initial server payload; subsequent
-            // step transitions land via Realtime.
-            router.refresh();
+          .then((runId) => {
+            if (onAnalysisStarted) {
+              // Right-panel caller: hand the run id to its own
+              // useJobRunStatus/markStarted so the SAME in-place progress
+              // popup used by its "Re-analyse" menu item takes over — no
+              // navigation, matching that flow exactly.
+              onAnalysisStarted(runId);
+            } else {
+              // Once the run row is created, refresh the board so the card
+              // picks up has_analysis = true on completion. The board is
+              // wired to Realtime postgres_changes on analysis_runs, so the
+              // refresh just primes the initial server payload; subsequent
+              // step transitions land via Realtime.
+              router.refresh();
+            }
           })
           .catch((err) => {
             console.error("[JobEditModal] auto-analyse failed:", err);

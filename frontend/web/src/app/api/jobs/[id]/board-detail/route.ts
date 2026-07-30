@@ -39,7 +39,7 @@ export const GET = withUser(async (
   const [ownership, runResult, letterResult] = await Promise.all([
     admin
       .from("jobs")
-      .select("id, description, manual_jd_text, search_profiles!inner(user_id)")
+      .select("id, description, manual_jd_text, jd_quality, role_match, search_profiles!inner(user_id)")
       .eq("id", jobId)
       .eq("search_profiles.user_id", user.id)
       .maybeSingle(),
@@ -74,6 +74,8 @@ export const GET = withUser(async (
   const job = ownership.data as unknown as {
     description: string | null;
     manual_jd_text: string | null;
+    jd_quality: string | null;
+    role_match: string | null;
   };
 
   return NextResponse.json({
@@ -88,5 +90,13 @@ export const GET = withUser(async (
     // the ownership query already reads this exact row.
     description:    job?.description ?? null,
     manual_jd_text: job?.manual_jd_text ?? null,
+    // Fresh copies of the two fields the board list's own `job` prop carries
+    // stale (it's the server-rendered row from selection time, never patched
+    // after a JD edit or a re-classification) — the pane's pipelineState
+    // recompute needs the CURRENT values or a job that just had its thin JD
+    // filled in and analysed successfully gets patched right back to
+    // "needs_jd" using the pre-edit "thin" flag.
+    jd_quality:     job?.jd_quality ?? null,
+    role_match:     job?.role_match ?? null,
   });
 });

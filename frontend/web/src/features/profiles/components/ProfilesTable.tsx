@@ -150,7 +150,11 @@ export function ProfilesTable({
                 <span className="text-label text-[#CF222E]">✗ Failed</span>
               ) : (
                 <div className="whitespace-nowrap">
-                  <span className="text-label text-text-2">{relativeDate(run.started_at)}</span>
+                  {/* relativeDate() reads Date.now() — the bucket can differ
+                      between server render and client hydration when that
+                      gap straddles a boundary. Expected drift, not a real
+                      mismatch — see the identical note in FeedCards.tsx. */}
+                  <span className="text-label text-text-2" suppressHydrationWarning>{relativeDate(run.started_at)}</span>
                   {run.jobs_saved > 0 && (
                     <span className="text-caption text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
                   )}

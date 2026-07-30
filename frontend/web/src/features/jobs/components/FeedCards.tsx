@@ -609,7 +609,17 @@ export function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean })
       {postedRel && (
         <>
           <span className="text-text-3"> · </span>
-          <span title={`Posted ${new Date(job.posted_at as string).toLocaleDateString("en-AU", {day: "2-digit", month: "2-digit", year: "numeric"})}`}>
+          {/* relativeDate() reads Date.now() — the bucket it lands in ("8
+              hours ago" vs "9 hours ago") can differ between the server
+              render and the moment the client hydrates, whenever that gap
+              straddles a boundary. That's expected drift for a live
+              relative-time string, not a real mismatch — suppress the
+              warning rather than forcing a client-side re-render to "fix"
+              text that's correct on both sides. */}
+          <span
+            suppressHydrationWarning
+            title={`Posted ${new Date(job.posted_at as string).toLocaleDateString("en-AU", {day: "2-digit", month: "2-digit", year: "numeric"})}`}
+          >
             Posted {postedRel.toLowerCase()}
           </span>
         </>
@@ -617,7 +627,10 @@ export function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean })
       {!postedRel && addedRel && (
         <>
           <span className="text-text-3"> · </span>
-          <span title={`Added ${new Date(job.created_at as string).toLocaleDateString("en-AU", {day: "2-digit", month: "2-digit", year: "numeric"})}`}>
+          <span
+            suppressHydrationWarning
+            title={`Added ${new Date(job.created_at as string).toLocaleDateString("en-AU", {day: "2-digit", month: "2-digit", year: "numeric"})}`}
+          >
             Added {addedRel.toLowerCase()}
           </span>
         </>

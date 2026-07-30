@@ -160,8 +160,13 @@ function BoardDetailPanelInner({
           applied_at:   job.applied_at,
           dismissed_at: job.dismissed_at,
           has_email:    job.has_email ?? null,
-          jd_quality:   job.jd_quality ?? null,
-          role_match:   job.role_match ?? null,
+          // Fresh, not the stale board-list prop: a job that just had its thin
+          // JD filled in and analysed successfully was still carrying
+          // jd_quality: "thin" from the server-rendered row, so this recompute
+          // patched pipelineState right back to "needs_jd" on every completed
+          // run — permanently stuck on "Needs full JD" until a real navigation.
+          jd_quality:   data.jd_quality ?? job.jd_quality ?? null,
+          role_match:   data.role_match ?? job.role_match ?? null,
         },
         latestRun: { ...runRef, passed_initial_gate: gates.passedInitial, passed_final_gate: gates.passedFinal },
         latestLetter: letterRef,
@@ -253,6 +258,13 @@ function BoardDetailPanelInner({
               <Tabs.Content value="cover" keepMounted>
                 {data?.cover_letter
                   ? <CoverLetterTab
+                      // Forces a clean remount if the letter's identity ever
+                      // changes under an already-mounted (keepMounted) tab —
+                      // the letter/message local state below is only ever
+                      // seeded from `letter` on first mount, so without this
+                      // it would keep serving a stale/placeholder letter's
+                      // text after a real one replaces it in `data`.
+                      key={data.cover_letter.id}
                       jobId={job.id}
                       letter={data.cover_letter}
                       applied={!!job.applied_at}

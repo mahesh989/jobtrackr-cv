@@ -40,7 +40,16 @@ export function useBoardDetail(jobId: string | null, enabled: boolean = true, re
   };
 
   const [state, setState] = useState<State>(() => seed(jobId));
-  const activeId = useRef<string | null>(null);
+  // Monotonic per-request generation — NOT keyed by jobId. Guarding on jobId
+  // alone (the old `activeId` ref) only caught the pane switching to a
+  // DIFFERENT job; two overlapping fetches for the SAME job (e.g. the
+  // thin-JD auto-analyse flow's back-to-back `refresh()` calls — one right
+  // after the JD save, before any run exists, and another moments later once
+  // the run starts) both passed that check, so whichever response resolved
+  // LAST won even if it was fired FIRST. A stale empty payload landing after
+  // the real one silently reverted the pane (and anything keyed off its
+  // `data`, like the Cover letter tab's edit state) back to placeholder data.
+  const requestSeq = useRef(0);
 
   // Swap to the new job's cached payload during render rather than in an
   // effect — same derive-state-during-render pattern useJobRunStatus uses for
@@ -57,13 +66,13 @@ export function useBoardDetail(jobId: string | null, enabled: boolean = true, re
     // mounts a desktop and a mobile copy; CSS hides one but both used to fetch).
     if (!enabled) return;
     if (!jobId) return; // nothing to fetch — the early return below covers this render
-    activeId.current = jobId;
     const cached = cache.get(jobId);
+    const mySeq = ++requestSeq.current;
 
     (async () => {
       try {
         const res = await fetch(`/api/jobs/${jobId}/board-detail`);
-        if (activeId.current !== jobId) return; // superseded by a newer selection
+        if (mySeq !== requestSeq.current) return; // superseded by a newer request
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
           // A failed revalidation shouldn't blow away a good cached payload.
@@ -72,11 +81,14 @@ export function useBoardDetail(jobId: string | null, enabled: boolean = true, re
           return;
         }
         const json = (await res.json()) as BoardDetailPayload;
+        // Checked before the cache write too — an out-of-order response must
+        // not clobber a fresher payload a later request already cached, or
+        // the NEXT visit to this job would seed from the stale one.
+        if (mySeq !== requestSeq.current) return;
         cache.set(jobId, json);
-        if (activeId.current !== jobId) return;
         setState({ data: json, loading: false, error: null });
       } catch (e) {
-        if (activeId.current !== jobId) return;
+        if (mySeq !== requestSeq.current) return;
         if (cached) return;
         setState({ data: null, loading: false, error: e instanceof Error ? e.message : "Network error" });
       }
