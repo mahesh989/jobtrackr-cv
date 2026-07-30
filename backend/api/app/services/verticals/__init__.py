@@ -11,7 +11,7 @@ Usage::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 from app.services.verticals.base import RoleFamilyProfile, VerticalPack  # noqa: F401
@@ -96,17 +96,6 @@ FAMILY_TO_LEXICON: Dict[str, Optional[str]] = {
 def get_vertical(vertical_id: str) -> Optional[VerticalPack]:
     """Return the VerticalPack for *vertical_id*, or None if not found."""
     return VERTICALS.get(vertical_id)
-
-
-def all_verticals() -> List[VerticalPack]:
-    """Return all unique VerticalPack objects (deduped; master==general omitted)."""
-    seen: set[str] = set()
-    result: List[VerticalPack] = []
-    for pack in VERTICALS.values():
-        if pack.profile.id not in seen:
-            seen.add(pack.profile.id)
-            result.append(pack)
-    return result
 
 
 def lexicon_path(vertical: str) -> Optional[Path]:

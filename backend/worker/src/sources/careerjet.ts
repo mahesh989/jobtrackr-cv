@@ -33,6 +33,7 @@ import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
 import { getApifyProxyUrl } from "../lib/proxy.js";
 import { curlFetch } from "../lib/curlfetch.js";
+import { sleep } from "./agedCareRoles.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_BASE        = "https://search.api.careerjet.net/v4/query";
@@ -183,10 +184,6 @@ function jobToRaw(job: CareerjetJob, keyword: string, profile: SearchProfile): R
     ...(salary_max !== undefined && { salary_max }),
     raw:         { ...job, _keyword: keyword },
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**

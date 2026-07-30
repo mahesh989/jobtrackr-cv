@@ -8,6 +8,7 @@
 // then pass to the standard pipeline. Like Greenhouse, we get the FULL JD.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import { sleep as delay } from "./agedCareRoles.js";
 
 // ── Confirmed live Lever slugs with AU jobs ───────────────────────────────────
 // Verified via api.lever.co/v0/postings/{slug}?mode=json — 404s skipped silently.
@@ -49,10 +50,6 @@ interface LeverPosting {
   additionalPlain?: string;      // additional plain-text info
   hostedUrl: string;             // canonical job board URL
   createdAt: number;             // epoch ms
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function fetchBoard(slug: string): Promise<LeverPosting[]> {

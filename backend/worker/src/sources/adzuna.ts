@@ -2,6 +2,7 @@ import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
 import * as cheerio from "cheerio";
 import { curlFetch } from "../lib/curlfetch.js";
+import { sleep as delay } from "./agedCareRoles.js";
 
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
@@ -35,10 +36,6 @@ interface AdzunaResponse {
  */
 function normalizeLocation(location: string): string {
   return location.split(/[,\s]+/)[0].trim() || "Australia";
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchPage(params: URLSearchParams, page: number): Promise<AdzunaResult[]> {

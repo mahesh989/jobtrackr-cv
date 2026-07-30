@@ -2,17 +2,9 @@
  * Auth guards — the module's public helpers for "who is the caller?".
  *
  * getAuthUser  — cached per-render lookup for Server Components (RSC).
- * requireUser  — API-route guard: returns the user + client, or a ready-made
- *                401 response. Replaces the hand-rolled 3-line check
- *                duplicated across API routes; adopt incrementally:
- *
- *                  const auth = await requireUser();
- *                  if (!auth.user) return auth.response;
- *                  // auth.user / auth.supabase from here on
  */
 
 import { cache } from "react";
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -31,21 +23,3 @@ export const getAuthUser = cache(async () => {
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 });
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
-
-export async function requireUser(): Promise<
-  | { user: NonNullable<Awaited<ReturnType<typeof getAuthUser>>>; supabase: SupabaseServerClient; response: null }
-  | { user: null; supabase: SupabaseServerClient; response: NextResponse }
-> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      user: null,
-      supabase,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  return { user, supabase, response: null };
-}

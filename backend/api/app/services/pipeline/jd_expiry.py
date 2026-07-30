@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,3 @@ def detect_jd_expiry(jd_text: str) -> Optional[str]:
             logger.info("JD expiry detected via pattern: %s", pattern)
             return reason
     return None
-
-
-def assert_jd_open(jd_text: str) -> Tuple[bool, Optional[str]]:
-    """Convenience: returns (is_open, reason_if_closed)."""
-    reason = detect_jd_expiry(jd_text)
-    return (reason is None, reason)

@@ -9,10 +9,8 @@
 // Nothing acts on it yet — existing scrape depth (per-profile lookback) is
 // unchanged.
 //
-// Phase B (later): readCoverage() + computeDeltaDays() drive the scrape delta
-// ([last_refreshed_at, now]) and the bucket-first serve, once global_jobs /
-// profile_jobs exist. Those helpers are defined here now so the contract is
-// stable, but the orchestrator does not call them in Phase A.
+// Phase B: readCoverage() + sliceDeltaDays() drive the scrape delta
+// ([last_refreshed_at, now]) and the bucket-first serve.
 //
 // All DB access is best-effort and try/catch-guarded by callers: if migration
 // 066 has not been applied yet, a write simply no-ops with a warning and the
@@ -143,22 +141,6 @@ export async function readCoverage(
     console.warn(`[coverage] readCoverage threw — ${err instanceof Error ? err.message : err}`);
   }
   return map;
-}
-
-/**
- * Phase B: days to scrape for a slice = ceil(now − last_refreshed_at) + 1 buffer,
- * capped at `maxDays` (the 30-day retention). No prior coverage → null (caller
- * should cold-start at maxDays).
- */
-export function computeDeltaDays(
-  row: CoverageRow | undefined,
-  maxDays = 30,
-): number | null {
-  if (!row) return null;
-  const daysSince = Math.ceil(
-    (Date.now() - new Date(row.last_refreshed_at).getTime()) / 86_400_000,
-  );
-  return Math.min(daysSince + 1, maxDays);
 }
 
 /** A slice refreshed within this many hours is considered fresh → 0 scrape. */

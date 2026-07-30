@@ -11,7 +11,7 @@
  *   Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createDecipheriv } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LEN    = 16;
@@ -26,24 +26,6 @@ function getKey(): Buffer {
     );
   }
   return Buffer.from(hex, "hex");
-}
-
-/**
- * Encrypt a plaintext API key. Returns a base64 blob safe to store in Postgres.
- */
-export function encryptApiKey(plaintext: string): string {
-  const key    = getKey();
-  const iv     = randomBytes(IV_LEN);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
-
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, "utf8"),
-    cipher.final(),
-  ]);
-  const authTag = cipher.getAuthTag();
-
-  // Pack: iv | authTag | ciphertext → base64
-  return Buffer.concat([iv, authTag, encrypted]).toString("base64");
 }
 
 /**

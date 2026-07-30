@@ -11,6 +11,7 @@
 // Unlike Adzuna snippets, we get the FULL JD — visa extraction is reliable.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
+import { sleep as delay } from "./agedCareRoles.js";
 
 // ── AU companies confirmed live on Greenhouse ─────────────────────────────────
 // Verified against boards-api.greenhouse.io — 404s are skipped silently but
@@ -126,10 +127,6 @@ function stripHtml(html: string): string {
     .replace(/&gt;/g,  ">")
     .replace(/\s{2,}/g, " ")
     .trim();
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 // ── Greenhouse API types ──────────────────────────────────────────────────────

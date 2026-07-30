@@ -456,37 +456,6 @@ export function researchCompany(
   );
 }
 
-interface RankedFact {
-  fact_text:    string;
-  score:        number;
-  source_field: string;
-}
-
-export interface SelectCompanyFactPayload {
-  company_id:   string;
-  facts:        CompanyFacts;
-  jd_text:      string;
-  cv_text:      string;
-  /** JD's job location. When supplied AND a country can be inferred,
-   *  cv-backend drops candidate facts that mention a different country
-   *  before ranking. None falls back to legacy geographically-naive ranking. */
-  jd_location?: string | null;
-}
-
-export interface SelectCompanyFactResult {
-  ranked_facts: RankedFact[];
-}
-
-export function selectCompanyFact(
-  payload: SelectCompanyFactPayload,
-): Promise<SelectCompanyFactResult> {
-  return callCvBackend<SelectCompanyFactResult>(
-    "/internal/select-company-fact",
-    payload,
-    { timeoutMs: 10_000 },  // deterministic, no AI
-  );
-}
-
 // ── Phase 11: Opening paragraph variants ─────────────────────────────────────
 
 export interface OpeningVariant {

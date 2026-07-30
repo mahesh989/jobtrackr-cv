@@ -20,18 +20,11 @@ import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 // Actor IDs: set via env vars after deploying.
 // Format: "<your-apify-username>~seek-au-scraper"
 const ACTOR_ID         = process.env.SEEK_ACTOR_ID    ?? "prospect_fuzz~seek-au-scraper";
-const JD_ACTOR_ID      = process.env.SEEK_JD_ACTOR_ID ?? "prospect_fuzz~seek-jd-fetcher";
 const APIFY_RUN_URL    = `https://api.apify.com/v2/acts/${ACTOR_ID}/run-sync-get-dataset-items`;
-const APIFY_JD_RUN_URL = `https://api.apify.com/v2/acts/${JD_ACTOR_ID}/run-sync-get-dataset-items`;
 
 // Cost estimate — used by orchestrator to update quota_used_usd after each run.
 const COST_PER_RESULT_USD = 0.002;
 const COST_PER_RUN_USD    = 0.02;
-const COST_JD_RUN_USD     = 0.04;   // ~80s Playwright compute for ~20 JDs
-
-// Cap on URLs sent to the JD fetcher per run. Orchestrator should only
-// call this AFTER filter+dedup, so survivors are typically far below this.
-export const SEEK_JD_FETCH_CAP = 20;
 
 // ── Output shape from our custom actor ────────────────────────────────────────
 interface SeekItem {
@@ -49,7 +42,8 @@ interface SeekItem {
 }
 
 // ── Salary parsing ─────────────────────────────────────────────────────────────
-function parseSalary(text: string | undefined): { salary_min?: number; salary_max?: number } {
+// Shared with seekDirect.ts (identical SEEK salary-label format on both paths).
+export function parseSalary(text: string | undefined | null): { salary_min?: number; salary_max?: number } {
   if (!text) return {};
   const nums = text.replace(/,/g, "").match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   if (nums.length === 0) return {};

@@ -34,12 +34,6 @@ CATEGORY_KEYS: tuple[str, ...] = tuple(c.value for c in SkillCategory)
 BUCKET_KEYS:   tuple[str, ...] = tuple(b.value for b in RequirementBucket)
 
 
-class KnockoutStatus(StrEnum):
-    FAIL = "fail"
-    VERIFY = "verify"
-    PASS = "pass"
-
-
 class CertPolicy(StrEnum):
     FIRST_CLASS = "first_class"
     PLUS = "plus"

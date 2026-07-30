@@ -23,6 +23,8 @@ import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
 import { getApifyProxyUrl } from "../lib/proxy.js";
 import { curlFetch } from "../lib/curlfetch.js";
+import { sleep } from "./agedCareRoles.js";
+import { parseSalary } from "./seek.js";
 
 // Match seek.ts cap so behaviour is interchangeable.
 export const SEEK_DIRECT_JD_FETCH_CAP = 20;
@@ -88,19 +90,6 @@ function extractRedux(html: string): ReduxData | null {
   }
 }
 
-function parseSalary(text: string | undefined | null): { salary_min?: number; salary_max?: number } {
-  if (!text) return {};
-  const nums = text.replace(/,/g, "").match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
-  if (nums.length === 0) return {};
-  const isHourly = /per hour|hourly|\/hr/i.test(text);
-  const [lo, hi] = nums;
-  const scale = isHourly ? 2080 : 1;
-  return {
-    salary_min: lo ? lo * scale : undefined,
-    salary_max: (hi ?? lo) * scale,
-  };
-}
-
 /**
  * Normalise a user-entered profile location to what SEEK's `where` param
  * accepts. SEEK understands city names ("Sydney NSW"), state names
@@ -161,10 +150,6 @@ function seekProxyUrl(): string | undefined {
 async function fetchHtml(url: string): Promise<{ status: number; body: string }> {
   const proxyUrl = seekProxyUrl();
   return curlFetch(url, proxyUrl);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 function jobToRaw(job: ReduxJob, profile: SearchProfile): RawJob | null {
