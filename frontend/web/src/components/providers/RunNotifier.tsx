@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import { CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface RunSnapshot {
@@ -15,12 +17,13 @@ interface RunSnapshot {
   finished_at:   string | null;
 }
 
-interface Toast {
-  id:    string;
-  kind:  "success" | "error";
-  title: string;
-  sub:   string;
-  href:  string;
+interface Notice {
+  id:      string;
+  kind:    "success" | "error";
+  title:   string;
+  sub:     string;
+  href:    string;
+  ctaText: string;
 }
 
 // Run-status changes arrive via Supabase Realtime (postgres_changes on
@@ -28,10 +31,10 @@ interface Toast {
 // poll only covers the rare dropped event and seeds initial state on mount;
 // it pauses while the tab is hidden.
 //
-// CV-analysis runs deliberately do NOT toast here: the board's progress popup
-// already reports completion in place, and the toast's router.refresh() was
-// re-rendering the dashboard mid-run, which is what scrolled the page back to
-// the top while an analysis was in flight.
+// CV-analysis runs deliberately do NOT notify here: the board's progress popup
+// already reports completion in place, and the notification's router.refresh()
+// was re-rendering the dashboard mid-run, which is what scrolled the page back
+// to the top while an analysis was in flight.
 // Realtime is the primary path and has proven reliable, so this only has to
 // cover a genuinely dropped event. At 20s it was re-hitting a ~1s endpoint
 // three times a minute on every open tab for the entire time the app was
@@ -39,10 +42,13 @@ interface Toast {
 // a missed event well within the time it takes a pipeline run to matter, and
 // the visibilitychange handler polls immediately on tab focus regardless.
 const BACKSTOP_MS = 180000; // safety-net poll, visible tabs only
-const TOAST_MS    = 8000;
 
+// Rendered as a centered popup card (same pattern as ThinJdModal) rather than
+// a corner toast — a fetch that just saved jobs is worth a beat of the user's
+// attention, not something to catch out of the corner of an eye. Multiple
+// completions queue and show one at a time instead of stacking.
 export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [queue, setQueue] = useState<Notice[]>([]);
   const prev   = useRef<Record<string, string>>({});
   const seeded = useRef(false);
   const router = useRouter();
@@ -51,7 +57,6 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
-    const timeoutHandles: ReturnType<typeof setTimeout>[] = [];
 
     function schedule(delay: number) {
       if (cancelled || document.hidden) return;
@@ -59,12 +64,8 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       timer = setTimeout(poll, delay);
     }
 
-    function pushToast(toast: Toast) {
-      setToasts((t) => (t.some((x) => x.id === toast.id) ? t : [...t, toast]));
-      const h = setTimeout(() => {
-        setToasts((t) => t.filter((x) => x.id !== toast.id));
-      }, TOAST_MS);
-      timeoutHandles.push(h);
+    function pushNotice(notice: Notice) {
+      setQueue((q) => (q.some((x) => x.id === notice.id) ? q : [...q, notice]));
     }
 
     async function poll() {
@@ -81,7 +82,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
         const next: Record<string, string> = {};
         for (const r of runs) next[r.id] = r.status;
 
-        // First poll: don't fire toasts for transitions we missed before mount.
+        // First poll: don't fire notices for transitions we missed before mount.
         if (!seeded.current) {
           prev.current = next;
           seeded.current = true;
@@ -94,23 +95,24 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
           if (was === "running" && r.status !== "running") {
             anyTransition = true;
             const isSuccess = r.status === "completed";
-            const toastId   = `${r.id}:${r.status}`;
-            const toast: Toast = {
-              id:    toastId,
-              kind:  isSuccess ? "success" : "error",
-              title: isSuccess
-                ? `${r.profile_name} — ${r.jobs_saved} new ${r.jobs_saved === 1 ? "job" : "jobs"}`
-                : `${r.profile_name} — pipeline ${r.status}`,
+            const noticeId  = `${r.id}:${r.status}`;
+            const notice: Notice = {
+              id:      noticeId,
+              kind:    isSuccess ? "success" : "error",
+              title:   isSuccess
+                ? `${r.jobs_saved} new ${r.jobs_saved === 1 ? "job" : "jobs"} saved`
+                : `${r.profile_name} — pipeline failed`,
+              sub:     isSuccess
+                ? `Fetched for "${r.profile_name}". Take a look, or keep going.`
+                : "Something went wrong while fetching jobs for this profile.",
               // Run history is an admin-only surface — general users land on
               // the profile's job board instead.
-              sub:   isSuccess ? "Click to view feed"
-                   : isAdmin   ? "Click to view run history"
-                   :             "Click to open the profile",
-              href:  isSuccess || !isAdmin
+              href:    isSuccess || !isAdmin
                 ? `/profiles/${r.profile_id}/jobs`
                 : `/profiles/${r.profile_id}/runs`,
+              ctaText: isSuccess ? "View saved jobs" : isAdmin ? "View run history" : "Open profile",
             };
-            pushToast(toast);
+            pushNotice(notice);
           }
         }
 
@@ -132,7 +134,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
     // Primary path: Supabase Realtime pushes run_logs changes the instant the
     // worker writes them. RLS at the broadcast layer restricts delivery to this
     // user's rows. We act only on a flip to a terminal status, then run the
-    // same enrich-and-toast pass as the backstop (the Realtime payload lacks
+    // same enrich-and-notify pass as the backstop (the Realtime payload lacks
     // the joined profile name, so we re-fetch the enriched feed).
     const supabase = createClient();
     const channel = supabase
@@ -148,7 +150,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       .subscribe();
 
     // Pause the backstop poll when the tab is hidden; resume (and poll once)
-    // when it returns. Realtime keeps delivering toasts while hidden.
+    // when it returns. Realtime keeps delivering notices while hidden.
     function onVisibility() {
       if (document.hidden) {
         if (timer) { clearTimeout(timer); timer = null; }
@@ -165,41 +167,82 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", onVisibility);
-      for (const h of timeoutHandles) clearTimeout(h);
     };
   }, [router, isAdmin]);
 
-  if (toasts.length === 0) return null;
+  const active = queue[0];
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-[calc(100vw-2rem)]">
-      {toasts.map((t) => (
-        <Link
-          key={t.id}
-          href={t.href}
-          className={`block w-80 rounded-md border px-4 py-3 shadow-lg anim-in transition-transform hover:-translate-y-0.5 ${
-            t.kind === "success"
-              ? "border-[#1A7F37]/30 bg-[#DAFBE1] text-[#1A7F37]"
-              : "border-[#CF222E]/30 bg-[#FFEBE9] text-[#CF222E]"
-          }`}
+  useEffect(() => {
+    if (!active) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setQueue((q) => q.slice(1));
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [active]);
+
+  if (!active) return null;
+
+  function dismiss() {
+    setQueue((q) => q.slice(1));
+  }
+
+  const isSuccess = active.kind === "success";
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" onClick={dismiss} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="run-notice-title"
+        className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl"
+      >
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Close"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-text-3 hover:bg-[var(--surface-2)] hover:text-text transition-colors"
         >
-          <div className="flex items-start gap-2.5">
-            {t.kind === "success" ? (
-              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
-              </svg>
-            )}
-            <div className="min-w-0">
-              <div className="text-body font-semibold truncate">{t.title}</div>
-              <div className="text-caption mt-0.5 opacity-80">{t.sub}</div>
-            </div>
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="flex gap-3 items-start pr-6">
+          {isSuccess ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-green-700" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-700" />
+          )}
+          <div className="min-w-0">
+            <p id="run-notice-title" className="text-lead font-semibold text-text">
+              {active.title}
+            </p>
+            <p className="mt-1 text-body text-text-2">{active.sub}</p>
           </div>
-        </Link>
-      ))}
-    </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2 border-t border-[var(--border)] pt-4">
+          <button
+            type="button"
+            onClick={dismiss}
+            className="rounded-full px-4 py-2 text-label font-medium text-text-2 hover:bg-[var(--surface-2)] transition-colors"
+          >
+            Dismiss
+          </button>
+          <Link
+            href={active.href}
+            onClick={dismiss}
+            className={`rounded-full px-5 py-2 text-label font-semibold transition-colors ${
+              isSuccess
+                ? "bg-green-light text-green-700 hover:brightness-95"
+                : "bg-red-light text-red-700 hover:brightness-95"
+            }`}
+          >
+            {active.ctaText}
+          </Link>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
