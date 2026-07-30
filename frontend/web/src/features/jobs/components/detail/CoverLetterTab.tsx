@@ -1,8 +1,15 @@
 "use client";
 
 /**
- * Cover letter tab — edits the letter, and (once there's a drafted message to
- * edit) the message to employer alongside it.
+ * Cover letter tab — edits the letter, and the message to employer alongside
+ * it, shown here as soon as the letter itself exists rather than only once
+ * the job has been applied to.
+ *
+ * The message is lazily drafted (GET /email-draft — a real AI voice-rewrite
+ * call the first time, ~15-45s) the first time EITHER this tab or the Apply
+ * popup is opened for a job whose letter has no cached `email_body` yet;
+ * whichever happens first pays that cost and caches the result onto the
+ * `cover_letters` row, so the other reads it instantly afterwards.
  *
  * Once the application email has gone out the letter AND the message are both
  * frozen: PATCH the letter, POST /review and GET /email-draft all 409 from
@@ -11,16 +18,17 @@
  * stored copy straight off the board payload — including the message that was
  * sent, which is otherwise unreachable once the Apply popup stops offering it.
  *
- * Before that point — including the "applied on the listing, nothing emailed"
- * case, which sets `applied_at` but never `email_sent_at` — the same POST
- * /review the Apply popup itself uses is still open, so the message is edited
- * and saved right here instead of only being reachable from that one-shot popup.
+ * Before that point the same POST /review the Apply popup itself uses is
+ * still open, so the message is edited and saved right here too — both
+ * surfaces write through the same route, so there is no real "two places"
+ * conflict as long as they're not open at the same instant.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Check, Loader2, Save, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useCoverLetter } from "@/features/applications/hooks/useCoverLetter";
+import { fetchEmailDraft } from "@/lib/email/emailDraft";
 import type { BoardDetailCoverLetter } from "../../lib/boardDetailTypes";
 
 const TEXTAREA_CLS =
@@ -102,33 +110,78 @@ export function CoverLetterTab({
 }: {
   jobId:      string;
   letter:     BoardDetailCoverLetter;
-  /** The job is marked applied. Applying on a listing persists the message but
-   *  never sets `email_sent_at` (nothing was emailed), so without this the one
-   *  case the message most needs recovering in — "I applied on Seek, what did I
-   *  paste into their form?" — would show no message at all. */
+  /** The job is marked applied. Only changes the "what you used" vs "ready to
+   *  use" label on the not-yet-sent message section below — the section
+   *  itself shows regardless. */
   applied?:   boolean;
   onChanged?: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const sent = !!letter.email_sent_at;
-  const showMessage = (sent || applied) && !!letter.email_body?.trim();
+  const hasStoredMessage = !!letter.email_body?.trim();
 
   // Passing null/false rather than branching the call — the hook stays
   // unconditional and never fires a request that the send lock would 409.
   const cover = useCoverLetter(sent ? null : letter.id, setError, !sent, onChanged);
 
   // Message-to-employer edit state. Local rather than a fetch-backed hook like
-  // `cover` — the subject/body are already on the board payload, no round trip
-  // needed to start editing. `POST /review` is the same endpoint the Apply
-  // popup's own Approve button uses, and it stays open right up until
-  // `email_sent_at` is set, so this is not a second implementation of saving,
-  // just a second place to reach the one that already exists.
+  // `cover` — once loaded, the subject/body are just edited in place and saved
+  // via `POST /review`, the same endpoint the Apply popup's own Approve button
+  // uses, and it stays open right up until `email_sent_at` is set.
   const [subject, setSubject] = useState(letter.email_subject ?? "");
   const [body, setBody] = useState(letter.email_body ?? "");
   const [savedSubject, setSavedSubject] = useState(letter.email_subject ?? "");
   const [savedBody, setSavedBody] = useState(letter.email_body ?? "");
   const [messageSaving, setMessageSaving] = useState(false);
-  const messageDirty = subject !== savedSubject || body !== savedBody;
+  const messageDirty = !sent && (subject !== savedSubject || body !== savedBody);
+
+  // Nothing to draft once the email has gone out — the stored copy is the
+  // permanent record and this tab never calls `/email-draft` for it (that
+  // route 409s past `email_sent_at` anyway).
+  const [bodyLoaded, setBodyLoaded] = useState<boolean>(sent || hasStoredMessage);
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  // `onChanged` is a fresh closure every render (BoardDetailPanel's `refresh`
+  // isn't memoised) — a ref keeps it out of the effect's deps so this doesn't
+  // re-fire on every unrelated re-render, only when the letter/sent actually
+  // change. Mirrors ApplyModal's own identical note for the same fetch; kept
+  // up to date in its own effect rather than during render (refs can't be
+  // written mid-render — see useCoverLetter's identical note).
+  const onChangedRef = useRef(onChanged);
+  useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
+
+  // Lazy first-view draft — the auto-cover-letter background task never
+  // writes email_subject/email_body itself (see module note), so opening this
+  // tab before ever opening Apply left the message permanently blank. This is
+  // the other caller of the same on-demand route ApplyModal uses; whichever
+  // surface is opened first pays the one-time AI cost, the other then reads
+  // the cached copy straight off the board payload. `fetchEmailDraft` de-dupes
+  // the two: this tab is `keepMounted` and fires the instant a job's letter
+  // loads, so opening a job and clicking Apply shortly after used to fire the
+  // AI voice-rewrite call a second time before this one's cache write landed.
+  useEffect(() => {
+    if (sent || bodyLoaded) return;
+    let active = true;
+    (async () => {
+      try {
+        const json = await fetchEmailDraft(letter.id);
+        if (!active) return;
+        setSubject(json.subject ?? "");
+        setBody(json.body ?? "");
+        setSavedSubject(json.subject ?? "");
+        setSavedBody(json.body ?? "");
+        setBodyLoaded(true);
+        // That route caches what it just composed onto the letter row, but
+        // this pane is still holding the payload it fetched before there was
+        // one — refresh so a later reopen (or the Apply popup) reads the
+        // stored body and skips the AI call entirely.
+        onChangedRef.current?.();
+      } catch (e) {
+        if (active) setDraftError(e instanceof Error ? e.message : "Could not load the drafted message");
+      }
+    })();
+    return () => { active = false; };
+  }, [letter.id, sent, bodyLoaded]);
 
   async function saveMessage() {
     if (messageSaving) return;
@@ -152,7 +205,10 @@ export function CoverLetterTab({
     }
   }
 
-  const pdfHref = `/api/jobs/${jobId}/cover-letter/${letter.id}/download?format=pdf`;
+  // `disposition=inline` — without it the route defaults to `attachment`
+  // (right for the Download menu's "Cover letter only" item, wrong for this
+  // "View PDF ↗" link, which opens a new tab specifically to LOOK at it).
+  const pdfHref = `/api/jobs/${jobId}/cover-letter/${letter.id}/download?format=pdf&disposition=inline`;
 
   const viewPdfLink = (
     <a
@@ -255,14 +311,15 @@ export function CoverLetterTab({
       )}
 
       {/* ── Message to employer ──────────────────────────────────────
-          Sent applications: a frozen, read-only record — once an email has
-          gone out that message is unreachable anywhere else, and "what did I
-          actually say to them?" is a question that gets asked weeks later,
-          before an interview. Everything else (including "applied on the
-          listing, nothing emailed"): editable and saveable right here via the
-          same POST /review the Apply popup itself uses. */}
-      {showMessage && (
-        sent ? (
+          Shown as soon as the letter itself exists — not gated on having
+          applied. Sent applications: a frozen, read-only record — once an
+          email has gone out that message is unreachable anywhere else, and
+          "what did I actually say to them?" is a question that gets asked
+          weeks later, before an interview. Everything else: editable and
+          saveable right here via the same POST /review the Apply popup
+          itself uses, drafted on first view if it isn't cached yet. */}
+      {sent ? (
+        hasStoredMessage && (
           <SectionShell
             title="Message to employer"
             collapsible
@@ -280,18 +337,26 @@ export function CoverLetterTab({
               {letter.email_body}
             </p>
           </SectionShell>
-        ) : (
-          <SectionShell
-            title="Message to employer"
-            collapsible
-            defaultOpen={false}
-            meta={
+        )
+      ) : (
+        <SectionShell
+          title="Message to employer"
+          collapsible
+          defaultOpen={false}
+          meta={
+            bodyLoaded ? (
               <>
                 {messageDirty && <DirtyDot />}
-                <span className="text-[12px] text-text-3">What you used to apply</span>
+                <span className="text-[12px] text-text-3">
+                  {applied ? "What you used to apply" : "Ready to use when you apply"}
+                </span>
               </>
-            }
-            footer={
+            ) : (
+              <span className="text-[12px] text-text-3">Writing…</span>
+            )
+          }
+          footer={
+            bodyLoaded && (
               <>
                 <span className="text-[12px] text-text-3">
                   {messageDirty ? "Unsaved changes" : "Saved"}
@@ -307,27 +372,43 @@ export function CoverLetterTab({
                 )}
                 {!messageDirty && <CopyButton text={savedBody} />}
               </>
-            }
-          >
-            <input
-              aria-label="Subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              disabled={messageSaving}
-              placeholder="Subject"
-              className="w-full rounded-[8px] border border-border bg-surface text-text px-3.5 py-2 text-[13px] mb-2 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60"
-            />
-            <textarea
-              aria-label="Message to employer"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              disabled={messageSaving}
-              rows={8}
-              spellCheck
-              className={TEXTAREA_CLS}
-            />
-          </SectionShell>
-        )
+            )
+          }
+        >
+          {draftError ? (
+            <p className="text-[13px] text-red-600">{draftError}</p>
+          ) : !bodyLoaded ? (
+            <div className="py-6">
+              <p className="flex items-center gap-2 text-[13px] font-medium text-text">
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> Writing your message…
+              </p>
+              <p className="mt-1.5 text-[12px] text-text-3">
+                First time for this job — we&apos;re drafting the note in your writing voice.
+                It&apos;s saved afterwards, so opening this again is instant.
+              </p>
+            </div>
+          ) : (
+            <>
+              <input
+                aria-label="Subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                disabled={messageSaving}
+                placeholder="Subject"
+                className="w-full rounded-[8px] border border-border bg-surface text-text px-3.5 py-2 text-[13px] mb-2 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-60"
+              />
+              <textarea
+                aria-label="Message to employer"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                disabled={messageSaving}
+                rows={8}
+                spellCheck
+                className={TEXTAREA_CLS}
+              />
+            </>
+          )}
+        </SectionShell>
       )}
     </div>
   );

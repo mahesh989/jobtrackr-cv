@@ -97,6 +97,7 @@ export async function renderTailoredCvBlob({ markdown, contactDetails }: RenderI
 
   // 2. Build a hidden off-screen host
   const host = document.createElement("div");
+  host.className = "cv-pdf-host";
   Object.assign(host.style, {
     position:      "fixed",
     left:          "0",
@@ -244,7 +245,30 @@ export async function renderTailoredCvBlob({ markdown, contactDetails }: RenderI
 
     return pdf.output("blob");
   } finally {
-    if (root) root.unmount();
-    if (host.parentNode) host.parentNode.removeChild(host);
+    // Best-effort cleanup only, and deliberately skips `root.unmount()`.
+    //
+    // `applyCvSectionLayout` (step 4, above) manually restructures this
+    // subtree's DOM with raw removeChild/appendChild calls — moving H3/P
+    // nodes React just rendered into new `.cv-row` wrapper divs — to build
+    // the two-column layout. That's the same manual restructuring
+    // TailoredCvCard's live preview does, and it works fine for that case
+    // because nothing ever unmounts that tree. Here it permanently desyncs
+    // React's fiber tree from the real DOM: React still believes those nodes
+    // are children of their original parents. `root.unmount()` walks that
+    // stale picture to tear the tree down, so it ALWAYS throws — "Failed to
+    // execute 'removeChild': the node to be removed is not a child of this
+    // node" — on every single render, not just an occasional Fast-Refresh
+    // race. React's dev-mode instrumentation reports that failure to
+    // Next.js's error overlay regardless of any try/catch here, which is why
+    // this kept surfacing as a runtime error on every send/download despite
+    // being "handled".
+    //
+    // None of that matters for correctness: `host` is thrown away
+    // immediately either way — html2canvas has already rasterised it by the
+    // time we get here — so unmounting the React root first accomplishes
+    // nothing an imperative `host.remove()` doesn't already cover. Skipping
+    // it removes the throw at its source instead of catching it after the
+    // fact.
+    try { host.remove(); } catch { /* already detached — Fast Refresh, route change mid-render */ }
   }
 }

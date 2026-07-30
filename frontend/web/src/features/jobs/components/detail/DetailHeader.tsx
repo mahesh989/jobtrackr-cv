@@ -458,7 +458,11 @@ export function DetailHeader({
           <span className="text-label text-text-2">{statusSubtext(job, description, detailLoaded)}</span>
         </div>
         {lastAnalysedAt && (
-          <span className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap" title={`Last analysed ${lastAnalysedAt}`}>
+          <span
+            className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap"
+            title={`Last analysed ${lastAnalysedAt}`}
+            suppressHydrationWarning
+          >
             Last analysed {relativeDate(lastAnalysedAt)}
           </span>
         )}
@@ -477,6 +481,7 @@ export function DetailHeader({
           initialCompanyAddress={job.company_address ?? null}
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); onChanged(); }}
+          onAnalysisStarted={(runId) => { markStarted(runId); onChanged(); }}
         />
       )}
 

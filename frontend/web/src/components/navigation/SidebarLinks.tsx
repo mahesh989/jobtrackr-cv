@@ -373,7 +373,7 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
         </button>
         {addOpen && <AddModal onClose={() => setAddOpen(false)} />}
 
-        <NavItem href="/profiles/new" icon={Search}>New</NavItem>
+        <NavItem href="/profiles/new" icon={Search}>New Search</NavItem>
 
         <NavItem href="/dashboard?stage=favourite" icon={Star} badge={favouriteCount || undefined}>Favourite</NavItem>
         <NavItem href="/dashboard?stage=applied" icon={CheckCircle2}>Applied</NavItem>
@@ -383,7 +383,7 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
         <NavItem href="/cv/details" icon={UserCircle2}>Details</NavItem>
         <NavItem href="/cv" icon={FileText} exclude={["/cv/details", "/cv/credentials"]}>CVs</NavItem>
         <NavItem href="/cv/credentials" icon={GraduationCap}>Credentials</NavItem>
-        <NavItem href="/voice" icon={PenLine}>Writing voice</NavItem>
+        <NavItem href="/voice" icon={PenLine}>Writing Voice</NavItem>
 
         <SectionLabel>Settings</SectionLabel>
         <NavItem href="/settings/account" icon={Mail}>Account</NavItem>

@@ -12,13 +12,18 @@ export const CV_PDF_STYLE = `
     margin: 0.5in;
   }
 
-  html, body {
+  /* Scoped to the render host (see pdfRender.tsx), not html/body/* — this
+     stylesheet is injected via a plain <style> tag alongside the app's own
+     DOM (no shadow root, no iframe), so unscoped selectors used to apply to
+     the ENTIRE page. Every render — and fitCvToPage's binary search, which
+     rewrites this tag's content up to 8 times per CV — forced a full-page
+     style/layout recalculation each time, flipping the real body's
+     background and every element's box-sizing back and forth: the visible
+     "flickering" during CV/zip download and email send. */
+  .cv-pdf-host {
     margin: 0;
     padding: 0;
     background: #fff;
-  }
-
-  body {
     width: auto;
     color: #000000;
     font-family: Helvetica, Calibri, Arial, sans-serif;
@@ -26,7 +31,7 @@ export const CV_PDF_STYLE = `
     line-height: 11pt;
   }
 
-  * { box-sizing: border-box; }
+  .cv-pdf-host, .cv-pdf-host * { box-sizing: border-box; }
 
   .cv-root,
   .cv-root * {

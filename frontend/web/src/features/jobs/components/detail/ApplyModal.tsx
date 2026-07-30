@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { buildDefaultEmailDraft } from "@/lib/email/draftBody";
+import { fetchEmailDraft } from "@/lib/email/emailDraft";
 import { loadCvInputs } from "@/features/applications/lib/cvPdfClient";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import type { BoardJob } from "../../lib/jobFilters";
@@ -148,19 +149,16 @@ export function ApplyModal({
 
   // Only ever runs when the payload had no stored body — the first time this
   // job's message is needed. Everything after that is served from state.
+  // `fetchEmailDraft` de-dupes against the Cover letter tab's identical
+  // effect (frontend/web/src/lib/email/emailDraft.ts) — without it, opening
+  // a job and clicking Apply before that tab's own draft landed fired the
+  // AI voice-rewrite call twice for the same letter.
   useEffect(() => {
     if (!effectiveLetterId || bodyLoaded) return;
     let active = true;
     (async () => {
       try {
-        const res = await fetch(`/api/applications/${effectiveLetterId}/email-draft`);
-        if (!active) return;
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          setDraftError(j.error ?? "Could not load the drafted message");
-          return;
-        }
-        const json = await res.json();
+        const json = await fetchEmailDraft(effectiveLetterId);
         if (!active) return;
         setSubject((s) => s || (json.subject ?? ""));
         setBody(json.body ?? "");
@@ -171,7 +169,7 @@ export function ApplyModal({
         // stored body and skips the AI call entirely.
         onChangedRef.current?.();
       } catch (e) {
-        if (active) setDraftError(e instanceof Error ? e.message : "Network error");
+        if (active) setDraftError(e instanceof Error ? e.message : "Could not load the drafted message");
       }
     })();
     return () => { active = false; };
@@ -328,8 +326,6 @@ export function ApplyModal({
     if (busy || !effectiveLetterId || !contactEmail) return;
     setBusy("email"); setError(null);
     try {
-      await persistMessage();
-
       // Render the CV here rather than letting the server fall back to the
       // stored ReportLab PDF. That fallback is a different renderer from the
       // one the Tailored CV tab and Download use, so the employer received a
@@ -342,7 +338,13 @@ export function ApplyModal({
 
       if (cvStoragePath) {
         try {
-          const { markdown, contactDetails } = await loadCvInputs(cvStoragePath);
+          // persistMessage and loadCvInputs are both independent network
+          // round trips — running them in parallel rather than one after the
+          // other was pure added latency on the slowest step of this flow.
+          const [, { markdown, contactDetails }] = await Promise.all([
+            persistMessage(),
+            loadCvInputs(cvStoragePath),
+          ]);
           const pdfBlob = await renderTailoredCvBlob({ markdown, contactDetails });
           const slug = (job.company || "company").replace(/[^a-zA-Z0-9]/g, "_");
           form.set("cv_pdf", pdfBlob, `TailoredCV_${slug}.pdf`);
@@ -356,6 +358,8 @@ export function ApplyModal({
             }. Try again.`,
           );
         }
+      } else {
+        await persistMessage();
       }
 
       const res = await fetch(`/api/applications/${effectiveLetterId}/send-email`, {

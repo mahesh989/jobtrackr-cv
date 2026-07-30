@@ -6,7 +6,12 @@ import { checkExpiry } from "./expiry.js";
 import { bestApplicationEmail } from "../ai/jdFacts.js";
 
 export interface SaveResult {
+  /** Total rows upserted this run — new AND already-existing rows re-touched. */
   saved: number;
+  /** Rows that did NOT already exist for this profile before this run.
+   *  This — not `saved` — is what the "new jobs" notification pipeline must
+   *  use, since `saved` re-counts still-live postings from prior runs. */
+  newSaved: number;
   errors: number;
   bySource: Record<string, number>;
   /** Phase E-1 — IDs of the upserted rows (both new + re-touched).
@@ -37,7 +42,7 @@ export async function saveJobs(
   jobs: NormalisedJob[],
   profileId: string
 ): Promise<SaveResult> {
-  if (jobs.length === 0) return { saved: 0, errors: 0, bySource: {}, savedIds: [] };
+  if (jobs.length === 0) return { saved: 0, newSaved: 0, errors: 0, bySource: {}, savedIds: [] };
 
   const bySource: Record<string, number> = {};
   for (const j of jobs) bySource[j.source] = (bySource[j.source] ?? 0) + 1;
@@ -86,6 +91,7 @@ export async function saveJobs(
   // Upsert in batches of 100 to avoid payload size limits
   const BATCH = 100;
   let saved = 0;
+  let newSaved = 0;
   let errors = 0;
   const savedIds: string[] = [];
   let m080Available = true;
@@ -93,6 +99,19 @@ export async function saveJobs(
   for (let i = 0; i < rows.length; i += BATCH) {
     let batch: Array<Record<string, unknown>> = rows.slice(i, i + BATCH);
     if (!m080Available) batch = batch.map(stripM080);
+
+    // Snapshot which url_hashes already exist for this profile BEFORE the
+    // upsert — the upsert's own result can't tell new inserts apart from
+    // merged updates, and that distinction is exactly what "new jobs"
+    // notifications need (otherwise every re-scrape of a still-live posting
+    // gets counted as "new" again).
+    const batchHashes = batch.map((r) => r.url_hash as string);
+    const { data: existingRows } = await db
+      .from("jobs")
+      .select("url_hash")
+      .eq("profile_id", profileId)
+      .in("url_hash", batchHashes);
+    const existingHashes = new Set((existingRows ?? []).map((r) => r.url_hash as string));
 
     let { error, count, data } = await db
       .from("jobs")
@@ -117,6 +136,7 @@ export async function saveJobs(
       errors += batch.length;
     } else {
       saved += count ?? batch.length;
+      newSaved += batchHashes.filter((h) => !existingHashes.has(h)).length;
       for (const row of (data ?? []) as Array<{ id: string }>) {
         savedIds.push(row.id);
       }
@@ -145,7 +165,7 @@ export async function saveJobs(
     if (filled > 0) console.log(`[save] contact_email autofilled on ${filled} job(s) from JD application emails`);
   }
 
-  return { saved, errors, bySource, savedIds };
+  return { saved, newSaved, errors, bySource, savedIds };
 }
 
 function stripM080(row: Record<string, unknown>): Record<string, unknown> {

@@ -75,7 +75,12 @@ export function JobBoard({
   const minKeywords = sp.get("min_keywords") || "";
   const maxDistance = sp.get("max_distance") || "";
   const minDistance = sp.get("min_distance") || "";
-  const sortCol     = sp.get("sort") || "posted_at";
+  // Applied has no Sort dropdown of its own (SmartFeed renders it as a flat,
+  // curated list — see isFlatStage there), so its default has to be set here
+  // rather than picked from the toolbar. "Recently analysed" surfaces the
+  // jobs whose tailored CV/score most recently changed first, which is what
+  // you want when checking back on applications already sent.
+  const sortCol     = sp.get("sort") || (stage === "applied" ? "last_analysed" : "posted_at");
   const asc         = sp.get("dir") === "asc";
   // SmartFeed surfaces visa as an always-visible coloured dot on every card,
   // so the legacy ?visa_toggle= column flag is no longer read here.

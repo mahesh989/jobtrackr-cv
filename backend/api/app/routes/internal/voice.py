@@ -108,6 +108,13 @@ async def voice_rewrite_email_endpoint(
             # we want the same meaning every time, just reshaped. Lower temp
             # also makes the AI less likely to drift into autobiography.
             temperature=0.3,
+            # Rewriting a 3-paragraph boilerplate email in a fixed voice is a
+            # bounded, mechanical style transfer — nothing here benefits from
+            # a reasoning model spending hidden "thinking" tokens/time before
+            # answering, unlike TAILORED_CV_GENERATION which sets this same
+            # override for the same reason. Only takes effect for OpenAI
+            # reasoning models (client.py silently drops it for Anthropic).
+            reasoning_effort="none",
             no_training=True,
         )
     except AIClientError as exc:

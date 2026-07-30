@@ -164,6 +164,11 @@ export interface BoardDetailPayload {
    *  see the note in the board-detail route. Null until the fetch resolves. */
   description:    string | null;
   manual_jd_text: string | null;
+  /** Fresh copies of the board list's own `jd_quality`/`role_match` — see the
+   *  note in the board-detail route on why the pane's pipelineState recompute
+   *  must use these instead of the job prop. */
+  jd_quality: string | null;
+  role_match: string | null;
 }
 
 export const CAT_ORDER: readonly SkillCategory[] = ["domain_knowledge", "soft_skills", "technical"];

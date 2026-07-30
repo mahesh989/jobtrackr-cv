@@ -8,8 +8,14 @@
  * (Phase G), so this is now the single canonical PDF path.
  *
  * Query params:
- *   ?format=pdf — return application/pdf bytes (Content-Disposition: attachment)
- *                 otherwise return JSON {templated_text, ...}
+ *   ?format=pdf — return application/pdf bytes (Content-Disposition: attachment
+ *                 by default) otherwise return JSON {templated_text, ...}
+ *   ?disposition=inline — render in the browser tab instead of downloading.
+ *                 Only the Cover letter tab's "View PDF ↗" link (a plain
+ *                 `<a href target="_blank">` straight at this route) wants
+ *                 this; every other caller either downloads deliberately
+ *                 (Download menu) or consumes the bytes as a blob (zip
+ *                 bundle) where Content-Disposition doesn't matter.
  *   ?hiring_manager_override=... — use this name instead of jobs.hiring_manager
  *                                  (preview-only — does not persist to the job)
  *   ?edited_body=... — use this body text instead of pass_3_final
@@ -34,6 +40,7 @@ export const GET = withUser(async (
   const hireMgrOverride = req.nextUrl.searchParams.get("hiring_manager_override");
   const editedBody      = req.nextUrl.searchParams.get("edited_body");
   const format          = req.nextUrl.searchParams.get("format");   // "pdf" or null
+  const disposition     = req.nextUrl.searchParams.get("disposition") === "inline" ? "inline" : "attachment";
 
   const admin = createAdminClient();
 
@@ -108,7 +115,7 @@ export const GET = withUser(async (
       status: 200,
       headers: {
         "Content-Type":        "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${disposition}; filename="${filename}"`,
         "Content-Length":      bytes.length.toString(),
       },
     });
