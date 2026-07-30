@@ -1293,20 +1293,23 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
-    const { saved, bySource, savedIds } = await saveJobs(toSave, profileId);
+    const { saved, newSaved, bySource, savedIds } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     sourcesSaved = bySource;
-    console.log(`[pipeline] stage 12 — saved: ${saved}`);
+    console.log(`[pipeline] stage 12 — saved: ${saved} (${newSaved} new)`);
 
     // Auto-run new-jobs notification queue — never for manual runs. A failure
     // here must NEVER fail the pipeline; it's purely a notification side effect.
-    if (trigger === "auto" && jobsSaved > 0) {
+    // Uses newSaved (rows that didn't already exist for this profile), NOT
+    // the total `saved` count — otherwise every re-scrape of still-live
+    // postings from prior runs gets reported to the user as "new" again.
+    if (trigger === "auto" && newSaved > 0) {
       try {
         await db.from("pending_job_notifications").insert({
           user_id: profile.user_id,
           profile_id: profileId,
           profile_name: profile.name ?? "",
-          jobs_saved: jobsSaved,
+          jobs_saved: newSaved,
         });
       } catch (err) {
         console.error("[pipeline] failed to queue new-jobs notification (non-fatal):", err);
