@@ -1,6 +1,8 @@
 // Engagement email templates — inactivity warning, pause notice, new-jobs
-// batch — matching the visual language of digestEmail.ts (dark inline-style
-// card, same font stack, same footer treatment).
+// batch — matching the visual language of digestEmail.ts (light inline-style
+// card matching the app's "classic" theme — the real default per
+// lib/themes.ts and the palette auth pages hand-style to — same font
+// stack, same footer treatment).
 //
 // All three builders/senders guard `resend` being null, always send from
 // `fromEmail`, and catch + log rather than throw — a notification-email
@@ -30,17 +32,19 @@ function shell(opts: { preheader: string; heading: string; body: string; footer:
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${esc(opts.heading)}</title>
 </head>
-<body style="margin:0;padding:0;background:#020617;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;">
   <div style="max-width:640px;margin:0 auto;padding:32px 20px;">
 
-    <div style="margin-bottom:28px;">
-      <span style="color:#60a5fa;font-size:18px;font-weight:800;letter-spacing:-.02em;">JobTrackr</span>
-      <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;margin:10px 0 6px;">${esc(opts.heading)}</h1>
+    <div style="margin-bottom:20px;">
+      <span style="color:#3B82F6;font-size:18px;font-weight:800;letter-spacing:-.02em;">JobTrackr</span>
     </div>
 
-    ${opts.body}
+    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:28px;box-shadow:0 12px 28px -18px rgba(16,24,40,.15);">
+      <h1 style="color:#0F172A;font-size:20px;font-weight:700;margin:0 0 14px;">${esc(opts.heading)}</h1>
+      ${opts.body}
+    </div>
 
-    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #1e293b;color:#475569;font-size:12px;line-height:1.6;">
+    <div style="margin-top:24px;padding:0 4px;color:#64748B;font-size:12px;line-height:1.6;">
       ${opts.footer}
     </div>
 
@@ -50,7 +54,7 @@ function shell(opts: { preheader: string; heading: string; body: string; footer:
 }
 
 function button(label: string, href: string): string {
-  return `<a href="${esc(href)}" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#2563eb;color:#f8fafc;text-decoration:none;font-size:14px;font-weight:600;border-radius:8px;">${esc(label)}</a>`;
+  return `<a href="${esc(href)}" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#3B82F6;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:600;border-radius:8px;">${esc(label)}</a>`;
 }
 
 async function getUserEmail(userId: string): Promise<string | null> {
@@ -85,12 +89,12 @@ export async function sendInactivityWarningEmail(userId: string): Promise<void> 
     }
 
     const body = `
-    <p style="color:#cbd5e1;font-size:14px;line-height:1.6;">
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">
       We haven't seen you in JobTrackr for a couple of weeks. Your job alerts are still
       active and fetching new matches on schedule — if you're still job hunting, there's
       nothing you need to do.
     </p>
-    <p style="color:#94a3b8;font-size:13px;line-height:1.6;margin-top:12px;">
+    <p style="color:#64748B;font-size:13px;line-height:1.6;margin-top:12px;">
       Heads up: alerts pause automatically after 30 days away, to avoid running searches
       no one's looking at.
     </p>
@@ -132,7 +136,7 @@ export async function sendPausedEmail(userId: string, reason: "inactivity" | "su
         : "Your subscription or trial has ended, so we paused automatic job fetching. Renew to resume.";
 
     const body = `
-    <p style="color:#cbd5e1;font-size:14px;line-height:1.6;">
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0;">
       ${explanation}
     </p>
     ${button("Open JobTrackr", `${APP_URL}/dashboard`)}`;
@@ -185,8 +189,8 @@ export async function sendNewJobsEmail(
     const profileLines = groups
       .map(
         (g) => `
-      <div style="padding:10px 12px;border-bottom:1px solid #1e293b;color:#e5e7eb;font-size:14px;">
-        <strong>${esc(g.profileName)}</strong> — ${g.jobsSaved} new job${g.jobsSaved === 1 ? "" : "s"}
+      <div style="padding:10px 0;border-bottom:1px solid #F1F5F9;color:#0F172A;font-size:14px;">
+        <strong>${esc(g.profileName)}</strong> — <span style="color:#475569;">${g.jobsSaved} new job${g.jobsSaved === 1 ? "" : "s"}</span>
       </div>`,
       )
       .join("");
@@ -194,8 +198,8 @@ export async function sendNewJobsEmail(
     const flavorList =
       flavor.length > 0
         ? `
-    <h2 style="color:#e5e7eb;font-size:14px;margin:24px 0 8px;font-weight:600;">Latest:</h2>
-    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.8;">
+    <h2 style="color:#0F172A;font-size:14px;margin:22px 0 8px;font-weight:600;">Latest:</h2>
+    <ul style="margin:0;padding-left:18px;color:#475569;font-size:13px;line-height:1.8;">
       ${flavor.map((f) => `<li>${esc(f.title)} — ${esc(f.company)}</li>`).join("")}
     </ul>`
         : "";
@@ -203,10 +207,10 @@ export async function sendNewJobsEmail(
     const unsubUrl = unsubscribeUrl(userId);
 
     const body = `
-    <p style="color:#64748b;font-size:14px;margin:0 0 16px;">
+    <p style="color:#64748B;font-size:14px;margin:0 0 14px;">
       ${total} new job${total === 1 ? "" : "s"} across your profiles.
     </p>
-    <div style="border:1px solid #1e293b;border-radius:8px;overflow:hidden;background:#0f172a;">
+    <div style="border-top:1px solid #F1F5F9;">
       ${profileLines}
     </div>
     ${flavorList}
@@ -216,7 +220,7 @@ export async function sendNewJobsEmail(
       preheader: subject,
       heading: `${total} new job${total === 1 ? "" : "s"} found`,
       body,
-      footer: `You're receiving this because job alerts are on. <a href="${esc(unsubUrl)}" style="color:#60a5fa;">Unsubscribe</a>.`,
+      footer: `You're receiving this because job alerts are on. <a href="${esc(unsubUrl)}" style="color:#3B82F6;">Unsubscribe</a>.`,
     });
 
     const { error } = await resend.emails.send({
