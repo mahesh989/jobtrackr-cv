@@ -1,6 +1,7 @@
-// Cross-profile run feed for the dashboard-wide RunNotifier toast.
+// Cross-profile run feed for the dashboard-wide RunNotifier.
 // Returns recent run_logs (last 30 min) across all the user's profiles so
-// the client can detect running→completed/failed transitions and toast
+// the client can detect running→completed/failed transitions (for the
+// completion popup) and show a live progress banner while one is running,
 // regardless of which page the user is sitting on.
 
 import { NextResponse } from "next/server";
@@ -37,6 +38,7 @@ export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
     status:        r.status,
     current_stage: r.current_stage,
     jobs_saved:    r.jobs_saved,
+    started_at:    r.started_at,
     finished_at:   r.finished_at,
   }));
 
