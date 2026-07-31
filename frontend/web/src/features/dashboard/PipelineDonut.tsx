@@ -467,7 +467,12 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
         </div>
 
         <div className="w-full sm:flex-1 min-w-0 space-y-2">
-          <p className="text-micro font-semibold text-text-3 uppercase tracking-wider mb-3">Breakdown</p>
+          <p className="text-micro font-semibold text-text-3 uppercase tracking-wider mb-1">Breakdown</p>
+          {activeLens === "sourcing" && (
+            <p className="text-micro text-text-3 mb-2">
+              Lifetime totals — a job still live counts again each time a run re-finds it, so this won&apos;t match Total jobs.
+            </p>
+          )}
           {meta.slices.slice(0, vis).map((s, i) => {
             const n   = counts[i];
             const pct = total > 0 ? Math.round((n / total) * 100) : 0;
