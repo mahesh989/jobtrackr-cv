@@ -64,9 +64,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
             Redirect fires ~200-400ms later if setup is incomplete. */}
         {!isAdmin && <Suspense fallback={null}><SetupGateClient /></Suspense>}
 
+        {/* Mounted here (not after {children}) so its "Pipeline running" banner
+            renders inline at the top of whichever dashboard page the user is
+            on; its completion popup still portals to document.body regardless
+            of mount position. */}
+        <RunNotifier isAdmin={isAdmin} />
+
         {children}
       </div>
-      <RunNotifier isAdmin={isAdmin} />
     </div>
     </ThemeProvider>
   );
