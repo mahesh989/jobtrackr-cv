@@ -43,6 +43,4 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
-export function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+export { setTimeout as sleep } from "node:timers/promises";

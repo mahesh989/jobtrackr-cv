@@ -24,6 +24,7 @@
 //   other                  — a care job we can't confidently pin (fail-open)
 
 import type { NormalisedJob } from "../pipeline/types.js";
+import { callAI } from "../lib/aiClient.js";
 
 export type SettingCategory =
   | "hospital_clinical"
@@ -266,40 +267,8 @@ interface AISettingResult {
 }
 
 async function classifyWithAI(excerpt: string): Promise<AISettingResult | null> {
-  const provider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const msg = `Job description:\n${excerpt}`;
-  try {
-    if (provider === "anthropic") {
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const res = await client.messages.create({
-        model: "claude-haiku-4-5",
-        max_tokens: 60,
-        system: AI_SYSTEM,
-        messages: [{ role: "user", content: msg }],
-      });
-      const text = res.content.find((b) => b.type === "text")?.text ?? "";
-      const json = text.match(/\{[\s\S]*\}/)?.[0];
-      return json ? (JSON.parse(json) as AISettingResult) : null;
-    }
-    const { default: OpenAI } = await import("openai");
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const res = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 60,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: AI_SYSTEM },
-        { role: "user", content: msg },
-      ],
-    });
-    const text = res.choices[0]?.message?.content ?? "";
-    const json = text.match(/\{[\s\S]*\}/)?.[0];
-    return json ? (JSON.parse(json) as AISettingResult) : null;
-  } catch (err) {
-    console.warn("[settingClassifier] AI fallback error:", err);
-    return null;
-  }
+  return callAI<AISettingResult>("settingClassifier", AI_SYSTEM, msg, 60);
 }
 
 const VALID_CATEGORIES: SettingCategory[] = [

@@ -17,15 +17,12 @@
 // one starts) is normal during a rolling deploy, so this polls with a
 // grace window and only fails if more than one heartbeat is still present
 // once that window closes.
+import { setTimeout as sleep } from "node:timers/promises";
 import { connection } from "../queue/connection.js";
 import { HEARTBEAT_KEY_PREFIX } from "../queue/heartbeat.js";
 
 const POLL_INTERVAL_MS = 10_000;
 const MAX_ATTEMPTS = 6; // 60s grace window
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function scanHeartbeatKeys(): Promise<string[]> {
   const keys: string[] = [];

@@ -19,51 +19,12 @@ and logged — they should not reach this function from the match endpoint
 from __future__ import annotations
 
 import logging
-import re
+
+from app.services.text_tokenise import tokenise as _tokenise
 
 logger = logging.getLogger(__name__)
 
-# ── Stop-word list ────────────────────────────────────────────────────────────
-# English function words only. Industry terms (e.g. "led", "built") are
-# intentionally excluded so they contribute to matching signals.
-_STOP_WORDS: frozenset[str] = frozenset({
-    # articles
-    "the", "a", "an",
-    # prepositions
-    "of", "in", "on", "at", "to", "for", "with", "by", "from", "into",
-    "about", "through", "between", "against", "during", "before", "after",
-    "above", "below", "under", "over", "within", "without", "around",
-    "among", "along", "upon", "onto", "off", "out",
-    # conjunctions
-    "and", "or", "but", "nor", "so", "yet", "if", "as", "that", "than",
-    "when", "while", "where", "which", "who", "whom", "whose", "although",
-    "though", "because", "since", "unless", "until", "whether", "both",
-    # pronouns
-    "i", "me", "my", "we", "us", "our", "you", "your", "he", "him", "his",
-    "she", "her", "it", "its", "they", "them", "their", "this", "these",
-    "those", "what",
-    # auxiliaries
-    "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did",
-    "will", "would", "shall", "should", "may", "might", "must", "can",
-    "could",
-    # quantifiers / determiners
-    "all", "any", "each", "every", "either", "neither", "many", "much",
-    "few", "more", "most", "some", "other", "such", "own", "same",
-    "no", "not",
-    # adverbs / particles
-    "just", "very", "also", "too", "only", "even", "still", "already",
-    "yet", "well", "then", "now", "here", "there", "how", "why", "up",
-    "down", "back",
-})
-
 _NUMBERS_BONUS = 0.15  # added to raw overlap when a story has concrete numbers
-
-
-def _tokenise(text: str) -> frozenset[str]:
-    """Lowercase alpha tokens, ≥3 chars, stop-words removed."""
-    tokens = re.findall(r"[a-z]{3,}", text.lower())
-    return frozenset(t for t in tokens if t not in _STOP_WORDS)
 
 
 def _story_text(story: dict) -> str:

@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import type { NormalisedJob } from "./types.js";
 import { checkExpiry } from "./expiry.js";
 import { bestApplicationEmail } from "../ai/jdFacts.js";
+import { stripM080 } from "../lib/migration080.js";
 
 export interface SaveResult {
   /** Total rows upserted this run — new AND already-existing rows re-touched. */
@@ -19,20 +20,6 @@ export interface SaveResult {
    *  newly-discovered jobs (no prior analysis_run) before queuing. */
   savedIds: string[];
 }
-
-// Columns added by migration 080. Stripped and retried when the upsert fails
-// with "column not found" so the pipeline keeps saving before the migration
-// is applied (graceful-degradation convention, same as 079).
-const M080_COLUMNS = [
-  "employment_types",
-  "employment_source",
-  "work_rights_requirement",
-  "extracted_emails",
-  "salary_period",
-  "closing_date",
-  "shift_patterns",
-  "is_agency",
-] as const;
 
 function isMissingColumnError(message: string): boolean {
   return /column|PGRST204/i.test(message) && /find|exist|schema/i.test(message);
@@ -166,10 +153,4 @@ export async function saveJobs(
   }
 
   return { saved, newSaved, errors, bySource, savedIds };
-}
-
-function stripM080(row: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...row };
-  for (const c of M080_COLUMNS) delete out[c];
-  return out;
 }

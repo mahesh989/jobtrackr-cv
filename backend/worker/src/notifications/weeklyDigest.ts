@@ -1,8 +1,5 @@
 import { db } from "../db/client.js";
-import { Resend } from "resend";
-const _resendApiKey = process.env.RESEND_API_KEY ?? "";
-const resend = _resendApiKey ? new Resend(_resendApiKey) : null;
-const fromEmail = process.env.RESEND_FROM_EMAIL ?? "JobTrackr <noreply@jobtrackr.app>";
+import { resend, fromEmail } from "../lib/email.js";
 import { buildDigestHtml, type DigestJob, type DigestProfile } from "./digestEmail.js";
 
 export async function runWeeklyDigest(): Promise<void> {

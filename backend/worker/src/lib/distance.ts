@@ -36,19 +36,6 @@ let lastNominatimAt = 0;
 
 // ── Nominatim ───────────────────────────────────────────────────────────────
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await Promise.race([
-      p,
-      new Promise<T>((_, rej) => ctrl.signal.addEventListener("abort", () => rej(new Error("timeout")))),
-    ]);
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 async function rateLimitNominatim(): Promise<void> {
   const wait = lastNominatimAt + NOMINATIM_GAP_MS - Date.now();
   if (wait > 0) await sleep(wait);
@@ -91,10 +78,10 @@ export async function geocode(
   }
 
   try {
-    const res = await withTimeout(
-      fetch(url.toString(), { headers: { "User-Agent": USER_AGENT, "Accept": "application/json" } }),
-      REQUEST_TIMEOUT_MS,
-    );
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (!res.ok) {
       console.warn(`[distance] nominatim ${res.status} for "${query}"`);
       geocodeCache.set(key, null);
@@ -205,10 +192,10 @@ export async function drivingDistanceKm(a: LatLng, b: LatLng): Promise<number | 
   const coords = `${a.lng},${a.lat};${b.lng},${b.lat}`;
   const url = `${OSRM_BASE}/${coords}?overview=false`;
   try {
-    const res = await withTimeout(
-      fetch(url, { headers: { "User-Agent": USER_AGENT, "Accept": "application/json" } }),
-      REQUEST_TIMEOUT_MS,
-    );
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { code?: string; routes?: Array<{ distance: number }> };
     if (data.code !== "Ok" || !data.routes?.length) return null;

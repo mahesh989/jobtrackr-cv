@@ -11,6 +11,7 @@
 // Keeps visa_likelihood as a derived float (1.0 / 0.5 / 0.0) for sort compat.
 
 import type { NormalisedJob } from "../pipeline/types.js";
+import { callAI } from "../lib/aiClient.js";
 
 export interface VisaInfo {
   sponsorship_status: "yes" | "no" | "not_mentioned";
@@ -214,42 +215,8 @@ interface AIVisaResult {
 }
 
 async function classifyWithAI(extractedText: string): Promise<AIVisaResult | null> {
-  const provider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const msg = `Sentences from job description:\n${extractedText}`;
-
-  try {
-    if (provider === "anthropic") {
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const res = await client.messages.create({
-        model: "claude-haiku-4-5",
-        max_tokens: 80,
-        system: AI_SYSTEM,
-        messages: [{ role: "user", content: msg }],
-      });
-      const text = res.content.find((b) => b.type === "text")?.text ?? "";
-      const json = text.match(/\{[\s\S]*\}/)?.[0];
-      return json ? JSON.parse(json) : null;
-    } else {
-      const { default: OpenAI } = await import("openai");
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const res = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 80,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: AI_SYSTEM },
-          { role: "user", content: msg },
-        ],
-      });
-      const text = res.choices[0]?.message?.content ?? "";
-      const json = text.match(/\{[\s\S]*\}/)?.[0];
-      return json ? JSON.parse(json) : null;
-    }
-  } catch (err) {
-    console.warn("[visaExtractor] AI fallback error:", err);
-    return null;
-  }
+  return callAI<AIVisaResult>("visaExtractor", AI_SYSTEM, msg, 80);
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────

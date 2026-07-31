@@ -23,6 +23,7 @@ import type { NormalisedJob } from "./types.js";
 import type { SearchProfile } from "../sources/types.js";
 import type { CoverageSlice } from "./coverage.js";
 import { computeEligibility, isUserVisaStatus } from "./eligibility.js";
+import { stripM080 as stripM080Bucket } from "../lib/migration080.js";
 import {
   extractEmploymentTypes,
   extractEmails,
@@ -91,17 +92,6 @@ interface GlobalRow {
   closing_date?: string | null;
   shift_patterns?: string[] | null;
   is_agency?: boolean | null;
-}
-
-const M080_BUCKET_COLUMNS = [
-  "employment_types", "employment_source", "work_rights_requirement",
-  "extracted_emails", "salary_period", "closing_date", "shift_patterns", "is_agency",
-] as const;
-
-function stripM080Bucket(row: GlobalRow): GlobalRow {
-  const out = { ...row };
-  for (const c of M080_BUCKET_COLUMNS) delete out[c];
-  return out;
 }
 
 /**
