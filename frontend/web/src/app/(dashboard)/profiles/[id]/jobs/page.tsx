@@ -420,7 +420,7 @@ export default async function JobsPage({
             <Link href={`/profiles/${id}/edit`} className="shrink-0 whitespace-nowrap">
               <Button size="sm" className="px-2.5 py-1">Edit</Button>
             </Link>
-            <RunNowButton profileId={id} initialIsRunning={isRunning} />
+            {!p.is_manual && <RunNowButton profileId={id} initialIsRunning={isRunning} />}
             <DeleteButton profileId={id} profileName={p.name} compact />
           </div>
         </div>
