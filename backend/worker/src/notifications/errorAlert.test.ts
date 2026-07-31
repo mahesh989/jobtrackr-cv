@@ -18,13 +18,18 @@ vi.mock("../queue/connection.js", () => ({
   },
 }));
 
+// lib/email.ts reads RESEND_API_KEY at module-load time to build its Resend
+// client, so this must be set before the dynamic import below — setting it
+// in beforeEach() is too late, the module has already evaluated with resend
+// null by then.
+process.env.FOUNDER_ALERT_EMAIL = "founder@example.com";
+process.env.RESEND_API_KEY = "test-key";
+
 const { sendPipelineFailureAlert, sendWorkerRestartAlert } = await import("./errorAlert.js");
 
 beforeEach(() => {
   store.clear();
   sendMock.mockClear();
-  process.env.FOUNDER_ALERT_EMAIL = "founder@example.com";
-  process.env.RESEND_API_KEY = "test-key";
 });
 
 describe("sendPipelineFailureAlert dedup", () => {

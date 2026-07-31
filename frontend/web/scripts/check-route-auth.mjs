@@ -46,6 +46,7 @@ const REDIRECT_ROUTES = new Set([
   "admin/view-as/route.ts",
   "auth/email/google/callback/route.ts",
   "auth/email/outlook/callback/route.ts",
+  "billing/checkout/confirm/route.ts",
 ]);
 
 function walk(dir) {
