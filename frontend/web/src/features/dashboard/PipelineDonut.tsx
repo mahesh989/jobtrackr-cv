@@ -639,11 +639,11 @@ function DonutPopup({
           if (!href) return null;
           return (
             <div className="px-5 py-3 border-t border-border shrink-0">
-              <FilterAnchor href={href} apply={apply} onClick={onClose} className="inline-flex w-full justify-center">
-                <Button variant="blue" size="sm" className="w-full justify-center">
+              <Button asChild variant="blue" size="sm" className="w-full justify-center">
+                <FilterAnchor href={href} apply={apply} onClick={onClose} className="inline-flex">
                   {label}
-                </Button>
-              </FilterAnchor>
+                </FilterAnchor>
+              </Button>
             </div>
           );
         })()}
