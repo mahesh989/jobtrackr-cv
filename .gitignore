@@ -63,6 +63,11 @@ backend/worker/jora_test_*.json
 backend/worker/test-update.js
 backend/worker/fix-dead-links.js
 
+# Generated output from the perf-measurement scripts — regenerate with
+# `node scripts/discover-routes.mjs` / `measure-everything.mjs`, don't commit.
+frontend/web/scripts/.measure-everything-results.json
+frontend/web/scripts/.routes-manifest.json
+
 # Scraper probe/debug scripts — one-off diagnostics, not production code
 backend/worker/scripts/seek-*.ts
 backend/worker/scripts/.seek-capture/
