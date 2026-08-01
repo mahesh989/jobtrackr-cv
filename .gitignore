@@ -80,13 +80,21 @@ backend/worker/src/sources/*/storage/
 backend/worker/apify-actors/*/storage/
 
 # Postman desktop/VS Code extension local workspace sync — not app code.
-# NOTE: .postman/collections/jobtrackr-api.openapi.yaml IS tracked (the real
-# OpenAPI spec) — only ignore the local workspace-link file + the separate
-# empty postman/ scaffold folder it also creates.
 .postman/resources.yaml
 postman/
 references/*
 
+# Postman OpenAPI spec import — kept locally only, not read by CI/deploy/app.
+.postman/collections/
+
 # Design mockups / HTML prototypes — contain secrets, never committed
 form-patterns.html
 nav-mockup.html
+job-board-toolbar-v2.html
+
+# opencode CLI tooling — local dev tool config only, not read by CI/deploy
+# or the app itself. Keep locally; do not sync to remote.
+/opencode.json
+/package.json
+/package-lock.json
+.opencode/skills/
