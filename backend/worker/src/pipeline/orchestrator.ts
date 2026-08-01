@@ -21,6 +21,7 @@ import pLimit from "p-limit";
 import { db } from "../db/client.js";
 import { adapters } from "../sources/index.js";
 import type { RawJob, SearchProfile } from "../sources/types.js";
+import type { NormalisedJob } from "./types.js";
 import { normalise, canonicalUrl } from "./normalise.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { dedup } from "./dedup.js";
@@ -94,6 +95,23 @@ interface UserIntegration {
   is_enabled:          boolean;
   config:              Record<string, unknown>;
 }
+
+/**
+ * Per-run source method tracking, persisted to run_logs.source_methods.
+ *
+ * ⚠ CROSS-SERVICE DATA CONTRACT. The admin Sourcing page
+ * (frontend/web/src/app/(dashboard)/admin/sourcing/page.tsx) reads these KEYS
+ * and compares their STRING VALUES ("direct", "apify", "apify_fallback",
+ * "apify_failed", "teaser", "actor", "actor_failed_teaser", "direct_curl", …)
+ * straight out of untyped JSONB. Renaming a key or changing a literal silently
+ * turns that dashboard into zeroes - no type error, no runtime error.
+ */
+type SourceMethods = {
+  tier: string;
+  seek?:      { enabled: boolean; listings?: string; jd?: string; merged?: number; fetched?: number; count?: number };
+  adzuna?:    { enabled: boolean; method?: string; enrichment?: string; merged?: number; fetched?: number };
+  careerjet?: { enabled: boolean; method?: string };
+};
 
 const SEEK_MONTHLY_BUDGET_USD = 5.0;   // Apify free tier
 
@@ -292,6 +310,886 @@ async function checkCancellation(runLogId: string): Promise<void> {
 }
 
 
+/**
+ * Concurrency guard — two SQL operations, both done by Postgres so timezone
+ * format differences between JS (.toISOString -> "Z") and Postgres ("+00:00")
+ * never affect the comparison.
+ *
+ * Normal pipeline ceiling: ~5 min (SEEK actor is the slow one at 300s).
+ * Stale threshold: 15 min - if a run is still "running" after that, the worker
+ * crashed or was OOM-killed and finishRunLog never ran.
+ *
+ * Returns false when a genuinely active run exists and this run must skip.
+ */
+async function expireStaleAndCheckActiveRun(profileId: string): Promise<boolean> {
+  // Concurrency guard — two SQL operations, both done by Postgres so timezone
+  // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")
+  // never affect the comparison.
+  //
+  // Normal pipeline ceiling: ~5 min (SEEK actor is the slow one at 300s).
+  // Stale threshold: 15 min — if a run is still "running" after that, the worker
+  // crashed or was OOM-killed and finishRunLog never ran.
+  const STALE_MINUTES = 15;
+  const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
+
+  // Step 1: expire anything that's been "running" for > STALE_MINUTES.
+  // Postgres does the timestamp comparison — no JS string-vs-timezone issues.
+  const { data: expired, error: expireErr } = await db
+    .from("run_logs")
+    .update({
+      status:        "failed",
+      finished_at:   new Date().toISOString(),
+      error_message: `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
+    })
+    .eq("profile_id", profileId)
+    .eq("status", "running")
+    .lt("started_at", staleThreshold)   // Postgres TIMESTAMPTZ < — correct always
+    .select("id");
+
+  if (expireErr) {
+    console.warn(`[pipeline] stale-expire failed: ${expireErr.message}`);
+  } else if (expired && expired.length > 0) {
+    console.log(`[pipeline] expired ${expired.length} stale lock(s): ${expired.map((r) => r.id).join(", ")}`);
+    await sendPipelineFailureAlert(
+      profileId,
+      `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
+      "stale_crash"
+    );
+  }
+
+  // Step 2: check for a genuinely active run (started within the last STALE_MINUTES).
+  const { data: activeRuns } = await db
+    .from("run_logs")
+    .select("id, started_at")
+    .eq("profile_id", profileId)
+    .eq("status", "running")
+    .gte("started_at", staleThreshold);  // only recent ones — Postgres comparison
+
+  if (activeRuns && activeRuns.length > 0) {
+    console.log(`[pipeline] profile ${profileId} already running (run_log ${activeRuns[0].id}, started ${activeRuns[0].started_at}) — skipping`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Lookback window from the last completed run, applied by every date-aware
+ * adapter (Adzuna, SEEK, Careerjet). Avoids re-fetching jobs dedup would drop.
+ *   - First run (cold start): fetch DEEP - 28 days back, more pages.
+ *   - Subsequent runs (incremental): only what's new since last success
+ *     + 1 day buffer for timing jitter, capped at 30 days.
+ * `deepRun` also drives is_first_run (more pages per source).
+ */
+async function computeLookbackWindow(
+  profileId: string,
+  fullRefresh: boolean,
+): Promise<{ lookbackDays: number; deepRun: boolean }> {
+  // Compute the lookback window from the last completed run, then apply it to
+  // all date-aware adapters (Adzuna, SEEK, Careerjet). Avoids re-fetching jobs
+  // the dedup would throw away anyway.
+  //   - First run (cold start): fetch DEEP — 28 days back, more pages.
+  //   - Subsequent runs (incremental): only what's new since last success
+  //     + 1 day buffer for timing jitter, capped at 30 days.
+  const FIRST_RUN_LOOKBACK_DAYS = 28;
+  const { data: lastRun } = await db
+    .from("run_logs")
+    .select("started_at")
+    .eq("profile_id", profileId)
+    .eq("status", "completed")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const isFirstRun = !lastRun;
+  // A user-requested "full refresh" re-runs the deep cold-start window even
+  // when prior runs exist — for when the incremental 2-3 day window is too
+  // narrow and the user wants the whole backlog again.
+  const deepRun = isFirstRun || fullRefresh;
+  let lookbackDays: number;
+  if (deepRun) {
+    lookbackDays = FIRST_RUN_LOOKBACK_DAYS;
+    const why = isFirstRun ? "first run — deep cold-start backfill" : "full refresh requested";
+    console.log(`[pipeline] lookback: ${lookbackDays}d (${why})`);
+  } else {
+    // Incremental: fetch only what's new since last success + 1 day buffer
+    const daysSince = Math.ceil(
+      (Date.now() - new Date(lastRun!.started_at).getTime()) / 86_400_000
+    );
+    lookbackDays = Math.min(daysSince + 1, 30);
+    console.log(`[pipeline] lookback: ${lookbackDays}d (incremental — last run ${daysSince}d ago)`);
+  }
+  return { lookbackDays, deepRun };
+}
+
+/**
+ * Stages 3 + 3b - early URL-hash dedup against rows this profile already has,
+ * then against the user's SIBLING profiles (a job already seen in another
+ * profile of the same user is dropped; profiles act as filter views).
+ *
+ * HASH DIVERGENCE - INTENTIONAL, DO NOT "FIX" HERE.
+ * This stage hashes sha256(canonicalUrl(url)) - case-PRESERVING - while
+ * dedup.ts computeHashes (whose output is what actually reaches jobs.url_hash
+ * via saveJobs) hashes sha256(canonicalUrl(url).toLowerCase()). For URLs with
+ * uppercase path/query chars (Avature, SuccessFactors) the two disagree, so
+ * these lookups silently miss. Unifying them would CHANGE PRODUCTION BEHAVIOUR
+ * (cross-profile dedup would start working and jobs would vanish from
+ * profiles) and is tracked separately. Kept verbatim on purpose.
+ */
+async function earlyDedup(
+  rawJobs: RawJob[],
+  profileId: string,
+  userId: string,
+): Promise<{ jobs: RawJob[]; dropped: number }> {
+  let dropped = 0;
+  // Stage 3: L1 early URL dedup
+  // Hash the canonical URL (same transform dedup.ts uses) so the DB lookup
+  // actually matches rows saved by previous runs.
+  const rawHashes = new Set<string>();
+  const uniqueRawJobs: RawJob[] = [];
+  const hashedRawJobs = rawJobs.map(job => {
+    return { job, hash: createHash("sha256").update(canonicalUrl(job.url)).digest("hex") };
+  });
+  
+  // Batch query DB for these hashes — CHUNKED. A single .in() with ~1000
+  // 64-char hashes builds a ~64KB GET querystring, past PostgREST/proxy URL
+  // limits; the request degraded into a multi-minute stall and then failed
+  // silently (data=null → "0 duplicates removed" even when dupes existed).
+  // 150 hashes/chunk keeps each URL ~10KB; chunks run in parallel.
+  const t3 = Date.now();
+  const urlHashesToQuery = hashedRawJobs.map(h => h.hash);
+  const HASH_CHUNK = 150;
+  const chunks: string[][] = [];
+  for (let i = 0; i < urlHashesToQuery.length; i += HASH_CHUNK) {
+    chunks.push(urlHashesToQuery.slice(i, i + HASH_CHUNK));
+  }
+  const existingHashSet = new Set<string>();
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) =>
+      db.from("jobs").select("url_hash").eq("profile_id", profileId).in("url_hash", chunk),
+    ),
+  );
+  for (const { data, error } of chunkResults) {
+    if (error) {
+      // Non-fatal: missing early dedup just means L2 catches the dupes later.
+      console.warn(`[pipeline] stage 3 — L1 hash lookup chunk failed: ${error.message}`);
+      continue;
+    }
+    for (const row of data ?? []) existingHashSet.add((row as { url_hash: string }).url_hash);
+  }
+  console.log(`[pipeline] stage 3 — L1 hash lookup: ${chunks.length} chunk(s) in ${Date.now() - t3}ms`);
+
+  let earlyL1Dropped = 0;
+  for (const { job, hash } of hashedRawJobs) {
+    if (existingHashSet.has(hash) || rawHashes.has(hash)) {
+      earlyL1Dropped++;
+    } else {
+      rawHashes.add(hash);
+      uniqueRawJobs.push(job);
+    }
+  }
+  
+  dropped += earlyL1Dropped;
+  console.log(`[pipeline] stage 3 — L1 early drop: ${earlyL1Dropped} duplicates removed, ${uniqueRawJobs.length} remaining`);
+
+  // Stage 3b — cross-profile dedup (skip)
+  // If a URL already exists in ANY other profile of the same user, drop it
+  // entirely from this profile's feed. Profiles act as filter views: a job
+  // a user has already seen elsewhere should not reappear in another profile.
+  const newRawJobs: RawJob[] = [];
+
+  const { data: siblingProfiles } = await db
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("id", profileId);
+
+  const siblingIds = (siblingProfiles ?? []).map((p) => p.id);
+
+  if (siblingIds.length > 0 && uniqueRawJobs.length > 0) {
+    const hashByJob = uniqueRawJobs.map((j) => ({
+      job:  j,
+      hash: createHash("sha256").update(canonicalUrl(j.url)).digest("hex"),
+    }));
+
+    const { data: existingRows } = await db
+      .from("jobs")
+      .select("url_hash")
+      .in("profile_id", siblingIds)
+      .in("url_hash", hashByJob.map((x) => x.hash));
+
+    const seenInSiblings = new Set(
+      (existingRows ?? []).map((r) => r.url_hash as string)
+    );
+
+    let droppedCrossProfile = 0;
+    for (const { job, hash } of hashByJob) {
+      if (seenInSiblings.has(hash)) {
+        droppedCrossProfile++;
+      } else {
+        newRawJobs.push(job);
+      }
+    }
+
+    dropped += droppedCrossProfile;
+    console.log(
+      `[pipeline] stage 3b — cross-profile dedup: ${droppedCrossProfile} dropped ` +
+      `(already in sibling profile), ${newRawJobs.length} remain`
+    );
+  } else {
+    newRawJobs.push(...uniqueRawJobs);
+    if (siblingIds.length === 0) {
+      console.log(`[pipeline] stage 3b — first profile for user, no cross-profile dedup`);
+    }
+  }
+
+  return { jobs: newRawJobs, dropped };
+}
+
+/**
+ * Stages 10a + 10c + 10e - per-job FACTS, shared by every profile:
+ *   10a visa extraction (regex-first, AI only for ambiguous cases)
+ *   10c work-setting classification (keyword-first, AI for ambiguous care jobs)
+ *   10e JD facts (employment type, emails, salary, closing date, shifts, agency)
+ *
+ * Pure enrichment: count in === count out. Does NOT filter - the per-profile
+ * filters that consume these facts run downstream (and, in bucket mode, inside
+ * serveProfileFromBucket AFTER the shared write).
+ */
+async function extractJobFacts(
+  jobs: NormalisedJob[],
+  runLogId: string,
+): Promise<NormalisedJob[]> {
+  // Stage 10a: visa extraction — regex-first, AI only for ambiguous cases
+  // Runs on the full description of each new job (no truncation).
+  // Sets sponsorship_status, citizen_pr_only, visa_extracted_text on each job.
+  let visaReady = jobs;
+  if (jobs.length > 0) {
+    console.log(`[pipeline] stage 10a — extracting visa info for ${jobs.length} jobs`);
+    await setStage(runLogId, `Extracting visa info (${jobs.length} jobs)`);
+    const visaMap = await extractVisaInfo(jobs);
+    visaReady = jobs.map((job) => {
+      const info = visaMap.get(job.url_hash);
+      if (!info) return job;
+      return {
+        ...job,
+        sponsorship_status: info.sponsorship_status,
+        citizen_pr_only: info.citizen_pr_only,
+        visa_extracted_text: info.visa_extracted_text,
+        work_rights_requirement: info.work_rights_requirement,
+        // Keep visa_likelihood for sort compat — derived from binary result
+        // (saved separately below via update, as it lives on the jobs table)
+      };
+    });
+  }
+
+  // Stage 10c: work-setting classification — keyword-first, AI only for
+  // ambiguous care jobs (env SETTING_CLASSIFIER_AI). A shared, once-per-job
+  // FACT (like visa): it flows into global_jobs and is reused by every profile.
+  // The per-profile setting FILTER is separate (stage 10d / bucket serve).
+  // Runs on EVERY fetched job before the bucket write so the shared bucket
+  // always carries a setting label — the classifier skips non-care JDs cheaply
+  // (a regex gate) and the AI tier only fires for ambiguous CARE jobs, so
+  // classifying non-healthcare runs costs effectively nothing.
+  let settingReady = visaReady;
+  if (visaReady.length > 0) {
+    await setStage(runLogId, `Classifying work setting (${visaReady.length} jobs)`);
+    const settingMap = await classifySettings(visaReady);
+    settingReady = visaReady.map((job) => {
+      const info = settingMap.get(job.url_hash);
+      if (!info) return job;
+      return {
+        ...job,
+        setting_category: info.setting_category,
+        setting_confidence: info.setting_confidence,
+        setting_evidence: info.setting_evidence,
+      };
+    });
+  }
+
+  // Stage 10e: JD facts — employment type, contact emails, text salary,
+  // closing date, shift patterns, agency flag (migration 080). Pure
+  // regex/lexicon, no AI, so it runs on every survivor before the bucket
+  // write: like visa/setting these are once-per-job FACTS shared via
+  // global_jobs. Per-profile filtering on them happens at 10d / bucket serve.
+  if (settingReady.length > 0) {
+    const factsNow = new Date();
+    settingReady = settingReady.map((job) => {
+      const emp = extractEmploymentTypes({
+        title: job.title,
+        description: job.description,
+        employment_types_raw: job.employment_types_raw,
+      });
+      const textSalary =
+        job.salary_min == null ? extractTextSalary(job.description) : null;
+      return {
+        ...job,
+        employment_types: emp.source ? emp.types : [],
+        employment_source: emp.source,
+        extracted_emails: extractEmails(job.description),
+        ...(textSalary && {
+          salary_min: textSalary.min,
+          salary_max: textSalary.max ?? undefined,
+          salary_period: textSalary.period,
+        }),
+        closing_date: extractClosingDate(job.description, factsNow),
+        shift_patterns: extractShiftPatterns(job.description),
+        is_agency: detectAgency(job.company, job.description),
+      };
+    });
+    const withEmp = settingReady.filter((j) => (j.employment_types?.length ?? 0) > 0).length;
+    const withEmail = settingReady.filter((j) => (j.extracted_emails?.length ?? 0) > 0).length;
+    console.log(`[pipeline] stage 10e — JD facts: ${withEmp}/${settingReady.length} employment-typed, ${withEmail} with emails`);
+  }
+
+  return settingReady;
+}
+
+/**
+ * Coverage-driven scrape planning for bucket mode (USE_GLOBAL_BUCKET).
+ *
+ * The scrape delta is driven by the SLICE's freshness across ALL users, not by
+ * this profile's last run: fresh slices scrape little or nothing, because the
+ * full window is still served from the shared bucket afterwards.
+ *
+ * Returns a possibly-revised lookbackDays plus the single-flight lock state.
+ * Does NOT scrape, write, or serve - planning and lock acquisition only. With
+ * the flag off it is a no-op that echoes lookbackDays straight back.
+ */
+async function planBucketCoverage(
+  profile: FullProfile,
+  lookbackDays: number,
+  fullRefresh: boolean,
+): Promise<{
+  slices: CoverageSlice[];
+  skipScrape: boolean;
+  lockedSlices: CoverageSlice[];
+  lookbackDays: number;
+}> {
+  // ── Global bucket (USE_GLOBAL_BUCKET): coverage-driven lookback ────────────
+  // The scrape delta is driven by the SLICE'S freshness (across all users), not
+  // this profile's last run. Fresh slices → scrape little/nothing; we still
+  // serve the full window from the shared bucket later.
+  let bucketSlices: CoverageSlice[] = [];
+  let bucketSkipScrape = false;          // skip stage 2 entirely; serve from bucket
+  let bucketLockedSlices: CoverageSlice[] = [];  // slices we hold the refresh lock on (release after run)
+  if (bucketEnabled()) {
+    await evictStaleBucket();
+    const candidateSources =
+      profile.enabled_sources && profile.enabled_sources.length > 0
+        ? profile.enabled_sources
+        : ["seek", "adzuna", "careerjet"];
+    bucketSlices = resolveSlices(profile.keywords, profile.location, candidateSources);
+    if (bucketSlices.length > 0 && !fullRefresh) {
+      const coverage = await readCoverage(bucketSlices);
+      const key = (s: CoverageSlice) => `${s.keyword_norm}|${s.location_cell}|${s.source}`;
+      const { lookbackDays: bucketLookback, allFresh } = computeProfileLookback(
+        coverage, bucketSlices, BUCKET_RETENTION_DAYS,
+      );
+      // Floor at 1 day. A 0-day lookback is FALSY and makes date-aware adapters
+      // (Adzuna: `if (profile.adzuna_max_days_old)`) DROP the filter and fetch
+      // their full default window. 1 day = minimal top-up.
+      lookbackDays = Math.max(bucketLookback, 1);
+
+      if (allFresh) {
+        // Every slice refreshed within the TTL → no scrape needed at all.
+        bucketSkipScrape = true;
+        console.log(`[pipeline] bucket: all ${bucketSlices.length} slices fresh — skip scrape, serve from bucket`);
+      } else {
+        // Single-flight: claim the stale slices. Cold slices (no coverage row
+        // yet) MUST be scraped to populate, so we never skip when any exist.
+        const stale = bucketSlices.filter((s) => sliceDeltaDays(coverage.get(key(s)), BUCKET_RETENTION_DAYS) > 0);
+        const cold = stale.filter((s) => !coverage.has(key(s)));
+        if (cold.length === 0) {
+          const claimed = await acquireSliceLocks(stale);
+          if (claimed === 0) {
+            // Another in-flight refresh already owns all stale slices → don't
+            // double-scrape; serve the (about-to-be-refreshed) bucket.
+            bucketSkipScrape = true;
+            console.log(`[pipeline] bucket: ${stale.length} stale slices locked by another refresh — skip scrape, serve from bucket`);
+          } else {
+            bucketLockedSlices = stale;
+            console.log(`[pipeline] bucket lookback: ${lookbackDays}d (claimed ${claimed}/${stale.length} stale slices)`);
+          }
+        } else {
+          // Cold slices present → scrape; still claim existing locks for hygiene.
+          await acquireSliceLocks(stale.filter((s) => coverage.has(key(s))));
+          bucketLockedSlices = stale;
+          console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${cold.length} cold + ${stale.length - cold.length} stale slices — scraping)`);
+        }
+      }
+    }
+  }
+
+  return {
+    slices: bucketSlices,
+    skipScrape: bucketSkipScrape,
+    lockedSlices: bucketLockedSlices,
+    lookbackDays,
+  };
+}
+
+/**
+ * Load the shared Apify credential.
+ *
+ * NAMING: the locals are called seek* for historical reasons, but this ONE
+ * credential funds three different actors - SEEK listings, the Careerjet JD
+ * fetcher (stage 7c) and the Adzuna JD fetcher (stage 7d) - all metering spend
+ * onto the same integration row via addApifySpend. Renaming is deferred so this
+ * refactor stays pure code motion.
+ *
+ * Never throws: integration loading must not be able to kill a run.
+ */
+async function loadApifyCredential(userId: string): Promise<{
+  integration: UserIntegration | null;
+  adapter: ReturnType<typeof createSeekAdapter> | null;
+  token: string | null;
+}> {
+  let seekIntegration: UserIntegration | null = null;
+  let seekAdapter: ReturnType<typeof createSeekAdapter> | null = null;
+  let seekToken: string | null = null;  // kept for post-dedup JD enrichment
+
+
+  try {
+    const raw = await loadApifyIntegration(userId);
+    if (raw && raw.is_enabled && raw.status === "valid") {
+      seekIntegration = await maybeResetQuota(raw);
+      const remaining = SEEK_MONTHLY_BUDGET_USD - seekIntegration.quota_used_usd;
+      if (remaining > 0.01) {
+        seekToken    = decryptApiKey(seekIntegration.encrypted_api_key);
+        seekAdapter  = createSeekAdapter(seekToken);
+        console.log(`[pipeline] SEEK adapter ready — $${remaining.toFixed(2)} remaining this month`);
+      } else {
+        console.log(`[pipeline] SEEK skipped — Apify monthly budget exhausted ($${SEEK_MONTHLY_BUDGET_USD})`);
+        // Mark quota_exceeded so the UI can show the right state
+        await db.from("user_integrations")
+          .update({ status: "quota_exceeded", status_reason: `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`, updated_at: new Date().toISOString() })
+          .eq("id", seekIntegration.id);
+      }
+    } else if (raw) {
+      console.log(`[pipeline] SEEK skipped — integration status: ${raw.status}`);
+    } else {
+      console.log(`[pipeline] SEEK skipped — no Apify integration configured`);
+    }
+  } catch (err) {
+    // Never let integration loading crash the whole pipeline
+    console.warn(`[pipeline] SEEK integration load failed: ${err instanceof Error ? err.message : err}`);
+  }
+
+  return { integration: seekIntegration, adapter: seekAdapter, token: seekToken };
+}
+
+/**
+ * Stages 7 / 7c / 7d / 7b - full-JD enrichment for the survivors, then a
+ * re-run of description exclusion against the newly-fetched full text.
+ *
+ *   7  SEEK JD via free direct fetch (all tiers, $0)
+ *   7c Careerjet JD via Apify actor - DEAD in production (CAREERJET_ACTOR_ID
+ *      is not set on the worker); moved verbatim, deliberately not restructured
+ *   7d Adzuna JD via Apify actor (Unlimited) or legacy direct curl
+ *   7b desc-exclusion replay, the only step here that can DROP jobs
+ *
+ * Mutates `sourceMethods` in place (see the contract warning on its type).
+ * Returns the survivors plus how many 7b dropped, so the caller can update
+ * jobsAfterDedup exactly when the original code did.
+ */
+async function enrichDescriptions(
+  dedupKept: NormalisedJob[],
+  profile: FullProfile,
+  runLogId: string,
+  creds: { token: string | null; integration: UserIntegration | null },
+  sourceEnabled: (name: string) => boolean,
+  sourceMethods: SourceMethods,
+): Promise<{ jobs: NormalisedJob[]; descDropped: number }> {
+  const seekToken = creds.token;
+  const seekIntegration = creds.integration;
+  let descDropped = 0;
+  // ── Stage 7: SEEK JD enrichment (free direct only, all tiers) ───────────────
+  // Fetch full job descriptions for SEEK survivors only — i.e. jobs that have
+  // already passed keyword + smart + dedup filters. Free direct path only;
+  // the Apify JD-fetcher fallback has been removed (two paid actors max:
+  // SEEK listings actor + Adzuna JD actor, both Unlimited-only).
+  let kept = dedupKept;
+  const seekSurvivors = dedupKept.some((j) => j.source === "seek");
+  if (seekSurvivors) {
+    await setStage(runLogId, "Fetching full SEEK descriptions");
+    // No cap — every SEEK survivor gets a full JD. SEEK direct enrichment is
+    // free (curl_cffi, $0), so the only cost is wall-clock; "full JD for all
+    // saved jobs" matters more than shaving a few seconds.
+    const jdCap = dedupKept.length;
+    try {
+      const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
+      kept = enriched;
+      sourceMethods.seek ??= { enabled: true };
+      sourceMethods.seek.jd      = merged > 0 ? "direct" : "teaser";
+      sourceMethods.seek.merged  = merged;
+      sourceMethods.seek.fetched = fetched;
+      console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+    } catch (err) {
+      sourceMethods.seek ??= { enabled: true };
+      sourceMethods.seek.jd = "teaser";
+      console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}; survivors keep teasers`);
+    }
+  }
+
+  // ── Stage 7c: Careerjet full-JD enrichment ─────────────────────────────────
+  // The funnel's narrow+expensive half: listings came free from the v4 API;
+  // now fetch full JDs for the Careerjet *survivors* via the careerjet-jd-fetcher
+  // actor (residential — datacenter is Turnstile-blocked). No-ops when
+  // CAREERJET_ACTOR_ID is unset or no Apify token → survivors keep the snippet.
+  const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
+  const careerjetEnabled = sourceEnabled("careerjet");
+  sourceMethods.careerjet = { enabled: careerjetEnabled, method: "api" };
+  if (careerjetSurvivors && process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
+    await setStage(runLogId, "Fetching full Careerjet descriptions");
+    try {
+      const { jobs: enriched, merged, fetched, costUsd } =
+        await enrichCareerjetJDsViaActor(kept, seekToken);
+      kept = enriched;
+      console.log(`[pipeline] stage 7c — Careerjet JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
+      if (costUsd > 0) {
+        try {
+          await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
+        } catch (e) {
+          console.warn(`[pipeline] careerjet spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
+    }
+  } else if (careerjetSurvivors) {
+    console.log(`[pipeline] stage 7c — Careerjet JD: skipped (CAREERJET_ACTOR_ID unset or no Apify token) — keeping v4 API snippet`);
+  }
+
+  // ── Stage 7d: Adzuna full-JD enrichment (Unlimited only, via adzuna_method) ──
+  // 'api' → skip; teasers (~600 chars) carry forward.
+  // 'direct' + ADZUNA_ACTOR_ID + Apify token → fetch full JDs via the
+  //   adzuna-jd-fetcher actor on residential proxy (Unlimited tier only).
+  // 'direct' without actor → legacy curl-from-Fly path (rate-limited in prod;
+  //   kept for local-dev only).
+  const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
+  const useAdzunaDirect = profile.adzuna_method === "direct";
+  const adzunaEnabled = sourceEnabled("adzuna");
+  sourceMethods.adzuna = { enabled: adzunaEnabled, method: profile.adzuna_method ?? "api" };
+  if (adzunaSurvivors && useAdzunaDirect && process.env.ADZUNA_ACTOR_ID && seekToken && seekIntegration) {
+    await setStage(runLogId, "Fetching full Adzuna descriptions");
+    try {
+      const { jobs: enriched, merged, fetched, costUsd } =
+        // No per-run cap — full JD for every Adzuna survivor. The monthly
+        // SEEK_MONTHLY_BUDGET_USD guard below bounds total actor spend, and
+        // Adzuna survivors per run are few (most lose dedup to SEEK/agedcare).
+        await enrichAdzunaJDsViaActor(kept, seekToken, kept.length);
+      kept = enriched;
+      sourceMethods.adzuna.enrichment = "actor";
+      sourceMethods.adzuna.merged     = merged;
+      sourceMethods.adzuna.fetched    = fetched;
+      console.log(`[pipeline] stage 7d — Adzuna JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
+      if (costUsd > 0) {
+        try {
+          await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
+        } catch (e) {
+          console.warn(`[pipeline] adzuna spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    } catch (err) {
+      sourceMethods.adzuna.enrichment = "actor_failed_teaser";
+      console.warn(
+        `[pipeline] stage 7d — Adzuna JD actor failed (${err instanceof Error ? err.message : err}); ` +
+        `falling back to API teasers (no full-JD enrichment this run)`,
+      );
+    }
+  } else if (adzunaSurvivors && useAdzunaDirect) {
+    await setStage(runLogId, "Fetching full Adzuna descriptions");
+    // Capped, unlike the actor branch. This path curls adzuna.com.au straight
+    // from the Fly IP with a 2.5s inter-request delay and no residential
+    // proxy, so an uncapped survivor list is both slow (25min+ for ~500) and
+    // the exact traffic pattern that gets the IP 429'd.
+    const jdCap = ADZUNA_DIRECT_JD_FETCH_CAP;
+    try {
+      const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
+      kept = enriched;
+      sourceMethods.adzuna.enrichment = "direct_curl";
+      sourceMethods.adzuna.merged     = merged;
+      sourceMethods.adzuna.fetched    = fetched;
+      console.log(`[pipeline] stage 7d — Adzuna JD (direct curl): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
+    } catch (err) {
+      sourceMethods.adzuna.enrichment = "direct_curl_failed_teaser";
+      console.warn(`[pipeline] stage 7d — Adzuna JD direct threw: ${err instanceof Error ? err.message : err}`);
+    }
+  } else if (adzunaSurvivors) {
+    sourceMethods.adzuna.enrichment = "none";
+    console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='api', using API teasers only)`);
+  }
+
+  // Adzuna only contributes new desc text to re-scan when 'direct' mode
+  // actually enriched something — under 'api' mode the teaser is unchanged
+  // and we'd just re-run the same scan stage 4c did.
+  const adzunaEnriched = adzunaSurvivors && useAdzunaDirect;
+  if (seekSurvivors || careerjetSurvivors || adzunaEnriched) {
+    // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
+    // The first pass at stage 4c could only see teasers for SEEK. Now that we
+    // have full JDs, dropped phrases that lived deep in the description are
+    // catchable.
+    const { kept: afterDesc, dropped: droppedNow, byPhrase: descByPhrase } = excludeByDescription(kept, profile);
+    if (droppedNow > 0) {
+      console.log(`[pipeline] stage 7b — desc-exclusion against full JD: ${droppedNow} dropped, ${afterDesc.length} remain${formatExcludeBreakdown(descByPhrase)}`);
+      if (afterDesc.length === 0) {
+        console.warn(
+          `[pipeline] ⚠ stage 7b dropped ALL remaining jobs against the full JD — ` +
+          `your "Description must NOT contain"${formatExcludeBreakdown(descByPhrase)} is matching every survivor.`,
+        );
+      }
+      kept = afterDesc;
+      descDropped = droppedNow;
+    }
+  }
+
+  return { jobs: kept, descDropped };
+}
+
+/**
+ * Stage 2 - the source layer.
+ *
+ * The generic adapters are independent origins that never write to the DB and
+ * share no client state during fetch, so they run CONCURRENTLY (bounded), with
+ * per-task try/catch giving the same isolation the old sequential loop had.
+ * SEEK is handled separately: it has a direct (free) path with a tier-gated
+ * Apify actor fallback and its own spend accounting.
+ *
+ * ORDERING IS LOAD-BEARING: the three checkCancellation() calls sit exactly
+ * where they did before. They are the ONLY cancellation points in the whole
+ * pipeline - once stage 2 finishes a run can no longer be cancelled - so
+ * moving, adding or removing one changes user-visible cancel latency.
+ *
+ * Mutates `metrics` in place rather than returning counters: a throw here (a
+ * cancellation, or a setStage failure) must still leave the sources that
+ * already succeeded visible to the outer catch's failure report.
+ */
+async function fetchFromSources(
+  profile: FullProfile,
+  runLogId: string,
+  tier: SubscriptionTier,
+  opts: { skipScrape: boolean },
+  creds: {
+    adapter: ReturnType<typeof createSeekAdapter> | null;
+    integration: UserIntegration | null;
+  },
+  sourceEnabled: (name: string) => boolean,
+  metrics: {
+    sourcesRun: string[];
+    coverageSources: Set<string>;
+    sourceMethods: SourceMethods;
+  },
+): Promise<RawJob[]> {
+  const seekAdapter = creds.adapter;
+  const seekIntegration = creds.integration;
+  const bucketSkipScrape = opts.skipScrape;
+  const { sourcesRun, coverageSources, sourceMethods } = metrics;
+  let seekRawCount = 0;
+  // Stage 2: source layer. The 11 sources are independent origins that
+  // neither write to the DB nor share any client/session state during
+  // fetch (each fetchJobs() call is return-only — Stage 12 does the one
+  // batched save, later) — so they run CONCURRENTLY, bounded to
+  // STAGE2_CONCURRENCY at a time, instead of one after another. This alone
+  // collapsed a 7-minute run (96% of it spent in sequential stage-2 fetch)
+  // to roughly the duration of the single slowest source. Promise.allSettled
+  // (via the per-task try/catch below) means one source's failure/timeout
+  // never blocks or cancels the others — same isolation the old sequential
+  // try/catch gave, just running in parallel.
+  const STAGE2_CONCURRENCY = 6;
+  const stage2Limit = pLimit(STAGE2_CONCURRENCY);
+  const rawJobs: RawJob[] = [];
+
+  // Hard wall-clock deadline around every adapter fetch. The inner layers
+  // (curlFetch 35s SIGKILL, per-request timeouts, loop breaks) each have
+  // their own guards, but a live incident (2026-07-18, run 00626807) showed
+  // a seek-direct fetch going silent for 9 minutes with none of them firing
+  // — pages 4-7 never logged, run stuck at "Fetching from SEEK" until the
+  // user cancelled. This orchestrator-level race is the guarantee that no
+  // single source can hang a run regardless of WHERE inside it wedges.
+  // Deadlines are deliberately generous (only true hangs trip them, not
+  // slow-but-working fetches). On timeout the underlying work is orphaned,
+  // not killed — its own inner timeouts / process exit clean it up.
+  const withDeadline = <T>(p: Promise<T>, ms: number, label: string): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout>;
+    return Promise.race([
+      p.finally(() => clearTimeout(timer)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s deadline — abandoned`)),
+          ms,
+        );
+      }),
+    ]);
+  };
+  const ADAPTER_DEADLINE_MS = 5 * 60_000;   // parallel tier-1..3 adapters
+  const SEEK_DEADLINE_MS    = 6 * 60_000;   // multi-keyword × 7 pages, worst-case legit ~4-5 min
+  const ACTOR_DEADLINE_MS   = 8 * 60_000;   // Apify actor runs are minutes-long by nature
+  if (bucketSkipScrape) {
+    console.log(`[pipeline] stage 2 — skipped entirely (bucket fresh/locked); serving from bucket`);
+  } else {
+    await checkCancellation(runLogId);
+
+    // Pre-filter BEFORE dispatch — identical skip logic/order to the old
+    // sequential loop, just evaluated up front so only eligible adapters are
+    // scheduled. isBlocked() reads are independent per-adapter Redis GETs,
+    // safe to await in sequence here (cheap; not the bottleneck).
+    const toRun: (typeof adapters)[number][] = [];
+    for (const adapter of adapters) {
+      if (!sourceEnabled(adapter.name)) {
+        console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (not in enabled_sources)`);
+        continue;
+      }
+      // Apply vertical filter (default to all if not set).
+      // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
+      // every profile regardless of target_verticals.
+      // Sector-specific adapters (tech, healthcare) only run when the profile
+      // explicitly targets that vertical.
+      if (profile.target_verticals && profile.target_verticals.length > 0) {
+        if (adapter.vertical !== "general" && !profile.target_verticals.includes(adapter.vertical)) {
+          console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
+          continue;
+        }
+      }
+      if (await isBlocked(adapter.name)) {
+        console.log(`[pipeline] stage 2 — ${adapter.name}: blocked (3+ consecutive failures) — skipping`);
+        continue;
+      }
+      toRun.push(adapter);
+    }
+
+    if (toRun.length > 0) {
+      await setStage(runLogId, `Fetching from ${toRun.length} sources (up to ${STAGE2_CONCURRENCY} at a time)`);
+      console.log(`[pipeline] stage 2 — fetching ${toRun.length} sources, concurrency ${STAGE2_CONCURRENCY}: ${toRun.map((a) => a.name).join(", ")}`);
+      await Promise.allSettled(
+        toRun.map((adapter) =>
+          stage2Limit(async () => {
+            try {
+              const results = await withDeadline(
+                adapter.fetchJobs(profile), ADAPTER_DEADLINE_MS, `${adapter.name} fetch`,
+              );
+              rawJobs.push(...results);
+              sourcesRun.push(adapter.name);
+              coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
+              await recordSuccess(adapter.name);
+              console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
+            } catch (err) {
+              console.error(`[pipeline] ${adapter.name} failed:`, err);
+              const failures = await recordFailure(adapter.name);
+              if (failures >= 3) {
+                console.warn(`[pipeline] ${adapter.name}: ${failures} consecutive failures — will be skipped next run`);
+              }
+            }
+          }),
+        ),
+      );
+    }
+  }
+  // ── SEEK ──────────────────────────────────────────────────────────────────
+  // Direct (got-scraping → seek.com.au HTML, free) vs Apify actor (paid),
+  // SEEK listings: 'direct' (free, all tiers) → Apify actor fallback (Unlimited
+  // only). Weekly/Monthly never spend paid Apify credits on listings.
+  const seekEnabled = sourceEnabled("seek");
+  const useActor = profile.seek_method === "actor";
+  let seekDirectFailed = false;
+  sourceMethods.seek = { enabled: seekEnabled };
+  if (!seekEnabled) {
+    console.log(`[pipeline] stage 2 — seek: skipped (not in enabled_sources)`);
+    sourceMethods.seek.listings = "skipped";
+  } else if (bucketSkipScrape) {
+    console.log(`[pipeline] stage 2 — seek: skipped (bucket fresh/locked — serving from bucket)`);
+    sourceMethods.seek.listings = "skipped";
+  } else {
+    await checkCancellation(runLogId);
+    await setStage(runLogId, "Fetching from SEEK");
+    if (useActor) {
+      seekDirectFailed = true; // route straight to the actor block below
+      if (seekAdapter && seekIntegration) {
+        console.log(`[pipeline] seek: method=actor — using Apify actor`);
+      } else {
+        console.warn(`[pipeline] seek: method=actor but no working Apify integration — SEEK will be skipped`);
+        sourceMethods.seek.listings = "skipped";
+      }
+    } else {
+      try {
+        const seekJobs = await withDeadline(
+          seekDirectAdapter.fetchJobs(profile), SEEK_DEADLINE_MS, "seek-direct fetch",
+        );
+        rawJobs.push(...seekJobs);
+        seekRawCount += seekJobs.length;
+        sourcesRun.push("seek");
+        sourceMethods.seek.listings = "direct";
+        sourceMethods.seek.count    = seekJobs.length;
+        console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
+      } catch (err) {
+        seekDirectFailed = true;
+        console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
+        if (tier === "unlimited" && seekAdapter && seekIntegration) {
+          console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor (unlimited tier)`);
+        } else if (seekAdapter && seekIntegration) {
+          console.warn(`[pipeline] seek-direct unavailable — Apify fallback skipped (${tier} tier); SEEK skipped this run`);
+          sourceMethods.seek.listings = "skipped";
+        } else {
+          console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
+          sourceMethods.seek.listings = "skipped";
+        }
+      }
+    }
+  }
+
+  // Apify listings actor: Unlimited-only. Runs when method=actor or direct threw,
+  // the user is on the unlimited tier, and a working Apify integration exists.
+  if (seekEnabled && seekDirectFailed && tier === "unlimited" && seekAdapter && seekIntegration) {
+    await checkCancellation(runLogId);
+    await setStage(runLogId, useActor ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
+    try {
+      const { jobs: seekJobs, costUsd } = await withDeadline(
+        seekAdapter.fetchJobs(profile), ACTOR_DEADLINE_MS, "seek actor fetch",
+      );
+      rawJobs.push(...seekJobs);
+      seekRawCount += seekJobs.length;
+      if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
+      sourceMethods.seek!.listings = useActor ? "apify" : "apify_fallback";
+      sourceMethods.seek!.count    = seekJobs.length;
+      console.log(`[pipeline]   seek (apify ${useActor ? "active" : "fallback"}): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
+
+      // Persist updated spend immediately — even if rest of pipeline fails
+      const newSpend = seekIntegration.quota_used_usd + costUsd;
+      const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
+      await db.from("user_integrations")
+        .update({
+          quota_used_usd:  newSpend,
+          quota_used_requests: seekIntegration.quota_used_requests + seekJobs.length,
+          last_used_at:    new Date().toISOString(),
+          status:          newStatus,
+          status_reason:   newStatus === "quota_exceeded"
+            ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
+            : null,
+          updated_at:      new Date().toISOString(),
+        })
+        .eq("id", seekIntegration.id);
+    } catch (err) {
+      sourceMethods.seek!.listings = "apify_failed";
+      console.error(`[pipeline] seek (apify ${useActor ? "active" : "fallback"}) failed: ${err instanceof Error ? err.message : err}`);
+      // Mark as invalid so next run doesn't retry a broken token
+      await db.from("user_integrations")
+        .update({ status: "invalid", status_reason: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
+        .eq("id", seekIntegration.id);
+    }
+  }
+
+  // SEEK counts as "covered" only if it returned results OR direct succeeded
+  // (legitimately empty). A 403→0-item-actor chain yields nothing and is NOT
+  // marked covered, so the slice stays stale and SEEK is retried next run
+  // instead of being cached as fresh for the TTL window.
+  if (seekEnabled && (seekRawCount > 0 || !seekDirectFailed)) coverageSources.add("seek");
+
+  // Careerjet listings run in the adapters[] loop above via the free v4 API
+  // (snippet). Full JDs are enriched later at stage 7c via the JD-fetcher
+  // actor (residential) on survivors only — the funnel's narrow+expensive half.
+
+  return rawJobs;
+}
+
 export async function runPipeline(profileId: string, trigger: "manual" | "auto" = "auto", fullRefresh = false): Promise<void> {
   console.log(`\n[pipeline] ─── starting run for profile ${profileId} (trigger=${trigger}${fullRefresh ? ", full refresh" : ""}) ───`);
 
@@ -359,142 +1257,17 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   profile.seek_method     = platformSources.seek_method;
   console.log(`[pipeline] sources (tier-gated): ${platformSources.enabled_sources.join(", ")} · adzuna=${platformSources.adzuna_method} · seek=${platformSources.seek_method} · tier=${tier}`);
 
-  // Concurrency guard — two SQL operations, both done by Postgres so timezone
-  // format differences between JS (.toISOString → "Z") and Postgres ("+00:00")
-  // never affect the comparison.
-  //
-  // Normal pipeline ceiling: ~5 min (SEEK actor is the slow one at 300s).
-  // Stale threshold: 15 min — if a run is still "running" after that, the worker
-  // crashed or was OOM-killed and finishRunLog never ran.
-  const STALE_MINUTES = 15;
-  const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
+  if (!(await expireStaleAndCheckActiveRun(profileId))) return;
 
-  // Step 1: expire anything that's been "running" for > STALE_MINUTES.
-  // Postgres does the timestamp comparison — no JS string-vs-timezone issues.
-  const { data: expired, error: expireErr } = await db
-    .from("run_logs")
-    .update({
-      status:        "failed",
-      finished_at:   new Date().toISOString(),
-      error_message: `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
-    })
-    .eq("profile_id", profileId)
-    .eq("status", "running")
-    .lt("started_at", staleThreshold)   // Postgres TIMESTAMPTZ < — correct always
-    .select("id");
+  const lookbackPlan = await computeLookbackWindow(profileId, fullRefresh);
+  const deepRun = lookbackPlan.deepRun;
+  let lookbackDays = lookbackPlan.lookbackDays;
 
-  if (expireErr) {
-    console.warn(`[pipeline] stale-expire failed: ${expireErr.message}`);
-  } else if (expired && expired.length > 0) {
-    console.log(`[pipeline] expired ${expired.length} stale lock(s): ${expired.map((r) => r.id).join(", ")}`);
-    await sendPipelineFailureAlert(
-      profileId,
-      `Stale lock auto-expired after ${STALE_MINUTES} min (worker crash or OOM kill)`,
-      "stale_crash"
-    );
-  }
-
-  // Step 2: check for a genuinely active run (started within the last STALE_MINUTES).
-  const { data: activeRuns } = await db
-    .from("run_logs")
-    .select("id, started_at")
-    .eq("profile_id", profileId)
-    .eq("status", "running")
-    .gte("started_at", staleThreshold);  // only recent ones — Postgres comparison
-
-  if (activeRuns && activeRuns.length > 0) {
-    console.log(`[pipeline] profile ${profileId} already running (run_log ${activeRuns[0].id}, started ${activeRuns[0].started_at}) — skipping`);
-    return;
-  }
-
-  // Compute the lookback window from the last completed run, then apply it to
-  // all date-aware adapters (Adzuna, SEEK, Careerjet). Avoids re-fetching jobs
-  // the dedup would throw away anyway.
-  //   - First run (cold start): fetch DEEP — 28 days back, more pages.
-  //   - Subsequent runs (incremental): only what's new since last success
-  //     + 1 day buffer for timing jitter, capped at 30 days.
-  const FIRST_RUN_LOOKBACK_DAYS = 28;
-  const { data: lastRun } = await db
-    .from("run_logs")
-    .select("started_at")
-    .eq("profile_id", profileId)
-    .eq("status", "completed")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const isFirstRun = !lastRun;
-  // A user-requested "full refresh" re-runs the deep cold-start window even
-  // when prior runs exist — for when the incremental 2-3 day window is too
-  // narrow and the user wants the whole backlog again.
-  const deepRun = isFirstRun || fullRefresh;
-  let lookbackDays: number;
-  if (deepRun) {
-    lookbackDays = FIRST_RUN_LOOKBACK_DAYS;
-    const why = isFirstRun ? "first run — deep cold-start backfill" : "full refresh requested";
-    console.log(`[pipeline] lookback: ${lookbackDays}d (${why})`);
-  } else {
-    // Incremental: fetch only what's new since last success + 1 day buffer
-    const daysSince = Math.ceil(
-      (Date.now() - new Date(lastRun!.started_at).getTime()) / 86_400_000
-    );
-    lookbackDays = Math.min(daysSince + 1, 30);
-    console.log(`[pipeline] lookback: ${lookbackDays}d (incremental — last run ${daysSince}d ago)`);
-  }
-  // ── Global bucket (USE_GLOBAL_BUCKET): coverage-driven lookback ────────────
-  // The scrape delta is driven by the SLICE'S freshness (across all users), not
-  // this profile's last run. Fresh slices → scrape little/nothing; we still
-  // serve the full window from the shared bucket later.
-  let bucketSlices: CoverageSlice[] = [];
-  let bucketSkipScrape = false;          // skip stage 2 entirely; serve from bucket
-  let bucketLockedSlices: CoverageSlice[] = [];  // slices we hold the refresh lock on (release after run)
-  if (bucketEnabled()) {
-    await evictStaleBucket();
-    const candidateSources =
-      profile.enabled_sources && profile.enabled_sources.length > 0
-        ? profile.enabled_sources
-        : ["seek", "adzuna", "careerjet"];
-    bucketSlices = resolveSlices(profile.keywords, profile.location, candidateSources);
-    if (bucketSlices.length > 0 && !fullRefresh) {
-      const coverage = await readCoverage(bucketSlices);
-      const key = (s: CoverageSlice) => `${s.keyword_norm}|${s.location_cell}|${s.source}`;
-      const { lookbackDays: bucketLookback, allFresh } = computeProfileLookback(
-        coverage, bucketSlices, BUCKET_RETENTION_DAYS,
-      );
-      // Floor at 1 day. A 0-day lookback is FALSY and makes date-aware adapters
-      // (Adzuna: `if (profile.adzuna_max_days_old)`) DROP the filter and fetch
-      // their full default window. 1 day = minimal top-up.
-      lookbackDays = Math.max(bucketLookback, 1);
-
-      if (allFresh) {
-        // Every slice refreshed within the TTL → no scrape needed at all.
-        bucketSkipScrape = true;
-        console.log(`[pipeline] bucket: all ${bucketSlices.length} slices fresh — skip scrape, serve from bucket`);
-      } else {
-        // Single-flight: claim the stale slices. Cold slices (no coverage row
-        // yet) MUST be scraped to populate, so we never skip when any exist.
-        const stale = bucketSlices.filter((s) => sliceDeltaDays(coverage.get(key(s)), BUCKET_RETENTION_DAYS) > 0);
-        const cold = stale.filter((s) => !coverage.has(key(s)));
-        if (cold.length === 0) {
-          const claimed = await acquireSliceLocks(stale);
-          if (claimed === 0) {
-            // Another in-flight refresh already owns all stale slices → don't
-            // double-scrape; serve the (about-to-be-refreshed) bucket.
-            bucketSkipScrape = true;
-            console.log(`[pipeline] bucket: ${stale.length} stale slices locked by another refresh — skip scrape, serve from bucket`);
-          } else {
-            bucketLockedSlices = stale;
-            console.log(`[pipeline] bucket lookback: ${lookbackDays}d (claimed ${claimed}/${stale.length} stale slices)`);
-          }
-        } else {
-          // Cold slices present → scrape; still claim existing locks for hygiene.
-          await acquireSliceLocks(stale.filter((s) => coverage.has(key(s))));
-          bucketLockedSlices = stale;
-          console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${cold.length} cold + ${stale.length - cold.length} stale slices — scraping)`);
-        }
-      }
-    }
-  }
+  const bucketPlan = await planBucketCoverage(profile, lookbackDays, fullRefresh);
+  const bucketSlices       = bucketPlan.slices;
+  const bucketSkipScrape   = bucketPlan.skipScrape;
+  const bucketLockedSlices = bucketPlan.lockedSlices;
+  lookbackDays = bucketPlan.lookbackDays;
 
   // Adzuna reads adzuna_max_days_old; SEEK + Careerjet read lookback_days /
   // is_first_run. Set all three so every date-aware adapter follows suit.
@@ -503,39 +1276,10 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   profile.lookback_days       = lookbackDays;
   profile.is_first_run        = deepRun;
 
-  // ── Load SEEK integration (per-user Apify token) ──────────────────────────
-  // Each user brings their own $5/month Apify free tier — costs nothing to the app.
-  // If not connected, not valid, or quota exhausted → seekAdapter stays null,
-  // the pipeline runs without SEEK (Adzuna + Greenhouse + Jora still run).
-  let seekIntegration: UserIntegration | null = null;
-  let seekAdapter: ReturnType<typeof createSeekAdapter> | null = null;
-  let seekToken: string | null = null;  // kept for post-dedup JD enrichment
-
-  try {
-    const raw = await loadApifyIntegration(profile.user_id);
-    if (raw && raw.is_enabled && raw.status === "valid") {
-      seekIntegration = await maybeResetQuota(raw);
-      const remaining = SEEK_MONTHLY_BUDGET_USD - seekIntegration.quota_used_usd;
-      if (remaining > 0.01) {
-        seekToken    = decryptApiKey(seekIntegration.encrypted_api_key);
-        seekAdapter  = createSeekAdapter(seekToken);
-        console.log(`[pipeline] SEEK adapter ready — $${remaining.toFixed(2)} remaining this month`);
-      } else {
-        console.log(`[pipeline] SEEK skipped — Apify monthly budget exhausted ($${SEEK_MONTHLY_BUDGET_USD})`);
-        // Mark quota_exceeded so the UI can show the right state
-        await db.from("user_integrations")
-          .update({ status: "quota_exceeded", status_reason: `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`, updated_at: new Date().toISOString() })
-          .eq("id", seekIntegration.id);
-      }
-    } else if (raw) {
-      console.log(`[pipeline] SEEK skipped — integration status: ${raw.status}`);
-    } else {
-      console.log(`[pipeline] SEEK skipped — no Apify integration configured`);
-    }
-  } catch (err) {
-    // Never let integration loading crash the whole pipeline
-    console.warn(`[pipeline] SEEK integration load failed: ${err instanceof Error ? err.message : err}`);
-  }
+  const apifyCreds = await loadApifyCredential(profile.user_id);
+  const seekIntegration = apifyCreds.integration;
+  const seekAdapter     = apifyCreds.adapter;
+  const seekToken       = apifyCreds.token;
 
   // Stage 1: start run log
   let runLogId: string;
@@ -557,7 +1301,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   // that errored/403'd and yielded nothing is NOT marked "fresh" and gets
   // retried next run instead of being cached as covered.
   const coverageSources = new Set<string>();
-  let seekRawCount = 0;
   let jobsFetched = 0;
   let jobsAfterDedup = 0;
   let jobsSaved = 0;
@@ -566,12 +1309,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
   // Per-run source method tracking — persisted to run_logs.source_methods so
   // admins can diagnose paid-tier source failures without grepping log_lines.
-  const sourceMethods: {
-    tier: string;
-    seek?:      { enabled: boolean; listings?: string; jd?: string; merged?: number; fetched?: number; count?: number };
-    adzuna?:    { enabled: boolean; method?: string; enrichment?: string; merged?: number; fetched?: number };
-    careerjet?: { enabled: boolean; method?: string };
-  } = { tier };
+  const sourceMethods: SourceMethods = { tier };
 
   try {
     // Per-profile source selection (Migration 041): null/empty = all sources.
@@ -579,312 +1317,22 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     const sourceEnabled = (name: string): boolean =>
       !enabledSources || enabledSources.length === 0 || enabledSources.includes(name);
 
-    // Stage 2: source layer. The 11 sources are independent origins that
-    // neither write to the DB nor share any client/session state during
-    // fetch (each fetchJobs() call is return-only — Stage 12 does the one
-    // batched save, later) — so they run CONCURRENTLY, bounded to
-    // STAGE2_CONCURRENCY at a time, instead of one after another. This alone
-    // collapsed a 7-minute run (96% of it spent in sequential stage-2 fetch)
-    // to roughly the duration of the single slowest source. Promise.allSettled
-    // (via the per-task try/catch below) means one source's failure/timeout
-    // never blocks or cancels the others — same isolation the old sequential
-    // try/catch gave, just running in parallel.
-    const STAGE2_CONCURRENCY = 6;
-    const stage2Limit = pLimit(STAGE2_CONCURRENCY);
-    const rawJobs: RawJob[] = [];
-
-    // Hard wall-clock deadline around every adapter fetch. The inner layers
-    // (curlFetch 35s SIGKILL, per-request timeouts, loop breaks) each have
-    // their own guards, but a live incident (2026-07-18, run 00626807) showed
-    // a seek-direct fetch going silent for 9 minutes with none of them firing
-    // — pages 4-7 never logged, run stuck at "Fetching from SEEK" until the
-    // user cancelled. This orchestrator-level race is the guarantee that no
-    // single source can hang a run regardless of WHERE inside it wedges.
-    // Deadlines are deliberately generous (only true hangs trip them, not
-    // slow-but-working fetches). On timeout the underlying work is orphaned,
-    // not killed — its own inner timeouts / process exit clean it up.
-    const withDeadline = <T>(p: Promise<T>, ms: number, label: string): Promise<T> => {
-      let timer: ReturnType<typeof setTimeout>;
-      return Promise.race([
-        p.finally(() => clearTimeout(timer)),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s deadline — abandoned`)),
-            ms,
-          );
-        }),
-      ]);
-    };
-    const ADAPTER_DEADLINE_MS = 5 * 60_000;   // parallel tier-1..3 adapters
-    const SEEK_DEADLINE_MS    = 6 * 60_000;   // multi-keyword × 7 pages, worst-case legit ~4-5 min
-    const ACTOR_DEADLINE_MS   = 8 * 60_000;   // Apify actor runs are minutes-long by nature
-    if (bucketSkipScrape) {
-      console.log(`[pipeline] stage 2 — skipped entirely (bucket fresh/locked); serving from bucket`);
-    } else {
-      await checkCancellation(runLogId);
-
-      // Pre-filter BEFORE dispatch — identical skip logic/order to the old
-      // sequential loop, just evaluated up front so only eligible adapters are
-      // scheduled. isBlocked() reads are independent per-adapter Redis GETs,
-      // safe to await in sequence here (cheap; not the bottleneck).
-      const toRun: (typeof adapters)[number][] = [];
-      for (const adapter of adapters) {
-        if (!sourceEnabled(adapter.name)) {
-          console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (not in enabled_sources)`);
-          continue;
-        }
-        // Apply vertical filter (default to all if not set).
-        // "general" adapters (Adzuna, Jora) are sector-agnostic — they run for
-        // every profile regardless of target_verticals.
-        // Sector-specific adapters (tech, healthcare) only run when the profile
-        // explicitly targets that vertical.
-        if (profile.target_verticals && profile.target_verticals.length > 0) {
-          if (adapter.vertical !== "general" && !profile.target_verticals.includes(adapter.vertical)) {
-            console.log(`[pipeline] stage 2 — ${adapter.name}: skipped (vertical mismatch)`);
-            continue;
-          }
-        }
-        if (await isBlocked(adapter.name)) {
-          console.log(`[pipeline] stage 2 — ${adapter.name}: blocked (3+ consecutive failures) — skipping`);
-          continue;
-        }
-        toRun.push(adapter);
-      }
-
-      if (toRun.length > 0) {
-        await setStage(runLogId, `Fetching from ${toRun.length} sources (up to ${STAGE2_CONCURRENCY} at a time)`);
-        console.log(`[pipeline] stage 2 — fetching ${toRun.length} sources, concurrency ${STAGE2_CONCURRENCY}: ${toRun.map((a) => a.name).join(", ")}`);
-        await Promise.allSettled(
-          toRun.map((adapter) =>
-            stage2Limit(async () => {
-              try {
-                const results = await withDeadline(
-                  adapter.fetchJobs(profile), ADAPTER_DEADLINE_MS, `${adapter.name} fetch`,
-                );
-                rawJobs.push(...results);
-                sourcesRun.push(adapter.name);
-                coverageSources.add(adapter.name);  // succeeded → eligible to mark slice covered
-                await recordSuccess(adapter.name);
-                console.log(`[pipeline]   ${adapter.name}: ${results.length} raw`);
-              } catch (err) {
-                console.error(`[pipeline] ${adapter.name} failed:`, err);
-                const failures = await recordFailure(adapter.name);
-                if (failures >= 3) {
-                  console.warn(`[pipeline] ${adapter.name}: ${failures} consecutive failures — will be skipped next run`);
-                }
-              }
-            }),
-          ),
-        );
-      }
-    }
-    // ── SEEK ──────────────────────────────────────────────────────────────────
-    // Direct (got-scraping → seek.com.au HTML, free) vs Apify actor (paid),
-    // SEEK listings: 'direct' (free, all tiers) → Apify actor fallback (Unlimited
-    // only). Weekly/Monthly never spend paid Apify credits on listings.
-    const seekEnabled = sourceEnabled("seek");
-    const useActor = profile.seek_method === "actor";
-    let seekDirectFailed = false;
-    sourceMethods.seek = { enabled: seekEnabled };
-    if (!seekEnabled) {
-      console.log(`[pipeline] stage 2 — seek: skipped (not in enabled_sources)`);
-      sourceMethods.seek.listings = "skipped";
-    } else if (bucketSkipScrape) {
-      console.log(`[pipeline] stage 2 — seek: skipped (bucket fresh/locked — serving from bucket)`);
-      sourceMethods.seek.listings = "skipped";
-    } else {
-      await checkCancellation(runLogId);
-      await setStage(runLogId, "Fetching from SEEK");
-      if (useActor) {
-        seekDirectFailed = true; // route straight to the actor block below
-        if (seekAdapter && seekIntegration) {
-          console.log(`[pipeline] seek: method=actor — using Apify actor`);
-        } else {
-          console.warn(`[pipeline] seek: method=actor but no working Apify integration — SEEK will be skipped`);
-          sourceMethods.seek.listings = "skipped";
-        }
-      } else {
-        try {
-          const seekJobs = await withDeadline(
-            seekDirectAdapter.fetchJobs(profile), SEEK_DEADLINE_MS, "seek-direct fetch",
-          );
-          rawJobs.push(...seekJobs);
-          seekRawCount += seekJobs.length;
-          sourcesRun.push("seek");
-          sourceMethods.seek.listings = "direct";
-          sourceMethods.seek.count    = seekJobs.length;
-          console.log(`[pipeline]   seek (direct): ${seekJobs.length} raw (cost $0)`);
-        } catch (err) {
-          seekDirectFailed = true;
-          console.warn(`[pipeline] seek-direct failed: ${err instanceof Error ? err.message : err}`);
-          if (tier === "unlimited" && seekAdapter && seekIntegration) {
-            console.warn(`[pipeline] seek-direct unavailable — falling back to Apify actor (unlimited tier)`);
-          } else if (seekAdapter && seekIntegration) {
-            console.warn(`[pipeline] seek-direct unavailable — Apify fallback skipped (${tier} tier); SEEK skipped this run`);
-            sourceMethods.seek.listings = "skipped";
-          } else {
-            console.warn(`[pipeline] seek-direct unavailable and no Apify fallback configured — skipping SEEK`);
-            sourceMethods.seek.listings = "skipped";
-          }
-        }
-      }
-    }
-
-    // Apify listings actor: Unlimited-only. Runs when method=actor or direct threw,
-    // the user is on the unlimited tier, and a working Apify integration exists.
-    if (seekEnabled && seekDirectFailed && tier === "unlimited" && seekAdapter && seekIntegration) {
-      await checkCancellation(runLogId);
-      await setStage(runLogId, useActor ? "Fetching from SEEK (Apify)" : "Fetching from SEEK (Apify fallback)");
-      try {
-        const { jobs: seekJobs, costUsd } = await withDeadline(
-          seekAdapter.fetchJobs(profile), ACTOR_DEADLINE_MS, "seek actor fetch",
-        );
-        rawJobs.push(...seekJobs);
-        seekRawCount += seekJobs.length;
-        if (!sourcesRun.includes("seek")) sourcesRun.push("seek");
-        sourceMethods.seek!.listings = useActor ? "apify" : "apify_fallback";
-        sourceMethods.seek!.count    = seekJobs.length;
-        console.log(`[pipeline]   seek (apify ${useActor ? "active" : "fallback"}): ${seekJobs.length} raw (cost $${costUsd.toFixed(4)})`);
-
-        // Persist updated spend immediately — even if rest of pipeline fails
-        const newSpend = seekIntegration.quota_used_usd + costUsd;
-        const newStatus = newSpend >= SEEK_MONTHLY_BUDGET_USD ? "quota_exceeded" : "valid";
-        await db.from("user_integrations")
-          .update({
-            quota_used_usd:  newSpend,
-            quota_used_requests: seekIntegration.quota_used_requests + seekJobs.length,
-            last_used_at:    new Date().toISOString(),
-            status:          newStatus,
-            status_reason:   newStatus === "quota_exceeded"
-              ? `Monthly budget of $${SEEK_MONTHLY_BUDGET_USD} reached`
-              : null,
-            updated_at:      new Date().toISOString(),
-          })
-          .eq("id", seekIntegration.id);
-      } catch (err) {
-        sourceMethods.seek!.listings = "apify_failed";
-        console.error(`[pipeline] seek (apify ${useActor ? "active" : "fallback"}) failed: ${err instanceof Error ? err.message : err}`);
-        // Mark as invalid so next run doesn't retry a broken token
-        await db.from("user_integrations")
-          .update({ status: "invalid", status_reason: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
-          .eq("id", seekIntegration.id);
-      }
-    }
-
-    // SEEK counts as "covered" only if it returned results OR direct succeeded
-    // (legitimately empty). A 403→0-item-actor chain yields nothing and is NOT
-    // marked covered, so the slice stays stale and SEEK is retried next run
-    // instead of being cached as fresh for the TTL window.
-    if (seekEnabled && (seekRawCount > 0 || !seekDirectFailed)) coverageSources.add("seek");
-
-    // Careerjet listings run in the adapters[] loop above via the free v4 API
-    // (snippet). Full JDs are enriched later at stage 7c via the JD-fetcher
-    // actor (residential) on survivors only — the funnel's narrow+expensive half.
+    const rawJobs = await fetchFromSources(
+      profile, runLogId, tier,
+      { skipScrape: bucketSkipScrape },
+      { adapter: seekAdapter, integration: seekIntegration },
+      sourceEnabled,
+      { sourcesRun, coverageSources, sourceMethods },
+    );
 
     jobsFetched = rawJobs.length;
     console.log(`[pipeline] stage 2 done — total raw: ${jobsFetched}`);
     await setStage(runLogId, "Filtering & deduplicating");
 
-    // Stage 3: L1 early URL dedup
-    // Hash the canonical URL (same transform dedup.ts uses) so the DB lookup
-    // actually matches rows saved by previous runs.
-    const rawHashes = new Set<string>();
-    const uniqueRawJobs: RawJob[] = [];
-    const hashedRawJobs = rawJobs.map(job => {
-      return { job, hash: createHash("sha256").update(canonicalUrl(job.url)).digest("hex") };
-    });
-    
-    // Batch query DB for these hashes — CHUNKED. A single .in() with ~1000
-    // 64-char hashes builds a ~64KB GET querystring, past PostgREST/proxy URL
-    // limits; the request degraded into a multi-minute stall and then failed
-    // silently (data=null → "0 duplicates removed" even when dupes existed).
-    // 150 hashes/chunk keeps each URL ~10KB; chunks run in parallel.
-    const t3 = Date.now();
-    const urlHashesToQuery = hashedRawJobs.map(h => h.hash);
-    const HASH_CHUNK = 150;
-    const chunks: string[][] = [];
-    for (let i = 0; i < urlHashesToQuery.length; i += HASH_CHUNK) {
-      chunks.push(urlHashesToQuery.slice(i, i + HASH_CHUNK));
-    }
-    const existingHashSet = new Set<string>();
-    const chunkResults = await Promise.all(
-      chunks.map((chunk) =>
-        db.from("jobs").select("url_hash").eq("profile_id", profileId).in("url_hash", chunk),
-      ),
-    );
-    for (const { data, error } of chunkResults) {
-      if (error) {
-        // Non-fatal: missing early dedup just means L2 catches the dupes later.
-        console.warn(`[pipeline] stage 3 — L1 hash lookup chunk failed: ${error.message}`);
-        continue;
-      }
-      for (const row of data ?? []) existingHashSet.add((row as { url_hash: string }).url_hash);
-    }
-    console.log(`[pipeline] stage 3 — L1 hash lookup: ${chunks.length} chunk(s) in ${Date.now() - t3}ms`);
-
-    let earlyL1Dropped = 0;
-    for (const { job, hash } of hashedRawJobs) {
-      if (existingHashSet.has(hash) || rawHashes.has(hash)) {
-        earlyL1Dropped++;
-      } else {
-        rawHashes.add(hash);
-        uniqueRawJobs.push(job);
-      }
-    }
-    
-    jobsDeduped += earlyL1Dropped;
-    console.log(`[pipeline] stage 3 — L1 early drop: ${earlyL1Dropped} duplicates removed, ${uniqueRawJobs.length} remaining`);
-
-    // Stage 3b — cross-profile dedup (skip)
-    // If a URL already exists in ANY other profile of the same user, drop it
-    // entirely from this profile's feed. Profiles act as filter views: a job
-    // a user has already seen elsewhere should not reappear in another profile.
-    const newRawJobs: RawJob[] = [];
-
-    const { data: siblingProfiles } = await db
-      .from("search_profiles")
-      .select("id")
-      .eq("user_id", profile.user_id)
-      .neq("id", profileId);
-
-    const siblingIds = (siblingProfiles ?? []).map((p) => p.id);
-
-    if (siblingIds.length > 0 && uniqueRawJobs.length > 0) {
-      const hashByJob = uniqueRawJobs.map((j) => ({
-        job:  j,
-        hash: createHash("sha256").update(canonicalUrl(j.url)).digest("hex"),
-      }));
-
-      const { data: existingRows } = await db
-        .from("jobs")
-        .select("url_hash")
-        .in("profile_id", siblingIds)
-        .in("url_hash", hashByJob.map((x) => x.hash));
-
-      const seenInSiblings = new Set(
-        (existingRows ?? []).map((r) => r.url_hash as string)
-      );
-
-      let droppedCrossProfile = 0;
-      for (const { job, hash } of hashByJob) {
-        if (seenInSiblings.has(hash)) {
-          droppedCrossProfile++;
-        } else {
-          newRawJobs.push(job);
-        }
-      }
-
-      jobsDeduped += droppedCrossProfile;
-      console.log(
-        `[pipeline] stage 3b — cross-profile dedup: ${droppedCrossProfile} dropped ` +
-        `(already in sibling profile), ${newRawJobs.length} remain`
-      );
-    } else {
-      newRawJobs.push(...uniqueRawJobs);
-      if (siblingIds.length === 0) {
-        console.log(`[pipeline] stage 3b — first profile for user, no cross-profile dedup`);
-      }
-    }
+    // Stages 3 + 3b: early URL dedup (this profile, then sibling profiles).
+    const { jobs: newRawJobs, dropped: earlyDropped } =
+      await earlyDedup(rawJobs, profileId, profile.user_id);
+    jobsDeduped += earlyDropped;
 
     // Stage 4a: normalise — only truly new URLs from here on
     const normalised = newRawJobs.map(normalise);
@@ -936,227 +1384,16 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       `(L1 ${l1Dropped} + L2-strong ${l2Dropped} dropped, ${l2WeakMarked} marked possible_duplicate)`
     );
 
-    // ── Stage 7: SEEK JD enrichment (free direct only, all tiers) ───────────────
-    // Fetch full job descriptions for SEEK survivors only — i.e. jobs that have
-    // already passed keyword + smart + dedup filters. Free direct path only;
-    // the Apify JD-fetcher fallback has been removed (two paid actors max:
-    // SEEK listings actor + Adzuna JD actor, both Unlimited-only).
-    let kept = dedupKept;
-    const seekSurvivors = dedupKept.some((j) => j.source === "seek");
-    if (seekSurvivors) {
-      await setStage(runLogId, "Fetching full SEEK descriptions");
-      // No cap — every SEEK survivor gets a full JD. SEEK direct enrichment is
-      // free (curl_cffi, $0), so the only cost is wall-clock; "full JD for all
-      // saved jobs" matters more than shaving a few seconds.
-      const jdCap = dedupKept.length;
-      try {
-        const { jobs: enriched, merged, fetched } = await enrichWithDirectJDs(dedupKept, jdCap);
-        kept = enriched;
-        sourceMethods.seek ??= { enabled: true };
-        sourceMethods.seek.jd      = merged > 0 ? "direct" : "teaser";
-        sourceMethods.seek.merged  = merged;
-        sourceMethods.seek.fetched = fetched;
-        console.log(`[pipeline] stage 7 — SEEK JD direct: ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
-      } catch (err) {
-        sourceMethods.seek ??= { enabled: true };
-        sourceMethods.seek.jd = "teaser";
-        console.warn(`[pipeline] stage 7 — SEEK JD direct threw: ${err instanceof Error ? err.message : err}; survivors keep teasers`);
-      }
-    }
+    const enrichResult = await enrichDescriptions(
+      dedupKept, profile, runLogId,
+      { token: seekToken, integration: seekIntegration },
+      sourceEnabled, sourceMethods,
+    );
+    const kept = enrichResult.jobs;
+    if (enrichResult.descDropped > 0) jobsAfterDedup = kept.length;
 
-    // ── Stage 7c: Careerjet full-JD enrichment ─────────────────────────────────
-    // The funnel's narrow+expensive half: listings came free from the v4 API;
-    // now fetch full JDs for the Careerjet *survivors* via the careerjet-jd-fetcher
-    // actor (residential — datacenter is Turnstile-blocked). No-ops when
-    // CAREERJET_ACTOR_ID is unset or no Apify token → survivors keep the snippet.
-    const careerjetSurvivors = kept.some((j) => j.source === "careerjet");
-    const careerjetEnabled = sourceEnabled("careerjet");
-    sourceMethods.careerjet = { enabled: careerjetEnabled, method: "api" };
-    if (careerjetSurvivors && process.env.CAREERJET_ACTOR_ID && seekToken && seekIntegration) {
-      await setStage(runLogId, "Fetching full Careerjet descriptions");
-      try {
-        const { jobs: enriched, merged, fetched, costUsd } =
-          await enrichCareerjetJDsViaActor(kept, seekToken);
-        kept = enriched;
-        console.log(`[pipeline] stage 7c — Careerjet JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
-        if (costUsd > 0) {
-          try {
-            await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
-          } catch (e) {
-            console.warn(`[pipeline] careerjet spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
-          }
-        }
-      } catch (err) {
-        console.warn(`[pipeline] stage 7c — Careerjet JD threw: ${err instanceof Error ? err.message : err}`);
-      }
-    } else if (careerjetSurvivors) {
-      console.log(`[pipeline] stage 7c — Careerjet JD: skipped (CAREERJET_ACTOR_ID unset or no Apify token) — keeping v4 API snippet`);
-    }
-
-    // ── Stage 7d: Adzuna full-JD enrichment (Unlimited only, via adzuna_method) ──
-    // 'api' → skip; teasers (~600 chars) carry forward.
-    // 'direct' + ADZUNA_ACTOR_ID + Apify token → fetch full JDs via the
-    //   adzuna-jd-fetcher actor on residential proxy (Unlimited tier only).
-    // 'direct' without actor → legacy curl-from-Fly path (rate-limited in prod;
-    //   kept for local-dev only).
-    const adzunaSurvivors = kept.some((j) => j.source === "adzuna");
-    const useAdzunaDirect = profile.adzuna_method === "direct";
-    const adzunaEnabled = sourceEnabled("adzuna");
-    sourceMethods.adzuna = { enabled: adzunaEnabled, method: profile.adzuna_method ?? "api" };
-    if (adzunaSurvivors && useAdzunaDirect && process.env.ADZUNA_ACTOR_ID && seekToken && seekIntegration) {
-      await setStage(runLogId, "Fetching full Adzuna descriptions");
-      try {
-        const { jobs: enriched, merged, fetched, costUsd } =
-          // No per-run cap — full JD for every Adzuna survivor. The monthly
-          // SEEK_MONTHLY_BUDGET_USD guard below bounds total actor spend, and
-          // Adzuna survivors per run are few (most lose dedup to SEEK/agedcare).
-          await enrichAdzunaJDsViaActor(kept, seekToken, kept.length);
-        kept = enriched;
-        sourceMethods.adzuna.enrichment = "actor";
-        sourceMethods.adzuna.merged     = merged;
-        sourceMethods.adzuna.fetched    = fetched;
-        console.log(`[pipeline] stage 7d — Adzuna JD (actor): ${merged}/${fetched} full descriptions merged (cost $${costUsd.toFixed(4)})`);
-        if (costUsd > 0) {
-          try {
-            await addApifySpend(seekIntegration.id, costUsd, SEEK_MONTHLY_BUDGET_USD, seekIntegration.quota_used_usd);
-          } catch (e) {
-            console.warn(`[pipeline] adzuna spend update failed (non-fatal): ${e instanceof Error ? e.message : e}`);
-          }
-        }
-      } catch (err) {
-        sourceMethods.adzuna.enrichment = "actor_failed_teaser";
-        console.warn(
-          `[pipeline] stage 7d — Adzuna JD actor failed (${err instanceof Error ? err.message : err}); ` +
-          `falling back to API teasers (no full-JD enrichment this run)`,
-        );
-      }
-    } else if (adzunaSurvivors && useAdzunaDirect) {
-      await setStage(runLogId, "Fetching full Adzuna descriptions");
-      // Capped, unlike the actor branch. This path curls adzuna.com.au straight
-      // from the Fly IP with a 2.5s inter-request delay and no residential
-      // proxy, so an uncapped survivor list is both slow (25min+ for ~500) and
-      // the exact traffic pattern that gets the IP 429'd.
-      const jdCap = ADZUNA_DIRECT_JD_FETCH_CAP;
-      try {
-        const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
-        kept = enriched;
-        sourceMethods.adzuna.enrichment = "direct_curl";
-        sourceMethods.adzuna.merged     = merged;
-        sourceMethods.adzuna.fetched    = fetched;
-        console.log(`[pipeline] stage 7d — Adzuna JD (direct curl): ${merged}/${fetched} full descriptions merged (cost $0, cap ${jdCap})`);
-      } catch (err) {
-        sourceMethods.adzuna.enrichment = "direct_curl_failed_teaser";
-        console.warn(`[pipeline] stage 7d — Adzuna JD direct threw: ${err instanceof Error ? err.message : err}`);
-      }
-    } else if (adzunaSurvivors) {
-      sourceMethods.adzuna.enrichment = "none";
-      console.log(`[pipeline] stage 7d — Adzuna JD: skipped (adzuna_method='api', using API teasers only)`);
-    }
-
-    // Adzuna only contributes new desc text to re-scan when 'direct' mode
-    // actually enriched something — under 'api' mode the teaser is unchanged
-    // and we'd just re-run the same scan stage 4c did.
-    const adzunaEnriched = adzunaSurvivors && useAdzunaDirect;
-    if (seekSurvivors || careerjetSurvivors || adzunaEnriched) {
-      // ── Stage 7b: re-run desc-exclusion against the FULL JD ────────────────
-      // The first pass at stage 4c could only see teasers for SEEK. Now that we
-      // have full JDs, dropped phrases that lived deep in the description are
-      // catchable.
-      const { kept: afterDesc, dropped: droppedNow, byPhrase: descByPhrase } = excludeByDescription(kept, profile);
-      if (droppedNow > 0) {
-        console.log(`[pipeline] stage 7b — desc-exclusion against full JD: ${droppedNow} dropped, ${afterDesc.length} remain${formatExcludeBreakdown(descByPhrase)}`);
-        if (afterDesc.length === 0) {
-          console.warn(
-            `[pipeline] ⚠ stage 7b dropped ALL remaining jobs against the full JD — ` +
-            `your "Description must NOT contain"${formatExcludeBreakdown(descByPhrase)} is matching every survivor.`,
-          );
-        }
-        kept = afterDesc;
-        jobsAfterDedup = kept.length;
-      }
-    }
-
-    // Stage 10a: visa extraction — regex-first, AI only for ambiguous cases
-    // Runs on the full description of each new job (no truncation).
-    // Sets sponsorship_status, citizen_pr_only, visa_extracted_text on each job.
-    let visaReady = kept;
-    if (kept.length > 0) {
-      console.log(`[pipeline] stage 10a — extracting visa info for ${kept.length} jobs`);
-      await setStage(runLogId, `Extracting visa info (${kept.length} jobs)`);
-      const visaMap = await extractVisaInfo(kept);
-      visaReady = kept.map((job) => {
-        const info = visaMap.get(job.url_hash);
-        if (!info) return job;
-        return {
-          ...job,
-          sponsorship_status: info.sponsorship_status,
-          citizen_pr_only: info.citizen_pr_only,
-          visa_extracted_text: info.visa_extracted_text,
-          work_rights_requirement: info.work_rights_requirement,
-          // Keep visa_likelihood for sort compat — derived from binary result
-          // (saved separately below via update, as it lives on the jobs table)
-        };
-      });
-    }
-
-    // Stage 10c: work-setting classification — keyword-first, AI only for
-    // ambiguous care jobs (env SETTING_CLASSIFIER_AI). A shared, once-per-job
-    // FACT (like visa): it flows into global_jobs and is reused by every profile.
-    // The per-profile setting FILTER is separate (stage 10d / bucket serve).
-    // Runs on EVERY fetched job before the bucket write so the shared bucket
-    // always carries a setting label — the classifier skips non-care JDs cheaply
-    // (a regex gate) and the AI tier only fires for ambiguous CARE jobs, so
-    // classifying non-healthcare runs costs effectively nothing.
-    let settingReady = visaReady;
-    if (visaReady.length > 0) {
-      await setStage(runLogId, `Classifying work setting (${visaReady.length} jobs)`);
-      const settingMap = await classifySettings(visaReady);
-      settingReady = visaReady.map((job) => {
-        const info = settingMap.get(job.url_hash);
-        if (!info) return job;
-        return {
-          ...job,
-          setting_category: info.setting_category,
-          setting_confidence: info.setting_confidence,
-          setting_evidence: info.setting_evidence,
-        };
-      });
-    }
-
-    // Stage 10e: JD facts — employment type, contact emails, text salary,
-    // closing date, shift patterns, agency flag (migration 080). Pure
-    // regex/lexicon, no AI, so it runs on every survivor before the bucket
-    // write: like visa/setting these are once-per-job FACTS shared via
-    // global_jobs. Per-profile filtering on them happens at 10d / bucket serve.
-    if (settingReady.length > 0) {
-      const factsNow = new Date();
-      settingReady = settingReady.map((job) => {
-        const emp = extractEmploymentTypes({
-          title: job.title,
-          description: job.description,
-          employment_types_raw: job.employment_types_raw,
-        });
-        const textSalary =
-          job.salary_min == null ? extractTextSalary(job.description) : null;
-        return {
-          ...job,
-          employment_types: emp.source ? emp.types : [],
-          employment_source: emp.source,
-          extracted_emails: extractEmails(job.description),
-          ...(textSalary && {
-            salary_min: textSalary.min,
-            salary_max: textSalary.max ?? undefined,
-            salary_period: textSalary.period,
-          }),
-          closing_date: extractClosingDate(job.description, factsNow),
-          shift_patterns: extractShiftPatterns(job.description),
-          is_agency: detectAgency(job.company, job.description),
-        };
-      });
-      const withEmp = settingReady.filter((j) => (j.employment_types?.length ?? 0) > 0).length;
-      const withEmail = settingReady.filter((j) => (j.extracted_emails?.length ?? 0) > 0).length;
-      console.log(`[pipeline] stage 10e — JD facts: ${withEmp}/${settingReady.length} employment-typed, ${withEmail} with emails`);
-    }
+    // Stages 10a + 10c + 10e - shared per-job facts.
+    const settingReady = await extractJobFacts(kept, runLogId);
 
     // Working rights: single source of truth is My CV's visa_status via the
     // eligibility matrix below. The old per-profile working_rights filter was
