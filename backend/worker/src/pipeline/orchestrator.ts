@@ -57,7 +57,7 @@ import { sendPipelineFailureAlert } from "../notifications/errorAlert.js";
 import { createSeekAdapter } from "../sources/seek.js";
 import { seekDirectAdapter, enrichWithDirectJDs } from "../sources/seekDirect.js";
 import { enrichCareerjetJDsViaActor } from "../sources/careerjetActor.js";
-import { enrichWithAdzunaJDs } from "../sources/adzuna.js";
+import { enrichWithAdzunaJDs, ADZUNA_DIRECT_JD_FETCH_CAP } from "../sources/adzuna.js";
 import { enrichAdzunaJDsViaActor } from "../sources/adzunaActor.js";
 import { decryptApiKey } from "../lib/crypto.js";
 import { autoAnalyzeBatch } from "../automation/triggerAutoAnalyze.js";
@@ -68,6 +68,9 @@ interface FullProfile extends SearchProfile {
   user_id: string;
   // Engagement notifications (migration 079) — used for pending_job_notifications.profile_name.
   name: string;
+  // Auto-created "Saved Jobs" container for manually-added jobs. Never a real
+  // search — has no keywords/location by design.
+  is_manual: boolean;
   // Phase A automation config. min_initial_ats / min_final_ats were dropped
   // from search_profiles in migration 041 — global constants now (60 / 70)
   // enforced by cv-backend AnalyzeRequest defaults.
@@ -256,7 +259,7 @@ async function maybeResetQuota(integration: UserIntegration): Promise<UserIntegr
 async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, name, user_id, keywords, location, visa_filter_mode, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
+    .select("id, name, user_id, is_manual, keywords, location, visa_filter_mode, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;
@@ -296,6 +299,16 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
   const profile = await loadProfile(profileId);
   if (!profile) {
     console.error(`[pipeline] profile ${profileId} not found — aborting`);
+    return;
+  }
+
+  // "Saved Jobs" (is_manual) holds manually-added jobs and has empty
+  // keywords/location by design — fetching for it means a catch-all search
+  // ("jobs" across the whole country) that burns a full run to save nothing.
+  // The UI hides Run and the API rejects it; this is the last line, so no
+  // enqueue path (stale job, direct call, manual insert) can get through.
+  if (profile.is_manual) {
+    console.warn(`[pipeline] profile ${profileId} is a manual "Saved Jobs" container — refusing to fetch`);
     return;
   }
 
@@ -1019,10 +1032,11 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       }
     } else if (adzunaSurvivors && useAdzunaDirect) {
       await setStage(runLogId, "Fetching full Adzuna descriptions");
-      // No cap — full JD for every Adzuna survivor (consistent with the actor
-      // branch). This legacy curl-from-Fly path is 429-rate-limited in prod so
-      // it's dev-only, but uncapping keeps the two 'direct' branches aligned.
-      const jdCap = kept.length;
+      // Capped, unlike the actor branch. This path curls adzuna.com.au straight
+      // from the Fly IP with a 2.5s inter-request delay and no residential
+      // proxy, so an uncapped survivor list is both slow (25min+ for ~500) and
+      // the exact traffic pattern that gets the IP 429'd.
+      const jdCap = ADZUNA_DIRECT_JD_FETCH_CAP;
       try {
         const { jobs: enriched, merged, fetched } = await enrichWithAdzunaJDs(kept, jdCap);
         kept = enriched;
