@@ -15,7 +15,7 @@ backend/
 shared/
   supabase/        Migration SQL — additive only, shared by both backends
 docs/              Architecture, design, database, cover-letter spec
-.claude/           graph.json (project model), settings.json (Stop hook), agents
+.claude/           graph.json (project model) — agents/commands/settings are local-only
 CLAUDE.md          Build rules + session protocol
 docs/design.md     Full integration plan — read this first
 ```
@@ -25,7 +25,7 @@ docs/design.md     Full integration plan — read this first
 | Feature | Where |
 |---|---|
 | Upload CV (PDF) with versioning + active flag | `/cv` page, `cv_versions` table |
-| BYOK Anthropic/OpenAI keys | `/settings/ai-keys` page, `user_integrations` table (extended) |
+| Platform-wide AI provider (admin-managed, no BYOK) | `/dashboard/admin/ai-settings` page, `platform_ai_settings` table |
 | "Analyze" button on each job card | `/jobs/[id]/analysis/[run_id]` page |
 | 7-step CV-tailoring pipeline | `backend/api/` FastAPI service |
 | Tailored CV PDF download | Supabase Storage + `analysis_runs.tailored_pdf_storage_path` |

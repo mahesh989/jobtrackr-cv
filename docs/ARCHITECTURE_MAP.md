@@ -270,10 +270,10 @@ services — a real operational seam, independent of any future service split.
 ## 8. Constraints Folded In (from CLAUDE.md + existing docs)
 
 - Non-negotiable decisions (CLAUDE.md): two-services-one-DB (now three:
-  web/worker/api), no logic porting from cv-magic, BYOK-only AI keys
-  (AES-256-GCM), Realtime everywhere via `postgres_changes`, additive-only DB
-  changes, phased rollout with manual verification gates, one active CV per
-  user.
+  web/worker/api), no logic porting from cv-magic, platform-wide AI provider
+  (AES-256-GCM; BYOK removed 2026-06-16, see D20), Realtime everywhere via
+  `postgres_changes`, additive-only DB changes, phased rollout with manual
+  verification gates, one active CV per user.
 - Production safety: never modify
   `/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr` (separate
   repo/product); never touch its DNS/Vercel aliases; never `ALTER` existing
