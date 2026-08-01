@@ -40,13 +40,22 @@ export const POST = withUser(async (
   // Verify profile belongs to this user
   const { data: profile } = await supabase
     .from("search_profiles")
-    .select("id")
+    .select("id, is_manual")
     .eq("id", profileId)
     .eq("user_id", user.id)
     .single();
 
   if (!profile) {
     return jsonError("Profile not found", 404);
+  }
+
+  // "Saved Jobs" (is_manual=true) is a container for manually-added jobs,
+  // never a real search — the worker never fetches for it. The UI hides the
+  // Run button for it, but that's client-side only; enforce it here too so
+  // no other path (a stale button, a direct call) can enqueue a pointless —
+  // and potentially very expensive — run against an empty-criteria profile.
+  if (profile.is_manual) {
+    return jsonError("This profile can't be run — it's for manually-added jobs only", 400);
   }
 
   // Billing gate: read-only accounts blocked; run quota metered per period.

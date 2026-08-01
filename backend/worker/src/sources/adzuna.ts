@@ -221,9 +221,20 @@ export const adzunaAdapter: SourceAdapter = {
   },
 };
 
+// adzuna.com.au /details/<id> rate-limits the Fly worker IP (see adzunaActor.ts
+// header comment). This direct-curl path has no residential proxy, so it's the
+// one most exposed to that limit — cap it the same way the other direct-fetch
+// sources are capped (SEEK_DIRECT_JD_FETCH_CAP, CAREERJET_JD_FETCH_CAP).
+export const ADZUNA_DIRECT_JD_FETCH_CAP = 20;
+
+// After this many *consecutive* 429s, stop early instead of grinding through
+// the remaining targets one by one — a run of 429s means the IP is already
+// rate-limited and further requests will fail the same way.
+const CONSECUTIVE_429_ABORT_THRESHOLD = 5;
+
 export async function enrichWithAdzunaJDs(
   jobs: NormalisedJob[],
-  cap: number = 20,
+  cap: number = ADZUNA_DIRECT_JD_FETCH_CAP,
 ): Promise<{ jobs: NormalisedJob[]; costUsd: number; merged: number; fetched: number }> {
   const adzunaJobs = jobs.filter((j) => j.source === "adzuna" && j.url);
   const targets = adzunaJobs.slice(0, cap);
@@ -234,6 +245,7 @@ export async function enrichWithAdzunaJDs(
 
   let mergedCount = 0;
   let fetchedCount = 0;
+  let consecutive429s = 0;
   console.log(`[adzuna-jd] enriching ${targets.length}/${adzunaJobs.length} adzuna survivors · HTML Scrape`);
 
   for (const job of targets) {
@@ -259,8 +271,22 @@ export async function enrichWithAdzunaJDs(
 
       if (result.status !== 200) {
         console.warn(`[adzuna-jd] ${detailsUrl} failed with HTTP ${result.status}`);
+        if (result.status === 429) {
+          consecutive429s++;
+          if (consecutive429s >= CONSECUTIVE_429_ABORT_THRESHOLD) {
+            console.warn(
+              `[adzuna-jd] aborting after ${consecutive429s} consecutive HTTP 429s — ` +
+              `IP is rate-limited; ${targets.length - fetchedCount} remaining survivors keep their API teaser`,
+            );
+            break;
+          }
+        } else {
+          consecutive429s = 0;
+        }
+        await delay(2500);
         continue;
       }
+      consecutive429s = 0;
 
       const $ = cheerio.load(result.body);
 

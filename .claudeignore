@@ -23,11 +23,12 @@
 **/*.tsbuildinfo
 
 # ── Worker service (job-discovery pipeline) ─────────────────
-# Copied verbatim from production JobTrackr; explicitly out-of-scope
-# for CV integration work (see CLAUDE.md: "Don't extend it for CV work").
-# Blocking the whole directory prevents Claude reading TypeScript source,
-# JSON data dumps, Apify actor code, and nested lockfiles unnecessarily.
-backend/worker/
+# NOT blocked wholesale any more: the worker is actively developed here
+# (sources, orchestrator, JD facts), so its TypeScript source must stay
+# readable. Only the bulky non-source parts are blocked below.
+backend/worker/**/storage/
+backend/worker/apify-actors/*/storage/
+backend/worker/**/package-lock.json
 
 # ── Static / media assets ───────────────────────────────────
 frontend/web/public/
@@ -66,8 +67,3 @@ jora_test_*.json
 # ── Supabase internals ──────────────────────────────────────
 shared/supabase/.temp/
 shared/supabase/.branches/
-
-# ── Reference source (read-only; never modify) ──────────────
-# cv-magic is a reference repo only. Claude should look at specific
-# files when porting, not scan the whole tree every session.
-cv-magic/

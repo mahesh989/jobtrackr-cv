@@ -129,7 +129,7 @@ backend/api/app/
 - **Tailwind 4** — uses CSS-native config (`@theme` in globals.css), not `tailwind.config.js`
 - **Theme system** — 6 themes (aurora-light is default). CSS variables under `:root.theme-*` in globals.css. Auth pages hardcode Aurora Light palette intentionally (no theme class pre-login).
 - **Deploy** — `main` branch → Vercel preview (not production). Production JobTrackr is a separate repo.
-- **BYOK** — Users supply their own AI keys (Anthropic/OpenAI). Encrypted with AES-256-GCM.
+- **Platform-wide AI provider** — BYOK removed 2026-06-16; single admin-managed key in `platform_ai_settings` (`/dashboard/admin/ai-settings`), not per-user. Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`
 - **Additive DB changes only** — Never ALTER existing tables. Only INSERT new tables and extend value sets.
 
