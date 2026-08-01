@@ -141,7 +141,7 @@ function CardFooter({ job }: { job: BoardJob }) {
   const [submitting, setSubmitting] = useState(false);
   const [analyseError, setAnalyseError] = useState<string | null>(null);
   const seedStatus = state === "analysing" ? job.progress.latest_run_status : null;
-  const { running, runId, markStarted } = useJobRunStatus(job.id, seedStatus, undefined, job.progress.latest_run_id);
+  const { running, runId, markStarting, markStartFailed, markStarted } = useJobRunStatus(job.id, seedStatus, undefined, job.progress.latest_run_id);
   const analysing = submitting || running;
   const [cancelling, setCancelling] = useState(false);
 
@@ -204,12 +204,17 @@ function CardFooter({ job }: { job: BoardJob }) {
   async function onAnalyse(e: React.MouseEvent) {
     e.stopPropagation();
     if (ctx.pending || analysing) return;
-    // Select this job first. The progress popup lives in the detail pane's
-    // header (it needs the run's step-by-step state, which only that pane
-    // subscribes to), so analysing from a card while a *different* job was
-    // selected started a run the user got no popup for — the reported
-    // "works in the right panel, not in the job board". Opening the job here
-    // means the same popup appears from either entry point.
+    // Optimistically flip BEFORE opening the pane and before the POST, so the
+    // detail header this opens mounts already reading "Analysing…" instead of
+    // offering "Analyse this job" until the enqueue round-trip returns. This is
+    // the cross-instance signal — the card and the panel change on one frame.
+    markStarting();
+    // Select this job. The progress popup lives in the detail pane's header (it
+    // needs the run's step-by-step state, which only that pane subscribes to),
+    // so analysing from a card while a *different* job was selected started a
+    // run the user got no popup for — the reported "works in the right panel,
+    // not in the job board". Opening the job here means the same popup appears
+    // from either entry point.
     selection?.onOpenDetail?.(job.id);
     setSubmitting(true); setAnalyseError(null);
     try {
@@ -218,12 +223,12 @@ function CardFooter({ job }: { job: BoardJob }) {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? `Failed (${res.status})`);
-      // Seed `running` before `submitting` drops — same race the detail header
-      // hits; see markStarted in useJobRunStatus. Both buttons read the same
-      // run row, so fixing it in one place and not the other would leave the
-      // card and the panel disagreeing about the very same analysis.
+      // Adopt the real run row; supersedes the optimistic flag. Both buttons
+      // read the same run, so fixing it in one place and not the other would
+      // leave the card and the panel disagreeing about the very same analysis.
       if (j.run_id) markStarted(j.run_id);
     } catch (err) {
+      markStartFailed();  // roll the optimistic flag back across all instances
       setAnalyseError(err instanceof Error ? err.message : "Could not start analysis");
     } finally {
       // Hand over to the Realtime-backed `running` flag, same as DetailHeader.
