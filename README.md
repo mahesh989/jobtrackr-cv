@@ -34,7 +34,7 @@ docs/design.md     Full integration plan — read this first
 
 - **Build plan & status:** `.claude/graph.json` → `build_state` + `build_plan`
 - **Architecture & decisions:** `docs/design.md`
-- **At-a-glance map:** `docs/architecture-overview.md`
+- **At-a-glance map:** `docs/ARCHITECTURE_MAP.md`
 - **Session rules:** `CLAUDE.md`
 
 Read `docs/design.md` for the full integration plan including phased rollout, bridge contract, data model, and verification gates.

@@ -282,6 +282,6 @@ services — a real operational seam, independent of any future service split.
   zero-padded sequential numbering; `migration-checker` subagent required
   before any new migration work.
 - Doc hierarchy: `docs/design.md` = locked decisions/"what we're building";
-  `docs/architecture.md` + `docs/architecture-overview.md` = quick-reference
-  shape; `docs/database.md` = schema detail; `.claude/graph.json` = live state,
+  this file (`docs/ARCHITECTURE_MAP.md`) = quick-reference shape;
+  `docs/database.md` = schema detail; `.claude/graph.json` = live state,
   read first every session.
