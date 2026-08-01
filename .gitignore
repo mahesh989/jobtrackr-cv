@@ -98,3 +98,12 @@ job-board-toolbar-v2.html
 /package.json
 /package-lock.json
 .opencode/skills/
+
+# Claude Code personal tool config — agent/command/hook/preview defs are
+# a personal workflow choice, not read by CI/deploy/app. graph.json stays
+# tracked (session-continuity state per CLAUDE.md). Keep these locally.
+.claude/agents/
+.claude/commands/
+.claude/prompts/
+.claude/settings.json
+.claude/launch.json
