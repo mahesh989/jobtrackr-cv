@@ -33,6 +33,11 @@ from app.database import get_supabase
 from app.database import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
 from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
+from app.services.automation.billing import (
+    link_letter_usage_event,
+    release_letter_usage_event,
+    reserve_cover_letter,
+)
 from app.services.cover_letter.generator import run_cover_letter_pipeline
 
 logger = logging.getLogger(__name__)
@@ -265,6 +270,25 @@ async def auto_generate_cover_letter(
             await _record_outcome(run_id, f"failed:bad_status_constant:{_INITIAL_STATUS}")
             return
 
+        # ── 6a. Billing gate — reserve a cover-letter credit ──────────────────
+        # Mirrors the manual route (coverLetter/start.ts consumeCoverLetter) and
+        # the auto-tailored-CV gate (worker billing.ts). Without this, every
+        # automation-generated letter was free; the meter counted only manual
+        # ones. Placed after all skip-gates (duplicate/voice) so a skipped job
+        # never reserves, and before the INSERT so an over-cap user is blocked
+        # before any DB row or AI spend. The PENDING reservation is committed by
+        # the cover_letters status trigger on 'completed', voided on 'failed',
+        # and released here on any early-return before the row exists.
+        reservation = await reserve_cover_letter(user_id, job_id)
+        if not reservation.allowed:
+            logger.info(
+                "auto-cover-letter: job %s — billing gate denied (%s) — skipping",
+                job_id, reservation.reason,
+            )
+            await _record_outcome(run_id, f"skipped:letter_cap:{reservation.reason}")
+            return
+        usage_event_id = reservation.event_id  # None when the user bypasses the meter
+
         letter_id = str(uuid.uuid4())
         try:
             await asyncio.to_thread(
@@ -286,8 +310,18 @@ async def auto_generate_cover_letter(
                 "auto-cover-letter: INSERT failed for run %s job %s: code=%s msg=%s",
                 run_id, job_id, exc.code, exc.message,
             )
+            # The letter row never came into existence, so the status trigger
+            # can never fire — void the reservation now or it dangles until the
+            # 1h pending self-heal.
+            if usage_event_id:
+                await release_letter_usage_event(usage_event_id)
             await _record_outcome(run_id, f"failed:insert:{exc.code or '?'}")
             return
+
+        # Link the pending reservation to the letter row so the cover_letters
+        # status trigger can commit (status 'completed') or void ('failed') it.
+        if usage_event_id:
+            await link_letter_usage_event(usage_event_id, letter_id)
 
         # ── 7. Kick off the generator pipeline ───────────────────────────────
         payload = GenerateCoverLetterRequest(
