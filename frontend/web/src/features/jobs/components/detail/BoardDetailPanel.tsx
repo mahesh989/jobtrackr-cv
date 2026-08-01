@@ -87,6 +87,25 @@ function BoardDetailPanelInner({
   const hasCv     = data ? !!run?.tailored_cv_storage_path    : job.progress.has_tailored_cv;
   const hasLetter = data ? !!data.cover_letter?.pass_3_final  : job.progress.has_cover_letter;
 
+  // A letter is on its way but not finished yet. Cover-letter generation is a
+  // detached task the orchestrator fires AFTER it marks the run complete, so
+  // the tab used to stay absent for the ~30-60s the letter took — appearing
+  // late, well after "Analysis complete". Reveal it immediately in a
+  // "Generating…" state instead: true once the completed run has triggered
+  // auto-generation (cover_letter_status "triggered") or a letter row exists
+  // and is still working (no final text, and not failed/skipped).
+  // A failed letter keeps the run's cover_letter_status on "triggered" (the
+  // generator writes the failure onto the cover_letters row, not the run), so
+  // this must be checked explicitly or the tab would spin "Generating…"
+  // forever. Failed → no tab, same as before this change.
+  const letterFailed = data?.cover_letter?.status === "failed";
+  const letterGenerating =
+    !hasLetter && !letterFailed && !!data && (
+      run?.cover_letter_status === "triggered" ||
+      !!data.cover_letter
+    );
+  const showLetterTab = hasLetter || letterGenerating;
+
   // A tab whose condition flips false while it is the selected one leaves the
   // body area blank: its Trigger unregisters but `tab` still points at it and
   // every Content returns null. Fall back to the one tab that always exists.
@@ -96,7 +115,7 @@ function BoardDetailPanelInner({
     tab === "jd" ||
     (tab === "match" && hasScore) ||
     (tab === "cv" && hasCv) ||
-    (tab === "cover" && hasLetter);
+    (tab === "cover" && showLetterTab);
   const activeTab = tabExists ? tab : "jd";
 
   // Push a finished run back onto the board's own copy of this row.
@@ -180,6 +199,15 @@ function BoardDetailPanelInner({
     </div>
   );
 
+  // Shown in the Cover letter tab while the detached generation is still
+  // running — the tab is revealed the moment generation starts, not only when
+  // the finished letter lands.
+  const letterPending = (
+    <div className="flex items-center gap-2 py-6 text-label text-text-3">
+      <Loader2 className="w-4 h-4 animate-spin" /> Generating cover letter…
+    </div>
+  );
+
   const header = (
     <DetailHeader
       job={job}
@@ -231,7 +259,7 @@ function BoardDetailPanelInner({
               <Tabs.Trigger value="jd" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Job description</Tabs.Trigger>
               {hasScore && <Tabs.Trigger value="match" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Match &amp; score</Tabs.Trigger>}
               {hasCv && <Tabs.Trigger value="cv" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Tailored CV</Tabs.Trigger>}
-              {hasLetter && <Tabs.Trigger value="cover" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Cover letter</Tabs.Trigger>}
+              {showLetterTab && <Tabs.Trigger value="cover" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Cover letter</Tabs.Trigger>}
             </Tabs.List>
           </div>
 
@@ -254,9 +282,9 @@ function BoardDetailPanelInner({
                 {run ? <TailoredCvTab run={run} /> : pending}
               </Tabs.Content>
             )}
-            {hasLetter && (
+            {showLetterTab && (
               <Tabs.Content value="cover" keepMounted>
-                {data?.cover_letter
+                {hasLetter && data?.cover_letter
                   ? <CoverLetterTab
                       // Forces a clean remount if the letter's identity ever
                       // changes under an already-mounted (keepMounted) tab —
@@ -270,7 +298,11 @@ function BoardDetailPanelInner({
                       applied={!!job.applied_at}
                       onChanged={refresh}
                     />
-                  : pending}
+                  // Generation still running (or the completed run's payload
+                  // hasn't caught up yet) — show progress, not a blank/absent
+                  // tab. It swaps to the editor above the moment the letter
+                  // lands (Realtime/poll → refresh).
+                  : letterGenerating ? letterPending : pending}
               </Tabs.Content>
             )}
           </div>

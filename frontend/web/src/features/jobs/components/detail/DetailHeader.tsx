@@ -152,7 +152,7 @@ export function DetailHeader({
   // the popup (that was true of an older version wired to router.refresh(),
   // which is why this used to be deferred until the popup was dismissed —
   // the deferral just meant "no manual refresh needed" wasn't actually true).
-  const { status, running, steps, runId, markStarted } = useJobRunStatus(
+  const { status, running, steps, runId, markStarting, markStartFailed, markStarted } = useJobRunStatus(
     job.id,
     seedStatus,
     onChanged,
@@ -248,19 +248,21 @@ export function DetailHeader({
 
   async function runAnalyze(override?: "thin_jd" | "initial_gate" | "all") {
     if (analysing) return;
+    markStarting();  // flip card + panel on the same frame, before the POST
     setSubmitting(true); setError(null);
     try {
       const url = override ? `/api/jobs/${job.id}/analyze?override=${override}` : `/api/jobs/${job.id}/analyze`;
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Failed (${res.status})`);
-      // Seed `running` from the id we just got back, BEFORE dropping
-      // `submitting` — see markStarted. Without it the UI reads the run as
-      // finished during the gap before the first Realtime event, and the
-      // progress popup flips to "Analysis complete" with no steps done.
+      // Adopt the real run id, superseding the optimistic flag. Without it the
+      // UI reads the run as finished during the gap before the first Realtime
+      // event, and the progress popup flips to "Analysis complete" with no
+      // steps done.
       if (json.run_id) markStarted(json.run_id);
       onChanged();
     } catch (e) {
+      markStartFailed();
       setError(e instanceof Error ? e.message : "Analysis failed to start");
     } finally {
       setSubmitting(false);
@@ -269,12 +271,14 @@ export function DetailHeader({
 
   async function onReanalyze() {
     if (analysing) return;
+    markStarting();
     setSubmitting(true); setError(null);
     try {
       const newRunId = await triggerReanalyze(job.id);
       if (newRunId) markStarted(newRunId);
       onChanged();
     } catch (e) {
+      markStartFailed();
       setError(e instanceof Error ? e.message : "Could not re-analyse");
     } finally {
       setSubmitting(false);

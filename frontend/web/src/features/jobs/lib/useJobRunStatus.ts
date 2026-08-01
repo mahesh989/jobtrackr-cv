@@ -42,7 +42,30 @@ const startListeners = new Set<() => void>();
 
 function publishStarted(jobId: string, runId: string) {
   startedRuns.set(jobId, runId);
+  clearStarting(jobId);            // the real run supersedes the optimistic flag
   startListeners.forEach((l) => l());
+}
+
+/**
+ * Optimistic "starting" bridge — the click→POST gap.
+ *
+ * `startedRuns` above only fires once the enqueue POST returns a run id, so the
+ * instance that did NOT do the click (e.g. the detail pane when Analyse was hit
+ * on the board card) stayed idle for the whole POST round-trip before flipping.
+ * Publishing the *intent* to start — before the POST — flips every mounted
+ * instance for that job at once, so the card and the panel show "Analysing…"
+ * on the same frame. Cleared when the real run is adopted (publishStarted) or
+ * when the enqueue fails (markStartFailed).
+ */
+const startingJobs = new Set<string>();
+
+function publishStarting(jobId: string) {
+  startingJobs.add(jobId);
+  startListeners.forEach((l) => l());
+}
+
+function clearStarting(jobId: string) {
+  if (startingJobs.delete(jobId)) startListeners.forEach((l) => l());
 }
 
 /**
@@ -96,6 +119,11 @@ export function useJobRunStatus(
    *  1–2 minute pipeline. Seeding `pending` here (the same status the row is
    *  actually inserted with) closes it; Realtime then takes over normally. */
   markStarted: (runId: string) => void;
+  /** Optimistically flip THIS job to running across every mounted instance the
+   *  instant a click lands, before the enqueue POST resolves. */
+  markStarting: () => void;
+  /** Roll back markStarting() when the enqueue fails to produce a run. */
+  markStartFailed: () => void;
 } {
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [steps, setSteps] = useState<Record<string, string> | null>(null);
@@ -171,12 +199,20 @@ export function useJobRunStatus(
           filter: `job_id=eq.${jobId}`,
         },
         (payload) => {
-          // The letter is written in passes; only the finished text unlocks the
-          // Cover letter and More tabs, so anything earlier is not worth a
-          // refetch. No once-per-row guard here: a regenerate legitimately
-          // completes the same row twice.
-          const row = payload.new as { pass_3_final?: string | null } | null;
-          if (row?.pass_3_final) settledRef.current?.();
+          // The letter is written in passes. The finished text (pass_3_final)
+          // unlocks the fully-editable Cover letter tab — always refetch then.
+          // No once-per-row guard: a regenerate legitimately completes twice.
+          const row = payload.new as { pass_3_final?: string | null; status?: string | null } | null;
+          if (!row) return;
+          // Refetch whenever the outcome changes which tab shows: the finished
+          // text landed (unlock the editable tab), the letter failed (drop the
+          // tab), or the row first appeared — auto-generation STARTING, ~30-60s
+          // before the text is ready, so the tab shows immediately in its
+          // "Generating…" state rather than staying absent until it lands.
+          // Intermediate pass updates are skipped as not worth a refetch.
+          if (row.pass_3_final || row.status === "failed" || payload.eventType === "INSERT") {
+            settledRef.current?.();
+          }
         },
       )
       .subscribe();
@@ -225,6 +261,7 @@ export function useJobRunStatus(
     if (status !== RunStatus.COMPLETED) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let revealedGenerating = false;   // fired the "letter is coming" refresh yet?
     const startedAt = Date.now();
     const MAX_MS = 5 * 60 * 1000;
 
@@ -239,6 +276,10 @@ export function useJobRunStatus(
             const letterDone = !!data?.cover_letter?.pass_3_final;
             if (cls !== "triggered") return; // nothing was ever coming — settled
             if (letterDone) { settledRef.current?.(); return; } // landed — one more refresh, then stop
+            // Letter is generating. Fallback for a dropped cover_letters INSERT
+            // Realtime event: reveal the "Generating…" tab once, then keep
+            // polling for the finished text.
+            if (!revealedGenerating) { revealedGenerating = true; settledRef.current?.(); }
           }
         }
       } catch { /* transient — retry on the next tick */ }
@@ -251,12 +292,19 @@ export function useJobRunStatus(
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [jobId, status]);
 
+  // Optimistic "a run is starting" flag for THIS job, mirrored across every
+  // mounted instance (card + panel) via startingJobs so both flip on the same
+  // frame the click happens — before the enqueue POST returns a run id.
+  const [starting, setStarting] = useState<boolean>(startingJobs.has(jobId));
+
   // Adopt a run started by ANY instance for this job (including this one —
   // markStarted publishes rather than setting state directly, so both paths
-  // go through here and stay identical).
+  // go through here and stay identical). Same listener also mirrors the
+  // optimistic `starting` flag.
   const adoptedRun = useRef<string | null>(null);
   useEffect(() => {
     const sync = () => {
+      setStarting(startingJobs.has(jobId));
       const startedId = startedRuns.get(jobId);
       if (!startedId || adoptedRun.current === startedId) return;
       adoptedRun.current = startedId;
@@ -270,9 +318,29 @@ export function useJobRunStatus(
     return () => { startListeners.delete(sync); };
   }, [jobId]);
 
+  // Once a real active status governs, the optimistic flag is redundant — drop
+  // it so a stray uncleared `starting` can never outlive the run it stood in for.
+  useEffect(() => {
+    if (isActive(status)) clearStarting(jobId);
+  }, [status, jobId]);
+
+  /** Optimistic: flip every instance to "Analysing…" the instant the click
+   *  lands, before the enqueue POST resolves. Pair with markStarted (on the
+   *  returned run id) or markStartFailed (on error). */
+  const markStarting = useCallback(() => {
+    publishStarting(jobId);
+  }, [jobId]);
+
+  /** Roll back the optimistic flag when the enqueue never produced a run. */
+  const markStartFailed = useCallback(() => {
+    clearStarting(jobId);
+  }, [jobId]);
+
   const markStarted = useCallback((newRunId: string) => {
     publishStarted(jobId, newRunId);
   }, [jobId]);
 
-  return { status, running: isActive(status), steps, runId, markStarted };
+  // `running` folds in the optimistic flag so a single boolean drives every
+  // "Analysing…" affordance identically, no matter which entry point fired.
+  return { status, running: isActive(status) || starting, steps, runId, markStarting, markStartFailed, markStarted };
 }
