@@ -6,7 +6,6 @@
 
 import { useState } from "react";
 import { Radio, Button } from "@/components/ui";
-import { JOB_SOURCES, TIER_DEFAULTS } from "@/lib/constants";
 import type { JobSource, SourceTier, TierConfig, AdzunaMethod, SeekMethod } from "@/lib/constants";
 
 interface Props {

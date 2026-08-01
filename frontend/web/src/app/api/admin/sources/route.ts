@@ -16,7 +16,7 @@ import type { JobSource, SourceTier } from "@/lib/constants";
 
 type Tier = SourceTier;
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const { user, error: authErr } = await requireUser();
   if (authErr) return authErr;
 

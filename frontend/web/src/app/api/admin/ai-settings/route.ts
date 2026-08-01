@@ -69,7 +69,7 @@ async function validateKey(provider: AiProvider, key: string): Promise<Validatio
 
 // ── GET — list all 3 provider rows (never the decrypted key) ────────────────
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const { user, error: authErr } = await requireUser();
   if (authErr) return authErr;
 

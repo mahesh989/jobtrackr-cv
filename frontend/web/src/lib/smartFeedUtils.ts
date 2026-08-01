@@ -1,4 +1,4 @@
-import { matchScore, type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
+import type { BoardJob, AtsBand } from "@/features/jobs/lib/jobFilters";
 export { relativeDate } from "@/lib/dates";
 
 export function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
