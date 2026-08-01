@@ -97,9 +97,20 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
     (defaults?.auto_send_emails as "never" | "after_review" | "auto") ?? "never",
   );
 
+  const [settingFilterError, setSettingFilterError] = useState(false);
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    // Checkbox groups can't express "at least one" via the native `required`
+    // attribute (that would force every box checked), so it's validated here.
+    if (showWorkSetting && fd.getAll("setting_filter").length === 0) {
+      setSettingFilterError(true);
+      return;
+    }
+    setSettingFilterError(false);
+
     // Pass the guided-setup context through so createProfile can redirect
     // back into the wizard (with a justCompleted marker) instead of a bare
     // /profiles that silently drops out of setup.
@@ -166,11 +177,14 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
             />
           </div>
           <div>
-            <label className="block text-label font-semibold text-text mb-1.5">Location</label>
+            <label className="block text-label font-semibold text-text mb-1.5">
+              Location<span className="text-[var(--red)] ml-0.5">*</span>
+            </label>
             <LocationAutocomplete
               name="location"
               defaultValue={defaults?.location}
               placeholder="Sydney NSW"
+              required
             />
           </div>
           <div>
@@ -205,7 +219,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
               <div className="border-t border-border" />
               <div>
                 <label className="block text-label font-semibold text-text mb-1.5">
-                  Work setting
+                  Work setting<span className="text-[var(--red)] ml-0.5">*</span>
                 </label>
                 <div className="flex flex-col gap-2">
                   {SETTING_CATEGORY_META.map((opt) => {
@@ -217,6 +231,7 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                           name="setting_filter"
                           value={opt.key}
                           defaultChecked={checked}
+                          onChange={() => setSettingFilterError(false)}
                           className="mt-0.5 w-4 h-4 accent-[var(--brand)] cursor-pointer shrink-0"
                         />
                         <span>
@@ -227,9 +242,15 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
                     );
                   })}
                 </div>
-                <p className="text-caption text-text-2 mt-1.5">
-                  Leave all unticked to show jobs in every setting.
-                </p>
+                {settingFilterError ? (
+                  <p className="text-caption text-[var(--red)] mt-1.5">
+                    Select at least one work setting.
+                  </p>
+                ) : (
+                  <p className="text-caption text-text-2 mt-1.5">
+                    Select at least one setting to filter jobs by.
+                  </p>
+                )}
               </div>
             </>
           )}
