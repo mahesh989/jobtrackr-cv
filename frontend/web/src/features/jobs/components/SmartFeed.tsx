@@ -350,14 +350,26 @@ export function SmartFeed({
   const [defaultJobId, setDefaultJobId] = useState<string | null>(null);
   if (!isFlatStage && !selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
 
-  const resolvedJobId = selectedJobId ?? defaultJobId;
+  // defaultJobId auto-fills the split-pane board's right column, and it's
+  // component state — it survives a client-side switch to the Applied/Favourite
+  // tab (no remount). It must NOT leak into those flat lists: their whole design
+  // is "nothing expanded until an explicit click", and an expansion driven by
+  // this state (not the URL `job` param) can't be dismissed by Collapse, which
+  // only clears the URL. So on a flat stage, selection comes from the URL alone.
+  const resolvedJobId = selectedJobId ?? (isFlatStage ? null : defaultJobId);
 
   const selectedJob = useMemo(
     () => {
-      if (resolvedJobId) return visibleJobs.find((j) => j.id === resolvedJobId) ?? (visibleJobs[0] ?? null);
-      return null;
+      if (!resolvedJobId) return null;
+      const found = visibleJobs.find((j) => j.id === resolvedJobId);
+      if (found) return found;
+      // The split-pane board fills its right column with the first job when the
+      // requested id isn't in the current list. The flat accordion must NOT —
+      // a stale/non-matching id there means "nothing expanded", so Collapse and
+      // fresh navigation behave the same as a full reload.
+      return isFlatStage ? null : (visibleJobs[0] ?? null);
     },
-    [visibleJobs, resolvedJobId],
+    [visibleJobs, resolvedJobId, isFlatStage],
   );
 
   // The job the user actually asked for, ignoring the auto-selected default.
