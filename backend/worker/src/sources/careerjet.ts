@@ -242,6 +242,15 @@ async function resolveTrackingUrls(jobs: RawJob[]): Promise<RawJob[]> {
   return out;
 }
 
+/** Carries the HTTP status so callers can tell fatal auth failures (401/403 —
+ *  bad key, or this egress IP isn't whitelisted) from transient ones. */
+class CareerjetApiError extends Error {
+  constructor(readonly statusCode: number, message: string) {
+    super(message);
+    this.name = "CareerjetApiError";
+  }
+}
+
 async function fetchPage(
   apiKey:   string,
   keyword:  string,
@@ -280,7 +289,10 @@ async function fetchPage(
   });
 
   if (res.statusCode !== 200) {
-    throw new Error(`Careerjet API HTTP ${res.statusCode}: ${String(res.body ?? "").slice(0, 300)}`);
+    throw new CareerjetApiError(
+      res.statusCode,
+      `Careerjet API HTTP ${res.statusCode}: ${String(res.body ?? "").slice(0, 300)}`,
+    );
   }
   return JSON.parse(String(res.body)) as CareerjetApiResponse;
 }
@@ -309,6 +321,9 @@ export const careerjetAdapter: SourceAdapter = {
 
     const allJobs: RawJob[] = [];
     const seenUrls = new Set<string>();
+    // Tracks non-fatal page errors so a fetch that produced NOTHING because
+    // every request failed is reported as a failure, not as "0 jobs found".
+    let lastPageError: unknown = null;
 
     // Careerjet has no date filter, so we lean on sort=date (newest first) +
     // dedup. First run goes deeper; incremental runs stay shallow.
@@ -327,6 +342,17 @@ export const careerjetAdapter: SourceAdapter = {
           body = await fetchPage(apiKey, keyword, location, page, userIp);
         } catch (err) {
           console.error(`[careerjet] "${keyword}" page ${page} error: ${err instanceof Error ? err.message : err}`);
+          // 401/403 mean the key is bad or this egress IP isn't whitelisted —
+          // every remaining request fails identically, so fail the whole fetch
+          // now. Swallowing it made a fully-broken source look like a clean
+          // "0 jobs" run: the orchestrator recorded a SUCCESS, which cleared
+          // the health counter, so isBlocked() could never fire and nothing
+          // surfaced the breakage. See docs — the Fly egress IP must be
+          // whitelisted on the Careerjet affiliate account.
+          if (err instanceof CareerjetApiError && (err.statusCode === 401 || err.statusCode === 403)) {
+            throw err;
+          }
+          lastPageError = err;
           break;
         }
 
@@ -382,6 +408,15 @@ export const careerjetAdapter: SourceAdapter = {
       }
 
       if (i < profile.keywords.length - 1) await sleep(KEYWORD_DELAY);
+    }
+
+    // Nothing fetched AND at least one request errored → the source is broken,
+    // not merely empty. Reported as a failure so the health tracker counts it
+    // (3 consecutive → auto-skip) instead of treating it as a successful run
+    // that happened to match no jobs. A genuine 0-hit search leaves
+    // lastPageError null and still returns normally.
+    if (allJobs.length === 0 && lastPageError) {
+      throw lastPageError;
     }
 
     console.log(`[careerjet] done — ${allJobs.length} unique jobs across ${profile.keywords.length} keyword(s)`);
