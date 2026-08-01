@@ -63,6 +63,11 @@ backend/worker/jora_test_*.json
 backend/worker/test-update.js
 backend/worker/fix-dead-links.js
 
+# Generated output from the perf-measurement scripts — regenerate with
+# `node scripts/discover-routes.mjs` / `measure-everything.mjs`, don't commit.
+frontend/web/scripts/.measure-everything-results.json
+frontend/web/scripts/.routes-manifest.json
+
 # Scraper probe/debug scripts — one-off diagnostics, not production code
 backend/worker/scripts/seek-*.ts
 backend/worker/scripts/.seek-capture/
@@ -80,13 +85,30 @@ backend/worker/src/sources/*/storage/
 backend/worker/apify-actors/*/storage/
 
 # Postman desktop/VS Code extension local workspace sync — not app code.
-# NOTE: .postman/collections/jobtrackr-api.openapi.yaml IS tracked (the real
-# OpenAPI spec) — only ignore the local workspace-link file + the separate
-# empty postman/ scaffold folder it also creates.
 .postman/resources.yaml
 postman/
 references/*
 
+# Postman OpenAPI spec import — kept locally only, not read by CI/deploy/app.
+.postman/collections/
+
 # Design mockups / HTML prototypes — contain secrets, never committed
 form-patterns.html
 nav-mockup.html
+job-board-toolbar-v2.html
+
+# opencode CLI tooling — local dev tool config only, not read by CI/deploy
+# or the app itself. Keep locally; do not sync to remote.
+/opencode.json
+/package.json
+/package-lock.json
+.opencode/skills/
+
+# Claude Code personal tool config — agent/command/hook/preview defs are
+# a personal workflow choice, not read by CI/deploy/app. graph.json stays
+# tracked (session-continuity state per CLAUDE.md). Keep these locally.
+.claude/agents/
+.claude/commands/
+.claude/prompts/
+.claude/settings.json
+.claude/launch.json

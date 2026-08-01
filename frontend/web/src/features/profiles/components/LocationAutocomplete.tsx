@@ -6,6 +6,7 @@ interface Props {
   name:          string;
   defaultValue?: string;
   placeholder?:  string;
+  required?:     boolean;
 }
 
 /**
@@ -16,7 +17,7 @@ interface Props {
  * The ", Australia" suffix is stripped from selected values to keep the stored
  * string in the "Sydney NSW" shape the worker sources expect.
  */
-export function LocationAutocomplete({ name, defaultValue = "", placeholder }: Props) {
+export function LocationAutocomplete({ name, defaultValue = "", placeholder, required }: Props) {
   const [value, setValue]         = useState(defaultValue);
   const [suggestions, setSugg]    = useState<string[]>([]);
   const [open, setOpen]           = useState(false);
@@ -110,6 +111,7 @@ export function LocationAutocomplete({ name, defaultValue = "", placeholder }: P
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         autoComplete="off"
+        required={required}
         className="field"
       />
       {open && (

@@ -154,7 +154,7 @@ backend/api/app/
 1. **Two services, one DB.** `frontend/web` + `backend/worker` stay TypeScript. `backend/api` stays Python (FastAPI). Communicating via HMAC-signed HTTP. Shared Supabase.
 2. **No logic porting.** cv-magic's pipeline orchestrator, 7 step files, ReportLab PDF generator, AI prompts — all stay Python verbatim.
 3. **Strip cv-magic of:** Clerk auth, Stripe billing, quota, Resend email, webhooks, user/company/cv_versions routes (we add our own).
-4. **BYOK only.** Users supply Anthropic / OpenAI keys. Encrypted with the same AES-256-GCM helper JobTrackr already uses for Apify.
+4. **Platform-wide AI provider (BYOK removed 2026-06-16, see graph.json D20).** Single admin-managed provider/key/model in `platform_ai_settings`, replacing per-user BYOK keys. Encrypted with the same AES-256-GCM helper JobTrackr already uses for Apify.
 5. **Realtime everywhere.** Frontend subscribes to Supabase `postgres_changes` on `analysis_runs` row for live step status. No polling.
 6. **Additive DB changes only.** Never ALTER existing JobTrackr tables. Only INSERT new tables (`cv_versions`, `analysis_runs`) and extend the `user_integrations.provider` value set.
 7. **Phased rollout with manual verification.** Each phase ends with a checkpoint to be tested on the Vercel preview URL before moving to the next.
@@ -228,6 +228,6 @@ standardises the format.
 - **Tailwind 4** — uses CSS-native config (`@theme` in globals.css), not `tailwind.config.js`
 - **Theme system** — 6 themes (aurora-light is default). CSS variables under `:root.theme-*` in globals.css. Auth pages hardcode Aurora Light palette intentionally (no theme class pre-login).
 - **Deploy** — `main` branch → Vercel preview (not production). Production JobTrackr is a separate repo.
-- **BYOK** — Users supply their own AI keys (Anthropic/OpenAI). Encrypted with AES-256-GCM.
+- **Platform-wide AI provider** — BYOK removed 2026-06-16; single admin-managed key in `platform_ai_settings` (`/dashboard/admin/ai-settings`), not per-user. Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`
 - **Additive DB changes only** — Never ALTER existing tables. Only INSERT new tables and extend value sets.

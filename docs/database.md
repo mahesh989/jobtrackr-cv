@@ -184,15 +184,15 @@ Created: 001 | RLS: 002
 ---
 
 ### `user_integrations`
-Created: 008 | Extended: 012 (added `anthropic`, `openai`), 014 (added `deepseek`) | RLS: 008
+Created: 008 | Extended: 012 (added `anthropic`, `openai`), 014 (added `deepseek`) | AI provider rows deleted 060 (BYOK removed, see D20) | RLS: 008
 
-Stores per-user third-party credentials (worker keys + BYOK AI keys). Credentials are AES-256-GCM encrypted before storage — `encrypted_api_key` format: `base64(iv[16] || authTag[16] || ciphertext)`. One row per `(user_id, provider)`.
+Stores per-user third-party credentials — worker/scraper keys only (Apify/SEEK token) plus email integration. Migration 060 (2026-06-16) deleted all `anthropic`/`openai`/`deepseek` rows and moved AI provider config to the platform-wide `platform_ai_settings` table; those provider values are no longer written. Credentials are AES-256-GCM encrypted before storage — `encrypted_api_key` format: `base64(iv[16] || authTag[16] || ciphertext)`. One row per `(user_id, provider)`.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | `uuid` | **PK** |
 | `user_id` | `uuid` | → `users` ON DELETE CASCADE |
-| `provider` | `text` | `'apify' \| 'linkedin' \| 'indeed' \| 'anthropic' \| 'openai' \| 'deepseek'` (final after 014) |
+| `provider` | `text` | `'apify' \| 'linkedin' \| 'indeed'` in active use; `'anthropic' \| 'openai' \| 'deepseek'` values still allowed by the enum but no longer written (AI moved to `platform_ai_settings`, see D20) |
 | `encrypted_api_key` | `text` | AES-256-GCM blob; never returned to browser |
 | `status` | `text` | `'pending_validation' \| 'valid' \| 'invalid' \| 'expired' \| 'revoked' \| 'quota_exceeded' \| 'disabled'` |
 | `status_reason` | `text` | human-readable, shown in UI |
