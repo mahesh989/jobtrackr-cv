@@ -9,7 +9,7 @@
  *   + redirects to My CV page where the user can set it as active.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
@@ -30,17 +30,11 @@ import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
-  type SaveStatus, type OptionalKey } from "./ReviewComponents";
+  type OptionalKey } from "./ReviewComponents";
 import { Section, Grid, GhostField, GhostTextarea, DatesField, BulletRow, SkillsBucket, TimelineEntry, EmptyState, AddBtn, RemoveBtn } from "./ReviewFields";
 import { joinDatesLabel, clientGaps, createGaps, expHasContent, expComplete, eduHasContent, eduComplete, validateCreate, emptyExperience, emptyEducation } from "./reviewValidation";
 import { withSetupParams } from "@/lib/setupParams";
-
-const AUTOSAVE_MS = 10_000;
-
-// Canonical serialization used for dirty-checking — must build the payload
-// exactly the way persist() does so snapshot comparison is byte-accurate.
-const serializeCv = (d: StructuredCv, cs: CustomCvSection[]) =>
-  JSON.stringify({ ...d, custom_sections: cs });
+import { useReviewAutosave } from "./useReviewAutosave";
 
 type SectionKey =
   | "skills" | "summary" | "experience" | "education"
@@ -68,9 +62,6 @@ export function ReviewClient({
       experience: initialStructuredCv.experience.length > 0 ? initialStructuredCv.experience : [emptyExperience()],
       education:  initialStructuredCv.education.length  > 0 ? initialStructuredCv.education  : [emptyEducation()] };
   });
-  const [status, setStatus] = useState<string>(initialStatus);
-  const [save,   setSave]   = useState<SaveStatus>("idle");
-  const [err,    setErr]    = useState<string | null>(null);
 
   // Create mode: which opt-in sections are currently shown.
   const [enabledOptional, setEnabledOptional] = useState<Set<OptionalKey>>(() => {
@@ -113,87 +104,12 @@ export function ReviewClient({
     return () => clearTimeout(t);
   }, [searchParams]);
 
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Snapshot of the last server-acknowledged payload. Autosave only fires
-  // when the current state actually differs from this — no diff, no request.
-  const lastSaved = useRef<string>(serializeCv(initialStructuredCv,
-    (initialStructuredCv as { custom_sections?: CustomCvSection[] }).custom_sections ?? []));
-
-  const persist = useCallback(async (next: StructuredCv, cs: CustomCvSection[], verified: boolean, opts?: { keepalive?: boolean }) => {
-    setSave("saving");
-    setErr(null);
-    try {
-      const payload = { ...next, custom_sections: cs };
-      const res = await fetch(`/api/cv/${cvId}/structured`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ structured_cv: payload, verified }),
-        // keepalive lets the request survive the page being torn down
-        // (tab close / navigation) — used only by the dirty-flush paths.
-        keepalive: opts?.keepalive ?? false });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({})) as { error?: string };
-        setSave("error");
-        setErr(j.error ?? `Save failed (${res.status})`);
-        return false;
-      }
-      lastSaved.current = JSON.stringify(payload);
-      const j = await res.json() as { structured_cv_status: string };
-      setStatus(j.structured_cv_status);
-      setSave("saved");
-      return true;
-    } catch (e) {
-      setSave("error");
-      setErr(e instanceof Error ? e.message : "Save failed");
-      return false;
-    }
-  }, [cvId]);
-
-  useEffect(() => {
-    // Create mode: no autosave — user saves explicitly via the Save button.
-    if (isCreate) return;
-    // Dirty-check: skip when nothing actually changed (also covers the
-    // initial mount and StrictMode's dev double-mount — same snapshot, no-op).
-    if (serializeCv(doc, customSects) === lastSaved.current) return;
-    setSave("dirty");
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { persist(doc, customSects, false); }, AUTOSAVE_MS);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [doc, customSects, persist, isCreate]);
-
-  // Flush a dirty buffer when the tab is hidden or the page is torn down —
-  // otherwise an edit made within AUTOSAVE_MS of leaving would be lost.
-  useEffect(() => {
-    if (isCreate) return;
-    const flushIfHidden = () => {
-      if (document.visibilityState !== "hidden") return;
-      if (serializeCv(doc, customSects) === lastSaved.current) return;
-      if (timer.current) clearTimeout(timer.current);
-      void persist(doc, customSects, false, { keepalive: true });
-    };
-    document.addEventListener("visibilitychange", flushIfHidden);
-    window.addEventListener("pagehide", flushIfHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", flushIfHidden);
-      window.removeEventListener("pagehide", flushIfHidden);
-    };
-  }, [doc, customSects, persist, isCreate]);
-
-  // Same flush for in-app navigation (e.g. "Back to Profile"), which unmounts
-  // the component without firing pagehide. Latest state is read via a ref so
-  // this effect registers its cleanup once.
-  const latest = useRef({ doc, customSects });
-  useEffect(() => { latest.current = { doc, customSects }; }, [doc, customSects]);
-  useEffect(() => {
-    if (isCreate) return;
-    return () => {
-      const { doc: d, customSects: cs } = latest.current;
-      if (serializeCv(d, cs) === lastSaved.current) return;
-      if (timer.current) clearTimeout(timer.current);
-      void persist(d, cs, false, { keepalive: true });
-    };
-  }, [isCreate, persist]);
+  // Autosave, dirty-flush and save status all live in the hook — see
+  // useReviewAutosave for why each ref there is load-bearing.
+  const { save, err, status, persist, cancelPending } = useReviewAutosave({
+    cvId, doc, customSects, initialStructuredCv, initialStatus,
+    enabled: !isCreate,
+  });
 
   // Create-mode validation — Experience and Education are mandatory before a
   // CV can be marked "Reviewed". Drafts skip this entirely.
@@ -220,7 +136,7 @@ export function ReviewClient({
   // Create mode: save as draft — no validation, stays unverified. User can
   // come back and finish later.
   async function saveDraft() {
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     const ok = await persist(doc, customSects, false);
     if (ok) { savedRef.current = true; returnToCard(); }
   }
@@ -234,7 +150,7 @@ export function ReviewClient({
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     const ok = await persist(doc, customSects, true);
     if (ok) { savedRef.current = true; returnToCard(); }
   }
@@ -242,7 +158,7 @@ export function ReviewClient({
   // Create mode: cancel — discard the never-saved blank draft, then return.
   const [cancelling, setCancelling] = useState(false);
   async function cancelCreate() {
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     if (initiallyEmpty.current && !savedRef.current) {
       setCancelling(true);
       try {
