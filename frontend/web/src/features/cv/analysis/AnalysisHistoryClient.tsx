@@ -7,8 +7,7 @@ import {
   Clock,
   Loader2,
   XCircle,
-  ArrowRight,
-  Building2,
+  ChevronRight,
   Filter,
 } from "lucide-react";
 import { formatDateTime as fmtDate } from "@/lib/dates";
@@ -45,22 +44,27 @@ interface Props {
 
 function StatusIcon({ status }: { status: HistoryRun["status"] }) {
   if (status === "completed")
-    return <CheckCircle2 className="h-5 w-5 shrink-0 text-green" />;
+    return <CheckCircle2 className="h-4 w-4 shrink-0 text-green" />;
   if (status === "running")
-    return <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand)]" />;
+    return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--brand)]" />;
   if (status === "failed")
-    return <XCircle className="h-5 w-5 shrink-0 text-red" />;
-  return <Clock className="h-5 w-5 shrink-0 text-text-3" />;
+    return <XCircle className="h-4 w-4 shrink-0 text-red" />;
+  return <Clock className="h-4 w-4 shrink-0 text-text-3" />;
+}
+
+interface HistoryRowData {
+  run:       HistoryRun;
+  job:       HistoryJob | undefined;
+  groupSize: number;
+  isFirst:   boolean;
 }
 
 /**
- * Analysis history — ported from cv-magic's analysis-history-client.tsx.
- *
- * Structure matches cv-magic exactly:
- *   • space-y-6 between company sections (24px gap — bigger breathing room)
- *   • Each section: rounded-lg border bg-[var(--surface)] (8px corners)
- *   • Header: Building2 icon + serif company name + job-title pill
- *   • Body: divide-y list of run rows with status icon + match% + arrow
+ * Analysis history — dense grid-table, matching ProfilesTable's pattern
+ * (uppercase caption header row + flat grid rows) instead of a bordered
+ * card per job. At 100+ runs the old per-job-section layout (own border,
+ * header, divide-y list) cost ~90-100px per row for the common single-run
+ * case; this is one table, ~48px/row, same info.
  */
 export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -76,16 +80,21 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
     return initialRuns.filter((r) => r.status === filter);
   }, [initialRuns, filter]);
 
-  const grouped = useMemo(() => {
+  const rows = useMemo(() => {
     const groups = new Map<string, HistoryRun[]>();
     for (const r of filtered) {
       if (!groups.has(r.job_id)) groups.set(r.job_id, []);
       groups.get(r.job_id)!.push(r);
     }
-    return Array.from(groups.entries()).sort(
+    const ordered = Array.from(groups.entries()).sort(
       (a, b) => (b[1][0]?.created_at ?? "").localeCompare(a[1][0]?.created_at ?? ""),
     );
-  }, [filtered]);
+    return ordered.flatMap(([jobId, runs]) =>
+      runs.map((run, i): HistoryRowData => ({
+        run, job: jobById.get(jobId), groupSize: runs.length, isFirst: i === 0,
+      })),
+    );
+  }, [filtered, jobById]);
 
   const counts = useMemo(() => {
     const c = { all: initialRuns.length, completed: 0, running: 0, failed: 0 } as Record<StatusFilter, number>;
@@ -128,92 +137,87 @@ export function AnalysisHistoryClient({ initialRuns, jobs }: Props) {
         </label>
       </div>
 
-      {grouped.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center">
           <p className="text-sm text-text-3">No runs match this filter.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {grouped.map(([jobId, runs]) => {
-            const job = jobById.get(jobId);
-            return (
-              <section
-                key={jobId}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
-              >
-                <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3">
-                  <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                    <Building2 className="h-4 w-4 shrink-0 text-text-3" />
-                    <HoverPrefetchLink
-                      href={`/jobs/${jobId}/analyze/${runs[0].id}`}
-                      className="text-sm font-semibold text-text hover:text-[var(--brand)] truncate"
-                    >
-                      {job?.company ?? job?.title ?? "Unknown job"}
-                    </HoverPrefetchLink>
-                    {job?.title && job?.company && (
-                      <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-text-3 truncate">
-                        {job.title}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-text-3 shrink-0">
-                    {runs.length} run{runs.length === 1 ? "" : "s"}
-                  </span>
-                </header>
-
-                <ul className="divide-y divide-[var(--border)]">
-                  {runs.map((r, i) => <RunRow key={r.id} run={r} superseded={i > 0} />)}
-                </ul>
-              </section>
-            );
-          })}
+        <div className="bg-surface border border-border rounded-md overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+          <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-surface-2 border-b border-border text-caption font-semibold text-text-2 uppercase tracking-wider">
+            <div className="col-span-5">Job</div>
+            <div className="col-span-2">Score</div>
+            <div className="col-span-2">Date</div>
+            <div className="col-span-3">Status</div>
+          </div>
+          {rows.map((row) => <RunRow key={row.run.id} row={row} />)}
+          </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function RunRow({ run, superseded }: { run: HistoryRun; superseded: boolean }) {
+function RunRow({ row }: { row: HistoryRowData }) {
+  const { run, job, groupSize, isFirst } = row;
   // Show the final tailored score if available, otherwise the initial score
   const finalScore = run.tailored_match_score ?? run.match_score;
   const isTailored = run.tailored_match_score != null;
-  const scoreLabel = finalScore != null ? `${Math.round(finalScore)}%` : "Analysis";
+  const scoreLabel = finalScore != null ? `${Math.round(finalScore)}%` : "—";
+  const superseded = !isFirst && run.is_stale !== false;
 
   return (
-    <li>
-      <HoverPrefetchLink
-        href={`/jobs/${run.job_id}/analyze/${run.id}`}
-        className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--surface-2)]/60 transition-colors"
-      >
-        <StatusIcon status={run.status} />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap text-sm">
-            <span className="font-medium text-text tabular-nums">{scoreLabel}</span>
-            {isTailored && run.match_score != null && (
-              <span className="text-caption text-text-3 tabular-nums">
-                (initial {Math.round(run.match_score)}%)
-              </span>
-            )}
-            <span className="text-xs text-text-3 tabular-nums">{fmtDate(run.created_at)}</span>
-            {superseded && run.is_stale !== false && (
-              <span className="rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-micro font-bold uppercase tracking-wide text-text-3">
-                superseded
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-xs text-text-3 capitalize">
-            {run.status}
-            {run.status === "failed" && run.error_message && (
-              <span className="text-text-3 ml-1 truncate" title={run.error_message}>
-                — {run.error_message.slice(0, 80)}
-              </span>
-            )}
-          </p>
+    <HoverPrefetchLink
+      href={`/jobs/${run.job_id}/analyze/${run.id}`}
+      className="grid grid-cols-12 gap-2 items-center px-4 py-2.5 border-b border-border last:border-0 hover:bg-surface-2 transition-colors"
+    >
+      <div className="col-span-5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-body font-semibold text-text truncate">
+            {job?.title ?? "Unknown job"}
+          </span>
+          {isFirst && groupSize > 1 && (
+            <span className="shrink-0 rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-micro font-bold text-text-3">
+              {groupSize} runs
+            </span>
+          )}
+          {superseded && (
+            <span className="shrink-0 rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-micro font-bold uppercase tracking-wide text-text-3">
+              superseded
+            </span>
+          )}
         </div>
+        <p className="text-caption text-text-2 truncate">
+          {job?.company ?? "—"}{job?.location ? ` · ${job.location}` : ""}
+        </p>
+      </div>
 
-        <ArrowRight className="h-4 w-4 shrink-0 text-text-3" />
-      </HoverPrefetchLink>
-    </li>
+      <div className="col-span-2 min-w-0">
+        <span className="text-body font-medium text-text tabular-nums">{scoreLabel}</span>
+        {isTailored && run.match_score != null && (
+          <p className="text-caption text-text-3 tabular-nums">
+            initial {Math.round(run.match_score)}%
+          </p>
+        )}
+      </div>
+
+      <div className="col-span-2 min-w-0">
+        <span className="text-label text-text-2 tabular-nums truncate block">{fmtDate(run.created_at)}</span>
+      </div>
+
+      <div className="col-span-3 flex items-center gap-1.5 min-w-0">
+        <StatusIcon status={run.status} />
+        <span
+          className="text-label text-text-2 capitalize truncate"
+          title={run.status === "failed" ? run.error_message ?? undefined : undefined}
+        >
+          {run.status}
+          {run.status === "failed" && run.error_message ? ` — ${run.error_message.slice(0, 60)}` : ""}
+        </span>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-3 ml-auto" />
+      </div>
+    </HoverPrefetchLink>
   );
 }
