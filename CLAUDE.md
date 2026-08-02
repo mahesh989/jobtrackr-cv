@@ -17,9 +17,20 @@ Frontend and worker communicate with backend/api via HMAC-signed HTTP. Never exp
 **SESSION START — mandatory:**
 1. Read `.claude/graph.json` in full
 2. Read `docs/design.md` (skim if already familiar)
-3. Check `build_state.current_phase` and `build_state.next_action` — resume there
-4. Within the current phase, find the next task with `status: planned` whose `depends_on` are all `completed`
-5. Do NOT skip phases. Each phase has a verification gate that must pass before moving on
+3. Check `build_state.current_phase` — as of 2026-08-02 this reads
+   **phase-13 COMPLETE, LIVE in production**: the original phased
+   rollout is done and this repo has been in general maintenance mode
+   (refactors, bug fixes, audits — see `_meta.session_notes` and
+   `known_issues`/`deferred_features`) for several weeks. There is no
+   `planned`-status task queue to resume by default.
+4. If `build_state` ever shows a genuinely new phase in flight again
+   (a fresh `next_action` with real `planned` tasks under it), the
+   original discipline still applies: find the next task whose
+   `depends_on` are all `completed`, and do NOT skip phases — each one
+   has a verification gate that must pass before moving on.
+5. Otherwise, treat the session as maintenance work: check
+   `known_issues` / `deferred_features` for open items, or follow
+   whatever the user asks for directly.
 6. Do NOT modify production JobTrackr (`/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr`) — this is a separate project
 
 **DURING SESSION — update graph.json immediately when:**
@@ -84,17 +95,22 @@ frontend/web/src/
       server/       # getAuthUser, handleSignOut, guards
     cv/             # CV library, review editor, tailoring, voice/stories
       analysis/     # AnalysisRun, CoverLetter, Feasibility
-      library/      # LibraryClient, ReviewClient
+      library/      # LibraryClient; ReviewClient split into ReviewClient.tsx
+                    #   (state) + ReviewSections.tsx (the 10 render blocks) +
+                    #   cvDocPatchers.ts (structured-CV updaters) +
+                    #   useReviewAutosave.ts — extracted PR #74-#77, 2026-08
       profile/      # Profile details form (sections, context, ProfileFormComponents)
       voice/        # CaptureClient, Stories
     jobs/           # Job boards, search, scraping
-      components/   # JobBoard, SmartFeed, SmartToolbar, etc.
+      components/   # JobBoard, SmartFeed, SmartToolbar, FeedCards/ (split into
+                    #   cards/chips/context/parts/shell.tsx, PR #75)
       lib/          # jobFilters, pipelineState, progressFlags
     profiles/       # CV profiles (multi-CV support)
       components/   # ProfileForm, ProfilesTable, RunJobsTable
     admin/          # Admin dashboards (RangeFilter, AiSettings, SourcesCard)
     billing/        # Stripe billing (ManageButton, PlanCards, UsageMeter)
-    dashboard/      # Dashboard home page (StatCards, PipelineDonut)
+    dashboard/      # Dashboard home page — thin page.tsx +
+                    #   getDashboardData.ts (data fetch extracted, PR #72)
     integrations/   # Third-party integrations (ApifyCard, EmailIntegrationCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
@@ -116,6 +132,18 @@ backend/api/app/
     verticals/      # Job vertical/role family classification
   schemas/          # Pydantic models
   security/         # HMAC signing, auth helpers
+
+backend/worker/src/
+  pipeline/         # Job-discovery pipeline
+    orchestrator/   # runPipeline + one file per stage (types, profile,
+                    #   apifyIntegration, platformSources, concurrency,
+                    #   lookback, bucketCoverage, earlyDedup, jobFacts,
+                    #   enrichment, sourceFetch, runPipeline, index —
+                    #   split from a single 1667-line orchestrator.ts, PR #78)
+    normalise.js, dedup.js, save.js, coverage.js, bucket.js, ...
+  sources/          # Per-board adapters (Adzuna, SEEK, Careerjet, ...)
+  ai/               # Visa/setting/JD-facts extraction
+  notifications/    # Alerts, digests, gate
 ```
 
 ## Key Patterns
@@ -179,20 +207,30 @@ This repo's `main` deploys to Vercel preview, not to the production JobTrackr do
 ## Model Routing
 
 This project uses tiered models for different roles. Do not override
-these defaults without explicit user instruction.
+these defaults without explicit user instruction. Model IDs verified
+current as of 2026-08-02 — the Claude 5 family (Sonnet 5, Opus 5,
+Fable 5) plus Haiku 4.5. Re-verify before trusting an older ID here.
 
 | Role | Model | When |
 |---|---|---|
-| Main session | claude-sonnet-4-6 | All hands-on coding work |
-| Planning | claude-haiku-4-5 | Via /plan or planner subagent |
-| Auditing | claude-opus-4-7 | Via /audit or auditor subagent only, never as main session |
-| Migration checks | claude-sonnet-4-6 | Via migration-checker subagent before any Supabase migration work |
-
-Opus is the senior reviewer, not the executor. Do not run Opus as the
-main session model — it's expensive and unnecessary for most work.
+| Exploring & planning | Fable 5 | Research phase and plan-mode design — standing user preference (2026-07-13): explore/plan on Fable, switch to Sonnet 5 once a plan is approved and it's time to write code |
+| Main session (execution) | Sonnet 5 | All hands-on coding work, once a plan is approved |
+| Deep audit / second opinion | Opus 5 | `/code-review` (`ultra` for a multi-agent cloud review) or `/security-review` for the pending diff; for anything narrower, pass `model: "opus"` to the Agent tool. Never run Opus as the main session model — it's the senior reviewer, not the executor |
+| Migration checks | `migration-checker` subagent (Sonnet 5) | Before any Supabase migration work — see `.claude/agents/migration-checker.md`. Checks a proposed migration against this doc's additive-only rules (Non-Negotiable Decisions #6) before it's applied |
 
 If a session starts on the wrong model, switch via /model before
 beginning substantive work.
+
+Historical note: earlier versions of this table referenced
+`claude-sonnet-4-6` / `claude-haiku-4-5` / `claude-opus-4-7` and a
+`/plan` + `/audit` + `planner`/`auditor` subagent setup. Those model IDs
+don't exist and those subagents were never actually configured in
+`.claude/agents/` on this machine (`.claude/agents/` is gitignored —
+see the note in `.gitignore` — so this can silently drift per machine).
+Corrected 2026-08-02 to what's real: Fable/Sonnet routing per the
+user's actual stated preference, and the built-in `Plan` agent type /
+`/code-review` skill for planning and auditing respectively, since
+those already exist and do the job without inventing new tooling.
 
 ## Session Management Rules
 
@@ -213,8 +251,11 @@ Proactively recommend a fresh session when:
 ### How to recommend a new session
 
 When you decide a new session is warranted, invoke the /handoff slash
-command. Do not write the handoff block manually — the command
-standardises the format.
+command (`.claude/commands/handoff.md`, local-only — gitignored, so
+confirm it still exists on whichever machine you're running from). It
+produces a standardised summary: branch/PR state, what was completed,
+what's next, open gotchas. If it's missing, write the same five things
+manually rather than skipping the handoff.
 
 ### What not to do
 

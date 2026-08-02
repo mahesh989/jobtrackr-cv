@@ -112,3 +112,5 @@ job-board-toolbar-v2.html
 .claude/prompts/
 .claude/settings.json
 .claude/launch.json
+backend/worker/src/sources/careerjet_actor/node_modules/
+backend/worker/src/sources/*/node_modules/
