@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "check:auth": "node scripts/check-route-auth.mjs",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.5.3",
@@ -38,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
