@@ -337,7 +337,7 @@ vi.mock("../automation/triggerAutoAnalyze.js", () => ({
   }),
 }));
 
-const { runPipeline } = await import("./orchestrator.js");
+const { runPipeline } = await import("./orchestrator/index.js");
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 // Descriptions deliberately contain NO closing-date language: extractClosingDate
