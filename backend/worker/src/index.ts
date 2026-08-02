@@ -6,7 +6,7 @@ import "./pipeline/logContext.js";
 import { Worker } from "bullmq";
 import { connection, QUEUE_NAME } from "./queue/connection.js";
 import type { PipelineJobData } from "./queue/queue.js";
-import { runPipeline } from "./pipeline/orchestrator.js";
+import { runPipeline } from "./pipeline/orchestrator/index.js";
 import { syncSchedules, registerGlobalSchedules } from "./queue/scheduler.js";
 import { runWeeklyDigest } from "./notifications/weeklyDigest.js";
 import { runNotifySweep } from "./notifications/newJobsSweep.js";

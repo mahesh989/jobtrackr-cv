@@ -77,6 +77,31 @@ from app.services.pipeline.steps.tailored_cv import (
 
 logger = logging.getLogger(__name__)
 
+# Extracted to focused submodules (behaviour-preserving — same objects, new
+# home). Re-imported so _impl's remaining code and the test-suite keep
+# referencing them unqualified, and the writers barrel keeps mirroring them.
+from app.services.eval.writers.career_highlights import (  # noqa: E402,F401
+    _CAREER_HIGHLIGHTS_FLOOR,
+    _career_highlights_word_count,
+    _ensure_career_highlights_floor,
+    _replace_career_highlights_prose,
+)
+from app.services.eval.writers.summary_anchors import (  # noqa: E402,F401
+    _SUMMARY_HEADING_ALIASES,
+    _YEARS_FIGURE_RE,
+    _ensure_summary_anchors_both_employers,
+    _summary_named_employers,
+)
+from app.services.eval.writers.bullet_rewrites import (  # noqa: E402,F401
+    _BULLET_MARKERS,
+    _kw_norm,
+    _targeted_bullet_rewrites,
+)
+from app.services.eval.writers.reporting import (  # noqa: E402,F401
+    _log_tailoring_report,
+    _persist_quality_flags,
+)
+
 
 @dataclass
 class WriterResult:
@@ -213,36 +238,6 @@ from app.services.eval.writers.experience import (  # noqa: E402,F401
     _DATE_WITH_DAY_RE, normalise_date_formats,
 )
 
-# ---------------------------------------------------------------------------
-# Display-heading unification for the summary block.
-#
-# Heading rule (overrides any role-family default):
-#   • YEARS framing in S1 (numeric years figure / "a decade" / "for several
-#     years") → "## Career Highlights"
-#   • BREADTH framing in S1 (scope phrase, recent placement, no years figure)
-#     → "## Professional Summary"
-#
-# Runs as the very last step in the pipeline so every internal helper
-# (validators, enforcers, word-floor retry, restore_and_order) has already
-# completed. Operates on any of the three observed summary heading aliases
-# (Career Highlights / Professional Summary / Summary) so a role family's
-# default name does not block the override.
-# ---------------------------------------------------------------------------
-_SUMMARY_HEADING_ALIASES = (
-    "## Career Highlights",
-    "## Professional Summary",
-    "## Summary",
-)
-_YEARS_FIGURE_RE = re.compile(
-    r"\b("
-    r"\d+\+?\s+years?"            # "5 years", "10+ years"
-    r"|over\s+\d+\s+years?"       # "over 3 years"
-    r"|a\s+decade"                # "a decade"
-    r"|several\s+years?"          # "several years"
-    r"|many\s+years?"             # "many years"
-    r")\b",
-    re.IGNORECASE,
-)
 
 
 def _apply_display_heading(md: str) -> str:
@@ -275,238 +270,18 @@ def _apply_display_heading(md: str) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Career Highlights word-floor enforcement — deterministic retry
-#
-# The composer prompt (composition.py) declares 35 words a HARD MINIMUM for
-# the two-sentence summary, but the LLM does not always comply. Previously
-# the only check was tailored_structural_validation's profile_word_count
-# gate, which just LOGS "fail" on the report — it never fixed anything, so
-# an under-length summary shipped to the user unchanged. This makes the
-# floor self-healing: one targeted retry that asks the model to expand the
-# existing summary with additional CV-grounded facts, not pad it.
-# ---------------------------------------------------------------------------
-
-_CAREER_HIGHLIGHTS_FLOOR = 35
 
 
-def _career_highlights_word_count(md: str) -> tuple[int, str]:
-    """Return (word_count, prose) for the canonical '## Career Highlights' body."""
-    heading = "## Career Highlights"
-    lines = md.split("\n")
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
-    if start is None:
-        return 0, ""
-    end = next(
-        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
-        len(lines),
-    )
-    prose = " ".join(
-        ln.strip() for ln in lines[start + 1 : end]
-        if ln.strip() and not ln.strip().startswith(("-", "*"))
-    )
-    return len(prose.split()), prose
 
 
-def _replace_career_highlights_prose(md: str, new_prose: str) -> str:
-    heading = "## Career Highlights"
-    lines = md.split("\n")
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
-    if start is None:
-        return md
-    end = next(
-        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
-        len(lines),
-    )
-    new_lines = lines[: start + 1] + ["", new_prose, ""] + lines[end:]
-    return "\n".join(new_lines)
 
 
-async def _ensure_career_highlights_floor(
-    client: AIClient, md: str, *, system_prompt: str, cv_text: str, jd_text: str,
-) -> str:
-    """If Career Highlights is below the 35-word floor, retry ONCE asking the
-    model to expand it with additional CV-grounded facts (never invented).
-    Keeps the original on any failure or non-improving retry — never loops.
-    """
-    n, prose = _career_highlights_word_count(md)
-    if n == 0 or n >= _CAREER_HIGHLIGHTS_FLOOR:
-        return md
-
-    retry_user = (
-        f"Your previous Career Highlights summary is only {n} words — "
-        "below the 35-50 word HARD MINIMUM declared in your instructions.\n\n"
-        f"Previous summary:\n\"{prose}\"\n\n"
-        "Rewrite it to 35-50 words, EXACTLY two sentences, by EXPANDING with "
-        "additional specific facts from the candidate's CV below — an extra "
-        "JD-aligned specialisation in Sentence 1, or a second quantified "
-        "detail / named method in Sentence 2. Do NOT pad with adjectives or "
-        "filler words. Do NOT invent any fact not present in the CV. Follow "
-        "every other Career Highlights rule from your system instructions "
-        "unchanged (no tool names, no off-axis sector, employer/scope anchor "
-        "in Sentence 2, no seniority word not in the CV's own job titles).\n\n"
-        f"Original CV:\n{cv_text}\n\nJob description:\n{jd_text}\n\n"
-        "Output ONLY the two rewritten sentences — no heading, no markdown, "
-        "no commentary."
-    )
-    try:
-        retried = await client.complete(
-            system=system_prompt,
-            user=retry_user,
-            max_tokens=300,
-            operation="tailored_cv_summary_floor_retry",
-            **TAILORED_CV_GENERATION,
-        )
-    except Exception:
-        logger.warning("career-highlights floor retry failed; keeping %d-word summary", n)
-        return md
-
-    new_prose = (retried or "").strip()
-    new_n = len(new_prose.split()) if new_prose else 0
-    if new_n <= n:
-        # Retry didn't actually expand it — keep the original rather than regress.
-        return md
-
-    logger.info("career-highlights floor retry: %d -> %d words", n, new_n)
-    return _replace_career_highlights_prose(md, new_prose)
 
 
-def _summary_named_employers(prose: str, employers: list[str]) -> list[str]:
-    """Return the subset of `employers` whose name appears in the summary prose
-    (case-insensitive)."""
-    low = prose.lower()
-    return [e for e in employers if e.lower() in low]
 
 
-async def _ensure_summary_anchors_both_employers(
-    client: AIClient, md: str, *, system_prompt: str, cv_text: str, jd_text: str,
-) -> str:
-    """MULTI-ROLE company-anchor corrective retry.
-
-    The composition prompt requires that when the candidate has 2+ multi-month
-    (NAMEABLE-anchor) employers, Sentence 2 names BOTH — one clause each,
-    semicolon-joined. The model sometimes cherry-picks one (e.g. names only the
-    employer that gave an award) and silently drops the other. The deterministic
-    ``_enforce_company_anchor`` net cannot repair this: it treats the summary as
-    "already anchored" the moment ANY one top-2 employer appears, and its regex
-    append cannot restructure an award-shaped S2 into two clauses.
-
-    This retry detects the gap (2+ anchors, but <2 named in the summary) and asks
-    the model ONCE to rewrite Sentence 2 into two method+outcome clauses naming
-    both employers. Accepts the rewrite ONLY when it now names both top-2
-    employers AND stays exactly two sentences; otherwise keeps the original.
-    Never loops, never fabricates (model is told CV-grounded facts only).
-    """
-    if not cv_text:
-        return md
-    employers = _extract_employers_from_cv(cv_text)
-    if len(employers) < 2:
-        return md  # single/none — the two-clause rule does not apply
-
-    n, prose = _career_highlights_word_count(md)
-    if n == 0 or not prose:
-        return md
-    top2 = employers[:2]
-    if len(_summary_named_employers(prose, top2)) >= 2:
-        return md  # both already named — compliant, no change
-
-    retry_user = (
-        "Your previous Career Highlights summary does not name BOTH of the "
-        "candidate's anchor employers, which your instructions require when the "
-        "candidate has two roles with continuous multi-month tenure.\n\n"
-        f"Previous summary:\n\"{prose}\"\n\n"
-        f"The two anchor employers (name BOTH) are: {top2[0]} and {top2[1]}.\n\n"
-        "Rewrite the summary as EXACTLY two sentences, 35-50 words total. Keep "
-        "Sentence 1 (positioning) essentially as-is. Rewrite Sentence 2 as TWO "
-        "clauses joined by a SEMICOLON — one clause per employer above, each "
-        "naming a care METHOD and a concrete CV-grounded outcome (e.g. "
-        "\"Delivered electronic medication administration at "
-        f"{top2[0]}; provided person-centred care at {top2[1]}.\"). "
-        "Use PAST tense for a completed role and PRESENT tense for a role marked "
-        "\"– Present\". Do NOT use the award as Sentence 2. Do NOT invent facts. "
-        "No tool/brand names (use the method they enable). Follow every other "
-        "Career Highlights rule from your system instructions.\n\n"
-        f"Original CV:\n{cv_text}\n\nJob description:\n{jd_text}\n\n"
-        "Output ONLY the two rewritten sentences — no heading, no markdown, "
-        "no commentary."
-    )
-    try:
-        retried = await client.complete(
-            system=system_prompt,
-            user=retry_user,
-            max_tokens=300,
-            operation="tailored_cv_summary_anchor_retry",
-            **TAILORED_CV_GENERATION,
-        )
-    except Exception:
-        logger.warning("summary anchor retry failed; keeping single-employer summary")
-        return md
-
-    new_prose = (retried or "").strip()
-    if not new_prose:
-        return md
-    # Accept ONLY if the rewrite now names both anchors and is still two sentences.
-    if len(_summary_named_employers(new_prose, top2)) < 2:
-        logger.info("summary anchor retry did not name both employers; keeping original")
-        return md
-    sentence_count = len([s for s in re.split(r"(?<=[.!?])\s+", new_prose) if s.strip()])
-    if sentence_count != 2:
-        logger.info("summary anchor retry was not 2 sentences (%d); keeping original", sentence_count)
-        return md
-
-    logger.info("summary anchor retry: now names both %s and %s", top2[0], top2[1])
-    return _replace_career_highlights_prose(md, new_prose)
 
 
-# ---------------------------------------------------------------------------
-# End-of-tailoring report
-# ---------------------------------------------------------------------------
-
-def _log_tailoring_report(
-    *,
-    family_id: str,
-    feasibility: Optional[Dict[str, Any]],
-    matching: Optional[Dict[str, Any]],
-    tailored_md: str,
-) -> None:
-    """One-line summary of where keywords ended up. Used for post-hoc debugging.
-
-    Reports: role family / feasibility-bucket counts / # honest gaps /
-    Skills-section length / first few honest gaps verbatim. The full landings
-    can always be reconstructed by reading tailored_md; this exists so
-    "why did keyword X go missing?" doesn't require grepping 10 per-pass logs.
-    """
-    plan = (feasibility or {}).get("feasibility_plan") or {}
-    direct = len(plan.get("inject_directly") or [])
-    ext    = len(plan.get("inject_as_extension") or [])
-    inf    = len(plan.get("inject_with_inference") or [])
-    gaps   = (feasibility or {}).get("summary", {}).get("honest_gaps") or []
-
-    # Count keywords surfaced in the Skills section (rough: sum of comma-separated
-    # entries across all category lines).
-    skills_entries = 0
-    in_skills = False
-    for line in tailored_md.split("\n"):
-        if line.strip() == "## Skills":
-            in_skills = True
-            continue
-        if in_skills and line.startswith("## "):
-            break
-        if in_skills and "**" in line and ":" in line:
-            after_colon = line.split(":", 1)[1]
-            skills_entries += len([s for s in after_colon.split(",") if s.strip()])
-
-    counts = (matching or {}).get("counts") or {}
-    req = counts.get("required") or {}
-    req_matched = sum(int((req.get(c) or {}).get("matched") or 0) for c in CATEGORY_KEYS)
-    req_total = sum(int((req.get(c) or {}).get("total") or 0) for c in CATEGORY_KEYS)
-
-    logger.info(
-        "tailoring report: family=%s | req_matched=%d/%d | feasibility direct=%d ext=%d inf=%d gaps=%d | "
-        "skills_entries=%d | first_gaps=%s",
-        family_id, req_matched, req_total, direct, ext, inf, len(gaps),
-        skills_entries, ", ".join(gaps[:5]) or "—",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -844,208 +619,10 @@ async def _writer_w8_integrated(
     )
 
 
-# ---------------------------------------------------------------------------
-# Targeted bullet rewrite pass.
-#
-# After composition + verify_claims + all deterministic passes, some
-# inject_as_extension keywords from the feasibility plan may still be absent
-# from the generated CV — the composition LLM paraphrased instead of applying
-# the approved rewrite. This pass detects missed items and runs one small,
-# focused LLM call per bullet to incorporate the keyword.
-#
-# Only fires for inject_as_extension (not inject_directly — those are Skills
-# section items already handled by _inject_approved_skills; not
-# inject_with_inference — inference is too speculative for auto-rewrite).
-#
-# Role-category labels (home care, aged care, disability support …) reach this
-# function and are correctly injected into bullets/summary — they are NOT
-# filtered here. The Skills-section filter (_ROLE_CATEGORY_LABELS) runs
-# separately in _approved_skill_entries and reroute_skills_by_lexicon.
-# ---------------------------------------------------------------------------
-
-_BULLET_MARKERS: Tuple[str, ...] = ("- ", "* ", "• ")
 
 
-def _kw_norm(text: str) -> str:
-    """Lower + collapse non-alphanumerics to single spaces, padded for substring checks."""
-    return " " + re.sub(r"[^a-z0-9]+", " ", text.lower()).strip() + " "
 
 
-async def _targeted_bullet_rewrites(
-    client: "AIClient",
-    markdown: str,
-    feasibility: Optional[Dict[str, Any]],
-) -> str:
-    """Inject missed inject_as_extension keywords into experience bullets.
-
-    For each approved extension keyword absent from the generated CV, find the
-    most relevant experience bullet, then run ONE focused LLM call per bullet
-    that incorporates ALL keywords routed to it. Grouping by bullet is what
-    makes this collision-proof: two keywords sharing the same evidence (and
-    therefore the same target bullet) are handled in a single rewrite rather
-    than two concurrent calls that clobber each other's write.
-
-    Each call's result is kept only if at least one of its keywords actually
-    landed in the rewrite — otherwise the original bullet is preserved (the LLM
-    paraphrased without using the phrase, so the rewrite buys nothing and risks
-    fidelity loss).
-
-    Returns the markdown unchanged when there are no missed items (zero latency
-    cost on a clean run).
-    """
-    plan = (feasibility or {}).get("feasibility_plan") or {}
-    extensions = plan.get("inject_as_extension") or []
-    if not extensions:
-        return markdown
-
-    md_norm = _kw_norm(markdown)
-
-    def _kw_present_in(text_norm: str, kw: str) -> bool:
-        kn = _kw_norm(kw).strip()
-        return bool(kn) and (" " + kn + " ") in text_norm
-
-    missed = [
-        e for e in extensions
-        if isinstance(e, dict)
-        and str(e.get("keyword") or "").strip()
-        and not _kw_present_in(md_norm, str(e.get("keyword")))
-    ]
-    if not missed:
-        return markdown
-
-    logger.info(
-        "targeted_bullet_rewrites: %d missed inject_as_extension item(s): %s",
-        len(missed), [str(e.get("keyword")) for e in missed],
-    )
-
-    lines = markdown.split("\n")
-
-    # Locate ## Skills section so we never rewrite Skills lines.
-    skills_start = next(
-        (i for i, ln in enumerate(lines) if ln.strip().lower() == "## skills"), None
-    )
-    skills_end = len(lines)
-    if skills_start is not None:
-        for i in range(skills_start + 1, len(lines)):
-            if lines[i].startswith("## "):
-                skills_end = i
-                break
-
-    def _is_experience_bullet(i: int, line: str) -> bool:
-        stripped = line.strip()
-        if not stripped.startswith(_BULLET_MARKERS):
-            return False
-        if ":**" in stripped:      # Skills label line, e.g. "- **Care Skills:** ..."
-            return False
-        if skills_start is not None and skills_start < i < skills_end:
-            return False
-        return True
-
-    def _find_best_bullet(evidence: str) -> Optional[int]:
-        """Index of the experience bullet that best matches `evidence`."""
-        ev_words = set(re.sub(r"[^a-z0-9 ]+", " ", evidence.lower()).split())
-        if not ev_words:
-            return None
-        best_idx, best_score = None, 0
-        for i, line in enumerate(lines):
-            if not _is_experience_bullet(i, line):
-                continue
-            lw = set(re.sub(r"[^a-z0-9 ]+", " ", line.lower()).split())
-            score = len(ev_words & lw)
-            if score > best_score:
-                best_score, best_idx = score, i
-        return best_idx if best_score >= 3 else None
-
-    # Group missed keywords by target bullet index. Each entry carries its
-    # keyword + the plan's suggested_rewrite (a strong, pre-vetted reference).
-    by_bullet: Dict[int, list] = {}
-    for entry in missed:
-        kw = str(entry.get("keyword") or "").strip()
-        evidence = str(entry.get("evidence") or "").strip()
-        if not evidence:
-            logger.info("targeted_bullet_rewrites: no evidence for %r — skipped", kw)
-            continue
-        idx = _find_best_bullet(evidence)
-        if idx is None:
-            logger.info("targeted_bullet_rewrites: no matching bullet for %r — skipped", kw)
-            continue
-        by_bullet.setdefault(idx, []).append({
-            "keyword": kw,
-            "suggested_rewrite": str(entry.get("suggested_rewrite") or "").strip(),
-        })
-
-    if not by_bullet:
-        return markdown
-
-    def _strip_marker(line: str) -> str:
-        s = line.strip()
-        for mk in _BULLET_MARKERS:
-            if s.startswith(mk):
-                return s[len(mk):].strip()
-        return s.lstrip("-*•").strip()
-
-    async def _rewrite_bullet(idx: int, items: list) -> Optional[tuple]:
-        original = _strip_marker(lines[idx])
-        keywords = [it["keyword"] for it in items]
-        kw_block = "\n".join(f"- {it['keyword']}" for it in items)
-        ref_block = "\n".join(
-            f"- {it['suggested_rewrite']}" for it in items if it["suggested_rewrite"]
-        )
-        try:
-            rewritten = await client.complete(
-                system=(
-                    "You are a CV bullet editor. Rewrite the provided experience bullet "
-                    "to naturally incorporate ALL of the listed keyword phrases. "
-                    "Rules: preserve every existing fact verbatim; do not invent new "
-                    "claims, employers, metrics, or credentials; every listed keyword "
-                    "must appear in your rewrite; keep it to one concise sentence. "
-                    "Return only the rewritten bullet text — no dash prefix, no commentary."
-                ),
-                user=(
-                    f"Keywords to incorporate:\n{kw_block}\n\n"
-                    f"Bullet to rewrite:\n{original}\n\n"
-                    + (f"Reference rewrites (already vetted for honesty):\n{ref_block}\n"
-                       if ref_block else "")
-                ),
-                max_tokens=220,
-                temperature=0.2,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("targeted_bullet_rewrites: LLM call failed for bullet %d: %s", idx, exc)
-            return None
-
-        if not rewritten or len(rewritten.strip()) < 20:
-            return None
-        candidate = rewritten.strip()
-        cand_norm = _kw_norm(candidate)
-        landed = [k for k in keywords if _kw_present_in(cand_norm, k)]
-        if not landed:
-            logger.info(
-                "targeted_bullet_rewrites: bullet %d rewrite dropped — no keyword landed (%s)",
-                idx, keywords,
-            )
-            return None
-        if len(landed) < len(keywords):
-            logger.info(
-                "targeted_bullet_rewrites: bullet %d partial — landed %s of %s",
-                idx, landed, keywords,
-            )
-        return (idx, "- " + candidate, landed)
-
-    results = await asyncio.gather(*[
-        _rewrite_bullet(idx, items) for idx, items in by_bullet.items()
-    ])
-
-    applied = 0
-    for item in results:
-        if item:
-            idx, new_line, landed = item
-            lines[idx] = new_line
-            applied += 1
-            logger.info("targeted_bullet_rewrites: applied bullet %d, landed %s", idx, landed)
-
-    logger.info("targeted_bullet_rewrites: %d/%d bullet(s) rewritten", applied, len(by_bullet))
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -1276,24 +853,3 @@ async def run_tailored_cv_w8_verified(
     return md, storage_path
 
 
-def _persist_quality_flags(run_id: uuid.UUID, result: "WriterResult") -> None:
-    """Write the honesty_guard notes + dropped roles + risk flag to the
-    analysis_runs row. Tolerates the column being missing (older deployments
-    before migration 057 has been applied) — logs and moves on."""
-    extras = result.extras or {}
-    flags = {
-        "honesty_guard_notes": extras.get("honesty_guard_notes") or [],
-        "pre_filter_dropped_roles": extras.get("pre_filter_dropped_roles") or [],
-        "honesty_risk": extras.get("honesty_risk") or {},
-    }
-    try:
-        from app.database import get_supabase
-        from app.database import ANALYSIS_RUNS
-        sb = get_supabase()
-        sb.table(ANALYSIS_RUNS).update({"quality_flags": flags}).eq("id", str(run_id)).execute()
-    except Exception as e:
-        msg = str(e)
-        if "quality_flags" in msg or "column" in msg.lower():
-            logger.info("quality_flags column missing — skipping persistence (apply migration 057)")
-        else:
-            logger.warning("quality_flags persist failed: %s", e)

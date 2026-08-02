@@ -9,38 +9,24 @@
  *   + redirects to My CV page where the user can set it as active.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Sparkles, Briefcase, GraduationCap, Languages as LanguagesIcon,
-  Trophy, BadgeCheck, Users, AlignLeft, FileText, Loader2,
-  FolderGit2, ExternalLink,
-} from "lucide-react";
-import type {
-  StructuredCv,
-  StructuredCvAward,
-  StructuredCvLanguage,
-  StructuredCvExperience,
-  StructuredCvEducation,
-  StructuredCvCertification,
-  StructuredCvReferee,
-  StructuredCvProject,
-  CustomCvSection } from "@/lib/cv/backend";
+import { FileText } from "lucide-react";
+import type { StructuredCv, CustomCvSection } from "@/lib/cv/backend";
 import { type SkillLabels, DEFAULT_SKILL_LABELS } from "@/lib/cv/skillLabels";
 import {
   ReviewStatusBanner, SaveToast, AddSectionPanel, SaveBadge,
   OPTIONAL_SECTIONS,
-  type SaveStatus, type OptionalKey } from "./ReviewComponents";
-import { Section, Grid, GhostField, GhostTextarea, DatesField, BulletRow, SkillsBucket, TimelineEntry, EmptyState, AddBtn, RemoveBtn } from "./ReviewFields";
-import { joinDatesLabel, clientGaps, createGaps, expHasContent, expComplete, eduHasContent, eduComplete, validateCreate, emptyExperience, emptyEducation } from "./reviewValidation";
+  type OptionalKey } from "./ReviewComponents";
+import { clientGaps, createGaps, expHasContent, expComplete, eduHasContent, eduComplete, validateCreate, emptyExperience, emptyEducation } from "./reviewValidation";
 import { withSetupParams } from "@/lib/setupParams";
-
-const AUTOSAVE_MS = 10_000;
-
-// Canonical serialization used for dirty-checking — must build the payload
-// exactly the way persist() does so snapshot comparison is byte-accurate.
-const serializeCv = (d: StructuredCv, cs: CustomCvSection[]) =>
-  JSON.stringify({ ...d, custom_sections: cs });
+import { useReviewAutosave } from "./useReviewAutosave";
+import { makeDocPatchers } from "./cvDocPatchers";
+import {
+  SkillsSection, SummarySection, ExperienceSection, EducationSection,
+  ProjectsSection, LanguagesSection, AwardsSection, CertificationsSection,
+  ReferencesSection, CustomSection,
+} from "./ReviewSections";
 
 type SectionKey =
   | "skills" | "summary" | "experience" | "education"
@@ -68,9 +54,6 @@ export function ReviewClient({
       experience: initialStructuredCv.experience.length > 0 ? initialStructuredCv.experience : [emptyExperience()],
       education:  initialStructuredCv.education.length  > 0 ? initialStructuredCv.education  : [emptyEducation()] };
   });
-  const [status, setStatus] = useState<string>(initialStatus);
-  const [save,   setSave]   = useState<SaveStatus>("idle");
-  const [err,    setErr]    = useState<string | null>(null);
 
   // Create mode: which opt-in sections are currently shown.
   const [enabledOptional, setEnabledOptional] = useState<Set<OptionalKey>>(() => {
@@ -113,87 +96,12 @@ export function ReviewClient({
     return () => clearTimeout(t);
   }, [searchParams]);
 
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Snapshot of the last server-acknowledged payload. Autosave only fires
-  // when the current state actually differs from this — no diff, no request.
-  const lastSaved = useRef<string>(serializeCv(initialStructuredCv,
-    (initialStructuredCv as { custom_sections?: CustomCvSection[] }).custom_sections ?? []));
-
-  const persist = useCallback(async (next: StructuredCv, cs: CustomCvSection[], verified: boolean, opts?: { keepalive?: boolean }) => {
-    setSave("saving");
-    setErr(null);
-    try {
-      const payload = { ...next, custom_sections: cs };
-      const res = await fetch(`/api/cv/${cvId}/structured`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ structured_cv: payload, verified }),
-        // keepalive lets the request survive the page being torn down
-        // (tab close / navigation) — used only by the dirty-flush paths.
-        keepalive: opts?.keepalive ?? false });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({})) as { error?: string };
-        setSave("error");
-        setErr(j.error ?? `Save failed (${res.status})`);
-        return false;
-      }
-      lastSaved.current = JSON.stringify(payload);
-      const j = await res.json() as { structured_cv_status: string };
-      setStatus(j.structured_cv_status);
-      setSave("saved");
-      return true;
-    } catch (e) {
-      setSave("error");
-      setErr(e instanceof Error ? e.message : "Save failed");
-      return false;
-    }
-  }, [cvId]);
-
-  useEffect(() => {
-    // Create mode: no autosave — user saves explicitly via the Save button.
-    if (isCreate) return;
-    // Dirty-check: skip when nothing actually changed (also covers the
-    // initial mount and StrictMode's dev double-mount — same snapshot, no-op).
-    if (serializeCv(doc, customSects) === lastSaved.current) return;
-    setSave("dirty");
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { persist(doc, customSects, false); }, AUTOSAVE_MS);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [doc, customSects, persist, isCreate]);
-
-  // Flush a dirty buffer when the tab is hidden or the page is torn down —
-  // otherwise an edit made within AUTOSAVE_MS of leaving would be lost.
-  useEffect(() => {
-    if (isCreate) return;
-    const flushIfHidden = () => {
-      if (document.visibilityState !== "hidden") return;
-      if (serializeCv(doc, customSects) === lastSaved.current) return;
-      if (timer.current) clearTimeout(timer.current);
-      void persist(doc, customSects, false, { keepalive: true });
-    };
-    document.addEventListener("visibilitychange", flushIfHidden);
-    window.addEventListener("pagehide", flushIfHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", flushIfHidden);
-      window.removeEventListener("pagehide", flushIfHidden);
-    };
-  }, [doc, customSects, persist, isCreate]);
-
-  // Same flush for in-app navigation (e.g. "Back to Profile"), which unmounts
-  // the component without firing pagehide. Latest state is read via a ref so
-  // this effect registers its cleanup once.
-  const latest = useRef({ doc, customSects });
-  useEffect(() => { latest.current = { doc, customSects }; }, [doc, customSects]);
-  useEffect(() => {
-    if (isCreate) return;
-    return () => {
-      const { doc: d, customSects: cs } = latest.current;
-      if (serializeCv(d, cs) === lastSaved.current) return;
-      if (timer.current) clearTimeout(timer.current);
-      void persist(d, cs, false, { keepalive: true });
-    };
-  }, [isCreate, persist]);
+  // Autosave, dirty-flush and save status all live in the hook — see
+  // useReviewAutosave for why each ref there is load-bearing.
+  const { save, err, status, persist, cancelPending } = useReviewAutosave({
+    cvId, doc, customSects, initialStructuredCv, initialStatus,
+    enabled: !isCreate,
+  });
 
   // Create-mode validation — Experience and Education are mandatory before a
   // CV can be marked "Reviewed". Drafts skip this entirely.
@@ -220,7 +128,7 @@ export function ReviewClient({
   // Create mode: save as draft — no validation, stays unverified. User can
   // come back and finish later.
   async function saveDraft() {
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     const ok = await persist(doc, customSects, false);
     if (ok) { savedRef.current = true; returnToCard(); }
   }
@@ -234,7 +142,7 @@ export function ReviewClient({
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     const ok = await persist(doc, customSects, true);
     if (ok) { savedRef.current = true; returnToCard(); }
   }
@@ -242,7 +150,7 @@ export function ReviewClient({
   // Create mode: cancel — discard the never-saved blank draft, then return.
   const [cancelling, setCancelling] = useState(false);
   async function cancelCreate() {
-    if (timer.current) clearTimeout(timer.current);
+    cancelPending();
     if (initiallyEmpty.current && !savedRef.current) {
       setCancelling(true);
       try {
@@ -278,60 +186,15 @@ export function ReviewClient({
     return !e.qualification.trim();
   };
 
-  // — patching helpers —
-  const patchExperience = (i: number, next: Partial<StructuredCvExperience>) =>
-    setDoc(d => ({ ...d, experience: d.experience.map((e, idx) => idx === i ? { ...e, ...next } : e) }));
-  const patchEducation = (i: number, next: Partial<StructuredCvEducation>) =>
-    setDoc(d => ({ ...d, education: d.education.map((e, idx) => idx === i ? { ...e, ...next } : e) }));
-  const patchAward = (i: number, next: Partial<StructuredCvAward>) =>
-    setDoc(d => ({ ...d, awards: (d.awards ?? []).map((a, idx) => idx === i ? { ...a, ...next } : a) }));
-  const addAward = () =>
-    setDoc(d => ({ ...d, awards: [...(d.awards ?? []), { name: "", issuer: "", location: "", date: "", description: "" }] }));
-  const removeAward = (i: number) =>
-    setDoc(d => ({ ...d, awards: (d.awards ?? []).filter((_, idx) => idx !== i) }));
-  const patchLanguage = (i: number, next: Partial<StructuredCvLanguage>) =>
-    setDoc(d => ({ ...d, languages: (d.languages ?? []).map((l, idx) => idx === i ? { ...l, ...next } : l) }));
-  const addLanguage = () =>
-    setDoc(d => ({ ...d, languages: [...(d.languages ?? []), { language: "", proficiency: "" }] }));
-  const removeLanguage = (i: number) =>
-    setDoc(d => ({ ...d, languages: (d.languages ?? []).filter((_, idx) => idx !== i) }));
-  const patchCert = (i: number, next: Partial<StructuredCvCertification>) =>
-    setDoc(d => ({ ...d, certifications: d.certifications.map((c, idx) => idx === i ? { ...c, ...next } : c) }));
-  const patchReferee = (i: number, next: Partial<StructuredCvReferee>) =>
-    setDoc(d => ({ ...d, references: d.references.map((r, idx) => idx === i ? { ...r, ...next } : r) }));
-
-  const setBullet = (roleIdx: number, bulletIdx: number, value: string) =>
-    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
-      i !== roleIdx ? e : { ...e, bullets: e.bullets.map((b, bi) => bi === bulletIdx ? value : b) }) }));
-  const addBullet = (roleIdx: number) =>
-    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
-      i !== roleIdx ? e : { ...e, bullets: [...e.bullets, ""] }) }));
-  const removeBullet = (roleIdx: number, bulletIdx: number) =>
-    setDoc(d => ({ ...d, experience: d.experience.map((e, i) =>
-      i !== roleIdx ? e : { ...e, bullets: e.bullets.filter((_, bi) => bi !== bulletIdx) }) }));
-
-  const addSkill = (bucket: "domain_knowledge" | "soft_skills" | "technical", value: string) => {
-    const v = value.trim().toLowerCase();
-    if (!v) return;
-    setDoc(d => ({ ...d, skills: { ...d.skills, [bucket]: Array.from(new Set([...d.skills[bucket], v])) } }));
-  };
-  const removeSkill = (bucket: "domain_knowledge" | "soft_skills" | "technical", value: string) =>
-    setDoc(d => ({ ...d, skills: { ...d.skills, [bucket]: d.skills[bucket].filter(s => s !== value) } }));
-
-  const addExperience    = () => setDoc(d => ({ ...d, experience:     [...d.experience, emptyExperience()] }));
-  const removeExperience = (i: number) => setDoc(d => ({ ...d, experience: d.experience.filter((_, idx) => idx !== i) }));
-  const addEducation     = () => setDoc(d => ({ ...d, education:      [...d.education, emptyEducation()] }));
-  const removeEducation  = (i: number) => setDoc(d => ({ ...d, education: d.education.filter((_, idx) => idx !== i) }));
-  const addCertification = () => setDoc(d => ({ ...d, certifications: [...d.certifications, { name: "", issuer: "", code: "", issued_date: "" }] }));
-  const removeCertification = (i: number) => setDoc(d => ({ ...d, certifications: d.certifications.filter((_, idx) => idx !== i) }));
-  const addReferee = () => setDoc(d => ({ ...d, references: [...d.references, { name: "", job_title: "", company: "", email: "" }] }));
-  const removeReferee = (i: number) => setDoc(d => ({ ...d, references: (d.references ?? []).filter((_, idx) => idx !== i) }));
-  const patchProject = (i: number, next: Partial<StructuredCvProject>) =>
-    setDoc(d => ({ ...d, projects: (d.projects ?? []).map((p, idx) => idx === i ? { ...p, ...next } : p) }));
-  const addProject = () =>
-    setDoc(d => ({ ...d, projects: [...(d.projects ?? []), { name: "", url: "", description: "" }] }));
-  const removeProject = (i: number) =>
-    setDoc(d => ({ ...d, projects: (d.projects ?? []).filter((_, idx) => idx !== i) }));
+  // Document updaters — see cvDocPatchers for why these are not memoised.
+  const {
+    patchExperience, patchEducation, patchAward, addAward, removeAward,
+    patchLanguage, addLanguage, removeLanguage, patchCert, patchReferee,
+    setBullet, addBullet, removeBullet, addSkill, removeSkill,
+    addExperience, removeExperience, addEducation, removeEducation,
+    addCertification, removeCertification, addReferee, removeReferee,
+    patchProject, addProject, removeProject,
+  } = makeDocPatchers(setDoc);
 
   const enableSection = (k: OptionalKey) => {
     setEnabledOptional(prev => new Set(prev).add(k));
@@ -453,368 +316,134 @@ export function ReviewClient({
 
         {/* SKILLS — opt-in when building */}
         {(!isCreate || optionalShown("skills")) && (
-          <Section
-            icon={Sparkles}
-            title="Skills"
-            meta={isCreate
-              ? `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length}`
-              : `${doc.skills.domain_knowledge.length + doc.skills.soft_skills.length + doc.skills.technical.length} from your CV`}
+          <SkillsSection
+            skills={doc.skills}
+            skillLabels={skillLabels}
             open={open.skills}
             onToggle={() => toggle("skills")}
+            isCreate={isCreate}
             onClose={isCreate ? () => disableSection("skills") : undefined}
-          >
-            <SkillsBucket label={skillLabels.domain_knowledge} tone="care"    bucket="domain_knowledge" items={doc.skills.domain_knowledge} onAdd={addSkill} onRemove={removeSkill} />
-            <SkillsBucket label={skillLabels.soft_skills}      tone="soft"    bucket="soft_skills"      items={doc.skills.soft_skills}      onAdd={addSkill} onRemove={removeSkill} />
-            <SkillsBucket label={skillLabels.technical}        tone="neutral" bucket="technical"        items={doc.skills.technical}        onAdd={addSkill} onRemove={removeSkill} />
-            {/* Create mode: AI extraction from experience bullets */}
-            {isCreate && (
-              <div className="pt-2 border-t border-[var(--border)]/50 flex items-center gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleExtractSkills}
-                  disabled={extractingSkills}
-                  className="inline-flex items-center gap-1.5 text-label text-[var(--brand)] hover:underline disabled:opacity-50 disabled:no-underline"
-                >
-                  {extractingSkills
-                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Extracting…</>
-                    : <><Sparkles className="h-3.5 w-3.5" /> Suggest from experience</>
-                  }
-                </button>
-                <span className="text-caption text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
-                {extractSkillsErr && (
-                  <p className="w-full text-caption text-red-600">{extractSkillsErr}</p>
-                )}
-              </div>
-            )}
-          </Section>
+            addSkill={addSkill}
+            removeSkill={removeSkill}
+            onExtract={handleExtractSkills}
+            extracting={extractingSkills}
+            extractErr={extractSkillsErr}
+          />
         )}
 
         {/* SUMMARY — review mode only; auto-generated in create mode */}
         {!isCreate && (
-          <Section
-            icon={AlignLeft}
-            title="Profile summary"
-            meta={doc.summary ? `${doc.summary.split(/\s+/).filter(Boolean).length} words` : "empty"}
+          <SummarySection
+            summary={doc.summary}
             open={open.summary}
             onToggle={() => toggle("summary")}
-          >
-            <GhostTextarea
-              rows={4}
-              value={doc.summary}
-              onChange={v => setDoc(d => ({ ...d, summary: v }))}
-              placeholder={doc.summary ? "" : "Optional — leave blank if your CV doesn't have one."}
-            />
-          </Section>
+            onChange={v => setDoc(d => ({ ...d, summary: v }))}
+          />
         )}
 
         {/* EXPERIENCE */}
-        <Section
-          icon={Briefcase}
-          title="Experience"
-          meta={doc.experience.length === 0 ? "empty" : `${doc.experience.length} role${doc.experience.length === 1 ? "" : "s"}`}
+        <ExperienceSection
+          experience={doc.experience}
           open={open.experience}
           onToggle={() => toggle("experience")}
-        >
-          {doc.experience.length === 0 ? (
-            <EmptyState icon={Briefcase} text="No roles found." />
-          ) : (
-            <ol className="relative">
-              {doc.experience.map((e, i) => (
-                <TimelineEntry
-                  key={i}
-                  dateLabel={joinDatesLabel(e.start_date, e.end_date, e.is_current)}
-                  isFirst={i === 0}
-                  isLast={i === doc.experience.length - 1}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <GhostField label="Employer" value={e.employer} onChange={v => patchExperience(i, { employer: v })} size="lg" required={isCreate} invalid={expFieldErr(i, "employer")} />
-                    </div>
-                    {doc.experience.length > 1 && (
-                      <RemoveBtn label="Remove role" onClick={() => removeExperience(i)} />
-                    )}
-                  </div>
-                  <Grid cols={3} mt>
-                    <GhostField label="Role"     value={e.role}     onChange={v => patchExperience(i, { role: v })} required={isCreate} invalid={expFieldErr(i, "role")} />
-                    <GhostField label="Location" value={e.location} onChange={v => patchExperience(i, { location: v })} />
-                    <DatesField
-                      start={e.start_date} end={e.end_date}
-                      onStart={v => patchExperience(i, { start_date: v })}
-                      onEnd={v => patchExperience(i, { end_date: v })}
-                      invalid={expFieldErr(i, "dates")}
-                    />
-                  </Grid>
-                  <div className="mt-4">
-                    <div className="text-caption uppercase tracking-wider font-medium mb-2">
-                      <span className={expFieldErr(i, "bullets") ? "text-red-600" : "text-text-3"}>
-                        Bullets{isCreate && <span className="text-red-500 ml-0.5">*</span>}
-                        {expFieldErr(i, "bullets") && <span className="normal-case tracking-normal ml-1.5">· add at least one</span>}
-                      </span>
-                    </div>
-                    <div className="space-y-2 ml-1">
-                      {e.bullets.map((b, bi) => (
-                        <BulletRow
-                          key={bi}
-                          value={b}
-                          onChange={v => setBullet(i, bi, v)}
-                          onRemove={() => removeBullet(i, bi)}
-                        />
-                      ))}
-                    </div>
-                    <AddBtn label="Add bullet" onClick={() => addBullet(i)} />
-                  </div>
-                </TimelineEntry>
-              ))}
-            </ol>
-          )}
-          <AddBtn label="Add role" onClick={addExperience} />
-        </Section>
+          isCreate={isCreate}
+          fieldErr={expFieldErr}
+          patchExperience={patchExperience}
+          addExperience={addExperience}
+          removeExperience={removeExperience}
+          setBullet={setBullet}
+          addBullet={addBullet}
+          removeBullet={removeBullet}
+        />
 
         {/* EDUCATION */}
-        <Section
-          icon={GraduationCap}
-          title="Education"
-          meta={doc.education.length === 0 ? "empty" : `${doc.education.length} entr${doc.education.length === 1 ? "y" : "ies"}`}
+        <EducationSection
+          education={doc.education}
           open={open.education}
           onToggle={() => toggle("education")}
-        >
-          {doc.education.length === 0 ? (
-            <EmptyState icon={GraduationCap} text="No education found." />
-          ) : doc.education.map((e, i) => (
-            <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-              {e._moved_from_certifications && (
-                <span className="inline-flex items-center gap-1 mb-2 px-2 py-0.5 text-caption rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/5 text-text-2">
-                  <BadgeCheck className="h-3 w-3 text-[var(--brand)]" />
-                  Moved here from certifications
-                </span>
-              )}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <GhostField label="Institution" value={e.institution} onChange={v => patchEducation(i, { institution: v })} size="lg" required={isCreate} invalid={eduFieldErr(i, "institution")} />
-                </div>
-                {doc.education.length > 1 && (
-                  <RemoveBtn label="Remove education" onClick={() => removeEducation(i)} />
-                )}
-              </div>
-              <Grid cols={3} mt>
-                <GhostField label="Qualification" value={e.qualification} onChange={v => patchEducation(i, { qualification: v })} required={isCreate} invalid={eduFieldErr(i, "qualification")} />
-                <GhostField label="Location"      value={e.location}      onChange={v => patchEducation(i, { location: v })} />
-                <DatesField
-                  start={e.start_date} end={e.end_date}
-                  onStart={v => patchEducation(i, { start_date: v })}
-                  onEnd={v => patchEducation(i, { end_date: v })}
-                />
-              </Grid>
-              <label className="inline-flex items-center gap-2 mt-3 text-xs text-text-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="rounded border-[var(--border)] text-[var(--brand)] focus:ring-[var(--brand)]/30"
-                  checked={e.completed}
-                  onChange={ev => patchEducation(i, { completed: ev.target.checked })}
-                />
-                Completed
-              </label>
-            </div>
-          ))}
-          <AddBtn label="Add education" onClick={addEducation} />
-        </Section>
+          isCreate={isCreate}
+          fieldErr={eduFieldErr}
+          patchEducation={patchEducation}
+          addEducation={addEducation}
+          removeEducation={removeEducation}
+        />
 
         {/* PROJECTS — opt-in when building */}
         {(isCreate ? optionalShown("projects") : (doc.projects ?? []).length > 0) && (
-          <Section
-            icon={FolderGit2}
-            title="Projects"
-            meta={(doc.projects?.length ?? 0) === 0 ? "empty" : `${doc.projects!.length}`}
-            subtitle="Portfolio / side projects — the AI references relevant ones per role"
+          <ProjectsSection
+            projects={doc.projects ?? []}
             open={open.projects}
             onToggle={() => toggle("projects")}
             onClose={isCreate ? () => disableSection("projects") : undefined}
-          >
-            {(doc.projects ?? []).length === 0 ? (
-              <EmptyState icon={FolderGit2} text="No projects yet — optional." actionLabel="Add project" onAction={addProject} />
-            ) : (doc.projects ?? []).map((p, i) => (
-              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <GhostField label="Name" value={p.name} onChange={v => patchProject(i, { name: v })} size="lg" />
-                  </div>
-                  <RemoveBtn label="Remove project" onClick={() => removeProject(i)} />
-                </div>
-                <Grid cols={1} mt>
-                  <div className="flex items-end gap-1.5">
-                    <div className="flex-1 min-w-0">
-                      <GhostField label="URL" value={p.url} onChange={v => patchProject(i, { url: v })} />
-                    </div>
-                    {p.url && (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="mb-1.5 shrink-0 text-text-3 hover:text-[var(--brand)]" aria-label="Open project URL">
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    )}
-                  </div>
-                </Grid>
-                <div className="mt-3">
-                  <div className="text-caption uppercase tracking-wider text-text-3 font-medium mb-1.5">
-                    Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
-                  </div>
-                  <GhostTextarea rows={2} value={p.description} onChange={v => patchProject(i, { description: v })} />
-                </div>
-              </div>
-            ))}
-            {(doc.projects ?? []).length > 0 && <AddBtn label="Add project" onClick={addProject} />}
-          </Section>
+            patchProject={patchProject}
+            addProject={addProject}
+            removeProject={removeProject}
+          />
         )}
 
         {/* LANGUAGES — opt-in when building */}
         {(!isCreate || optionalShown("languages")) && (
-          <Section
-            icon={LanguagesIcon}
-            title="Languages"
-            meta={(doc.languages?.length ?? 0) === 0 ? "empty" : `${doc.languages.length}`}
-            subtitle="Kept as record — not used in tailored CV"
+          <LanguagesSection
+            languages={doc.languages ?? []}
             open={open.languages}
             onToggle={() => toggle("languages")}
             onClose={isCreate ? () => disableSection("languages") : undefined}
-          >
-            {(doc.languages ?? []).length === 0 ? (
-              <EmptyState icon={LanguagesIcon} text="No languages on your CV — optional." actionLabel="Add language" onAction={addLanguage} />
-            ) : (
-              <div className="space-y-2.5">
-                {(doc.languages ?? []).map((l, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <GhostField label="Language"    value={l.language}    onChange={v => patchLanguage(i, { language: v })} />
-                      <GhostField label="Proficiency" value={l.proficiency} onChange={v => patchLanguage(i, { proficiency: v })} />
-                    </div>
-                    <RemoveBtn label="Remove language" onClick={() => removeLanguage(i)} />
-                  </div>
-                ))}
-              </div>
-            )}
-            {(doc.languages ?? []).length > 0 && <AddBtn label="Add language" onClick={addLanguage} />}
-          </Section>
+            patchLanguage={patchLanguage}
+            addLanguage={addLanguage}
+            removeLanguage={removeLanguage}
+          />
         )}
 
         {/* AWARDS — opt-in when building */}
         {(!isCreate || optionalShown("awards")) && (
-          <Section
-            icon={Trophy}
-            title="Awards"
-            meta={(doc.awards?.length ?? 0) === 0 ? "empty" : `${doc.awards.length}`}
-            subtitle="Recognitions, scholarships, honours"
+          <AwardsSection
+            awards={doc.awards ?? []}
             open={open.awards}
             onToggle={() => toggle("awards")}
             onClose={isCreate ? () => disableSection("awards") : undefined}
-          >
-            {(doc.awards ?? []).length === 0 ? (
-              <EmptyState icon={Trophy} text="No awards on your CV — optional." actionLabel="Add award" onAction={addAward} />
-            ) : (doc.awards ?? []).map((a, i) => (
-              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <GhostField label="Name" value={a.name} onChange={v => patchAward(i, { name: v })} size="lg" />
-                  </div>
-                  <RemoveBtn label="Remove award" onClick={() => removeAward(i)} />
-                </div>
-                <Grid cols={3} mt>
-                  <GhostField label="Issuer"   value={a.issuer}   onChange={v => patchAward(i, { issuer: v })} />
-                  <GhostField label="Location" value={a.location} onChange={v => patchAward(i, { location: v })} />
-                  <GhostField label="Date"     value={a.date}     onChange={v => patchAward(i, { date: v })} />
-                </Grid>
-                <div className="mt-3">
-                  <div className="text-caption uppercase tracking-wider text-text-3 font-medium mb-1.5">
-                    Description <span className="normal-case tracking-normal text-text-3">(optional)</span>
-                  </div>
-                  <GhostTextarea rows={2} value={a.description} onChange={v => patchAward(i, { description: v })} />
-                </div>
-              </div>
-            ))}
-            {(doc.awards ?? []).length > 0 && <AddBtn label="Add award" onClick={addAward} />}
-          </Section>
+            patchAward={patchAward}
+            addAward={addAward}
+            removeAward={removeAward}
+          />
         )}
 
         {/* CERTIFICATIONS */}
         {(isCreate ? (optionalShown("certifications") || doc.certifications.length > 0) : doc.certifications.length > 0) && (
-          <Section
-            icon={BadgeCheck}
-            title="Certifications & licences"
-            meta={`${doc.certifications.length}`}
-            subtitle="Care VET qualifications moved to Education automatically"
+          <CertificationsSection
+            certifications={doc.certifications}
             open={open.certifications}
             onToggle={() => toggle("certifications")}
             onClose={isCreate ? () => disableSection("certifications") : undefined}
-          >
-            {doc.certifications.map((c, i) => (
-              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <GhostField label="Name" value={c.name} onChange={v => patchCert(i, { name: v })} size="lg" />
-                  </div>
-                  <RemoveBtn label="Remove certification" onClick={() => removeCertification(i)} />
-                </div>
-                <Grid cols={3} mt>
-                  <GhostField label="Issuer" value={c.issuer}      onChange={v => patchCert(i, { issuer: v })} />
-                  <GhostField label="Code"   value={c.code}        onChange={v => patchCert(i, { code: v })} />
-                  <GhostField label="Issued" value={c.issued_date} onChange={v => patchCert(i, { issued_date: v })} />
-                </Grid>
-              </div>
-            ))}
-            <AddBtn label="Add certification" onClick={addCertification} />
-          </Section>
+            patchCert={patchCert}
+            addCertification={addCertification}
+            removeCertification={removeCertification}
+          />
         )}
 
         {/* REFERENCES — review mode only */}
         {!isCreate && (
-          <Section
-            id="references"
-            icon={Users}
-            title="References"
-            meta={doc.references.length === 0 ? "none" : `${doc.references.length} referee${doc.references.length === 1 ? "" : "s"}`}
+          <ReferencesSection
+            references={doc.references}
             open={open.references}
             onToggle={() => toggle("references")}
-          >
-            {doc.references.length === 0 ? (
-              <EmptyState icon={Users} text="No referees on the CV — referees can stay on a separate sheet." />
-            ) : doc.references.map((r, i) => (
-              <div key={i} className={`${i > 0 ? "pt-4 mt-4 border-t border-[var(--border)]/70" : ""} flex items-start gap-2`}>
-                <div className="flex-1">
-                  <Grid cols={2}>
-                    <GhostField label="Name"      value={r.name}      onChange={v => patchReferee(i, { name: v })} />
-                    <GhostField label="Email"     value={r.email}     onChange={v => patchReferee(i, { email: v })} />
-                    <GhostField label="Job title" value={r.job_title} onChange={v => patchReferee(i, { job_title: v })} />
-                    <GhostField label="Company"   value={r.company}   onChange={v => patchReferee(i, { company: v })} />
-                  </Grid>
-                </div>
-                <RemoveBtn label="Remove referee" onClick={() => removeReferee(i)} />
-              </div>
-            ))}
-            <AddBtn label="Add referee" onClick={addReferee} />
-          </Section>
+            patchReferee={patchReferee}
+            addReferee={addReferee}
+            removeReferee={removeReferee}
+          />
         )}
 
         {/* CUSTOM SECTIONS — create mode only */}
         {isCreate && customSects.map(sect => (
-          <Section
+          <CustomSection
             key={sect.id}
-            icon={AlignLeft}
-            title={sect.title}
-            meta={`${sect.fields.filter(f => f.value.trim() || f.label.trim()).length} field${sect.fields.filter(f => f.value.trim() || f.label.trim()).length === 1 ? "" : "s"}`}
+            sect={sect}
             open={customOpen[sect.id] ?? true}
             onToggle={() => setCustomOpen(o => ({ ...o, [sect.id]: !(o[sect.id] ?? true) }))}
             onClose={() => removeCustomSection(sect.id)}
-          >
-            <div className="space-y-3">
-              {sect.fields.map((f, fi) => (
-                <div key={fi} className="flex items-end gap-2">
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <GhostField label="Field label" value={f.label} onChange={v => patchCustomField(sect.id, fi, { label: v })} />
-                    <GhostField label="Value"       value={f.value} onChange={v => patchCustomField(sect.id, fi, { value: v })} />
-                  </div>
-                  <RemoveBtn label="Remove field" onClick={() => removeCustomField(sect.id, fi)} />
-                </div>
-              ))}
-            </div>
-            <AddBtn label="Add field" onClick={() => addCustomField(sect.id)} />
-          </Section>
+            patchCustomField={patchCustomField}
+            addCustomField={addCustomField}
+            removeCustomField={removeCustomField}
+          />
         ))}
 
         {/* ADD-A-SECTION — create mode only */}
@@ -846,6 +475,4 @@ export function ReviewClient({
     </div>
   );
 }
-
-// ─── sub-components ──────────────────────────────────────────────────────────
 
