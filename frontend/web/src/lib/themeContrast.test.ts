@@ -3,10 +3,11 @@
  *
  * `globals.css:775–779` used to document Aurora's contrast ratios as a
  * comment — comments don't fail. This test parses the actual token
- * values for every theme straight out of `globals.css` (no hand-copied
- * hex, so it can't drift from the source of truth) and asserts the
- * minimum WCAG 2.1 contrast ratio for the pairs that matter most:
- * body text, secondary text, the brand button label, and the three
+ * values for every theme (plus the `.auth-shell` scoped override — not a
+ * theme, but the same shape of problem) straight out of `globals.css` (no
+ * hand-copied hex, so it can't drift from the source of truth) and
+ * asserts the minimum WCAG 2.1 contrast ratio for the pairs that matter
+ * most: body text, secondary text, the brand button label, and the three
  * status-chip foreground/background pairs.
  *
  * Token resolution mirrors the real cascade: each `:root.theme-*` block
@@ -94,6 +95,12 @@ const THEMES: { name: string; selector: string }[] = [
   { name: "clay", selector: ":root\\.theme-clay" },
   { name: "aurora-dark", selector: ":root\\.theme-aurora-dark" },
   { name: "aurora-light", selector: ":root\\.theme-aurora-light" },
+  // Not a theme — a scoped token override for the auth screens (see the
+  // `.auth-shell` comment in globals.css). Included here because it's
+  // exactly the same shape of problem: a subtree that pins its own
+  // --text/--surface/--brand and must independently clear WCAG, since it
+  // deliberately does NOT inherit whichever theme is active on <html>.
+  { name: "auth-shell", selector: "\\.auth-shell" },
 ];
 
 // ── Token resolution (with cascade fallback to base) ────────────────────────

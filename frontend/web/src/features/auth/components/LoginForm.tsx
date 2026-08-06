@@ -84,14 +84,14 @@ export function LoginForm() {
       headline={
         <>
           Find your next role<br />
-          <em style={{ fontStyle: "italic", color: "#3B82F6" }}>while you sleep.</em>
+          <em style={{ fontStyle: "italic" }} className="text-[var(--brand)]">while you sleep.</em>
         </>
       }
       tagline="Australia's major sources scanned nightly, AI-ranked and ready in your feed every morning."
       switchPrompt="Need an account?"
       switchHref="/auth/signup"
       switchLabel="Sign up"
-      trustLabels={["5 AU sources", "AI-ranked feed", "Visa signal", "3-day trial"]}
+      trustLabels={["6 AU sources", "AI-ranked feed", "Visa signal", "3-day trial"]}
     >
       <h1
         style={{
@@ -104,31 +104,28 @@ export function LoginForm() {
       >
         Welcome back.
       </h1>
-      <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+      <p className="text-text-2" style={{ fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
         Sign in with your email and password.
       </p>
 
       {confirmed && (
-        <div
-          className="flex items-center gap-2 px-3 py-2.5 rounded-md mb-5"
-          style={{ background: "rgba(11, 125, 116, 0.1)", border: "1px solid rgba(11, 125, 116, 0.25)" }}
-        >
-          <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "#3B82F6" }} />
-          <p style={{ color: "#3B82F6", fontSize: 12.5 }}>Email confirmed — sign in to get started.</p>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-md mb-5 bg-success-subtle border border-success-border">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-success" />
+          <p className="text-success" style={{ fontSize: 12.5 }}>Email confirmed — sign in to get started.</p>
         </div>
       )}
 
       {/* Google button */}
-      <button onClick={handleGoogleSignIn} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0F172A", opacity: googleLoading ? 0.7 : 1 }}>
+      <button onClick={handleGoogleSignIn} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer bg-surface border-[1.5px] border-border text-text" style={{ fontSize: 14, fontWeight: 500, opacity: googleLoading ? 0.7 : 1 }}>
         {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
         Continue with Google
       </button>
 
       {/* Divider */}
       <div className="flex items-center gap-3 mb-5">
-        <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
-        <span style={{ fontSize: 12, color: "#667085" }}>or sign in with email</span>
-        <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+        <div className="bg-border" style={{ flex: 1, height: 1 }} />
+        <span className="text-text-3" style={{ fontSize: 12 }}>or sign in with email</span>
+        <div className="bg-border" style={{ flex: 1, height: 1 }} />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -149,8 +146,8 @@ export function LoginForm() {
             </label>
             <Link
               href="/auth/forgot-password"
-              className="underline-offset-2 hover:underline"
-              style={{ fontSize: 12, color: "#475569" }}
+              className="underline-offset-2 hover:underline text-text-2"
+              style={{ fontSize: 12 }}
             >
               Forgot password?
             </Link>
@@ -174,10 +171,8 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={loading || googleLoading || (TURNSTILE_CONFIGURED && !captchaToken)}
-            className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer bg-[var(--brand)] text-[var(--brand-fg)]"
             style={{
-              background: "#3B82F6",
-              color: "#FFFFFF",
               fontSize: 14,
               fontWeight: 500,
               opacity: loading ? 0.7 : 1,
@@ -200,9 +195,9 @@ export function LoginForm() {
         </div>
       </form>
 
-      <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>
+      <p className="text-center mt-6 text-text-3" style={{ fontSize: 12 }}>
         No account yet?{" "}
-        <Link href="/auth/signup" style={{ color: "#3B82F6", fontWeight: 500, textDecoration: "none" }}>
+        <Link href="/auth/signup" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>
           Sign up free
         </Link>
       </p>

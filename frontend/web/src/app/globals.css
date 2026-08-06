@@ -269,6 +269,92 @@
     #FF4D8B 0%, #FF87B0 33%, #FF4D8B 66%, #E03B75 100%);
 }
 
+/* ─── Auth shell — scoped token override, not a theme ─────────────
+   Pre-login there is no meaningful theme preference yet, but the FOUC
+   script in layout.tsx stamps a signed-out visitor's *last-chosen*
+   theme class onto <html> unconditionally, including on /auth/*. The
+   auth screens (login/signup/forgot-password/update-password) are
+   deliberately fixed-palette by design — but they compose the shared
+   Input/FieldLabel (`lib/field-utils.tsx`), which read --text/--red/
+   --border/--brand off the cascade, so a hand-styled #FFFFFF card
+   still ends up with e.g. Aurora Dark's #EAEEF6 label colour: white
+   text on a white card.
+
+   Rather than fighting the token system with more inline hex, this
+   class REDEFINES the token surface for its subtree so the exact same
+   shared components resolve auth's own palette by construction,
+   regardless of what <html> carries. That makes the guarantee
+   structural rather than a route check a future refactor could
+   quietly break.
+
+   Values are :root.theme-classic's canonical palette (Classic doesn't
+   override --green/--red/--amber/--purple itself, so those equal the
+   shared :root defaults just above). --success/--warning/--danger/
+   --info are aliases defined ONCE at :root as var(--green) etc (see
+   the Phase 0 comment ~line 1120) — they resolve using whichever
+   --green/--amber/--red/--blue cascades on the SAME element, so
+   without pinning them here too, a signed-out Aurora Dark user would
+   still get Aurora's teal "success" inside this otherwise theme-proof
+   shell. The raw hue tokens are pinned as well because some shared
+   components read them directly rather than through the semantic
+   alias — `lib/field-utils.tsx`'s FieldError/required-asterisk and
+   `components/ui/Input.tsx`'s error border both read var(--red)
+   straight, not var(--danger). */
+.auth-shell {
+  --surface:      #FFFFFF;
+  --surface-2:    #F1F5F9;
+  --surface-3:    #E2E8F0;
+  --text:         #0F172A;
+  --text-2:       #475569;
+  --text-3:       #64748B;
+  --border:       #E2E8F0;
+  --border-muted: #F1F5F9;
+
+  /* Contrast fix carried over from :root.theme-classic: white
+     --brand-fg on #3B82F6 is 3.68:1, under the 4.5 AA minimum. Auth
+     must not reintroduce a failure the rest of the app already fixed
+     by darkening to #2563EB (5.17:1). */
+  --brand:        #2563EB;
+  --brand-fg:     #FFFFFF;
+  --brand-strong: #1D4ED8;
+
+  --blue:        #3B82F6;
+  --blue-dark:   #2563EB;
+  --blue-light:  #DBEAFE;
+  --blue-muted:  #93C5FD;
+  --blue-fg:     #FFFFFF;
+  --green:       #1A7F37;
+  --green-light: #DAFBE1;
+  --red:         #CF222E;
+  --red-light:   #FFEBE9;
+  --amber:       #9A6700;
+  --amber-light: #FFF8C5;
+  --purple:      #8250DF;
+  --purple-light:#FBEFFF;
+
+  --success:        var(--green);
+  --success-subtle: var(--green-light);
+  --success-border: color-mix(in srgb, var(--green) 35%, transparent);
+
+  --warning:        var(--amber);
+  --warning-subtle: var(--amber-light);
+  --warning-border: color-mix(in srgb, var(--amber) 35%, transparent);
+
+  --danger:        var(--red);
+  --danger-subtle: var(--red-light);
+  --danger-border: color-mix(in srgb, var(--red) 35%, transparent);
+
+  --info:        var(--blue);
+  --info-subtle: var(--blue-light);
+  --info-border: color-mix(in srgb, var(--blue) 35%, transparent);
+
+  /* One-off: the brand panel's pale wash background. No existing
+     token names this hue/lightness combination (it's lighter than
+     --blue-light), so it gets its own scoped token rather than a bare
+     hex in Shell.tsx. */
+  --auth-panel: #EFF6FF;
+}
+
 @theme inline {
   --color-sidebar-bg:     var(--sidebar-bg);
   --color-sidebar-text:   var(--sidebar-text);
