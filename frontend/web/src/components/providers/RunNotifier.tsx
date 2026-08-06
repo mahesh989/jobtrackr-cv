@@ -66,11 +66,21 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     let running  = false; // updated at the end of each poll(); drives the next delay
+    // Set by the run-started event below. The enqueue route only pushes a
+    // BullMQ job and returns — run_logs doesn't flip to "running" until the
+    // worker actually picks it up, which can lag the click by a few seconds
+    // (RunNowButton gives its OWN polling a matching 6s grace for the same
+    // reason). Without this, the immediate poll() triggered by the event
+    // would usually find nothing yet, leave `running` false, and schedule()
+    // would fall right back to the 180s cadence — defeating the point of
+    // reacting to the event at all.
+    let forceActiveUntil = 0;
 
     function schedule() {
       if (cancelled || document.hidden) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(poll, running ? ACTIVE_POLL_MS : BACKSTOP_MS);
+      const active = running || Date.now() < forceActiveUntil;
+      timer = setTimeout(poll, active ? ACTIVE_POLL_MS : BACKSTOP_MS);
     }
 
     function pushNotice(notice: Notice) {
@@ -168,14 +178,31 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
       }
     }
 
+    // RunNowButton fires this the instant its POST succeeds. Without it, a
+    // run started while sitting on a page other than the profile's own would
+    // wait for the next BACKSTOP_MS tick (up to 180s) before this banner —
+    // the only thing showing "Pipeline running" outside that one profile
+    // page — noticed. Same-tab only (a plain window event), which is exactly
+    // the case that matters: cross-tab starts still fall back to the poll.
+    function onRunStarted() {
+      // 30s covers worker pickup latency (normally 1-3s) without keeping the
+      // fast cadence alive if the run never actually starts — e.g. the job is
+      // dropped, or the worker is down. Once the row does appear, `running`
+      // takes over and this window stops mattering.
+      forceActiveUntil = Date.now() + 30_000;
+      poll();
+    }
+
     poll();
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("jobtrackr:run-started", onRunStarted);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("jobtrackr:run-started", onRunStarted);
     };
   }, [router, isAdmin]);
 
