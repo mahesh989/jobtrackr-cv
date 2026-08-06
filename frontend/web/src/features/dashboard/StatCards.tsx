@@ -5,9 +5,16 @@
  *
  * Replaces the old status tab bar — each card is now a navigation trigger:
  *   Total jobs     → scroll to (or pulse) the jobs board, highlight while in view
- *   New · unseen   → filter the board to unseen jobs (inactive when count is 0)
+ *   New · unseen   → filter the board to unseen jobs (omitted entirely at 0)
  *   Applied        → the board's flat Applied view
- *   Auto-scheduled → /profiles?autoScheduled=true
+ *
+ * "New · unseen" is dropped from the DOM at 0 rather than rendered greyed
+ * out. A permanent dead card was taking a quarter of the row to say nothing,
+ * while being the most actionable card here whenever it is non-zero.
+ *
+ * There was a fourth card, "Auto-scheduled" (→ /profiles?autoScheduled=true).
+ * It was removed: it reported profile CONFIG, not anything the user acts on
+ * from this screen, and /profiles is already one click away in the sidebar.
  *
  * The jobs board is server-rendered; this client component targets it by the
  * `jobs-board` id rather than owning it.
@@ -23,12 +30,10 @@ export function StatCards({
   totalJobs,
   totalNew,
   totalApplied,
-  activeCount,
 }: {
   totalJobs: number;
   totalNew: number;
   totalApplied: number;
-  activeCount: number;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -89,19 +94,14 @@ export function StatCards({
     router.push(APPLIED_HREF);
   }
 
-  function handleAutoScheduledClick() {
-    rememberOrigin();
-    router.push("/profiles?autoScheduled=true");
-  }
-
   const cardBase =
     "kpi-card cursor-pointer transition-all hover:border-[var(--brand)]/50 " +
     "focus:outline-none focus-visible:border-[var(--brand)] focus-visible:ring-1 focus-visible:ring-[var(--brand)]/30";
 
-  const newDisabled = totalNew === 0;
+  const showNew = totalNew > 0;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 anim-in">
+    <div className={`grid grid-cols-2 gap-3 anim-in ${showNew ? "sm:grid-cols-3" : ""}`}>
       {/* Total jobs — scroll to / pulse the jobs board */}
       <div
         role="button"
@@ -118,25 +118,19 @@ export function StatCards({
         <div className="kpi-label">Total jobs</div>
       </div>
 
-      {/* New · unseen — filter the board, or inactive when count is 0 */}
-      <div
-        role={newDisabled ? undefined : "button"}
-        tabIndex={newDisabled ? undefined : 0}
-        onClick={newDisabled ? undefined : handleNewClick}
-        onKeyDown={
-          newDisabled
-            ? undefined
-            : (e) => (e.key === "Enter" || e.key === " ") && handleNewClick()
-        }
-        className={
-          newDisabled
-            ? "kpi-card opacity-50 pointer-events-none select-none"
-            : `${cardBase} border-[var(--brand)] ring-1 ring-[var(--brand)]/20`
-        }
-      >
-        <div className={`kpi-value ${newDisabled ? "" : "text-[var(--brand)]"}`}>{totalNew}</div>
-        <div className="kpi-label">New · unseen</div>
-      </div>
+      {/* New · unseen — omitted entirely at 0 (see the note at the top) */}
+      {showNew && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleNewClick}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleNewClick()}
+          className={`${cardBase} border-[var(--brand)] ring-1 ring-[var(--brand)]/20`}
+        >
+          <div className="kpi-value text-[var(--brand)]">{totalNew}</div>
+          <div className="kpi-label">New · unseen</div>
+        </div>
+      )}
 
       {/* Applied — go to the applications outbox */}
       <div
@@ -148,18 +142,6 @@ export function StatCards({
       >
         <div className={`kpi-value ${totalApplied > 0 ? "text-[#1A7F37]" : ""}`}>{totalApplied}</div>
         <div className="kpi-label">Applied</div>
-      </div>
-
-      {/* Auto-scheduled — go to profiles filtered to auto-schedule */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={handleAutoScheduledClick}
-        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleAutoScheduledClick()}
-        className={cardBase}
-      >
-        <div className="kpi-value">{activeCount}</div>
-        <div className="kpi-label">Auto-scheduled</div>
       </div>
     </div>
   );

@@ -77,7 +77,7 @@ export default async function DashboardPage({
   }
   const {
     typedJobs, funnelCounts, lensData,
-    totalJobs, totalNew, totalApplied, activeCount,
+    totalJobs, totalNew, totalApplied,
     mergedExcludeKeywords, isNewView,
   } = result.data;
 
@@ -97,7 +97,6 @@ export default async function DashboardPage({
               totalJobs={totalJobs}
               totalNew={totalNew}
               totalApplied={totalApplied}
-              activeCount={activeCount}
             />
 
             {/* ── Pipeline analytics donut ── */}
