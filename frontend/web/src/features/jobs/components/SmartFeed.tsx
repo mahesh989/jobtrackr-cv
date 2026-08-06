@@ -483,7 +483,7 @@ export function SmartFeed({
             ancestor's overflow-hidden swallowed the rest rather than letting the
             page scroll to it. `min-w-0` is load-bearing — without it the flex
             item's automatic minimum size re-floors at its content width. */}
-        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100vh - 2rem)" }}>
+        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100dvh - 2rem)" }}>
           <div className="h-full flex flex-col">
             {/* The feed's own scroller — the outer main column doesn't move
                 with it, so ScrollRestoration has to know about this one to put
@@ -524,7 +524,7 @@ export function SmartFeed({
 
         <div
           className="hidden lg:block flex-1 min-w-[540px] bg-surface self-start overflow-hidden"
-          style={{ height: "calc(100vh - 2rem)" }}
+          style={{ height: "calc(100dvh - 2rem)" }}
         >
           {selectedJob
             ? <BoardDetailPanel job={selectedJob} onClose={closeDetail} onPatchJob={patchJob} />

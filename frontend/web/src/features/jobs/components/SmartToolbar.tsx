@@ -358,6 +358,7 @@ export function SmartToolbar({
         <div className="relative flex-1 min-w-0">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3" />
           <input
+            key={currentLocation}
             type="text"
             defaultValue={currentLocation}
             onBlur={(e) => {
