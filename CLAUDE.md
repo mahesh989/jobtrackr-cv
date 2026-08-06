@@ -190,6 +190,11 @@ backend/worker/src/
 
 ## Code Conventions
 
+**Changing the shape of existing code? Read `docs/REFACTORING.md` first** —
+house rules on splitting files, naming, what not to delete, and the
+characterization-test-then-mutate discipline. Every rule there has a real
+incident from this repo behind it.
+
 - **frontend/web** — same as JobTrackr: TypeScript, Next.js App Router, Tailwind, TanStack Query, Supabase browser client only for Realtime.
 - **backend/worker** — unchanged from JobTrackr. Don't extend it for CV work; that's backend/api's job.
 - **backend/api** — Python 3.11+, FastAPI, async-only, httpx, Supabase service-role client (no SQLAlchemy session for this project — direct REST writes are simpler).
