@@ -131,8 +131,11 @@ const LENS_META: Record<LensKey, LensMeta> = {
   },
   applied: {
     label: "Applied",
-    centerLabel: "applied",
-    visibleSlices: 2,
+    // The ring covers every tracked job, so the centre reads "N tracked" —
+    // NOT the applied count. The pill badge still shows applied-only, which
+    // is deliberate: the pill row is the funnel (fetched → saved → analysed →
+    // passed → applied) and must stay readable left-to-right. See pillCount().
+    centerLabel: "tracked",
     slices: [
       { label: "Applied",     color: "var(--chart-applied)", href: APPLIED_HREF },
       // "Letter ready", not "Ready to apply" — that phrase names the
@@ -213,13 +216,20 @@ function getTotals(data: PipelineLensData, lens: LensKey): [number, number, numb
 }
 
 function centerTarget(data: PipelineLensData, lens: LensKey): number {
+  // Sourcing is the one lens whose centre is not its ring total: it counts
+  // lifetime fetches, of which the ring's three slices are the outcome.
+  // Every other lens (applied included) must show the ring total, or the
+  // centre number and the percentages around it disagree.
   if (lens === "sourcing") return data.sourcing.fetched;
-  if (lens === "applied")  return data.applied.totals[0];
   const t = data[lens].totals;
   return t[0] + t[1] + t[2];
 }
 
 function pillCount(data: PipelineLensData, lens: LensKey): number {
+  // Pills form the funnel headline (fetched → saved → analysed → passed →
+  // applied), so these two take the single most meaningful number for their
+  // stage rather than the stage's total. Intentionally NOT the same rule as
+  // centerTarget above.
   if (lens === "sourcing") return data.sourcing.totals[0];
   if (lens === "applied")  return data.applied.totals[0];
   const t = data[lens].totals;
