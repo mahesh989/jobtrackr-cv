@@ -9,39 +9,31 @@
  * lifetime total only ever goes up, so it stops meaning anything; a weekly
  * count is the difference between "I'm moving" and "I've stalled".
  *
- * "New · unseen" survives as a real button rather than a stat, because it is
- * the one item here that names something to DO. It is omitted entirely at 0.
+ * This side is FACTS only. "New · unseen" was also a KPI card, but it names
+ * something to DO, so it lives in NextActions on the other side of the row
+ * rather than being split away from the other actions.
  *
  * Every navigation path the KPI cards owned is preserved:
- *   N new to review → ?status=new     (was: New · unseen card)
- *   N applied       → APPLIED_HREF    (was: Applied card)
- *   N tracked       → scroll/pulse the jobs board  (was: Total jobs card)
+ *   N applied → APPLIED_HREF                    (was: Applied card)
+ *   N tracked → scroll/pulse the jobs board     (was: Total jobs card)
+ *   N new     → ?status=new, now in NextActions (was: New · unseen card)
  */
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { APPLIED_HREF } from "@/features/jobs/lib/boardViews";
 
 const JOBS_BOARD_ID = "jobs-board";
 
 export function ProgressLine({
   totalJobs,
-  totalNew,
   totalApplied,
   appliedThisWeek,
 }: {
   totalJobs: number;
-  totalNew: number;
   totalApplied: number;
   appliedThisWeek: number;
 }) {
   const router = useRouter();
-  const sp = useSearchParams();
-
-  function handleNewClick() {
-    const params = new URLSearchParams(sp.toString());
-    params.set("status", "new");
-    router.push(`/dashboard?${params.toString()}`);
-  }
 
   function rememberOrigin() {
     try {
@@ -78,32 +70,17 @@ export function ProgressLine({
     "focus:outline-none focus-visible:underline";
 
   return (
-    <div className="flex items-center gap-3 flex-wrap anim-in">
-      {totalNew > 0 && (
-        <button
-          type="button"
-          onClick={handleNewClick}
-          className="inline-flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-md text-label font-medium
-                     bg-[var(--brand)]/10 border border-[var(--brand)]/30 text-[var(--brand)]
-                     hover:bg-[var(--brand)]/15 transition-colors
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/40"
-        >
-          {totalNew} new to review
-        </button>
+    <p className="text-body text-text-2 shrink-0 anim-in">
+      <button type="button" onClick={handleAppliedClick} className={linkCls}>
+        {totalApplied.toLocaleString()} applied
+      </button>
+      {appliedThisWeek > 0 && (
+        <span className="text-[#1A7F37] font-semibold"> · {appliedThisWeek} this week</span>
       )}
-
-      <p className="text-body text-text-2">
-        <button type="button" onClick={handleAppliedClick} className={linkCls}>
-          {totalApplied.toLocaleString()} applied
-        </button>
-        {appliedThisWeek > 0 && (
-          <span className="text-[#1A7F37] font-semibold"> · {appliedThisWeek} this week</span>
-        )}
-        {" · "}
-        <button type="button" onClick={handleTotalClick} className={linkCls}>
-          {totalJobs.toLocaleString()} tracked
-        </button>
-      </p>
-    </div>
+      {" · "}
+      <button type="button" onClick={handleTotalClick} className={linkCls}>
+        {totalJobs.toLocaleString()} tracked
+      </button>
+    </p>
   );
 }

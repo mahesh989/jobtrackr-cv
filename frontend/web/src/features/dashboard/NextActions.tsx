@@ -1,22 +1,28 @@
 "use client";
 
 /**
- * The dashboard's "what should I do next" bar.
+ * The dashboard's "what should I do next" cluster.
  *
- * These three counts are the only things on the dashboard that name a NEXT
- * ACTION rather than describe history, so they sit above the analytics rather
- * than in a footer strip under them (where they previously lived, rendered as
- * small text under the donut).
+ * These are the only items on the dashboard that name a NEXT ACTION rather
+ * than describe history, so they sit on the action side of the summary row,
+ * opposite the progress figures. Previously they rendered as small text in a
+ * footer strip underneath the donut.
  *
- * Order is by how close each is to the product's actual point — an
- * application going out the door:
- *   1. letters written, nothing left to do but send      → primary
- *   2. passed the ATS gate but has no letter yet         → one step behind
- *   3. thin JD, analysis is blocked until text is pasted → a chore, but the
- *                                                          only unblock path
+ * Order runs newest-signal first, then by proximity to the product's actual
+ * point — an application going out the door:
+ *   1. new arrivals nobody has looked at yet
+ *   2. letters written, nothing left to do but send   → primary, brand-filled
+ *   3. passed the ATS gate but has no letter yet      → one step behind
+ *   4. thin JD, analysis is blocked until text is pasted
  *
  * Renders nothing at all when there is nothing to do. An empty action bar is
  * worse than no action bar.
+ *
+ * Every entry uses the same shallow client-side filter as the donut's slices
+ * (useApplyFilter), so acting on one re-filters the board in place and scrolls
+ * to it rather than triggering a full server navigation. "New to review"
+ * previously did a router.push that reloaded the route; it is now consistent
+ * with the rest — `status` is one of the view keys applyFilter clears.
  */
 
 import Link from "next/link";
@@ -29,15 +35,30 @@ const BASE =
   "inline-flex shrink-0 items-center gap-1.5 rounded-md font-medium " +
   "transition-colors focus:outline-none focus-visible:ring-2";
 
-export function CalloutStrip({ callouts }: {
+export function NextActions({ callouts, totalNew }: {
   callouts: PipelineLensData["callouts"];
+  totalNew: number;
 }) {
   const applyFilter = useApplyFilter();
 
-  if (callouts.thinJdCount === 0 && callouts.passedButNoLetter === 0 && callouts.readyToApply === 0) return null;
+  const nothingToDo =
+    totalNew === 0 &&
+    callouts.thinJdCount === 0 &&
+    callouts.passedButNoLetter === 0 &&
+    callouts.readyToApply === 0;
+  if (nothingToDo) return null;
 
   return (
-    <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible whitespace-nowrap sm:whitespace-normal anim-in">
+    <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible whitespace-nowrap sm:whitespace-normal sm:justify-end anim-in">
+      {totalNew > 0 && (
+        <FilterAnchor
+          href="/dashboard?status=new"
+          apply={applyFilter}
+          className={`${BASE} px-3 py-2 text-label bg-[var(--brand)]/10 border border-[var(--brand)]/30 text-[var(--brand)] hover:bg-[var(--brand)]/15 focus-visible:ring-[var(--brand)]/40`}
+        >
+          {totalNew} new to review
+        </FilterAnchor>
+      )}
       {/* "Ready to apply" here means pipelineState's ready_to_apply/ready_to_send
           combined — has a cover letter, hasn't been sent — NOT the toolbar's
           "Ready to apply" saved view (ATS above the final gate + full JD, no

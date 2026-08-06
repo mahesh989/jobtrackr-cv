@@ -27,7 +27,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
 import { ProgressLine } from "@/features/dashboard/ProgressLine";
-import { CalloutStrip } from "@/features/dashboard/CalloutStrip";
+import { NextActions } from "@/features/dashboard/NextActions";
 import { PipelineDonut } from "@/features/dashboard/PipelineDonut";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
 import { JobBoard } from "@/features/jobs/components/JobBoard";
@@ -93,21 +93,24 @@ export default async function DashboardPage({
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {!isFocusedStage && (
           <>
-            {/* ── Progress line (interactive) ── */}
-            <Suspense>
-              <ProgressLine
-                totalJobs={totalJobs}
-                totalNew={totalNew}
-                totalApplied={totalApplied}
-                appliedThisWeek={appliedThisWeek}
-              />
-            </Suspense>
-
-            {/* ── Next actions ──
-                Above the analytics on purpose: these are the only items here
-                that tell the user what to DO. They used to render as a footer
-                strip inside PipelineDonut. */}
-            <Suspense><CalloutStrip callouts={lensData.callouts} /></Suspense>
+            {/* ── Summary row: facts left, actions right ──
+                One line. The left side is progress (what has happened), the
+                right is the only things on this page that tell the user what
+                to DO — including "N new to review", which is an action and so
+                belongs with the others rather than beside the stats.
+                Wraps to two stacked rows on narrow screens. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <Suspense>
+                <ProgressLine
+                  totalJobs={totalJobs}
+                  totalApplied={totalApplied}
+                  appliedThisWeek={appliedThisWeek}
+                />
+              </Suspense>
+              <Suspense>
+                <NextActions callouts={lensData.callouts} totalNew={totalNew} />
+              </Suspense>
+            </div>
 
             {/* ── Pipeline analytics (collapsed by default) ──
                 This is a REPORT, not a next action: it answers "how is my
