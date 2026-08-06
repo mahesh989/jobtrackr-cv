@@ -26,7 +26,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
-import { StatCards } from "@/features/dashboard/StatCards";
+import { ProgressLine } from "@/features/dashboard/ProgressLine";
 import { CalloutStrip } from "@/features/dashboard/CalloutStrip";
 import { PipelineDonut } from "@/features/dashboard/PipelineDonut";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
@@ -78,13 +78,13 @@ export default async function DashboardPage({
   }
   const {
     typedJobs, funnelCounts, lensData,
-    totalJobs, totalNew, totalApplied,
+    totalJobs, totalNew, totalApplied, appliedThisWeek,
     mergedExcludeKeywords, isNewView,
   } = result.data;
 
   // Favourite/Applied are opened from their own sidebar links, not from a
   // funnel click inside the dashboard — the user came here for the filtered
-  // board, not the account-wide stats. Skip the header/StatCards/PipelineDonut
+  // board, not the account-wide stats. Skip the progress line/callouts/donut
   // so the board panels start right at the top of the page.
   const isFocusedStage = sp.stage === "favourite" || sp.stage === "applied";
 
@@ -93,12 +93,15 @@ export default async function DashboardPage({
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {!isFocusedStage && (
           <>
-            {/* ── KPI bar (interactive) ── */}
-            <StatCards
-              totalJobs={totalJobs}
-              totalNew={totalNew}
-              totalApplied={totalApplied}
-            />
+            {/* ── Progress line (interactive) ── */}
+            <Suspense>
+              <ProgressLine
+                totalJobs={totalJobs}
+                totalNew={totalNew}
+                totalApplied={totalApplied}
+                appliedThisWeek={appliedThisWeek}
+              />
+            </Suspense>
 
             {/* ── Next actions ──
                 Above the analytics on purpose: these are the only items here
