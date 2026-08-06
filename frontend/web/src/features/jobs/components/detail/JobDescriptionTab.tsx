@@ -87,13 +87,13 @@ export function JobDescriptionTab({
     <div className="space-y-5">
       <div className="flex flex-wrap gap-1.5">
         {jd.seniority_level && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[#eef2ff] text-[#4338ca]">{jd.seniority_level}</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--purple-light)] text-[var(--purple)]">{jd.seniority_level}</span>
         )}
         {jd.job_context?.setting && (
           <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-green-light text-green-700">{jd.job_context.setting.replace(/_/g, " ")}</span>
         )}
         {typeof jd.experience_years_required === "number" && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[#f0f1f4] text-text-2">{jd.experience_years_required}+ yrs</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--surface-2)] text-text-2">{jd.experience_years_required}+ yrs</span>
         )}
       </div>
 
@@ -107,7 +107,7 @@ export function JobDescriptionTab({
               <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-1">{labels[c] ?? c}</p>
               <div className="flex flex-wrap gap-1">
                 {required[c].map((kw) => (
-                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f0f1f4] text-[#3d4653]">{kw}</span>
+                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2">{kw}</span>
                 ))}
               </div>
             </div>
@@ -122,7 +122,7 @@ export function JobDescriptionTab({
             {order.filter((c) => (preferred[c]?.length ?? 0) > 0).map((c) => (
               <div key={c} className="flex flex-wrap gap-1">
                 {preferred[c].map((kw) => (
-                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f0f1f4] text-[#3d4653]">{kw}</span>
+                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2">{kw}</span>
                 ))}
               </div>
             ))}

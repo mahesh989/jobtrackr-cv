@@ -119,7 +119,7 @@ export function SetupGateClient() {
       </p>
       <Link
         href={`/instructions?tab=setup&step=${banner.step}`}
-        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--brand)] px-3 py-1.5 text-label font-medium text-white hover:opacity-90 transition-opacity"
+        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--brand)] px-3 py-1.5 text-label font-medium text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
         onClick={() => setBanner(null)}
       >
         Continue <ChevronRight className="w-3.5 h-3.5" />

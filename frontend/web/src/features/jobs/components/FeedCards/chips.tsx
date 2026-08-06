@@ -10,7 +10,7 @@
  */
 import { BarChart3, CheckCircle2, FileText, Mail } from "lucide-react";
 import { BoardJob } from "../../lib/jobFilters";
-import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, visaKey } from "@/features/jobs/lib/smartFeedUtils";
+import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, sourcePillTone, visaKey } from "@/features/jobs/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ export function ProfileChip({ name }: { name: string }) {
 export function SourcePill({ source }: { source: string }) {
   return (
     <span
-      className="shrink-0 rounded-[5px] px-[7px] py-[3px] bg-[#f0f1f4] text-text-2"
+      className={`shrink-0 rounded-[5px] px-[7px] py-[3px] ${sourcePillTone(source)}`}
       style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em" }}
       title={`Source: ${source}`}
     >

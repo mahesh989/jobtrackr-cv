@@ -100,7 +100,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
 
       <h4 className="text-[12px] font-bold uppercase tracking-wide text-text mt-5 mb-2">Match breakdown by category</h4>
       <div className="rounded-[10px] border border-border overflow-hidden mb-1">
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] bg-[#f0f1f4] text-[10.5px] uppercase tracking-[0.03em] font-bold text-text-3">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] bg-[var(--surface-2)] text-[10.5px] uppercase tracking-[0.03em] font-bold text-text-3">
           <span>Category</span><span>Required</span><span>Preferred</span><span>Match rate</span>
         </div>
         {order.filter((c) => catRequiredTotal(c) > 0 || catPreferredTotal(c) > 0).map((c) => {
@@ -118,13 +118,13 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
             </div>
           );
         })}
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[var(--surface-2)]">
           <span className="text-text-2">Required total</span>
           <span className="text-text-3 text-[12px]">all categories combined</span>
           <span />
           <span className="font-bold text-right text-text">{overallRate}%</span>
         </div>
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[var(--surface-2)]">
           <span className="text-text-2">Preferred total</span>
           <span className="text-text-3 text-[12px]">{hasPreferred ? "all categories combined" : "no preferred keywords in JD"}</span>
           <span />
@@ -157,7 +157,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
               <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-1">Missing</p>
               <div className="flex flex-wrap gap-1">
                 {matching.credentials_required.missing.map((c) => (
-                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f7f8fa] text-text-2 border border-dashed border-[#cbd0d8]">{c}</span>
+                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2 border border-dashed border-[var(--border)]">{c}</span>
                 ))}
               </div>
             </div>

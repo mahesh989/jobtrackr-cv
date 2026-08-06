@@ -168,7 +168,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
   } else if (state === "ready_to_apply" || state === "ready_to_send") {
     actionButton = (
       <button type="button" onClick={onApply}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
+        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
       >
         Apply
       </button>
@@ -184,7 +184,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
   } else if (state === "discovered" && !job.progress.has_analysis) {
     actionButton = (
       <button type="button" onClick={onAnalyse}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
+        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
       >
         Analyse
       </button>
@@ -308,7 +308,7 @@ export function CardShell({
             }`}
             aria-label={checked ? "Deselect job" : "Select job"}
           >
-            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--brand-fg)]" strokeWidth={3} />}
           </button>
         )}
         <div

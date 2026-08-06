@@ -482,7 +482,7 @@ export function ApplyModal({
                 one in the user's voice (slow — an AI call). Saying "loading"
                 for the second one is what made it look hung. */}
             {(awaitingLetter || (!!effectiveLetterId && !bodyLoaded)) && !draftError && (
-              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+              <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-3">
                 <p className="flex items-center gap-2 text-label font-medium text-text">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   {awaitingLetter ? "Loading your message…" : "Writing your message…"}
@@ -539,7 +539,7 @@ export function ApplyModal({
                 employer", so a bare "writing your cover letter" reads as though
                 the wrong thing is being produced. */}
             {generating && (
-              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+              <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-3">
                 <p className="flex items-center gap-2 text-label font-medium text-text">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   {researching

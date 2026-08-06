@@ -134,8 +134,8 @@ function PopRow({
         }
       >
         {selected && (kind === "radio"
-          ? <span className="w-1.5 h-1.5 rounded-full bg-white" />
-          : <span className="text-white text-[9px] leading-none font-bold">\u2713</span>)}
+          ? <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-fg)]" />
+          : <span className="text-[var(--brand-fg)] text-[9px] leading-none font-bold">\u2713</span>)}
       </span>
       <span className="flex-1 min-w-0">{children}</span>
       {count != null && <span className="tabular-nums text-caption text-text-3">{count}</span>}
