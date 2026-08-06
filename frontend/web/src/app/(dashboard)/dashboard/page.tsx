@@ -109,8 +109,32 @@ export default async function DashboardPage({
                 strip inside PipelineDonut. */}
             <Suspense><CalloutStrip callouts={lensData.callouts} /></Suspense>
 
-            {/* ── Pipeline analytics donut ── */}
-            <PipelineDonut data={lensData} />
+            {/* ── Pipeline analytics (collapsed by default) ──
+                This is a REPORT, not a next action: it answers "how is my
+                funnel distributed", which nobody acts on differently day to
+                day. It stays available — the slices are real triage
+                shortcuts into filtered board views — but it no longer
+                outranks the action bar above it for attention or space.
+
+                It is NOT moved to /admin: this donut renders ONE user's
+                funnel, while /admin/sourcing and /admin/pipeline already
+                answer the same questions platform-wide from run_logs /
+                global_jobs / search_coverage. Putting a per-user copy there
+                would duplicate a strictly better view.
+
+                Native <details> so this costs no JS and stays keyboard- and
+                screen-reader-accessible on a server component. */}
+            <details className="group rounded-lg border border-border bg-surface">
+              <summary
+                className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-label
+                           font-medium text-text-2 transition-colors hover:text-text
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/40"
+              >
+                <span aria-hidden className="transition-transform group-open:rotate-90">›</span>
+                Pipeline analytics
+              </summary>
+              <PipelineDonut data={lensData} />
+            </details>
           </>
         )}
 
