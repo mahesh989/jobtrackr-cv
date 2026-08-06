@@ -27,6 +27,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
 import { StatCards } from "@/features/dashboard/StatCards";
+import { CalloutStrip } from "@/features/dashboard/CalloutStrip";
 import { PipelineDonut } from "@/features/dashboard/PipelineDonut";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
 import { JobBoard } from "@/features/jobs/components/JobBoard";
@@ -98,6 +99,12 @@ export default async function DashboardPage({
               totalNew={totalNew}
               totalApplied={totalApplied}
             />
+
+            {/* ── Next actions ──
+                Above the analytics on purpose: these are the only items here
+                that tell the user what to DO. They used to render as a footer
+                strip inside PipelineDonut. */}
+            <Suspense><CalloutStrip callouts={lensData.callouts} /></Suspense>
 
             {/* ── Pipeline analytics donut ── */}
             <PipelineDonut data={lensData} />

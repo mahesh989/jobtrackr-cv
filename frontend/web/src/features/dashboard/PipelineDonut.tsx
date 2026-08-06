@@ -1,20 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
-import { shallowSetParams } from "@/features/jobs/lib/shallowNav";
 import { APPLIED_HREF, LETTER_READY_HREF } from "@/features/jobs/lib/boardViews";
 import { FilterAnchor } from "./FilterAnchor";
-import { CalloutStrip } from "./CalloutStrip";
+import { useApplyFilter } from "./useApplyFilter";
 import { Button, Chip, IconButton } from "@/components/ui";
-
-// View-filter params the donut can set; cleared before applying a new one so
-// the chosen slice is shown cleanly (dataset filters like location are kept).
-// `job` belongs here too: it's leftover detail-pane selection state, not a
-// dataset filter, and a stale one survives this merge otherwise — landing on
-// the Applied flat list with the previously-open job pre-expanded even though
-// that view's whole design is "no auto-expand, detail only on explicit click".
-const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips", "job"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -324,21 +314,7 @@ function hitCenter(mx: number, my: number) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function PipelineDonut({ data }: { data: PipelineLensData }) {
-  const pathname = usePathname();
-  const sp       = useSearchParams();
-
-  // Dashboard board: apply a donut filter instantly client-side (History API)
-  // + scroll to the results, instead of a full server navigation.
-  function applyFilter(href: string) {
-    try {
-      const u = new URL(href, window.location.origin);
-      const params = new URLSearchParams(sp.toString());
-      DONUT_VIEW_KEYS.forEach((k) => params.delete(k));
-      u.searchParams.forEach((val, key) => params.set(key, val));
-      shallowSetParams(pathname, params);
-      document.getElementById("jobs-board")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch { /* noop */ }
-  }
+  const applyFilter = useApplyFilter();
 
   const [activeLens, setActiveLens] = useState<LensKey>("sourcing");
   const [popup,      setPopup]      = useState<"center" | number | null>(null);
@@ -539,8 +515,6 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           )}
         </div>
       </div>
-
-      <CalloutStrip callouts={data.callouts} applyFilter={applyFilter} />
 
       {popup !== null && (
         <DonutPopup mode={popup} lens={activeLens} data={data} apply={applyFilter} onClose={() => setPopup(null)} />
