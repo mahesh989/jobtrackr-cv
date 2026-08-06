@@ -61,7 +61,16 @@ export function RunNowButton({
       router.push(`/billing?denied=${reason ?? "run_cap"}`);
       return;
     }
-    if (!res.ok) setState("error");
+    if (!res.ok) { setState("error"); return; }
+    // RunNotifier (mounted once at the dashboard layout, so it survives
+    // navigation) polls run_logs on its own schedule — every 4s while it
+    // already knows a run is active, but only every 180s while idle, since
+    // Realtime never actually delivers postgres_changes for this table (see
+    // RunNotifier's own comment). Without this event, a run started here
+    // wouldn't surface as the global sticky banner on OTHER pages for up to
+    // 3 minutes. LiveRunStatus (this same profile's page-local banner) isn't
+    // affected — it seeds from initialIsRunning and polls every 12s anyway.
+    window.dispatchEvent(new CustomEvent("jobtrackr:run-started", { detail: { profileId } }));
   }
 
   async function handleStop() {
