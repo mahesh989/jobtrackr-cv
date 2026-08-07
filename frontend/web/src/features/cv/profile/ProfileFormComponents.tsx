@@ -32,7 +32,7 @@ export function Field({ label, value, onChange, type = "text", placeholder, requ
         {invalid && <span className="text-[var(--red)] font-semibold ml-1.5">· required</span>}
       </FieldLabel>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className={`field ${invalid ? "border-[var(--red)]" : ""}`} />
+        className={`field ${invalid ? "field-error" : ""}`} />
     </div>
   );
 }
