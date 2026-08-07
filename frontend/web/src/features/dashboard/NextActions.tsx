@@ -75,7 +75,7 @@ export function NextActions({ callouts, totalNew }: {
         <FilterAnchor
           href="/dashboard?triage=passedNoLetter"
           apply={applyFilter}
-          className={`${BASE} px-3 py-2 text-label bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 focus-visible:ring-blue-300`}
+          className={`${BASE} px-3 py-2 text-label bg-info-subtle border border-info-border text-info hover:brightness-95 focus-visible:ring-[var(--info)]/40`}
         >
           → {callouts.passedButNoLetter} passed ATS, no letter yet
         </FilterAnchor>
@@ -84,7 +84,7 @@ export function NextActions({ callouts, totalNew }: {
         <FilterAnchor
           href="/dashboard?triage=thinJd"
           apply={applyFilter}
-          className={`${BASE} px-3 py-2 text-label bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 focus-visible:ring-amber-300`}
+          className={`${BASE} px-3 py-2 text-label bg-warning-subtle border border-warning-border text-warning hover:brightness-95 focus-visible:ring-[var(--warning)]/40`}
         >
           ⚠ {callouts.thinJdCount} thin JD{callouts.thinJdCount > 1 ? "s" : ""} need attention
         </FilterAnchor>

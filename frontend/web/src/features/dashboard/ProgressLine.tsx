@@ -75,7 +75,7 @@ export function ProgressLine({
         {totalApplied.toLocaleString()} applied
       </button>
       {appliedThisWeek > 0 && (
-        <span className="text-[#1A7F37] font-semibold"> · {appliedThisWeek} this week</span>
+        <span className="text-success font-semibold"> · {appliedThisWeek} this week</span>
       )}
       {" · "}
       <button type="button" onClick={handleTotalClick} className={linkCls}>

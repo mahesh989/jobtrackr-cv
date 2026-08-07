@@ -189,7 +189,7 @@ export function SignupForm() {
               Create your account.
             </h1>
             <p className="text-text-2" style={{ fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
-              Start your 3-day free trial — no commitment required.
+              3-day free trial · card required, no charge today · cancel any time.
             </p>
           </div>
 
@@ -268,7 +268,14 @@ export function SignupForm() {
             </button>
           </form>
 
-          <p className="text-center mt-6 text-text-3" style={{ fontSize: 12 }}>
+          <p className="text-center mt-4 text-text-3" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+            By creating an account you agree to our{" "}
+            <Link href="/terms" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Terms</Link>
+            {" "}and{" "}
+            <Link href="/privacy" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Privacy Policy</Link>.
+          </p>
+
+          <p className="text-center mt-4 text-text-3" style={{ fontSize: 12 }}>
             Already have an account?{" "}
             <Link href="/auth/login" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
           </p>

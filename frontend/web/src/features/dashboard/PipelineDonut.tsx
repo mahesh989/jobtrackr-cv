@@ -445,6 +445,8 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           <canvas
             ref={canvasRef}
             className="block cursor-pointer"
+            role="img"
+            aria-label={`${meta.label} pipeline chart. The breakdown list to the side gives the same figures in text form.`}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
             onClick={onClick}
@@ -484,7 +486,12 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
                 role="button"
                 tabIndex={0}
                 onClick={() => setPopup(i)}
-                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPopup(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPopup(i);
+                  }
+                }}
                 className={cls}
               >{inner}</div>
             );
@@ -507,9 +514,9 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
               href="/dashboard?triage=thinJd"
              
               apply={applyFilter}
-              className="mt-2 inline-flex items-center gap-1.5 text-caption text-amber-600 hover:text-amber-700 transition-colors"
+              className="mt-2 inline-flex items-center gap-1.5 text-caption text-warning hover:brightness-95 transition-colors"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
               {counts[1]} thin JD{counts[1] > 1 ? "s" : ""} — paste full text to unlock analysis
             </FilterAnchor>
           )}
