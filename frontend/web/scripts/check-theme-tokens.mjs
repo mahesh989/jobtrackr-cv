@@ -81,6 +81,17 @@ const ALLOWLIST = {
     "TEMPORARY — rewritten on dashboard-action-first; migrate there, not here",
   "features/dashboard/StatCards.tsx":
     "TEMPORARY — replaced by ProgressLine.tsx on dashboard-action-first; migrate there, not here",
+  // Both PRE- and POST-rename paths are listed on purpose. This branch and
+  // dashboard-action-first are independent PRs into dev-5, so BOTH states
+  // have to be green: standing alone, this branch sees CalloutStrip and
+  // StatCards; once the other PR merges, those become NextActions and
+  // ProgressLine and the old keys go inert. Listing only one pair meant a
+  // clean branch that turned dev-5's CI red the moment the other side
+  // landed — verified by test-merging the two before either was pushed.
+  "features/dashboard/NextActions.tsx":
+    "TEMPORARY — post-rename name of CalloutStrip.tsx; migrate with the dashboard work",
+  "features/dashboard/ProgressLine.tsx":
+    "TEMPORARY — post-rename replacement for StatCards.tsx; migrate with the dashboard work",
 };
 
 // ── Category patterns ────────────────────────────────────────────────────
