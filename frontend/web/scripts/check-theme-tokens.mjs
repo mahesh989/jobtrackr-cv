@@ -37,13 +37,13 @@
  * check-route-auth.mjs: a finding either gets fixed or gets an ALLOWLIST
  * entry with a written justification — silence is not an option.
  *
- * STILL OUTSTANDING from Phase 6: the Aurora `!important` remap block in
- * globals.css (~1199–1330) has NOT been deleted yet. It remains
- * load-bearing for the three `features/dashboard/*` files temporarily
- * allowlisted below, which still carry raw palette classes because a
- * parallel branch rewrites them. Once those are migrated, drop their
- * allowlist entries and delete the remap block — it is a runtime patch
- * for a compile-time problem and this guard is what replaces it.
+ * BUG-12 (resolved 2026-08-07): the Aurora `!important` remap block in
+ * globals.css used to be load-bearing for CalloutStrip.tsx/StatCards.tsx
+ * (since renamed to NextActions.tsx/ProgressLine.tsx) and PipelineDonut.tsx,
+ * which were temporarily allowlisted here while a parallel branch rewrote
+ * them. All three are now migrated onto the semantic token vocabulary, the
+ * allowlist entries are gone, and the remap block itself has been deleted
+ * from globals.css — this guard is what replaces it.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -65,33 +65,6 @@ const ALLOWLIST = {
     "terminal emulator — the GitHub-dark console palette is the point, not a theme surface",
   "features/auth/components/brand.tsx":
     "Google's brand SVG — the four-colour mark is trademark-fixed and must not be recoloured",
-
-  // ── TEMPORARY (2026-08-07) — remove these three once the branch lands ──
-  // The `dashboard-action-first` branch renames CalloutStrip.tsx to
-  // NextActions.tsx and rewrites StatCards.tsx into ProgressLine.tsx.
-  // Migrating them on this branch too would turn a clean merge into a
-  // modify/delete conflict, so they are exempted rather than fixed here.
-  // They must be migrated on that branch, or in a follow-up once both
-  // have merged — at which point these three entries come out and the
-  // Aurora !important remap block in globals.css can finally be deleted
-  // (it is still load-bearing for exactly these files).
-  "features/dashboard/CalloutStrip.tsx":
-    "TEMPORARY — renamed to NextActions.tsx on dashboard-action-first; migrate there, not here",
-  "features/dashboard/PipelineDonut.tsx":
-    "TEMPORARY — rewritten on dashboard-action-first; migrate there, not here",
-  "features/dashboard/StatCards.tsx":
-    "TEMPORARY — replaced by ProgressLine.tsx on dashboard-action-first; migrate there, not here",
-  // Both PRE- and POST-rename paths are listed on purpose. This branch and
-  // dashboard-action-first are independent PRs into dev-5, so BOTH states
-  // have to be green: standing alone, this branch sees CalloutStrip and
-  // StatCards; once the other PR merges, those become NextActions and
-  // ProgressLine and the old keys go inert. Listing only one pair meant a
-  // clean branch that turned dev-5's CI red the moment the other side
-  // landed — verified by test-merging the two before either was pushed.
-  "features/dashboard/NextActions.tsx":
-    "TEMPORARY — post-rename name of CalloutStrip.tsx; migrate with the dashboard work",
-  "features/dashboard/ProgressLine.tsx":
-    "TEMPORARY — post-rename replacement for StatCards.tsx; migrate with the dashboard work",
 };
 
 // ── Category patterns ────────────────────────────────────────────────────
