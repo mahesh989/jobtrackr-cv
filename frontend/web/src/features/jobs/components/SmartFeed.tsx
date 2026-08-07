@@ -655,8 +655,8 @@ function FeedSectionView({
   }), [parentCtx, selectMode]);
   const toneClass: Record<FeedSection["tone"], string> = {
     brand: "text-[var(--brand)]",
-    green: "text-green-600",
-    amber: "text-amber-600",
+    green: "text-success",
+    amber: "text-warning",
     muted: "text-text-2" };
   const Icon = section.Icon;
   return (

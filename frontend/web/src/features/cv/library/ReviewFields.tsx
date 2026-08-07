@@ -102,12 +102,12 @@ export function DatesField({ start, end, onStart, onEnd, invalid = false }: {
 }) {
   const blank = !start && !end;
   const border = invalid
-    ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+    ? "border-danger focus:border-danger focus:ring-danger/20"
     : "border-[var(--border)] focus:border-[var(--brand)]/70 focus:ring-[var(--brand)]/15";
   return (
     <div>
       <span className="text-caption uppercase tracking-wider text-text-3 font-medium block mb-1">
-        Dates {(blank || invalid) && <span className="normal-case tracking-normal text-red-600 font-semibold">· {invalid ? "required" : "missing"}</span>}
+        Dates {(blank || invalid) && <span className="normal-case tracking-normal text-danger font-semibold">· {invalid ? "required" : "missing"}</span>}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
         <Input
@@ -174,8 +174,8 @@ export function SkillsBucket({
 }) {
   const [input, setInput] = useState("");
   const dotClass =
-    tone === "care"  ? "bg-emerald-500" :
-    tone === "soft"  ? "bg-amber-500"   :
+    tone === "care"  ? "bg-success" :
+    tone === "soft"  ? "bg-warning"   :
                        "bg-text-3/60";
   return (
     <div className="space-y-2">

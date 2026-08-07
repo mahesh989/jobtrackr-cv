@@ -366,7 +366,7 @@ export function DetailHeader({
                 disabled={cancelling || !runId}
                 title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
                 aria-label="Stop analysis"
-                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
               >
                 {cancelling
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -398,7 +398,7 @@ export function DetailHeader({
           )}
 
           {isApplied ? (
-            <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-[var(--green-light)] text-[var(--green)]">✓ Applied</span>
+            <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-success-subtle text-success">✓ Applied</span>
           ) : needsJd ? (
             <button type="button" onClick={() => setShowEdit(true)}
               className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
@@ -472,7 +472,7 @@ export function DetailHeader({
         )}
       </div>
 
-      {error && <p className="text-label text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-label text-danger mt-2">{error}</p>}
 
       {showEdit && (
         <JobEditModal

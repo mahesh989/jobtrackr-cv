@@ -95,7 +95,7 @@ function StoryCard({
           {story.numbers.map((n, i) => (
             <span
               key={i}
-              className="px-2 py-0.5 rounded-full text-caption font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              className="px-2 py-0.5 rounded-full text-caption font-medium bg-success-subtle text-success border border-success-border"
             >
               {n.metric}: {n.value}
             </span>
@@ -299,7 +299,7 @@ export function StoriesClient({ initialStories }: Props) {
 
       {/* Extraction error */}
       {extractErr && (
-        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+        <div className="flex items-start gap-2 text-sm text-danger bg-danger-subtle border border-danger-border rounded-lg px-3 py-2.5">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{extractErr}</span>
         </div>
@@ -307,7 +307,7 @@ export function StoriesClient({ initialStories }: Props) {
 
       {/* Zero-story diagnostic — extraction ran fine but found nothing */}
       {diagnostic && !extracting && (
-        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+        <div className="flex items-start gap-2 text-sm text-warning bg-warning-subtle border border-warning-border rounded-lg px-3 py-2.5">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{diagnostic}</span>
         </div>

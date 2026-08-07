@@ -61,20 +61,20 @@ export default async function AccountSettingsPage({ searchParams }: PageProps) {
 
         {/* Email OAuth result banner — shown once after the callback redirects here. */}
         {connected && (
-          <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-4 py-3">
-            <p className="text-body font-medium text-black dark:text-white">
+          <div className="rounded-md border border-success-border bg-success-subtle px-4 py-3">
+            <p className="text-body font-medium text-success">
               ✓ {connected === "google" ? "Gmail" : "Outlook"} connected successfully
             </p>
           </div>
         )}
         {errorKey && (
-          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3">
-            <p className="text-body font-medium text-red-800 dark:text-red-300">✗ Email connection failed</p>
-            <p className="text-label text-red-700 dark:text-red-400 mt-0.5">{describeError(errorKey)}</p>
+          <div className="rounded-md border border-danger-border bg-danger-subtle px-4 py-3">
+            <p className="text-body font-medium text-danger">✗ Email connection failed</p>
+            <p className="text-label text-danger mt-0.5">{describeError(errorKey)}</p>
             {/* Provider's own error body — the only thing that distinguishes a bad
                 client secret from an unregistered redirect URI or a spent code. */}
             {errorDetail && (
-              <p className="text-label text-red-700/80 dark:text-red-400/80 mt-1 font-mono break-all">
+              <p className="text-label text-danger/80 mt-1 font-mono break-all">
                 {errorDetail}
               </p>
             )}

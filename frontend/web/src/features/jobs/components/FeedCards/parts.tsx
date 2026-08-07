@@ -103,7 +103,7 @@ export function CardActions({ job, compact }: { job: BoardJob; compact?: boolean
           className="p-1 rounded hover:bg-[var(--surface-2)] transition-colors"
         >
           <Star
-            className={`w-3.5 h-3.5 transition-colors ${starred ? "text-amber-400 fill-amber-400" : "text-text-3"}`}
+            className={`w-3.5 h-3.5 transition-colors ${starred ? "text-warning fill-warning" : "text-text-3"}`}
             strokeWidth={starred ? 0 : 1.5}
           />
         </button>

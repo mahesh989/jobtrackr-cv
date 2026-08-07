@@ -32,9 +32,9 @@ export function ReviewStatusBanner({ isCreate, showErrors, validationErrors, liv
   return (
     <div className="mb-6">
       {isCreate && showErrors && validationErrors.length > 0 ? (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/5 px-3.5 py-2.5 text-body text-red-700 dark:text-red-300 space-y-1">
+        <div className="rounded-lg border border-danger-border bg-danger-subtle px-3.5 py-2.5 text-body text-danger space-y-1">
           <div className="flex items-center gap-2 font-semibold">
-            <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+            <AlertTriangle className="h-3.5 w-3.5 text-danger" aria-hidden="true" />
             Before you can finish, please fix:
           </div>
           <ul className="list-disc pl-7 space-y-0.5">
@@ -42,9 +42,9 @@ export function ReviewStatusBanner({ isCreate, showErrors, validationErrors, liv
           </ul>
         </div>
       ) : liveGaps.length > 0 && !isCreate ? (
-        <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/5 pl-2 pr-3.5 py-1 text-body text-red-700 dark:text-red-300">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/15">
-            <AlertTriangle className="h-3 w-3 text-red-600" aria-hidden="true" />
+        <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-subtle pl-2 pr-3.5 py-1 text-body text-danger">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-danger-subtle">
+            <AlertTriangle className="h-3 w-3 text-danger" aria-hidden="true" />
           </span>
           <span><strong className="font-semibold">{liveGaps.length} item{liveGaps.length === 1 ? "" : "s"} need attention</strong> — review highlighted fields below</span>
         </div>
@@ -56,9 +56,9 @@ export function ReviewStatusBanner({ isCreate, showErrors, validationErrors, liv
           <span><strong className="font-semibold text-text">Experience</strong> and <strong className="font-semibold text-text">Education</strong> are required to finish. Not done yet? <strong className="font-semibold text-text">Save as draft</strong> and come back later.</span>
         </div>
       ) : (
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 pl-2 pr-3.5 py-1 text-body text-text">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15">
-            <CheckCircle2 className="h-3 w-3 text-emerald-600" aria-hidden="true" />
+        <div className="inline-flex items-center gap-2 rounded-full border border-success-border bg-success-subtle pl-2 pr-3.5 py-1 text-body text-text">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success-subtle">
+            <CheckCircle2 className="h-3 w-3 text-success" aria-hidden="true" />
           </span>
           <span>All looks good</span>
         </div>
@@ -244,11 +244,11 @@ export function SaveBadge({ status, verified, err, compact }: {
   status: SaveStatus; verified: boolean; err: string | null; compact?: boolean;
 }) {
   const map: Record<SaveStatus, { text: string; tone: string; dot: string }> = {
-    idle:   { text: verified ? "Verified" : "Saved",        tone: "text-text-2", dot: "bg-emerald-500" },
+    idle:   { text: verified ? "Verified" : "Saved",        tone: "text-text-2", dot: "bg-success" },
     dirty:  { text: "Unsaved — autosaves in 10s",           tone: "text-text-2", dot: "bg-text-3" },
     saving: { text: "Saving…",                              tone: "text-text-2", dot: "bg-[var(--brand)] animate-pulse" },
-    saved:  { text: verified ? "Verified" : "Saved",        tone: "text-text",   dot: "bg-emerald-500" },
-    error:  { text: err ?? "Save failed",                   tone: "text-red-500",dot: "bg-red-500" },
+    saved:  { text: verified ? "Verified" : "Saved",        tone: "text-text",   dot: "bg-success" },
+    error:  { text: err ?? "Save failed",                   tone: "text-danger",dot: "bg-danger" },
   };
   const m = map[status];
   return (

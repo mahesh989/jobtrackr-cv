@@ -21,10 +21,10 @@ export const dynamic  = "force-dynamic";
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-text-3">—</span>;
   const color =
-    score >= 80 ? "text-emerald-700 bg-emerald-50" :
-    score >= 70 ? "text-amber-700 bg-amber-50" :
-    score >= 60 ? "text-blue-700 bg-blue-50" :
-    "text-red-700 bg-red-50";
+    score >= 80 ? "text-success bg-success-subtle" :
+    score >= 70 ? "text-warning bg-warning-subtle" :
+    score >= 60 ? "text-info bg-info-subtle" :
+    "text-danger bg-danger-subtle";
   return <span className={`inline-block px-2 py-0.5 rounded text-caption font-semibold ${color}`}>{score}</span>;
 }
 

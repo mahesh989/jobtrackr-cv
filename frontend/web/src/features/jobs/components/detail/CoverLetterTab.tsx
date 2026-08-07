@@ -102,7 +102,7 @@ function SectionShell({
 }
 
 function DirtyDot() {
-  return <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />;
+  return <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" title="Unsaved changes" />;
 }
 
 export function CoverLetterTab({
@@ -376,7 +376,7 @@ export function CoverLetterTab({
           }
         >
           {draftError ? (
-            <p className="text-[13px] text-red-600">{draftError}</p>
+            <p className="text-[13px] text-danger">{draftError}</p>
           ) : !bodyLoaded ? (
             <div className="py-6">
               <p className="flex items-center gap-2 text-[13px] font-medium text-text">

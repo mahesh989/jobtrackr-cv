@@ -46,7 +46,7 @@ export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: n
   return staticMeta;
 }
 
-export const VISA_COLOR = { yes: "#22c55e", no: "#ef4444", pr_only: "#f59e0b", unknown: "#94a3b8" };
+export const VISA_COLOR = { yes: "var(--success)", no: "var(--danger)", pr_only: "var(--warning)", unknown: "var(--text-3)" };
 export const VISA_LABEL = { yes: "Sponsored", no: "No sponsor", pr_only: "PR or citizens only", unknown: "Visa not mentioned" };
 
 export function visaKey(j: BoardJob): keyof typeof VISA_COLOR {

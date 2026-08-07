@@ -49,7 +49,7 @@ export function CaptureForm({
       </div>
 
       {activeTab === "in_app_capture" ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+        <div className="rounded-lg border border-success-border bg-success-subtle px-3 py-2.5">
           <p className="text-label font-semibold text-text mb-0.5">
             Recommended — writing fresh in your own voice gives the cleanest signal.
           </p>
@@ -88,8 +88,8 @@ export function CaptureForm({
 
       <div className="flex items-center justify-between">
         <span className={`text-xs tabular-nums ${
-          inRange   ? "text-emerald-600" :
-          tooShort  ? "text-amber-600"   :
+          inRange   ? "text-success" :
+          tooShort  ? "text-warning"   :
                       "text-[var(--sidebar-text-dim)]"
         }`}>
           {words} / {WORD_MIN}+ words
@@ -102,7 +102,7 @@ export function CaptureForm({
       </div>
 
       {errorMsg && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-sm text-danger bg-danger-subtle border border-danger-border rounded-lg px-3 py-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {errorMsg}
         </div>

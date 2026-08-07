@@ -240,7 +240,7 @@ function BoardDetailPanelInner({
         <>
           {header}
           <div className="flex-1 flex items-center justify-center px-6">
-            <p className="text-label text-red-600">{error}</p>
+            <p className="text-label text-danger">{error}</p>
           </div>
         </>
       ) : (

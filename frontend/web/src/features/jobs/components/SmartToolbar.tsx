@@ -257,9 +257,9 @@ export function SmartToolbar({
   }
 
   const atsBands: { id: AtsBand; label: string; dot: string }[] = [
-    { id: "above_final",   label: "Above", dot: "bg-green-500" },
-    { id: "below_final",   label: "Fair",  dot: "bg-amber-500" },
-    { id: "below_initial", label: "Below", dot: "bg-red-500"   },
+    { id: "above_final",   label: "Above", dot: "bg-[var(--chart-pos)]" },
+    { id: "below_final",   label: "Fair",  dot: "bg-[var(--chart-amber)]" },
+    { id: "below_initial", label: "Below", dot: "bg-[var(--chart-danger)]" },
   ];
 
   /* ── active-filter tokens ───────────────────────────────────────────── */

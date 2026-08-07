@@ -55,16 +55,16 @@ export function CardFooter({ job }: { job: BoardJob }) {
   }
 
   const toneColors: Record<string, string> = {
-    success: "bg-green-light text-green-700 border-green-500/30",
-    warning: "bg-amber-light text-amber-700 border-amber-500/30",
-    danger:  "bg-red-light text-red-700 border-red-500/30",
+    success: "bg-success-subtle text-success border-success-border",
+    warning: "bg-warning-subtle text-warning border-warning-border",
+    danger:  "bg-danger-subtle text-danger border-danger-border",
     neutral: "bg-[var(--surface-2)] text-text-2 border-border",
   };
   const dotColors: Record<string, string> = {
-    success: "bg-green-500",
-    warning: "bg-amber-500",
-    danger:  "bg-red-500",
-    neutral: "bg-gray-400",
+    success: "bg-success",
+    warning: "bg-warning",
+    danger:  "bg-danger",
+    neutral: "bg-text-3",
   };
 
   let chipDisplay: string;
@@ -154,7 +154,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
           disabled={cancelling || !runId}
           title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
           aria-label="Stop analysis"
-          className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[6px] text-[12.5px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[6px] text-[12.5px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
         >
           {cancelling
             ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -210,7 +210,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
         <div className="flex-1" />
         {actionButton}
       </div>
-      {analyseError && <p className="text-micro text-red-600 mt-1">{analyseError}</p>}
+      {analyseError && <p className="text-micro text-danger mt-1">{analyseError}</p>}
     </div>
   );
 }
@@ -317,20 +317,20 @@ export function CardShell({
           className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-4 hover:shadow-[0_2px_10px_rgba(16,24,40,0.07)] ${
             hero ? "border-2 border-[var(--brand)]/30 p-4" : ""
           } ${selectable ? "pl-10" : ""} ${
-            isFlash ? "bg-green-light" : ""
+            isFlash ? "bg-success-subtle" : ""
           } ${savedFlicker ? "jd-saved-flicker" : ""}`}
           style={hero ? undefined : (() => {
             // Never mix a `borderLeft` shorthand with `borderWidth/Style/Color`
             // in one style object — React's style diffing drops the left-side
             // longhands on client re-render (cards lose their left border until
             // a full reload). Use 4-value shorthands for the applied accent.
-            const tone = isFlash ? "#22c55e" : checked || isActive ? "#2563eb" : "var(--border)";
+            const tone = isFlash ? "var(--success)" : checked || isActive ? "var(--brand)" : "var(--border)";
             const applied = !!job.applied_at;
             return {
               borderWidth: applied ? "1px 1px 1px 2px" : "1px",
               borderStyle: "solid",
-              borderColor: applied ? `${tone} ${tone} ${tone} #22c55e` : tone,
-              boxShadow: checked || isActive ? "0 0 0 3px rgba(37,99,235,0.12)" : undefined,
+              borderColor: applied ? `${tone} ${tone} ${tone} var(--success)` : tone,
+              boxShadow: checked || isActive ? "0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent)" : undefined,
             };
           })()}
         >

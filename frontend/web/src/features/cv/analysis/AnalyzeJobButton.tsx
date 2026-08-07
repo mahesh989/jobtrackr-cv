@@ -131,13 +131,13 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
   const toast = err && toastPos ? (
     <div
       style={{ position: "fixed", top: toastPos.top, right: toastPos.right, zIndex: 9999, maxWidth: 360 }}
-      className="rounded-md bg-white border-2 border-red-200 shadow-lg px-3 py-3 anim-in"
+      className="rounded-md bg-surface border-2 border-danger-border shadow-lg px-3 py-3 anim-in"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-start gap-2">
-        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+        <AlertTriangle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
-          <p className="text-body leading-snug text-red-700 font-medium">{err.message}</p>
+          <p className="text-body leading-snug text-danger font-medium">{err.message}</p>
 
           {/* Action row — varies by error type */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -145,7 +145,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
               <button
                 onClick={handleRunAnyway}
                 disabled={pending}
-                className="inline-flex items-center gap-1 text-caption font-semibold px-2 py-1 rounded border border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-40"
+                className="inline-flex items-center gap-1 text-caption font-semibold px-2 py-1 rounded border border-warning-border bg-warning-subtle text-warning hover:brightness-95 transition-colors disabled:opacity-40"
                 title="Run the full pipeline despite the thin job description"
               >
                 {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
@@ -176,7 +176,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
     <>
       {compact ? (
         /* Compact override link — used inline next to a Below-initial badge. */
-        <button ref={btnRef} disabled={pending} onClick={handleClick} className="inline-flex items-center gap-1 text-micro font-medium text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-40 transition-colors" title={ override === "initial_gate" ? "Force the pipeline to tailor the CV anyway, despite low initial ATS score" : override === "thin_jd" ? "Run analysis anyway, despite a thin job description" : "Force analysis (override gate)" }>
+        <button ref={btnRef} disabled={pending} onClick={handleClick} className="inline-flex items-center gap-1 text-micro font-medium text-warning hover:brightness-95 hover:underline disabled:opacity-40 transition-colors" title={ override === "initial_gate" ? "Force the pipeline to tailor the CV anyway, despite low initial ATS score" : override === "thin_jd" ? "Run analysis anyway, despite a thin job description" : "Force analysis (override gate)" }>
           {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Zap className="h-2.5 w-2.5" />}
           {pending ? "…" : "Force"}
         </button>

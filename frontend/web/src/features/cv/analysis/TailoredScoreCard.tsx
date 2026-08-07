@@ -53,7 +53,7 @@ export function TailoredScoreCard(props: Props) {
             label={`Approved but missed (${props.failedToInject.length})`}
             sublabel="Approved by the feasibility plan but not detected in the tailored CV. Re-run if it matters."
             items={props.failedToInject}
-            cls="bg-[#FFF8C5] text-[#9A6700] border-[#D4A72C]/40"
+            cls="bg-warning-subtle text-warning border-warning-border"
           />
         )}
         {props.filteredAsNonSkill && props.filteredAsNonSkill.length > 0 && (
@@ -85,7 +85,7 @@ export function TailoredScoreCard(props: Props) {
           <div className="text-caption text-text-3 flex gap-3 pt-2 border-t border-border">
             <span>Structure check:</span>
             <span className="text-green">{props.structuralReport.summary.pass ?? 0} pass</span>
-            <span className="text-[#9A6700]">{props.structuralReport.summary.warn ?? 0} warn</span>
+            <span className="text-warning">{props.structuralReport.summary.warn ?? 0} warn</span>
             <span className="text-red">{props.structuralReport.summary.fail ?? 0} fail</span>
           </div>
         )}
@@ -102,7 +102,7 @@ function ScoreCircle({ label, score, muted }: { label: string; score?: number | 
       <div className={`w-20 h-20 rounded-full flex items-center justify-center text-h1 font-bold tabular-nums border-2 ${
         v == null ? "text-text-3 border-border bg-surface-2"
         : v >= 80 ? "text-green border-green/40 bg-green-light"
-        : v >= 60 ? "text-[#9A6700] border-[#D4A72C]/40 bg-[#FFF8C5]"
+        : v >= 60 ? "text-warning border-warning-border bg-warning-subtle"
         : "text-red border-red/40 bg-red-light"
       }`}>
         {v ?? "—"}
