@@ -154,7 +154,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
             )}
             {err.cta && (
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 className="px-2 py-1"
                 onClick={() => router.push(err.cta!.href)}

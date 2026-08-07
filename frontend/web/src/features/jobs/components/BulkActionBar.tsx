@@ -43,7 +43,7 @@ export function BulkActionBar({
               Uses {selectedCount} credit{selectedCount !== 1 ? "s" : ""}
             </span>
             <Button
-              variant="primary"
+              variant="brand"
               size="sm"
               onClick={onConfirmAnalyse}
               className="inline-flex items-center gap-1.5"
@@ -72,7 +72,7 @@ export function BulkActionBar({
                   Archive
                 </button>
                 <Button
-                  variant="primary"
+                  variant="brand"
                   size="sm"
                   onClick={() => onSetConfirmAnalyse(true)}
                   disabled={bulkPending !== null}

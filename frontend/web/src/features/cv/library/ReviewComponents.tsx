@@ -111,7 +111,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
               Save as draft
             </Button>
             <Button
-              variant="primary"
+              variant="brand"
               size="sm"
               type="button"
               onClick={saveFinish}
@@ -135,7 +135,7 @@ export function SaveToast({ save, status, err, isCreate, cancelling, cancelCreat
             </Button>
             {backToProfile && (
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 type="button"
                 onClick={backToProfile}

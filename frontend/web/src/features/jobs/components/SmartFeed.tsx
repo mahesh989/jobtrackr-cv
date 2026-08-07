@@ -490,7 +490,7 @@ export function SmartFeed({
                 the user back on the card they were reading. */}
             <div ref={listRef} data-scroll-container="board-list" className="flex-1 overflow-y-auto p-5 pb-7">
               {visibleJobs.length === 0 ? (
-                <EmptyState favourite={isFavouriteFilter} />
+                <EmptyState />
               ) : (
                 <JobSelectionContext.Provider value={selectionValue}>
                   <SmartFeedBody

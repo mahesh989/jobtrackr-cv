@@ -15,14 +15,14 @@ export default function PricingPage() {
           <Link href="/" className="flex items-center">
             <img src="/logo-wordmark.png" alt="JobTrackr" style={{ height: 30, width: "auto", objectFit: "contain" }} />
           </Link>
-          <Link href="/auth/login" className="text-sm font-medium text-text-2 hover:text-text">
+          <Link href="/auth/login" className="text-label font-medium text-text-2 hover:text-text">
             Sign in
           </Link>
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-text">Simple, honest pricing</h1>
-          <p className="mt-2 text-sm text-text-2">
+          <h1 className="text-h1 font-bold text-text">Simple, honest pricing</h1>
+          <p className="mt-2 text-body text-text-2">
             Start with a 3-day free trial — cancel anytime before it ends.
           </p>
         </div>

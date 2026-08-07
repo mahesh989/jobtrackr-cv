@@ -171,7 +171,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                 autoFocus
               />
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 type="button"
                 onClick={handleFetch}
@@ -270,7 +270,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                 Save
               </Button>
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 type="button"
                 onClick={() => handleSave(true)}

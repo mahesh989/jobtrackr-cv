@@ -54,7 +54,7 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
               <p className="mt-4 text-lead font-semibold text-text">CV uploaded successfully</p>
               <p className="mt-1 text-body text-text-2">Taking you to review your CV…</p>
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 type="button"
                 onClick={onProceed}

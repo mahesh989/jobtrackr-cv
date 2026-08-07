@@ -16,7 +16,7 @@ export function AddButton({ variant = "default" }: { variant?: "default" | "prim
   return (
     <>
       <Button
-        variant={variant === "primary" ? "primary" : "default"}
+        variant={variant === "primary" ? "brand" : "default"}
         icon={<PlusCircle className="w-3.5 h-3.5" />}
         onClick={() => setOpen(true)}
         title="Add a job you found elsewhere for analysis and tracking"

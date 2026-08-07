@@ -141,7 +141,7 @@ export function getStoredTheme(): Theme {
 
 export function applyTheme(theme: Theme) {
   if (typeof document === "undefined") return;
-  if (!VALID_IDS.has(theme)) theme = "default";
+  if (!VALID_IDS.has(theme)) theme = "classic";
   const html = document.documentElement;
   THEMED_CLASSES.forEach((c) => html.classList.remove(c));
   if (theme !== "default") {
