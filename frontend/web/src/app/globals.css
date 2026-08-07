@@ -301,6 +301,14 @@
    `components/ui/Input.tsx`'s error border both read var(--red)
    straight, not var(--danger). */
 .auth-shell {
+  /* Opaque background of its own, not just tokens. Without this the element
+     is transparent and the Aurora themes' radial-gradient `body` background
+     shows through wherever a child doesn't paint — the scrollbar gutter, and
+     any gap below the panels — putting a dark fringe around an otherwise
+     light auth screen. Invisible on the flat-coloured themes, obvious on the
+     two Auroras. Matches the form panel so the seam is unnoticeable. */
+  background:     #F1F5F9;
+
   --surface:      #FFFFFF;
   --surface-2:    #F1F5F9;
   --surface-3:    #E2E8F0;
