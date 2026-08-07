@@ -353,7 +353,7 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
                   <span className="flex items-center gap-2.5 min-w-0">
                     <Activity
                       className="h-3.5 w-3.5 shrink-0"
-                      style={{ color: p.isRunning ? "#22C55E" : undefined }}
+                      style={{ color: p.isRunning ? "var(--success)" : undefined }}
                     />
                     <span className="truncate text-[13px]">{p.name}</span>
                   </span>

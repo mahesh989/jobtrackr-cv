@@ -44,7 +44,7 @@ export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: 
                 title={starred ? "Remove from favourites" : "Add to favourites"}
                 aria-label={starred ? "Remove from favourites" : "Add to favourites"}
                 className="shrink-0 hover:opacity-80 transition-opacity mt-0.5"
-                style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "#d97706" : "#d1d5db", fontSize: 17, lineHeight: 1, padding: 0 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "var(--warning)" : "var(--text-3)", fontSize: 17, lineHeight: 1, padding: 0 }}
               >
                 <Star
                   style={{ width: 17, height: 17 }}

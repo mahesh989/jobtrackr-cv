@@ -11,11 +11,15 @@
  * `scripts/check-route-auth.mjs` — same walk-the-tree-and-regex shape,
  * same allowlist-with-a-written-justification pattern.
  *
- * It flags four things in every `src/**\/*.tsx` file:
+ * It flags five things in every `src/**\/*.tsx` file:
  *   1. raw Tailwind palette utilities (bg-amber-50, text-red-600, …) —
  *      these look right in dev and are correct on exactly one theme.
  *   2. arbitrary hex in class position (bg-[#fafbfc]) — same problem,
  *      worse: no autocomplete either.
+ *   2b. literal hex in an inline `style={{ … }}` object. Added after the
+ *      Phase 5 migration, because categories 1 and 2 only ever look at
+ *      className — so a theme-blind `style={{ color: "#22C55E" }}` sailed
+ *      through the entire migration untouched. Two did exactly that.
  *   3. `dark:` variants — this app's "dark" themes are class-based
  *      (`.theme-aurora-dark`, `.theme-gilded-noir`), not OS-preference-
  *      based, so an OS-keyed `dark:` class is simply wrong here.
@@ -55,6 +59,8 @@ const ALLOWLIST = {
     "CV paper preview — deliberately renders on white stock at all times so the on-screen preview matches the exported PDF byte-for-byte",
   "features/applications/components/CvInlinePreview.tsx":
     "same CV paper preview, inline variant — see TailoredCvCard",
+  "lib/cv/pdfRender.tsx":
+    "off-screen PDF renderer (html2canvas + jsPDF) — white paper, black body, navy links are fixed print colours; the output must be byte-faithful to TailoredCvCard's preview regardless of the user's app theme",
   "features/profiles/components/LiveLogConsole.tsx":
     "terminal emulator — the GitHub-dark console palette is the point, not a theme surface",
   "features/auth/components/brand.tsx":
@@ -93,6 +99,15 @@ const ARBITRARY_HEX_RE = /\b(bg|text|border|ring)-\[#[0-9a-fA-F]{3,8}\]/g;
 // `dark:` variant — this app has no OS-preference-based dark mode.
 const DARK_VARIANT_RE = /\bdark:/g;
 
+// Literal hex inside an inline style object — style={{ color: "#22C55E" }}.
+// This was a genuine blind spot: the class-based patterns above never see
+// inline styles, so two theme-blind colours (the card star toggle and the
+// running-profile dot) survived the whole Phase 5 migration untouched.
+// Matches a CSS-ish property name followed by a quoted hex, which is what
+// an inline style value looks like and what a className never does.
+const INLINE_STYLE_HEX_RE =
+  /\b(color|background|backgroundColor|borderColor|borderTopColor|borderRightColor|borderBottomColor|borderLeftColor|fill|stroke|outlineColor|boxShadow|caretColor|textDecorationColor)\s*:\s*["'`][^"'`]*#[0-9a-fA-F]{3,8}/g;
+
 // className value extraction: className="...", className='...', or
 // className={`...`}. Doesn't attempt to parse clsx()/cn() call arguments
 // or className={cond ? "a" : "b"} ternaries — those are rarer and this is
@@ -127,8 +142,8 @@ function walk(dir) {
   return out;
 }
 
-const CATEGORIES = ["palette", "arbitraryHex", "darkVariant", "brandWhiteOnBlack"];
-const totals = { palette: 0, arbitraryHex: 0, darkVariant: 0, brandWhiteOnBlack: 0 };
+const CATEGORIES = ["palette", "arbitraryHex", "inlineStyleHex", "darkVariant", "brandWhiteOnBlack"];
+const totals = { palette: 0, arbitraryHex: 0, inlineStyleHex: 0, darkVariant: 0, brandWhiteOnBlack: 0 };
 const perFile = [];
 let allowlistedCount = 0;
 
@@ -144,6 +159,7 @@ for (const file of allFiles) {
   const counts = {
     palette: countMatches(PALETTE_RE, src),
     arbitraryHex: countMatches(ARBITRARY_HEX_RE, src),
+    inlineStyleHex: countMatches(INLINE_STYLE_HEX_RE, src),
     darkVariant: countMatches(DARK_VARIANT_RE, src),
     brandWhiteOnBlack: countBrandWhiteOnBlack(src),
   };
@@ -171,6 +187,7 @@ if (perFile.length === 0) {
     const parts = [];
     if (counts.palette) parts.push(`palette=${counts.palette}`);
     if (counts.arbitraryHex) parts.push(`arbitraryHex=${counts.arbitraryHex}`);
+    if (counts.inlineStyleHex) parts.push(`inlineStyleHex=${counts.inlineStyleHex}`);
     if (counts.darkVariant) parts.push(`dark:=${counts.darkVariant}`);
     if (counts.brandWhiteOnBlack) parts.push(`brandWhiteOnBlack=${counts.brandWhiteOnBlack}`);
     console.log(`   • ${rel} — ${fileTotal} (${parts.join(", ")})`);
@@ -180,6 +197,7 @@ if (perFile.length === 0) {
 console.log("\nTotals by category:");
 console.log(`   raw palette utilities:        ${totals.palette}`);
 console.log(`   arbitrary hex in class pos.:  ${totals.arbitraryHex}`);
+console.log(`   literal hex in inline style:  ${totals.inlineStyleHex}`);
 console.log(`   dark: variants:               ${totals.darkVariant}`);
 console.log(`   text-white/black on --brand:  ${totals.brandWhiteOnBlack}`);
 console.log(`   ────────────────────────────────────`);
