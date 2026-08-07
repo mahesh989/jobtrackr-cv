@@ -720,6 +720,23 @@ input[type="radio"] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
+/* Invalid-field ring. This MUST be a class here rather than a Tailwind
+   utility at the call site: `.field` sets the `border` SHORTHAND and lives
+   outside Tailwind's cascade layers, so an unlayered rule beats every
+   layered utility regardless of specificity — which meant the
+   `border-[var(--red)]` that Input/Select/Textarea/ProfileFormComponents/
+   VerticalsSection have all been passing for error states resolved to
+   `--border`, not `--red`. Validation errors have never actually shown a
+   red border anywhere in the app. Verified in the browser: computed
+   border-color was the --border teal-mix while --red was #fb7185.
+   Declared after `.field` so it wins on equal specificity, and BELOW
+   `.field:focus` (0-2-0) on purpose — a focused invalid field shows the
+   focus ring, which is the more useful signal while typing.
+   The real fix is moving these component rules into @layer components
+   (see BUG-11 in graph.json); this unblocks the user-visible half of it
+   without touching the cascade for every button, table and badge. */
+.field-error { border-color: var(--red); }
+
 /* Native <select> arrows are invisible on the dark themes, so a <select> can
    read as a plain text box. Hide the native arrow and reserve room on the
    right; a theme-aware <ChevronDown> icon is overlaid in JSX (text-text-2),

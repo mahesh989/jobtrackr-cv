@@ -45,7 +45,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={textareaId}
           required={required}
           value={value}
-          className={`field ${autoGrow ? "resize-none overflow-hidden" : ""} ${error ? "border-[var(--red)]" : ""} ${className}`}
+          className={`field ${autoGrow ? "resize-none overflow-hidden" : ""} ${error ? "field-error" : ""} ${className}`}
           aria-invalid={!!error || undefined}
           aria-describedby={error ? `${textareaId}-error` : hint ? `${textareaId}-hint` : undefined}
           {...rest}

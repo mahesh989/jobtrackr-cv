@@ -21,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           required={required}
-          className={`field ${error ? "border-[var(--red)]" : ""} ${className}`}
+          className={`field ${error ? "field-error" : ""} ${className}`}
           aria-invalid={!!error || undefined}
           aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
           {...rest}
