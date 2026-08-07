@@ -42,8 +42,9 @@ export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: 
                 type="button"
                 onClick={onToggleStar}
                 title={starred ? "Remove from favourites" : "Add to favourites"}
+                aria-label={starred ? "Remove from favourites" : "Add to favourites"}
                 className="shrink-0 hover:opacity-80 transition-opacity mt-0.5"
-                style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "#d97706" : "#d1d5db", fontSize: 17, lineHeight: 1, padding: 0 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "var(--warning)" : "var(--text-3)", fontSize: 17, lineHeight: 1, padding: 0 }}
               >
                 <Star
                   style={{ width: 17, height: 17 }}
@@ -78,7 +79,15 @@ export function AppliedRow({ job, showAppliedDate }: { job: BoardJob; showApplie
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => selection?.onOpenDetail?.(job.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          selection?.onOpenDetail?.(job.id);
+        }
+      }}
       className="flex items-center gap-3 px-4 py-3.5 bg-surface border border-border rounded-lg cursor-pointer hover:shadow-[0_2px_10px_rgba(16,24,40,0.07)] transition-shadow"
     >
       <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />
@@ -111,6 +120,7 @@ export function AppliedRow({ job, showAppliedDate }: { job: BoardJob; showApplie
             target="_blank"
             rel="noopener noreferrer"
             title="View job posting"
+            aria-label="View job posting"
             className="p-1.5 rounded hover:bg-[var(--surface-2)] text-text-3 hover:text-text transition-colors"
           >
             <ExternalLink className="w-4 h-4" />

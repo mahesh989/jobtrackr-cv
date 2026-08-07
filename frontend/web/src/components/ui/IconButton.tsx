@@ -20,7 +20,7 @@ const variantClass = {
   ghost:   "text-text-3 hover:text-text hover:bg-[var(--surface-2)]",
   outline: "border border-border bg-surface text-text-2 hover:text-text hover:bg-[var(--surface-2)]",
   /** Remove/delete actions — same idle look as ghost, red on hover. */
-  danger:  "text-text-3 hover:text-red-500 hover:bg-[var(--surface-2)]",
+  danger:  "text-text-3 hover:text-danger hover:bg-[var(--surface-2)]",
 } as const;
 
 const sizeClass = {

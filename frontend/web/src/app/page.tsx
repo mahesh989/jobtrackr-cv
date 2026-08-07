@@ -38,9 +38,10 @@ export const metadata: Metadata = {
 
 // JSON-LD structured data. Describes what JobTrackr actually is — a
 // trial-to-start web application with paid plans (offers points at
-// /pricing). Deliberately NO aggregateRating/review: the on-page
-// testimonials are illustrative, not verified, and fabricating rating
-// schema is both dishonest and a Google penalty risk.
+// /pricing). Deliberately NO aggregateRating/review: the "How people use
+// JobTrackr" section on this page is explicitly labelled illustrative —
+// not real customer reviews — so adding rating/review schema here would
+// misrepresent unverified copy as verified feedback.
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobtrackr.app";
 const JSON_LD = {
   "@context": "https://schema.org",
@@ -78,15 +79,20 @@ export default async function Home() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-wordmark.png" alt="JobTrackr" style={{ height: 26, width: "auto", objectFit: "contain" }} />
         </a>
-        <ul className="land-nav-links">
-          <li><a href="#how">How it works</a></li>
-          <li><a href="#tailor">Tailoring</a></li>
-          <li><a href="#features">Features</a></li>
-          <li><a href="#sources">Sources</a></li>
-          <li><a href="#faq">FAQ</a></li>
-          <li><Link href="/auth/login" className="land-link-muted">Sign in</Link></li>
-          <li><Link href="/auth/signup" className="land-cta-pill">Get started</Link></li>
-        </ul>
+        <div className="land-nav-right">
+          <ul className="land-nav-links">
+            <li><a href="#how">How it works</a></li>
+            <li><a href="#tailor">Tailoring</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#sources">Sources</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><Link href="/pricing">Pricing</Link></li>
+          </ul>
+          <ul className="land-nav-actions">
+            <li><Link href="/auth/login" className="land-link-muted">Sign in</Link></li>
+            <li><Link href="/auth/signup" className="land-cta-pill">Get started</Link></li>
+          </ul>
+        </div>
       </nav>
 
       {/* ───────── Hero ───────── */}
@@ -407,24 +413,20 @@ export default async function Home() {
         </details>
       </section>
 
-      {/* ───────── Testimonials ───────── */}
+      {/* ───────── Who it's for ───────── */}
       <section className="land-section">
-        <div className="land-eyebrow">Early users</div>
-        <h2 className="land-h2">What job seekers<br />are saying.</h2>
+        <div className="land-eyebrow">Who it&apos;s for</div>
+        <h2 className="land-h2">How people use<br />JobTrackr.</h2>
         <p className="land-section-sub">
-          Real feedback from people who stopped manually refreshing Seek every morning.
+          Illustrative examples, not customer testimonials — written to show
+          how JobTrackr fits into different job searches.
         </p>
-        <div className="land-testimonials">
-          {TESTIMONIALS.map((t) => (
-            <div key={t.name} className="land-testimonial">
-              <p className="land-testimonial-quote">{t.quote}</p>
-              <div className="land-testimonial-author">
-                <div className="land-testimonial-avatar">{t.initials}</div>
-                <div>
-                  <div className="land-testimonial-name">{t.name}</div>
-                  <div className="land-testimonial-role">{t.role}</div>
-                </div>
-              </div>
+        <span className="land-illustrative-tag">Illustrative — not verified customer feedback</span>
+        <div className="land-usecases">
+          {USE_CASES.map((u) => (
+            <div key={u.role} className="land-usecase">
+              <p className="land-usecase-quote">{u.quote}</p>
+              <div className="land-usecase-role">{u.role}</div>
             </div>
           ))}
         </div>
@@ -454,8 +456,10 @@ export default async function Home() {
         <ul className="land-footer-links">
           <li><a href="#how">How it works</a></li>
           <li><a href="#features">Features</a></li>
+          <li><Link href="/pricing">Pricing</Link></li>
           <li><a href="#faq">FAQ</a></li>
           <li><Link href="/privacy">Privacy</Link></li>
+          <li><Link href="/terms">Terms</Link></li>
         </ul>
         <span className="land-footer-copy">© {new Date().getFullYear()} JobTrackr</span>
       </footer>
@@ -503,24 +507,18 @@ const TAILOR_FEATURES = [
   { title: "Honesty-guarded",      desc: "Never invents experience, dates, or credentials you don't have. Every claim is checked against your real CV.", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4" },
 ];
 
-const TESTIMONIALS = [
+const USE_CASES = [
   {
     quote: "I was spending two hours every morning refreshing Seek and LinkedIn. JobTrackr cut that to ten minutes reviewing a ranked list. I haven't missed a relevant role since.",
-    name: "Aditya R.",
     role: "Senior Data Engineer · Sydney",
-    initials: "A",
   },
   {
     quote: "The visa sponsorship flag is the killer feature. I stopped wasting time reading JDs that end with 'Australian citizens only'. That alone saved me hours a week.",
-    name: "Wei L.",
     role: "ML Engineer · Melbourne",
-    initials: "W",
   },
   {
     quote: "Set it up on a Friday, had 14 matched roles by Monday morning — including three I would never have found manually. First interview booked within a week.",
-    name: "Priya M.",
     role: "Product Manager · Brisbane",
-    initials: "P",
   },
 ];
 

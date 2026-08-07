@@ -1,18 +1,28 @@
 /**
  * Theme system for JobTrackr.
  *
- * Five themes total:
- *   - "default"     — original JobTrackr look (dark sidebar, light workspace,
- *                     Sofia Sans + DM Serif Display). Fallback / no class.
- *   - "classic"     — cv-magic's Classic theme (clean light interface
- *                     everywhere, Manrope + Noto Serif).
- *   - "gilded-noir" — cv-magic's Gilded Noir (dark gold luxury).
- *   - "notion"      — cv-magic's Notion (lavender canvas + deep purple).
- *   - "clay"        — cv-magic's Clay (bold cream + hot-pink pop).
+ * SEVEN themes total. "classic" is the default — getStoredTheme() falls
+ * back to it, and so does the FOUC script in app/layout.tsx.
+ *   - "aurora-dark"  — signature ink canvas, teal/violet aurora accent.
+ *   - "aurora-light" — luminous twin of Aurora, deep-teal accent.
+ *   - "default"      — original JobTrackr look (dark sidebar, light workspace,
+ *                      Sofia Sans + DM Serif Display). The bare :root palette,
+ *                      i.e. the only theme with NO class on <html>.
+ *   - "classic"      — cv-magic's Classic theme (clean light interface
+ *                      everywhere, Manrope + Noto Serif). DEFAULT.
+ *   - "gilded-noir"  — cv-magic's Gilded Noir (dark gold luxury).
+ *   - "notion"       — cv-magic's Notion (lavender canvas + deep purple).
+ *   - "clay"         — cv-magic's Clay (bold cream + hot-pink pop).
  *
  * Themes swap CSS custom properties (--bg, --surface, --text, --brand,
  * --sidebar-*, --radius, --font-sans-active, etc.) via a class on <html>.
  * The choice persists to localStorage under 'jobtrackr-theme'.
+ *
+ * Contrast across all seven (plus the .auth-shell scope) is asserted by
+ * lib/themeContrast.test.ts — it parses these token blocks straight out of
+ * globals.css, so adding an eighth theme means adding token values, not a
+ * project. Note --brand-fg is DARK on Gilded Noir, Clay and Aurora Dark:
+ * never hardcode a white label on a --brand background.
  */
 export type Theme =
   | "aurora-dark"

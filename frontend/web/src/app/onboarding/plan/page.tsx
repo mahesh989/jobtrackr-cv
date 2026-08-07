@@ -38,7 +38,7 @@ export default async function OnboardingPlanPage({
         </div>
 
         {checkout === "cancelled" && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-4 py-3 text-sm text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>Checkout was cancelled — you haven&apos;t been charged.</span>
           </div>

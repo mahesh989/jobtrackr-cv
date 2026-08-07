@@ -63,7 +63,7 @@ export function PlanCards({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-danger-border bg-danger-subtle px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}

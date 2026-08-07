@@ -168,7 +168,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                     {/* Saved */}
                     <div className="col-span-1 flex items-center justify-center">
                       {run.jobs_saved > 0 ? (
-                        <span className="text-label font-semibold text-[#1A7F37]">+{run.jobs_saved}</span>
+                        <span className="text-label font-semibold text-success">+{run.jobs_saved}</span>
                       ) : (
                         <span className="text-label text-text-3">—</span>
                       )}
@@ -205,7 +205,7 @@ export default async function RunHistoryPage({ params }: { params: Promise<{ id:
                   {/* Error message */}
                   {run.error_message && (
                     <div className="px-4 pb-3">
-                      <p className="text-caption text-[#CF222E] bg-[#FFEBE9] border border-[#CF222E]/20 rounded px-3 py-2">
+                      <p className="text-caption text-danger bg-danger-subtle border border-danger-border rounded px-3 py-2">
                         {run.error_message}
                       </p>
                     </div>

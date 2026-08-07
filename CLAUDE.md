@@ -152,7 +152,7 @@ backend/worker/src/
 - Middleware (`middleware.ts`) protects all `/dashboard/*` routes
 - API routes in `app/api/` use `requireUser()` from `lib/api-utils.ts` — returns `{ userId, supabase }`
 - Admin routes use `requireAdmin()` — same pattern, adds role check
-- Auth pages (`/auth/*`) are public, no theme class on `<html>` — intentionally hardcoded Aurora Light palette
+- Auth pages (`/auth/*`) are public. The FOUC script lives in the ROOT layout, so `<html>` DOES carry the user's theme class there — the old claim that it doesn't was wrong and caused a real bug (Aurora Dark users saw white labels on a white card, because the shared `Input`/`FieldLabel` read `.field`/`text-text`). Since 2026-08-07 the auth screens sit inside a `.auth-shell` scope (globals.css) that pins surface/text/border/brand plus the raw hue families, so they render the same regardless of the active theme — by construction, not by a route check.
 
 ### Data Flow
 - Frontend → Next.js API routes (BFF) → backend/api (HMAC-signed) → Supabase
@@ -272,7 +272,8 @@ manually rather than skipping the handoff.
 ## Things to Know
 
 - **Tailwind 4** — uses CSS-native config (`@theme` in globals.css), not `tailwind.config.js`
-- **Theme system** — 6 themes (aurora-light is default). CSS variables under `:root.theme-*` in globals.css. Auth pages hardcode Aurora Light palette intentionally (no theme class pre-login).
+- **Theme system** — **7 themes; `classic` is the default** (aurora-dark, aurora-light, default, classic, gilded-noir, notion, clay). CSS variables under `:root.theme-*` in globals.css; `default` is the bare `:root` palette with no class. Auth pages use the `.auth-shell` scoped token block, not hardcoded hex. Contrast for all seven + `.auth-shell` is asserted by `lib/themeContrast.test.ts`.
+- **Never hardcode colours in components.** Use the semantic vocabulary — `bg-{success|warning|danger|info|accent}-subtle`, `border-{…}-border`, `text-{…}`, or the bare token for a solid fill. `scripts/check-theme-tokens.mjs` is a **hard CI gate**: a raw Tailwind palette class, arbitrary hex in a className, literal hex in an inline `style`, a `dark:` variant, or `text-white` on `bg-[var(--brand)]` fails the build. Fix it or add an allowlist entry with a written reason. `--brand-fg` is DARK on Gilded Noir, Clay and Aurora Dark — never assume white.
 - **Deploy** — `main` branch → Vercel preview (not production). Production JobTrackr is a separate repo.
 - **Platform-wide AI provider** — BYOK removed 2026-06-16; single admin-managed key in `platform_ai_settings` (`/dashboard/admin/ai-settings`), not per-user. Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`

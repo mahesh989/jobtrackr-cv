@@ -138,7 +138,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
               Found a job elsewhere? Add it here to analyse and track it.
             </p>
           </div>
-          <button onClick={onClose} disabled={saving} className="text-text-3 hover:text-text mt-0.5">
+          <button onClick={onClose} disabled={saving} aria-label="Close" className="text-text-3 hover:text-text mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -186,14 +186,14 @@ export function AddModal({ onClose }: { onClose: () => void }) {
           )}
 
           {fetchError && (
-            <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="text-label text-danger bg-danger-subtle border border-danger-border rounded px-3 py-2">
               {fetchError} — try the &quot;Paste JD&quot; tab instead.
             </p>
           )}
 
           {/* Pre-filled confirmation (URL tab) */}
           {tab === "url" && prefilled && (
-            <p className="text-label text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
+            <p className="text-label text-success bg-success-subtle border border-success-border rounded px-3 py-2">
               ✓ Job details fetched — review and edit below, then save.
             </p>
           )}
@@ -238,7 +238,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                   spellCheck={false}
                 />
                 {jd.trim().length > 0 && jd.trim().length < 200 && (
-                  <p className="text-caption text-amber-600 mt-1">
+                  <p className="text-caption text-warning mt-1">
                     Too short for reliable analysis — paste more of the JD (aim for 200+ chars).
                   </p>
                 )}
@@ -247,7 +247,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
           )}
 
           {saveError && (
-            <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="text-label text-danger bg-danger-subtle border border-danger-border rounded px-3 py-2">
               {saveError}
             </p>
           )}

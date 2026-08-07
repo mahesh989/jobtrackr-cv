@@ -316,7 +316,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                       <td>
                         {signedUrls[cv.id] ? (
                           <a href={signedUrls[cv.id]} target="_blank" rel="noopener noreferrer"
-                            className="text-caption text-blue-600 hover:underline font-medium">
+                            className="text-caption text-[var(--brand)] hover:underline font-medium">
                             PDF ↗
                           </a>
                         ) : <span className="text-text-3 text-caption">—</span>}
@@ -436,7 +436,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                       </td>
                       <td className="tabular-nums text-label">{r.match_score ?? "—"}</td>
                       <td className="tabular-nums font-semibold text-label">{r.tailored_match_score ?? "—"}</td>
-                      <td className={`tabular-nums text-label ${(r.ats_lift ?? 0) > 0 ? "text-emerald-700" : ""}`}>
+                      <td className={`tabular-nums text-label ${(r.ats_lift ?? 0) > 0 ? "text-success" : ""}`}>
                         {r.ats_lift != null ? `+${r.ats_lift}` : "—"}
                       </td>
                       <td className="text-text-3 text-caption" title={r.error_message ?? ""}>{timeAgo(r.created_at)}</td>

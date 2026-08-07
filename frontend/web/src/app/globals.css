@@ -41,7 +41,11 @@
   /* Text */
   --text:   #1F2328;
   --text-2: #656D76;
-  --text-3: #9198A1;
+  /* Contrast fix (Phase 0, themeContrast.test.ts): #9198A1 on --surface
+     #FFFFFF was 2.91:1, just under the 3.0 AA-large minimum for
+     --text-3. Darkened by ~2% — #8E959E clears it at 3.03:1 and reads
+     as the same neutral grey. */
+  --text-3: #8E959E;
 
   /* Brand */
   --brand:      #0969DA;
@@ -99,7 +103,18 @@
   --text-2: #475569;
   --text-3: #64748B;
 
-  --brand:      #3B82F6;
+  /* Contrast fix (Phase 0, themeContrast.test.ts): white label on the old
+     --brand #3B82F6 was 3.68:1, under the 4.5 minimum for --brand-fg — the
+     token every bg-[var(--brand)] button/pill/chip reads for its label.
+     Two ways out: darken the fill and keep a white label, or keep the fill
+     and flip the label dark. We darken the fill. #2563EB is this theme's
+     OWN --blue-dark, so it's not an invented colour, it clears at 5.17:1,
+     and Classic stays what it is — a blue button with a white label.
+     Flipping --brand-fg dark instead would have put navy text on every
+     primary CTA in the app's default theme, which is a much larger visual
+     change than the contrast fix warranted. --blue stays #3B82F6 so the
+     lighter blue is still available where it reads as a hue, not a CTA. */
+  --brand:      #2563EB;
   --brand-fg:   #FFFFFF;
   --blue:       #3B82F6;
   --blue-dark:  #2563EB;
@@ -238,7 +253,12 @@
   --text-3: #6A6A6A;
 
   --brand:      #FF4D8B;
-  --brand-fg:   #FFFFFF;
+  /* Contrast fix (Phase 0, themeContrast.test.ts): white on --brand
+     #FF4D8B was 3.14:1, under the 4.5 minimum for --brand-fg. Reusing
+     this theme's own --text (#0A0A0A) instead of a new value clears
+     it at 6.30:1 and leaves --brand — Clay's "hot-pink pop" — exactly
+     as designed. */
+  --brand-fg:   #0A0A0A;
   --blue:       #FF4D8B;
   --blue-dark:  #E03B75;
   --blue-light: #FFE4EE;
@@ -247,6 +267,100 @@
 
   --pipeline-grad: linear-gradient(90deg,
     #FF4D8B 0%, #FF87B0 33%, #FF4D8B 66%, #E03B75 100%);
+}
+
+/* ─── Auth shell — scoped token override, not a theme ─────────────
+   Pre-login there is no meaningful theme preference yet, but the FOUC
+   script in layout.tsx stamps a signed-out visitor's *last-chosen*
+   theme class onto <html> unconditionally, including on /auth/*. The
+   auth screens (login/signup/forgot-password/update-password) are
+   deliberately fixed-palette by design — but they compose the shared
+   Input/FieldLabel (`lib/field-utils.tsx`), which read --text/--red/
+   --border/--brand off the cascade, so a hand-styled #FFFFFF card
+   still ends up with e.g. Aurora Dark's #EAEEF6 label colour: white
+   text on a white card.
+
+   Rather than fighting the token system with more inline hex, this
+   class REDEFINES the token surface for its subtree so the exact same
+   shared components resolve auth's own palette by construction,
+   regardless of what <html> carries. That makes the guarantee
+   structural rather than a route check a future refactor could
+   quietly break.
+
+   Values are :root.theme-classic's canonical palette (Classic doesn't
+   override --green/--red/--amber/--purple itself, so those equal the
+   shared :root defaults just above). --success/--warning/--danger/
+   --info are aliases defined ONCE at :root as var(--green) etc (see
+   the Phase 0 comment ~line 1120) — they resolve using whichever
+   --green/--amber/--red/--blue cascades on the SAME element, so
+   without pinning them here too, a signed-out Aurora Dark user would
+   still get Aurora's teal "success" inside this otherwise theme-proof
+   shell. The raw hue tokens are pinned as well because some shared
+   components read them directly rather than through the semantic
+   alias — `lib/field-utils.tsx`'s FieldError/required-asterisk and
+   `components/ui/Input.tsx`'s error border both read var(--red)
+   straight, not var(--danger). */
+.auth-shell {
+  /* Opaque background of its own, not just tokens. Without this the element
+     is transparent and the Aurora themes' radial-gradient `body` background
+     shows through wherever a child doesn't paint — the scrollbar gutter, and
+     any gap below the panels — putting a dark fringe around an otherwise
+     light auth screen. Invisible on the flat-coloured themes, obvious on the
+     two Auroras. Matches the form panel so the seam is unnoticeable. */
+  background:     #F1F5F9;
+
+  --surface:      #FFFFFF;
+  --surface-2:    #F1F5F9;
+  --surface-3:    #E2E8F0;
+  --text:         #0F172A;
+  --text-2:       #475569;
+  --text-3:       #64748B;
+  --border:       #E2E8F0;
+  --border-muted: #F1F5F9;
+
+  /* Contrast fix carried over from :root.theme-classic: white
+     --brand-fg on #3B82F6 is 3.68:1, under the 4.5 AA minimum. Auth
+     must not reintroduce a failure the rest of the app already fixed
+     by darkening to #2563EB (5.17:1). */
+  --brand:        #2563EB;
+  --brand-fg:     #FFFFFF;
+  --brand-strong: #1D4ED8;
+
+  --blue:        #3B82F6;
+  --blue-dark:   #2563EB;
+  --blue-light:  #DBEAFE;
+  --blue-muted:  #93C5FD;
+  --blue-fg:     #FFFFFF;
+  --green:       #1A7F37;
+  --green-light: #DAFBE1;
+  --red:         #CF222E;
+  --red-light:   #FFEBE9;
+  --amber:       #9A6700;
+  --amber-light: #FFF8C5;
+  --purple:      #8250DF;
+  --purple-light:#FBEFFF;
+
+  --success:        var(--green);
+  --success-subtle: var(--green-light);
+  --success-border: color-mix(in srgb, var(--green) 35%, transparent);
+
+  --warning:        var(--amber);
+  --warning-subtle: var(--amber-light);
+  --warning-border: color-mix(in srgb, var(--amber) 35%, transparent);
+
+  --danger:        var(--red);
+  --danger-subtle: var(--red-light);
+  --danger-border: color-mix(in srgb, var(--red) 35%, transparent);
+
+  --info:        var(--blue);
+  --info-subtle: var(--blue-light);
+  --info-border: color-mix(in srgb, var(--blue) 35%, transparent);
+
+  /* One-off: the brand panel's pale wash background. No existing
+     token names this hue/lightness combination (it's lighter than
+     --blue-light), so it gets its own scoped token rather than a bare
+     hex in Shell.tsx. */
+  --auth-panel: #EFF6FF;
 }
 
 @theme inline {
@@ -276,6 +390,33 @@
   --color-amber-light: var(--amber-light);
   --color-purple:      var(--purple);
   --color-purple-light:var(--purple-light);
+
+  /* ── Semantic vocabulary (Phase 0) — generates bg-success-subtle,
+     text-warning, border-danger-border, etc. See the definitions in
+     the shared-defaults :root block near --card-border/--chart-*. */
+  --color-success:        var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-border: var(--success-border);
+
+  --color-warning:        var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-border: var(--warning-border);
+
+  --color-danger:        var(--danger);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-border: var(--danger-border);
+
+  --color-info:        var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-border: var(--info-border);
+
+  --color-accent:        var(--accent);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-border: var(--accent-border);
+
+  --color-neutral:        var(--neutral);
+  --color-neutral-subtle: var(--neutral-subtle);
+  --color-neutral-border: var(--neutral-border);
 
   /* ── Type scale — single source of truth for font sizes ──────────────
      Semantic names, deliberately NOT xs/sm/base: Tailwind's default scale
@@ -549,11 +690,11 @@ input[type="radio"] {
   border: 1px solid;
   white-space: nowrap;
 }
-.badge-blue    { background: var(--blue-light);   color: var(--blue);   border-color: rgba(9,105,218,0.3); }
-.badge-green   { background: var(--green-light);  color: var(--green);  border-color: rgba(26,127,55,0.3); }
-.badge-red     { background: var(--red-light);    color: var(--red);    border-color: rgba(207,34,46,0.3); }
-.badge-amber   { background: var(--amber-light);  color: var(--amber);  border-color: rgba(154,103,0,0.3); }
-.badge-purple  { background: var(--purple-light); color: var(--purple); border-color: rgba(130,80,223,0.3); }
+.badge-blue    { background: var(--blue-light);   color: var(--blue);   border-color: var(--info-border); }
+.badge-green   { background: var(--green-light);  color: var(--green);  border-color: var(--success-border); }
+.badge-red     { background: var(--red-light);    color: var(--red);    border-color: var(--danger-border); }
+.badge-amber   { background: var(--amber-light);  color: var(--amber);  border-color: var(--warning-border); }
+.badge-purple  { background: var(--purple-light); color: var(--purple); border-color: var(--accent-border); }
 .badge-gray    { background: var(--surface-2);    color: var(--text-2); border-color: var(--border); }
 .badge-teal    { background: var(--teal-light);   color: var(--teal);   border-color: rgba(27,124,131,0.3); }
 
@@ -879,8 +1020,16 @@ input[type="radio"] {
   --blue-fg:    #FFFFFF;
 
   --green:       #047857; --green-light: #D9F5EC;
-  --red:         #DC2626; --red-light:   #FCE7E7;
-  --amber:       #B45309; --amber-light: #FCEFD6;
+  /* Contrast fix (Phase 0, themeContrast.test.ts): #DC2626 on
+     --red-light #FCE7E7 was 4.08:1, under the 4.5 minimum. Darkened
+     one step down the same red ramp (still clearly "red") to
+     #C82323, clearing it at 4.76:1. */
+  --red:         #C82323; --red-light:   #FCE7E7;
+  /* Contrast fix (Phase 0, themeContrast.test.ts): #B45309 on
+     --amber-light #FCEFD6 was 4.41:1, under the 4.5 minimum. Darkened
+     one step down the same amber/brown ramp to #A6490A, clearing it
+     at 5.16:1. */
+  --amber:       #A6490A; --amber-light: #FCEFD6;
   --purple:      #7C3AED; --purple-light:#EFE7FE;
   --teal:        #0D9488; --teal-light:  #D7F2EE;
 
@@ -1061,6 +1210,70 @@ input[type="radio"] {
   --chart-amber:   #f59e0b;
   --chart-danger:  #ef4444;
   --chart-neutral: #94a3b8;
+}
+
+/* ============================================================
+   SEMANTIC COLOUR VOCABULARY (Phase 0 — additive, no consumers yet)
+   ------------------------------------------------------------
+   Components should reach for these — success/warning/danger/info/
+   accent/neutral — instead of raw Tailwind palette classes
+   (bg-amber-50, text-red-600, …) or the family tokens directly. A
+   raw family token (--green, --amber-light) names a *hue*; these
+   name a *meaning*, so a reviewer reading `bg-warning-subtle` knows
+   why it's there without knowing which hue "warning" happens to be
+   on this theme.
+
+   Defined ONCE, here, in this shared-defaults :root block — not
+   duplicated into every :root.theme-* block above. CSS custom
+   properties resolve at use time on the element they're read from,
+   and every theme class is applied to the same <html> element as
+   this base :root, so when a theme overrides --green/--amber/--red/
+   --purple/--blue/--text-2/--surface-2/--border, these aliases
+   follow automatically — one definition serves all seven themes.
+
+   Each family gets three rungs, always in this shape:
+     --<name>:        the foreground colour — text/icon ON the
+                       "-subtle" background below.
+     --<name>-subtle: a background tint (the family's "-light" token).
+     --<name>-border: a hairline border for the same surface —
+                       color-mix keeps it visually consistent with
+                       the foreground colour at low opacity rather
+                       than needing its own hand-picked value.
+
+   `neutral` has no dedicated hue family — it maps straight onto the
+   existing surface vocabulary (--text-2 / --surface-2 / --border)
+   instead of a color-mix border.
+   ============================================================ */
+:root {
+  /* success → green */
+  --success:        var(--green);
+  --success-subtle: var(--green-light);
+  --success-border: color-mix(in srgb, var(--green) 35%, transparent);
+
+  /* warning → amber */
+  --warning:        var(--amber);
+  --warning-subtle: var(--amber-light);
+  --warning-border: color-mix(in srgb, var(--amber) 35%, transparent);
+
+  /* danger → red */
+  --danger:        var(--red);
+  --danger-subtle: var(--red-light);
+  --danger-border: color-mix(in srgb, var(--red) 35%, transparent);
+
+  /* info → blue */
+  --info:        var(--blue);
+  --info-subtle: var(--blue-light);
+  --info-border: color-mix(in srgb, var(--blue) 35%, transparent);
+
+  /* accent → purple */
+  --accent:        var(--purple);
+  --accent-subtle: var(--purple-light);
+  --accent-border: color-mix(in srgb, var(--purple) 35%, transparent);
+
+  /* neutral → surface vocabulary (no hue family to color-mix against) */
+  --neutral:        var(--text-2);
+  --neutral-subtle: var(--surface-2);
+  --neutral-border: var(--border);
 }
 
 /* 2) Consistent, slightly brand-tinted hairline for EVERY bordered box +

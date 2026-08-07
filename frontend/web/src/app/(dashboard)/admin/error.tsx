@@ -17,7 +17,7 @@ export default function AdminError({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 px-4">
-      <AlertTriangle className="w-10 h-10 text-amber-500" />
+      <AlertTriangle className="w-10 h-10 text-warning" />
       <h2 className="text-lg font-semibold text-text">Admin panel error</h2>
       <p className="text-sm text-text-3 max-w-md text-center">
         {error.message || "An unexpected error occurred in the admin panel."}

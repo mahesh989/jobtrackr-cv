@@ -143,8 +143,8 @@ function TierColumn({
           {saving ? "Saving…" : "Save"}
         </Button>
         <span className="text-caption">
-          {error  ? <span className="text-red-500">{error}</span>
-            : saved  ? <span className="text-green-600 font-medium">✓ Saved</span>
+          {error  ? <span className="text-danger">{error}</span>
+            : saved  ? <span className="text-success font-medium">✓ Saved</span>
             : dirty  ? <span className="text-text-2">Unsaved</span>
             : null}
         </span>

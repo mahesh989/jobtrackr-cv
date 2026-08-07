@@ -24,12 +24,12 @@ interface PageProps {
 }
 
 const ACTION_COLOR: Record<string, string> = {
-  "invite.generate":    "bg-blue-100 text-blue-700",
-  "invite.revoke":      "bg-red-100 text-red-700",
-  "user.role_changed":  "bg-purple-100 text-purple-700",
-  "subscription.comp":  "bg-emerald-100 text-emerald-700",
-  "run.cancel":         "bg-amber-100 text-amber-700",
-  "flag.toggle":        "bg-indigo-100 text-indigo-700",
+  "invite.generate":    "bg-info-subtle text-info",
+  "invite.revoke":      "bg-danger-subtle text-danger",
+  "user.role_changed":  "bg-accent-subtle text-accent",
+  "subscription.comp":  "bg-success-subtle text-success",
+  "run.cancel":         "bg-warning-subtle text-warning",
+  "flag.toggle":        "bg-accent-subtle text-accent",
 };
 
 export default async function AdminAuditPage({ searchParams }: PageProps) {
@@ -129,7 +129,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
                   </td>
                   <td className="font-medium text-text text-label">{row.admin}</td>
                   <td>
-                    <span className={`inline-block px-2 py-0.5 rounded text-micro font-semibold ${ACTION_COLOR[row.action] ?? "bg-slate-100 text-slate-700"}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-micro font-semibold ${ACTION_COLOR[row.action] ?? "bg-[var(--surface-2)] text-text-2"}`}>
                       {row.action.replace(/\./g, " ")}
                     </span>
                   </td>
@@ -159,7 +159,7 @@ export default async function AdminAuditPage({ searchParams }: PageProps) {
               { action: "flag.toggle",       desc: "Feature flag toggled (future)" },
             ].map((item) => (
               <div key={item.action} className="flex items-center gap-2">
-                <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-micro font-semibold ${ACTION_COLOR[item.action] ?? "bg-slate-100 text-slate-700"}`}>
+                <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-micro font-semibold ${ACTION_COLOR[item.action] ?? "bg-[var(--surface-2)] text-text-2"}`}>
                   {item.action.replace(/\./g, " ")}
                 </span>
                 <span className="text-caption text-text-2">{item.desc}</span>

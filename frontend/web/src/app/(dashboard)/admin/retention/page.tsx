@@ -157,7 +157,7 @@ export default async function AdminRetentionPage() {
         <p className="text-label text-text-3 mt-0.5">Adoption funnel and churn signals. DAU/WAU/MAU and cohort grid use placeholder values until more data accumulates.</p>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-warning-subtle border border-warning-border rounded-md px-4 py-3 text-label text-warning">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — DAU/WAU/MAU and cohort grid are not yet wired. More time-series data needed.</span>
       </div>
@@ -174,9 +174,9 @@ export default async function AdminRetentionPage() {
 
         {/* Real: active by window */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <Kpi label="Active (30d)" value={String(activeIds30d.size)} sub="ran analysis or triggered event" color="text-emerald-700" />
+          <Kpi label="Active (30d)" value={String(activeIds30d.size)} sub="ran analysis or triggered event" color="text-success" />
           <Kpi label="Active (7d)"  value={String(activeIds7d.size)}  sub="ran analysis or triggered event" />
-          <Kpi label="At risk"      value={String(atRiskIds.length)}  sub="active 14–30d ago, quiet since" color={atRiskIds.length > 3 ? "text-amber-700" : "text-text"} />
+          <Kpi label="At risk"      value={String(atRiskIds.length)}  sub="active 14–30d ago, quiet since" color={atRiskIds.length > 3 ? "text-warning" : "text-text"} />
         </div>
 
         {/* Feature adoption funnel */}
@@ -192,7 +192,7 @@ export default async function AdminRetentionPage() {
                     <span className="text-label text-text-2 w-52 truncate">{label}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full ${isFirst ? "bg-blue-500" : pct >= 60 ? "bg-emerald-500" : pct >= 30 ? "bg-amber-400" : "bg-red-400"}`}
+                        className={`h-2 rounded-full ${isFirst ? "bg-info" : pct >= 60 ? "bg-success" : pct >= 30 ? "bg-warning" : "bg-danger"}`}
                         style={{ width: `${Math.max(pct > 0 ? 1 : 0, pct)}%` }}
                       />
                     </div>
@@ -224,7 +224,7 @@ export default async function AdminRetentionPage() {
                 <span className="text-caption text-text-3 w-8">{week}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
-                    className="bg-blue-500 h-2 rounded-full"
+                    className="bg-info h-2 rounded-full"
                     style={{ width: count > 0 ? `${Math.max(2, (count / maxSignups) * 100)}%` : "0%" }}
                   />
                 </div>
@@ -240,7 +240,7 @@ export default async function AdminRetentionPage() {
             <h2 className="text-label font-semibold text-text mb-3">
               At-risk users <span className="text-text-3 font-normal">(active 14–30d ago, silent since)</span>
             </h2>
-            <div className="bg-surface border border-amber-200 rounded-md overflow-x-auto">
+            <div className="bg-surface border border-warning-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>User</th><th>Analyses (30d)</th><th>Last run</th></tr></thead>
                 <tbody>
@@ -280,7 +280,7 @@ export default async function AdminRetentionPage() {
                         <td>
                           <Link href={`/admin/activity?user=${u.id}`} className="text-text font-medium hover:underline">{u.email}</Link>
                         </td>
-                        <td className="tabular-nums text-emerald-700 font-semibold">{runCountByUser[u.id] ?? 0}</td>
+                        <td className="tabular-nums text-success font-semibold">{runCountByUser[u.id] ?? 0}</td>
                         <td className="tabular-nums text-text-2">{letterCount}</td>
                         <td className="tabular-nums text-text-2">{appliedCount}</td>
                         <td className="text-text-3">{new Date(u.created_at).toLocaleDateString("en-AU")}</td>

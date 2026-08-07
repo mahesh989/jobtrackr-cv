@@ -28,7 +28,7 @@ export function MatchScoreTab({ job, detail }: { job: BoardJob; detail: BoardDet
   }
 
   const tone = scoreTone(score, thresholds);
-  const toneClass = tone === "green" ? "text-green-600" : tone === "amber" ? "text-amber-600" : "text-red-600";
+  const toneClass = tone === "green" ? "text-success" : tone === "amber" ? "text-warning" : "text-danger";
   const matching = run?.cv_jd_matching_result;
   const stoppedEarly = tone === "red" && !matching;
   const jd = run?.jd_analysis_result;
@@ -100,7 +100,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
 
       <h4 className="text-[12px] font-bold uppercase tracking-wide text-text mt-5 mb-2">Match breakdown by category</h4>
       <div className="rounded-[10px] border border-border overflow-hidden mb-1">
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] bg-[#f0f1f4] text-[10.5px] uppercase tracking-[0.03em] font-bold text-text-3">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] bg-[var(--surface-2)] text-[10.5px] uppercase tracking-[0.03em] font-bold text-text-3">
           <span>Category</span><span>Required</span><span>Preferred</span><span>Match rate</span>
         </div>
         {order.filter((c) => catRequiredTotal(c) > 0 || catPreferredTotal(c) > 0).map((c) => {
@@ -112,19 +112,19 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
           return (
             <div key={c} className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)]">
               <span className="font-semibold text-text">{labels[c] ?? c}</span>
-              <span><span className={`${rMatched > 0 ? "text-green-600" : "text-red-600"} font-bold`}>{rMatched}✓</span>{rTotal - rMatched > 0 ? <> <span className="text-red-600 font-bold">{(rTotal - rMatched)}✗</span></> : ""}/{rTotal}</span>
-              <span>{pTotal > 0 ? <><span className={`${pMatched > 0 ? "text-green-600" : "text-red-600"} font-bold`}>{pMatched}✓</span>{pTotal - pMatched > 0 ? <> <span className="text-red-600 font-bold">{(pTotal - pMatched)}✗</span></> : ""}/{pTotal}</> : "\u2014"}</span>
+              <span><span className={`${rMatched > 0 ? "text-success" : "text-danger"} font-bold`}>{rMatched}✓</span>{rTotal - rMatched > 0 ? <> <span className="text-danger font-bold">{(rTotal - rMatched)}✗</span></> : ""}/{rTotal}</span>
+              <span>{pTotal > 0 ? <><span className={`${pMatched > 0 ? "text-success" : "text-danger"} font-bold`}>{pMatched}✓</span>{pTotal - pMatched > 0 ? <> <span className="text-danger font-bold">{(pTotal - pMatched)}✗</span></> : ""}/{pTotal}</> : "\u2014"}</span>
               <span className="font-bold text-right text-text">{rate}%</span>
             </div>
           );
         })}
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[var(--surface-2)]">
           <span className="text-text-2">Required total</span>
           <span className="text-text-3 text-[12px]">all categories combined</span>
           <span />
           <span className="font-bold text-right text-text">{overallRate}%</span>
         </div>
-        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
+        <div className="grid grid-cols-[1.9fr_1.2fr_1.2fr_0.9fr] gap-2.5 px-[14px] py-[9px] text-[13px] border-t border-[var(--border-muted)] bg-[var(--surface-2)]">
           <span className="text-text-2">Preferred total</span>
           <span className="text-text-3 text-[12px]">{hasPreferred ? "all categories combined" : "no preferred keywords in JD"}</span>
           <span />
@@ -147,7 +147,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
               <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-1">Present</p>
               <div className="flex flex-wrap gap-1">
                 {matching.credentials_required.present.map((c) => (
-                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-green-light text-green-700">{c}</span>
+                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-green-light text-success">{c}</span>
                 ))}
               </div>
             </div>
@@ -157,7 +157,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
               <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-1">Missing</p>
               <div className="flex flex-wrap gap-1">
                 {matching.credentials_required.missing.map((c) => (
-                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f7f8fa] text-text-2 border border-dashed border-[#cbd0d8]">{c}</span>
+                  <span key={c} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2 border border-dashed border-[var(--border)]">{c}</span>
                 ))}
               </div>
             </div>
@@ -186,7 +186,7 @@ function KeywordsSection({ data, order, labels, tone }: { data: CategorisedKeywo
           <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-0.5">{labels[c] ?? c}</p>
           <div className="flex flex-wrap gap-1">
             {(data[c] ?? []).map((kw) => (
-              <span key={kw} className={`inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 ${variant === "badge-green" ? "bg-green-light text-green-700" : "bg-red-light text-red-700"}`}>{kw}</span>
+              <span key={kw} className={`inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 ${variant === "badge-green" ? "bg-green-light text-success" : "bg-red-light text-danger"}`}>{kw}</span>
             ))}
           </div>
         </div>

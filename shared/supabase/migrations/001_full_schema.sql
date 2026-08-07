@@ -4,6 +4,9 @@
 -- Consolidation of migrations 001–082 (84 files, now under ./archive/).
 -- Applying this file + 002_rls.sql + 003_seed.sql to a fresh database
 -- produces the exact same schema as applying the 84 originals in order.
+-- On a database that ISN'T a Supabase-dashboard-provisioned project (raw
+-- Postgres, or schema applied outside Supabase's per-project auto-grant
+-- step), also apply 004_grants.sql — see its header for why.
 --
 -- Column order inside each CREATE TABLE deliberately mirrors the order
 -- the columns reached the live table (base columns first, then each

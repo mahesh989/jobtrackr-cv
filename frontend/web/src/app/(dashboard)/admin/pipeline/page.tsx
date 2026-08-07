@@ -30,7 +30,7 @@ export const metadata = { title: "Pipeline Health — Admin — JobTrackr" };
 export const dynamic  = "force-dynamic";
 
 function PctBar({ pct, color = "blue" }: { pct: number; color?: "green"|"red"|"amber"|"blue" }) {
-  const cls = { green: "bg-emerald-500", red: "bg-red-500", amber: "bg-amber-400", blue: "bg-blue-500" }[color];
+  const cls = { green: "bg-success", red: "bg-danger", amber: "bg-warning", blue: "bg-info" }[color];
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
@@ -184,7 +184,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
           <div className="flex items-center gap-3">
             <h1 className="text-lead font-semibold text-text">Pipeline health</h1>
             {stuck.length > 0 && (
-              <span className="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-caption font-semibold animate-pulse">
+              <span className="px-2 py-0.5 bg-danger-subtle text-danger border border-danger-border rounded text-caption font-semibold animate-pulse">
                 {stuck.length} STUCK
               </span>
             )}
@@ -199,10 +199,10 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {stuck.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-label font-semibold text-red-700">Stuck runs</h2>
-              <span className="text-caption text-red-600">status=running for &gt;20 min — likely hung</span>
+              <h2 className="text-label font-semibold text-danger">Stuck runs</h2>
+              <span className="text-caption text-danger">status=running for &gt;20 min — likely hung</span>
             </div>
-            <div className="bg-red-50 border border-red-200 rounded-md overflow-x-auto">
+            <div className="bg-danger-subtle border border-danger-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -225,14 +225,14 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                         <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                         <td className="text-label text-text-2">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
                         <td className="text-label text-text-3">{lastStep?.replace(/_/g, " ") ?? "—"}</td>
-                        <td className={`tabular-nums font-semibold text-label ${stuckMins > 60 ? "text-red-700" : "text-amber-700"}`}>
+                        <td className={`tabular-nums font-semibold text-label ${stuckMins > 60 ? "text-danger" : "text-warning"}`}>
                           {stuckMins}m
                         </td>
                         <td>
                           <form action={adminForceCancelRun.bind(null, r.id)}>
                             <button
                               type="submit"
-                              className="text-caption text-red-600 hover:text-red-800 font-semibold border border-red-200 rounded px-2 py-0.5 hover:bg-red-50 transition-colors"
+                              className="text-caption text-danger hover:text-danger font-semibold border border-danger-border rounded px-2 py-0.5 hover:bg-danger-subtle transition-colors"
                             >
                               Force cancel
                             </button>
@@ -251,10 +251,10 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { label: "Total runs",  value: String(total),     color: "text-text" },
-            { label: "Completed",   value: String(completed), color: "text-emerald-700" },
-            { label: "Failed",      value: String(failed),    color: failed > 0 ? "text-red-700" : "text-text-3" },
-            { label: "Cancelled",   value: String(cancelled), color: cancelled > 0 ? "text-amber-700" : "text-text-3" },
-            { label: "Currently running", value: String(running), color: running > 0 ? "text-blue-700" : "text-text-3" },
+            { label: "Completed",   value: String(completed), color: "text-success" },
+            { label: "Failed",      value: String(failed),    color: failed > 0 ? "text-danger" : "text-text-3" },
+            { label: "Cancelled",   value: String(cancelled), color: cancelled > 0 ? "text-warning" : "text-text-3" },
+            { label: "Currently running", value: String(running), color: running > 0 ? "text-info" : "text-text-3" },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
               <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
@@ -297,7 +297,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                   <div key={step} className="flex items-center gap-3">
                     <span className="text-label text-text-2 w-44 truncate">{step.replace(/_/g, " ")}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
-                      <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${Math.min(100, (sp50 / (p95 ?? sp50)) * 100)}%` }} />
+                      <div className="bg-info h-1.5 rounded-full" style={{ width: `${Math.min(100, (sp50 / (p95 ?? sp50)) * 100)}%` }} />
                     </div>
                     <span className="text-caption font-mono text-text-3 w-16 text-right">{formatLatency(sp50)}</span>
                   </div>
@@ -313,7 +313,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
               { label: "Total AI calls",  value: String(totalCalls) },
-              { label: "Error rate",      value: `${aiErrorRate.toFixed(1)}%`, color: aiErrorRate > 5 ? "text-red-700" : "text-emerald-700" },
+              { label: "Error rate",      value: `${aiErrorRate.toFixed(1)}%`, color: aiErrorRate > 5 ? "text-danger" : "text-success" },
               { label: "Calls with retry",value: `${retryCalls} (${totalCalls > 0 ? ((retryCalls / totalCalls) * 100).toFixed(1) : 0}%)` },
             ].map((s) => (
               <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
@@ -331,7 +331,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
               <div className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">Avg lift</p>
-                <p className="text-h3 font-bold text-emerald-700">{avgLift !== null ? `+${avgLift.toFixed(1)}` : "—"}</p>
+                <p className="text-h3 font-bold text-success">{avgLift !== null ? `+${avgLift.toFixed(1)}` : "—"}</p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">Avg tailored score</p>
@@ -343,7 +343,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">Negative lift</p>
-                <p className={`text-h3 font-bold ${liftBuckets.negative > 0 ? "text-red-700" : "text-text-3"}`}>{liftBuckets.negative}</p>
+                <p className={`text-h3 font-bold ${liftBuckets.negative > 0 ? "text-danger" : "text-text-3"}`}>{liftBuckets.negative}</p>
               </div>
             </div>
             <div className="bg-surface border border-border rounded-md px-4 py-4 space-y-2">
@@ -353,7 +353,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                   <div key={bucket} className="flex items-center gap-3">
                     <span className="text-label text-text-2 w-24">{bucket === "negative" ? "< 0" : bucket} pts</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full ${bucket === "negative" ? "bg-red-400" : "bg-emerald-500"}`}
+                      <div className={`h-1.5 rounded-full ${bucket === "negative" ? "bg-danger" : "bg-success"}`}
                         style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-caption text-text-3 w-20 text-right">{count} ({pct.toFixed(0)}%)</span>
@@ -368,14 +368,14 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
         {errRanked.length > 0 && (
           <section>
             <h2 className="text-label font-semibold text-text mb-3">Failure causes (30d)</h2>
-            <div className="bg-surface border border-red-200 rounded-md overflow-x-auto">
+            <div className="bg-surface border border-danger-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Error message</th><th className="w-16">Count</th></tr></thead>
                 <tbody>
                   {errRanked.map(([msg, count]) => (
                     <tr key={msg}>
-                      <td className="text-red-700 text-label font-mono">{msg}</td>
-                      <td className="tabular-nums font-semibold text-red-700">{count}</td>
+                      <td className="text-danger text-label font-mono">{msg}</td>
+                      <td className="tabular-nums font-semibold text-danger">{count}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -393,7 +393,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                 <div key={step} className="flex items-center gap-3">
                   <span className="text-label text-text-2 w-44">{step.replace(/_/g, " ")}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
-                    <div className="bg-red-400 h-1.5 rounded-full"
+                    <div className="bg-danger h-1.5 rounded-full"
                       style={{ width: `${Math.min(100, (count / (stepRanked[0][1])) * 100)}%` }} />
                   </div>
                   <span className="text-caption text-text-3 w-8 text-right">{count}</span>
@@ -415,7 +415,7 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
                     <tr key={r.id}>
                       <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                       <td className="text-text-2 text-label">{emailById[r.user_id] ?? r.user_id.slice(0, 10)}</td>
-                      <td className="text-red-700 text-label max-w-sm truncate">{r.error_message ?? "—"}</td>
+                      <td className="text-danger text-label max-w-sm truncate">{r.error_message ?? "—"}</td>
                       <td className="text-text-3 tabular-nums">{timeAgo(r.created_at)}</td>
                     </tr>
                   ))}

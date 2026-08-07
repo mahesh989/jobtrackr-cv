@@ -482,7 +482,7 @@ export function ApplyModal({
                 one in the user's voice (slow — an AI call). Saying "loading"
                 for the second one is what made it look hung. */}
             {(awaitingLetter || (!!effectiveLetterId && !bodyLoaded)) && !draftError && (
-              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+              <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-3">
                 <p className="flex items-center gap-2 text-label font-medium text-text">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   {awaitingLetter ? "Loading your message…" : "Writing your message…"}
@@ -495,7 +495,7 @@ export function ApplyModal({
                 )}
               </div>
             )}
-            {draftError && <p className="text-label text-red-600">{draftError}</p>}
+            {draftError && <p className="text-label text-danger">{draftError}</p>}
 
             {hasMessage && (
               <>
@@ -539,7 +539,7 @@ export function ApplyModal({
                 employer", so a bare "writing your cover letter" reads as though
                 the wrong thing is being produced. */}
             {generating && (
-              <div className="rounded-[10px] border border-[var(--border)] bg-[#fafbfc] px-3.5 py-3">
+              <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-3">
                 <p className="flex items-center gap-2 text-label font-medium text-text">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   {researching
@@ -554,8 +554,8 @@ export function ApplyModal({
               </div>
             )}
             {generateError && (
-              <div className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5">
-                <p className="text-label text-red-600">{generateError}</p>
+              <div className="rounded-[10px] border border-danger-border bg-danger-subtle px-3.5 py-2.5">
+                <p className="text-label text-danger">{generateError}</p>
                 <button
                   type="button"
                   onClick={generateCoverLetter}
@@ -616,7 +616,7 @@ export function ApplyModal({
                       </Button>
                     </div>
                   )}
-                  {emailError && <p className="mt-1.5 text-label text-red-600">{emailError}</p>}
+                  {emailError && <p className="mt-1.5 text-label text-danger">{emailError}</p>}
 
                   <button
                     type="button"
@@ -695,7 +695,7 @@ export function ApplyModal({
                       the body: the message on the left has to stay on screen
                       for the form they now have open. */}
                   {openedListing ? (
-                    <div className="border-t border-[var(--border)] bg-[var(--amber-soft,#fffbeb)] px-3.5 py-3">
+                    <div className="border-t border-[var(--border)] bg-warning-subtle px-3.5 py-3">
                       <p className="text-caption text-text-2">
                         Finished on {job.source}? We&apos;ll move this job to Applied — we never
                         mark it for you.
@@ -705,7 +705,7 @@ export function ApplyModal({
                           type="button"
                           onClick={confirmApplied}
                           disabled={!!busy}
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[var(--green,#10b981)] py-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success py-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
                           {busy === "source"
                             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -741,7 +741,7 @@ export function ApplyModal({
                   )}
                 </div>
 
-                {error && <p className="mt-3 text-label text-red-600">{error}</p>}
+                {error && <p className="mt-3 text-label text-danger">{error}</p>}
               </>
             )}
           </div>
@@ -766,7 +766,7 @@ function SuccessCard({
 }) {
   return (
     <div className="flex flex-col items-center text-center pt-3">
-      <CheckCircle2 className="h-10 w-10 text-green-500" aria-hidden />
+      <CheckCircle2 className="h-10 w-10 text-success" aria-hidden />
       <p className="mt-3 text-lead font-semibold text-text" aria-live="polite">
         {done.via === "email" ? "Application sent" : "Marked as applied"}
       </p>

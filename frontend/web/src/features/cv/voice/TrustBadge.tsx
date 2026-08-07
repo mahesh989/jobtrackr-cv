@@ -3,9 +3,9 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 export function TrustBadge({ score }: { score: number }) {
   const pct   = Math.round(score * 100);
   const color =
-    score >= 0.75 ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
-    score >= 0.5  ? "text-amber-600 bg-amber-50 border-amber-200" :
-                    "text-red-600 bg-red-50 border-red-200";
+    score >= 0.75 ? "text-success bg-success-subtle border-success-border" :
+    score >= 0.5  ? "text-warning bg-warning-subtle border-warning-border" :
+                    "text-danger bg-danger-subtle border-danger-border";
   const label =
     score >= 0.75 ? "Strong human signal" :
     score >= 0.5  ? "Some AI phrases detected" :

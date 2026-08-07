@@ -31,6 +31,12 @@ jobs:
         run: node frontend/web/scripts/check-route-auth.mjs
       - name: Migration version lint
         run: node shared/supabase/scripts/lint-migrations.mjs
+      # Theme-token guard — became a hard gate on 2026-08-07 once the
+      # 630-finding palette backlog was migrated (Phases 0-5 of
+      # docs/UI_IMPROVEMENT_2026-08-06.md). Same deal as the auth guard:
+      # a finding is fixed, or allowlisted with a written reason.
+      - name: Theme token guard
+        run: node frontend/web/scripts/check-theme-tokens.mjs
 
   web-typecheck:
     name: web · typecheck

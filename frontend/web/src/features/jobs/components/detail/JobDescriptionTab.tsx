@@ -65,7 +65,7 @@ export function JobDescriptionTab({
       <div className="space-y-4">
         {(job.jd_quality === "thin" || job.jd_quality === "unknown") && (
           <div className="rounded-[10px] bg-amber-light border border-amber/20 px-3.5 py-2.5">
-            <p className="text-[14px] text-amber-800 leading-relaxed">
+            <p className="text-[14px] text-warning leading-relaxed">
               {job.jd_quality === "thin"
                 ? `Only a short description was scraped — too little to analyse reliably. Paste the full ad and analysis runs automatically once it's ${MANUAL_JD_MIN_CHARS}+ characters.`
                 : "We couldn't retrieve a description from this listing — it may require JavaScript to load. Paste the description manually to unlock analysis."}
@@ -87,13 +87,13 @@ export function JobDescriptionTab({
     <div className="space-y-5">
       <div className="flex flex-wrap gap-1.5">
         {jd.seniority_level && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[#eef2ff] text-[#4338ca]">{jd.seniority_level}</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--purple-light)] text-[var(--purple)]">{jd.seniority_level}</span>
         )}
         {jd.job_context?.setting && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-green-light text-green-700">{jd.job_context.setting.replace(/_/g, " ")}</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-green-light text-success">{jd.job_context.setting.replace(/_/g, " ")}</span>
         )}
         {typeof jd.experience_years_required === "number" && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[#f0f1f4] text-text-2">{jd.experience_years_required}+ yrs</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--surface-2)] text-text-2">{jd.experience_years_required}+ yrs</span>
         )}
       </div>
 
@@ -107,7 +107,7 @@ export function JobDescriptionTab({
               <p className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-1">{labels[c] ?? c}</p>
               <div className="flex flex-wrap gap-1">
                 {required[c].map((kw) => (
-                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f0f1f4] text-[#3d4653]">{kw}</span>
+                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2">{kw}</span>
                 ))}
               </div>
             </div>
@@ -122,7 +122,7 @@ export function JobDescriptionTab({
             {order.filter((c) => (preferred[c]?.length ?? 0) > 0).map((c) => (
               <div key={c} className="flex flex-wrap gap-1">
                 {preferred[c].map((kw) => (
-                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[#f0f1f4] text-[#3d4653]">{kw}</span>
+                  <span key={kw} className="inline-block text-[12.5px] px-[11px] py-[4px] rounded-[20px] mr-1 mb-1 bg-[var(--surface-2)] text-text-2">{kw}</span>
                 ))}
               </div>
             ))}

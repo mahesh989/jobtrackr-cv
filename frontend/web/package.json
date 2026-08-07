@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:auth": "node scripts/check-route-auth.mjs",
+    "check:theme": "node scripts/check-theme-tokens.mjs",
     "analyze": "ANALYZE=true next build",
     "test": "vitest run",
     "test:watch": "vitest"

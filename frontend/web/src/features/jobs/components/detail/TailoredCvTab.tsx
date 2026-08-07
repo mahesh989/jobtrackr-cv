@@ -23,7 +23,7 @@ export function TailoredCvTab({ run }: { run: BoardDetailRun }) {
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         {lift != null && (
-          <span className={`inline-flex items-center text-[13px] font-bold px-[11px] py-[4px] rounded-[20px] border ${lift >= 0 ? "bg-green-light text-green-700 border-green-500/30" : "bg-amber-light text-amber-700 border-amber-500/30"}`}>
+          <span className={`inline-flex items-center text-[13px] font-bold px-[11px] py-[4px] rounded-[20px] border ${lift >= 0 ? "bg-success-subtle text-success border-success-border" : "bg-warning-subtle text-warning border-warning-border"}`}>
             {lift >= 0 ? "+" : ""}{lift} lift · {run.match_score} → {run.tailored_match_score}
           </span>
         )}
@@ -40,7 +40,7 @@ export function TailoredCvTab({ run }: { run: BoardDetailRun }) {
         </div>
       </div>
 
-      {error && <p className="text-label text-red-600">{error}</p>}
+      {error && <p className="text-label text-danger">{error}</p>}
 
       <CvInlinePreview storagePath={run.tailored_cv_storage_path} />
     </div>

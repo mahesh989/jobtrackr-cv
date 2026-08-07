@@ -18,11 +18,16 @@ export function isPostedToday(j: BoardJob): boolean {
       && d.getDate()     === now.getDate();
 }
 
+// Theme-driven. The dot/bar read the --chart-* palette (globals.css ships a
+// default set; Aurora re-tints it), and the chip reuses the same
+// --{colour}/--{colour}-light pairs the .badge-* classes already use — every
+// theme defines both, including the dark ones, so these stay legible instead of
+// baking in a light-mode -100/-800 pair.
 export const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg: string; chipText: string; barColor: string; tip: string }> = {
-  above_final:   { label: "≥ 70",  dot: "bg-green-500", chipBg: "bg-green-100",          chipText: "text-green-800", barColor: "bg-green-500", tip: "Passed final gate — auto cover letter eligible" },
-  below_final:   { label: "60–69", dot: "bg-amber-500", chipBg: "bg-amber-100",          chipText: "text-amber-800", barColor: "bg-amber-500", tip: "Tailored CV — between gates" },
-  below_initial: { label: "< 60",  dot: "bg-red-500",   chipBg: "bg-red-100",            chipText: "text-red-800",   barColor: "bg-red-500",   tip: "Below initial gate — pipeline stopped" },
-  no_ats:        { label: "—",     dot: "bg-gray-300",  chipBg: "bg-[var(--surface-2)]", chipText: "text-text-2",    barColor: "bg-gray-400",  tip: "Not yet analysed" },
+  above_final:   { label: "≥ 70",  dot: "bg-[var(--chart-pos)]",     chipBg: "bg-[var(--green-light)]", chipText: "text-[var(--green)]", barColor: "bg-[var(--chart-pos)]",     tip: "Passed final gate — auto cover letter eligible" },
+  below_final:   { label: "60–69", dot: "bg-[var(--chart-amber)]",   chipBg: "bg-[var(--amber-light)]", chipText: "text-[var(--amber)]", barColor: "bg-[var(--chart-amber)]",   tip: "Tailored CV — between gates" },
+  below_initial: { label: "< 60",  dot: "bg-[var(--chart-danger)]",  chipBg: "bg-[var(--red-light)]",   chipText: "text-[var(--red)]",   barColor: "bg-[var(--chart-danger)]",  tip: "Below initial gate — pipeline stopped" },
+  no_ats:        { label: "—",     dot: "bg-[var(--chart-neutral)]", chipBg: "bg-[var(--surface-2)]",   chipText: "text-text-2",         barColor: "bg-[var(--chart-neutral)]", tip: "Not yet analysed" },
 };
 
 export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
@@ -41,7 +46,7 @@ export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: n
   return staticMeta;
 }
 
-export const VISA_COLOR = { yes: "#22c55e", no: "#ef4444", pr_only: "#f59e0b", unknown: "#94a3b8" };
+export const VISA_COLOR = { yes: "var(--success)", no: "var(--danger)", pr_only: "var(--warning)", unknown: "var(--text-3)" };
 export const VISA_LABEL = { yes: "Sponsored", no: "No sponsor", pr_only: "PR or citizens only", unknown: "Visa not mentioned" };
 
 export function visaKey(j: BoardJob): keyof typeof VISA_COLOR {

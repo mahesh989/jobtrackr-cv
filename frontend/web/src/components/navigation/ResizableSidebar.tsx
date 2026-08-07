@@ -18,6 +18,11 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
   // there's no layout flash before the saved width loads.
   const [width, setWidth] = useState<number | null>(null);
   const draggingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Tracks the theme's rendered `--sidebar-width` (in px) whenever `width`
+  // is null, so keyboard resizing and `aria-valuenow` have a real number to
+  // start from even before the sidebar has ever been dragged.
+  const [measuredDefault, setMeasuredDefault] = useState(MIN);
 
   useEffect(() => {
     // One-time hydrate from localStorage (an external store) on mount — the
@@ -25,6 +30,16 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
     const saved = Number(localStorage.getItem(KEY));
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate persisted width once on mount
     if (saved >= MIN && saved <= MAX) setWidth(saved);
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setMeasuredDefault(Math.round(el.getBoundingClientRect().width));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const startDrag = useCallback((e: React.MouseEvent) => {
@@ -38,6 +53,41 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
     setWidth(null);
     localStorage.removeItem(KEY);
   }, []);
+
+  // Persist exactly like the mouse-drag path (`onUp` below) does.
+  const persist = useCallback((w: number) => {
+    setWidth(w);
+    localStorage.setItem(KEY, String(w));
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const STEP = 16;
+    const current = width ?? measuredDefault;
+    switch (e.key) {
+      case "ArrowLeft":
+        e.preventDefault();
+        persist(Math.max(MIN, current - STEP));
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        persist(Math.min(MAX, current + STEP));
+        break;
+      case "Home":
+        e.preventDefault();
+        persist(MIN);
+        break;
+      case "End":
+        e.preventDefault();
+        persist(MAX);
+        break;
+      case "Enter":
+        e.preventDefault();
+        reset();
+        break;
+      default:
+        break;
+    }
+  }, [width, measuredDefault, persist, reset]);
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -63,24 +113,33 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
   }, []);
 
   const px = width ? `${width}px` : "var(--sidebar-width)";
+  const currentWidth = width ?? measuredDefault;
 
   return (
     <div
+      ref={containerRef}
       className="relative shrink-0 hidden md:flex md:flex-col"
       style={{ width: px, minWidth: px }}
     >
       {children}
-      {/* Drag handle on the right edge. Double-click resets to the default. */}
+      {/* Drag handle on the right edge. Double-click, or Enter while
+          focused, resets to the default. Arrow keys resize in 16px steps;
+          Home/End jump to the min/max width. */}
       <div
         onMouseDown={startDrag}
         onDoubleClick={reset}
+        onKeyDown={handleKeyDown}
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize sidebar (double-click to reset)"
+        aria-label="Resize sidebar (arrow keys to resize, Home/End for min/max, Enter or double-click to reset)"
+        aria-valuenow={currentWidth}
+        aria-valuemin={MIN}
+        aria-valuemax={MAX}
+        tabIndex={0}
         title="Drag to resize · double-click to reset"
-        className="group absolute inset-y-0 right-0 z-20 flex w-2 translate-x-1/2 cursor-col-resize items-center justify-center"
+        className="group absolute inset-y-0 right-0 z-20 flex w-2 translate-x-1/2 cursor-col-resize items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/60"
       >
-        <span className="h-full w-px bg-transparent transition-colors group-hover:bg-[var(--brand)]/40 group-active:bg-[var(--brand)]/60" />
+        <span className="h-full w-px bg-transparent transition-colors group-hover:bg-[var(--brand)]/40 group-active:bg-[var(--brand)]/60 group-focus-visible:bg-[var(--brand)]/60" />
       </div>
     </div>
   );

@@ -167,9 +167,9 @@ export default async function AdminUsersPage() {
                       </Link>
                       {latestRunLog && (
                         <span className={`ml-2 text-micro font-medium ${
-                          latestRunLog.status === "completed" ? "text-emerald-600"
-                          : latestRunLog.status === "failed" ? "text-red-600"
-                          : "text-amber-600"
+                          latestRunLog.status === "completed" ? "text-success"
+                          : latestRunLog.status === "failed" ? "text-danger"
+                          : "text-warning"
                         }`}>
                           {latestRunLog.status === "running" ? "⟳ running" : latestRunLog.status}
                         </span>

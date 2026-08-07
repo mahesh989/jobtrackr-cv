@@ -14,10 +14,10 @@ export function SuccessResultCard({ result, onReset }: Props) {
   const [showDetails, setShowDetails] = useState(false);
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+    <div className="rounded-xl border border-success-border bg-success-subtle p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-        <p className="text-sm font-semibold text-emerald-800">Writing voice saved</p>
+        <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+        <p className="text-sm font-semibold text-success">Writing voice saved</p>
       </div>
       {/* Badge on its own line — TrustBadge renders inline-flex and the reset
           button below is inline too, so without a block wrapper the two share
@@ -27,23 +27,23 @@ export function SuccessResultCard({ result, onReset }: Props) {
       </div>
 
       {result.matched_ai_phrases.length > 0 && (
-        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <div className="text-xs text-warning bg-warning-subtle border border-warning-border rounded-lg px-3 py-2">
           <span className="font-medium">Phrases that weaken your voice signal: </span>
           {result.matched_ai_phrases.join(", ")}
         </div>
       )}
       {result.trust_score < 0.5 && (
-        <p className="text-xs text-red-700">
+        <p className="text-xs text-danger">
           This sample has a high AI pattern density. For best results, write freely without editing — your natural voice is what the system needs.
         </p>
       )}
       {result.word_count < WORD_MIN && (
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-warning">
           Sample is short ({result.word_count} words). Add more detail for a richer fingerprint.
         </p>
       )}
       <div>
-        <button onClick={onReset} className="text-xs text-emerald-700 underline hover:no-underline">
+        <button onClick={onReset} className="text-xs text-success underline hover:no-underline">
           Submit another sample
         </button>
       </div>
@@ -108,7 +108,7 @@ export function SuccessResultCard({ result, onReset }: Props) {
                     {result.matched_ai_phrases.map((phrase) => (
                       <span
                         key={phrase}
-                        className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200"
+                        className="px-1.5 py-0.5 rounded bg-warning-subtle text-warning border border-warning-border"
                       >
                         {phrase}
                       </span>

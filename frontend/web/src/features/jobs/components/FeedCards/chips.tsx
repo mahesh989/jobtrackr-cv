@@ -10,7 +10,7 @@
  */
 import { BarChart3, CheckCircle2, FileText, Mail } from "lucide-react";
 import { BoardJob } from "../../lib/jobFilters";
-import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, visaKey } from "@/features/jobs/lib/smartFeedUtils";
+import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, sourcePillTone, visaKey } from "@/features/jobs/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
@@ -132,10 +132,10 @@ export function MatchBar({ job, compact }: { job: BoardJob; compact?: boolean })
 
 export function ProgressDots({ progress }: { progress: BoardJob["progress"] }) {
   const items = [
-    { on: progress.has_analysis,      Icon: BarChart3,    cls: "text-blue-600",   label: "Analysed" },
-    { on: progress.has_tailored_cv,   Icon: FileText,     cls: "text-purple-600", label: "Tailored CV" },
-    { on: progress.has_cover_letter,  Icon: Mail,         cls: "text-amber-600",  label: "Cover letter" },
-    { on: progress.is_applied,        Icon: CheckCircle2, cls: "text-green-600",  label: "Applied" },
+    { on: progress.has_analysis,      Icon: BarChart3,    cls: "text-info",   label: "Analysed" },
+    { on: progress.has_tailored_cv,   Icon: FileText,     cls: "text-accent", label: "Tailored CV" },
+    { on: progress.has_cover_letter,  Icon: Mail,         cls: "text-warning",  label: "Cover letter" },
+    { on: progress.is_applied,        Icon: CheckCircle2, cls: "text-success",  label: "Applied" },
   ];
   return (
     <div className="flex items-center gap-1">
@@ -165,7 +165,7 @@ export function ProfileChip({ name }: { name: string }) {
 export function SourcePill({ source }: { source: string }) {
   return (
     <span
-      className="shrink-0 rounded-[5px] px-[7px] py-[3px] bg-[#f0f1f4] text-text-2"
+      className={`shrink-0 rounded-[5px] px-[7px] py-[3px] ${sourcePillTone(source)}`}
       style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em" }}
       title={`Source: ${source}`}
     >
@@ -190,7 +190,7 @@ export function ChipWarn({ label, tooltip }: { label: string; tooltip: string })
   return (
     <span
       title={tooltip}
-      className="text-micro font-medium px-1.5 py-px rounded shrink-0 bg-amber-100 text-amber-800"
+      className="text-micro font-medium px-1.5 py-px rounded shrink-0 bg-warning-subtle text-warning"
     >
       {label}
     </span>
@@ -199,7 +199,7 @@ export function ChipWarn({ label, tooltip }: { label: string; tooltip: string })
 
 export function Distance({ km, method }: { km: number; method: "driving" | "haversine" | null }) {
   const approx = method === "haversine";
-  const tone = km <= 10 ? "text-green-600" : km <= 25 ? "text-text-2" : km <= 50 ? "text-amber-600" : "text-red-600";
+  const tone = km <= 10 ? "text-success" : km <= 25 ? "text-text-2" : km <= 50 ? "text-warning" : "text-danger";
   const display = km < 10 ? km.toFixed(1) : Math.round(km);
   return (
     <span

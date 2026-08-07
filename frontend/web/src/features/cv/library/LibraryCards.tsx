@@ -94,7 +94,7 @@ export function CvRowCard({
               </span>
             )}
             {cv.structured_cv_status === "verified" && (
-              <span className="rounded-full border border-green-700/40 bg-green-700/10 px-2 py-0.5 text-caption font-semibold text-green-800 dark:text-green-300">
+              <span className="rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-caption font-semibold text-success">
                 Reviewed
               </span>
             )}

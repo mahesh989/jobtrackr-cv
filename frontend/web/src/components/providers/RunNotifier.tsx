@@ -323,9 +323,9 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
 
             <div className="flex gap-3 items-start pr-6">
               {isSuccess ? (
-                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-green-700" />
+                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-success" />
               ) : (
-                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-700" />
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-danger" />
               )}
               <div className="min-w-0">
                 <p id="run-notice-title" className="text-lead font-semibold text-text">
@@ -348,8 +348,8 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
                 onClick={dismiss}
                 className={`rounded-full px-5 py-2 text-label font-semibold transition-colors ${
                   isSuccess
-                    ? "bg-green-light text-green-700 hover:brightness-95"
-                    : "bg-red-light text-red-700 hover:brightness-95"
+                    ? "bg-green-light text-success hover:brightness-95"
+                    : "bg-red-light text-danger hover:brightness-95"
                 }`}
               >
                 {active!.ctaText}

@@ -87,18 +87,18 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
 
   // Color per event type
   const eventColor: Record<string, string> = {
-    "login":                  "bg-blue-100 text-blue-700",
-    "logout":                 "bg-slate-100 text-slate-600",
-    "analysis_started":       "bg-amber-100 text-amber-700",
-    "analysis_completed":     "bg-emerald-100 text-emerald-700",
-    "analysis_failed":        "bg-red-100 text-red-700",
-    "analysis_cancelled":     "bg-slate-100 text-slate-600",
-    "email_sent":             "bg-purple-100 text-purple-700",
-    "cover_letter_generated": "bg-indigo-100 text-indigo-700",
-    "cv_downloaded":          "bg-teal-100 text-teal-700",
-    "profile_saved":          "bg-orange-100 text-orange-700",
-    "plan_upgraded":          "bg-emerald-100 text-emerald-700",
-    "trial_started":          "bg-blue-100 text-blue-700",
+    "login":                  "bg-info-subtle text-info",
+    "logout":                 "bg-[var(--surface-2)] text-text-2",
+    "analysis_started":       "bg-warning-subtle text-warning",
+    "analysis_completed":     "bg-success-subtle text-success",
+    "analysis_failed":        "bg-danger-subtle text-danger",
+    "analysis_cancelled":     "bg-[var(--surface-2)] text-text-2",
+    "email_sent":             "bg-accent-subtle text-accent",
+    "cover_letter_generated": "bg-accent-subtle text-accent",
+    "cv_downloaded":          "bg-info-subtle text-info",
+    "profile_saved":          "bg-warning-subtle text-warning",
+    "plan_upgraded":          "bg-success-subtle text-success",
+    "trial_started":          "bg-info-subtle text-info",
   };
 
   return (
@@ -143,9 +143,9 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
 
           {/* If filtering by user, show who */}
           {filterUser && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-              <span className="text-label text-blue-700">Showing activity for: <span className="font-semibold">{emailById[filterUser] ?? filterUser}</span></span>
-              <Link href="/admin/activity" className="ml-auto text-caption text-blue-600 hover:underline">Clear filter</Link>
+            <div className="flex items-center gap-2 bg-info-subtle border border-info-border rounded-md px-3 py-2">
+              <span className="text-label text-info">Showing activity for: <span className="font-semibold">{emailById[filterUser] ?? filterUser}</span></span>
+              <Link href="/admin/activity" className="ml-auto text-caption text-[var(--brand)] hover:underline">Clear filter</Link>
             </div>
           )}
 
@@ -159,7 +159,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
               {filtered.map((e, i) => (
                 <div key={e.id ?? i} className="flex items-start gap-3 px-4 py-3">
                   <div className="shrink-0 mt-0.5">
-                    <span className={`inline-block px-2 py-0.5 rounded text-micro font-semibold ${eventColor[e.event_type] ?? "bg-slate-100 text-slate-700"}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-micro font-semibold ${eventColor[e.event_type] ?? "bg-[var(--surface-2)] text-text-2"}`}>
                       {e.event_type.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -204,10 +204,10 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
                 <span className="truncate max-w-[140px]">{u.email}</span>
                 <div className="flex gap-1 shrink-0">
                   {runsByUser[u.id] > 0 && (
-                    <span className="text-micro bg-amber-100 text-amber-700 px-1.5 rounded-full">{runsByUser[u.id]}</span>
+                    <span className="text-micro bg-warning-subtle text-warning px-1.5 rounded-full">{runsByUser[u.id]}</span>
                   )}
                   {lettersByUser[u.id] > 0 && (
-                    <span className="text-micro bg-purple-100 text-purple-700 px-1.5 rounded-full">{lettersByUser[u.id]}</span>
+                    <span className="text-micro bg-accent-subtle text-accent px-1.5 rounded-full">{lettersByUser[u.id]}</span>
                   )}
                 </div>
               </Link>
