@@ -26,15 +26,20 @@
  *      on Classic/Clay/Gilded Noir/Notion (see the Phase 0 contrast
  *      fixes in themeContrast.test.ts for two themes where it wasn't).
  *
- * *** REPORT-ONLY — this is a Phase 0/5 progress meter, not a gate. ***
- * It always exits 0. Phase 5 (docs/UI_IMPROVEMENT_2026-08-06.md §4) is
- * the mechanical migration of the 559 existing violations onto the
- * semantic vocabulary; Phase 6 deletes the Aurora `!important` remap
- * block (globals.css ~1199–1330) and is the point where this script
- * flips to `process.exit(1)` and gets wired into CI. Until then, run it
- * (`npm run check:theme`) to watch the count go down, not to fail a build.
+ * *** ENFORCING as of 2026-08-07 (Phase 6) — this fails the build. ***
+ * It ran report-only through Phase 5 while the 630-finding backlog was
+ * migrated, then flipped to `exit(1)` once the tree was clean, and is
+ * wired into the `guards` job in .github/workflows/ci.yml. Same shape as
+ * check-route-auth.mjs: a finding either gets fixed or gets an ALLOWLIST
+ * entry with a written justification — silence is not an option.
  *
- * Not wired into CI yet — deliberately, per the phase plan.
+ * STILL OUTSTANDING from Phase 6: the Aurora `!important` remap block in
+ * globals.css (~1199–1330) has NOT been deleted yet. It remains
+ * load-bearing for the three `features/dashboard/*` files temporarily
+ * allowlisted below, which still carry raw palette classes because a
+ * parallel branch rewrites them. Once those are migrated, drop their
+ * allowlist entries and delete the remap block — it is a runtime patch
+ * for a compile-time problem and this guard is what replaces it.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -54,6 +59,22 @@ const ALLOWLIST = {
     "terminal emulator — the GitHub-dark console palette is the point, not a theme surface",
   "features/auth/components/brand.tsx":
     "Google's brand SVG — the four-colour mark is trademark-fixed and must not be recoloured",
+
+  // ── TEMPORARY (2026-08-07) — remove these three once the branch lands ──
+  // The `dashboard-action-first` branch renames CalloutStrip.tsx to
+  // NextActions.tsx and rewrites StatCards.tsx into ProgressLine.tsx.
+  // Migrating them on this branch too would turn a clean merge into a
+  // modify/delete conflict, so they are exempted rather than fixed here.
+  // They must be migrated on that branch, or in a follow-up once both
+  // have merged — at which point these three entries come out and the
+  // Aurora !important remap block in globals.css can finally be deleted
+  // (it is still load-bearing for exactly these files).
+  "features/dashboard/CalloutStrip.tsx":
+    "TEMPORARY — renamed to NextActions.tsx on dashboard-action-first; migrate there, not here",
+  "features/dashboard/PipelineDonut.tsx":
+    "TEMPORARY — rewritten on dashboard-action-first; migrate there, not here",
+  "features/dashboard/StatCards.tsx":
+    "TEMPORARY — replaced by ProgressLine.tsx on dashboard-action-first; migrate there, not here",
 };
 
 // ── Category patterns ────────────────────────────────────────────────────
@@ -75,7 +96,7 @@ const DARK_VARIANT_RE = /\bdark:/g;
 // className value extraction: className="...", className='...', or
 // className={`...`}. Doesn't attempt to parse clsx()/cn() call arguments
 // or className={cond ? "a" : "b"} ternaries — those are rarer and this is
-// a report-only progress meter, not a exhaustive AST-level check.
+// a regex scan over class strings, not an exhaustive AST-level check.
 const CLASSNAME_VALUE_RE = /className\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\})/g;
 
 function countMatches(re, text) {
@@ -138,9 +159,9 @@ perFile.sort((a, b) => b.fileTotal - a.fileTotal);
 
 const grandTotal = CATEGORIES.reduce((sum, c) => sum + totals[c], 0);
 
-console.log("\n=== check-theme-tokens: REPORT ONLY — always exits 0 ===");
-console.log("    (progress meter for docs/UI_IMPROVEMENT_2026-08-06.md Phase 5;");
-console.log("     flips to enforcing at the end of Phase 6 — see the header comment)\n");
+console.log("\n=== check-theme-tokens: ENFORCING — a finding fails the build ===");
+console.log("    (fix it onto the semantic tokens, or add an ALLOWLIST entry");
+console.log("     with a written reason — see docs/UI_IMPROVEMENT_2026-08-06.md)\n");
 
 if (perFile.length === 0) {
   console.log("✓ no raw palette / arbitrary-hex / dark: / brand-white-on-black violations found.");
@@ -166,6 +187,15 @@ console.log(`   TOTAL:                        ${grandTotal}`);
 const cleanCount = allFiles.length - perFile.length - allowlistedCount;
 console.log(`\n   files scanned: ${allFiles.length} total — ${cleanCount} clean, ${perFile.length} with findings, ${allowlistedCount} allowlisted\n`);
 
-console.log("This is a progress meter, not a gate — always exits 0 until Phase 6.\n");
+if (perFile.length > 0) {
+  console.log(
+    "FAIL — every finding above must either move onto the semantic tokens\n" +
+    "(bg-{family}-subtle / border-{family}-border / text-{family}, or the bare\n" +
+    "token for a solid fill) or be added to ALLOWLIST in this file WITH a\n" +
+    "written justification. See docs/UI_IMPROVEMENT_2026-08-06.md.\n",
+  );
+  process.exit(1);
+}
 
+console.log("PASS — no raw palette classes, arbitrary hex, or dark: variants outside the allowlist.\n");
 process.exit(0);
