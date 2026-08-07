@@ -139,7 +139,7 @@ function StoryCard({
                 ))
               : <span className="text-caption text-[var(--sidebar-text-dim)] italic">No tags</span>
             }
-            <button onClick={onEditStart} className="p-0.5 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--text)] transition-colors" title="Edit tags">
+            <button onClick={onEditStart} className="p-0.5 rounded text-[var(--sidebar-text-dim)] hover:text-[var(--text)] transition-colors" title="Edit tags" aria-label="Edit tags">
               <Pencil className="w-3 h-3" />
             </button>
           </div>

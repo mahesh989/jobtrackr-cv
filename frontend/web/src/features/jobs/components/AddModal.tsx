@@ -138,7 +138,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
               Found a job elsewhere? Add it here to analyse and track it.
             </p>
           </div>
-          <button onClick={onClose} disabled={saving} className="text-text-3 hover:text-text mt-0.5">
+          <button onClick={onClose} disabled={saving} aria-label="Close" className="text-text-3 hover:text-text mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>

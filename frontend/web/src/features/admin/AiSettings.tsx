@@ -160,16 +160,34 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
             }`}
           >
             <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+              onClick={() => toggleExpand(id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleExpand(id);
+                }
+              }}
               className={`flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors ${
                 state.isActive ? "bg-[var(--brand)]/5" : "bg-[var(--surface)] hover:bg-[var(--surface-2)]"
               }`}
-              onClick={() => toggleExpand(id)}
             >
               {/* Radio — sets ACTIVE for every user, separate click target */}
               <span
                 role="radio"
                 aria-checked={state.isActive}
+                aria-label={`Set ${meta.label} as active provider`}
+                tabIndex={state.hasKey ? 0 : -1}
                 onClick={(e) => { e.stopPropagation(); handleSetActive(id); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSetActive(id);
+                  }
+                }}
                 className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                   state.isActive
                     ? "border-[var(--brand)] cursor-pointer"

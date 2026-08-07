@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { X, ChevronDown, Search, Star } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "../lib/jobFilters";
@@ -51,6 +51,14 @@ function Popover({
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  // Passed to `children` — just flips the open flag. Refs are only ever
+  // touched from effects/handlers below, never from a value handed to a
+  // render-prop that gets invoked during render itself.
+  const close = () => setOpen(false);
 
   useEffect(() => {
     if (!open) return;
@@ -68,13 +76,31 @@ function Popover({
     };
   }, [open]);
 
+  // While open: move focus into the panel (first menu item). On close —
+  // Escape, outside click, or an item being picked — this effect's cleanup
+  // returns focus to the trigger, the menu-button pattern's expected
+  // behaviour, without reading the ref during render.
+  useEffect(() => {
+    if (!open) return;
+    const first = panelRef.current?.querySelector<HTMLElement>(
+      '[role="menuitemradio"], [role="menuitemcheckbox"]',
+    );
+    first?.focus();
+    const trigger = triggerRef.current;
+    return () => {
+      trigger?.focus();
+    };
+  }, [open]);
+
   return (
     <div ref={wrapRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="menu"
+        aria-controls={panelId}
         className={
           "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-label font-medium transition-colors whitespace-nowrap " +
           (active
@@ -89,12 +115,16 @@ function Popover({
 
       {open && (
         <div
+          ref={panelRef}
+          id={panelId}
+          role="menu"
+          aria-label={label.replace(/:$/, "")}
           className={
             "absolute z-40 mt-1.5 min-w-[240px] rounded-[10px] border border-border bg-surface shadow-lg py-1 " +
             (align === "right" ? "right-0" : "left-0")
           }
         >
-          {children(() => setOpen(false))}
+          {children(close)}
         </div>
       )}
     </div>
@@ -302,7 +332,7 @@ export function SmartToolbar({
     <div className="rounded-md border border-border bg-surface overflow-visible">
       {/* Row 1 — funnel tabs (left) + saved views (right, after divider) */}
       <div className="flex items-center flex-wrap px-2.5 border-b border-border">
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5" role="group" aria-label="Filter by status">
           <TabButton active={allTabActive} onClick={() => selectTab(null)} count={counts.discovered}>
             All
           </TabButton>
@@ -513,8 +543,7 @@ function TabButton({
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
       disabled={disabled}
       className={

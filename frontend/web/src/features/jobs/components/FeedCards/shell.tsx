@@ -313,7 +313,15 @@ export function CardShell({
         )}
         <div
           ref={refSetter}
+          role="button"
+          tabIndex={0}
           onClick={onCardClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onCardClick();
+            }
+          }}
           className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-4 hover:shadow-[0_2px_10px_rgba(16,24,40,0.07)] ${
             hero ? "border-2 border-[var(--brand)]/30 p-4" : ""
           } ${selectable ? "pl-10" : ""} ${

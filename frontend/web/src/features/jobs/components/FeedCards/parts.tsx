@@ -100,6 +100,7 @@ export function CardActions({ job, compact }: { job: BoardJob; compact?: boolean
           type="button"
           onClick={onToggleStar}
           title={starred ? "Remove from favourites" : "Add to favourites"}
+          aria-label={starred ? "Remove from favourites" : "Add to favourites"}
           className="p-1 rounded hover:bg-[var(--surface-2)] transition-colors"
         >
           <Star
