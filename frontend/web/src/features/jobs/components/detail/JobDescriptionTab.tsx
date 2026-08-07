@@ -65,7 +65,7 @@ export function JobDescriptionTab({
       <div className="space-y-4">
         {(job.jd_quality === "thin" || job.jd_quality === "unknown") && (
           <div className="rounded-[10px] bg-amber-light border border-amber/20 px-3.5 py-2.5">
-            <p className="text-[14px] text-amber-800 leading-relaxed">
+            <p className="text-[14px] text-warning leading-relaxed">
               {job.jd_quality === "thin"
                 ? `Only a short description was scraped — too little to analyse reliably. Paste the full ad and analysis runs automatically once it's ${MANUAL_JD_MIN_CHARS}+ characters.`
                 : "We couldn't retrieve a description from this listing — it may require JavaScript to load. Paste the description manually to unlock analysis."}
@@ -90,7 +90,7 @@ export function JobDescriptionTab({
           <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--purple-light)] text-[var(--purple)]">{jd.seniority_level}</span>
         )}
         {jd.job_context?.setting && (
-          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-green-light text-green-700">{jd.job_context.setting.replace(/_/g, " ")}</span>
+          <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-green-light text-success">{jd.job_context.setting.replace(/_/g, " ")}</span>
         )}
         {typeof jd.experience_years_required === "number" && (
           <span className="inline-block text-[10.5px] font-bold uppercase tracking-wider px-[9px] py-[3px] rounded-[6px] bg-[var(--surface-2)] text-text-2">{jd.experience_years_required}+ yrs</span>

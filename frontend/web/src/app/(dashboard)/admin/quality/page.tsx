@@ -144,8 +144,8 @@ export default async function AdminQualityPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: "Avg initial ATS",  value: avgInitial  !== null ? avgInitial.toFixed(1)  : "—" },
-            { label: "Avg tailored ATS", value: avgTailored !== null ? avgTailored.toFixed(1) : "—", color: "text-emerald-700" },
-            { label: "Avg ATS lift",     value: avgLift     !== null ? `+${avgLift.toFixed(1)}` : "—", color: "text-emerald-700" },
+            { label: "Avg tailored ATS", value: avgTailored !== null ? avgTailored.toFixed(1) : "—", color: "text-success" },
+            { label: "Avg ATS lift",     value: avgLift     !== null ? `+${avgLift.toFixed(1)}` : "—", color: "text-success" },
             { label: "Runs scored",      value: String(withScores.length) },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
@@ -168,7 +168,7 @@ export default async function AdminQualityPage() {
               <div key={label} className="flex items-center gap-3">
                 <span className="text-label text-text-2 w-52">{label}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="bg-[var(--brand)] h-2 rounded-full" style={{ width: `${pct}%` }} />
                 </div>
                 <span className="text-caption font-mono text-text-2 w-24 text-right">{count} ({pct.toFixed(0)}%)</span>
               </div>
@@ -186,10 +186,10 @@ export default async function AdminQualityPage() {
                 const isAboveGate = range === "70–79" || range === "80–89" || range === "90+";
                 return (
                   <div key={range} className="flex items-center gap-3">
-                    <span className={`text-label w-16 ${isAboveGate ? "text-emerald-700 font-medium" : "text-text-3"}`}>{range}</span>
+                    <span className={`text-label w-16 ${isAboveGate ? "text-success font-medium" : "text-text-3"}`}>{range}</span>
                     <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full ${isAboveGate ? "bg-emerald-500" : count === maxScoreCount ? "bg-amber-400" : "bg-slate-400"}`}
+                        className={`h-2 rounded-full ${isAboveGate ? "bg-success" : count === maxScoreCount ? "bg-warning" : "bg-[var(--text-3)]"}`}
                         style={{ width: `${(count / maxScoreCount) * 100}%` }}
                       />
                     </div>
@@ -214,7 +214,7 @@ export default async function AdminQualityPage() {
                       <td className="font-medium text-text">{family}</td>
                       <td className="tabular-nums">{count}</td>
                       <td><ScoreBadge score={Math.round(as_)} /></td>
-                      <td className={`tabular-nums font-medium ${al > 0 ? "text-emerald-700" : "text-red-700"}`}>
+                      <td className={`tabular-nums font-medium ${al > 0 ? "text-success" : "text-danger"}`}>
                         {al > 0 ? "+" : ""}{al.toFixed(1)}
                       </td>
                     </tr>
@@ -231,10 +231,10 @@ export default async function AdminQualityPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Generated",  value: String(totalLetters) },
-              { label: "Completed",  value: String(completedLetters), color: "text-emerald-700" },
-              { label: "Failed",     value: String(failedLetters),    color: failedLetters > 0 ? "text-red-700" : "text-text-3" },
+              { label: "Completed",  value: String(completedLetters), color: "text-success" },
+              { label: "Failed",     value: String(failedLetters),    color: failedLetters > 0 ? "text-danger" : "text-text-3" },
               { label: "Success rate", value: letterSuccessRate !== null ? `${letterSuccessRate.toFixed(0)}%` : "—",
-                color: letterSuccessRate !== null && letterSuccessRate < 90 ? "text-amber-700" : "text-emerald-700" },
+                color: letterSuccessRate !== null && letterSuccessRate < 90 ? "text-warning" : "text-success" },
             ].map((s) => (
               <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">{s.label}</p>
@@ -255,13 +255,13 @@ export default async function AdminQualityPage() {
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">Struct fail rate</p>
-                <p className={`text-h2 font-bold ${structFailRate !== null && structFailRate > 10 ? "text-amber-700" : "text-emerald-700"}`}>
+                <p className={`text-h2 font-bold ${structFailRate !== null && structFailRate > 10 ? "text-warning" : "text-success"}`}>
                   {structFailRate !== null ? `${structFailRate.toFixed(1)}%` : "—"}
                 </p>
               </div>
               <div className="border border-border bg-surface rounded-md px-4 py-3">
                 <p className="text-caption text-text-3 mb-0.5">Struct fails (count)</p>
-                <p className={`text-h2 font-bold ${structFails > 0 ? "text-amber-700" : "text-emerald-700"}`}>{structFails}</p>
+                <p className={`text-h2 font-bold ${structFails > 0 ? "text-warning" : "text-success"}`}>{structFails}</p>
               </div>
             </div>
           </section>

@@ -502,7 +502,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
           upload finished (background completion confirmation). */}
       {flash && typeof window !== "undefined" && createPortal(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 rounded-full border border-[var(--border)] bg-surface px-4 py-2 text-body font-medium text-text shadow-lg">
-          <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" /> {flash}
+          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" /> {flash}
         </div>,
         document.body,
       )}

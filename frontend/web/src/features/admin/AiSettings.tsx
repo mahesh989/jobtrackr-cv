@@ -25,16 +25,16 @@ export interface AdminProviderRow {
 
 const TAG_CLS: Record<string, string> = {
   recommended:    "bg-[var(--brand)]/10 text-[var(--brand)] border-[var(--brand)]/20",
-  "most capable": "bg-purple-50  text-purple-700  border-purple-200",
-  fastest:        "bg-green-50   text-green-700   border-green-200",
-  cheap:          "bg-green-50   text-green-700   border-green-200",
-  reasoning:      "bg-blue-50    text-blue-700    border-blue-200",
-  latest:         "bg-blue-50    text-blue-700    border-blue-200",
-  newer:          "bg-blue-50    text-blue-700    border-blue-200",
-  stable:         "bg-gray-100   text-gray-600    border-gray-200",
-  base:           "bg-gray-100   text-gray-600    border-gray-200",
-  legacy:         "bg-gray-100   text-gray-500    border-gray-200",
-  default:        "bg-gray-100   text-gray-500    border-gray-200",
+  "most capable": "bg-accent-subtle  text-accent  border-accent-border",
+  fastest:        "bg-success-subtle text-success border-success-border",
+  cheap:          "bg-success-subtle text-success border-success-border",
+  reasoning:      "bg-info-subtle    text-info    border-info-border",
+  latest:         "bg-info-subtle    text-info    border-info-border",
+  newer:          "bg-info-subtle    text-info    border-info-border",
+  stable:         "bg-[var(--surface-2)] text-text-2 border-border",
+  base:           "bg-[var(--surface-2)] text-text-2 border-border",
+  legacy:         "bg-[var(--surface-2)] text-text-3 border-border",
+  default:        "bg-[var(--surface-2)] text-text-3 border-border",
 };
 
 interface RowState {
@@ -187,7 +187,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                 <div className="flex items-center gap-2">
                   <span className="text-body font-semibold text-text">{meta.label}</span>
                   {state.hasKey && (
-                    <span className="text-micro font-semibold px-1.5 py-0.5 rounded border bg-green-50 border-green-200 text-green-700">
+                    <span className="text-micro font-semibold px-1.5 py-0.5 rounded border bg-success-subtle border-success-border text-success">
                       KEY SET
                     </span>
                   )}
@@ -216,7 +216,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
             {isOpen && (
               <div className="border-t border-[var(--border)] bg-[var(--surface)] px-4 py-4 space-y-4">
                 {state.statusReason && (
-                  <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-label text-amber-700">
+                  <div className="rounded-md bg-warning-subtle border border-warning-border px-3 py-2 text-label text-warning">
                     {state.statusReason}
                   </div>
                 )}
@@ -273,7 +273,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                         </span>
                       )}
                       {savedFlash === id && savingModel !== id && (
-                        <span className="flex items-center gap-1 text-caption text-green-600">
+                        <span className="flex items-center gap-1 text-caption text-success">
                           <Check className="w-3 h-3" /> Saved
                         </span>
                       )}
@@ -295,7 +295,7 @@ export function AiSettings({ initialProviders }: { initialProviders: AdminProvid
                 </div>
 
                 {errors[id] && (
-                  <p className="text-label text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  <p className="text-label text-danger bg-danger-subtle border border-danger-border rounded-md px-3 py-2">
                     {errors[id]}
                   </p>
                 )}

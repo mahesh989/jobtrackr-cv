@@ -17,7 +17,7 @@ export function AutoSaveBadge() {
       {autoStatus === "pending" || autoStatus === "saving" ? (
         <><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Saving…</>
       ) : autoStatus === "saved" ? (
-        <><Check className="h-3.5 w-3.5 text-green-600" aria-hidden="true" /><span className="text-green-600 font-medium">Saved</span></>
+        <><Check className="h-3.5 w-3.5 text-success" aria-hidden="true" /><span className="text-success font-medium">Saved</span></>
       ) : autoStatus === "error" ? (
         <span className="text-red">Couldn&apos;t save — check your connection; your next change will retry.</span>
       ) : (
@@ -42,7 +42,7 @@ export function ProfileSaveBar() {
       </Button>
       <span className="text-label text-text-2">
         {error ? <span className="text-red">{error}</span>
-          : saved ? <span className="text-green-600 font-medium">✓ Saved</span>
+          : saved ? <span className="text-success font-medium">✓ Saved</span>
           : dirty ? "Unsaved changes — contact, verticals, credentials & references."
           : "Applies to every CV."}
       </span>

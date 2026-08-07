@@ -129,7 +129,7 @@ export default async function AdminRevenuePage() {
         <p className="text-label text-text-3 mt-0.5">Live from the <code className="font-mono text-caption">subscriptions</code> table. MRR trend and billing events are placeholder data.</p>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-warning-subtle border border-warning-border rounded-md px-4 py-3 text-label text-warning">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — MRR trend chart and billing events feed are not yet wired to Stripe webhooks.</span>
       </div>
@@ -138,20 +138,20 @@ export default async function AdminRevenuePage() {
 
         {/* Top KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="MRR"  value={fmtK(mrrCents)} sub={`${activeSubs.length} active subscribers`} color="text-emerald-700" />
-          <Kpi label="ARR"  value={fmtK(arrCents)}  sub="MRR × 12" color="text-emerald-700" />
+          <Kpi label="MRR"  value={fmtK(mrrCents)} sub={`${activeSubs.length} active subscribers`} color="text-success" />
+          <Kpi label="ARR"  value={fmtK(arrCents)}  sub="MRR × 12" color="text-success" />
           <Kpi label="ARPU" value={avgRevPerUser > 0 ? fmt(avgRevPerUser) : "—"} sub="per paying user / mo" />
           <Kpi label="Trial → paid"
             value={conversionRate !== null ? `${conversionRate}%` : "—"}
             sub={`${convertedThisMonth} converted this month`}
-            color={conversionRate !== null && conversionRate < 30 ? "text-amber-700" : "text-emerald-700"}
+            color={conversionRate !== null && conversionRate < 30 ? "text-warning" : "text-success"}
           />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Active"    value={String(activeSubs.length)}  color="text-emerald-700" />
-          <Kpi label="Trialing"  value={String(trialSubs.length)}   color="text-amber-700" />
-          <Kpi label="Past due"  value={String(pastDueSubs.length)} color={pastDueSubs.length > 0 ? "text-red-700" : "text-text-3"} />
+          <Kpi label="Active"    value={String(activeSubs.length)}  color="text-success" />
+          <Kpi label="Trialing"  value={String(trialSubs.length)}   color="text-warning" />
+          <Kpi label="Past due"  value={String(pastDueSubs.length)} color={pastDueSubs.length > 0 ? "text-danger" : "text-text-3"} />
           <Kpi label="Comp / grandfathered" value={String(compSubs.length)} />
         </div>
 
@@ -159,17 +159,17 @@ export default async function AdminRevenuePage() {
         {(expiringTrials.length > 0 || pendingCancel.length > 0 || pastDueSubs.length > 0) && (
           <section className="space-y-2">
             {pastDueSubs.length > 0 && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-md px-4 py-2.5 text-label text-red-800">
+              <div className="flex items-center gap-2 bg-danger-subtle border border-danger-border rounded-md px-4 py-2.5 text-label text-danger">
                 <span className="font-semibold">🔴 {pastDueSubs.length} past-due</span> — payment collection failing.
               </div>
             )}
             {expiringTrials.length > 0 && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 text-label text-amber-800">
+              <div className="flex items-center gap-2 bg-warning-subtle border border-warning-border rounded-md px-4 py-2.5 text-label text-warning">
                 <span className="font-semibold">⏱ {expiringTrials.length} trial{expiringTrials.length > 1 ? "s" : ""} expiring</span> in the next 3 days.
               </div>
             )}
             {pendingCancel.length > 0 && (
-              <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-md px-4 py-2.5 text-label text-orange-800">
+              <div className="flex items-center gap-2 bg-warning-subtle border border-warning-border rounded-md px-4 py-2.5 text-label text-warning">
                 <span className="font-semibold">↩ {pendingCancel.length} cancellation{pendingCancel.length > 1 ? "s" : ""} pending</span> — will lapse at period end.
               </div>
             )}
@@ -201,7 +201,7 @@ export default async function AdminRevenuePage() {
                       </td>
                       <td className="tabular-nums">{d.count}</td>
                       <td className="font-mono text-text-2">{plan.price_cents > 0 ? fmt(plan.price_cents) : "Free"}</td>
-                      <td className="font-mono text-emerald-700">{d.mrr > 0 ? fmtK(d.mrr) : "—"}</td>
+                      <td className="font-mono text-success">{d.mrr > 0 ? fmtK(d.mrr) : "—"}</td>
                       <td className="tabular-nums text-text-3">{pct > 0 ? `${pct.toFixed(0)}%` : "—"}</td>
                     </tr>
                   );

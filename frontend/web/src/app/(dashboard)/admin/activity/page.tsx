@@ -95,8 +95,8 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
     "analysis_cancelled":     "bg-[var(--surface-2)] text-text-2",
     "email_sent":             "bg-accent-subtle text-accent",
     "cover_letter_generated": "bg-accent-subtle text-accent",
-    "cv_downloaded":          "bg-teal-100 text-teal-700",
-    "profile_saved":          "bg-orange-100 text-orange-700",
+    "cv_downloaded":          "bg-info-subtle text-info",
+    "profile_saved":          "bg-warning-subtle text-warning",
     "plan_upgraded":          "bg-success-subtle text-success",
     "trial_started":          "bg-info-subtle text-info",
   };

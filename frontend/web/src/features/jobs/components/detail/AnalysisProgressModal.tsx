@@ -42,9 +42,9 @@ const STEPS: { key: string; label: string }[] = [
 const subscribeNoop = () => () => {};
 
 function StepIcon({ state }: { state: string | undefined }) {
-  if (state === "completed") return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" aria-hidden />;
+  if (state === "completed") return <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden />;
   if (state === "running")   return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--brand)]" aria-hidden />;
-  if (state === "failed")    return <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" aria-hidden />;
+  if (state === "failed")    return <AlertTriangle className="h-4 w-4 shrink-0 text-danger" aria-hidden />;
   if (state === "skipped")   return <MinusCircle className="h-4 w-4 shrink-0 text-text-3" aria-hidden />;
   return <span className="h-4 w-4 shrink-0 rounded-full border border-[var(--border)]" aria-hidden />;
 }
@@ -108,11 +108,11 @@ export function AnalysisProgressModal({
           {phase === "running" ? (
             <Loader2 className="h-10 w-10 animate-spin text-[var(--brand)]" aria-hidden />
           ) : phase === "completed" ? (
-            <CheckCircle2 className="h-10 w-10 text-green-500" aria-hidden />
+            <CheckCircle2 className="h-10 w-10 text-success" aria-hidden />
           ) : phase === "cancelled" ? (
             <StopCircle className="h-10 w-10 text-text-3" aria-hidden />
           ) : (
-            <AlertTriangle className="h-10 w-10 text-red-500" aria-hidden />
+            <AlertTriangle className="h-10 w-10 text-danger" aria-hidden />
           )}
 
           <p className="mt-3 text-lead font-semibold text-text" aria-live="polite">
@@ -154,7 +154,7 @@ export function AnalysisProgressModal({
             onClick={onStop}
             disabled={stopping}
             title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
-            className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-red-200 bg-red-50 py-2 text-body font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 disabled:opacity-50"
+            className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-danger-border bg-danger-subtle py-2 text-body font-medium text-danger transition-colors hover:brightness-95 disabled:opacity-50"
           >
             {stopping
               ? <Loader2 className="h-4 w-4 animate-spin" />

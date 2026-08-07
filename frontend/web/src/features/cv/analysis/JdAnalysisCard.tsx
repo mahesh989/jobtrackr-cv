@@ -124,9 +124,9 @@ export function JdAnalysisCard({ data }: { data: Record<string, unknown> }) {
 
         {d.summary && (
           weak ? (
-            <div className="flex items-start gap-2 p-3 rounded-md border-2 border-red-200 bg-red-50">
-              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-body font-bold text-red-700 leading-relaxed">{d.summary}</p>
+            <div className="flex items-start gap-2 p-3 rounded-md border-2 border-danger-border bg-danger-subtle">
+              <AlertTriangle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+              <p className="text-body font-bold text-danger leading-relaxed">{d.summary}</p>
             </div>
           ) : (
             <p className="text-body text-text-2 leading-relaxed italic">{d.summary}</p>

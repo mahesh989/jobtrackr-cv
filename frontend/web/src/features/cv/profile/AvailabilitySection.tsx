@@ -34,7 +34,7 @@ export function AvailabilitySection() {
       </div>
       <CheckBox label="Show availability on my CV" checked={!!creds.show_availability} onChange={(v) => setCred("show_availability", v)} />
       {creds.show_availability && selected.size === 0 && (
-        <p className="text-xs text-amber-600">Pick at least one work type above for this to appear on your CV.</p>
+        <p className="text-xs text-warning">Pick at least one work type above for this to appear on your CV.</p>
       )}
     </SectionCard>
   );
