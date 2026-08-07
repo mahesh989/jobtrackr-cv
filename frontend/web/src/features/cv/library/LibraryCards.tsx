@@ -339,7 +339,7 @@ export function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
     return (
       <div className="mt-2" onClick={e => e.stopPropagation()}>
         <p className="text-caption text-text-3 italic mb-1.5">
-          Skills not yet categorised. Make sure an AI key is connected, then click below.
+          Skills not yet categorised — this CV was uploaded before categorisation ran.
         </p>
         {reCatError && <p className="text-caption text-red mb-1">{reCatError}</p>}
         <button
